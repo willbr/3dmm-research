@@ -173,6 +173,9 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     ulong tsSplashScreen;
     FNI fniUserDoc;
     long fFirstTimeUser;
+    long fSkipSplashScreen = fFalse;
+    
+    FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
 
     // Only allow one copy of 3DMM to run at a time:
     if (_FAppAlreadyRunning())
@@ -286,11 +289,14 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!_FDisplayHomeLogo())
+    if (!fSkipSplashScreen)
     {
-        _FGenericError(PszLit("_FDisplayHomeLogo"));
-        _fDontReportInitFailure = fTrue;
-        goto LFail;
+        if (!_FDisplayHomeLogo())
+        {
+            _FGenericError(PszLit("_FDisplayHomeLogo"));
+            _fDontReportInitFailure = fTrue;
+            goto LFail;
+        }
     }
     tsHomeLogo = TsCurrent();
 
@@ -315,22 +321,31 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    while (TsCurrent() - tsHomeLogo < kdtsHomeLogo)
-        ; // spin until home logo has been up long enough
-
-    if (!_FShowSplashScreen())
+    if (!fSkipSplashScreen)
     {
-        _FGenericError(PszLit("_FShowSplashScreen"));
-        _fDontReportInitFailure = fTrue;
-        goto LFail;
+        while (TsCurrent() - tsHomeLogo < kdtsHomeLogo)
+            ; // spin until home logo has been up long enough
+    }
+
+    if (!fSkipSplashScreen)
+    {
+        if (!_FShowSplashScreen())
+        {
+            _FGenericError(PszLit("_FShowSplashScreen"));
+            _fDontReportInitFailure = fTrue;
+            goto LFail;
+        }
     }
     tsSplashScreen = TsCurrent();
 
-    if (!_FPlaySplashSound())
+    if (!fSkipSplashScreen)
     {
-        _FGenericError(PszLit("_FPlaySplashSound"));
-        _fDontReportInitFailure = fTrue;
-        goto LFail;
+        if (!_FPlaySplashSound())
+        {
+            _FGenericError(PszLit("_FPlaySplashSound"));
+            _fDontReportInitFailure = fTrue;
+            goto LFail;
+        }
     }
 
     if (!_FGetUserName())
@@ -361,9 +376,12 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    while (TsCurrent() - tsSplashScreen < kdtsSplashScreen)
-        ;                   // spin until splash screen has been up long enough
-    Pkwa()->SetMbmp(pvNil); // bring down splash screen
+    if (!fSkipSplashScreen)
+    {
+        while (TsCurrent() - tsSplashScreen < kdtsSplashScreen)
+            ;                   // spin until splash screen has been up long enough
+        Pkwa()->SetMbmp(pvNil); // bring down splash screen
+    }
 
     // If the user specified a doc on the command line, go straight
     // to the studio.  Otherwise, start the building.

@@ -61,6 +61,7 @@ class KWA : public KWA_PAR
 #define kszProductsKey PszLit("Software\\Microsoft\\Microsoft Kids\\3D Movie Maker\\Products")
 #define kszUserDataValue PszLit("UserData")
 #define kszBetterSpeedValue PszLit("BetterSpeed")
+#define kszSkipSplashScreenValue PszLit("SkipSplashScreen")
 
 // FGetSetRegKey flags
 enum
