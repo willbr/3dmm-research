@@ -487,7 +487,7 @@ bool APP::FCmdChooseLanguage(PCMD pcmd)
         PDLG pdlg;
         bool fRet;
 
-        if (pvNil == (pdlg = DLG::PdlgNew(dlidFontSize)))
+        if (pvNil == (pdlg = Dialog::PdlgNew(dlidFontSize)))
             return fTrue;
 
         pdlg->FPutLwInEdit(kiditCodeLang, vsclid);

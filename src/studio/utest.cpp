@@ -111,7 +111,7 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
     {
         PDLG pdlg;
 
-        pdlg = DLG::PdlgNew(dlidAbnormalExit, pvNil, pvNil);
+        pdlg = Dialog::PdlgNew(dlidAbnormalExit, pvNil, pvNil);
         if (pdlg != pvNil)
         {
             pdlg->IditDo();
@@ -445,9 +445,9 @@ LFail:
         PDLG pdlg;
 
         if (vpers->FIn(ercOomHq) || vpers->FIn(ercOomPv) || vpers->FIn(ercOomNew))
-            pdlg = DLG::PdlgNew(dlidInitFailedOOM, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidInitFailedOOM, pvNil, pvNil);
         else
-            pdlg = DLG::PdlgNew(dlidInitFailed, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidInitFailed, pvNil, pvNil);
         if (pvNil != pdlg)
             pdlg->IditDo();
         ReleasePpo(&pdlg);
@@ -565,7 +565,7 @@ bool APP::_FEnsureOS(void)
         return fTrue;
 
     // Put up an alert: OS too old
-    pdlg = DLG::PdlgNew(dlidBadOS, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidBadOS, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
     pdlg->IditDo();
@@ -603,7 +603,7 @@ bool APP::_FEnsureAudio(void)
         if (fShowMessage)
         {
             // Put up an alert: no waveout
-            pdlg = DLG::PdlgNew(dlidNoWaveOut, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidNoWaveOut, pvNil, pvNil);
             if (pvNil == pdlg)
                 return fFalse;
             pdlg->IditDo();
@@ -646,7 +646,7 @@ bool APP::_FEnsureAudio(void)
         if (fShowMessage)
         {
             // Put up an alert: no midiout
-            pdlg = DLG::PdlgNew(dlidNoMidiOut, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidNoMidiOut, pvNil, pvNil);
             if (pvNil == pdlg)
                 return fFalse;
             pdlg->IditDo();
@@ -716,7 +716,7 @@ bool APP::_FEnsureColorDepth(void)
     if (cbitPixel < 8)
     {
         // Put up an alert: Not enough colors
-        pdlg = DLG::PdlgNew(dlidNotEnoughColors, pvNil, pvNil);
+        pdlg = Dialog::PdlgNew(dlidNotEnoughColors, pvNil, pvNil);
         if (pvNil == pdlg)
             return fFalse;
         pdlg->IditDo();
@@ -736,7 +736,7 @@ bool APP::_FEnsureColorDepth(void)
             }
         if (fShowMessage)
             {
-            pdlg = DLG::PdlgNew(dlidTooManyColors, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidTooManyColors, pvNil, pvNil);
             if (pvNil != pdlg)
                 {
                 pdlg->IditDo();
@@ -856,7 +856,7 @@ bool APP::_FEnsureDisplayResolution(void)
 
     // User doesn't have a preference yet.  Do the interactive thing.
 #ifdef RES_SWITCH_DIALOGS
-    pdlg = DLG::PdlgNew(dlidDesktopResizing, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidDesktopResizing, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
     idit = pdlg->IditDo();
@@ -883,7 +883,7 @@ bool APP::_FEnsureDisplayResolution(void)
 
     tsResize = TsCurrent();
 #ifdef RES_SWITCH_DIALOGS
-    pdlg = DLG::PdlgNew(dlidDesktopResized, _FDlgResSwitch, &tsResize);
+    pdlg = Dialog::PdlgNew(dlidDesktopResized, _FDlgResSwitch, &tsResize);
     idit = ivNil; // if dialog fails to come up, treat like a cancel
     if (pvNil != pdlg)
         idit = pdlg->IditDo();
@@ -905,7 +905,7 @@ bool APP::_FEnsureDisplayResolution(void)
     goto LWriteReg;
 
 LSwitchFailed:
-    pdlg = DLG::PdlgNew(dlidDesktopWontResize, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidDesktopWontResize, pvNil, pvNil);
     if (pvNil != pdlg)
         pdlg->IditDo();
     ReleasePpo(&pdlg);
@@ -1109,8 +1109,8 @@ bool APP::_FCantFindFileDialog(PSTN pstnFile)
 
     PDLG pdlg;
 
-    pdlg = DLG::PdlgNew(dlidCantFindFile, pvNil, pvNil);
-    if (pvNil == pdlg)
+    pdlg = Dialog::PdlgNew(dlidCantFindFile, pvNil, pvNil);
+    if (pvNDialog== pdlg)
         return fFalse;
 
     if (!pdlg->FPutStn(1, pstnFile))
@@ -1151,8 +1151,8 @@ bool APP::_FGenericError(PSTN message)
 
     PDLG pdlg;
 
-    pdlg = DLG::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
-    if (pvNil == pdlg)
+    pdlg = Dialog::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
+    if (pvNDialog== pdlg)
         return fFalse;
 
     if (!pdlg->FPutStn(1, message))
@@ -3288,8 +3288,8 @@ bool APP::FCmdInfo(PCMD pcmd)
 
     pmvie = _Pmvie();
 
-    pdlg = DLG::PdlgNew(dlidInfo, pvNil, pvNil);
-    if (pvNil == pdlg)
+    pdlg = Dialog::PdlgNew(dlidInfo, pvNil, pvNil);
+    if (pvNDialog== pdlg)
         return fTrue;
     pdlg->PutRadio(iditRenderModeInfo, _fSlowCPU ? 1 : 0);
 
