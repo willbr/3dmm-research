@@ -187,7 +187,7 @@ bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
     {
         // FIXME(bruxisma): The compiler has correctly identified that this
         // should be an assignment.
-        tagf.fCacheChildren == fTrue;
+        tagf.fCacheChildren = fTrue;
         _pggtagf->PutFixed(itag, &tagf);
     }
     return fTrue;
