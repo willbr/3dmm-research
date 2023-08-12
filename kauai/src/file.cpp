@@ -13,7 +13,7 @@
 #include "util.h"
 ASSERTNAME
 
-FTG FIL::vftgCreator = '____';
+FileType FIL::vftgCreator = '____';
 PFIL FIL::_pfilFirst;
 MUTX FIL::_mutxList;
 

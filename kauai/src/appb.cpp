@@ -1807,7 +1807,7 @@ void APPB::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
     if (pvNil == _pfilWarn)
     {
         FNI fni;
-        FTG ftg;
+        FileType ftg;
 
         // put the warning file at the root of the drive that temp files go on
         if (!fni.FGetTemp() || !fni.FSetLeaf(pvNil, kftgDir))

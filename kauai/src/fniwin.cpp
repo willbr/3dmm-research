@@ -14,9 +14,9 @@
 #include <commdlg.h>
 ASSERTNAME
 
-// This is the FTG to use for temp files - clients may set this to whatever
+// This is the FileType to use for temp files - clients may set this to whatever
 // they want.
-FTG vftgTemp = kftgTemp;
+FileType vftgTemp = kftgTemp;
 
 typedef OFSTRUCT OFS;
 typedef OPENFILENAME OFN;
@@ -25,7 +25,7 @@ typedef OPENFILENAME OFN;
 // a long).
 const long kcchsMaxExt = size(long);
 
-priv void _CleanFtg(FTG *pftg, PSTN pstnExt = pvNil);
+priv void _CleanFtg(FileType *pftg, PSTN pstnExt = pvNil);
 FNI _fniTemp;
 
 RTCLASS(FNI)
@@ -127,7 +127,7 @@ bool FNI::FGetSave(achar *prgchFilter, HWND hwndOwner)
 /***************************************************************************
     Builds the fni from the path.
 ***************************************************************************/
-bool FNI::FBuildFromPath(PSTN pstn, FTG ftgDef)
+bool FNI::FBuildFromPath(PSTN pstn, FileType ftgDef)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -230,7 +230,7 @@ bool FNI::FSearchInPath(PSTN pstn, PSTN pstnEnv)
 /***************************************************************************
     Get a unique filename in the directory currently indicated by the fni.
 ***************************************************************************/
-bool FNI::FGetUnique(FTG ftg)
+bool FNI::FGetUnique(FileType ftg)
 {
     AssertThis(ffniFile | ffniDir);
     static short _dsw = 0;
@@ -286,7 +286,7 @@ bool FNI::FGetTemp(void)
 /***************************************************************************
     Return the file type of the fni.
 ***************************************************************************/
-FTG FNI::Ftg(void)
+FileType FNI::Ftg(void)
 {
     AssertThis(0);
     return _ftg;
@@ -340,7 +340,7 @@ ulong FNI::Grfvk(void)
 /***************************************************************************
     Set the leaf to the given string and type.
 ***************************************************************************/
-bool FNI::FSetLeaf(PSTN pstn, FTG ftg)
+bool FNI::FSetLeaf(PSTN pstn, FileType ftg)
 {
     AssertThis(ffniFile | ffniDir);
     AssertNilOrPo(pstn, 0);
@@ -363,13 +363,13 @@ LFail:
 }
 
 /******************************************************************************
-    Changes just the FTG of the FNI, leaving the file path and filename alone
+    Changes just the FileType of the FNI, leaving the file path and filename alone
     (but does change the extension). Returns: fTrue if it succeeds
 ******************************************************************************/
-bool FNI::FChangeFtg(FTG ftg)
+bool FNI::FChangeFtg(FileType ftg)
 {
     AssertThis(ffniFile);
-    Assert(ftg != ftgNil && ftg != kftgDir, "Bad FTG");
+    Assert(ftg != ftgNil && ftg != kftgDir, "Bad FileType");
     STN stnFtg;
     long cchBase;
 
@@ -766,7 +766,7 @@ bool FNI::_FChangeLeaf(PSTN pstn)
 /***************************************************************************
     Make sure the ftg is all uppercase and has no characters after a zero.
 ***************************************************************************/
-priv void _CleanFtg(FTG *pftg, PSTN pstnExt)
+priv void _CleanFtg(FileType *pftg, PSTN pstnExt)
 {
     AssertVarMem(pftg);
     AssertNilOrPo(pstnExt, 0);
@@ -774,7 +774,7 @@ priv void _CleanFtg(FTG *pftg, PSTN pstnExt)
     long ichs;
     schar chs;
     bool fZero;
-    FTG ftgNew;
+    FileType ftgNew;
 
     if (pvNil != pstnExt)
         pstnExt->SetNil();
@@ -846,13 +846,13 @@ void FNE::_Free(void)
 /***************************************************************************
     Initialize the fne to do an enumeration.
 ***************************************************************************/
-bool FNE::FInit(FNI *pfniDir, FTG *prgftg, long cftg, ulong grffne)
+bool FNE::FInit(FNI *pfniDir, FileType *prgftg, long cftg, ulong grffne)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfniDir);
     AssertIn(cftg, 0, kcbMax);
-    AssertPvCb(prgftg, LwMul(cftg, size(FTG)));
-    FTG *pftg;
+    AssertPvCb(prgftg, LwMul(cftg, size(FileType)));
+    FileType *pftg;
 
     // free the old stuff
     _Free();
@@ -861,7 +861,7 @@ bool FNE::FInit(FNI *pfniDir, FTG *prgftg, long cftg, ulong grffne)
         _cftg = 0;
     else
     {
-        long cb = LwMul(cftg, size(FTG));
+        long cb = LwMul(cftg, size(FileType));
 
         if (cftg > kcftgFneBase && !FAllocPv((void **)&_prgftg, cb, fmemNil, mprNormal))
         {
@@ -916,7 +916,7 @@ bool FNE::FNextFni(FNI *pfni, ulong *pgrffneOut, ulong grffneIn)
     bool fT;
     long fvol;
     long err;
-    FTG *pftg;
+    FileType *pftg;
 
     if (!_fInited)
     {
@@ -1075,7 +1075,7 @@ void FNE::AssertValid(ulong grf)
     {
         AssertNilOrPo(_pglfes, 0);
         AssertIn(_cftg, 0, kcbMax);
-        AssertPvCb(_prgftg, LwMul(size(FTG), _cftg));
+        AssertPvCb(_prgftg, LwMul(size(FileType), _cftg));
         Assert((_cftg <= kcftgFneBase) == (_prgftg == _rgftg), "wrong _prgftg");
     }
     else

@@ -106,7 +106,7 @@ bool FMakeTdf(PFNI pfniSrcDir, PCFL pcflDst)
     AssertPo(pfniSrcDir, ffniDir);
     AssertPo(pcflDst, 0);
 
-    FTG ftgDat = MacWin('bdat', 'DAT');
+    FileType ftgDat = MacWin('bdat', 'DAT');
     FNE fne;
     FNI fni;
     STN stn;

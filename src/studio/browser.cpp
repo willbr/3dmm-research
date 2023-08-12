@@ -1748,7 +1748,7 @@ bool FNET::FInit(void)
 {
     AssertThis(0);
 
-    FTG ftgThd = kftgThumbDesc;
+    FileType ftgThd = kftgThumbDesc;
 
     vapp.GetFniProduct(&_fniDirProduct); // look for THD files in the product FIRST
     _fniDir = _fniDirProduct;
@@ -1777,8 +1777,8 @@ bool FNET::FNext(FNI *pfni, long *psid)
     AssertPo(pfni, 0);
     AssertNilOrVarMem(psid);
 
-    FTG ftgThd = kftgThumbDesc;
-    FTG ftgDir = kftgDir;
+    FileType ftgThd = kftgThumbDesc;
+    FileType ftgDir = kftgDir;
     STN stnProduct;
 
     if (!_fInited)

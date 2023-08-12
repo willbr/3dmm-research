@@ -468,7 +468,7 @@ void APP::_CleanupTemp(void)
     vftgTemp = kftgSocTemp;
     if (fni.FGetTemp())
     {
-        FTG ftgTmp = vftgTemp;
+        FileType ftgTmp = vftgTemp;
         FNE fne;
 
         if (fne.FInit(&fni, &ftgTmp, 1))

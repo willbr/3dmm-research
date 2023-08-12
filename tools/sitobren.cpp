@@ -551,7 +551,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
     _pglclr = _pglcrng = pvNil;
     stnPal = pszApp;
     AssertDo(fni.FBuildFromPath(&stnPal), "Couldn't build .chk path?");
-    AssertDo(fni.FChangeFtg(kftgContent), "Couldn't change FTG?");
+    AssertDo(fni.FChangeFtg(kftgContent), "Couldn't change FileType?");
     fni.GetLeaf(&stnPal);
     if (fni.FSearchInPath(&stnPal) && (pcfl = CFL::PcflOpen(&fni, fcflNil)) != pvNil)
     {

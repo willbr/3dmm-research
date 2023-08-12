@@ -95,7 +95,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
     vpapp->GetPortfolioDoc(&fni);
     if (fni.Ftg() != kftg3mm)
     {
-        Bug("Portfolio's FNI has bad FTG in theater");
+        Bug("Portfolio's FNI has bad FileType in theater");
         goto LFail;
     }
 

@@ -16,7 +16,7 @@
 #define SPELL_H
 
 // REVIEW shonk: dictionary type on Mac
-const FTG kftgDictionary = MacWin('DICT', 'DIC');
+const FileType kftgDictionary = MacWin('DICT', 'DIC');
 
 // include the standard spell checker API header
 #ifdef WIN

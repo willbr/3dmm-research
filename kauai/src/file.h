@@ -93,7 +93,7 @@ class FIL : public FIL_PAR
 
   public:
     // public static members
-    static FTG vftgCreator;
+    static FileType vftgCreator;
 
   public:
     // static methods

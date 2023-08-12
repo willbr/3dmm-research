@@ -44,14 +44,14 @@ enum
     fvkRemovable = 0x0008,
 };
 
-typedef long FTG; // file type
+typedef long FileType; // file type
 
-const FTG ftgNil = '...,';
-const FTG kftgDir = '....';
-const FTG kftgTemp = MacWin('temp', 'TMP'); // the standard temp file ftg
-const FTG kftgText = MacWin('TEXT', 'TXT');
+const FileType ftgNil = '...,';
+const FileType kftgDir = '....';
+const FileType kftgTemp = MacWin('temp', 'TMP'); // the standard temp file ftg
+const FileType kftgText = MacWin('TEXT', 'TXT');
 
-extern FTG vftgTemp; // the ftg to use for temp files
+extern FileType vftgTemp; // the ftg to use for temp files
 
 /****************************************
     File name class
@@ -68,7 +68,7 @@ class FNI : public FNI_PAR
     friend class FNE;
 
   private:
-    FTG _ftg;
+    FileType _ftg;
 #ifdef MAC
     long _lwDir; // the directory id
     FSS _fss;
@@ -87,24 +87,24 @@ class FNI : public FNI_PAR
 
 // building FNIs
 #ifdef MAC
-    bool FGetOpen(FTG *prgftg, short cftg);
-    bool FGetSave(FTG ftg, PST pstPrompt, PST pstDefault);
-    bool FBuild(long lwVol, long lwDir, PSTN pstn, FTG ftg);
+    bool FGetOpen(FileType *prgftg, short cftg);
+    bool FGetSave(FileType ftg, PST pstPrompt, PST pstDefault);
+    bool FBuild(long lwVol, long lwDir, PSTN pstn, FileType ftg);
 #elif defined(WIN)
     bool FGetOpen(achar *prgchFilter, HWND hwndOwner);
     bool FGetSave(achar *prgchFilter, HWND hwndOwner);
     bool FSearchInPath(PSTN pstn, PSTN pstnEnv = pvNil);
 #endif                                                   // WIN
-    bool FBuildFromPath(PSTN pstn, FTG ftgDef = ftgNil); // REVIEW shonk: Mac: implement
-    bool FGetUnique(FTG ftg);
+    bool FBuildFromPath(PSTN pstn, FileType ftgDef = ftgNil); // REVIEW shonk: Mac: implement
+    bool FGetUnique(FileType ftg);
     bool FGetTemp(void);
     void SetNil(void);
 
-    FTG Ftg(void);
+    FileType Ftg(void);
     ulong Grfvk(void); // volume kind (floppy/net/CD/etc)
-    bool FChangeFtg(FTG ftg);
+    bool FChangeFtg(FileType ftg);
 
-    bool FSetLeaf(PSTN pstn, FTG ftg = ftgNil);
+    bool FSetLeaf(PSTN pstn, FileType ftg = ftgNil);
     void GetLeaf(PSTN pstn);
     void GetStnPath(PSTN pstn);
 
@@ -171,8 +171,8 @@ class FNE : public FNE_PAR
 #endif                // WIN
     };
 
-    FTG _rgftg[kcftgFneBase];
-    FTG *_prgftg;
+    FileType _rgftg[kcftgFneBase];
+    FileType *_prgftg;
     long _cftg;
     bool _fRecurse : 1;
     bool _fInited : 1;
@@ -188,7 +188,7 @@ class FNE : public FNE_PAR
     FNE(void);
     ~FNE(void);
 
-    bool FInit(FNI *pfniDir, FTG *prgftg, long cftg, ulong grffne = ffneNil);
+    bool FInit(FNI *pfniDir, FileType *prgftg, long cftg, ulong grffne = ffneNil);
     bool FNextFni(FNI *pfni, ulong *pgrffneOut = pvNil, ulong grffneIn = ffneNil);
 };
 

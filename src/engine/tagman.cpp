@@ -341,7 +341,7 @@ bool TAGM::_FDetermineIfContentOnFni(PFNI pfni, bool *pfContentOnFni)
     AssertVarMem(pfContentOnFni);
 
     FNE fne;
-    FTG ftgContent = kftgContent;
+    FileType ftgContent = kftgContent;
     FNI fni;
 
     if (!fne.FInit(pfni, &ftgContent, 1))
@@ -395,7 +395,7 @@ bool TAGM::_FEnsureFniCD(long sid, FNI *pfniCD, PSTN pstn)
     This function verifies that the source (e.g., CD) is where we think it
     is, and searches for it otherwise.  Pass the previously determined FNI
     of the CD directory file in pfniCD.  Or if this is the first time
-    looking for this source, pass in any FNI with a FTG of ftgNil.	If it
+    looking for this source, pass in any FNI with a FileType of ftgNil.	If it
     can't find the CD directory, it returns fFalse with pfniInfo untouched.
 ***************************************************************************/
 bool TAGM::_FFindFniCD(long sid, PFNI pfniCD, bool *pfFniChanged)
@@ -489,7 +489,7 @@ PCRM TAGM::_PcrmSourceNew(long sid, PFNI pfniDir)
     FNI fni;
     PCRM pcrmSource = pvNil;
     FNE fne;
-    FTG ftgChk = kftgContent;
+    FileType ftgChk = kftgContent;
     PCFL pcfl = pvNil;
 
     pcrmSource = CRM::PcrmNew(0);
@@ -738,7 +738,7 @@ bool TAGM::FFindFile(long sid, PSTN pstn, PFNI pfni, bool fAskForCD)
     AssertPo(pstn, 0);
     AssertVarMem(pfni);
 
-    FTG ftg;
+    FileType ftg;
 
     if (!pfni->FBuildFromPath(pstn))
         return fFalse;

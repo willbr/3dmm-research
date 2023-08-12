@@ -16,9 +16,9 @@
 #ifndef PIC_H
 #define PIC_H
 
-const FTG kftgPict = 'PICT';
-const FTG kftgMeta = 'WMF';
-const FTG kftgEnhMeta = 'EMF';
+const FileType kftgPict = 'PICT';
+const FileType kftgMeta = 'WMF';
+const FileType kftgEnhMeta = 'EMF';
 
 /***************************************************************************
     Picture class.  This is a wrapper around a system picture (Mac Pict or

@@ -1436,7 +1436,7 @@ bool DCD::FCmdAddPicChunk(PCMD pcmd)
     _SetSel(lnNil);
 
     // get the fni of the file to add
-    Mac(FTG ftg = 'PICT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("MetaFiles\0*.EMF;*.WMF\0"), vwig.hwndApp))
+    Mac(FileType ftg = 'PICT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("MetaFiles\0*.EMF;*.WMF\0"), vwig.hwndApp))
     {
         goto LCancel;
     }
@@ -1554,7 +1554,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
     _SetSel(lnNil);
 
     // get the fni of the file to add
-    Mac(FTG ftg = '\0BMP';) // REVIEW shonk: this is bogus
+    Mac(FileType ftg = '\0BMP';) // REVIEW shonk: this is bogus
         if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("Bitmaps\0*.BMP\0"), vwig.hwndApp)) goto LCancel;
 
     // get the transparent pixel value
@@ -2423,7 +2423,7 @@ bool DCD::FCmdImportScript(PCMD pcmd)
     _SetSel(lnNil);
 
     // get the fni of the file to add
-    Mac(FTG ftg = 'TEXT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("All files\0*.*\0"), vwig.hwndApp)) goto LCancel;
+    Mac(FileType ftg = 'TEXT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("All files\0*.*\0"), vwig.hwndApp)) goto LCancel;
     if (pvNil == (pscpt = sccg.PscptCompileFni(&fni, pcmd->cid == cidCompileInScript, &msfil)))
     {
         // if the error file isn't empty, open it
