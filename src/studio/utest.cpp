@@ -3190,23 +3190,23 @@ void APP::Quit(bool fForce)
     // If we're minimized, user is closing app from the taskbar.  Quit
     // without confirmation (we'll still confirm movie save if user has
     // a dirty doc)
-    if (_fMinimized)
-    {
-        tRet = tYes;
-    }
-    else
-    {
-        if (!FGetStnApp(idsConfirmExitBkp, &stnBackup))
-            stnBackup.SetNil();
-        tRet = TModal(vpapp->PcrmAll(), ktpcQueryQuit, &stnBackup, bkYesNo);
-    }
+    // if (_fMinimized)
+    // {
+    //     tRet = tYes;
+    // }
+    // else
+    // {
+    //     if (!FGetStnApp(idsConfirmExitBkp, &stnBackup))
+    //         stnBackup.SetNil();
+    //     tRet = TModal(vpapp->PcrmAll(), ktpcQueryQuit, &stnBackup, bkYesNo);
+    // }
 
-    if (tRet == tYes)
-    {
+    // if (tRet == tYes)
+    // {
         // User wants to quit, so shut down studio if necessary
         if (_pstdio == pvNil || _pstdio->FShutdown(fFalse))
             _fQuit = fTrue;
-    }
+    // }
 }
 
 /***************************************************************************
