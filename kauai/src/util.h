@@ -16,6 +16,9 @@
 #ifndef UTIL_H
 #define UTIL_H
 #include <stddef.h>
+#ifdef DEBUG
+#include <stdio.h>
+#endif // DEBUG
 
 // define the endian-ness
 #ifdef IN_80386
