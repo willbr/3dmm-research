@@ -484,7 +484,7 @@ bool APP::FCmdChooseLanguage(PCMD pcmd)
     if (pcmd->rglw[0] == 0)
     {
         // ask the user
-        PDialog pdlg;
+        PDLG pdlg;
         bool fRet;
 
         if (pvNil == (pdlg = Dialog::PdlgNew(dlidFontSize)))

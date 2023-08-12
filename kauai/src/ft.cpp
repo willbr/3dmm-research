@@ -842,7 +842,7 @@ bool APP::FCmdNewTestWnd(PCMD pcmd)
     if (pcmd->pgg == pvNil)
     {
         // put up the dialog
-        PDialog pdlg;
+        PDLG pdlg;
 
         pdlg = Dialog::PdlgNew(200);
         pcmd->pgg = pdlg;
@@ -1096,7 +1096,7 @@ bool APP::FCmdTestFni(PCMD pcmd)
     long idit;
     STN stn, stnT;
     FNI fni;
-    PDialog pdlg;
+    PDLG pdlg;
 
     // put up the dialog
     pdlg = Dialog::PdlgNew(201);

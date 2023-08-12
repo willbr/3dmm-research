@@ -109,7 +109,7 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
     }
     __except (UnhandledExceptionFilter(GetExceptionInformation()))
     {
-        PDialog pdlg;
+        PDLG pdlg;
 
         pdlg = Dialog::PdlgNew(dlidAbnormalExit, pvNil, pvNil);
         if (pdlg != pvNil)
@@ -442,7 +442,7 @@ LFail:
     // If it's false, we put up a OOM or generic error dialog.
     if (!_fDontReportInitFailure)
     {
-        PDialog pdlg;
+        PDLG pdlg;
 
         if (vpers->FIn(ercOomHq) || vpers->FIn(ercOomPv) || vpers->FIn(ercOomNew))
             pdlg = Dialog::PdlgNew(dlidInitFailedOOM, pvNil, pvNil);
@@ -555,7 +555,7 @@ bool APP::_FEnsureOS(void)
     DWORD dwVersion;
     byte bVersionMajor;
     byte bVersionMinor;
-    PDialog pdlg;
+    PDLG pdlg;
 
     dwVersion = GetVersion();
     bVersionMinor = (byte)((dwVersion & 0x0000ff00) >> 8);
@@ -590,7 +590,7 @@ bool APP::_FEnsureAudio(void)
     long cwod; // count of wave-out devices
     long cmod; // count of midi-out devices
     bool fShowMessage;
-    PDialog pdlg;
+    PDLG pdlg;
 
     cwod = waveOutGetNumDevs();
     if (cwod <= 0)
@@ -703,7 +703,7 @@ bool APP::_FEnsureColorDepth(void)
 #ifdef WIN
     HDC hdc;
     long cbitPixel;
-    PDialog pdlg;
+    PDLG pdlg;
     bool fShowMessage;
     bool fDontShowAgain = fFalse;
 
@@ -764,7 +764,7 @@ bool APP::_FEnsureColorDepth(void)
     the dialog) if kdtsMaxResSwitchDlg has passed since the dialog was
     created.
 ***************************************************************************/
-bool _FDlgResSwitch(PDialog pdlg, long *pidit, void *pv)
+bool _FDlgResSwitch(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -800,7 +800,7 @@ bool APP::_FEnsureDisplayResolution(void)
 {
     AssertBaseThis(0);
 
-    PDialog pdlg;
+    PDLG pdlg;
     long idit;
     bool fSwitchRes;
     bool fNoValue;
@@ -1107,7 +1107,7 @@ bool APP::_FCantFindFileDialog(PSTN pstnFile)
     AssertBaseThis(0);
     AssertPo(pstnFile, 0);
 
-    PDialog pdlg;
+    PDLG pdlg;
 
     pdlg = Dialog::PdlgNew(dlidCantFindFile, pvNil, pvNil);
     if (pvNDialog== pdlg)
@@ -1149,7 +1149,7 @@ bool APP::_FGenericError(PSTN message)
 {
     AssertBaseThis(0);
 
-    PDialog pdlg;
+    PDLG pdlg;
 
     pdlg = Dialog::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
     if (pvNDialog== pdlg)
@@ -3279,7 +3279,7 @@ bool APP::FCmdInfo(PCMD pcmd)
 {
     AssertThis(0);
     PMVIE pmvie = pvNil;
-    PDialog pdlg;
+    PDLG pdlg;
     long idit;
     bool fRunInWindowNew;
     STN stn;

@@ -16,7 +16,7 @@ ASSERTNAME
 // dialog init structure
 struct DLGI
 {
-    PDialog pdlg;
+    PDLG pdlg;
     long iditFocus;
 };
 
@@ -240,14 +240,14 @@ LFail:
 ***************************************************************************/
 BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 {
-    PDialog pdlg;
+    PDLG pdlg;
     DIT dit;
     long idit;
     RC rcDlg;
     RC rcDsp;
 
     // this may return nil
-    pdlg = (PDialog)GetProp(hdlg, _szDlgProp);
+    pdlg = (PDLG)GetProp(hdlg, _szDlgProp);
 
     switch (msg)
     {

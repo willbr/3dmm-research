@@ -1962,7 +1962,7 @@ enum
 void HETD::EditHtop(void)
 {
     AssertThis(0);
-    PDialog pdlg;
+    PDLG pdlg;
     long dxp;
     STN stn;
 
@@ -2234,7 +2234,7 @@ bool HETG::FInsertPicture(PCRF pcrf, CTG ctg, CNO cno)
     AssertPo(pcrf, 0);
     Assert(ctg == kctgMbmp, "bad mbmp chunk");
     long cpMin, cpLim;
-    PDialog pdlg;
+    PDLG pdlg;
     STN stn;
     long cb;
     byte rgb[kcbMaxDataStn];
@@ -2288,12 +2288,12 @@ enum
     kiditLimButton
 };
 
-bool _FDlgFormatButton(PDialog pdlg, long *pidit, void *pv);
+bool _FDlgFormatButton(PDLG pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for formatting a button.
 ***************************************************************************/
-bool _FDlgFormatButton(PDialog pdlg, long *pidit, void *pv)
+bool _FDlgFormatButton(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -2335,7 +2335,7 @@ bool HETG::FInsertButton(PCRF pcrf, CTG ctg, CNO cno)
     Assert(ctg == kctgGokd, "bad button chunk");
     long cpMin, cpLim;
     long lw;
-    PDialog pdlg;
+    PDLG pdlg;
     STN stn;
     byte rgb[2 * kcbMaxDataStn];
     long cb;
@@ -2392,12 +2392,12 @@ enum
     kiditLimEdit
 };
 
-bool _FDlgFormatEdit(PDialog pdlg, long *pidit, void *pv);
+bool _FDlgFormatEdit(PDLG pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for formatting an edit control.
 ***************************************************************************/
-bool _FDlgFormatEdit(PDialog pdlg, long *pidit, void *pv)
+bool _FDlgFormatEdit(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -2437,7 +2437,7 @@ bool HETG::FCmdInsertEdit(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     long cpMin, cpLim;
-    PDialog pdlg;
+    PDLG pdlg;
     ECOS ecos;
 
     ecos.ctg = 'EDIT';
@@ -2572,7 +2572,7 @@ bool HETG::FCmdGroupText(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     long cpAnchor, cpOther;
-    PDialog pdlg;
+    PDLG pdlg;
     CNO cnoTopic;
     STN stnTopic;
     byte bGroup;
@@ -2647,7 +2647,7 @@ bool HETG::FCmdLineSpacing(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    PDialog pdlg;
+    PDLG pdlg;
     PAP pap, papOld;
     long lw;
 
@@ -2761,7 +2761,7 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     void *pv;
-    PDialog pdlg;
+    PDLG pdlg;
     long cp, cpT, cb;
     byte rgb[size(CKI) + kcbMaxDataStn];
     STN stn;
@@ -2826,7 +2826,7 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     void *pv;
-    PDialog pdlg;
+    PDLG pdlg;
     long cp, cpT, cb, ib, cbRead;
     STN stn;
     byte rgb[size(CKI) + size(long) + 2 * kcbMaxDataStn];
@@ -2904,7 +2904,7 @@ bool HETG::FCmdFormatEdit(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     void *pv;
-    PDialog pdlg;
+    PDLG pdlg;
     long cp, cpT, cb;
     ECOS ecos;
 
@@ -3206,7 +3206,7 @@ bool HETG::FCheckSpelling(long *pcactChanges)
     long cstn;
     STN stnSrc, stnDst;
     long scrs;
-    PDialog pdlg = pvNil;
+    PDLG pdlg = pvNil;
 
     *pcactChanges = 0;
     if (pvNil == vpsplc)
@@ -3386,7 +3386,7 @@ bool HETG::_FGetOtherSize(long *pdypFont)
 {
     AssertThis(0);
     AssertVarMem(pdypFont);
-    PDialog pdlg;
+    PDLG pdlg;
     bool fRet;
 
     if (pvNil == (pdlg = Dialog::PdlgNew(dlidFontSize)))
@@ -3421,7 +3421,7 @@ bool HETG::_FGetOtherSubSuper(long *pdypOffset)
 {
     AssertThis(0);
     AssertVarMem(pdypOffset);
-    PDialog pdlg;
+    PDLG pdlg;
     bool fRet;
 
     if (pvNil == (pdlg = Dialog::PdlgNew(dlidSubSuper)))
@@ -3618,7 +3618,7 @@ bool HETG::FCmdFontDialog(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    PDialog pdlg;
+    PDLG pdlg;
     CHP chpNew, chpOld;
     STN stn;
     long onn;
@@ -3762,12 +3762,12 @@ enum
     kiditLimFind
 };
 
-bool _FDlgFind(PDialog pdlg, long *pidit, void *pv);
+bool _FDlgFind(PDLG pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for searching.
 ***************************************************************************/
-bool _FDlgFind(PDialog pdlg, long *pidit, void *pv)
+bool _FDlgFind(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -3805,7 +3805,7 @@ bool _FDlgFind(PDialog pdlg, long *pidit, void *pv)
 ***************************************************************************/
 bool _FDoFindDlg(void)
 {
-    PDialog pdlg;
+    PDLG pdlg;
     STN stn;
     bool fRet = fFalse;
 
