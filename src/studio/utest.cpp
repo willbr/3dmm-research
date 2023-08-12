@@ -289,15 +289,14 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!fSkipSplashScreen)
+
+    if (!_FDisplayHomeLogo(fSkipSplashScreen))
     {
-        if (!_FDisplayHomeLogo())
-        {
-            _FGenericError(PszLit("_FDisplayHomeLogo"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
+        _FGenericError(PszLit("_FDisplayHomeLogo"));
+        _fDontReportInitFailure = fTrue;
+        goto LFail;
     }
+
     tsHomeLogo = TsCurrent();
 
     if (!_FDetermineIfSlowCPU())
@@ -1477,7 +1476,7 @@ LFail:
 /***************************************************************************
     Set the palette and bring up the Microsoft Home Logo
 ***************************************************************************/
-bool APP::_FDisplayHomeLogo(void)
+bool APP::_FDisplayHomeLogo(bool fSkipSplashScreen)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
@@ -1496,14 +1495,17 @@ bool APP::_FDisplayHomeLogo(void)
     GPT::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
-    if (!_pcfl->FFind(kctgMbmp, kcnoMbmpHomeLogo, &blck))
-        return fFalse;
-    pmbmp = MBMP::PmbmpRead(&blck);
-    if (pvNil == pmbmp)
-        return fFalse;
-    _pkwa->SetMbmp(pmbmp);
-    ReleasePpo(&pmbmp);
-    UpdateMarked();
+    if (!fSkipSplashScreen) {
+        if (!_pcfl->FFind(kctgMbmp, kcnoMbmpHomeLogo, &blck))
+            return fFalse;
+        pmbmp = MBMP::PmbmpRead(&blck);
+        if (pvNil == pmbmp)
+            return fFalse;
+        _pkwa->SetMbmp(pmbmp);
+        ReleasePpo(&pmbmp);
+        UpdateMarked();
+    }
+
     return fTrue;
 }
 

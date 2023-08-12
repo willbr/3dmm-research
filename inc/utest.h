@@ -168,7 +168,7 @@ class APP : public APP_PAR
     bool _FGetUserDirectories(void);
     bool _FReadUserData(void);
     bool _FWriteUserData(void);
-    bool _FDisplayHomeLogo(void);
+    bool _FDisplayHomeLogo(bool fSkipSplashScreen);
     bool _FDetermineIfSlowCPU(void);
     bool _FOpenResourceFile(void);
     bool _FInitKidworld(void);
