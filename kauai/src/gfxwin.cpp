@@ -1830,8 +1830,9 @@ int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM lu
     if (luType != TRUETYPE_FONTTYPE)
         return fTrue;
 
-    AssertDo(!pgst->FFindRgch(plgf->lfFaceName, CchSz(plgf->lfFaceName), &istz, fgstUserSorted),
-             "font already in list!");
+    // AssertDo(!pgst->FFindRgch(plgf->lfFaceName, CchSz(plgf->lfFaceName), &istz, fgstUserSorted),
+    //          "font already in list!");
+    pgst->FFindRgch(plgf->lfFaceName, CchSz(plgf->lfFaceName), &istz, fgstUserSorted);
     return pgst->FInsertRgch(istz, plgf->lfFaceName, CchSz(plgf->lfFaceName), plgf);
 }
 
