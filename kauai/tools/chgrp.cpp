@@ -12,7 +12,7 @@ ASSERTNAME
 
 #define kcbMaxDispGrp 16
 
-bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgGrpbNew(PDialog pdlg, long *pidit, void *pv);
 
 BEGIN_CMD_MAP(DCGB, DDG)
 ON_CID_GEN(cidEditNatural, &DCGB::FCmdEditItem, &DCGB::FEnableDcgbCmd)
@@ -82,7 +82,7 @@ enum
 /***************************************************************************
     Dialog proc for Adopt Chunk dialog.
 ***************************************************************************/
-bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgGrpbNew(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -128,7 +128,7 @@ bool DOCG::_FRead(PBLCK pblck)
     if (0 == pblck->Cb(fTrue))
     {
         // create a new one - need to ask for a size from the user
-        PDLG pdlg;
+        PDialog pdlg;
         long dlid, idit;
         long cb, cbMin;
         bool fEmpty;

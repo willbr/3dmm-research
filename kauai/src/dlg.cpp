@@ -26,9 +26,9 @@ Dialog::Dialog(long rid) : GG(size(DIT))
 /***************************************************************************
     Static method to create a new Dialog.  Does NewObj then calls _FInit.
 ***************************************************************************/
-PDLG Dialog::PdlgNew(long rid, PFNDLG pfn, void *pv)
+PDialog Dialog::PdlgNew(long rid, PFNDLG pfn, void *pv)
 {
-    PDLG pdlg;
+    PDialog pdlg;
 
     if ((pdlg = NewObj Dialog(rid)) == pvNil)
         return pvNil;
