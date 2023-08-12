@@ -1966,7 +1966,7 @@ void HETD::EditHtop(void)
     long dxp;
     STN stn;
 
-    if (pvNil == (pdlg = Dialog::PdlgNew(dlidTopicInfo)))
+    if (pvNil == (pdlg = DLG::PdlgNew(dlidTopicInfo)))
         return;
 
     if (pvNil != _pgst)
@@ -2239,7 +2239,7 @@ bool HETG::FInsertPicture(PCRF pcrf, CTG ctg, CNO cno)
     long cb;
     byte rgb[kcbMaxDataStn];
 
-    pdlg = Dialog::PdlgNew(dlidFormatPicture);
+    pdlg = DLG::PdlgNew(dlidFormatPicture);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2340,7 +2340,7 @@ bool HETG::FInsertButton(PCRF pcrf, CTG ctg, CNO cno)
     byte rgb[2 * kcbMaxDataStn];
     long cb;
 
-    pdlg = Dialog::PdlgNew(dlidFormatButton, _FDlgFormatButton);
+    pdlg = DLG::PdlgNew(dlidFormatButton, _FDlgFormatButton);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2441,7 +2441,7 @@ bool HETG::FCmdInsertEdit(PCMD pcmd)
     ECOS ecos;
 
     ecos.ctg = 'EDIT';
-    pdlg = Dialog::PdlgNew(dlidFormatEdit, _FDlgFormatEdit);
+    pdlg = DLG::PdlgNew(dlidFormatEdit, _FDlgFormatEdit);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2582,7 +2582,7 @@ bool HETG::FCmdGroupText(PCMD pcmd)
         return fTrue;
 
     _SwitchSel(fFalse, ginNil);
-    pdlg = Dialog::PdlgNew(dlidGroupText);
+    pdlg = DLG::PdlgNew(dlidGroupText);
     if (pvNil == pdlg)
         goto LCancel;
     Phetd()->FGrouped(LwMin(_cpAnchor, _cpOther), pvNil, pvNil, &bGroup, &cnoTopic, &stnTopic);
@@ -2651,7 +2651,7 @@ bool HETG::FCmdLineSpacing(PCMD pcmd)
     PAP pap, papOld;
     long lw;
 
-    pdlg = Dialog::PdlgNew(dlidSpacing);
+    pdlg = DLG::PdlgNew(dlidSpacing);
     if (pvNil == pdlg)
         return fTrue;
     _FetchPap(LwMin(_cpAnchor, _cpOther), &pap);
@@ -2783,7 +2783,7 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
     CopyPb(pv, rgb, cb);
     FreePpv(&pv);
 
-    pdlg = Dialog::PdlgNew(dlidFormatPicture);
+    pdlg = DLG::PdlgNew(dlidFormatPicture);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2849,7 +2849,7 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
     CopyPb(pv, rgb, cb);
     FreePpv(&pv);
 
-    pdlg = Dialog::PdlgNew(dlidFormatButton, _FDlgFormatButton);
+    pdlg = DLG::PdlgNew(dlidFormatButton, _FDlgFormatButton);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2924,7 +2924,7 @@ bool HETG::FCmdFormatEdit(PCMD pcmd)
     CopyPb(pv, &ecos, size(ecos));
     FreePpv(&pv);
 
-    pdlg = Dialog::PdlgNew(dlidFormatEdit, _FDlgFormatEdit);
+    pdlg = DLG::PdlgNew(dlidFormatEdit, _FDlgFormatEdit);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -3269,7 +3269,7 @@ bool HETG::FCheckSpelling(long *pcactChanges)
         }
 
         // put up the dialog
-        if (pvNil == pdlg && pvNil == (pdlg = Dialog::PdlgNew(dlidCheckSpelling)))
+        if (pvNil == pdlg && pvNil == (pdlg = DLG::PdlgNew(dlidCheckSpelling)))
         {
             vpappb->TGiveAlertSz(PszLit("Couldn't create spelling dialog!"), bkOk, cokExclamation);
             return fFalse;
@@ -3389,7 +3389,7 @@ bool HETG::_FGetOtherSize(long *pdypFont)
     PDLG pdlg;
     bool fRet;
 
-    if (pvNil == (pdlg = Dialog::PdlgNew(dlidFontSize)))
+    if (pvNil == (pdlg = DLG::PdlgNew(dlidFontSize)))
         return fFalse;
 
     pdlg->FPutLwInEdit(kiditSizeSize, *pdypFont);
@@ -3424,7 +3424,7 @@ bool HETG::_FGetOtherSubSuper(long *pdypOffset)
     PDLG pdlg;
     bool fRet;
 
-    if (pvNil == (pdlg = Dialog::PdlgNew(dlidSubSuper)))
+    if (pvNil == (pdlg = DLG::PdlgNew(dlidSubSuper)))
         return fFalse;
 
     pdlg->FPutLwInEdit(kiditSizeSize, LwAbs(*pdypOffset));
@@ -3623,7 +3623,7 @@ bool HETG::FCmdFontDialog(PCMD pcmd)
     STN stn;
     long onn;
 
-    if (pvNil == (pdlg = Dialog::PdlgNew(dlidChooseFont)))
+    if (pvNil == (pdlg = DLG::PdlgNew(dlidChooseFont)))
         return fTrue;
 
     // fill in the font list
@@ -3809,7 +3809,7 @@ bool _FDoFindDlg(void)
     STN stn;
     bool fRet = fFalse;
 
-    if (pvNil == (pdlg = Dialog::PdlgNew(dlidFind, _FDlgFind)))
+    if (pvNil == (pdlg = DLG::PdlgNew(dlidFind, _FDlgFind)))
         return fFalse;
     vpstrg->FGet(kstidFind, &stn);
     pdlg->FPutStn(kiditFindFind, &stn);

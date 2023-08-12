@@ -844,7 +844,7 @@ bool APP::FCmdNewTestWnd(PCMD pcmd)
         // put up the dialog
         PDLG pdlg;
 
-        pdlg = Dialog::PdlgNew(200);
+        pdlg = DLG::PdlgNew(200);
         pcmd->pgg = pdlg;
         if (pdlg == pvNil)
             goto LFail;
@@ -1099,7 +1099,7 @@ bool APP::FCmdTestFni(PCMD pcmd)
     PDLG pdlg;
 
     // put up the dialog
-    pdlg = Dialog::PdlgNew(201);
+    pdlg = DLG::PdlgNew(201);
     if (pdlg == pvNil)
         goto LFail;
     idit = pdlg->IditDo();

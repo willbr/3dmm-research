@@ -155,7 +155,7 @@ bool DOCG::_FRead(PBLCK pblck)
             return fFalse;
         }
 
-        pdlg = Dialog::PdlgNew(dlid, _FDlgGrpbNew, &cbMin);
+        pdlg = DLG::PdlgNew(dlid, _FDlgGrpbNew, &cbMin);
         pdlg->FPutLwInEdit(kiditSizeGrpbNew, cbMin);
         if (pvNil == pdlg)
             goto LFail;
