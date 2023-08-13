@@ -115,13 +115,13 @@ class TextDocument : public TextDocument_PAR
 /***************************************************************************
     A runtime DocumentDisplayGraphicsObject for a help topic.
 ***************************************************************************/
-typedef class TXHG *PTXHG;
-#define TXHG_PAR RichTextDocumentGraphicsObject
-#define kclsTXHG 'TXHG'
-class TXHG : public TXHG_PAR
+typedef class TopicGraphicsObject *PTopicGraphicsObject;
+#define TopicGraphicsObject_PAR RichTextDocumentGraphicsObject
+#define kclsTopicGraphicsObject 'TXHG'
+class TopicGraphicsObject : public TopicGraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(TXHG)
+    CMD_MAP_DEC(TopicGraphicsObject)
 
   protected:
     byte _bTrack;
@@ -130,13 +130,13 @@ class TXHG : public TXHG_PAR
     ulong _grfcust;
     PWorldOfKidspace _pwoks;
 
-    TXHG(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
+    TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
     virtual bool _FInit(void);
     virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic = cnoNil,
                              long *plwRet = pvNil);
 
   public:
-    static PTXHG PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
+    static PTopicGraphicsObject PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
 
     PTextDocument Ptxhd(void)
     {
@@ -162,7 +162,7 @@ class HBAL : public HBAL_PAR
     RTCLASS_DEC
 
   protected:
-    PTXHG _ptxhg;
+    PTopicGraphicsObject _ptxhg;
 
     HBAL(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);

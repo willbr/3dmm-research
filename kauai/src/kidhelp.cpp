@@ -15,13 +15,13 @@ ASSERTNAME
 
 namespace Help {
 
-BEGIN_CMD_MAP(TXHG, RichTextDocumentGraphicsObject)
+BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
 ON_CID_ME(cidActivateSel, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
 RTCLASS(TextDocument)
-RTCLASS(TXHG)
+RTCLASS(TopicGraphicsObject)
 RTCLASS(HBAL)
 RTCLASS(HBTN)
 
@@ -655,9 +655,9 @@ void TextDocument::SetHtop(PHTOP phtop)
 }
 
 /***************************************************************************
-    Constructor for a TXHG.
+    Constructor for a TopicGraphicsObject.
 ***************************************************************************/
-TXHG::TXHG(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
+TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -668,11 +668,11 @@ TXHG::TXHG(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb) : RichTextDoc
 /***************************************************************************
     Create a new help topic display gob.
 ***************************************************************************/
-PTXHG TXHG::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb)
+PTopicGraphicsObject TopicGraphicsObject::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb)
 {
-    PTXHG ptxhg;
+    PTopicGraphicsObject ptxhg;
 
-    if (pvNil == (ptxhg = NewObj TXHG(pwoks, ptxhd, pgcb)))
+    if (pvNil == (ptxhg = NewObj TopicGraphicsObject(pwoks, ptxhd, pgcb)))
         return pvNil;
     if (!ptxhg->_FInit())
     {
@@ -685,7 +685,7 @@ PTXHG TXHG::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb)
 /***************************************************************************
     Inititalize the display gob for a help balloon topic.
 ***************************************************************************/
-bool TXHG::_FInit(void)
+bool TopicGraphicsObject::_FInit(void)
 {
     AssertBaseThis(0);
     PRCA prca;
@@ -706,7 +706,7 @@ bool TXHG::_FInit(void)
     STN stn;
     PTextDocument ptxhd = Ptxhd();
 
-    if (!TXHG_PAR::_FInit())
+    if (!TopicGraphicsObject_PAR::_FInit())
         return fFalse;
 
     // find the max of the group numbers
@@ -802,11 +802,11 @@ bool TXHG::_FInit(void)
 /***************************************************************************
     Return whether the point is over hot (marked text).
 ***************************************************************************/
-bool TXHG::FPtIn(long xp, long yp)
+bool TopicGraphicsObject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
-    if (!TXHG_PAR::FPtIn(xp, yp))
+    if (!TopicGraphicsObject_PAR::FPtIn(xp, yp))
         return fFalse;
     return FGroupFromPt(xp, yp);
 }
@@ -814,7 +814,7 @@ bool TXHG::FPtIn(long xp, long yp)
 /***************************************************************************
     Track the mouse.
 ***************************************************************************/
-bool TXHG::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TopicGraphicsObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -855,7 +855,7 @@ bool TXHG::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     An edit control got a bad key.
 ***************************************************************************/
-bool TXHG::FCmdBadKey(PCMD_BADKEY pcmd)
+bool TopicGraphicsObject::FCmdBadKey(PCMD_BADKEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -871,7 +871,7 @@ bool TXHG::FCmdBadKey(PCMD_BADKEY pcmd)
 /***************************************************************************
     Return the number of the group text that the given point is in.
 ***************************************************************************/
-bool TXHG::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNumber *pcnoTopic)
+bool TopicGraphicsObject::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNumber *pcnoTopic)
 {
     AssertThis(0);
     AssertNilOrVarMem(pbGroup);
@@ -886,7 +886,7 @@ bool TXHG::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNumber *pcnoTopic)
 /***************************************************************************
     A child button was hit, take action.
 ***************************************************************************/
-void TXHG::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit)
+void TopicGraphicsObject::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit)
 {
     AssertThis(0);
     long lwRet = 0;
@@ -900,10 +900,10 @@ void TXHG::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit)
 }
 
 /***************************************************************************
-    Run the script. Returns false iff the TXHG doesn't exist after
+    Run the script. Returns false iff the TopicGraphicsObject doesn't exist after
     running the script.
 ***************************************************************************/
-bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic, long *plwRet)
+bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwRet);
@@ -938,7 +938,7 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkN
         rglw[3] = (long)(byte)ch;
         rglw[4] = cnoTopic;
 
-        // be careful not to use TXHG variables here in case the TXHG is
+        // be careful not to use TopicGraphicsObject variables here in case the TopicGraphicsObject is
         // freed while the script is running.
         if (!psceg->FRunScript(pscpt, rglw, 5, plwRet) && pvNil != plwRet)
             *plwRet = 0;
@@ -954,7 +954,7 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkN
 /***************************************************************************
     This handles cidMouseMove.
 ***************************************************************************/
-bool TXHG::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool TopicGraphicsObject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -968,9 +968,9 @@ bool TXHG::FCmdMouseMove(PCMD_MOUSE pcmd)
 }
 
 /***************************************************************************
-    Set the cursor for this TXHG and the given cursor state.
+    Set the cursor for this TopicGraphicsObject and the given cursor state.
 ***************************************************************************/
-void TXHG::SetCursor(ulong grfcust)
+void TopicGraphicsObject::SetCursor(ulong grfcust)
 {
     AssertThis(0);
     PGraphicsObject pgob;
@@ -1163,11 +1163,11 @@ bool HBAL::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
     PT pt, ptReg;
     STN stn;
     RTVN rtvn;
-    PTXHG ptxhgSave = _ptxhg;
+    PTopicGraphicsObject ptxhgSave = _ptxhg;
 
     // create the topic DocumentDisplayGraphicsObject.
     gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
-    if (pvNil == (_ptxhg = TXHG::PtxhgNew(_pwoks, ptxhd, &gcb)))
+    if (pvNil == (_ptxhg = TopicGraphicsObject::PtxhgNew(_pwoks, ptxhd, &gcb)))
         goto LFail;
 
     // set the sound variables
@@ -1216,7 +1216,7 @@ bool HBAL::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 
 /***************************************************************************
     Our representation is changing, so make sure we stay inside our parent
-    and reposition the TXHG.
+    and reposition the TopicGraphicsObject.
 ***************************************************************************/
 void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
 {
@@ -1234,7 +1234,7 @@ void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
         SetPos(&rc1);
     }
 
-    // position the TXHG.
+    // position the TopicGraphicsObject.
     GetRcContent(&rc1);
     rc2.Set(0, 0, _dxpPref, _dypPref);
     rc2.CenterOnRc(&rc1);
@@ -1299,7 +1299,7 @@ PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, 
 bool HBTN::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PTXHG ptxhg;
+    PTopicGraphicsObject ptxhg;
     PT pt(xp, yp);
     byte bGroup;
     ChunkNumber cnoTopic;
@@ -1307,10 +1307,10 @@ bool HBTN::FPtIn(long xp, long yp)
     if (HBTN_PAR::FPtIn(xp, yp))
         return fTrue;
 
-    if (_bGroup == 0 || !PgobPar()->FIs(kclsTXHG))
+    if (_bGroup == 0 || !PgobPar()->FIs(kclsTopicGraphicsObject))
         return fFalse;
 
-    ptxhg = (PTXHG)PgobPar();
+    ptxhg = (PTopicGraphicsObject)PgobPar();
     MapPt(&pt, cooLocal, cooParent);
 
     if (!ptxhg->FGroupFromPt(pt.xp, pt.yp, &bGroup, &cnoTopic))
@@ -1319,23 +1319,23 @@ bool HBTN::FPtIn(long xp, long yp)
 }
 
 /***************************************************************************
-    The button has been clicked on.  Tell the TXHG to do its thing.
+    The button has been clicked on.  Tell the TopicGraphicsObject to do its thing.
 ***************************************************************************/
 bool HBTN::FCmdClicked(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PTXHG ptxhg;
+    PTopicGraphicsObject ptxhg;
     long hid = Hid();
 
-    if (!PgobPar()->FIs(kclsTXHG))
+    if (!PgobPar()->FIs(kclsTopicGraphicsObject))
     {
-        Bug("why isn't my parent a TXHG?");
+        Bug("why isn't my parent a TopicGraphicsObject?");
         return fTrue;
     }
 
-    ptxhg = (PTXHG)PgobPar();
+    ptxhg = (PTopicGraphicsObject)PgobPar();
     ptxhg->DoHit(_bGroup, _cnoTopic, pcmd->grfcust, hid);
 
     return fTrue;
