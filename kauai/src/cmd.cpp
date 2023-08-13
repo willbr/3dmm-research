@@ -313,7 +313,7 @@ void CEX::Record(PCFL pcfl)
     _cact = 0;
     Assert(_pglcmdf == pvNil, "why isn't _pglcmdf nil?");
 
-    if ((_pglcmdf = GL::PglNew(size(CMDF), 100)) == pvNil)
+    if ((_pglcmdf = GL::PglNew(size(CommandFile), 100)) == pvNil)
         _rec = recMemError;
     else if (!_pcfl->FAdd(0, kctgMacro, &_cno))
     {
@@ -345,7 +345,7 @@ void CEX::StopRecording(void)
         if (_cact > 1)
         {
             // rewrite the last one's _cact
-            CMDF cmdf;
+            CommandFile cmdf;
 
             _pglcmdf->Get(_icmdf, &cmdf);
             cmdf.cact = _cact;
@@ -389,7 +389,7 @@ void CEX::RecordCmd(PCMD pcmd)
     AssertThis(0);
     AssertPo(pcmd, 0);
     Assert(_rs == rsRecording, "not recording");
-    CMDF cmdf;
+    CommandFile cmdf;
 
     if (_rec != recNil)
         return;
@@ -526,7 +526,7 @@ bool CEX::_FReadCmd(PCMD pcmd)
     AssertVarMem(pcmd);
     Assert(_rs == rsPlaying, "not playing a command stream");
     AssertPo(_pglcmdf, 0);
-    CMDF cmdf;
+    CommandFile cmdf;
 
     if (_cact > 0)
     {

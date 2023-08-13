@@ -51,7 +51,7 @@ struct CMD
 typedef CMD *PCMD;
 
 // command on file - for saving recorded macros
-struct CMDF
+struct CommandFile
 {
     long cid;
     long hid;
