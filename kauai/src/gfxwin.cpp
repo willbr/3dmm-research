@@ -1224,7 +1224,7 @@ void GPT::ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd)
 /***************************************************************************
     Draw some text.
 ***************************************************************************/
-void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, DSF *pdsf)
+void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1295,7 +1295,7 @@ void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, DSF *pdsf)
 /***************************************************************************
     Get the bounding text rectangle.
 ***************************************************************************/
-void GPT::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, DSF *pdsf)
+void GPT::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -1449,10 +1449,10 @@ void GPT::_SetStockBrush(int wType)
 }
 
 /***************************************************************************
-    Select a font corresponding to the DSF.  Also, set the alignment as
-    specified in the DSF.
+    Select a font corresponding to the FontDescription.  Also, set the alignment as
+    specified in the FontDescription.
 ***************************************************************************/
-void GPT::_SetTextProps(DSF *pdsf)
+void GPT::_SetTextProps(FontDescription *pdsf)
 {
     AssertPo(pdsf, 0);
     static int _mptahw[] = {
@@ -1839,7 +1839,7 @@ int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM lu
 /***************************************************************************
     -- Create a logical GDI font from the given font attributes.
 ***************************************************************************/
-HFONT NTL::HfntCreate(DSF *pdsf)
+HFONT NTL::HfntCreate(FontDescription *pdsf)
 {
     AssertThis(0);
     AssertPo(pdsf, 0);

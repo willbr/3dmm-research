@@ -20,7 +20,7 @@
     Text and fonts.
 ****************************************/
 // DeScription of a Font.
-struct DSF
+struct FontDescription
 {
     long onn;     // Font number.
     ulong grfont; // Font style.
@@ -90,7 +90,7 @@ class NTL : public NTL_PAR
     ~NTL(void);
 
 #ifdef WIN
-    HFONT HfntCreate(DSF *pdsf);
+    HFONT HfntCreate(FontDescription *pdsf);
 #endif // WIN
 #ifdef MAC
     short FtcFromOnn(long onn);
@@ -429,7 +429,7 @@ class GNV : public GNV_PAR
     RC _rcVis; // always clipped to - this is in Dst coordinates
 
     // Current font
-    DSF _dsf;
+    FontDescription _dsf;
 
     // contains the current pen size and prcsClip
     // this is passed to the GPT
@@ -536,8 +536,8 @@ class GNV : public GNV_PAR
     void SetFontStyle(ulong grfont);
     void SetFontSize(long dyp);
     void SetFontAlign(long tah, long tav);
-    void GetDsf(DSF *pdsf);
-    void SetDsf(DSF *pdsf);
+    void GetDsf(FontDescription *pdsf);
+    void SetDsf(FontDescription *pdsf);
     void DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
     void DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
     void GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp = 0, long yp = 0);
@@ -622,7 +622,7 @@ class GPT : public GPT_PAR
     int _wType; // for bkStock (stock brush)
 
     HFONT _hfnt;
-    DSF _dsf;
+    FontDescription _dsf;
 
     bool _fNewClip : 1; // _pregnClip has changed
     bool _fMetaFile : 1;
@@ -631,7 +631,7 @@ class GPT : public GPT_PAR
 
     void _SetClip(RCS *prcsClip);
     void _EnsurePalette(void);
-    void _SetTextProps(DSF *pdsf);
+    void _SetTextProps(FontDescription *pdsf);
     void _SetAptBrush(AbstractPattern *papt);
     void _SetAcrBrush(AbstractColor acr);
     void _SetStockBrush(int wType);
@@ -677,7 +677,7 @@ class GPT : public GPT_PAR
     void _FillPoly(HQ *phqoly);
     void _FramePoly(HQ *phqoly);
     void _DrawLine(PTS *prgpts);
-    void _GetRcsFromRgch(RCS *prcs, achar *prgch, short cch, PTS *ppts, DSF *pdsf);
+    void _GetRcsFromRgch(RCS *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf);
 #endif // MAC
 
     // low level draw routine
@@ -733,8 +733,8 @@ class GPT : public GPT_PAR
     void DrawPoly(HQ hqoly, GDD *pgdd);
     void ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd);
 
-    void DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, DSF *pdsf);
-    void GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, DSF *pdsf);
+    void DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf);
+    void GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf);
 
     void CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd);
     void DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd);

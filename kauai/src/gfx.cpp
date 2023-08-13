@@ -1042,7 +1042,7 @@ void GNV::SetFontAlign(long tah, long tav)
 /******************************************************************************
     Set the current font.  Font size must be specified in Dst units.
 ******************************************************************************/
-void GNV::SetDsf(DSF *pdsf)
+void GNV::SetDsf(FontDescription *pdsf)
 {
     AssertThis(0);
     AssertPo(pdsf, 0);
@@ -1054,7 +1054,7 @@ void GNV::SetDsf(DSF *pdsf)
 /******************************************************************************
     Get the current font.  Font size is specified in Dst units.
 ******************************************************************************/
-void GNV::GetDsf(DSF *pdsf)
+void GNV::GetDsf(FontDescription *pdsf)
 {
     AssertThis(0);
     AssertVarMem(pdsf);
@@ -2121,7 +2121,7 @@ void OLY::AssertValid(ulong grf)
 /******************************************************************************
     Assert the validity of the font description.
 ******************************************************************************/
-void DSF::AssertValid(ulong grf)
+void FontDescription::AssertValid(ulong grf)
 {
     AssertThisMem();
     AssertIn(dyp, 1, kswMax);
