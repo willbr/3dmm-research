@@ -292,7 +292,7 @@ enum
 // frame and frame forward orientations in the same frame and must not see the
 // actor jump in angle when choosing between the two methods of editing.
 //
-struct XFRM
+struct FramePosition
 {
     BMAT34 bmat34Fwd; // Rotation	fwd	: path rotation post applied to this
     Stretch aevpull;  // Stretching (pulling) constants
@@ -371,7 +371,7 @@ class Actor : public Actor_PAR
     long _iaevAddCur;        // Most recent add (useful for Compose)
     RouteLocation _rtelCur;           // Current location on route	(excludes tweak info)
     RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
-    ActorEvent::XFRM _xfrm;              // Current transformation
+    ActorEvent::FramePosition _xfrm;              // Current transformation
     PGL _pglsmm;             // Current action motion match sounds
 
     // Path Recording State Information
