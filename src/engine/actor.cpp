@@ -113,6 +113,8 @@
 
 ASSERTNAME
 
+using namespace ActorEvent;
+
 RTCLASS(Actor)
 
 /***************************************************************************

@@ -14,6 +14,8 @@
 
 ASSERTNAME
 
+using namespace ActorEvent;
+
 /***************************************************************************
 
     Add a sound event to the actor event list, and create an undo object

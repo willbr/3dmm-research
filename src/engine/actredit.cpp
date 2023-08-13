@@ -18,6 +18,9 @@
 #include "soc.h"
 
 ASSERTNAME
+
+using namespace ActorEvent;
+
 RTCLASS(AUND)
 
 /***************************************************************************

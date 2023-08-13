@@ -21,6 +21,8 @@
 #include "soc.h"
 ASSERTNAME
 
+using namespace ActorEvent;
+
 const ChildChunkID kchidPath = 0;
 const ChildChunkID kchidGgae = 0;
 

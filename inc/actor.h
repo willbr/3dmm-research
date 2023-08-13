@@ -148,6 +148,8 @@ struct RouteLocation // RouTE Location - a function of space and time
     }
 };
 
+namespace ActorEvent {
+
 // Actor EVents are stored in a GG (general group)
 // Fixed part of the GG:
 struct AEV
@@ -312,6 +314,8 @@ struct SMM
     AEVSND aevsnd;
 };
 
+} // end of namespace ActorEvent
+
 //
 // Default hilite colors
 //
@@ -367,7 +371,7 @@ class Actor : public Actor_PAR
     long _iaevAddCur;        // Most recent add (useful for Compose)
     RouteLocation _rtelCur;           // Current location on route	(excludes tweak info)
     RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
-    XFRM _xfrm;              // Current transformation
+    ActorEvent::XFRM _xfrm;              // Current transformation
     PGL _pglsmm;             // Current action motion match sounds
 
     // Path Recording State Information
@@ -428,9 +432,9 @@ class Actor : public Actor_PAR
     void _UpdateXyzRte(void);
     bool _FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState = fTrue);
     void _RemoveAev(long iaev, bool fUpdateState = fTrue);
-    void _PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp = ivNil, ulong grfaet = faetNil);
+    void _PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp = ivNil, ulong grfaet = ActorEvent::faetNil);
     void _PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet);
-    void _PrepCostFill(long iaevMin, AEVCOST *paevcost);
+    void _PrepCostFill(long iaevMin, ActorEvent::AEVCOST *paevcost);
     void _AdjustAevForRteIns(long irptAdjust, long iaevMin);
     void _AdjustAevForRteDel(long irptAdjust, long iaevMin);
     bool _FInsertStop(void);
@@ -438,7 +442,7 @@ class Actor : public Actor_PAR
     void _ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
                           ulong *grfbra = pvNil);
     void _SaveCurPathOrien(void);
-    void _LoadAddOrien(AEVADD *paevadd, bool fNoReset = fFalse);
+    void _LoadAddOrien(ActorEvent::AEVADD *paevadd, bool fNoReset = fFalse);
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
     void _UpdateXyzTan(RoutePoint *pxyz, long irptTan, long rw);
 
@@ -460,7 +464,7 @@ class Actor : public Actor_PAR
     bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
     static void _SwapBytesPggaev(PGG pggaev);
     bool _FOpenTags(PChunkyResourceFile pcrf);
-    static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev = pvNil);
+    static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, ActorEvent::PAEV *pqaev = pvNil);
     void _CloseTags(void);
 
   public:
