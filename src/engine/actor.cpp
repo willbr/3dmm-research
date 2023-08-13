@@ -250,7 +250,7 @@ bool Actor::_FCreateGroups(void)
     if (pvNil == (_pggaev = GG::PggNew(size(AEV), kcaevInit, kcbVarAdd)))
         return fFalse;
 
-    if (pvNil == (_pglrpt = GL::PglNew(size(RPT), kcrptGrow)))
+    if (pvNil == (_pglrpt = GL::PglNew(size(RouteDistancePoint), kcrptGrow)))
         return fFalse;
     _pglrpt->SetMinGrow(kcrptGrow);
 
@@ -322,7 +322,7 @@ void Actor::_SetStateRewound(void)
     _rtelCur.dnfrm = -1;
     if (_pglrpt->IvMac() > 0)
     {
-        RPT rpt;
+        RouteDistancePoint rpt;
         _pglrpt->Get(0, &rpt);
         _xyzCur = rpt.xyz;
     }
@@ -588,7 +588,7 @@ bool Actor::_FGetRtelBack(RTEL *prtel, bool fUpdateStateVar)
         _rtelCur.dwrOffset = dwrT;
     else
     {
-        RPT rpt;
+        RouteDistancePoint rpt;
         while (dwrT < rZero)
         {
             if (_rtelCur.irpt <= 0)
@@ -1035,7 +1035,7 @@ bool Actor::_FDoAevCore(long iaev)
 
     case aetAdd:
         AEVADD aevadd;
-        RPT rpt;
+        RouteDistancePoint rpt;
         // Save old costume in case of error
         if (!cost.FGet(_pbody))
             return fFalse;
@@ -1547,13 +1547,13 @@ void Actor::_Hide(void)
         dwrPrior is the distance from the previous node to the new one.
 
 ***************************************************************************/
-bool Actor::_FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior)
+bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 {
     AssertBaseThis(0);
     AssertIn(irpt, 0, _pglrpt->IvMac() + 1);
     AssertNilOrVarMem(prpt);
 
-    RPT rpt;
+    RouteDistancePoint rpt;
     BRS dwrTotal = rZero; // Dist from prev node to node after the inserted node
 
     if (!_pglrpt->FInsert(irpt, prpt))
@@ -1715,7 +1715,7 @@ bool Actor::FAddOnStageCore(void)
         _nfrmLast = _nfrmCur;
     }
 
-    RPT rptNil = {rZero, rZero, rZero, rZero};
+    RouteDistancePoint rptNil = {rZero, rZero, rZero, rZero};
 
     if (_fOnStage) // May have walked offstage
     {
@@ -3366,7 +3366,7 @@ void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 
     long iaev;
     AEV aev;
-    RPT rptBack, rptAdjust;
+    RouteDistancePoint rptBack, rptAdjust;
     BRS dwrBack;
 
     if (irptAdjust > 0)
@@ -3419,7 +3419,7 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 
     long iaev;
     AEV aev;
-    RPT rptBack, rptAdjust;
+    RouteDistancePoint rptBack, rptAdjust;
     BRS dwrBack, dwrFwd;
 
     if (0 == irptAdjust)
@@ -3499,7 +3499,7 @@ void Actor::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, b
     }
 
     // Move to the correct path segment
-    dwrT = ((RPT *)_pglrpt->QvGet(prtel->irpt))->dwr;
+    dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
     dwrT = BrsSub(dwrT, prtel->dwrOffset);
     if (rZero == dwrT)
     {
@@ -3521,10 +3521,10 @@ void Actor::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, b
         AssertIn(prtel->irpt, 1, _pglrpt->IvMac());
         prtel->dwrOffset = rZero;
         dwrStep = BrsSub(dwrStep, dwrT);
-        dwrT = ((RPT *)_pglrpt->QvGet(prtel->irpt))->dwr;
+        dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
     }
 
-    dwrT = ((RPT *)_pglrpt->QvGet(prtel->irpt))->dwr;
+    dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
     prtel->dwrOffset = BrsAdd(prtel->dwrOffset, dwrStep);
 
 LDoneMove:
@@ -3566,9 +3566,9 @@ void Actor::_GetXyzFromRtel(RTEL *prtel, PRoutePoint pxyz)
     AssertVarMem(prtel);
     AssertVarMem(pxyz);
 
-    RPT rpt;
-    RPT rptFirst;
-    RPT rptSecond;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptFirst;
+    RouteDistancePoint rptSecond;
     BRS rFract;
 
     if (rZero == prtel->dwrOffset || (prtel->irpt) + 1 == _pglrpt->IvMac())
@@ -3646,7 +3646,7 @@ void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
     AssertVarMem(pxyz);
     AssertVarMem(pbmat34);
 
-    RPT rpt;
+    RouteDistancePoint rpt;
     BRA xa, ya, za;
     BMAT34 bmat34TS; // Scaling matrix
     BMAT34 bmat34TR; // Rotation matrix
@@ -3748,7 +3748,7 @@ void Actor::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong 
     long irptAdd;
     RoutePoint xyz;
     AEV aev;
-    RPT rpt;
+    RouteDistancePoint rpt;
 
     if (pvNil != pxa)
         *pxa = aZero;
@@ -3811,8 +3811,8 @@ void Actor::_UpdateXyzTan(RoutePoint *pxyz, long irpt, long rw)
 {
     AssertBaseThis(0);
 
-    RPT rpt1;
-    RPT rpt2;
+    RouteDistancePoint rpt1;
+    RouteDistancePoint rpt2;
     BRS dwr, dxr, dyr, dzr;
 
     Assert(irpt + 1 < _pglrpt->IvMac(), "irpt out of range");
@@ -4310,7 +4310,7 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
     AssertThis(0);
     Assert(tsCurrent >= 0, "Invalid type");
 
-    RPT rpt;
+    RouteDistancePoint rpt;
     AEV aev;
     long iaev;
     long nfrmAdd;
@@ -4424,11 +4424,11 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     AssertVarMem(pfStepFrm);
     AssertVarMem(pfStepRte);
 
-    RPT rptCur;
+    RouteDistancePoint rptCur;
     RoutePoint xyzMouse;
     RoutePoint dxyzT;
     BRS dwrCur;
-    RPT rptNew;
+    RouteDistancePoint rptNew;
     BRS rFractMoved;
     BRS dwrMouse;
 
@@ -4582,9 +4582,9 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     BRS dwr;
     long iaev;
     long irpt;
-    RPT rpt;
-    RPT rptJoin;
-    RPT rptCur;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptJoin;
+    RouteDistancePoint rptCur;
     BRS dwrMin = kdwrMax;
     RTEL rtelJoin = _rtelCur;
     bool fJoin = fFalse;
@@ -4861,7 +4861,7 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     long iaev, iaevDelLim;
     long irpt, irptDelLim;
     long irptDelFirst;
-    RPT rpt;
+    RouteDistancePoint rpt;
     AEV *paev;
 
     if (ivNil == iaevCur)
@@ -4989,7 +4989,7 @@ void Actor::_SaveCurPathOrien(void)
 {
     AssertBaseThis(0);
 
-    RPT rpt;
+    RouteDistancePoint rpt;
     AEV aev;
     ulong grfbra = 0;
 
@@ -5022,7 +5022,7 @@ void Actor::DeleteBackCore(bool *pfAlive)
     BRS dwrOffsetT;
     BRS dwrNew;
     BRS dwrOld;
-    RPT rptOld;
+    RouteDistancePoint rptOld;
     long dnrpt;
 
     // Nop if not yet at first frame
@@ -5237,8 +5237,8 @@ void Actor::_TruncateSubRte(long irptDelLim)
 
     AEV aev;
     long iaev;
-    RPT rptNode1;
-    RPT rptNode2;
+    RouteDistancePoint rptNode1;
+    RouteDistancePoint rptNode2;
     long iaevLim = _iaevCur;
     long irpt = _rtelCur.irpt;
 
@@ -5507,7 +5507,7 @@ void Actor::AssertValid(ulong grfobj)
 
     if (fTracing)
     {
-        RPT rpt;
+        RouteDistancePoint rpt;
         long irpt;
         long iaev;
         AEV aev;

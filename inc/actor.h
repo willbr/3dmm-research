@@ -44,10 +44,10 @@ typedef RoutePoint *PRoutePoint;
 const ByteOrderMask kbomXyz = 0xfc000000;
 
 //
-// 	A RouTE is a general list (GL) of Route PoinTs(RPT)
+// 	A RouTE is a general list (GL) of Route PoinTs(RouteDistancePoint)
 //  A Subroute is a contiguous section of a route.
 //
-struct RPT
+struct RouteDistancePoint
 {
     RoutePoint xyz;
     BRS dwr; // Distance from this node to the next node on the route
@@ -413,7 +413,7 @@ class Actor : public Actor_PAR
     bool _FFreeze(void);   // insert freeze event
     bool _FUnfreeze(void); // insert unfreeze event
     void _Hide(void);
-    bool _FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior = rZero);
+    bool _FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior = rZero);
     bool _FAddAevFromPrev(long iaevLim, ulong grfaet);
     bool _FAddAevFromLater(void);
     bool _FFindNextAevAet(long aet, long iaevCur, long *piaevAdd);

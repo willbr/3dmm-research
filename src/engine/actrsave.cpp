@@ -327,10 +327,10 @@ bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
     _pglrpt = GL::PglRead(&blck, &bo);
     if (pvNil == _pglrpt)
         return fFalse;
-    AssertBomRglw(kbomRpt, size(RPT));
+    AssertBomRglw(kbomRpt, size(RouteDistancePoint));
     if (kboOther == bo)
     {
-        SwapBytesRglw(_pglrpt->QvGet(0), LwMul(_pglrpt->IvMac(), size(RPT) / size(long)));
+        SwapBytesRglw(_pglrpt->QvGet(0), LwMul(_pglrpt->IvMac(), size(RouteDistancePoint) / size(long)));
     }
     return fTrue;
 }

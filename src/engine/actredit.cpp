@@ -36,10 +36,10 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     AEV aev;
     AEVACTN aevactn;
     AEVSND aevsnd;
-    RPT rpt;
-    RPT rptOld;
-    RPT *prptSrc;
-    RPT *prptDest;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptOld;
+    RouteDistancePoint *prptSrc;
+    RouteDistancePoint *prptDest;
 
     (*ppactr) = PactrNew(&_tagTmpl);
 
@@ -226,9 +226,9 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
             goto LFail;
         }
 
-        prptSrc = (RPT *)_pglrpt->QvGet(_rtelCur.irpt + 1);
-        prptDest = (RPT *)(*ppactr)->_pglrpt->QvGet(1);
-        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_rtelCur.irpt + 1), size(RPT)));
+        prptSrc = (RouteDistancePoint *)_pglrpt->QvGet(_rtelCur.irpt + 1);
+        prptDest = (RouteDistancePoint *)(*ppactr)->_pglrpt->QvGet(1);
+        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_rtelCur.irpt + 1), size(RouteDistancePoint)));
     }
     else
     {
@@ -390,8 +390,8 @@ bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
     AssertPo(pactrDest->_pggaev, 0);
     AssertPo(pactrDest->_pglrpt, 0);
 
-    RPT *prptSrc;
-    RPT *prptDest;
+    RouteDistancePoint *prptSrc;
+    RouteDistancePoint *prptDest;
     SMM *psmmSrc;
     SMM *psmmDest;
 
@@ -425,9 +425,9 @@ bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
             goto LFail;
         }
 
-        prptSrc = (RPT *)pactrSrc->_pglrpt->QvGet(0);
-        prptDest = (RPT *)pactrDest->_pglrpt->QvGet(0);
-        CopyPb(prptSrc, prptDest, LwMul(pactrSrc->_pglrpt->IvMac(), size(RPT)));
+        prptSrc = (RouteDistancePoint *)pactrSrc->_pglrpt->QvGet(0);
+        prptDest = (RouteDistancePoint *)pactrDest->_pglrpt->QvGet(0);
+        CopyPb(prptSrc, prptDest, LwMul(pactrSrc->_pglrpt->IvMac(), size(RouteDistancePoint)));
     }
 
     //
@@ -469,9 +469,9 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
     long irpt;
     long dnrpt;
     long irptLim;
-    RPT rpt;
-    RPT rpt1;
-    RPT rptNode;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rpt1;
+    RouteDistancePoint rptNode;
 
     (*ppactr) = PactrNew(&_tagTmpl);
     if (*ppactr == pvNil)
@@ -575,8 +575,8 @@ bool Actor::FPasteRte(PActor pactr)
     AssertVarMem(pactr);
 
     AEV aev;
-    RPT rpt;
-    RPT rptCur;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptCur;
     RoutePoint dxyz;
     long iaev;
     long irpt;
@@ -733,7 +733,7 @@ bool Actor::FPaste(long nfrm, SCEN *pscen)
     AssertThis(0);
 
     AEV aev;
-    RPT rpt;
+    RouteDistancePoint rpt;
     AEVADD aevadd;
     AEVSND aevsnd;
     BRS xrCam = rZero;
