@@ -565,17 +565,17 @@ class LineTextGraphicsDocument : public LineTextGraphicsDocument_PAR
 /***************************************************************************
     Rich text document display gob
 ***************************************************************************/
-typedef class TXRG *PTXRG;
-#define TXRG_PAR TextDocumentGraphicsObject
-#define kclsTXRG 'TXRG'
-class TXRG : public TXRG_PAR
+typedef class RichTextDocumentGraphicsObject *PRichTextDocumentGraphicsObject;
+#define RichTextDocumentGraphicsObject_PAR TextDocumentGraphicsObject
+#define kclsRichTextDocumentGraphicsObject 'TXRG'
+class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(TXRG)
+    CMD_MAP_DEC(RichTextDocumentGraphicsObject)
     ASSERT
 
   protected:
-    TXRG(PRichTextDocument ptxrd, PGCB pgcb);
+    RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGCB pgcb);
 
     CHP _chpIns;
     bool _fValidChp;
@@ -595,7 +595,7 @@ class TXRG : public TXRG_PAR
     void _EnsureChpIns(void);
 
   public:
-    static PTXRG PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb);
+    static PRichTextDocumentGraphicsObject PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb);
 
     virtual void SetSel(long cpAnchor, long cpOther, long gin = kginDraw);
     virtual bool FReplace(achar *prgch, long cch, long cp1, long cp2);

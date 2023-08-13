@@ -34,7 +34,7 @@ ON_CID_GEN(cidSpellCheck, &HEDG::FCmdCheckSpelling, &HEDG::FEnableHedgCmd)
 ON_CID_GEN(cidDumpText, &HEDG::FCmdDump, &HEDG::FEnableHedgCmd)
 END_CMD_MAP_NIL()
 
-BEGIN_CMD_MAP(HETG, TXRG)
+BEGIN_CMD_MAP(HETG, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidGroupText, &HETG::FCmdGroupText, &HETG::FEnableHetgCmd)
 ON_CID_GEN(cidLineSpacing, &HETG::FCmdLineSpacing, pvNil)
 ON_CID_GEN(cidFormatPicture, &HETG::FCmdFormatPicture, &HETG::FEnableHetgCmd)

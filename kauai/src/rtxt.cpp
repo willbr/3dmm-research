@@ -18,24 +18,24 @@ RTCLASS(PlainTextDocument)
 RTCLASS(RichTextDocument)
 RTCLASS(TextDocumentGraphicsObject)
 RTCLASS(LineTextGraphicsDocument)
-RTCLASS(TXRG)
+RTCLASS(RichTextDocumentGraphicsObject)
 RTCLASS(RichTextUndo)
 
-BEGIN_CMD_MAP(TXRG, DocumentDisplayGraphicsObject)
-ON_CID_GEN(cidPlain, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidBold, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidItalic, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidUnderline, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidJustifyLeft, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidJustifyCenter, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidJustifyRight, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidIndentNone, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidIndentFirst, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidIndentRest, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidIndentAll, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidChooseFont, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidChooseFontSize, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
-ON_CID_GEN(cidChooseSubSuper, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
+BEGIN_CMD_MAP(RichTextDocumentGraphicsObject, DocumentDisplayGraphicsObject)
+ON_CID_GEN(cidPlain, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidBold, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidItalic, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidUnderline, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidJustifyLeft, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidJustifyCenter, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidJustifyRight, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidIndentNone, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidIndentFirst, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidIndentRest, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidIndentAll, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidChooseFont, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidChooseFontSize, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
+ON_CID_GEN(cidChooseSubSuper, &RichTextDocumentGraphicsObject::FCmdApplyProperty, &RichTextDocumentGraphicsObject::FEnablePropCmd)
 END_CMD_MAP_NIL()
 
 #ifdef DEBUG
@@ -1423,12 +1423,12 @@ LFail:
 }
 
 /***************************************************************************
-    Create a new TXRG to display the RichTextDocument.
+    Create a new RichTextDocumentGraphicsObject to display the RichTextDocument.
 ***************************************************************************/
 PDocumentDisplayGraphicsObject RichTextDocument::PddgNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
-    return TXRG::PtxrgNew(this, pgcb);
+    return RichTextDocumentGraphicsObject::PtxrgNew(this, pgcb);
 }
 
 /***************************************************************************

@@ -19,7 +19,7 @@
 
         Textbox Ddg (TBXG)
 
-            TXRG ---> TBXG  (created as a child Gob of a TBXB)
+            RichTextDocumentGraphicsObject ---> TBXG  (created as a child Gob of a TBXB)
 
     Cut/Copy/Paste Stuff
 
@@ -114,7 +114,7 @@ class TBXB : public TBXB_PAR
 //
 //
 
-#define TBXG_PAR TXRG
+#define TBXG_PAR RichTextDocumentGraphicsObject
 
 typedef class TBXG *PTBXG;
 #define kclsTBXG 'TBXG'
@@ -129,7 +129,7 @@ class TBXG : public TBXG_PAR
     PTBXB _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
 
-    TBXG(PRichTextDocument ptxrd, PGCB pgcb) : TXRG(ptxrd, pgcb)
+    TBXG(PRichTextDocument ptxrd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
     {
     }
     ~TBXG(void);

@@ -114,7 +114,7 @@ class TXHD : public TXHD_PAR
     A runtime DocumentDisplayGraphicsObject for a help topic.
 ***************************************************************************/
 typedef class TXHG *PTXHG;
-#define TXHG_PAR TXRG
+#define TXHG_PAR RichTextDocumentGraphicsObject
 #define kclsTXHG 'TXHG'
 class TXHG : public TXHG_PAR
 {

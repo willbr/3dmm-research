@@ -2707,18 +2707,18 @@ bool LineTextGraphicsDocument::_FPaste(PClipboardObject pclip, bool fDoIt, long 
 /***************************************************************************
     Constructor for a rich text document display gob.
 ***************************************************************************/
-TXRG::TXRG(PRichTextDocument ptxrd, PGCB pgcb) : TXRG_PAR(ptxrd, pgcb)
+RichTextDocumentGraphicsObject::RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGCB pgcb) : RichTextDocumentGraphicsObject_PAR(ptxrd, pgcb)
 {
 }
 
 /***************************************************************************
     Create a new rich text document display GraphicsObject.
 ***************************************************************************/
-PTXRG TXRG::PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb)
+PRichTextDocumentGraphicsObject RichTextDocumentGraphicsObject::PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb)
 {
-    PTXRG ptxrg;
+    PRichTextDocumentGraphicsObject ptxrg;
 
-    if (pvNil == (ptxrg = NewObj TXRG(ptxrd, pgcb)))
+    if (pvNil == (ptxrg = NewObj RichTextDocumentGraphicsObject(ptxrd, pgcb)))
         return pvNil;
     if (!ptxrg->_FInit())
     {
@@ -2731,11 +2731,11 @@ PTXRG TXRG::PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXRG.
+    Assert the validity of a RichTextDocumentGraphicsObject.
 ***************************************************************************/
-void TXRG::AssertValid(ulong grf)
+void RichTextDocumentGraphicsObject::AssertValid(ulong grf)
 {
-    TXRG_PAR::AssertValid(0);
+    RichTextDocumentGraphicsObject_PAR::AssertValid(0);
     AssertNilOrPo(_ptrul, 0);
 }
 #endif // DEBUG
@@ -2743,7 +2743,7 @@ void TXRG::AssertValid(ulong grf)
 /***************************************************************************
     Get the character properties for displaying the given cp.
 ***************************************************************************/
-void TXRG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
+void RichTextDocumentGraphicsObject::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 {
     ((PRichTextDocument)_ptxtb)->FetchChp(cp, pchp, pcpMin, pcpLim);
 }
@@ -2751,7 +2751,7 @@ void TXRG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 /***************************************************************************
     Get the paragraph properties for displaying the given cp.
 ***************************************************************************/
-void TXRG::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
+void RichTextDocumentGraphicsObject::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 {
     ((PRichTextDocument)_ptxtb)->FetchPap(cp, ppap, pcpMin, pcpLim);
 }
@@ -2759,7 +2759,7 @@ void TXRG::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 /***************************************************************************
     Set the tab width for the currently selected paragraph(s).
 ***************************************************************************/
-void TXRG::SetDxpTab(long dxp)
+void RichTextDocumentGraphicsObject::SetDxpTab(long dxp)
 {
     AssertThis(0);
     long cpMin, cpLim, cpAnchor, cpOther;
@@ -2785,10 +2785,10 @@ void TXRG::SetDxpTab(long dxp)
 }
 
 /***************************************************************************
-    Set the selection for the TXRG.  Invalidates _chpIns if the selection
+    Set the selection for the RichTextDocumentGraphicsObject.  Invalidates _chpIns if the selection
     changes.
 ***************************************************************************/
-void TXRG::SetSel(long cpAnchor, long cpOther, long gin)
+void RichTextDocumentGraphicsObject::SetSel(long cpAnchor, long cpOther, long gin)
 {
     AssertThis(0);
     long cpMac = _ptxtb->CpMac();
@@ -2800,7 +2800,7 @@ void TXRG::SetSel(long cpAnchor, long cpOther, long gin)
         return;
 
     _fValidChp = fFalse;
-    TXRG_PAR::SetSel(cpAnchor, cpOther, gin);
+    RichTextDocumentGraphicsObject_PAR::SetSel(cpAnchor, cpOther, gin);
     if (pvNil != _ptrul)
     {
         PAP pap;
@@ -2816,7 +2816,7 @@ void TXRG::SetSel(long cpAnchor, long cpOther, long gin)
     of the previous character. Otherwise gets the chp of the character at
     LwMin(cp1, cp2).
 ***************************************************************************/
-void TXRG::_FetchChpSel(long cp1, long cp2, PCHP pchp)
+void RichTextDocumentGraphicsObject::_FetchChpSel(long cp1, long cp2, PCHP pchp)
 {
     AssertThis(0);
     AssertVarMem(pchp);
@@ -2841,7 +2841,7 @@ void TXRG::_FetchChpSel(long cp1, long cp2, PCHP pchp)
 /***************************************************************************
     Make sure the _chpIns is valid.
 ***************************************************************************/
-void TXRG::_EnsureChpIns(void)
+void RichTextDocumentGraphicsObject::_EnsureChpIns(void)
 {
     AssertThis(0);
 
@@ -2855,7 +2855,7 @@ void TXRG::_EnsureChpIns(void)
 /***************************************************************************
     Replaces the characters between cp1 and cp2 with the given ones.
 ***************************************************************************/
-bool TXRG::FReplace(achar *prgch, long cch, long cp1, long cp2)
+bool RichTextDocumentGraphicsObject::FReplace(achar *prgch, long cch, long cp1, long cp2)
 {
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgch, cch);
@@ -2895,7 +2895,7 @@ bool TXRG::FReplace(achar *prgch, long cch, long cp1, long cp2)
 /***************************************************************************
     Copy the selection.
 ***************************************************************************/
-bool TXRG::_FCopySel(PDocumentBase *ppdocb)
+bool RichTextDocumentGraphicsObject::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
     PRichTextDocument ptxrd;
@@ -2927,7 +2927,7 @@ bool TXRG::_FCopySel(PDocumentBase *ppdocb)
 /***************************************************************************
     Delete the selection.
 ***************************************************************************/
-void TXRG::_ClearSel(void)
+void RichTextDocumentGraphicsObject::_ClearSel(void)
 {
     FReplace(pvNil, 0, _cpAnchor, _cpOther);
     ShowSel();
@@ -2936,7 +2936,7 @@ void TXRG::_ClearSel(void)
 /***************************************************************************
     Paste the selection.
 ***************************************************************************/
-bool TXRG::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
+bool RichTextDocumentGraphicsObject::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     long cp1, cp2;
@@ -2991,7 +2991,7 @@ bool TXRG::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 /***************************************************************************
     Apply the given character properties to the current selection.
 ***************************************************************************/
-bool TXRG::FApplyChp(PCHP pchp, PCHP pchpDiff)
+bool RichTextDocumentGraphicsObject::FApplyChp(PCHP pchp, PCHP pchpDiff)
 {
     AssertThis(0);
     AssertVarMem(pchp);
@@ -3045,7 +3045,7 @@ bool TXRG::FApplyChp(PCHP pchp, PCHP pchpDiff)
 /***************************************************************************
     Apply the given paragraph properties to the current selection.
 ***************************************************************************/
-bool TXRG::FApplyPap(PPAP ppap, PPAP ppapDiff, bool fExpand)
+bool RichTextDocumentGraphicsObject::FApplyPap(PPAP ppap, PPAP ppapDiff, bool fExpand)
 {
     AssertThis(0);
     AssertVarMem(ppap);
@@ -3071,7 +3071,7 @@ bool TXRG::FApplyPap(PPAP ppap, PPAP ppapDiff, bool fExpand)
 /***************************************************************************
     Apply a character or paragraph property
 ***************************************************************************/
-bool TXRG::FCmdApplyProperty(PCMD pcmd)
+bool RichTextDocumentGraphicsObject::FCmdApplyProperty(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3182,7 +3182,7 @@ bool TXRG::FCmdApplyProperty(PCMD pcmd)
 /***************************************************************************
     Get a font size from the user.
 ***************************************************************************/
-bool TXRG::_FGetOtherSize(long *pdypFont)
+bool RichTextDocumentGraphicsObject::_FGetOtherSize(long *pdypFont)
 {
     AssertThis(0);
     AssertVarMem(pdypFont);
@@ -3194,7 +3194,7 @@ bool TXRG::_FGetOtherSize(long *pdypFont)
 /***************************************************************************
     Get the amount to sub/superscript from the user.
 ***************************************************************************/
-bool TXRG::_FGetOtherSubSuper(long *pdypOffset)
+bool RichTextDocumentGraphicsObject::_FGetOtherSubSuper(long *pdypOffset)
 {
     AssertThis(0);
     AssertVarMem(pdypOffset);
@@ -3206,7 +3206,7 @@ bool TXRG::_FGetOtherSubSuper(long *pdypOffset)
 /***************************************************************************
     Apply a character or paragraph property
 ***************************************************************************/
-bool TXRG::FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack)
+bool RichTextDocumentGraphicsObject::FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack)
 {
     AssertThis(0);
     AssertNilOrPo(pacrFore, 0);
@@ -3237,7 +3237,7 @@ bool TXRG::FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack)
 /***************************************************************************
     Enable, check/uncheck property commands.
 ***************************************************************************/
-bool TXRG::FEnablePropCmd(PCMD pcmd, ulong *pgrfeds)
+bool RichTextDocumentGraphicsObject::FEnablePropCmd(PCMD pcmd, ulong *pgrfeds)
 {
     PAP pap;
     bool fCheck;

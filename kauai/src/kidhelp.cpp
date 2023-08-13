@@ -13,7 +13,7 @@
 #include "kidframe.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(TXHG, TXRG)
+BEGIN_CMD_MAP(TXHG, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
 ON_CID_ME(cidActivateSel, pvNil, pvNil)
 END_CMD_MAP_NIL()
@@ -655,7 +655,7 @@ void TXHD::SetHtop(PHTOP phtop)
 /***************************************************************************
     Constructor for a TXHG.
 ***************************************************************************/
-TXHG::TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb) : TXRG(ptxhd, pgcb)
+TXHG::TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);

@@ -408,7 +408,7 @@ class HETD : public HETD_PAR
     DocumentDisplayGraphicsObject for an HETD.  Help text document editing gob.
 ***************************************************************************/
 typedef class HETG *PHETG;
-#define HETG_PAR TXRG
+#define HETG_PAR RichTextDocumentGraphicsObject
 #define kclsHETG 'HETG'
 class HETG : public HETG_PAR
 {
