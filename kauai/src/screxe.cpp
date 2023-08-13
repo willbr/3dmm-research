@@ -16,7 +16,7 @@ ASSERTNAME
 
 namespace ScriptInterpreter {
 
-RTCLASS(SCEB)
+RTCLASS(Interpreter)
 RTCLASS(SCPT)
 RTCLASS(STRG)
 
@@ -28,7 +28,7 @@ static STN _stn;
 /***************************************************************************
     Constructor for the script interpreter.
 ***************************************************************************/
-SCEB::SCEB(PRCA prca, PSTRG pstrg)
+Interpreter::Interpreter(PRCA prca, PSTRG pstrg)
 {
     AssertNilOrPo(prca, 0);
     AssertNilOrPo(pstrg, 0);
@@ -51,7 +51,7 @@ SCEB::SCEB(PRCA prca, PSTRG pstrg)
 /***************************************************************************
     Destructor for the script interpreter.
 ***************************************************************************/
-SCEB::~SCEB(void)
+Interpreter::~Interpreter(void)
 {
     Free();
     ReleasePpo(&_prca);
@@ -61,7 +61,7 @@ SCEB::~SCEB(void)
 /***************************************************************************
     Free our claim to all this stuff.
 ***************************************************************************/
-void SCEB::Free(void)
+void Interpreter::Free(void)
 {
     AssertThis(0);
 
@@ -87,11 +87,11 @@ void SCEB::Free(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SCEB.
+    Assert the validity of a Interpreter.
 ***************************************************************************/
-void SCEB::AssertValid(ulong grfsceb)
+void Interpreter::AssertValid(ulong grfsceb)
 {
-    SCEB_PAR::AssertValid(0);
+    Interpreter_PAR::AssertValid(0);
     if (grfsceb & fscebRunnable)
     {
         Assert(pvNil != _pgllwStack, "nil stack");
@@ -108,12 +108,12 @@ void SCEB::AssertValid(ulong grfsceb)
 }
 
 /***************************************************************************
-    Mark memory for the SCEB.
+    Mark memory for the Interpreter.
 ***************************************************************************/
-void SCEB::MarkMem(void)
+void Interpreter::MarkMem(void)
 {
     AssertValid(0);
-    SCEB_PAR::MarkMem();
+    Interpreter_PAR::MarkMem();
     MarkMemObj(_pgllwStack);
     MarkMemObj(_pscpt);
     MarkMemObj(_pglrtvm);
@@ -125,16 +125,16 @@ void SCEB::MarkMem(void)
     Run the given script.  (prglw, clw) is the list of parameters for the
     script.
 ***************************************************************************/
-bool SCEB::FRunScript(PSCPT pscpt, long *prglw, long clw, long *plwReturn, bool *pfPaused)
+bool Interpreter::FRunScript(PSCPT pscpt, long *prglw, long clw, long *plwReturn, bool *pfPaused)
 {
     AssertThis(0);
     return FAttachScript(pscpt, prglw, clw) && FResume(plwReturn, pfPaused);
 }
 
 /***************************************************************************
-    Attach a script to this SCEB and pause the script.
+    Attach a script to this Interpreter and pause the script.
 ***************************************************************************/
-bool SCEB::FAttachScript(PSCPT pscpt, long *prglw, long clw)
+bool Interpreter::FAttachScript(PSCPT pscpt, long *prglw, long clw)
 {
     AssertThis(0);
     AssertPo(pscpt, 0);
@@ -194,7 +194,7 @@ bool SCEB::FAttachScript(PSCPT pscpt, long *prglw, long clw)
 /***************************************************************************
     Resume a paused script.
 ***************************************************************************/
-bool SCEB::FResume(long *plwReturn, bool *pfPaused)
+bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
 {
     AssertThis(fscebRunnable);
     AssertNilOrVarMem(plwReturn);
@@ -277,7 +277,7 @@ bool SCEB::FResume(long *plwReturn, bool *pfPaused)
 /***************************************************************************
     Put the parameters in the local variable list.
 ***************************************************************************/
-void SCEB::_AddParameters(long *prglw, long clw)
+void Interpreter::_AddParameters(long *prglw, long clw)
 {
     AssertThis(0);
     AssertIn(clw, 1, kcbMax);
@@ -303,7 +303,7 @@ void SCEB::_AddParameters(long *prglw, long clw)
     Put the literal strings into the registry.  And assign the string id's
     to the internal string variables.
 ***************************************************************************/
-void SCEB::_AddStrings(PStringTable pgst)
+void Interpreter::_AddStrings(PStringTable pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -338,7 +338,7 @@ void SCEB::_AddStrings(PStringTable pgst)
 /***************************************************************************
     Return the current version number of the script compiler.
 ***************************************************************************/
-short SCEB::_SwCur(void)
+short Interpreter::_SwCur(void)
 {
     AssertBaseThis(0);
     return kswCurSccb;
@@ -348,7 +348,7 @@ short SCEB::_SwCur(void)
     Return the min version number of the script compiler.  Read can read
     scripts back to this version.
 ***************************************************************************/
-short SCEB::_SwMin(void)
+short Interpreter::_SwMin(void)
 {
     AssertBaseThis(0);
     return kswMinSccb;
@@ -357,7 +357,7 @@ short SCEB::_SwMin(void)
 /***************************************************************************
     Execute an instruction that has a variable as an argument.
 ***************************************************************************/
-bool SCEB::_FExecVarOp(long op, RTVN *prtvn)
+bool Interpreter::_FExecVarOp(long op, RTVN *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -413,7 +413,7 @@ bool SCEB::_FExecVarOp(long op, RTVN *prtvn)
 /***************************************************************************
     Execute an instruction.
 ***************************************************************************/
-bool SCEB::_FExecOp(long op)
+bool Interpreter::_FExecOp(long op)
 {
     AssertThis(0);
     double dou;
@@ -690,7 +690,7 @@ bool SCEB::_FExecOp(long op)
 /***************************************************************************
     Pop a long off the stack.
 ***************************************************************************/
-long SCEB::_LwPop(void)
+long Interpreter::_LwPop(void)
 {
     long lw, ilw;
 
@@ -711,7 +711,7 @@ long SCEB::_LwPop(void)
 /***************************************************************************
     Get a pointer to the element that is clw elements down from the top.
 ***************************************************************************/
-long *SCEB::_QlwGet(long clw)
+long *Interpreter::_QlwGet(long clw)
 {
     long ilwMac;
 
@@ -729,7 +729,7 @@ long *SCEB::_QlwGet(long clw)
 /***************************************************************************
     Register an error.
 ***************************************************************************/
-void SCEB::_Error(bool fAssert)
+void Interpreter::_Error(bool fAssert)
 {
     AssertThis(0);
     if (!_fError)
@@ -744,7 +744,7 @@ void SCEB::_Error(bool fAssert)
 /***************************************************************************
     Emits a warning with the given format string and optional parameters.
 ***************************************************************************/
-void SCEB::_WarnSz(PSZ psz, ...)
+void Interpreter::_WarnSz(PSZ psz, ...)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -761,7 +761,7 @@ void SCEB::_WarnSz(PSZ psz, ...)
 /***************************************************************************
     Rotate clwTot entries on the stack left by clwShift positions.
 ***************************************************************************/
-void SCEB::_Rotate(long clwTot, long clwShift)
+void Interpreter::_Rotate(long clwTot, long clwShift)
 {
     AssertThis(0);
     long *qlw;
@@ -786,7 +786,7 @@ void SCEB::_Rotate(long clwTot, long clwShift)
 /***************************************************************************
     Reverse clw entries on the stack.
 ***************************************************************************/
-void SCEB::_Reverse(long clw)
+void Interpreter::_Reverse(long clw)
 {
     AssertThis(0);
     long *qlw, *qlw2;
@@ -810,7 +810,7 @@ void SCEB::_Reverse(long clw)
 /***************************************************************************
     Duplicate clw entries on the stack.
 ***************************************************************************/
-void SCEB::_DupList(long clw)
+void Interpreter::_DupList(long clw)
 {
     AssertThis(0);
     long *qlw;
@@ -835,7 +835,7 @@ void SCEB::_DupList(long clw)
 /***************************************************************************
     Removes clw entries from the stack.
 ***************************************************************************/
-void SCEB::_PopList(long clw)
+void Interpreter::_PopList(long clw)
 {
     AssertThis(0);
     long ilwMac;
@@ -854,7 +854,7 @@ void SCEB::_PopList(long clw)
     Select the ilw'th entry from the top clw entries.  ilw is indexed from
     the top entry in and is zero based.
 ***************************************************************************/
-void SCEB::_Select(long clw, long ilw)
+void Interpreter::_Select(long clw, long ilw)
 {
     AssertThis(0);
     long *qlw;
@@ -877,7 +877,7 @@ void SCEB::_Select(long clw, long ilw)
     test value, push the correspongind return value.  Otherwise, push
     the default return value.
 ***************************************************************************/
-void SCEB::_Match(long clw)
+void Interpreter::_Match(long clw)
 {
     AssertThis(0);
     long *qrglw;
@@ -904,7 +904,7 @@ void SCEB::_Match(long clw)
 /***************************************************************************
     Generates a random entry from a list of numbers on the stack.
 ***************************************************************************/
-void SCEB::_RndList(long clw)
+void Interpreter::_RndList(long clw)
 {
     AssertThis(0);
 
@@ -917,7 +917,7 @@ void SCEB::_RndList(long clw)
 /***************************************************************************
     Copy the string from stidSrc to stidDst.
 ***************************************************************************/
-void SCEB::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
+void Interpreter::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
 {
     AssertThis(0);
     STN stn;
@@ -948,7 +948,7 @@ void SCEB::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
     Concatenate two strings and put the result in a third. Push the id
     of the destination.
 ***************************************************************************/
-void SCEB::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
+void Interpreter::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
 {
     AssertThis(0);
     STN stn1, stn2;
@@ -982,7 +982,7 @@ void SCEB::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
 /***************************************************************************
     Push the length of the given string.
 ***************************************************************************/
-void SCEB::_LenStr(long stid)
+void Interpreter::_LenStr(long stid)
 {
     AssertThis(0);
     STN stn;
@@ -1052,7 +1052,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 /***************************************************************************
     Merge a string table into the string registry.
 ***************************************************************************/
-void SCEB::_MergeStrings(ChunkNumber cno, RSC rsc)
+void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
     PGenericCacheableObject pcabo;
@@ -1108,7 +1108,7 @@ void SCEB::_MergeStrings(ChunkNumber cno, RSC rsc)
 /***************************************************************************
     Convert a number to a string and add the string to the registry.
 ***************************************************************************/
-void SCEB::_NumToStr(long lw, long stid)
+void Interpreter::_NumToStr(long lw, long stid)
 {
     AssertThis(0);
     STN stn;
@@ -1132,7 +1132,7 @@ void SCEB::_NumToStr(long lw, long stid)
     Convert a string to a number and push the result. If the string is
     empty, push lwEmpty; if there is an error, push lwError.
 ***************************************************************************/
-void SCEB::_StrToNum(long stid, long lwEmpty, long lwError)
+void Interpreter::_StrToNum(long stid, long lwEmpty, long lwError)
 {
     AssertThis(0);
     STN stn;
@@ -1155,7 +1155,7 @@ void SCEB::_StrToNum(long stid, long lwEmpty, long lwError)
 /***************************************************************************
     Push the value of a variable onto the runtime stack.
 ***************************************************************************/
-void SCEB::_PushVar(PGL pglrtvm, RTVN *prtvn)
+void Interpreter::_PushVar(PGL pglrtvm, RTVN *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1180,7 +1180,7 @@ void SCEB::_PushVar(PGL pglrtvm, RTVN *prtvn)
 /***************************************************************************
     Pop the top value off the runtime stack into a variable.
 ***************************************************************************/
-void SCEB::_AssignVar(PGL *ppglrtvm, RTVN *prtvn, long lw)
+void Interpreter::_AssignVar(PGL *ppglrtvm, RTVN *prtvn, long lw)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1202,7 +1202,7 @@ void SCEB::_AssignVar(PGL *ppglrtvm, RTVN *prtvn, long lw)
 /***************************************************************************
     Get the variable map for "this" object.
 ***************************************************************************/
-PGL SCEB::_PglrtvmThis(void)
+PGL Interpreter::_PglrtvmThis(void)
 {
     PGL *ppgl = _PpglrtvmThis();
     if (pvNil == ppgl)
@@ -1214,7 +1214,7 @@ PGL SCEB::_PglrtvmThis(void)
     Get the adress of the variable map master pointer for "this" object
     (so we can create the variable map if need be).
 ***************************************************************************/
-PGL *SCEB::_PpglrtvmThis(void)
+PGL *Interpreter::_PpglrtvmThis(void)
 {
     return pvNil;
 }
@@ -1222,7 +1222,7 @@ PGL *SCEB::_PpglrtvmThis(void)
 /***************************************************************************
     Get the variable map for "global" variables.
 ***************************************************************************/
-PGL SCEB::_PglrtvmGlobal(void)
+PGL Interpreter::_PglrtvmGlobal(void)
 {
     PGL *ppgl = _PpglrtvmGlobal();
     if (pvNil == ppgl)
@@ -1234,7 +1234,7 @@ PGL SCEB::_PglrtvmGlobal(void)
     Get the adress of the variable map master pointer for "global" variables
     (so we can create the variable map if need be).
 ***************************************************************************/
-PGL *SCEB::_PpglrtvmGlobal(void)
+PGL *Interpreter::_PpglrtvmGlobal(void)
 {
     return pvNil;
 }
@@ -1242,7 +1242,7 @@ PGL *SCEB::_PpglrtvmGlobal(void)
 /***************************************************************************
     Get the variable map for a remote object.
 ***************************************************************************/
-PGL SCEB::_PglrtvmRemote(long lw)
+PGL Interpreter::_PglrtvmRemote(long lw)
 {
     PGL *ppgl = _PpglrtvmRemote(lw);
     if (pvNil == ppgl)
@@ -1254,7 +1254,7 @@ PGL SCEB::_PglrtvmRemote(long lw)
     Get the adress of the variable map master pointer for a remote object
     (so we can create the variable map if need be).
 ***************************************************************************/
-PGL *SCEB::_PpglrtvmRemote(long lw)
+PGL *Interpreter::_PpglrtvmRemote(long lw)
 {
     return pvNil;
 }

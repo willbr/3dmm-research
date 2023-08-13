@@ -22,7 +22,7 @@ namespace ScriptInterpreter {
     Gob based script interpreter
 ****************************************/
 typedef class SCEG *PSCEG;
-#define SCEG_PAR SCEB
+#define SCEG_PAR Interpreter
 #define kclsSCEG 'SCEG'
 class SCEG : public SCEG_PAR
 {

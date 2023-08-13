@@ -54,7 +54,7 @@ class SCPT : public SCPT_PAR
     {
     }
 
-    friend class SCEB;
+    friend class Interpreter;
     friend class SCCB;
 
   public:
@@ -105,10 +105,10 @@ enum
     fscebRunnable = 1,
 };
 
-typedef class SCEB *PSCEB;
-#define SCEB_PAR BASE
-#define kclsSCEB 'SCEB'
-class SCEB : public SCEB_PAR
+typedef class Interpreter *PInterpreter;
+#define Interpreter_PAR BASE
+#define kclsInterpreter 'SCEB'
+class Interpreter : public Interpreter_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -170,8 +170,8 @@ class SCEB : public SCEB_PAR
 #endif // DEBUG
 
   public:
-    SCEB(PRCA prca = pvNil, PSTRG pstrg = pvNil);
-    ~SCEB(void);
+    Interpreter(PRCA prca = pvNil, PSTRG pstrg = pvNil);
+    ~Interpreter(void);
 
     virtual bool FRunScript(PSCPT pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                             bool *pfPaused = pvNil);
