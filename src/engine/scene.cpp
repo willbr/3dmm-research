@@ -3763,7 +3763,7 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
     AssertPo(pcrf, 0);
 
     PSCEN pscen = pvNil;
-    BLCK blck;
+    DataBlock blck;
     KID kid;
     long isevFrm = 0;
     long isevStart = 0;
@@ -4194,7 +4194,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     long isevFrm = -1;
     long isevStart = -1;
     long cb;
-    BLCK blck;
+    DataBlock blck;
     PCFL pcfl;
 
     chidActr = chidTbox = 0;
@@ -5063,7 +5063,7 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     KID kid;
     long isev;
     PSEV qsev;
@@ -5769,7 +5769,7 @@ void SCEN::StopPlaying()
 ************************************************************ PETED ***********/
 bool SCEN::FTransOnFile(PCRF pcrf, CNO cno, TRANS *ptrans)
 {
-    BLCK blck;
+    DataBlock blck;
     SCENH scenh;
     PCFL pcfl = pcrf->Pcfl();
 
@@ -5804,7 +5804,7 @@ LFail:
 ************************************************************ PETED ***********/
 bool SCEN::FSetTransOnFile(PCRF pcrf, CNO cno, TRANS trans)
 {
-    BLCK blck;
+    DataBlock blck;
     SCENH scenh;
     PCFL pcfl = pcrf->Pcfl();
 

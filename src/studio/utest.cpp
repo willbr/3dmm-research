@@ -1481,7 +1481,7 @@ bool APP::_FDisplayHomeLogo(bool fSkipSplashScreen)
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     PGL pglclr;
     PMBMP pmbmp;
     short bo;
@@ -1517,7 +1517,7 @@ bool APP::_FInitProductNames(void)
     AssertBaseThis(0);
 
     PGST pgst;
-    BLCK blck;
+    DataBlock blck;
 
     // Use kcbCacheTagm of cache per source, don't cache on CD
 
@@ -1664,7 +1664,7 @@ PGST APP::_PgstRead(CNO cno)
     AssertPo(_pcfl, 0);
 
     PGST pgst;
-    BLCK blck;
+    DataBlock blck;
     short bo;
     short osk;
     long istn;
@@ -1743,7 +1743,7 @@ bool APP::_FShowSplashScreen(void)
 {
     AssertBaseThis(0);
 
-    BLCK blck;
+    DataBlock blck;
     PMBMP pmbmp;
 
     if (!_pcfl->FFind(kctgMbmp, kcnoMbmpSplash, &blck))
@@ -4033,7 +4033,7 @@ bool APP::_FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc)
     STN stn;
     FNI fniTemp;
     PFIL pfil = pvNil;
-    BLCK blck;
+    DataBlock blck;
     DWORD dwProcId;
 
     // Write filename to 3DMMOpen.tmp in the temp dir
@@ -4086,7 +4086,7 @@ bool APP::_FProcessOpenDocCmd(void)
     FNI fniTemp;
     PFIL pfil = pvNil;
     FNI fniUserDoc;
-    BLCK blck;
+    DataBlock blck;
 
     // Find the temp file
     if (!fniTemp.FGetTemp())

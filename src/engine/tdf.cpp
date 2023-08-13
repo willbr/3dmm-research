@@ -169,7 +169,7 @@ bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, CKI *pckiTdf)
     BRS *prgdxr = pvNil;
     BRS *prgdyr = pvNil;
     PMODL pmodl;
-    BLCK blck;
+    DataBlock blck;
     long cbrgdwr; // space taken by rgdxr or rgdyr
     long ikid;
     long ckid;

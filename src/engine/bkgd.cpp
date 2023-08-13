@@ -155,7 +155,7 @@ bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     BKGDF bkgdf;
     KID kid;
     PGL pgllite = pvNil;
@@ -425,7 +425,7 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
     KID kidCam;
     KID kidRGB;
     KID kidZ;
-    BLCK blck;
+    DataBlock blck;
     CAM cam;
     PCFL pcfl = Pcrf()->Pcfl();
     BREUL breul;

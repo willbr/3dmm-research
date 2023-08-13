@@ -404,7 +404,7 @@ bool APP::FLoadResFile(PFNI pfni)
     PCFL pcfl;
     long ipcrf;
     PCRF pcrf;
-    BLCK blck;
+    DataBlock blck;
 
     if (pvNil == _pcrm && pvNil == (_pcrm = CRM::PcrmNew(1)))
         return fFalse;

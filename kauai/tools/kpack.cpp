@@ -25,7 +25,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     char chs;
     FLO floSrc, floDst;
     long lwSig;
-    BLCK blck;
+    DataBlock blck;
     bool fPacked;
     bool fCompress = fTrue;
     long cfni = 0;

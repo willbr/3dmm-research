@@ -18,7 +18,7 @@ PFIL FIL::_pfilFirst;
 MUTX FIL::_mutxList;
 
 RTCLASS(FIL)
-RTCLASS(BLCK)
+RTCLASS(DataBlock)
 RTCLASS(MSFIL)
 
 /***************************************************************************
@@ -630,7 +630,7 @@ void FLO::AssertValid(ulong grfflo)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-BLCK::BLCK(PFLO pflo, bool fPacked)
+DataBlock::DataBlock(PFLO pflo, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pflo, 0);
@@ -645,7 +645,7 @@ BLCK::BLCK(PFLO pflo, bool fPacked)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-BLCK::BLCK(PFIL pfil, FP fp, long cb, bool fPacked)
+DataBlock::DataBlock(PFIL pfil, FP fp, long cb, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pfil, 0);
@@ -663,7 +663,7 @@ BLCK::BLCK(PFIL pfil, FP fp, long cb, bool fPacked)
     Another constructor for a data block.  Assumes ownership of the hq
     (and sets *phq to hqNil).
 ***************************************************************************/
-BLCK::BLCK(HQ *phq, bool fPacked)
+DataBlock::DataBlock(HQ *phq, bool fPacked)
 {
     AssertBaseThis(0);
     AssertVarMem(phq);
@@ -681,7 +681,7 @@ BLCK::BLCK(HQ *phq, bool fPacked)
 /***************************************************************************
     Another constructor for a data block.
 ***************************************************************************/
-BLCK::BLCK(void)
+DataBlock::DataBlock(void)
 {
     AssertBaseThis(0);
     _flo.pfil = pvNil;
@@ -693,7 +693,7 @@ BLCK::BLCK(void)
 /***************************************************************************
     The destructor.
 ***************************************************************************/
-BLCK::~BLCK(void)
+DataBlock::~DataBlock(void)
 {
     AssertThis(0);
     Free();
@@ -702,7 +702,7 @@ BLCK::~BLCK(void)
 /***************************************************************************
     Set the data block to refer to the given flo.
 ***************************************************************************/
-void BLCK::Set(PFLO pflo, bool fPacked)
+void DataBlock::Set(PFLO pflo, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -717,7 +717,7 @@ void BLCK::Set(PFLO pflo, bool fPacked)
 /***************************************************************************
     Set the data block to refer to the given range on the file.
 ***************************************************************************/
-void BLCK::Set(PFIL pfil, FP fp, long cb, bool fPacked)
+void DataBlock::Set(PFIL pfil, FP fp, long cb, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
@@ -735,7 +735,7 @@ void BLCK::Set(PFIL pfil, FP fp, long cb, bool fPacked)
     Set the data block to the given hq.  Assumes ownership of the hq and
     sets *phq to hqNil.
 ***************************************************************************/
-void BLCK::SetHq(HQ *phq, bool fPacked)
+void DataBlock::SetHq(HQ *phq, bool fPacked)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -753,7 +753,7 @@ void BLCK::SetHq(HQ *phq, bool fPacked)
 /***************************************************************************
     Free the block (make it empty).
 ***************************************************************************/
-void BLCK::Free(void)
+void DataBlock::Free(void)
 {
     AssertThis(0);
     ReleasePpo(&_flo.pfil);
@@ -768,7 +768,7 @@ void BLCK::Free(void)
     or had its min or lim moved, the hq returned is the one originally
     passed to the constructor or SetHq.
 ***************************************************************************/
-HQ BLCK::HqFree(bool fPackedOk)
+HQ DataBlock::HqFree(bool fPackedOk)
 {
     AssertThis(0);
     HQ hq;
@@ -809,7 +809,7 @@ HQ BLCK::HqFree(bool fPackedOk)
 /***************************************************************************
     Return the length of the data block.
 ***************************************************************************/
-long BLCK::Cb(bool fPackedOk)
+long DataBlock::Cb(bool fPackedOk)
 {
     AssertThis(fPackedOk ? 0 : fblckUnpacked);
 
@@ -823,7 +823,7 @@ long BLCK::Cb(bool fPackedOk)
 /***************************************************************************
     Create a temporary buffer.
 ***************************************************************************/
-bool BLCK::FSetTemp(long cb, bool fForceFile)
+bool DataBlock::FSetTemp(long cb, bool fForceFile)
 {
     AssertThis(0);
     PFIL pfil;
@@ -854,7 +854,7 @@ bool BLCK::FSetTemp(long cb, bool fForceFile)
     end of the block.  Fails if you try to move before the beginning of
     the physical storage or after the lim of the block.
 ***************************************************************************/
-bool BLCK::FMoveMin(long dib)
+bool DataBlock::FMoveMin(long dib)
 {
     AssertThis(0);
 
@@ -883,7 +883,7 @@ bool BLCK::FMoveMin(long dib)
     beginning of the block.  Fails if you try to move before the min of the
     block or after the end of the physical storage.
 ***************************************************************************/
-bool BLCK::FMoveLim(long dib)
+bool DataBlock::FMoveLim(long dib)
 {
     AssertThis(0);
 
@@ -909,7 +909,7 @@ bool BLCK::FMoveLim(long dib)
 /***************************************************************************
     Read a range of bytes from the data block.
 ***************************************************************************/
-bool BLCK::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
+bool DataBlock::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -942,7 +942,7 @@ bool BLCK::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Write a range of bytes to the data block.
 ***************************************************************************/
-bool BLCK::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
+bool DataBlock::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -975,7 +975,7 @@ bool BLCK::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Read a range of bytes from the data block and put it in an hq.
 ***************************************************************************/
-bool BLCK::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
+bool DataBlock::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -1011,7 +1011,7 @@ bool BLCK::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Write an hq to the data block.
 ***************************************************************************/
-bool BLCK::FWriteHq(HQ hq, long ib, bool fPackedOk)
+bool DataBlock::FWriteHq(HQ hq, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertHq(hq);
@@ -1045,7 +1045,7 @@ bool BLCK::FWriteHq(HQ hq, long ib, bool fPackedOk)
 /***************************************************************************
     Write the block to a flo.
 ***************************************************************************/
-bool BLCK::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
+bool DataBlock::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pfloDst, 0);
@@ -1079,7 +1079,7 @@ bool BLCK::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
 /***************************************************************************
     Write this block to another block.
 ***************************************************************************/
-bool BLCK::FWriteToBlck(PBLCK pblckDst, bool fPackedOk)
+bool DataBlock::FWriteToBlck(PBLCK pblckDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pblckDst, 0);
@@ -1114,7 +1114,7 @@ bool BLCK::FWriteToBlck(PBLCK pblckDst, bool fPackedOk)
 /***************************************************************************
     Get a flo to the data in the block.
 ***************************************************************************/
-bool BLCK::FGetFlo(PFLO pflo, bool fPackedOk)
+bool DataBlock::FGetFlo(PFLO pflo, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(pflo);
@@ -1162,7 +1162,7 @@ bool BLCK::FGetFlo(PFLO pflo, bool fPackedOk)
     determining the compression type failed, *pcfmt is set to cfmtNil and
     true is returned.
 ***************************************************************************/
-bool BLCK::FPacked(long *pcfmt)
+bool DataBlock::FPacked(long *pcfmt)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcfmt);
@@ -1180,7 +1180,7 @@ bool BLCK::FPacked(long *pcfmt)
     packing format, otherwise use the one specified. If the block is
     already packed, this doesn't change the packing format.
 ***************************************************************************/
-bool BLCK::FPackData(long cfmt)
+bool DataBlock::FPackData(long cfmt)
 {
     AssertThis(0);
     HQ hq;
@@ -1228,7 +1228,7 @@ bool BLCK::FPackData(long cfmt)
 /***************************************************************************
     If the block is packed, unpack it.
 ***************************************************************************/
-bool BLCK::FUnpackData(void)
+bool DataBlock::FUnpackData(void)
 {
     AssertThis(0);
     HQ hq;
@@ -1276,7 +1276,7 @@ bool BLCK::FUnpackData(void)
 /***************************************************************************
     Return the amount of memory the block is using (roughly).
 ***************************************************************************/
-long BLCK::CbMem(void)
+long DataBlock::CbMem(void)
 {
     AssertThis(0);
 
@@ -1287,11 +1287,11 @@ long BLCK::CbMem(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a BLCK.
+    Assert the validity of a DataBlock.
 ***************************************************************************/
-void BLCK::AssertValid(ulong grfblck)
+void DataBlock::AssertValid(ulong grfblck)
 {
-    BLCK_PAR::AssertValid(0);
+    DataBlock_PAR::AssertValid(0);
 
     if (pvNil != _flo.pfil)
     {
@@ -1314,12 +1314,12 @@ void BLCK::AssertValid(ulong grfblck)
 }
 
 /***************************************************************************
-    Mark memory for the BLCK.
+    Mark memory for the DataBlock.
 ***************************************************************************/
-void BLCK::MarkMem(void)
+void DataBlock::MarkMem(void)
 {
     AssertValid(0);
-    BLCK_PAR::MarkMem();
+    DataBlock_PAR::MarkMem();
     MarkHq(_hq);
 }
 #endif // DEBUG

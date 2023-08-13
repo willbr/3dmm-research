@@ -53,7 +53,7 @@ bool PIC::FAddToCfl(PCFL pcfl, CTG ctg, CNO *pcno, CHID chid)
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcno);
-    BLCK blck;
+    DataBlock blck;
     CNO cnoKid;
     long cb;
 
@@ -81,7 +81,7 @@ bool PIC::FPutInCfl(PCFL pcfl, CTG ctg, CNO cno, CHID chid)
     bool fDelOnFail;
     long ikid;
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     CNO cnoKid;
     long cb;
 

@@ -263,7 +263,7 @@ bool STN::FWrite(PBLCK pblck, long ib)
 
     if (!FIn(ib, 0, cbTot - cbWrite + 1))
     {
-        Bug("BLCK is not big enough");
+        Bug("DataBlock is not big enough");
         return fFalse;
     }
 

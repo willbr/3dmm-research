@@ -160,7 +160,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     if (cfmtNil != cfmt)
     {
-        BLCK blck;
+        DataBlock blck;
 
         if (!blck.FSetTemp(flo.cb) || !pmbmp->FWrite(&blck))
         {

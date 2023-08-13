@@ -291,7 +291,7 @@ DOCE::DOCE(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno) : DOCB(pdocb)
 ***************************************************************************/
 bool DOCE::_FInit(void)
 {
-    BLCK blck;
+    DataBlock blck;
 
     if (!_pcfl->FFind(_ctg, _cno, &blck))
     {
@@ -450,7 +450,7 @@ bool DOCE::_FSaveToChunk(CTG ctg, CNO cno, bool fRedirect)
     AssertThis(0);
     CNO cnoT;
     CKI cki;
-    BLCK blck;
+    DataBlock blck;
     long cb = _CbOnFile();
 
     // if the chunk already exists, add a temporary chunk, swap the data
@@ -785,7 +785,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
     long ikid, cckiRef;
     CKI cki;
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     ulong grfsel;
     SEL sel = _sel;
 
@@ -1424,7 +1424,7 @@ bool DCD::FCmdAddPicChunk(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     CKI cki;
-    BLCK blck;
+    DataBlock blck;
     long cb;
     long lnOld;
     FNI fni;
@@ -1537,7 +1537,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     CKI cki;
-    BLCK blck;
+    DataBlock blck;
     long lw;
     long lnOld;
     FNI fni;
@@ -1624,7 +1624,7 @@ bool DCD::FCmdAddFileChunk(PCMD pcmd)
     AssertVarMem(pcmd);
     CKI cki;
     PFIL pfil;
-    BLCK blck;
+    DataBlock blck;
     long lnOld;
     FNI fni;
     bool fCreated;
@@ -2744,7 +2744,7 @@ bool DCD::FCmdSetColorTable(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     CKI cki;
-    BLCK blck;
+    DataBlock blck;
     PGL pglclr;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))

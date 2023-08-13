@@ -135,7 +135,7 @@ bool BSM::FWriteRgb(PFLO pflo, long ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
-    BLCK blck(pflo);
+    DataBlock blck(pflo);
 
     return FWriteRgb(&blck, ib);
 }
@@ -787,7 +787,7 @@ bool BSF::FWriteRgb(PFLO pflo, long ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
-    BLCK blck(pflo);
+    DataBlock blck(pflo);
 
     return FWriteRgb(&blck, ib);
 }
@@ -840,7 +840,7 @@ bool BSF::FWriteRgb(PBLCK pblck, long ib)
         else
         {
             // the data is on file
-            BLCK blck(flo.pfil, flo.fp + ib, cb);
+            DataBlock blck(flo.pfil, flo.fp + ib, cb);
             fRet = blck.FWriteToBlck(pblck);
         }
         ib = 0;

@@ -263,7 +263,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
     CHID chid;
     TAGL *ptagl;
     PCFL pcfl = pvNil;
-    BLCK blck;
+    DataBlock blck;
     short bo;
     short osk;
     PGST pgstSource;
@@ -463,7 +463,7 @@ bool MVIE::FReadRollCall(PCRF pcrf, CNO cno, PGST *ppgst, long *paridLim)
     long imactr, imactrMac;
     PCFL pcfl = pcrf->Pcfl();
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     MACTR mactr;
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, cno, 0, kctgGst, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
@@ -1788,7 +1788,7 @@ bool MVIE::FVerifyVersion(PCFL pcfl, CNO *pcno)
     KID kid;
     CNO cnoMvie;
     MFP mfp;
-    BLCK blck;
+    DataBlock blck;
 
     // Get the cno of the first kid of the movie
     if (pvNil == pcno || cnoNil == *pcno)
@@ -2446,7 +2446,7 @@ bool MVIE::FAutoSave(PFNI pfni, bool fCleanRollCall)
 #ifdef BUG1848
     bool fRetry = fTrue;
 #endif // BUG1848
-    BLCK blck;
+    DataBlock blck;
     CNO cno;
     CNO cnoScen;
     CNO cnoSource;
@@ -4682,7 +4682,7 @@ bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
         /* Get PMBMP and TRANS from the scene */
         if (iscen != Iscen())
         {
-            BLCK blck;
+            DataBlock blck;
 
             if (!SCEN::FTransOnFile(mvied.pcrf, scend.cno, &scend.trans))
                 goto LFail;

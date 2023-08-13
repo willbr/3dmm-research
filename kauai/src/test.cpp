@@ -454,7 +454,7 @@ void TestCfl(void)
 
     FNI fni, fniDst;
     PCFL pcfl, pcflDst;
-    BLCK blck;
+    DataBlock blck;
     short rel;
     long icki;
     CNO cno;

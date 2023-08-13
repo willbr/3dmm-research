@@ -724,7 +724,7 @@ PCFL CFL::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
 
         if (fCopyData)
         {
-            BLCK blck(pflo->pfil, fpSrc, ecdf.cb, ecdf.grfcrp & fcrpPacked);
+            DataBlock blck(pflo->pfil, fpSrc, ecdf.cb, ecdf.grfcrp & fcrpPacked);
 
             if (!pcfl->FAddBlck(&blck, ecdf.ctg, &ecsdT.cno))
                 goto LFail;
@@ -850,7 +850,7 @@ PCFL CFL::PcflReadForest(CTG ctg, CNO cno, bool fCopyData)
 
     if (FPacked(ctg, cno))
     {
-        BLCK blck(&flo, fTrue);
+        DataBlock blck(&flo, fTrue);
 
         if (!blck.FUnpackData() || !blck.FGetFlo(&flo))
             return pvNil;
@@ -1768,7 +1768,7 @@ bool CFL::_FWriteIndex(CTG ctgCreator)
     AssertPo(_csto.pfil, 0);
 
     CFP cfp;
-    BLCK blck;
+    DataBlock blck;
 
     ClearPb(&cfp, size(cfp));
     cfp.lwMagic = klwMagicChunky;
@@ -2003,7 +2003,7 @@ void CFL::_GetFlo(long icrp, PFLO pflo)
 }
 
 /***************************************************************************
-    Get the BLCK from the chunk.
+    Get the DataBlock from the chunk.
 ***************************************************************************/
 void CFL::_GetBlck(long icrp, PBLCK pblck)
 {
@@ -2019,9 +2019,9 @@ void CFL::_GetBlck(long icrp, PBLCK pblck)
 }
 
 /***************************************************************************
-    Map the (ctg, cno) to a BLCK.
+    Map the (ctg, cno) to a DataBlock.
 ***************************************************************************/
-bool CFL::FFind(CTG ctg, CNO cno, BLCK *pblck)
+bool CFL::FFind(CTG ctg, CNO cno, DataBlock *pblck)
 {
     AssertThis(0);
     AssertNilOrPo(pblck, 0);
@@ -2070,7 +2070,7 @@ bool CFL::FReadHq(CTG ctg, CNO cno, HQ *phq)
 {
     AssertThis(0);
     AssertVarMem(phq);
-    BLCK blck;
+    DataBlock blck;
 
     *phq = hqNil; // in case FFind fails
     return FFind(ctg, cno, &blck) && blck.FReadHq(phq, fTrue);
@@ -2128,7 +2128,7 @@ bool CFL::FPacked(CTG ctg, CNO cno)
 bool CFL::FUnpackData(CTG ctg, CNO cno)
 {
     AssertThis(0);
-    BLCK blck;
+    DataBlock blck;
 
     if (!FPacked(ctg, cno))
         return fTrue;
@@ -2145,7 +2145,7 @@ bool CFL::FUnpackData(CTG ctg, CNO cno)
 bool CFL::FPackData(CTG ctg, CNO cno)
 {
     AssertThis(0);
-    BLCK blck;
+    DataBlock blck;
 
     if (FPacked(ctg, cno))
         return fTrue;
@@ -2361,7 +2361,7 @@ bool CFL::FAddPv(void *pv, long cb, CTG ctg, CNO *pcno)
     AssertVarMem(pcno);
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv, cb);
-    BLCK blck;
+    DataBlock blck;
 
     if (!FAdd(cb, ctg, pcno, &blck))
         return fFalse;
@@ -2383,7 +2383,7 @@ bool CFL::FAddHq(HQ hq, CTG ctg, CNO *pcno)
     AssertVarMem(pcno);
     AssertHq(hq);
 
-    BLCK blck;
+    DataBlock blck;
     long cb = CbOfHq(hq);
 
     if (!FAdd(cb, ctg, pcno, &blck))
@@ -2406,7 +2406,7 @@ bool CFL::FAddBlck(PBLCK pblckSrc, CTG ctg, CNO *pcno)
     AssertPo(pblckSrc, 0);
     AssertVarMem(pcno);
 
-    BLCK blck;
+    DataBlock blck;
     long cb = pblckSrc->Cb(fTrue);
 
     if (!FAdd(cb, ctg, pcno, &blck))
@@ -2558,7 +2558,7 @@ bool CFL::FPutHq(HQ hq, CTG ctg, CNO cno)
     AssertHq(hq);
     bool fRet;
     HQ hqT = hq;
-    BLCK blckSrc(&hq);
+    DataBlock blckSrc(&hq);
 
     fRet = _FPut(blckSrc.Cb(), ctg, cno, pvNil, &blckSrc, pvNil);
     AssertDo(hqT == blckSrc.HqFree(), "blckSrc.HqFree() returned a differnt hq!");
@@ -2601,7 +2601,7 @@ bool CFL::_FPut(long cb, CTG ctg, CNO cno, PBLCK pblck, PBLCK pblckSrc, void *pv
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
-        BLCK blck;
+        DataBlock blck;
 
         if (pvNil == pblck)
             pblck = &blck;
@@ -3821,7 +3821,7 @@ bool CFL::_FCopy(CTG ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst, bool fClone
     CGE cge;
     KID kid;
     CKI ckiPar;
-    BLCK blckSrc;
+    DataBlock blckSrc;
     ulong grfcge, grfcgeIn;
     CNOM cnom, cnomPar;
     STN stn;

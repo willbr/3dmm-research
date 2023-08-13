@@ -81,7 +81,7 @@ bool MODL::FReadModl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 }
 
 /***************************************************************************
-    Reads a MODL from a BLCK
+    Reads a MODL from a DataBlock
 ***************************************************************************/
 bool MODL::_FInit(PBLCK pblck)
 {

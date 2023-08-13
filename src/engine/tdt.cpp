@@ -92,7 +92,7 @@ PGL TDT::PgltagFetch(PCFL pcfl, CTG ctg, CNO cno, bool *pfError)
 
     PGL pgltag;
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     TDTF tdtf;
 
     *pfError = fFalse;
@@ -169,7 +169,7 @@ bool TDT::_FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl)
     AssertPo(pcfl, 0);
 
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     TDTF tdtf;
 
     if (!_FReadTmplf(pcfl, ctgTmpl, cnoTmpl))
@@ -720,7 +720,7 @@ bool TDT::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
 
     TDTF tdtf;
     CNO cnoTdt;
-    BLCK blck;
+    DataBlock blck;
 
     if (!_FWriteTmplf(pcfl, ctg, pcno))
         return fFalse;

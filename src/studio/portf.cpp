@@ -1259,7 +1259,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
                 {
                     CKI ckiMovie;
                     KID kidScene, kidThumb;
-                    BLCK blck;
+                    DataBlock blck;
 
                     // Get the movie chunk from the open file.
                     if (pcfl->FGetCkiCtg(kctgMvie, 0, &ckiMovie))

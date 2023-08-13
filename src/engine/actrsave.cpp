@@ -50,7 +50,7 @@ bool ACTR::FWrite(PCFL pcfl, CNO cnoActr, CNO cnoScene)
     CNO cnoPath;
     CNO cnoGgae;
     CNO cnoTmpl;
-    BLCK blck;
+    DataBlock blck;
     KID kid;
     long iaev;
     AEV *paev;
@@ -252,7 +252,7 @@ bool ACTR::_FReadActor(PCFL pcfl, CNO cno)
     AssertPo(pcfl, 0);
 
     ACTF actf;
-    BLCK blck;
+    DataBlock blck;
 
     if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
         return fFalse;
@@ -301,7 +301,7 @@ bool ACTR::FAdjustAridOnFile(PCFL pcfl, CNO cno, long darid)
     Assert(darid != 0, "Why call this with darid == 0?");
 
     ACTF actf;
-    BLCK blck;
+    DataBlock blck;
 
     if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
         return fFalse;
@@ -319,7 +319,7 @@ bool ACTR::_FReadRoute(PCFL pcfl, CNO cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     short bo;
 
     if (!pcfl->FFind(kctgPath, cno, &blck))
@@ -343,7 +343,7 @@ bool ACTR::_FReadEvents(PCFL pcfl, CNO cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     short bo;
 
     if (!pcfl->FFind(kctgGgae, cno, &blck))
@@ -484,7 +484,7 @@ PGL ACTR::PgltagFetch(PCFL pcfl, CNO cno, bool *pfError)
     AssertVarMem(pfError);
 
     ACTF actf;
-    BLCK blck;
+    DataBlock blck;
     short bo;
     PTAG ptag;
     PGL pgltag;

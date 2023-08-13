@@ -17,7 +17,7 @@
 #define SNDAMPRI_H
 
 /***************************************************************************
-    IStream interface for a BLCK.
+    IStream interface for a DataBlock.
 ***************************************************************************/
 typedef class STBL *PSTBL;
 #define STBL_PAR IStream
@@ -29,7 +29,7 @@ class STBL : public STBL_PAR
   protected:
     long _cactRef;
     long _ib;
-    BLCK _blck;
+    DataBlock _blck;
 
     STBL(void);
     ~STBL(void);

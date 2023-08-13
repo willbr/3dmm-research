@@ -516,7 +516,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
     short bo;
     FNI fni;
     CFL *pcfl;
-    BLCK blck;
+    DataBlock blck;
     STN stnPal;
 
     _ibpCur = 0;

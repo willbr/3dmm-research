@@ -1976,7 +1976,7 @@ PGORF GORF::PgorfNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 
     GOKFL gokfl;
     PCFL pcfl;
-    BLCK blck;
+    DataBlock blck;
     PGORF pgorf;
 
     pcfl = pcrf->Pcfl();
@@ -2218,7 +2218,7 @@ PGORT GORT::PgortNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 
     GOTIL gotil;
     PCFL pcfl;
-    BLCK blck;
+    DataBlock blck;
     PGORT pgort;
     KID kid;
 
@@ -2639,7 +2639,7 @@ bool GORV::_FInit(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
     AssertBaseThis(0);
 
     PCFL pcfl;
-    BLCK blck;
+    DataBlock blck;
     STN stn;
     FNI fni;
     RC rc;

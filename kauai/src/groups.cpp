@@ -173,7 +173,7 @@ bool GRPB::_FDup(PGRPB pgrpbDst, long cb1, long cb2)
 ***************************************************************************/
 bool GRPB::FWriteFlo(PFLO pflo, short bo, short osk)
 {
-    BLCK blck(pflo);
+    DataBlock blck(pflo);
     return FWrite(&blck, bo, osk);
 }
 
@@ -419,7 +419,7 @@ PGL GL::PglRead(PBLCK pblck, short *pbo, short *posk)
 ***************************************************************************/
 PGL GL::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck(pfil, fp, cb);
+    DataBlock blck(pfil, fp, cb);
     return PglRead(&blck, pbo, posk);
 }
 
@@ -777,7 +777,7 @@ PAL AL::PalRead(PBLCK pblck, short *pbo, short *posk)
 ***************************************************************************/
 PAL AL::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck(pfil, fp, cb);
+    DataBlock blck(pfil, fp, cb);
     return PalRead(&blck, pbo, posk);
 }
 
@@ -1881,7 +1881,7 @@ PGG GG::PggRead(PBLCK pblck, short *pbo, short *posk)
 ***************************************************************************/
 PGG GG::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck(pfil, fp, cb);
+    DataBlock blck(pfil, fp, cb);
     return PggRead(&blck, pbo, posk);
 }
 
@@ -2135,7 +2135,7 @@ PAG AG::PagRead(PBLCK pblck, short *pbo, short *posk)
 ***************************************************************************/
 PAG AG::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck(pfil, fp, cb);
+    DataBlock blck(pfil, fp, cb);
     return PagRead(&blck, pbo, posk);
 }
 

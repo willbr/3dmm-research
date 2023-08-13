@@ -700,7 +700,7 @@ void CHCM::_ParseBodyMeta(bool fPack, CTG ctg, CNO cno)
 {
     AssertThis(0);
     FNI fni;
-    BLCK blck;
+    DataBlock blck;
     PPIC ppic;
     TOK tok;
 
@@ -741,7 +741,7 @@ void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno)
 {
     AssertThis(0);
     FNI fni;
-    BLCK blck;
+    DataBlock blck;
     TOK tok;
     PHP rgphp[3];
     long cphp;
@@ -794,7 +794,7 @@ void CHCM::_ParseBodyPalette(bool fPack, CTG ctg, CNO cno)
 {
     AssertThis(0);
     FNI fni;
-    BLCK blck;
+    DataBlock blck;
     TOK tok;
     PGL pglclr;
 
@@ -835,7 +835,7 @@ void CHCM::_ParseBodyMidi(bool fPack, CTG ctg, CNO cno)
 {
     AssertThis(0);
     FNI fni;
-    BLCK blck;
+    DataBlock blck;
     TOK tok;
     PMIDS pmids;
 
@@ -906,7 +906,7 @@ void CHCM::_ParseBodyCursor(bool fPack, CTG ctg, CNO cno)
 
     AssertThis(0);
     FNI fni;
-    BLCK blck;
+    DataBlock blck;
     FLO floSrc;
     TOK tok;
     long ccurdir, cbBits;
@@ -1168,7 +1168,7 @@ void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
     long cbEntry, cb;
     byte *prgb;
     long iv, iiv;
-    BLCK blck;
+    DataBlock blck;
     PGLB pglb = pvNil;
     PGL pglivFree = pvNil;
 
@@ -1299,7 +1299,7 @@ void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
     long cbFixed, cb;
     byte *prgb;
     long iv, iiv;
-    BLCK blck;
+    DataBlock blck;
     bool fFree;
     PGGB pggb = pvNil;
     PGL pglivFree = pvNil;
@@ -1456,7 +1456,7 @@ void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
     long cbExtra, cb;
     long iv, iiv;
     STN stn;
-    BLCK blck;
+    DataBlock blck;
     bool fFree;
     PGSTB pgstb = pvNil;
     PGL pglivFree = pvNil;
@@ -1749,7 +1749,7 @@ void CHCM::_EndSubFile(void)
 
         if (csfc.fPack)
         {
-            BLCK blck(pfilDst, 0, fpDst);
+            DataBlock blck(pfilDst, 0, fpDst);
 
             // pack the data and put it in the chunk.
             blck.FPackData();
@@ -1804,7 +1804,7 @@ void CHCM::_ParseChunkBody(CTG ctg, CNO cno)
 {
     AssertThis(0);
     TOK tok;
-    BLCK blck;
+    DataBlock blck;
     CKI cki;
     bool fFetch;
     bool fPack, fPrePacked;
@@ -2492,7 +2492,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     CTG ctg;
     CKI cki;
     KID kid;
-    BLCK blck;
+    DataBlock blck;
 
     _pcfl = pcflSrc;
     _ert = ertNil;
@@ -2593,7 +2593,7 @@ bool CHDC::_FDumpScript(CKI *pcki)
     SCCG sccg;
     long cfmt;
     bool fPacked;
-    BLCK blck;
+    DataBlock blck;
 
     _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
     fPacked = blck.FPacked(&cfmt);

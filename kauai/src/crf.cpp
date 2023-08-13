@@ -47,14 +47,14 @@ BACO::~BACO(void)
 }
 
 /***************************************************************************
-    Write the BACO to a FLO - just make the FLO a BLCK and write to
+    Write the BACO to a FLO - just make the FLO a DataBlock and write to
     the block.
 ***************************************************************************/
 bool BACO::FWriteFlo(PFLO pflo)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
-    BLCK blck(pflo);
+    DataBlock blck(pflo);
     return FWrite(&blck);
 }
 
@@ -261,7 +261,7 @@ tribool CRF::TLoad(CTG ctg, CNO cno, PFNRPO pfnrpo, RSC rsc, long crep)
     Assert(crep > crepToss, "crep too small");
     CRE cre;
     long icre;
-    BLCK blck;
+    DataBlock blck;
 
     // see if this CRF contains this resource type
     if (rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
@@ -342,7 +342,7 @@ PBACO CRF::PbacoFetch(CTG ctg, CNO cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
     AssertNilOrVarMem(pfError);
     CRE cre;
     long icre;
-    BLCK blck;
+    DataBlock blck;
 
     if (pvNil != pfError)
         *pfError = fFalse;

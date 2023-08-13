@@ -88,7 +88,7 @@ bool ZBMP::FReadZbmp(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 }
 
 /***************************************************************************
-    Read a ZBMP from a BLCK.
+    Read a ZBMP from a DataBlock.
 ***************************************************************************/
 PZBMP ZBMP::PzbmpRead(PBLCK pblck)
 {
@@ -267,7 +267,7 @@ bool ZBMP::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
     AssertVarMem(pcno);
 
     ZBMPF zbmpf;
-    BLCK blck;
+    DataBlock blck;
 
     zbmpf.bo = kboCur;
     zbmpf.osk = koskCur;

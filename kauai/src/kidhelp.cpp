@@ -95,7 +95,7 @@ bool TXHD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
-    BLCK blck;
+    DataBlock blck;
     KID kid;
     HTOPF htopf;
     long stid, lw;
@@ -259,7 +259,7 @@ bool TXHD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
-    BLCK blck;
+    DataBlock blck;
     CKI cki;
     HTOPF htopf;
 

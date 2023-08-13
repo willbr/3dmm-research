@@ -1127,7 +1127,7 @@ PTXRD TXRD::PtxrdReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
 bool TXRD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    BLCK blck;
+    DataBlock blck;
     FLO floText;
     PFIL pfilT;
     KID kid;
@@ -1359,7 +1359,7 @@ bool TXRD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
     RDOP rdop;
-    BLCK blck, blckText;
+    DataBlock blck, blckText;
     CNO cno, cnoText;
     long cb;
     short osk = koskCur;

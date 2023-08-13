@@ -26,7 +26,7 @@ bool FExportHelpText(PCFL pcfl, PMSNK pmsnk)
 {
     AssertPo(pcfl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     PGST pgst;
     long icki;
     CKI cki, ckiPar;
@@ -188,7 +188,7 @@ bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, CKI *pckiPar)
 
     STN stn;
     STN stnT;
-    BLCK blck;
+    DataBlock blck;
 
     if (!pcfl->FFind(pkid->cki.ctg, pkid->cki.cno, &blck))
         return fFalse;
@@ -256,7 +256,7 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, CKI *pckiPar)
     short bo, osk;
     STN stn, stnT, stnT2;
     byte rgb[2 * kcbMaxDataStn];
-    BLCK blck;
+    DataBlock blck;
     long iv, lw, cb, ib, cbRead;
     CKI cki;
 

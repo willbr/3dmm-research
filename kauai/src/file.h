@@ -219,13 +219,13 @@ enum
     fblckReadable = 16,
 };
 
-typedef class BLCK *PBLCK;
-#define BLCK_PAR BASE
-#define kclsBLCK 'BLCK'
-class BLCK : public BLCK_PAR
+typedef class DataBlock *PBLCK;
+#define DataBlock_PAR BASE
+#define kclsDataBlock 'BLCK'
+class DataBlock : public DataBlock_PAR
 {
     RTCLASS_DEC
-    NOCOPY(BLCK)
+    NOCOPY(DataBlock)
     ASSERT
     MARKMEM
 
@@ -241,11 +241,11 @@ class BLCK : public BLCK_PAR
     long _ibLim;
 
   public:
-    BLCK(PFLO pflo, bool fPacked = fFalse);
-    BLCK(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);
-    BLCK(HQ *phq, bool fPacked = fFalse);
-    BLCK(void);
-    ~BLCK(void);
+    DataBlock(PFLO pflo, bool fPacked = fFalse);
+    DataBlock(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);
+    DataBlock(HQ *phq, bool fPacked = fFalse);
+    DataBlock(void);
+    ~DataBlock(void);
 
     void Set(PFLO pflo, bool fPacked = fFalse);
     void Set(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);

@@ -39,7 +39,7 @@ PIC::~PIC(void)
 PPIC PIC::PpicFetch(PCFL pcfl, CTG ctg, CNO cno, CHID chid)
 {
     AssertPo(pcfl, 0);
-    BLCK blck;
+    DataBlock blck;
     KID kid;
 
     if (!pcfl->FFind(ctg, cno))
@@ -110,7 +110,7 @@ long PIC::CbOnFile(void)
 }
 
 /***************************************************************************
-    Write the meta file (and its header) to the given BLCK.
+    Write the meta file (and its header) to the given DataBlock.
 ***************************************************************************/
 bool PIC::FWrite(PBLCK pblck)
 {

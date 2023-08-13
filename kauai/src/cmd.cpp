@@ -333,7 +333,7 @@ void CEX::Record(PCFL pcfl)
 void CEX::StopRecording(void)
 {
     AssertThis(0);
-    BLCK blck;
+    DataBlock blck;
 
     if (_rs != rsRecording)
         return;
@@ -435,7 +435,7 @@ void CEX::RecordCmd(PCMD pcmd)
     // write the group and make it a child of the macro
     if (pvNil != pcmd->pgg)
     {
-        BLCK blck;
+        DataBlock blck;
         long cb;
         CNO cno;
 
@@ -465,7 +465,7 @@ void CEX::Play(PCFL pcfl, CNO cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-    BLCK blck;
+    DataBlock blck;
     short bo, osk;
 
     if (_rs != rsNormal)
@@ -548,7 +548,7 @@ bool CEX::_FReadCmd(PCMD pcmd)
 
     if (cmdf.chidGg != 0)
     {
-        BLCK blck;
+        DataBlock blck;
         KID kid;
         short bo, osk;
 

@@ -195,7 +195,7 @@ class CFL : public CFL_PAR
     // finding and reading chunks
     bool FOnExtra(CTG ctg, CNO cno);
     bool FEnsureOnExtra(CTG ctg, CNO cno);
-    bool FFind(CTG ctg, CNO cno, BLCK *pblck = pvNil);
+    bool FFind(CTG ctg, CNO cno, DataBlock *pblck = pvNil);
     bool FFindFlo(CTG ctg, CNO cno, PFLO pflo);
     bool FReadHq(CTG ctg, CNO cno, HQ *phq);
     void SetPacked(CTG ctg, CNO cno, bool fPacked);

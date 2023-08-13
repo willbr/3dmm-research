@@ -163,7 +163,7 @@ PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
 {
     AssertPo(pflo, ffloReadable);
     PSTBL pstbl;
-    BLCK blck;
+    DataBlock blck;
     PBLCK pblck;
 
     if (pvNil == (pstbl = new STBL))
@@ -204,7 +204,7 @@ PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
         if (fni.Grfvk() & (fvkFloppy | fvkCD | fvkRemovable))
         {
             // cache to the hard drive or memory, depending on the size
-            BLCK blck(pflo);
+            DataBlock blck(pflo);
 
             if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(STBL) > SDAM::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
             {

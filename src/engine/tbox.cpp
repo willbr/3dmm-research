@@ -1884,7 +1884,7 @@ PTBOX TBOX::PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen)
     AssertNilOrPo(pscen, 0);
 
     PTBOX ptbox;
-    BLCK blck;
+    DataBlock blck;
     TBOXH tboxh;
     KID kid;
     PCFL pcfl = pcrf->Pcfl();

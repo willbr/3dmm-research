@@ -123,7 +123,7 @@ bool MTRL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
     AssertPo(pcrf, 0);
 
     PCFL pcfl = pcrf->Pcfl();
-    BLCK blck;
+    DataBlock blck;
     MTRLF mtrlf;
     KID kid;
     MTRL *pmtrlThis = this; // to get MTRL from BMTL
@@ -549,7 +549,7 @@ bool CMTL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
     long ikid;
     long imtrl;
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     PCFL pcfl = pcrf->Pcfl();
     CMTLF cmtlf;
 

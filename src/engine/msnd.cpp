@@ -114,7 +114,7 @@ bool MSND::_FInit(PCFL pcfl, CTG ctg, CNO cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    BLCK blck;
+    DataBlock blck;
     MSNDF msndf;
     KID kid;
 
@@ -166,7 +166,7 @@ bool MSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, CNO *pcno)
     AssertVarMem(pcno);
 
     MSNDF msndf;
-    BLCK blck;
+    DataBlock blck;
     CNO cno;
 
     msndf.bo = kboCur;

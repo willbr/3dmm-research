@@ -145,7 +145,7 @@ bool ACTN::_FInit(PCFL pcfl, CTG ctg, CNO cno)
     AssertPo(pcfl, 0);
 
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     ACTNF actnf;
     short bo;
     long icel;
@@ -356,7 +356,7 @@ bool TMPL::_FReadTmplf(PCFL pcfl, CTG ctg, CNO cno)
 {
     AssertBaseThis(0);
 
-    BLCK blck;
+    DataBlock blck;
     TMPLF tmplf;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
@@ -420,7 +420,7 @@ bool TMPL::_FInit(PCFL pcfl, CTG ctg, CNO cno)
 
     KID kid;
     short bo;
-    BLCK blck;
+    DataBlock blck;
     long ibact;
     short ibset;
 

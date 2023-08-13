@@ -1653,7 +1653,7 @@ bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
     CKI cki = pkid->cki;
     KID kid;
     THD thd;
-    BLCK blck;
+    DataBlock blck;
     TFC tfc;
 
     // Read the Par chunk to find the cno of the CD content
@@ -3001,7 +3001,7 @@ bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PSTDIO pstdio)
 
     long ccrf = 1;
     PCFL pcfl;
-    BLCK blck;
+    DataBlock blck;
     long ccki;
     long icki;
     CKI cki;

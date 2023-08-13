@@ -756,7 +756,7 @@ PGST GST::PgstRead(PBLCK pblck, short *pbo, short *posk)
 ***************************************************************************/
 PGST GST::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck(pfil, fp, cb);
+    DataBlock blck(pfil, fp, cb);
     return PgstRead(&blck, pbo, posk);
 }
 
@@ -1002,7 +1002,7 @@ PAST AST::PastRead(PBLCK pblck, short *pbo, short *posk)
 ***************************************************************************/
 PAST AST::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck;
+    DataBlock blck;
     return PastRead(&blck, pbo, posk);
 }
 

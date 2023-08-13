@@ -91,7 +91,7 @@ PSTDIO Studio::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFail
     PSTDIO pstdio;
     PMVIE pmvie = pvNil;
     GCB gcb;
-    BLCK blck;
+    DataBlock blck;
 
     gcb.Set(hid, ((APP *)vpappb)->Pkwa());
     pstdio = NewObj Studio(&gcb);
@@ -192,7 +192,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     PSCEG psceg = pvNil;
     STN stn;
     RC rcAbs, rcRel;
-    BLCK blck;
+    DataBlock blck;
     bool fRet = fFalse;
     long icrf;
     PCRF pcrf;

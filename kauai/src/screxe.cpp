@@ -1354,7 +1354,7 @@ PSCPT SCPT::PscptRead(PCFL pcfl, CTG ctg, CNO cno)
     AssertPo(pcfl, 0);
     short bo;
     KID kid;
-    BLCK blck;
+    DataBlock blck;
     PSCPT pscpt = pvNil;
     PGL pgllw = pvNil;
     PGST pgst = pvNil;
@@ -1405,7 +1405,7 @@ bool SCPT::FSaveToChunk(PCFL pcfl, CTG ctg, CNO cno, bool fPack)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-    BLCK blck;
+    DataBlock blck;
     CNO cnoT, cnoStrs;
     long cb;
 

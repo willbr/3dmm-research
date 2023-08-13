@@ -1736,7 +1736,7 @@ PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno)
 bool HETD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    BLCK blck;
+    DataBlock blck;
     KID kid;
 
     if (!HETD_PAR::_FReadChunk(pcfl, ctg, cno, pvNil, fCopyText ? ftxhdCopyText : ftxhdNil))
@@ -1842,7 +1842,7 @@ bool HETD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
-    BLCK blck;
+    DataBlock blck;
     CNO cno;
 
     if (!HETD_PAR::FSaveToChunk(pcfl, pcki, fRedirectText))

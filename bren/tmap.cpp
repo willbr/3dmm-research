@@ -42,7 +42,7 @@ bool TMAP::FReadTmap(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 PTMAP TMAP::PtmapRead(PCFL pcfl, CTG ctg, CNO cno)
 {
     TMAPF tmapf;
-    BLCK blck;
+    DataBlock blck;
     TMAP *ptmap;
 
     ptmap = NewObj TMAP;
@@ -121,7 +121,7 @@ TMAP::~TMAP(void)
 bool TMAP::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
 {
     AssertThis(0);
-    BLCK blck;
+    DataBlock blck;
 
     if (!pcfl->FAdd(size(TMAPF) + LwMul(_bpmp.row_bytes, _bpmp.height), ctg, pcno, &blck))
     {
@@ -349,7 +349,7 @@ bool TMAP::FWriteTmapChkFile(PFNI pfniDst, bool fCompress, PMSNK pmsnkErr)
 
     if (fCompress)
     {
-        BLCK blck;
+        DataBlock blck;
 
         if (!blck.FSetTemp(flo.cb) || !FWrite(&blck))
         {
