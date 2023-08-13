@@ -85,7 +85,7 @@ class Studio : public Studio_PAR
     //
     // Create and destroy functions
     //
-    static PSTDIO PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
+    static PStudio PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
     void ReleaseBrcn(void);
     ~Studio(void);
 
@@ -217,7 +217,7 @@ class SMCC : public SMCC_PAR
 
   private:
     PSSCB _psscb;
-    PSTDIO _pstdio;
+    PStudio _pstdio;
     long _dypTextTbox;
 
   public:
@@ -225,7 +225,7 @@ class SMCC : public SMCC_PAR
     {
         ReleasePpo(&_psscb);
     }
-    SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PSTDIO pstdio);
+    SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PStudio pstdio);
 
     virtual long Dxp(void)
     {

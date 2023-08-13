@@ -91,7 +91,7 @@ class APP : public APP_PAR
     bool _fDontReportInitFailure; // init failure was already reported
     bool _fOnscreenDrawing;
     PCFL _pcfl;                   // resource file for app
-    PSTDIO _pstdio;               // Current studio
+    PStudio _pstdio;               // Current studio
     PTATR _ptatr;                 // Current theater
     PCRM _pcrmAll;                // The app CRM -- all crfs are loaded into this.
     PGL _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
@@ -268,7 +268,7 @@ class APP : public APP_PAR
         return _fInPortfolio;
     }
 
-    PSTDIO Pstdio(void)
+    PStudio Pstdio(void)
     {
         return _pstdio;
     }

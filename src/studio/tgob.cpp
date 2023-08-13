@@ -161,9 +161,9 @@ PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
 
     if (idsFont != idsNil)
     {
-        PSTDIO pstdio;
+        PStudio pstdio;
 
-        pstdio = (PSTDIO)vapp.Pkwa()->PgobFromCls(kclsStudio);
+        pstdio = (PStudio)vapp.Pkwa()->PgobFromCls(kclsStudio);
         Assert(pstdio != pvNil, "Creating a TGOB with no Studio present");
         pstdio->GetStnMisc(idsFont, &stn);
         vapp.FGetOnn(&stn, &onn); //  Ignore failure

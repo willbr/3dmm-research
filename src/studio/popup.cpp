@@ -33,7 +33,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long
 
     PMP pmp;
     GraphicsObjectBlock gcb;
-    PSTDIO pstdio;
+    PStudio pstdio;
     long cthum;
     long cfrm;
 
@@ -218,7 +218,7 @@ PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long
 
     PMPFNT pmpfnt;
     GraphicsObjectBlock gcb;
-    PSTDIO pstdio = vpapp->Pstdio();
+    PStudio pstdio = vpapp->Pstdio();
 
     if (pstdio == pvNil)
     {

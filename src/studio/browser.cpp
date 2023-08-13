@@ -205,7 +205,7 @@ bool BRWD::_FInitGok(PRCA prca, long kid)
  * pcmd->rglw[3] = x,y offsets
  *
  ****************************************************/
-void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PSTDIO pstdio, bool fWrapScroll, long cthumScroll)
+void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -234,7 +234,7 @@ void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PSTDIO pstdio, b
  * pcmd->rglw[3] = x,y offsets
  *
  ****************************************************/
-void BRWD::_InitStateVars(PCMD pcmd, PSTDIO pstdio, bool fWrapScroll, long cthumScroll)
+void BRWD::_InitStateVars(PCMD pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -886,7 +886,7 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
+bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1840,7 +1840,7 @@ bool FNET::_FNextFni(FNI *pfni, long *psid)
  * -> BRWL Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
+bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1987,7 +1987,7 @@ bool BRWN::FCmdOk(PCMD pcmd)
  * Create a BRoWser Music Sound object
  *
  ****************************************************/
-PBRWM BRWM::PbrwmNew(PRCA prca, long kidGlass, long sty, PSTDIO pstdio)
+PBRWM BRWM::PbrwmNew(PRCA prca, long kidGlass, long sty, PStudio pstdio)
 {
     AssertPo(prca, 0);
     AssertPo(pstdio, 0);
@@ -2465,7 +2465,7 @@ void BRWT::SetGst(PGST pgst)
  * Initialize BRWT TGOB & text
  *
  ****************************************************/
-bool BRWT::FInit(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bool fWrapScroll, long cthumScroll)
+bool BRWT::FInit(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2744,7 +2744,7 @@ PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
  * Initialize the BRWI	 (Import Browser)
  *
  **************************************************************************/
-bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PSTDIO pstdio)
+bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PStudio pstdio)
 {
     AssertBaseThis(0);
 
@@ -2995,7 +2995,7 @@ PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
  * Initialize a BRoWser Roll Call object
  *
  ****************************************************/
-bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PSTDIO pstdio)
+bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PStudio pstdio)
 {
     AssertThis(0);
 
@@ -3080,7 +3080,7 @@ LFail:
  * Update the RollCall : Select actor arid
  *
  ****************************************************/
-bool BRWR::FUpdate(long arid, PSTDIO pstdio)
+bool BRWR::FUpdate(long arid, PStudio pstdio)
 {
     AssertThis(0);
     long ithumDisplay;

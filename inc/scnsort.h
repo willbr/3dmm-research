@@ -40,7 +40,7 @@ class SCRT : public SCRT_PAR
     CMVI _cmvi;       // Composite movie
     bool _fError : 1, // Did an error occur during the easel?
         _fInited : 1; // Have I seen the cidSceneSortInit yet?
-    PSTDIO _pstdio;   // The Studio that instantiated me
+    PStudio _pstdio;   // The Studio that instantiated me
 
   protected:
     long _IscenFromKid(long kid)
@@ -65,7 +65,7 @@ class SCRT : public SCRT_PAR
     SCRT(PGCB pgcb);
     ~SCRT(void);
 
-    static PSCRT PscrtNew(long hid, PMVIE pmvie, PSTDIO pstdio, PRCA prca);
+    static PSCRT PscrtNew(long hid, PMVIE pmvie, PStudio pstdio, PRCA prca);
     static bool FSceneSortMovie(long hid, PMVIE pmvie);
 
     /* Command API */

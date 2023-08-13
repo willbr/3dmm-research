@@ -81,14 +81,14 @@ const long kcbCursorCache = 1024;
  *  Pointer to the studio if successful, else pvNil.
  *
  **************************************************************************/
-PSTDIO Studio::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
+PStudio Studio::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
 {
     AssertPo(pcrmStudio, 0);
     AssertNilOrPo(pfniUserDoc, ffniFile);
     AssertPo(((APP *)vpappb)->Pkwa(), 0);
 
     bool fSuccess = fFalse;
-    PSTDIO pstdio;
+    PStudio pstdio;
     PMVIE pmvie = pvNil;
     GraphicsObjectBlock gcb;
     DataBlock blck;
@@ -2747,7 +2747,7 @@ void Studio::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for SMCC.
 ***************************************************************************/
-SMCC::SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PSTDIO pstdio) : MCC(dxp, dyp, cbCache)
+SMCC::SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PStudio pstdio) : MCC(dxp, dyp, cbCache)
 {
     AssertNilOrPo(psscb, 0);
     // Note: Would like to do an AssertPo here but can't

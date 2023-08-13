@@ -122,7 +122,7 @@ class BRWD : public BRWD_PAR
     long _kidThumOverride; // projects may override one thum gobid
     long _ithumOverride;   // projects may override one thum gobid
     PTGOB _ptgobPage;      // for page numbers
-    PSTDIO _pstdio;
+    PStudio _pstdio;
 
     // Display State variables
     long _cthumCD;          // Non-user content
@@ -185,7 +185,7 @@ class BRWD : public BRWD_PAR
     long _KidThumFromIfrm(long ifrm);
     void _UnhiliteCurFrm(void);
     bool _FHiliteFrm(long ifrmSelect);
-    void _InitStateVars(PCMD pcmd, PSTDIO pstdio, bool fWrapScroll, long cthumScroll);
+    void _InitStateVars(PCMD pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll);
     void _InitFromData(PCMD pcmd, long ithumSelect, long ithumDisplay);
     virtual void _CacheContext(void);
 
@@ -201,7 +201,7 @@ class BRWD : public BRWD_PAR
     ~BRWD(void);
 
     static PBRWD PbrwdNew(PRCA prca, long kidPar, long kidBrwd);
-    void Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PSTDIO pstdio, bool fWrapScroll = fTrue,
+    void Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FDraw(void);
     bool FCreateAllTgob(void); // For any text based browsers
@@ -455,7 +455,7 @@ class BRWL : public BRWL_PAR
     ~BRWL(void);
 
     static PBRWL PbrwlNew(PRCA prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
+    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
@@ -500,7 +500,7 @@ class BRWT : public BRWT_PAR
 
     static PBRWT PbrwtNew(PRCA prca, long kidPar, long kidBrwt);
     void SetGst(PGST pgst);
-    bool FInit(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bool fWrapScroll = fTrue,
+    bool FInit(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
 };
 
@@ -534,7 +534,7 @@ class BRWN : public BRWN_PAR
     {
     }
     ~BRWN(void){};
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
+    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
     virtual bool FCmdOk(PCMD pcmd);
@@ -710,7 +710,7 @@ class BRWM : public BRWM_PAR
     }
     ~BRWM(void){};
 
-    static PBRWM PbrwmNew(PRCA prca, long kidGlass, long sty, PSTDIO pstdio);
+    static PBRWM PbrwmNew(PRCA prca, long kidGlass, long sty, PStudio pstdio);
     virtual bool FCmdFile(PCMD pcmd); // Upon portfolio completion
     virtual bool FCmdDel(PCMD pcmd);  // Delete user sound
 };
@@ -747,7 +747,7 @@ class BRWI : public BRWI_PAR
     ~BRWI(void);
 
     static PBRWI PbrwiNew(PRCA prca, long kidGlass, long sty);
-    bool FInit(PCMD pcmd, CKI cki, PSTDIO pstdio);
+    bool FInit(PCMD pcmd, CKI cki, PStudio pstdio);
 };
 
 /************************************
@@ -792,10 +792,10 @@ class BRWR : public BRWR_PAR
     ~BRWR(void);
 
     static PBRWR PbrwrNew(PRCA prca, long kid);
-    void Init(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bool fWrapScroll = fTrue,
+    void Init(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
-    bool FInit(PCMD pcmd, CTG ctg, long ithumDisplay, PSTDIO pstdio);
-    bool FUpdate(long arid, PSTDIO pstdio);
+    bool FInit(PCMD pcmd, CTG ctg, long ithumDisplay, PStudio pstdio);
+    bool FUpdate(long arid, PStudio pstdio);
     bool FApplyingSel(void)
     {
         AssertBaseThis(0);
