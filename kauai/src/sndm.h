@@ -194,7 +194,7 @@ class SNDMQ : public SNDMQ_PAR
 ***************************************************************************/
 struct SNDIN
 {
-    PBACO pbaco;    // the sound to play
+    PBaseCacheableObject pbaco;    // the sound to play
     long sii;       // the sound instance id
     long vlm;       // volume to play at
     long cactPlay;  // how many times to play
@@ -227,7 +227,7 @@ class SNQUE : public SNQUE_PAR
     virtual void _Queue(long isndinMin) = 0;
     virtual void _PauseQueue(long isndinMin) = 0;
     virtual void _ResumeQueue(long isndinMin) = 0;
-    virtual PBACO _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno) = 0;
+    virtual PBaseCacheableObject _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno) = 0;
 
     virtual void _Enter(void);
     virtual void _Leave(void);

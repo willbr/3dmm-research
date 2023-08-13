@@ -5,7 +5,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> ZBMP
+    BASE ---> BaseCacheableObject ---> ZBMP
 
 *************************************************************************/
 #ifndef ZBMP_H
@@ -30,7 +30,7 @@ const ulong kbomZbmpf = 0x55500000;
     ZBMP class
 ****************************************/
 typedef class ZBMP *PZBMP;
-#define ZBMP_PAR BACO
+#define ZBMP_PAR BaseCacheableObject
 #define kclsZBMP 'ZBMP'
 class ZBMP : public ZBMP_PAR
 {
@@ -51,7 +51,7 @@ class ZBMP : public ZBMP_PAR
     static PZBMP PzbmpNew(long dxp, long dyp);
     static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
     static PZBMP PzbmpRead(PDataBlock pblck);
-    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~ZBMP(void);
 
     byte *Prgb(void)

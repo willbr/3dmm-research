@@ -45,7 +45,7 @@ const ByteOrderMask kbomTxxff = 0x5FFF0000;
     The TMAP class
 ****************************************/
 typedef class TMAP *PTMAP;
-#define TMAP_PAR BACO
+#define TMAP_PAR BaseCacheableObject
 #define kclsTMAP 'TMAP'
 class TMAP : public TMAP_PAR
 {
@@ -67,7 +67,7 @@ class TMAP : public TMAP_PAR
     ~TMAP(void);
 
     //  REVIEW *****(peted): MBMP's ...Read function just takes a PDataBlock; this
-    //  is more like the FRead... function, just without the BACO stuff.  Why
+    //  is more like the FRead... function, just without the BaseCacheableObject stuff.  Why
     //  the difference?
     //	Addendum: to enable compiling 'TMAP' chunks, I added an FWrite that does
     //	take just a PDataBlock.  Should this be necessary for PtmapRead in the future,
@@ -77,7 +77,7 @@ class TMAP : public TMAP_PAR
     bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TMAP
-    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TMAP
     static PTMAP PtmapNewFromBpmp(BPMP *pbpmp);

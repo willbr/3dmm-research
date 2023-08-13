@@ -102,7 +102,7 @@ class STBL : public STBL_PAR
     Cached AudioMan Sound.
 ***************************************************************************/
 typedef class CAMS *PCAMS;
-#define CAMS_PAR BACO
+#define CAMS_PAR BaseCacheableObject
 #define kclsCAMS 'CAMS'
 class CAMS : public CAMS_PAR
 {
@@ -122,7 +122,7 @@ class CAMS : public CAMS_PAR
 
     IAMSound *psnd; // the sound to use
 
-    static bool FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     bool FInMemory(void)
     {
         return _pstbl->FInMemory();
@@ -188,7 +188,7 @@ class AMQUE : public AMQUE_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(void);
-    virtual PBACO _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno);
+    virtual PBaseCacheableObject _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);

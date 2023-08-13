@@ -483,7 +483,7 @@ void MBMP::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read an MBMP.
 ***************************************************************************/
-bool MBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
+bool MBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);

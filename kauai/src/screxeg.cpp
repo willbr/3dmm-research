@@ -1213,7 +1213,7 @@ PGL SCEG::_PglclrGet(ChunkNumber cno)
     A chunky resource reader to read a color table. Wraps the color table in
     a CABO.
 ***************************************************************************/
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     PCABO pcabo;
     PGL pglclr = pvNil;

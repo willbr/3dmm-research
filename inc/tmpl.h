@@ -8,8 +8,8 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> ACTN
-    BASE ---> BACO ---> TMPL
+    BASE ---> BaseCacheableObject ---> ACTN
+    BASE ---> BaseCacheableObject ---> TMPL
 
     A TMPL encapsulates all the data that distinguishes one actor
     "species" from another, including the species' models, actions,
@@ -84,7 +84,7 @@ enum
     for an action like 'rest' or 'walk'.
 ****************************************/
 typedef class ACTN *PACTN;
-#define ACTN_PAR BACO
+#define ACTN_PAR BaseCacheableObject
 #define kclsACTN 'ACTN'
 class ACTN : public ACTN_PAR
 {
@@ -106,7 +106,7 @@ class ACTN : public ACTN_PAR
 
   public:
     static PACTN PactnNew(PGG pggcel, PGL pglbmat34, ulong grfactn);
-    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~ACTN(void);
 
     ulong Grfactn(void)
@@ -139,7 +139,7 @@ enum
     celn is a cel number.
 ****************************************/
 typedef class TMPL *PTMPL;
-#define TMPL_PAR BACO
+#define TMPL_PAR BaseCacheableObject
 #define kclsTMPL 'TMPL'
 class TMPL : public TMPL_PAR
 {
@@ -171,7 +171,7 @@ class TMPL : public TMPL_PAR
     bool _FWriteTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
   public:
-    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~TMPL(void);
     static PGL PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError);
 

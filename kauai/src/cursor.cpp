@@ -29,7 +29,7 @@ CURS::~CURS(void)
 /***************************************************************************
     Read a cursor out of a ChunkyResourceFile.
 ***************************************************************************/
-bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
+bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     PGG pggcurf;
     long icurf, icurfBest;

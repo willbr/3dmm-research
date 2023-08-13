@@ -27,7 +27,7 @@
 
     TAGM supports caching chunks to the local hard disk.  In Socrates,
     the studio should call FCacheTagToHD as soon as the chunk is
-    requested by the kid, and when the tag is resolved to a BACO, the
+    requested by the kid, and when the tag is resolved to a BaseCacheableObject, the
     HD copy is used.  This reduces headaches about dealing with a missing
     CD all over the place.
 
@@ -129,7 +129,7 @@ class TAGM : public TAGM_PAR
 
     bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
-    PBACO PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
+    PBaseCacheableObject PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
     void ClearCache(long sid = sidNil,
                     ulong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 

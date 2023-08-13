@@ -260,9 +260,9 @@ CAMS::~CAMS(void)
 }
 
 /***************************************************************************
-    Static BACO reader method to put together a Cached AudioMan sound.
+    Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
+bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -303,7 +303,7 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 }
 
 /***************************************************************************
-    Static BACO reader method to put together a Cached AudioMan sound.
+    Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
 PCAMS CAMS::PcamsNewLoop(PCAMS pcamsSrc, long cactPlay)
 {
@@ -523,7 +523,7 @@ void AMQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as a CAMS.
 ***************************************************************************/
-PBACO AMQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno)
+PBaseCacheableObject AMQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

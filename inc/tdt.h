@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> TMPL ---> TDT  (Three-D Text)
+    BASE ---> BaseCacheableObject ---> TMPL ---> TDT  (Three-D Text)
 
 ***************************************************************************/
 #ifndef TDT_H

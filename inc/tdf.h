@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> TDF  (Three-D Font)
+    BASE ---> BaseCacheableObject ---> TDF  (Three-D Font)
 
 ***************************************************************************/
 #ifndef TDF_H
@@ -18,7 +18,7 @@
     3-D Font class
 ****************************************/
 typedef class TDF *PTDF;
-#define TDF_PAR BACO
+#define TDF_PAR BaseCacheableObject
 #define kclsTDF 'TDF'
 class TDF : public TDF_PAR
 {
@@ -39,7 +39,7 @@ class TDF : public TDF_PAR
     bool _FInit(PDataBlock pblck);
 
   public:
-    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~TDF(void);
 
     // This authoring-only API creates a new TDF based on a set of models

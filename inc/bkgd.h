@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> Background
+    BASE ---> BaseCacheableObject ---> Background
 
 ***************************************************************************/
 #ifndef BKGD_H
@@ -95,7 +95,7 @@ const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
     The background class
 ****************************************/
 typedef class Background *PBackground;
-#define Background_PAR BACO
+#define Background_PAR BaseCacheableObject
 #define kclsBackground 'BKGD'
 class Background : public Background_PAR
 {
@@ -136,7 +136,7 @@ class Background : public Background_PAR
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~Background(void);
     void GetName(PSTN pstn);
 

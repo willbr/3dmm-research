@@ -8,7 +8,7 @@
     Primary Authors: *****, *****
     Status:  Reviewed
 
-    BASE ---> BACO ---> MovieSoundMSND
+    BASE ---> BaseCacheableObject ---> MovieSoundMSND
     BASE ---> CMH  ---> MSQ
 
     NOTE: when the MSQ stops sounds, it does it based on sound class (scl)
@@ -99,7 +99,7 @@ inline void StopAllMovieSounds(void)
 
 ****************************************/
 typedef class MovieSoundMSND *PMSND;
-#define MovieSoundMSND_PAR BACO
+#define MovieSoundMSND_PAR BaseCacheableObject
 #define kclsMovieSoundMSND 'MSND'
 class MovieSoundMSND : public MovieSoundMSND_PAR
 {
@@ -122,7 +122,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     bool _FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
   public:
-    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static bool FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
     static bool FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn = pvNil);

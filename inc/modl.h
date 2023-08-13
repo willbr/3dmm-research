@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> MODL
+    BASE ---> BaseCacheableObject ---> MODL
 
 *************************************************************************/
 #ifndef MODL_H
@@ -34,7 +34,7 @@ const ByteOrderMask kbomModlf = 0x55fffff0;
     MODL: a wrapper for BRender models
 ****************************************/
 typedef class MODL *PMODL;
-#define MODL_PAR BACO
+#define MODL_PAR BaseCacheableObject
 #define kclsMODL 'MODL'
 class MODL : public MODL_PAR
 {
@@ -53,7 +53,7 @@ class MODL : public MODL_PAR
 
   public:
     static PMODL PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
-    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PMODL PmodlReadFromDat(Filename *pfni);
     static PMODL PmodlFromBmdl(PBMDL pbmdl);
     ~MODL(void);

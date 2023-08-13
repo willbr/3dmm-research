@@ -117,7 +117,7 @@ bool Background::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     A PFNRPO to read a Background from a file
 ***************************************************************************/
-bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
+bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

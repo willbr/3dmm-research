@@ -51,7 +51,7 @@ typedef HMIDIOUT HMS;
     This is the midi stream cached object.
 ***************************************************************************/
 typedef class MDWS *PMDWS;
-#define MDWS_PAR BACO
+#define MDWS_PAR BaseCacheableObject
 #define kclsMDWS 'MDWS'
 class MDWS : public MDWS_PAR
 {
@@ -67,7 +67,7 @@ class MDWS : public MDWS_PAR
     bool _FInit(PMIDS pmids);
 
   public:
-    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PMDWS PmdwsRead(PDataBlock pblck);
 
     ~MDWS(void);
@@ -107,7 +107,7 @@ class MSQUE : public MSQUE_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(PMSMIX pmsmix);
-    virtual PBACO _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno);
+    virtual PBaseCacheableObject _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);

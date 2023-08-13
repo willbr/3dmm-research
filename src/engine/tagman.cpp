@@ -873,17 +873,17 @@ LFail:
 }
 
 /***************************************************************************
-    Resolve the TAG to a BACO.  Only use HD cache files, unless fUseCD is
+    Resolve the TAG to a BaseCacheableObject.  Only use HD cache files, unless fUseCD is
     fTrue.
 ***************************************************************************/
-PBACO TAGM::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
+PBaseCacheableObject TAGM::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
     Assert(pvNil != pfnrpo, "bad rpo");
 
-    PBACO pbaco = pvNil;
+    PBaseCacheableObject pbaco = pvNil;
     PChunkyResourceManager pcrmSource;
 
     if (ptag->sid == ksidUseCrf)

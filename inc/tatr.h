@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> CMH ---> TATR
+    BASE ---> BaseCacheableObject ---> CMH ---> TATR
 
 ***************************************************************************/
 #ifndef TATR_H

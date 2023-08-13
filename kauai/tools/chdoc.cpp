@@ -1545,7 +1545,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
     byte bTransparent;
     long xp, yp;
     bool fMask = pcmd->cid != cidAddMbmpChunk;
-    PBACO pbaco = pvNil;
+    PBaseCacheableObject pbaco = pvNil;
     ChunkTag ctg;
     PDLG pdlg = pvNil;
 

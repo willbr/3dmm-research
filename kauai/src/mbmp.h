@@ -26,7 +26,7 @@ enum
 };
 
 typedef class MBMP *PMBMP;
-#define MBMP_PAR BACO
+#define MBMP_PAR BaseCacheableObject
 #define kclsMBMP 'MBMP'
 class MBMP : public MBMP_PAR
 {
@@ -104,7 +104,7 @@ class MBMP : public MBMP_PAR
     virtual long CbOnFile(void);
 
     // a chunky resource reader for an MBMP
-    static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 };
 const ByteOrderMask kbomMbmph = 0xAFFC0000;
 

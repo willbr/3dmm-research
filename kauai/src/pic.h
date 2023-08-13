@@ -25,7 +25,7 @@ const FileType kftgEnhMeta = 'EMF';
     Win MetaFile).
 ***************************************************************************/
 typedef class PIC *PPIC;
-#define PIC_PAR BACO
+#define PIC_PAR BaseCacheableObject
 #define kclsPIC 'PIC'
 class PIC : public PIC_PAR
 {
@@ -67,6 +67,6 @@ class PIC : public PIC_PAR
 };
 
 // a chunky resource reader to read picture 0 from a GRAF chunk
-bool FReadMainPic(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+bool FReadMainPic(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
 #endif //! PIC_H

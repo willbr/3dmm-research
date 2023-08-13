@@ -11,7 +11,7 @@
     Copyright (c) Microsoft Corporation
 
     Chunky resource file management. A ChunkyResourceFile is a cache wrapped around a
-    chunky file. A ChunkyResourceManager is a list of CRFs. A BACO is an object that
+    chunky file. A ChunkyResourceManager is a list of CRFs. A BaseCacheableObject is an object that
     can be cached in a ChunkyResourceFile. An RCA is an interface that ChunkyResourceFile and ChunkyResourceManager both
     implement (are a super set of).
 
@@ -32,12 +32,12 @@ enum
 };
 
 /***************************************************************************
-    Base cacheable object.  All cacheable objects must be based on BACO.
+    Base cacheable object.  All cacheable objects must be based on BaseCacheableObject.
 ***************************************************************************/
-typedef class BACO *PBACO;
-#define BACO_PAR BASE
-#define kclsBACO 'BACO'
-class BACO : public BACO_PAR
+typedef class BaseCacheableObject *PBaseCacheableObject;
+#define BaseCacheableObject_PAR BASE
+#define kclsBaseCacheableObject 'BACO'
+class BaseCacheableObject : public BaseCacheableObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -45,7 +45,7 @@ class BACO : public BACO_PAR
 
   private:
     // These fields are owned by the ChunkyResourceFile
-    PChunkyResourceFile _pcrf; // The BACO has a ref count on this iff !_fAttached
+    PChunkyResourceFile _pcrf; // The BaseCacheableObject has a ref count on this iff !_fAttached
     ChunkTag _ctg;
     ChunkNumber _cno;
     long _crep : 16;
@@ -54,8 +54,8 @@ class BACO : public BACO_PAR
     friend class ChunkyResourceFile;
 
   protected:
-    BACO(void);
-    ~BACO(void);
+    BaseCacheableObject(void);
+    ~BaseCacheableObject(void);
 
   public:
     virtual void Release(void);
@@ -94,7 +94,7 @@ class BACO : public BACO_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 typedef FNRPO *PFNRPO;
 
 typedef class RCA *PRCA;
@@ -106,8 +106,8 @@ class RCA : public RCA_PAR
 
   public:
     virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal) = 0;
-    virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
-    virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
+    virtual PBaseCacheableObject PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
+    virtual PBaseCacheableObject PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
 };
@@ -128,7 +128,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     {
         PFNRPO pfnrpo;    // object reader
         long cactRelease; // the last time this object was released
-        BACO *pbaco;      // the object
+        BaseCacheableObject *pbaco;      // the object
         long cb;          // size of data
     };
 
@@ -140,7 +140,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
 
     ChunkyResourceFile(PCFL pcfl, long cbMax);
     bool _FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre);
-    bool _FFindBaco(PBACO pbaco, long *picre);
+    bool _FFindBaco(PBaseCacheableObject pbaco, long *picre);
     bool _FPurgeCb(long cbPurge, long crepLast);
 
   public:
@@ -148,8 +148,8 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     static PChunkyResourceFile PcrfNew(PCFL pcfl, long cbMax);
 
     virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
-    virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
-    virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual PBaseCacheableObject PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
+    virtual PBaseCacheableObject PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
@@ -164,9 +164,9 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
         return _pcfl;
     }
 
-    // These APIs are intended for BACO use only
-    void BacoDetached(PBACO pbaco);
-    void BacoReleased(PBACO pbaco);
+    // These APIs are intended for BaseCacheableObject use only
+    void BacoDetached(PBaseCacheableObject pbaco);
+    void BacoReleased(PBaseCacheableObject pbaco);
 };
 
 /***************************************************************************
@@ -193,8 +193,8 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     static PChunkyResourceManager PcrmNew(long ccrfInit);
 
     virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
-    virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
-    virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual PBaseCacheableObject PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
+    virtual PBaseCacheableObject PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
@@ -208,9 +208,9 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
 };
 
 /***************************************************************************
-    An object (BACO) wrapper around a generic HQ.
+    An object (BaseCacheableObject) wrapper around a generic HQ.
 ***************************************************************************/
-#define GHQ_PAR BACO
+#define GHQ_PAR BaseCacheableObject
 typedef class GHQ *PGHQ;
 #define kclsGHQ 'GHQ'
 class GHQ : public GHQ_PAR
@@ -232,13 +232,13 @@ class GHQ : public GHQ_PAR
     }
 
     // An object reader for a GHQ.
-    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 };
 
 /***************************************************************************
-    A BACO wrapper around a generic object.
+    A BaseCacheableObject wrapper around a generic object.
 ***************************************************************************/
-#define CABO_PAR BACO
+#define CABO_PAR BaseCacheableObject
 typedef class CABO *PCABO;
 #define kclsCABO 'CABO'
 class CABO : public CABO_PAR

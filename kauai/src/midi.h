@@ -67,7 +67,7 @@ class MSTP : public MSTP_PAR
     Midi Stream object - this is like a MTrk chunk in a standard MIDI file,
     with timing in milliseconds.
 ***************************************************************************/
-#define MIDS_PAR BACO
+#define MIDS_PAR BaseCacheableObject
 #define kclsMIDS 'MIDS'
 class MIDS : public MIDS_PAR
 {
@@ -85,7 +85,7 @@ class MIDS : public MIDS_PAR
     static long _CbEncodeLu(ulong lu, byte *prgb);
 
   public:
-    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PMIDS PmidsRead(PDataBlock pblck);
     static PMIDS PmidsReadNative(Filename *pfni);
     ~MIDS(void);

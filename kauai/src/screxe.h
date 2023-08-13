@@ -34,7 +34,7 @@ bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw);
     rarely included in shipping products, but screxe.* is.
 ***************************************************************************/
 typedef class SCPT *PSCPT;
-#define SCPT_PAR BACO
+#define SCPT_PAR BaseCacheableObject
 #define kclsSCPT 'SCPT'
 class SCPT : public SCPT_PAR
 {
@@ -54,7 +54,7 @@ class SCPT : public SCPT_PAR
     friend class SCCB;
 
   public:
-    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PSCPT PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~SCPT(void);
 

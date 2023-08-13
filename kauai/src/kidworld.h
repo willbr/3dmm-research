@@ -42,7 +42,7 @@ struct CursorMapEntry
 };
 
 typedef class GOKD *PGOKD;
-#define GOKD_PAR BACO
+#define GOKD_PAR BaseCacheableObject
 #define kclsGOKD 'GOKD'
 class GOKD : public GOKD_PAR
 {
@@ -95,7 +95,7 @@ class GKDS : public GKDS_PAR
 
   public:
     // An object reader for a GOKD.
-    static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~GKDS(void);
 
     virtual long Gokk(void);
