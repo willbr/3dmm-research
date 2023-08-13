@@ -35,7 +35,7 @@ typedef Topic *PTopic;
 const ByteOrderMask kbomHtop = 0xFFF00000;
 
 // help topic on file
-struct HTOPF
+struct TopicFile
 {
     short bo;
     short osk;

@@ -99,7 +99,7 @@ bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, 
     AssertNilOrPo(pstrg, 0);
     DataBlock blck;
     ChildChunkIdentification kid;
-    HTOPF htopf;
+    TopicFile htopf;
     long stid, lw;
     long cp, cpMac, cpMin;
     STN stn;
@@ -123,7 +123,7 @@ bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, 
     htopf.htop.ckiSnd.ctg = ctgNil;
     htopf.htop.ckiSnd.cno = cnoNil;
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() ||
-        size(HTOPF) != blck.Cb() && offset(HTOPF, htop.ckiSnd) != blck.Cb() || !blck.FRead(&htopf))
+        size(TopicFile) != blck.Cb() && offset(TopicFile, htop.ckiSnd) != blck.Cb() || !blck.FRead(&htopf))
     {
         goto LFail;
     }
@@ -263,13 +263,13 @@ bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, boo
     AssertVarMem(pcki);
     DataBlock blck;
     ChunkIdentification cki;
-    HTOPF htopf;
+    TopicFile htopf;
 
     pcki->ctg = kctgHelpTopic;
     htopf.bo = kboCur;
     htopf.osk = koskCur;
     htopf.htop = _htop;
-    if (!pcfl->FAdd(size(HTOPF), pcki->ctg, &pcki->cno, &blck))
+    if (!pcfl->FAdd(size(TopicFile), pcki->ctg, &pcki->cno, &blck))
     {
         PushErc(ercHelpSaveFailed);
         return fFalse;

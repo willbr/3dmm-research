@@ -33,7 +33,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
     ChildChunkIdentification kid;
     CGE cge;
     ulong grfcge;
-    HTOPF htopf;
+    TopicFile htopf;
     SourceEmitter chse;
     STN stn, stnT;
     bool fRet = fFalse;
@@ -81,7 +81,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
         }
 
         // read the topic
-        if (!pcfl->FFind(cki.ctg, cki.cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(HTOPF) ||
+        if (!pcfl->FFind(cki.ctg, cki.cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(TopicFile) ||
             !blck.FRead(&htopf))
         {
             goto LFail;
@@ -109,7 +109,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
         chse.DumpSz(PszLit("#endif //HELP_SINGLE_CHUNK"));
         stn.FAppendCh(ChLit('2'));
 
-        // dump the HTOPF
+        // dump the TopicFile
         chse.DumpSz(PszLit(""));
         chse.DumpSz(stn.Psz());
 
