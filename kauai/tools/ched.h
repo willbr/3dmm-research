@@ -15,8 +15,6 @@
 #include "kidframe.h"
 #include "chedres.h"
 
-namespace ChunkEditor {
-
 // creator type for the chunky editor
 #define kctgChed 'CHED'
 
@@ -39,7 +37,5 @@ class APP : public APP_PAR
 
     virtual bool FCmdOpen(PCMD pcmd);
 };
-
-} // end of namespace ChunkEditor
 
 #endif //! CHED_H
