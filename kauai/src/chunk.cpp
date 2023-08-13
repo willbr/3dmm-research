@@ -33,7 +33,7 @@
 
     On disk, chunky files are organized as follows:
 
-        * A header (CFP struct defined below).
+        * A header (ChunkyFilePrefix struct defined below).
         * The raw chunk data arranged in arbitrary order (a heap).
         * The index for the chunky file.
         * An optional free map indicating which portions of the heap
@@ -111,7 +111,7 @@ const auto kcvnMinForest = 5;
 const long klwMagicChunky = BigLittle('CHN2', '2NHC'); // chunky file signature
 
 // chunky file prefix
-struct CFP
+struct ChunkyFilePrefix
 {
     long lwMagic;   // identifies this as a chunky file
     ChunkTag ctgCreator; // program that created this file
@@ -490,14 +490,14 @@ PCFL CFL::PcflCreate(Filename *pfni, ulong grfcfl)
         goto LFail;
 
     if ((pcfl->_pggcrp = GG::PggNew(size(CRP))) == pvNil ||
-        (pcfl->_csto.pfil = FIL::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(CFP)))
+        (pcfl->_csto.pfil = FIL::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
     {
         ReleasePpo(&pcfl);
     LFail:
         PushErc(ercCflCreate);
         return pvNil;
     }
-    pcfl->_csto.fpMac = size(CFP);
+    pcfl->_csto.fpMac = size(ChunkyFilePrefix);
     AssertDo(pcfl->FSetGrfcfl(grfcfl), 0);
 
     AssertPo(pcfl, fcflFull | fcflGraph);
@@ -683,11 +683,11 @@ PCFL CFL::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
 
     if (fCopyData)
     {
-        if (pvNil == (pcfl->_csto.pfil = FIL::PfilCreateTemp()) || !pcfl->_csto.pfil->FSetFpMac(size(CFP)))
+        if (pvNil == (pcfl->_csto.pfil = FIL::PfilCreateTemp()) || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
         {
             goto LFail;
         }
-        pcfl->_csto.fpMac = size(CFP);
+        pcfl->_csto.fpMac = size(ChunkyFilePrefix);
     }
     else
     {
@@ -999,7 +999,7 @@ void CFL::AssertValid(ulong grfcfl)
     long cbVar, cbRgch;
     CRP crp;
     long ikid;
-    FP fpBase = _fInvalidMainFile ? 0 : size(CFP);
+    FP fpBase = _fInvalidMainFile ? 0 : size(ChunkyFilePrefix);
 
     Assert(!_fInvalidMainFile || _fAddToExtra, 0);
 
@@ -1324,7 +1324,7 @@ bool CFL::_FReadIndex(void)
     AssertPo(_csto.pfil, 0);
     Assert(!_fInvalidMainFile, 0);
 
-    CFP cfp;
+    ChunkyFilePrefix cfp;
     FP fpMac;
     short bo;
     short osk;
@@ -1346,7 +1346,7 @@ bool CFL::_FReadIndex(void)
            "cfl has wrong non-nil entries");
 
     // verify that this is a chunky file
-    if ((fpMac = _csto.pfil->FpMac()) < size(CFP))
+    if ((fpMac = _csto.pfil->FpMac()) < size(ChunkyFilePrefix))
         return fFalse;
 
     if (!_csto.pfil->FReadRgb(&cfp, size(cfp), 0))
@@ -1658,10 +1658,10 @@ bool CFL::FSave(ChunkTag ctgCreator, Filename *pfni)
     // get a temp name in the same directory as the target
     if ((floDst.pfil = FIL::PfilCreateTemp(&fni)) == pvNil)
         goto LError;
-    if (!floDst.pfil->FSetFpMac(size(CFP)))
+    if (!floDst.pfil->FSetFpMac(size(ChunkyFilePrefix)))
         goto LFail;
 
-    floDst.fp = size(CFP);
+    floDst.fp = size(ChunkyFilePrefix);
     ccrp = _pggcrp->IvMac();
     for (icrp = 0; icrp < ccrp; icrp++)
     {
@@ -1681,7 +1681,7 @@ bool CFL::FSave(ChunkTag ctgCreator, Filename *pfni)
     }
 
     // All the data has been copied.  Update the index to point to the new file.
-    floSrc.fp = size(CFP);
+    floSrc.fp = size(ChunkyFilePrefix);
     for (icrp = 0; icrp < ccrp; icrp++)
     {
         qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
@@ -1732,7 +1732,7 @@ bool CFL::FSave(ChunkTag ctgCreator, Filename *pfni)
         {
             // restore the original csto and make floDst.pfil the extra file
             _csto.pfil = pfilOld;
-            _csto.fpMac = size(CFP);
+            _csto.fpMac = size(ChunkyFilePrefix);
             for (icrp = 0; icrp < ccrp; icrp++)
             {
                 qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
@@ -1767,7 +1767,7 @@ bool CFL::_FWriteIndex(ChunkTag ctgCreator)
     AssertPo(_pggcrp, 0);
     AssertPo(_csto.pfil, 0);
 
-    CFP cfp;
+    ChunkyFilePrefix cfp;
     DataBlock blck;
 
     ClearPb(&cfp, size(cfp));
@@ -1814,7 +1814,7 @@ bool CFL::FSaveACopy(ChunkTag ctgCreator, Filename *pfni)
 
     // initialize the destination FLO.
     floDst.pfil = pcflDst->_csto.pfil;
-    floDst.fp = size(CFP);
+    floDst.fp = size(ChunkyFilePrefix);
 
     // need to lock the _pggcrp for the FInsert operations below
     ccrp = _pggcrp->IvMac();
@@ -2157,7 +2157,7 @@ bool CFL::FPackData(ChunkTag ctg, ChunkNumber cno)
 }
 
 /***************************************************************************
-    Create the extra file.  Note: the extra file doesn't have a CFP -
+    Create the extra file.  Note: the extra file doesn't have a ChunkyFilePrefix -
     just raw data.
 ***************************************************************************/
 bool CFL::_FCreateExtra(void)
@@ -3058,7 +3058,7 @@ void CFL::_FreeFpCb(bool fOnExtra, FP fp, long cb)
 {
     AssertBaseThis(0);
     Assert(cb > 0 || cb == 0 && fp == 0, "bad cb");
-    Assert(fp >= 0 && (fOnExtra || fp >= size(CFP) || cb == 0 || _fInvalidMainFile), "bad fp");
+    Assert(fp >= 0 && (fOnExtra || fp >= size(ChunkyFilePrefix) || cb == 0 || _fInvalidMainFile), "bad fp");
 
     PGL pglfsm;
     long ifsm, ifsmMin, ifsmLim;
