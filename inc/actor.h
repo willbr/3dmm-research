@@ -105,41 +105,41 @@ enum
     fmafEntireSubrte = 0x10 // position over entire subroute
 };
 
-struct RTEL // RouTE Location - a function of space and time
+struct RouteLocation // RouTE Location - a function of space and time
 {
     int irpt;      // The preceding node for the given point
     BRS dwrOffset; // Absolute linear distance beyond node irpt
     long dnfrm;    // Delta frame number (ie, time) at this point
 
-    bool operator==(RTEL &rtel)
+    bool operator==(RouteLocation &rtel)
     {
         return (irpt == rtel.irpt && dwrOffset == rtel.dwrOffset && dnfrm == rtel.dnfrm);
     }
 
-    bool operator!=(RTEL &rtel)
+    bool operator!=(RouteLocation &rtel)
     {
         return (irpt != rtel.irpt || dwrOffset != rtel.dwrOffset || dnfrm != rtel.dnfrm);
     }
 
-    bool operator<=(RTEL &rtel)
+    bool operator<=(RouteLocation &rtel)
     {
         return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm <= rtel.dnfrm))));
     }
 
-    bool operator>=(RTEL &rtel)
+    bool operator>=(RouteLocation &rtel)
     {
         return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm >= rtel.dnfrm))));
     }
 
-    bool operator<(RTEL &rtel)
+    bool operator<(RouteLocation &rtel)
     {
         return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm < rtel.dnfrm))));
     }
 
-    bool operator>(RTEL &rtel)
+    bool operator>(RouteLocation &rtel)
     {
         return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm > rtel.dnfrm))));
@@ -152,7 +152,7 @@ struct AEV
 {
     long aet;  // Actor Event Type
     long nfrm; // Absolute frame number (* Only valid < current event)
-    RTEL rtel; // RouTE Location for this event
+    RouteLocation rtel; // RouTE Location for this event
 };             // Additional event parameters (in the GG)
 typedef AEV *PAEV;
 
@@ -363,13 +363,13 @@ class Actor : public Actor_PAR
     long _iaevFrmMin;        // First event in current frame
     long _iaevActnCur;       // Event defining current action
     long _iaevAddCur;        // Most recent add (useful for Compose)
-    RTEL _rtelCur;           // Current location on route	(excludes tweak info)
+    RouteLocation _rtelCur;           // Current location on route	(excludes tweak info)
     RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
     XFRM _xfrm;              // Current transformation
     PGL _pglsmm;             // Current action motion match sounds
 
     // Path Recording State Information
-    RTEL _rtelInsert;        // Joining information
+    RouteLocation _rtelInsert;        // Joining information
     ulong _tsInsert;         // Starting time of route recording
     bool _fModeRecord : 1;   // Record a route mode
     bool _fRejoin : 1;       // Rerecord is extending a subpath from the end
@@ -391,10 +391,10 @@ class Actor : public Actor_PAR
     void _SetStateRewound(void);
 
     bool _FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid);
-    bool _FGetRtelBack(RTEL *prtel, bool fUpdateStateVar);
+    bool _FGetRtelBack(RouteLocation *prtel, bool fUpdateStateVar);
     bool _FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame = pvNil);
     bool _FGetStatic(long anid, bool *pfStatic);
-    bool _FIsDoneAevSub(long iaev, RTEL rtel);
+    bool _FIsDoneAevSub(long iaev, RouteLocation rtel);
     bool _FIsAddNow(long iaev);
     bool _FGetDwrPlay(BRS *pdwr);   // Step size if playing
     bool _FGetDwrRecord(BRS *pdwr); // Step size if recording
@@ -440,14 +440,14 @@ class Actor : public Actor_PAR
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
     void _UpdateXyzTan(RoutePoint *pxyz, long irptTan, long rw);
 
-    void _AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
-    void _GetXyzFromRtel(RTEL *prtel, PRoutePoint pxyz);
+    void _AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
+    void _GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz);
     void _GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS dwrOffset, PRoutePoint pxyz);
     void _PositionBody(PRoutePoint pxyz);
     void _MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34);
     void _TruncateSubRte(long irptDelLim);
     bool _FComputeLifetime(long *pnfrmLast = pvNil);
-    bool _FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast = pvNil);
+    bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
     void _RestoreFromUndo(PActor pactrRestore);
     bool _FDupCopy(PActor pactrSrc, PActor pactrDest);

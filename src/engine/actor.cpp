@@ -470,7 +470,7 @@ bool Actor::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
     Assert(nfrm < _nfrmCur, "Illegal call to _FBackupToFrm");
 
     long ifrm;
-    RTEL rtelT;
+    RouteLocation rtelT;
     RoutePoint xyzOld = _xyzCur;
     RoutePoint xyzT;
     long dnfrm = _nfrmCur - nfrm;
@@ -553,17 +553,17 @@ LFail:
     state variables
 
 ***************************************************************************/
-bool Actor::_FGetRtelBack(RTEL *prtel, bool fUpdateStateVar)
+bool Actor::_FGetRtelBack(RouteLocation *prtel, bool fUpdateStateVar)
 {
     AssertThis(0);
     AssertVarMem(prtel);
 
     long celnSav = _celnCur;
     long nfrmSav = _nfrmCur;
-    RTEL rtelSav = _rtelCur;
+    RouteLocation rtelSav = _rtelCur;
     AEV *paev;
     BRS dwrStep;
-    RTEL rtelAdd;
+    RouteLocation rtelAdd;
     BRS dwrT;
 
     paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
@@ -860,7 +860,7 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
     Is the actor in the last active frame of the subroute?
 
 ***************************************************************************/
-bool Actor::_FIsDoneAevSub(long iaev, RTEL rtel)
+bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac() + 1);
@@ -1922,7 +1922,7 @@ bool Actor::_FAddAevFromLater(void)
     AEV aev;
     long iaev;
     long iaevStart = -1;
-    RTEL rtelAdd;
+    RouteLocation rtelAdd;
     bool fPositionBody = fFalse;
 
     Assert(1 == _iaevCur, "_FAddAevFromLater logic error");
@@ -3470,7 +3470,7 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
     state variables.
     Spec: The end of a subroute is <always> reached in a moving action.
 ***************************************************************************/
-void Actor::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
+void Actor::_AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
@@ -3560,7 +3560,7 @@ LDone:
     Convert a route location (rtel) to an xyz point (in *pxyz)
 
 ***************************************************************************/
-void Actor::_GetXyzFromRtel(RTEL *prtel, PRoutePoint pxyz)
+void Actor::_GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
@@ -4014,7 +4014,7 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
     BRS dwr;
     AEV aev;
     AEV *paev;
-    RTEL rtel;
+    RouteLocation rtel;
     bool fFreezeThisCel;
     long anid = 0;
     long celn = 0;
@@ -4058,7 +4058,7 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
     // Loop through each frame
     long fFrozen = fFalse;
     long iaevNew = 0;
-    RTEL rtelOld = rtel;
+    RouteLocation rtelOld = rtel;
     rtelOld.dnfrm = rtel.dnfrm - 1;
     for (_nfrmLast = _nfrmFirst; ((rtel.irpt != _pglrpt->IvMac()) || (iaevNew != _pggaev->IvMac())); _nfrmLast++)
     {
@@ -4231,7 +4231,7 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
     Return fFalse if not stalled.
     If stalled, return the last active event.
 ***************************************************************************/
-bool Actor::_FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast)
+bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
 {
     AssertBaseThis(0);
     AssertIn(iaevFirst, 0, _pggaev->IvMac());
@@ -4586,7 +4586,7 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
     RouteDistancePoint rptJoin;
     RouteDistancePoint rptCur;
     BRS dwrMin = kdwrMax;
-    RTEL rtelJoin = _rtelCur;
+    RouteLocation rtelJoin = _rtelCur;
     bool fJoin = fFalse;
     long irptLim = _pglrpt->IvMac();
     long iaevJoinFirst = _iaevCur;
@@ -5512,7 +5512,7 @@ void Actor::AssertValid(ulong grfobj)
         long iaev;
         AEV aev;
         bool mpaetfSeen[aetLim];
-        RTEL rtel;
+        RouteLocation rtel;
 
         ClearPb(mpaetfSeen, size(mpaetfSeen));
 
