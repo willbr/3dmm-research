@@ -596,9 +596,9 @@ bool Actor::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PBase *pqaev)
     switch (qaev->aet)
     {
     case aetCost:
-        if (!((AEVCOST *)pggaev->QvGet(iaev))->fCmtl)
+        if (!((Costume *)pggaev->QvGet(iaev))->fCmtl)
         {
-            *pptag = &((AEVCOST *)pggaev->QvGet(iaev))->tag;
+            *pptag = &((Costume *)pggaev->QvGet(iaev))->tag;
             return fTrue;
         }
         break;

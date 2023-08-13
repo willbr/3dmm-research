@@ -218,7 +218,7 @@ struct Action
 };
 const ByteOrderMask kbomAevactn = 0xf0000000;
 
-struct AEVCOST
+struct Costume
 {
     long ibset;    // body part set
     long cmid;     // costume ID (for custom costumes)
@@ -250,7 +250,7 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 // Separate ggaev variable portion sizes
 #define kcbVarAdd (size(Add))
 #define kcbVarActn (size(Action))
-#define kcbVarCost (size(AEVCOST))
+#define kcbVarCost (size(Costume))
 #define kcbVarRot (size(BMAT34))
 #define kcbVarSize (size(BRS))
 #define kcbVarPull (size(Stretch))
@@ -434,7 +434,7 @@ class Actor : public Actor_PAR
     void _RemoveAev(long iaev, bool fUpdateState = fTrue);
     void _PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp = ivNil, ulong grfaet = ActorEvent::faetNil);
     void _PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet);
-    void _PrepCostFill(long iaevMin, ActorEvent::AEVCOST *paevcost);
+    void _PrepCostFill(long iaevMin, ActorEvent::Costume *paevcost);
     void _AdjustAevForRteIns(long irptAdjust, long iaevMin);
     void _AdjustAevForRteDel(long irptAdjust, long iaevMin);
     bool _FInsertStop(void);

@@ -1083,7 +1083,7 @@ bool Actor::_FDoAevCore(long iaev)
         break;
 
     case aetCost:
-        AEVCOST aevcost;
+        Costume aevcost;
         _pggaev->Get(iaev, &aevcost);
         if (aevcost.fCmtl)
         {
@@ -1331,8 +1331,8 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             break;
 
         case aetCost:
-            AEVCOST aevcost;
-            AEVCOST aevcostNew;
+            Costume aevcost;
+            Costume aevcostNew;
 
             // Check that the body parts match
             _pggaev->Get(iaev, &aevcost);
@@ -2202,7 +2202,7 @@ bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCm
     Assert(fCmtl || ibsetClicked >= 0, "Invalid ibsetClicked argument");
     AssertVarMem(ptag);
 
-    AEVCOST aevcost;
+    Costume aevcost;
     PCMTL pcmtl;
     long ibsetApply;
 
@@ -3266,7 +3266,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
             costume being inserted
 
 ***************************************************************************/
-void Actor::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
+void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
     AssertBaseThis(0);
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
@@ -3274,7 +3274,7 @@ void Actor::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
 
     long iaev;
     Base aev;
-    AEVCOST aevcost;
+    Costume aevcost;
     bool fMtrl;
     bool fCmtl;
     MTRL *pmtrlCmp;
@@ -5433,7 +5433,7 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     long cbsetNew;
     long iaev;
     Base aev;
-    AEVCOST aevcost;
+    Costume aevcost;
 
     ptmpl = (PTMPL)vptagm->PbacoFetch(ptagTmplNew, TMPL::FReadTmpl);
     if (pvNil == ptmpl)
