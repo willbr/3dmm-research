@@ -1260,7 +1260,7 @@ PGL *Interpreter::_PpglrtvmRemote(long lw)
 }
 
 /***************************************************************************
-    Find a RTVM in the pglrtvm.  Assumes the pglrtvm is sorted by rtvn.
+    Find a RunTimeVariableMap in the pglrtvm.  Assumes the pglrtvm is sorted by rtvn.
     If the RTVN is not in the GL, sets *pirtvm to where it would be if
     it were.
 ***************************************************************************/
@@ -1270,10 +1270,10 @@ bool FFindRtvm(PGL pglrtvm, RTVN *prtvn, long *plw, long *pirtvm)
     AssertVarMem(prtvn);
     AssertNilOrVarMem(plw);
     AssertNilOrVarMem(pirtvm);
-    RTVM *qrgrtvm, *qrtvm;
+    RunTimeVariableMap *qrgrtvm, *qrtvm;
     long irtvm, irtvmMin, irtvmLim;
 
-    qrgrtvm = (RTVM *)pglrtvm->QvGet(0);
+    qrgrtvm = (RunTimeVariableMap *)pglrtvm->QvGet(0);
     for (irtvmMin = 0, irtvmLim = pglrtvm->IvMac(); irtvmMin < irtvmLim;)
     {
         irtvm = (irtvmMin + irtvmLim) / 2;
@@ -1310,14 +1310,14 @@ bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw)
     AssertVarMem(ppglrtvm);
     AssertNilOrPo(*ppglrtvm, 0);
     AssertVarMem(prtvn);
-    RTVM rtvm;
+    RunTimeVariableMap rtvm;
     long irtvm;
 
     rtvm.lwValue = lw;
     rtvm.rtvn = *prtvn;
     if (pvNil == *ppglrtvm)
     {
-        if (pvNil == (*ppglrtvm = GL::PglNew(size(RTVM))))
+        if (pvNil == (*ppglrtvm = GL::PglNew(size(RunTimeVariableMap))))
             return fFalse;
         (*ppglrtvm)->SetMinGrow(10);
         irtvm = 0;

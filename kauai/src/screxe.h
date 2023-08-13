@@ -24,7 +24,7 @@ using namespace Chunky;
 /****************************************
     Run-Time Variable Map structure
 ****************************************/
-struct RTVM
+struct RunTimeVariableMap
 {
     RTVN rtvn;
     long lwValue;
