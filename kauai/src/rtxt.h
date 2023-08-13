@@ -196,7 +196,7 @@ class PlainTextDocument : public PlainTextDocument_PAR
     Rich text document class.
 ***************************************************************************/
 const long kcpMaxTxrd = 0x00800000; // 8MB
-typedef class RTUN *PRTUN;
+typedef class RichTextUndo *PRichTextUndo;
 
 typedef class RichTextDocument *PRichTextDocument;
 #define RichTextDocument_PAR TextDocumentBase
@@ -292,7 +292,7 @@ class RichTextDocument : public RichTextDocument_PAR
     long _cpMinPap, _cpLimPap;
 
     // current undo record
-    PRTUN _prtun;
+    PRichTextUndo _prtun;
 
     RichTextDocument(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~RichTextDocument(void);
@@ -386,10 +386,10 @@ class RichTextDocument : public RichTextDocument_PAR
 /***************************************************************************
     Rich text undo object.
 ***************************************************************************/
-typedef class RTUN *PRTUN;
-#define RTUN_PAR UNDB
-#define kclsRTUN 'RTUN'
-class RTUN : public RTUN_PAR
+typedef class RichTextUndo *PRichTextUndo;
+#define RichTextUndo_PAR UNDB
+#define kclsRichTextUndo 'RTUN'
+class RichTextUndo : public RichTextUndo_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -402,13 +402,13 @@ class RTUN : public RTUN_PAR
     long _ccpIns;      // how many characters the original text was replaced with
 
   public:
-    static PRTUN PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns);
-    ~RTUN(void);
+    static PRichTextUndo PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns);
+    ~RichTextUndo(void);
 
     virtual bool FUndo(PDocumentBase pdocb);
     virtual bool FDo(PDocumentBase pdocb);
 
-    bool FCombine(PRTUN prtun);
+    bool FCombine(PRichTextUndo prtun);
 };
 
 /***************************************************************************

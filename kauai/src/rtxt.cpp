@@ -19,7 +19,7 @@ RTCLASS(RichTextDocument)
 RTCLASS(TXTG)
 RTCLASS(TXLG)
 RTCLASS(TXRG)
-RTCLASS(RTUN)
+RTCLASS(RichTextUndo)
 
 BEGIN_CMD_MAP(TXRG, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidPlain, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
@@ -2164,7 +2164,7 @@ bool RichTextDocument::FApplyChp(long cp, long ccp, PCHP pchp, PCHP pchpDiff, ul
     AssertIn(ccp, 1, CpMac() - cp);
     long cspvm;
     SPVM rgspvm[sprmLimChp - sprmMinChp];
-    PRTUN prtun = pvNil;
+    PRichTextUndo prtun = pvNil;
 
     BumpCombineUndo();
     if (!FSetUndo(cp, cp + ccp, ccp))
@@ -2428,7 +2428,7 @@ bool RichTextDocument::FSetUndo(long cp1, long cp2, long ccpIns)
     if (cp1 == cp2 && ccpIns == 0)
         return fTrue;
 
-    if (pvNil == (_prtun = RTUN::PrtunNew(_cactCombineUndo, this, cp1, cp2, ccpIns)))
+    if (pvNil == (_prtun = RichTextUndo::PrtunNew(_cactCombineUndo, this, cp1, cp2, ccpIns)))
     {
         ResumeUndo();
         return fFalse;
@@ -2451,7 +2451,7 @@ void RichTextDocument::CancelUndo(void)
 ***************************************************************************/
 void RichTextDocument::CommitUndo(void)
 {
-    PRTUN prtunPrev;
+    PRichTextUndo prtunPrev;
 
     ResumeUndo();
     if (_cactSuspendUndo != 0 || _prtun == pvNil)
@@ -2462,7 +2462,7 @@ void RichTextDocument::CommitUndo(void)
     if (_ipundbLimDone > 0)
     {
         _pglpundb->Get(_ipundbLimDone - 1, &prtunPrev);
-        if (prtunPrev->FIs(kclsRTUN) && prtunPrev->FCombine(_prtun))
+        if (prtunPrev->FIs(kclsRichTextUndo) && prtunPrev->FCombine(_prtun))
         {
             ClearRedo();
             goto LDone;
@@ -3192,17 +3192,17 @@ bool RichTextDocument::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp,
 /***************************************************************************
     Create a new rich text undo object for the given rich text document.
 ***************************************************************************/
-PRTUN RTUN::PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns)
+PRichTextUndo RichTextUndo::PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns)
 {
     AssertPo(ptxrd, 0);
     AssertIn(cp1, 0, ptxrd->CpMac() + 1);
     AssertIn(cp2, 0, ptxrd->CpMac() + 1);
     AssertIn(ccpIns, 0, kcbMax);
-    PRTUN prtun;
+    PRichTextUndo prtun;
 
     SortLw(&cp1, &cp2);
     AssertIn(cp1, 0, ptxrd->CpMac());
-    if (pvNil == (prtun = NewObj RTUN))
+    if (pvNil == (prtun = NewObj RichTextUndo))
         return pvNil;
 
     prtun->_cactCombine = cactCombine;
@@ -3229,7 +3229,7 @@ PRTUN RTUN::PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long c
 /***************************************************************************
     Destructor for a rich text undo object.
 ***************************************************************************/
-RTUN::~RTUN(void)
+RichTextUndo::~RichTextUndo(void)
 {
     ReleasePpo(&_ptxrd);
 }
@@ -3237,7 +3237,7 @@ RTUN::~RTUN(void)
 /***************************************************************************
     Undo this rich text undo object on the given document.
 ***************************************************************************/
-bool RTUN::FUndo(PDocumentBase pdocb)
+bool RichTextUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3301,7 +3301,7 @@ bool RTUN::FUndo(PDocumentBase pdocb)
 /***************************************************************************
     Redo this rich text undo object on the given document.
 ***************************************************************************/
-bool RTUN::FDo(PDocumentBase pdocb)
+bool RichTextUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return FUndo(pdocb);
@@ -3310,7 +3310,7 @@ bool RTUN::FDo(PDocumentBase pdocb)
 /***************************************************************************
     If possible, combine the given rtun with this one. Returns success.
 ***************************************************************************/
-bool RTUN::FCombine(PRTUN prtun)
+bool RichTextUndo::FCombine(PRichTextUndo prtun)
 {
     AssertThis(0);
     AssertPo(prtun, 0);
@@ -3355,24 +3355,24 @@ bool RTUN::FCombine(PRTUN prtun)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a RTUN.
+    Assert the validity of a RichTextUndo.
 ***************************************************************************/
-void RTUN::AssertValid(ulong grf)
+void RichTextUndo::AssertValid(ulong grf)
 {
-    RTUN_PAR::AssertValid(grf);
+    RichTextUndo_PAR::AssertValid(grf);
     AssertNilOrPo(_ptxrd, 0);
     AssertIn(_cpMin, 0, kcbMax);
     AssertIn(_ccpIns, 0, kcbMax);
-    Assert(_ccpIns > 0 || _ptxrd != pvNil, "empty RTUN");
+    Assert(_ccpIns > 0 || _ptxrd != pvNil, "empty RichTextUndo");
 }
 
 /***************************************************************************
-    Mark memory for the RTUN.
+    Mark memory for the RichTextUndo.
 ***************************************************************************/
-void RTUN::MarkMem(void)
+void RichTextUndo::MarkMem(void)
 {
     AssertThis(fobjAssertFull);
-    RTUN_PAR::MarkMem();
+    RichTextUndo_PAR::MarkMem();
     MarkMemObj(_ptxrd);
 }
 #endif // DEBUG
