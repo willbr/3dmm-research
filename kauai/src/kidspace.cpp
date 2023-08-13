@@ -1769,9 +1769,10 @@ long KidspaceGraphicObject::SiiPlayMouseSound(CTG ctg, CNO cno)
     if (siiNil != _siiMouse)
         vpsndm->Stop(_siiMouse);
 
-    if (cnoNil != cno)
+    if (cnoNil != cno) {
+        return siiNil; // hack to disable mouse sounds
         _siiMouse = vpsndm->SiiPlay(_prca, ctg, cno);
-    else
+    } else
         _siiMouse = siiNil;
 
     return _siiMouse;
