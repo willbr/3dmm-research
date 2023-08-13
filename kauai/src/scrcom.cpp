@@ -105,7 +105,7 @@ PSZ _pszOom = PszLit("Out of memory");
 PSZ _pszSyntax = PszLit("Syntax error");
 
 // name to op lookup table for post-fix compilation
-SZOP _rgszop[] = {
+StringOpcodeMap _rgszop[] = {
     {kopAdd, PszLit("Add")},
     {kopSub, PszLit("Sub")},
     {kopMul, PszLit("Mul")},
@@ -809,12 +809,12 @@ long CompilerBase::_OpFromStn(PSTN pstn)
     Check the pstn against the strings in the prgszop and return the
     corresponding op code.
 ***************************************************************************/
-long CompilerBase::_OpFromStnRgszop(PSTN pstn, SZOP *prgszop)
+long CompilerBase::_OpFromStnRgszop(PSTN pstn, StringOpcodeMap *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
     AssertVarMem(prgszop);
-    SZOP *pszop;
+    StringOpcodeMap *pszop;
 
     for (pszop = prgszop; pszop->psz != pvNil; pszop++)
     {
@@ -840,12 +840,12 @@ bool CompilerBase::_FGetStnFromOp(long op, PSTN pstn)
     Check the op against the ops in the prgszop and return the corresponding
     string.
 ***************************************************************************/
-bool CompilerBase::_FGetStnFromOpRgszop(long op, PSTN pstn, SZOP *prgszop)
+bool CompilerBase::_FGetStnFromOpRgszop(long op, PSTN pstn, StringOpcodeMap *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
     AssertVarMem(prgszop);
-    SZOP *pszop;
+    StringOpcodeMap *pszop;
 
     for (pszop = prgszop; pszop->psz != pvNil; pszop++)
     {

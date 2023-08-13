@@ -126,7 +126,7 @@ enum
 };
 
 // structure to map a string to an opcode (post-fix)
-struct SZOP
+struct StringOpcodeMap
 {
     long op;
     PSZ psz;
@@ -228,9 +228,9 @@ class CompilerBase : public CompilerBase_PAR
 
     // post-fix compiler routines
     virtual void _CompilePost(void);
-    long _OpFromStnRgszop(PSTN pstn, SZOP *prgszop);
+    long _OpFromStnRgszop(PSTN pstn, StringOpcodeMap *prgszop);
     virtual long _OpFromStn(PSTN pstn);
-    bool _FGetStnFromOpRgszop(long op, PSTN pstn, SZOP *prgszop);
+    bool _FGetStnFromOpRgszop(long op, PSTN pstn, StringOpcodeMap *prgszop);
     virtual bool _FGetStnFromOp(long op, PSTN pstn);
 
     // in-fix compiler routines

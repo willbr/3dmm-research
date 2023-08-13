@@ -19,7 +19,7 @@ namespace ScriptCompiler {
 
 RTCLASS(SCCG)
 
-SZOP _rgszopSccg[] = {
+StringOpcodeMap _rgszopSccg[] = {
     {kopCreateChildGob, PszLit("CreateChildGob")},
     {kopCreateChildThis, PszLit("CreateChildThis")},
     {kopDestroyGob, PszLit("DestroyGob")},
