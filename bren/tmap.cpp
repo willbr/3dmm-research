@@ -43,7 +43,7 @@ bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
 ***************************************************************************/
 PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
-    TMAPF tmapf;
+    TextureMapFile tmapf;
     DataBlock blck;
     TextureMap *ptmap;
 
@@ -53,12 +53,12 @@ PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cn
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         goto LFail;
-    if (!blck.FReadRgb(&tmapf, size(TMAPF), 0))
+    if (!blck.FReadRgb(&tmapf, size(TextureMapFile), 0))
         goto LFail;
 
     if (kboCur != tmapf.bo)
         SwapBytesBom(&tmapf, kbomTmapf);
-    Assert(kboCur == tmapf.bo, "bad TMAPF");
+    Assert(kboCur == tmapf.bo, "bad TextureMapFile");
 
     ptmap->_bpmp.identifier = (char *)ptmap; // to get TextureMap from a (BPMP *)
     if (!FAllocPv((void **)&ptmap->_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), fmemClear, mprNormal))
@@ -76,7 +76,7 @@ PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cn
     ptmap->_bpmp.origin_x = tmapf.xpOrigin;
     ptmap->_bpmp.origin_y = tmapf.ypOrigin;
 
-    if (!blck.FReadRgb(ptmap->_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), size(TMAPF)))
+    if (!blck.FReadRgb(ptmap->_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), size(TextureMapFile)))
     {
         goto LFail;
     }
@@ -125,7 +125,7 @@ bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
     AssertThis(0);
     DataBlock blck;
 
-    if (!pcfl->FAdd(size(TMAPF) + LwMul(_bpmp.row_bytes, _bpmp.height), ctg, pcno, &blck))
+    if (!pcfl->FAdd(size(TextureMapFile) + LwMul(_bpmp.row_bytes, _bpmp.height), ctg, pcno, &blck))
     {
         return fFalse;
     }
@@ -138,7 +138,7 @@ bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 ***************************************************************************/
 bool TextureMap::FWrite(PDataBlock pblck)
 {
-    TMAPF tmapf;
+    TextureMapFile tmapf;
 
     tmapf.bo = kboCur;
     tmapf.osk = koskCur;
@@ -151,9 +151,9 @@ bool TextureMap::FWrite(PDataBlock pblck)
     tmapf.dyp = _bpmp.height;
     tmapf.xpOrigin = _bpmp.origin_x;
     tmapf.ypOrigin = _bpmp.origin_y;
-    if (!pblck->FWriteRgb(&tmapf, size(TMAPF), 0))
+    if (!pblck->FWriteRgb(&tmapf, size(TextureMapFile), 0))
         return fFalse;
-    if (!pblck->FWriteRgb(_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), size(TMAPF)))
+    if (!pblck->FWriteRgb(_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), size(TextureMapFile)))
     {
         return fFalse;
     }

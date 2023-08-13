@@ -14,7 +14,7 @@ const ChunkTag kctgTmap = 'TMAP';
 const ChunkTag kctgTxxf = 'TXXF';
 
 // tmap on file
-struct TMAPF
+struct TextureMapFile
 {
     short bo;
     short osk;
@@ -27,7 +27,7 @@ struct TMAPF
     short dyp;
     short xpOrigin;
     short ypOrigin;
-    // void *rgb; 		// pixels follow immediately after TMAPF
+    // void *rgb; 		// pixels follow immediately after TextureMapFile
 };
 const ulong kbomTmapf = 0x54555000;
 
@@ -102,7 +102,7 @@ class TextureMap : public TextureMap_PAR
     // Some useful file methods
     long CbOnFile(void)
     {
-        return (size(TMAPF) + LwMul(_bpmp.row_bytes, _bpmp.height));
+        return (size(TextureMapFile) + LwMul(_bpmp.row_bytes, _bpmp.height));
     }
     bool FWrite(PDataBlock pblck);
 
