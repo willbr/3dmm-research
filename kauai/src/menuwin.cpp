@@ -17,13 +17,13 @@ ASSERTNAME
 const achar kchList = '_';
 const achar kchFontList = '$';
 
-PMUB vpmubCur;
-RTCLASS(MUB)
+PMenuBar vpmubCur;
+RTCLASS(MenuBar)
 
 /***************************************************************************
     Destructor - make sure vpmubCur is not this mub.
 ***************************************************************************/
-MUB::~MUB(void)
+MenuBar::~MenuBar(void)
 {
     // REVIEW shonk: free mem and the _hmenu
     if (vpmubCur == this)
@@ -33,11 +33,11 @@ MUB::~MUB(void)
 /***************************************************************************
     Static method to load and set a new menu bar.
 ***************************************************************************/
-PMUB MUB::PmubNew(ulong ridMenuBar)
+PMenuBar MenuBar::PmubNew(ulong ridMenuBar)
 {
-    PMUB pmub;
+    PMenuBar pmub;
 
-    if ((pmub = NewObj MUB) == pvNil)
+    if ((pmub = NewObj MenuBar) == pvNil)
         return pvNil;
     if ((pmub->_hmenu = LoadMenu(vwig.hinst, MIR(ridMenuBar))) == hNil)
     {
@@ -58,7 +58,7 @@ PMUB MUB::PmubNew(ulong ridMenuBar)
 /***************************************************************************
     Make this the current menu bar.
 ***************************************************************************/
-void MUB::Set(void)
+void MenuBar::Set(void)
 {
     if (vwig.hwndClient != hNil)
     {
@@ -75,7 +75,7 @@ void MUB::Set(void)
     Make sure the menu's are clean - ie, items are enabled/disabled/marked
     correctly.  Called immediately before dropping the menus.
 ***************************************************************************/
-void MUB::Clean(void)
+void MenuBar::Clean(void)
 {
     long imnu, imni, cmnu;
     ulong grfeds;
@@ -133,7 +133,7 @@ void MUB::Clean(void)
     The given wcid is the value Windows handed us in a WM_COMMAND message.
     Remap it to a real command id and enqueue the result.
 ***************************************************************************/
-void MUB::EnqueueWcid(long wcid)
+void MenuBar::EnqueueWcid(long wcid)
 {
     CMD cmd;
 
@@ -145,7 +145,7 @@ void MUB::EnqueueWcid(long wcid)
     Adds an item identified by the given list cid, long parameter
     and string.
 ***************************************************************************/
-bool MUB::FAddListCid(long cid, long lw0, PSTN pstn)
+bool MenuBar::FAddListCid(long cid, long lw0, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -242,7 +242,7 @@ bool MUB::FAddListCid(long cid, long lw0, PSTN pstn)
     or string.  If pstn is non-nil, it is used to find the item.
     If pstn is nil, lw0 is used to identify the item.
 ***************************************************************************/
-bool MUB::FRemoveListCid(long cid, long lw0, PSTN pstn)
+bool MenuBar::FRemoveListCid(long cid, long lw0, PSTN pstn)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -351,7 +351,7 @@ bool MUB::FRemoveListCid(long cid, long lw0, PSTN pstn)
 /***************************************************************************
     Removes all items identified by the given list cid.
 ***************************************************************************/
-bool MUB::FRemoveAllListCid(long cid)
+bool MenuBar::FRemoveAllListCid(long cid)
 {
     AssertThis(0);
     long imlst, ilw;
@@ -435,7 +435,7 @@ bool MUB::FRemoveAllListCid(long cid)
     lwNew is set as the new long parameter and if pstnNew is non-nil,
     it is used as the new menu item text.
 ***************************************************************************/
-bool MUB::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN pstnNew)
+bool MenuBar::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN pstnNew)
 {
     AssertThis(0);
     AssertNilOrPo(pstnOld, 0);
@@ -485,7 +485,7 @@ bool MUB::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN ps
 /***************************************************************************
     Fill in the CMD structure for the given wcid.
 ***************************************************************************/
-bool MUB::_FGetCmdForWcid(long wcid, PCMD pcmd)
+bool MenuBar::_FGetCmdForWcid(long wcid, PCMD pcmd)
 {
     AssertVarMem(pcmd);
     MLST mlst;
@@ -516,7 +516,7 @@ bool MUB::_FGetCmdForWcid(long wcid, PCMD pcmd)
 /***************************************************************************
     See if the given item is in a list.
 ***************************************************************************/
-bool MUB::_FFindMlst(long wcid, MLST *pmlst, long *pimlst)
+bool MenuBar::_FFindMlst(long wcid, MLST *pmlst, long *pimlst)
 {
     long imlst;
     MLST mlst;
@@ -547,7 +547,7 @@ bool MUB::_FFindMlst(long wcid, MLST *pmlst, long *pimlst)
     If the menu bar has a font list item or other list item, do the right
     thing.
 ***************************************************************************/
-bool MUB::_FInitLists(void)
+bool MenuBar::_FInitLists(void)
 {
     long imnu, imni, cmni, cmnu;
     HMENU hmenu;
@@ -645,13 +645,13 @@ bool MUB::_FInitLists(void)
 /***************************************************************************
     Mark mem used by the menu bar.
 ***************************************************************************/
-void MUB::MarkMem(void)
+void MenuBar::MarkMem(void)
 {
     AssertThis(0);
     long imlst;
     MLST mlst;
 
-    MUB_PAR::MarkMem();
+    MenuBar_PAR::MarkMem();
     if (pvNil == _pglmlst)
         return;
 

@@ -627,7 +627,7 @@ bool APPB::_FInitMenu(void)
 {
     AssertThis(0);
 
-    return MUB::PmubNew(128) != pvNil;
+    return MenuBar::PmubNew(128) != pvNil;
 }
 
 /***************************************************************************

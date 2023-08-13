@@ -17,10 +17,10 @@
 #define MENU_H
 
 // Menu Bar class
-typedef class MUB *PMUB;
-#define MUB_PAR BASE
-#define kclsMUB 'MUB'
-class MUB : public MUB_PAR
+typedef class MenuBar *PMenuBar;
+#define MenuBar_PAR BASE
+#define kclsMenuBar 'MUB'
+class MenuBar : public MenuBar_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -96,14 +96,14 @@ class MUB : public MUB_PAR
 #endif // WIN
 
   protected:
-    MUB(void)
+    MenuBar(void)
     {
     }
 
   public:
-    ~MUB(void);
+    ~MenuBar(void);
 
-    static PMUB PmubNew(ulong ridMenuBar);
+    static PMenuBar PmubNew(ulong ridMenuBar);
 
     virtual void Set(void);
     virtual void Clean(void);
@@ -122,6 +122,6 @@ class MUB : public MUB_PAR
     virtual bool FRemoveAllListCid(long cid);
 };
 
-extern PMUB vpmubCur;
+extern PMenuBar vpmubCur;
 
 #endif //! MENU_H
