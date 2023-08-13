@@ -35,10 +35,10 @@ enum
 };
 
 // dialog item
-struct DIT
+struct DialogItem
 {
-    long sitMin; // first system item number (for this DIT)
-    long sitLim; // lim of system item numbers (for this DIT)
+    long sitMin; // first system item number (for this DialogItem)
+    long sitLim; // lim of system item numbers (for this DialogItem)
     long ditk;   // kind of item
 };
 
@@ -90,11 +90,11 @@ class Dialog : public Dialog_PAR
 
     // argument access
     long IditFromSit(long sit);
-    void GetDit(long idit, DIT *pdit)
+    void GetDit(long idit, DialogItem *pdit)
     {
         GetFixed(idit, pdit);
     }
-    void PutDit(long idit, DIT *pdit)
+    void PutDit(long idit, DialogItem *pdit)
     {
         PutFixed(idit, pdit);
     }

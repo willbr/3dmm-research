@@ -18,7 +18,7 @@ RTCLASS(Dialog)
 /***************************************************************************
     Constructor for a dialog object.
 ***************************************************************************/
-Dialog::Dialog(long rid) : GG(size(DIT))
+Dialog::Dialog(long rid) : GG(size(DialogItem))
 {
     _rid = rid;
 }
@@ -50,7 +50,7 @@ bool Dialog::FGetValues(long iditMin, long iditLim)
 {
     AssertThis(0);
     long idit;
-    DIT dit;
+    DialogItem dit;
     long lw;
     STN stn;
 
@@ -97,7 +97,7 @@ void Dialog::SetValues(long iditMin, long iditLim)
 {
     AssertThis(0);
     long idit;
-    DIT dit;
+    DialogItem dit;
     STN stn;
     long lw;
     long cb, cbT, ib;
@@ -168,7 +168,7 @@ void Dialog::SetValues(long iditMin, long iditLim)
 long Dialog::IditFromSit(long sit)
 {
     long idit;
-    DIT dit;
+    DialogItem dit;
 
     for (idit = IvMac(); idit-- != 0;)
     {
@@ -189,7 +189,7 @@ bool Dialog::_FDitChange(long *pidit)
 {
     if (pvNil == _pfn)
     {
-        DIT dit;
+        DialogItem dit;
 
         if (ivNil == *pidit)
             return fFalse;
@@ -212,7 +212,7 @@ void Dialog::GetStn(long idit, PSTN pstn)
     long cb;
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkEditText == dit.ditk || dit.ditk == ditkCombo, "not a text item or combo");
 #endif // DEBUG
@@ -235,7 +235,7 @@ bool Dialog::FPutStn(long idit, PSTN pstn)
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
     AssertPo(pstn, 0);
-    DIT dit;
+    DialogItem dit;
     long cbOld, cbNew;
 
     GetDit(idit, &dit);
@@ -286,7 +286,7 @@ long Dialog::LwGetRadio(long idit)
     long lw;
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkRadioGroup == dit.ditk, "not a radio group");
 #endif // DEBUG
@@ -304,7 +304,7 @@ void Dialog::PutRadio(long idit, long lw)
     AssertIn(idit, 0, IvMac());
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkRadioGroup == dit.ditk, "not a radio group");
     AssertIn(lw, 0, dit.sitLim - dit.sitMin);
@@ -323,7 +323,7 @@ bool Dialog::FGetCheck(long idit)
     long lw;
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkCheckBox == dit.ditk, "not a check box");
 #endif // DEBUG
@@ -342,7 +342,7 @@ void Dialog::PutCheck(long idit, bool fOn)
     long lw;
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkCheckBox == dit.ditk, "not a check box");
 #endif // DEBUG
@@ -403,7 +403,7 @@ bool Dialog::FAddToList(long idit, PSTN pstn)
     long cb, cbTot;
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkCombo == dit.ditk, "not a combo");
 #endif // DEBUG
@@ -439,7 +439,7 @@ void Dialog::ClearList(long idit)
     STN stn;
 
 #ifdef DEBUG
-    DIT dit;
+    DialogItem dit;
     GetDit(idit, &dit);
     Assert(ditkCombo == dit.ditk, "not a combo");
 #endif // DEBUG

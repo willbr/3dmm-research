@@ -28,7 +28,7 @@ bool Dialog::_FInit(void)
     byte *pbDitl;
     byte bType;
     long cbEntry;
-    DIT dit;
+    DialogItem dit;
     bool fAddDit;
     bool fRet = fFalse;
 
@@ -204,7 +204,7 @@ LFail:
 long Dialog::IditDo(long iditFocus)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short swHit;
     long idit = ivNil;
 
@@ -286,7 +286,7 @@ LDone:
 long Dialog::_LwGetRadioGroup(long idit)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short sitk;
     HCTL hctl;
     RCS rcs;
@@ -314,7 +314,7 @@ long Dialog::_LwGetRadioGroup(long idit)
 void Dialog::_SetRadioGroup(long idit, long lw)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short sitk;
     HCTL hctl;
     RCS rcs;
@@ -356,7 +356,7 @@ void Dialog::_SetRadioGroup(long idit, long lw)
 bool Dialog::_FGetCheckBox(long idit)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short sitk;
     HCTL hctl;
     RCS rcs;
@@ -386,7 +386,7 @@ void Dialog::_InvertCheckBox(long idit)
 void Dialog::_SetCheckBox(long idit, bool fOn)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short sitk;
     HCTL hctl;
     RCS rcs;
@@ -414,7 +414,7 @@ void Dialog::_SetCheckBox(long idit, bool fOn)
 void Dialog::_GetEditText(long idit, PSTZ pstz)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short sitk;
     HN hn;
     RCS rcs;
@@ -437,7 +437,7 @@ void Dialog::_GetEditText(long idit, PSTZ pstz)
 void Dialog::_SetEditText(long idit, PSTZ pstz)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     short sitk;
     HN hn;
     RCS rcs;
@@ -463,7 +463,7 @@ void Dialog::_SetEditText(long idit, PSTZ pstz)
 void Dialog::SelectDit(long idit)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
 
     if (hNil == (hdlg = (HDLG)_pgob->Hwnd()))
         goto LBug;

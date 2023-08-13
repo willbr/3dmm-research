@@ -52,7 +52,7 @@ bool Dialog::_FInit(void)
     long cbEntry;
     long idit, csit;
     bool fAddDit;
-    DIT dit;
+    DialogItem dit;
     short *psw;
     short swClass;
     DLGTEMPLATE dtm;
@@ -241,7 +241,7 @@ LFail:
 BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 {
     PDLG pdlg;
-    DIT dit;
+    DialogItem dit;
     long idit;
     RC rcDlg;
     RC rcDsp;
@@ -396,7 +396,7 @@ long Dialog::IditDo(long iditFocus)
 void Dialog::SelectDit(long idit)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
 
     if (pvNil == _pgob || hNil == (hdlg = (HDLG)_pgob->Hwnd()))
         goto LBug;
@@ -419,7 +419,7 @@ void Dialog::SelectDit(long idit)
 long Dialog::_LwGetRadioGroup(long idit)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     long sit;
 
     GetDit(idit, &dit);
@@ -442,7 +442,7 @@ long Dialog::_LwGetRadioGroup(long idit)
 void Dialog::_SetRadioGroup(long idit, long lw)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -459,7 +459,7 @@ void Dialog::_SetRadioGroup(long idit, long lw)
 bool Dialog::_FGetCheckBox(long idit)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -484,7 +484,7 @@ void Dialog::_InvertCheckBox(long idit)
 void Dialog::_SetCheckBox(long idit, bool fOn)
 {
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -503,7 +503,7 @@ void Dialog::_GetEditText(long idit, PSTN pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
     SZ sz;
 
     GetDit(idit, &dit);
@@ -524,7 +524,7 @@ void Dialog::_SetEditText(long idit, PSTN pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
     HDLG hdlg;
-    DIT dit;
+    DialogItem dit;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -544,7 +544,7 @@ bool Dialog::_FAddToList(long idit, PSTN pstn)
     AssertPo(pstn, 0);
     HDLG hdlg;
     HWND hwndCombo;
-    DIT dit;
+    DialogItem dit;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -569,7 +569,7 @@ void Dialog::_ClearList(long idit)
     AssertThis(0);
     HDLG hdlg;
     HWND hwndCombo;
-    DIT dit;
+    DialogItem dit;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
