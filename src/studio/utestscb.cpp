@@ -55,7 +55,7 @@ PMSCB MSCB::PmscbNew(PMVIE pmvie, PGCB pgcb)
 {
     PMSCB pmscb;
     RC rc;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     AssertNilOrPo(pmvie, 0);
     AssertVarMem(pgcb);

@@ -126,7 +126,7 @@ class WOKS : public WOKS_PAR
     CLOK _clokReset;
 
   public:
-    WOKS(GCB *pgcb, PSTRG pstrg = pvNil);
+    WOKS(GraphicsObjectBlock *pgcb, PSTRG pstrg = pvNil);
     ~WOKS(void);
 
     PSTRG Pstrg(void)

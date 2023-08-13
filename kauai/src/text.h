@@ -21,7 +21,7 @@ typedef class EDPAR *PEDPAR;
 class EDPAR
 {
   public:
-    GCB _gcb;
+    GraphicsObjectBlock _gcb;
     long _onn;
     ulong _grfont;
     long _dypFont;

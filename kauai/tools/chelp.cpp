@@ -586,7 +586,7 @@ PLID LID::PlidNew(PCRM pcrm, CTG ctg, CHID chid)
 bool LID::_FInit(PCRM pcrm, CTG ctg, CHID chid)
 {
     AssertPo(pcrm, 0);
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (pvNil == (_pglcach = GL::PglNew(size(CACH))))
         return fFalse;
@@ -709,7 +709,7 @@ PMBMP LID::PmbmpGet(long icki)
 /***************************************************************************
     Constructor for the list display gob.
 ***************************************************************************/
-LIG::LIG(PLID plid, GCB *pgcb) : LIG_PAR(plid, pgcb)
+LIG::LIG(PLID plid, GraphicsObjectBlock *pgcb) : LIG_PAR(plid, pgcb)
 {
 }
 
@@ -739,7 +739,7 @@ void LIG::MarkMem(void)
 /***************************************************************************
     Static method to create a new list display gob.
 ***************************************************************************/
-PLIG LIG::PligNew(PLID plid, GCB *pgcb, PTXHD ptxhd, long dypCell)
+PLIG LIG::PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTXHD ptxhd, long dypCell)
 {
     AssertPo(plid, 0);
     AssertVarMem(pgcb);
@@ -773,7 +773,7 @@ bool LIG::_FInit(PTXHD ptxhd, long dypCell)
 {
     AssertPo(ptxhd, 0);
     AssertIn(dypCell, 1, kswMax);
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!LIG_PAR::_FInit())
         return fFalse;
@@ -957,7 +957,7 @@ void LIG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Constructor for the CCG.
 ***************************************************************************/
-CCG::CCG(GCB *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow) : CCG_PAR(pgcb)
+CCG::CCG(GraphicsObjectBlock *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow) : CCG_PAR(pgcb)
 {
     AssertPo(ptxhd, 0);
     AssertIn(cacrRow, 1, 257);
@@ -1100,7 +1100,7 @@ bool CCG::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
 
     ReleasePpo(ppgobCurTip);
 
-    GCB gcb(khidToolTip, this, fgobNil, kginMark);
+    GraphicsObjectBlock gcb(khidToolTip, this, fgobNil, kginMark);
     *ppgobCurTip = NewObj CCGT(&gcb, kacrBlack);
 
     return fTrue;

@@ -2439,7 +2439,7 @@ void TXTG::ShowRuler(bool fShow)
     if (fShow)
     {
         PGOB pgob;
-        GCB gcb;
+        GraphicsObjectBlock gcb;
 
         pgob = PgobPar();
         if (pvNil == pgob || !pgob->FIs(kclsDSG))

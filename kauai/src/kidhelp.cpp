@@ -1029,7 +1029,7 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
     HTOP htop;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PHBAL phbal;
     long grid;
 
@@ -1109,7 +1109,7 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
 /***************************************************************************
     Constructor for a help balloon.
 ***************************************************************************/
-HBAL::HBAL(GCB *pgcb) : HBAL_PAR(pgcb)
+HBAL::HBAL(GraphicsObjectBlock *pgcb) : HBAL_PAR(pgcb)
 {
 }
 
@@ -1157,7 +1157,7 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
     AssertPo(prca, 0);
 
     PGOB pgob;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PT pt, ptReg;
     STN stn;
     RTVN rtvn;
@@ -1242,7 +1242,7 @@ void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
 /***************************************************************************
     Constructor for a help balloon button.
 ***************************************************************************/
-HBTN::HBTN(GCB *pgcb) : HBTN_PAR(pgcb)
+HBTN::HBTN(GraphicsObjectBlock *pgcb) : HBTN_PAR(pgcb)
 {
 }
 
@@ -1256,7 +1256,7 @@ PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, by
     AssertNilOrPo(pgobPar, 0);
     Assert(hid != hidNil, "nil ID");
     AssertPo(prca, 0);
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PHBTN phbtn;
     RC rcAbs;
 

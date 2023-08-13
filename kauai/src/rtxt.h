@@ -620,7 +620,7 @@ class TRUL : public TRUL_PAR
     RTCLASS_DEC
 
   protected:
-    TRUL(GCB *pgcb) : TRUL_PAR(pgcb)
+    TRUL(GraphicsObjectBlock *pgcb) : TRUL_PAR(pgcb)
     {
     }
 

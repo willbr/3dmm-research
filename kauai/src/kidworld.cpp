@@ -187,7 +187,7 @@ void GKDS::GetLop(long hidPar, LOP *plop)
 /***************************************************************************
     Constructor for a World of Kidspace GraphicsObject.
 ***************************************************************************/
-WOKS::WOKS(GCB *pgcb, PSTRG pstrg)
+WOKS::WOKS(GraphicsObjectBlock *pgcb, PSTRG pstrg)
     : WOKS_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
       _clokGen(CMH::HidUnique()), _clokReset(CMH::HidUnique(), fclokReset)
 {
@@ -469,7 +469,7 @@ bool WOKS::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
     AssertPo(prca, 0);
     AssertVarMem(plwRet);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PWOKS pwoksModal;
     GTE gte;
     PGOB pgob;

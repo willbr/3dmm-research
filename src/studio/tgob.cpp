@@ -23,7 +23,7 @@ RTCLASS(TGOB)
  * Constructor for text gobs.
  *
  ****************************************************/
-TGOB::TGOB(GCB *pgcb) : GraphicsObject(pgcb)
+TGOB::TGOB(GraphicsObjectBlock *pgcb) : GraphicsObject(pgcb)
 {
     _acrFore = kacrBlack;
     _acrBack = kacrClear;
@@ -139,7 +139,7 @@ PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
     RC rcAbs;
     PGOB pgob;
     STN stn;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     long onn;
     PTGOB ptgob;
 

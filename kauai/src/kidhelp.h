@@ -162,7 +162,7 @@ class HBAL : public HBAL_PAR
   protected:
     PTXHG _ptxhg;
 
-    HBAL(GCB *pgcb);
+    HBAL(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
     virtual bool _FInit(PWOKS pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca);
     virtual bool _FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
@@ -185,7 +185,7 @@ class HBTN : public HBTN_PAR
     RTCLASS_DEC
 
   protected:
-    HBTN(GCB *pgcb);
+    HBTN(GraphicsObjectBlock *pgcb);
 
     byte _bGroup;
     CNO _cnoTopic;

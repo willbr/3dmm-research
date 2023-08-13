@@ -127,11 +127,11 @@ class LIG : public LIG_PAR
     PSCB _pscb;    // our scroll bar
     long _dypCell; // how tall are our cells
 
-    LIG(PLID plid, GCB *pgcb);
+    LIG(PLID plid, GraphicsObjectBlock *pgcb);
     bool _FInit(PTXHD ptxhd, long dypCell);
 
   public:
-    static PLIG PligNew(PLID plid, GCB *pgcb, PTXHD ptxhd, long dypCell = kdypCellLig);
+    static PLIG PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTXHD ptxhd, long dypCell = kdypCellLig);
 
     PLID Plid(void);
     void Refresh(void);
@@ -163,7 +163,7 @@ class CCG : public CCG_PAR
     bool _FGetAcrFromPt(long xp, long yp, ACR *pacr, RC *prc = pvNil, long *piscr = pvNil);
 
   public:
-    CCG(GCB *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
+    CCG(GraphicsObjectBlock *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
 
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual void Draw(PGNV pgnv, RC *prcClip);
@@ -499,10 +499,10 @@ class HTRU : public HTRU_PAR
     long _dypFont;
     ulong _grfont;
 
-    HTRU(GCB *pgcb, PTXTG ptxtg);
+    HTRU(GraphicsObjectBlock *pgcb, PTXTG ptxtg);
 
   public:
-    static PHTRU PhtruNew(GCB *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
+    static PHTRU PhtruNew(GraphicsObjectBlock *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
                           long dypFont, ulong grfont);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);

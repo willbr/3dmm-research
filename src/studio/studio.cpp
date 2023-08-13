@@ -90,7 +90,7 @@ PSTDIO Studio::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFail
     bool fSuccess = fFalse;
     PSTDIO pstdio;
     PMVIE pmvie = pvNil;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     DataBlock blck;
 
     gcb.Set(hid, ((APP *)vpappb)->Pkwa());
@@ -475,7 +475,7 @@ bool Studio::FSetMovie(PMVIE pmvie)
     PMVU pmvu = pvNil;
     RC rcRel, rcAbs;
     PGOK pgok;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     vapp.BeginLongOp();
 

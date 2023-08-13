@@ -174,7 +174,7 @@ PSCB SCB::PscbNew(PGCB pgcb, ulong grfscb, long val, long valMin, long valMax)
 {
     Assert(FPure(grfscb & fscbHorz) != FPure(grfscb & fscbVert), "exactly one of (fscbHorz,fscbVert) should be set");
     PSCB pscb;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (grfscb & fscbStandardRc)
     {
@@ -579,7 +579,7 @@ PWSB WSB::PwsbNew(PGOB pgob, ulong grfgob)
     rcAbs.ypTop = -SCB::DypNormal() + 1;
     rcAbs.xpRight = rcAbs.ypBottom = 1;
 
-    GCB gcb(khidSizeBox, pgob, grfgob, kginDefault, &rcAbs, &rcRel);
+    GraphicsObjectBlock gcb(khidSizeBox, pgob, grfgob, kginDefault, &rcAbs, &rcRel);
     if ((pwsb = NewObj WSB(&gcb)) == pvNil)
         return pvNil;
 

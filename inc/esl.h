@@ -22,7 +22,7 @@
 #ifndef ESL_H
 #define ESL_H
 
-// Function to build a GCB to construct a child under a parent
+// Function to build a GraphicsObjectBlock to construct a child under a parent
 bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild);
 
 // Function to set a GOK to a different state

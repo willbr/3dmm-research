@@ -349,7 +349,7 @@ class GOK : public GOK_PAR
 
     long _hidToolTipSrc; // get the tool tip info from this GOK
 
-    GOK(GCB *pgcb);
+    GOK(GraphicsObjectBlock *pgcb);
     ~GOK(void);
 
     static PGOB _PgobBefore(PGOB pgobPar, long zp);

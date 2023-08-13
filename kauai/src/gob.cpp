@@ -31,9 +31,9 @@ long GraphicsObject::_ginDefGob = kginSysInval;
 long GraphicsObject::_gridLast;
 
 /***************************************************************************
-    Fill in the elements of the GCB.
+    Fill in the elements of the GraphicsObjectBlock.
 ***************************************************************************/
-void GCB::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel)
+void GraphicsObjectBlock::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel)
 {
     Assert(hidNil != hid, "bad hid");
     AssertNilOrPo(pgob, 0);
@@ -120,7 +120,7 @@ void GraphicsObject::_Init(PGCB pgcb)
 ***************************************************************************/
 GraphicsObject::GraphicsObject(long hid) : CMH(hid)
 {
-    GCB gcb(hid, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(hid, GraphicsObject::PgobScreen());
     _Init(&gcb);
 }
 

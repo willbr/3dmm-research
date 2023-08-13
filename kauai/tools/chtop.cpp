@@ -1281,7 +1281,7 @@ bool HEDG::FCmdPrint(PCMD pcmd)
         if (pvNil == (phetg = (PHETG)phetd->PddgGet(0)))
         {
             // need to open a window onto the doc.
-            GCB gcb(khidDdg, this);
+            GraphicsObjectBlock gcb(khidDdg, this);
             if (pvNil == (phetg = (PHETG)phetd->PddgNew(&gcb)))
                 goto LFail;
         }
@@ -1872,7 +1872,7 @@ PDMD HETD::PdmdNew(void)
     PGOB pgob;
     RC rcRel, rcAbs;
     long dxpLig, ypT;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (pvNil == (pdmd = HETD_PAR::PdmdNew()))
         return pvNil;
@@ -3464,7 +3464,7 @@ long HETG::DypLine(long ilin)
 /***************************************************************************
     Constructor for a text ruler.
 ***************************************************************************/
-HTRU::HTRU(GCB *pgcb, PTXTG ptxtg) : HTRU_PAR(pgcb)
+HTRU::HTRU(GraphicsObjectBlock *pgcb, PTXTG ptxtg) : HTRU_PAR(pgcb)
 {
     AssertPo(ptxtg, 0);
     _ptxtg = ptxtg;
@@ -3473,7 +3473,7 @@ HTRU::HTRU(GCB *pgcb, PTXTG ptxtg) : HTRU_PAR(pgcb)
 /***************************************************************************
     Create a new text ruler.
 ***************************************************************************/
-PHTRU HTRU::PhtruNew(GCB *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn, long dypFont,
+PHTRU HTRU::PhtruNew(GraphicsObjectBlock *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn, long dypFont,
                      ulong grfont)
 {
     AssertVarMem(pgcb);

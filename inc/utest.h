@@ -29,7 +29,7 @@ class KWA : public KWA_PAR
     bool _fAskForCD;
 
   public:
-    KWA(GCB *pgcb) : WOKS(pgcb)
+    KWA(GraphicsObjectBlock *pgcb) : WOKS(pgcb)
     {
         _fAskForCD = fTrue;
     }

@@ -2581,7 +2581,7 @@ bool DCD::FTestScript(CTG ctg, CNO cno, long cbCache)
     PSCEG psceg = pvNil;
     PCRF pcrf = pvNil;
 
-    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
     if (pvNil == (ptscg = NewObj TSCG(&gcb)))
         goto LFail;
     vpcex->FAddCmh(ptscg, 0);

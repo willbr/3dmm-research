@@ -505,7 +505,7 @@ DWN *DWN::PdwnNew(void)
     PGOB pgob;
     STN stn;
 
-    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
     if ((pdwn = NewObj DWN(&gcb)) == pvNil)
         return pvNil;
 
@@ -685,7 +685,7 @@ TTW *TTW::PttwNew(void)
     STN stn;
     RC rc;
     PEDPL pedpl;
-    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if ((pttw = NewObj TTW(&gcb)) == pvNil)
         return pvNil;
@@ -808,7 +808,7 @@ RTW *RTW::PrtwNew(void)
 {
     RTW *prtw;
     STN stn;
-    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (prtw = NewObj RTW(&gcb)))
         return pvNil;
@@ -2033,7 +2033,7 @@ PTAN TAN::PtanNew(void)
     RC rc;
     STN stn;
     APT apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
-    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (ptan = NewObj TAN(&gcb)))
         return pvNil;

@@ -117,7 +117,7 @@ PBRWD BRWD::PbrwdNew(PRCA prca, long kidPar, long kidGlass)
     AssertPo(prca, 0);
 
     PBRWD pbrwd;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
@@ -140,7 +140,7 @@ PBRWD BRWD::PbrwdNew(PRCA prca, long kidPar, long kidGlass)
  * Build the GraphicsObject creation block
  *
  ****************************************************/
-bool BRWD::_FBuildGcb(GCB *pgcb, long kidPar, long kidGlass)
+bool BRWD::_FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidGlass)
 {
     AssertVarMem(pgcb);
 
@@ -415,7 +415,7 @@ bool BRWD::FDraw(void)
     AssertThis(0);
 
     PGOB pgobPar;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     long ithum;
     long ifrm;
     long cthum = _Cthum();
@@ -844,7 +844,7 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
 
     PBRWL pbrwl;
     PGOK pgok;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
@@ -1993,7 +1993,7 @@ PBRWM BRWM::PbrwmNew(PRCA prca, long kidGlass, long sty, PSTDIO pstdio)
     AssertPo(pstdio, 0);
 
     PBRWM pbrwm;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
@@ -2424,7 +2424,7 @@ PBRWT BRWT::PbrwtNew(PRCA prca, long kidPar, long kidGlass)
     AssertPo(prca, 0);
 
     PBRWT pbrwt;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
@@ -2530,7 +2530,7 @@ PBRWA BRWA::PbrwaNew(PRCA prca)
 
     PBRWA pbrwa;
     PGOK pgok;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidActionGlass))
         return pvNil;
@@ -2573,7 +2573,7 @@ bool BRWA::FBuildApe(PACTR pactr)
     COST cost;
     PGOK pgokFrame;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!cost.FGet(pactr->Pbody()))
         return fFalse;
@@ -2719,7 +2719,7 @@ PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
     AssertPo(prca, 0);
 
     PBRWI pbrwi;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
@@ -2802,7 +2802,7 @@ PBRWP BRWP::PbrwpNew(PRCA prca, long kidGlass)
     AssertPo(prca, 0);
 
     PBRWP pbrwp;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
@@ -2834,7 +2834,7 @@ PBRWB BRWB::PbrwbNew(PRCA prca)
     AssertPo(prca, 0);
 
     PBRWB pbrwb;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidSettingsGlass))
         return pvNil;
@@ -2919,7 +2919,7 @@ PBRWC BRWC::PbrwcNew(PRCA prca)
     AssertPo(prca, 0);
 
     PBRWC pbrwc;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidCameraGlass))
         return pvNil;
@@ -2972,7 +2972,7 @@ PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
     AssertPo(prca, 0);
 
     PBRWR pbrwr;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kid))
         return pvNil;

@@ -120,7 +120,7 @@ PSCRT SCRT::PscrtNew(long hid, PMVIE pmvie, PSTDIO pstdio, PRCA prca)
     PSCRT pscrt = pvNil;
     PGOB pgobPar;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(kidBackground)) == pvNil)
     {
@@ -819,7 +819,7 @@ PGOMP GOMP::PgompNew(PGOB pgobPar, long hid)
     AssertPo(pgobPar, 0);
 
     PGOMP pgomp = pvNil;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     RC rcRel(0, 0, krelOne, krelOne);
 
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);

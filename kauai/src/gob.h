@@ -88,7 +88,7 @@ enum
 /****************************************
     GraphicsObject creation block
 ****************************************/
-struct GCB
+struct GraphicsObjectBlock
 {
     long _hid;
     PGOB _pgob;
@@ -97,17 +97,17 @@ struct GCB
     RC _rcAbs;
     RC _rcRel;
 
-    GCB(void)
+    GraphicsObjectBlock(void)
     {
     }
-    GCB(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil, RC *prcRel = pvNil)
+    GraphicsObjectBlock(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil, RC *prcRel = pvNil)
     {
         Set(hid, pgob, grfgob, gin, prcAbs, prcRel);
     }
     void Set(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil,
              RC *prcRel = pvNil);
 };
-typedef GCB *PGCB;
+typedef GraphicsObjectBlock *PGCB;
 
 /****************************************
     Graphics object
@@ -189,7 +189,7 @@ class GraphicsObject : public GraphicsObject_PAR
         return _ginDefGob;
     }
 
-    GraphicsObject(GCB *pgcb);
+    GraphicsObject(GraphicsObjectBlock *pgcb);
     GraphicsObject(long hid);
     virtual void Release(void);
 

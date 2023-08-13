@@ -22,7 +22,7 @@ PGOB GraphicsObject::_pgobScreen;
 bool GraphicsObject::FInitScreen(ulong grfgob, long ginDef)
 {
     PGOB pgob;
-    GCB gcb(khidScreen, pvNil);
+    GraphicsObjectBlock gcb(khidScreen, pvNil);
 
     switch (ginDef)
     {

@@ -57,7 +57,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
     PSSCB psscb;
     PGOB pgob;
     STN stn;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     RC rcRel, rcAbs;
     long hid;
 

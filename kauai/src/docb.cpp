@@ -1335,7 +1335,7 @@ PDMD DMD::PdmdNew(PDOCB pdocb)
     STN stn;
     RC rcRel, rcAbs;
 
-    GCB gcb(khidDmd, GraphicsObject::PgobScreen());
+    GraphicsObjectBlock gcb(khidDmd, GraphicsObject::PgobScreen());
     if (pvNil == (pdmd = NewObj DMD(pdocb, &gcb)))
         return pvNil;
     pdocb->GetName(&stn);
@@ -2095,7 +2095,7 @@ PDSG DSG::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
     AssertPo(pdmw, 0);
     Assert(pvNil != pdsgSplit || pdmw->Cdsg() == 0, "must split an existing DSG");
     PDSG pdsg;
-    GCB gcb(khidDsg, pdmw);
+    GraphicsObjectBlock gcb(khidDsg, pdmw);
 
     if (pvNil == (pdsg = NewObj DSG(&gcb)))
         return pvNil;
@@ -2142,7 +2142,7 @@ bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
         return fFalse;
 
     // Create the scroll bars and split boxes
-    GCB gcb(khidVScroll, this);
+    GraphicsObjectBlock gcb(khidVScroll, this);
     SCB::GetStandardRc(fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
     gcb._rcAbs.ypTop += DSSP::DypNormal();
     if (pvNil == SCB::PscbNew(&gcb, fscbVert) || pvNil == DSSP::PdsspNew(this, fdsspVert))
@@ -2254,7 +2254,7 @@ PDSSP DSSP::PdsspNew(PDSG pdsg, ulong grfdssp)
     Assert(FPure(grfdssp & fdsspHorz) != FPure(grfdssp & fdsspVert),
            "must specify exactly one of (fdsspVert,fdsspHorz)");
     AssertPo(pdsg, 0);
-    GCB gcb((grfdssp & fdsspVert) ? khidDsspVert : khidDsspHorz, pdsg);
+    GraphicsObjectBlock gcb((grfdssp & fdsspVert) ? khidDsspVert : khidDsspHorz, pdsg);
 
     if (grfdssp & fdsspVert)
     {
@@ -2349,7 +2349,7 @@ PDSSM DSSM::PdssmNew(PDSG pdsg)
 {
     AssertPo(pdsg, 0);
     PDSSM pdssm;
-    GCB gcb(khidDssm, pdsg);
+    GraphicsObjectBlock gcb(khidDssm, pdsg);
 
     gcb._rcRel.xpLeft = gcb._rcRel.xpRight = gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelOne;
     gcb._rcAbs.xpLeft = -SCB::DxpNormal();

@@ -137,7 +137,7 @@ class BRWD : public BRWD_PAR
   protected:
     void _SetScrollState(void);
     long _CfrmCalc(void);
-    static bool _FBuildGcb(GCB *pgcb, long kidPar, long kidBrws);
+    static bool _FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidBrws);
     bool _FInitGok(PRCA prca, long kidGlass);
     void _SetVarForOverride(void);
 

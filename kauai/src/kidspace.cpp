@@ -39,7 +39,7 @@ PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
     AssertPo(pgobPar, 0);
     AssertPo(pgokd, 0);
     AssertPo(prca, 0);
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PGOK pgok;
 
     if (hidNil == hid)
@@ -92,7 +92,7 @@ PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
 /***************************************************************************
     Constructor for the Kidspace graphic object.
 ***************************************************************************/
-GOK::GOK(GCB *pgcb) : GraphicsObject(pgcb)
+GOK::GOK(GraphicsObjectBlock *pgcb) : GraphicsObject(pgcb)
 {
     _chidAnim = chidNil;
     _siiSound = siiNil;

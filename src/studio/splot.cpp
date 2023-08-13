@@ -35,7 +35,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
     PGL pglclr = pvNil;
     PGOB pgobPar;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     CLOK clok(CMH::HidUnique());
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(hidPar)) == pvNil)
@@ -97,7 +97,7 @@ bool SPLOT::FCmdInit(PCMD pcmd)
     PMCC pmcc = pvNil;
     PGOB pgobParent;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if ((pgobParent = vpapp->Pkwa()->PgobFromHid(pcmd->rglw[0])) == pvNil)
     {

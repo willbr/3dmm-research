@@ -248,7 +248,7 @@ RTCLASS(TUNC)
 PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
 {
     AssertPo(ptbox, 0);
-    AssertPvCb(pgcb, size(GCB));
+    AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
     PTBXB ptbxb;
     PTBXG ptbxg;
@@ -991,7 +991,7 @@ TBXG::~TBXG()
 PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGCB pgcb)
 {
     AssertPo(ptbox, 0);
-    AssertPvCb(pgcb, size(GCB));
+    AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
     PTBXG ptbxg;
 
@@ -2247,7 +2247,7 @@ bool TBOX::FGotoFrame(long nfrm)
 {
     AssertThis(0);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PTBXG ptbxg;
     PTBXB ptbxb;
 

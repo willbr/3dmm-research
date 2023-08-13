@@ -35,7 +35,7 @@ RTCLASS(LSND)
 RTCLASS(ESLR)
 
 /***************************************************************************
-    Function to build a GCB for creating a child GraphicsObject
+    Function to build a GraphicsObjectBlock for creating a child GraphicsObject
 ***************************************************************************/
 bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
 {
@@ -88,7 +88,7 @@ PESL ESL::PeslNew(PRCA prca, long kidParent, long kidEasel)
 {
     AssertPo(prca, 0);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PESL pesl;
 
     if (!FBuildGcb(&gcb, kidParent, kidEasel))
@@ -216,7 +216,7 @@ PESLT ESLT::PesltNew(PRCA prca, PMVIE pmvie, PACTR pactr, PSTN pstnNew, long tdt
     AssertNilOrVarMem(ptagTdfNew);
 
     PESLT peslt;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidSpltGlass))
         return pvNil;
@@ -250,7 +250,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnN
         AssertIn(tdtsNew, 0, tdtsLim);
     AssertNilOrVarMem(ptagTdfNew);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     COST cost;
     STN stn;
     bool fNewTdt = (pactr == pvNil);
@@ -841,7 +841,7 @@ PESLA ESLA::PeslaNew(PRCA prca, PMVIE pmvie, PACTR pactr)
     AssertPo(pactr, 0);
 
     PESLA pesla;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidCostGlass))
         return pvNil;
@@ -870,7 +870,7 @@ bool ESLA::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr)
     AssertPo(pmvie, 0);
     AssertPo(pactr, 0);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     COST cost;
     STN stn;
     EDPAR edpar;
@@ -1071,7 +1071,7 @@ PESLL ESLL::PesllNew(PRCA prca, PMVIE pmvie, PACTR pactr)
     AssertNilOrPo(pactr, 0);
 
     PESLL pesll;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     long kidGlass;
 
     if (pvNil == pactr)
@@ -1636,7 +1636,7 @@ PESLR ESLR::PeslrNew(PRCA prca, PMVIE pmvie, bool fSpeech, PSTN pstnNew)
     AssertPo(pstnNew, 0);
 
     PESLR peslr;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidRecordGlass))
         return pvNil;
@@ -1665,7 +1665,7 @@ bool ESLR::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstn
     AssertPo(pmvie, 0);
     AssertPo(pstnNew, 0);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     EDPAR edpar;
 
     _pmvie = pmvie;

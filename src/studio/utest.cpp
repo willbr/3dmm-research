@@ -1727,7 +1727,7 @@ bool APP::_FInitKidworld(void)
     AssertBaseThis(0);
 
     RC rcRel(0, 0, krelOne, krelOne);
-    GCB gcb(CMH::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
+    GraphicsObjectBlock gcb(CMH::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
 
     _pkwa = NewObj KWA(&gcb);
     if (pvNil == _pkwa)
@@ -2569,7 +2569,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    GCB gcb;
+    GraphicsObjectBlock gcb;
     PWOKS pwoksModal;
     GTE gte;
     PGOB pgob;
