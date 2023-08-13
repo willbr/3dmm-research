@@ -74,7 +74,7 @@ void TextDocument::MarkMem(void)
     Static method to read a help text document from the given (pcfl, ctg, cno)
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTextDocument TextDocument::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
+PTextDocument TextDocument::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
@@ -93,7 +93,7 @@ PTextDocument TextDocument::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag
 /***************************************************************************
     Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
+bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);

@@ -119,8 +119,8 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     MARKMEM
 
   protected:
-    PSTRG _pstrg;
-    STRG _strg;
+    PStringRegistry _pstrg;
+    StringRegistry _strg;
     ulong _grfcust;
 
     CLOK _clokAnim;
@@ -129,10 +129,10 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     CLOK _clokReset;
 
   public:
-    WorldOfKidspace(GraphicsObjectBlock *pgcb, PSTRG pstrg = pvNil);
+    WorldOfKidspace(GraphicsObjectBlock *pgcb, PStringRegistry pstrg = pvNil);
     ~WorldOfKidspace(void);
 
-    PSTRG Pstrg(void)
+    PStringRegistry Pstrg(void)
     {
         return _pstrg;
     }

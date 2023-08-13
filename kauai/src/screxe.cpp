@@ -18,7 +18,7 @@ namespace ScriptInterpreter {
 
 RTCLASS(Interpreter)
 RTCLASS(Script)
-RTCLASS(STRG)
+RTCLASS(StringRegistry)
 
 #ifdef DEBUG
 // these strings are for debug only error messages
@@ -28,7 +28,7 @@ static STN _stn;
 /***************************************************************************
     Constructor for the script interpreter.
 ***************************************************************************/
-Interpreter::Interpreter(PRCA prca, PSTRG pstrg)
+Interpreter::Interpreter(PRCA prca, PStringRegistry pstrg)
 {
     AssertNilOrPo(prca, 0);
     AssertNilOrPo(pstrg, 0);
@@ -1489,7 +1489,7 @@ void Script::MarkMem(void)
 /***************************************************************************
     Constructor for the runtime string registry.
 ***************************************************************************/
-STRG::STRG(void)
+StringRegistry::StringRegistry(void)
 {
     _pgst = pvNil;
     AssertThis(0);
@@ -1498,7 +1498,7 @@ STRG::STRG(void)
 /***************************************************************************
     Constructor for the runtime string registry.
 ***************************************************************************/
-STRG::~STRG(void)
+StringRegistry::~StringRegistry(void)
 {
     AssertThis(0);
     ReleasePpo(&_pgst);
@@ -1506,21 +1506,21 @@ STRG::~STRG(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a STRG.
+    Assert the validity of a StringRegistry.
 ***************************************************************************/
-void STRG::AssertValid(ulong grf)
+void StringRegistry::AssertValid(ulong grf)
 {
-    STRG_PAR::AssertValid(0);
+    StringRegistry_PAR::AssertValid(0);
     AssertNilOrPo(_pgst, 0);
 }
 
 /***************************************************************************
-    Mark memory for the STRG.
+    Mark memory for the StringRegistry.
 ***************************************************************************/
-void STRG::MarkMem(void)
+void StringRegistry::MarkMem(void)
 {
     AssertValid(0);
-    STRG_PAR::MarkMem();
+    StringRegistry_PAR::MarkMem();
     MarkMemObj(_pgst);
 }
 #endif // DEBUG
@@ -1528,7 +1528,7 @@ void STRG::MarkMem(void)
 /***************************************************************************
     Put the string in the registry with the given string id.
 ***************************************************************************/
-bool STRG::FPut(long stid, PSTN pstn)
+bool StringRegistry::FPut(long stid, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1547,7 +1547,7 @@ bool STRG::FPut(long stid, PSTN pstn)
     Get the string with the given string id.  If the string isn't in the
     registry, sets pstn to an empty string and returns false.
 ***************************************************************************/
-bool STRG::FGet(long stid, PSTN pstn)
+bool StringRegistry::FGet(long stid, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1568,7 +1568,7 @@ bool STRG::FGet(long stid, PSTN pstn)
     id's are not repeated in the near future.  All assigned id's have their
     high bit set.
 ***************************************************************************/
-bool STRG::FAdd(long *pstid, PSTN pstn)
+bool StringRegistry::FAdd(long *pstid, PSTN pstn)
 {
     AssertThis(0);
     AssertVarMem(pstid);
@@ -1589,7 +1589,7 @@ bool STRG::FAdd(long *pstid, PSTN pstn)
 /***************************************************************************
     Delete a string from the registry.
 ***************************************************************************/
-void STRG::Delete(long stid)
+void StringRegistry::Delete(long stid)
 {
     AssertThis(0);
     long istn;
@@ -1603,7 +1603,7 @@ void STRG::Delete(long stid)
     exists, it is replaced.  Returns false if the source string doesn't
     exist.  Can't fail if the source does exist.
 ***************************************************************************/
-bool STRG::FMove(long stidSrc, long stidDst)
+bool StringRegistry::FMove(long stidSrc, long stidDst)
 {
     AssertThis(0);
     long istnSrc, istnDst;
@@ -1631,7 +1631,7 @@ bool STRG::FMove(long stidSrc, long stidDst)
     in the registry.  In either case, sets *pistn with where the string
     should go.
 ***************************************************************************/
-bool STRG::_FFind(long stid, long *pistn)
+bool StringRegistry::_FFind(long stid, long *pistn)
 {
     AssertThis(0);
     AssertVarMem(pistn);
@@ -1666,7 +1666,7 @@ bool STRG::_FFind(long stid, long *pistn)
 /***************************************************************************
     Make sure the StringTable exists.
 ***************************************************************************/
-bool STRG::_FEnsureGst(void)
+bool StringRegistry::_FEnsureGst(void)
 {
     AssertThis(0);
 

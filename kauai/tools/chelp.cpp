@@ -31,8 +31,8 @@ RTCLASS(LID)
 RTCLASS(CCG)
 RTCLASS(CCGT)
 
-STRG _strg;
-PSTRG vpstrg;
+StringRegistry _strg;
+PStringRegistry vpstrg;
 SC_LID vsclid = ksclidAmerican;
 PSPLC vpsplc;
 

@@ -16,7 +16,7 @@
 #include "chelpexp.h"
 #include "chelpres.h"
 
-extern PSTRG vpstrg;
+extern PStringRegistry vpstrg;
 extern SC_LID vsclid;
 extern PSPLC vpsplc;
 

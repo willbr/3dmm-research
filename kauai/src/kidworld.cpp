@@ -189,7 +189,7 @@ void KidspaceGraphicObjectDescriptorLocation::GetLop(long hidPar, LOP *plop)
 /***************************************************************************
     Constructor for a World of Kidspace GraphicsObject.
 ***************************************************************************/
-WorldOfKidspace::WorldOfKidspace(GraphicsObjectBlock *pgcb, PSTRG pstrg)
+WorldOfKidspace::WorldOfKidspace(GraphicsObjectBlock *pgcb, PStringRegistry pstrg)
     : WorldOfKidspace_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
       _clokGen(CMH::HidUnique()), _clokReset(CMH::HidUnique(), fclokReset)
 {

@@ -68,15 +68,15 @@ class Script : public Script_PAR
 /***************************************************************************
     Runtime string registry.
 ***************************************************************************/
-typedef class STRG *PSTRG;
-#define STRG_PAR BASE
-#define kclsSTRG 'STRG'
-class STRG : public STRG_PAR
+typedef class StringRegistry *PStringRegistry;
+#define StringRegistry_PAR BASE
+#define kclsStringRegistry 'STRG'
+class StringRegistry : public StringRegistry_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(STRG)
+    NOCOPY(StringRegistry)
 
   protected:
     long _stidLast;
@@ -86,8 +86,8 @@ class STRG : public STRG_PAR
     bool _FEnsureGst(void);
 
   public:
-    STRG(void);
-    ~STRG(void);
+    StringRegistry(void);
+    ~StringRegistry(void);
 
     bool FPut(long stid, PSTN pstn);
     bool FGet(long stid, PSTN pstn);
@@ -116,7 +116,7 @@ class Interpreter : public Interpreter_PAR
 
   protected:
     PRCA _prca; // the chunky resource file list (may be nil)
-    PSTRG _pstrg;
+    PStringRegistry _pstrg;
     PGL _pgllwStack;   // the execution stack
     PGL _pglrtvm;      // the local variables
     PScript _pscpt;      // the script
@@ -170,7 +170,7 @@ class Interpreter : public Interpreter_PAR
 #endif // DEBUG
 
   public:
-    Interpreter(PRCA prca = pvNil, PSTRG pstrg = pvNil);
+    Interpreter(PRCA prca = pvNil, PStringRegistry pstrg = pvNil);
     ~Interpreter(void);
 
     virtual bool FRunScript(PScript pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
