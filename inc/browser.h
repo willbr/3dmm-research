@@ -582,7 +582,7 @@ class BRWA : public BRWA_PAR
     }
 
     static PBRWA PbrwaNew(PRCA prca);
-    bool FBuildApe(PACTR pactr);
+    bool FBuildApe(PActor pactr);
     bool FBuildGst(PSCEN pscen);
     virtual bool FCmdChangeCel(PCMD pcmd);
 };

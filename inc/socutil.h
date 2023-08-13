@@ -18,7 +18,7 @@ extern "C"
 #include "brender.h"
 };
 
-typedef class ACTR *PACTR;
+typedef class Actor *PActor;
 typedef class SCEN *PSCEN;
 typedef class Movie *PMovie;
 typedef class Background *PBackground;
@@ -95,7 +95,7 @@ class AUND : public AUND_PAR
     ASSERT
 
   protected:
-    PACTR _pactr;
+    PActor _pactr;
     long _arid;
     bool _fSoonerLater;
     bool _fSndUndo;
@@ -109,7 +109,7 @@ class AUND : public AUND_PAR
     static PAUND PaundNew(void);
     ~AUND(void);
 
-    void SetPactr(PACTR pactr);
+    void SetPactr(PActor pactr);
     void SetArid(long arid)
     {
         _arid = arid;

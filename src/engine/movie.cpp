@@ -444,7 +444,7 @@ LFail:
 
     Arguments:
         PChunkyFile pcfl       -- the file the movie is on
-        PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's ACTR tags
+        PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's Actor tags
         ChunkNumber cno         -- the cno of the movie
         PStringTable *ppgst     -- the PStringTable to fill in
         long *paridLim  -- the max arid to update
@@ -801,7 +801,7 @@ bool Movie::FChooseArid(long arid)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    PACTR pactr, pactrDup;
+    PActor pactr, pactrDup;
     MACTR mactr;
     long imactr;
     PMovieView pmvu;
@@ -854,7 +854,7 @@ bool Movie::FChooseArid(long arid)
             _pgstmactr->GetExtra(imactr, &mactr);
             if (mactr.arid == arid)
             {
-                pactr = ACTR::PactrNew(&(mactr.tagTmpl));
+                pactr = Actor::PactrNew(&(mactr.tagTmpl));
 
                 if (pactr == pvNil)
                 {
@@ -1072,7 +1072,7 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
  *   fTrue if successful, else fFalse indicating out of resources.
  *
  ****************************************************/
-bool Movie::FAddToRollCall(ACTR *pactr, PSTN pstn)
+bool Movie::FAddToRollCall(Actor *pactr, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -1100,7 +1100,7 @@ bool Movie::FAddToRollCall(ACTR *pactr, PSTN pstn)
                 {
                     TAGM::CloseTag(&mactr.tagTmpl);
                     mactr.tagTmpl = tagTmpl;
-                    // ACTR::GetTagTmpl doesn't AddRef the pcrf, so do it here:
+                    // Actor::GetTagTmpl doesn't AddRef the pcrf, so do it here:
                     TAGM::DupTag(&tagTmpl);
                 }
                 _pgstmactr->PutExtra(imactr, &mactr);
@@ -1154,7 +1154,7 @@ bool Movie::FAddToRollCall(ACTR *pactr, PSTN pstn)
  *   None.
  *
  ****************************************************/
-void Movie::RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef)
+void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2179,7 +2179,7 @@ bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
  *  fTrue if success, fFalse if couldn't change the TDT
  *
  ****************************************************/
-bool Movie::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FChangeActrTdt(PActor pactr, PSTN pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2194,7 +2194,7 @@ bool Movie::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     TAG tagTdtNew;
     PChunkyFile pcfl;
     ChunkNumber cno;
-    PACTR pactrDup;
+    PActor pactrDup;
 
     Assert(pactr == Pscen()->PactrSelected(), 0);
     fNonSpaceFound = fFalse;
@@ -3354,7 +3354,7 @@ bool Movie::FInsActr(PTAG ptag)
     AssertPvCb(ptag, size(TAG));
     AssertPo(Pscen(), 0);
 
-    PACTR pactr;
+    PActor pactr;
 
     vpappb->BeginLongOp();
 
@@ -3369,7 +3369,7 @@ bool Movie::FInsActr(PTAG ptag)
 
     vpappb->EndLongOp();
 
-    pactr = ACTR::PactrNew(ptag);
+    pactr = Actor::PactrNew(ptag);
     if (pactr == pvNil)
     {
         return (fFalse);
@@ -3407,7 +3407,7 @@ bool Movie::FAddOnstage(long arid)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
     //
     // Get the actor
     //
@@ -3456,7 +3456,7 @@ bool Movie::FRemActr()
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3494,7 +3494,7 @@ bool Movie::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3529,7 +3529,7 @@ bool Movie::FSquashStretchActr(BRS brs)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3571,7 +3571,7 @@ bool Movie::FSoonerLaterActr(long nfrm)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
     PAUND paund;
 
     long dnfrm = nfrm - Pscen()->Nfrm();
@@ -3621,7 +3621,7 @@ bool Movie::FScaleActr(BRS brs)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3696,7 +3696,7 @@ bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long
 bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty)
 {
     AssertThis(0);
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -4535,7 +4535,7 @@ bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -5006,7 +5006,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
             if (grfcge & fcgePre)
             {
 
-                /* If we've found an ACTR chunk, remap its arid */
+                /* If we've found an Actor chunk, remap its arid */
                 if (kid.cki.ctg == kctgActr)
                 {
                     long icno;
@@ -5026,7 +5026,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
                         goto LFail1;
 
                     /* Change the arid */
-                    if (!ACTR::FAdjustAridOnFile(pcfl, kid.cki.cno, aridMin))
+                    if (!Actor::FAdjustAridOnFile(pcfl, kid.cki.cno, aridMin))
                     {
                         /* Don't bother trying to fix the arids on file; the caller
                             should be deleting the copied Movie chunk anyway */
@@ -5036,7 +5036,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
                     }
                     icnoMac++;
 
-                    /* Once we're at an ACTR chunk, set up so that we don't
+                    /* Once we're at an Actor chunk, set up so that we don't
                         enumerate down again until returning to our parent's
                         next sibling */
                     ckiParLast = ckiPar;
@@ -5219,7 +5219,7 @@ bool Movie::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool Movie::FPasteActr(PACTR pactr)
+bool Movie::FPasteActr(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -5266,17 +5266,17 @@ bool Movie::FPasteActr(PACTR pactr)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool Movie::FPasteActrPath(PACTR pactr)
+bool Movie::FPasteActrPath(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
     AssertPo(Pscen(), 0);
     AssertNilOrPo(Pscen()->PactrSelected(), 0);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     // REVIEW SeanSe(seanse): This is wrong.  Move the undo stuff into
-    //     ACTR::FPasteRte() and make ACTR::FPasteRte into FPasteRteCore.
+    //     Actor::FPasteRte() and make Actor::FPasteRte into FPasteRteCore.
     if (Pscen()->PactrSelected() == pvNil)
     {
         PushErc(ercSocNoActrSelected);
@@ -5587,7 +5587,7 @@ long Movie::LwQueryLocation(long lwType, long lwId)
     AssertThis(0);
     AssertIn(lwType, 0, 2);
 
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     long xp, yp;
     RC rc;
@@ -5887,7 +5887,7 @@ void MovieView::SetTool(long tool)
 
     long lwMode; // -1 = Textbox mode, 0 = either mode, 1 = Actor mode
     PTBOX ptbox = pvNil;
-    PACTR pactr = pvNil;
+    PActor pactr = pvNil;
 
     if (Pmvie()->Pscen() != pvNil)
     {
@@ -6241,7 +6241,7 @@ void MovieView::WarpCursToCenter(void)
  *	None.
  *
  **************************************************************************/
-void MovieView::WarpCursToActor(PACTR pactr)
+void MovieView::WarpCursToActor(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -6436,7 +6436,7 @@ void MovieView::StartPlaceActor(bool fEntireScene)
     AssertThis(0);
     AssertPo(Pmvie()->Pscen(), 0);
 
-    PACTR pactr = Pmvie()->Pscen()->PactrSelected();
+    PActor pactr = Pmvie()->Pscen()->PactrSelected();
 
     AssertPo(pactr, 0);
 
@@ -6515,7 +6515,7 @@ bool MovieView::FCmdMouseMove(PCMD_MOUSE pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PACTR pactr;
+    PActor pactr;
     long ibset;
     PDocumentBase pdocb;
 
@@ -6748,7 +6748,7 @@ void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
     PMovie pmvie;
     PSCEN pscen;
     bool fMoved;
-    PACTR pactr = pvNil;
+    PActor pactr = pvNil;
     ulong grfmaf = fmafOrient;
 
     pmvie = Pmvie();
@@ -6797,7 +6797,7 @@ void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
  *  None.
  *
  **************************************************************************/
-void MovieView::_ActorClicked(PACTR pactr, bool fDown)
+void MovieView::_ActorClicked(PActor pactr, bool fDown)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -6840,8 +6840,8 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PACTR pactr = pvNil;
-    PACTR pactrDup;
+    PActor pactr = pvNil;
+    PActor pactrDup;
     PTBOX ptbox;
     PAUND paund;
     PT pt;
@@ -7269,7 +7269,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
 
     PMovie pmvie;
     PSCEN pscen;
-    PACTR pactr = pvNil;
+    PActor pactr = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
     BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
     BRS zrActr, zrCam, dzrActr;
@@ -7674,8 +7674,8 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
 
     PMovie pmvie;
     PSCEN pscen;
-    PACTR pactr = pvNil;
-    PACTR pactrDup;
+    PActor pactr = pvNil;
+    PActor pactrDup;
     PSUNA psuna;
 
     pmvie = Pmvie();
@@ -7871,7 +7871,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         {
             Assert(pactr->FTimeFrozen(), "Something odd is going on");
 
-            PACTR pactrDup;
+            PActor pactrDup;
             PAUND paund;
 
             paund = AUND::PaundNew();
@@ -8229,7 +8229,7 @@ bool MovieView::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     PACLP paclp;
 
     if (FTextMode())
@@ -8277,7 +8277,7 @@ void MovieView::_ClearSel()
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     bool fAlive;
     bool fEnableSounds;
 
@@ -8345,7 +8345,7 @@ bool MovieView::_FPaste(PCLIP pclip)
 
     PACLP paclp;
     PTCLP ptclp;
-    PACTR pactr;
+    PActor pactr;
     bool fRet;
 
     if (pclip->FGetFormat(kclsACLP, (PDocumentBase *)&paclp))

@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     The APE is used to preview a single actor.  The APE doesn't actually
-    contain an ACTR...more of an "ACTR Jr.": a _ptmpl, _pbody, _anid, and
+    contain an Actor...more of an "Actor Jr.": a _ptmpl, _pbody, _anid, and
     a _pbwld to display in.  If fCycleCels is set to fTrue in PapeNew(),
     the APE will cycle through the cels of the current action.
 

@@ -205,7 +205,7 @@ END_CMD_MAP_NIL()
     Create a new text easel.  If pactr is pvNil, this is for a new TDT
     and pstnNew, tdtsNew, and ptagTdfNew will be used as initial values.
 ***************************************************************************/
-PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
+PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -238,7 +238,7 @@ PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PACTR pactr, PSTN pstnNew, long td
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
+bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -562,7 +562,7 @@ bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
 
     long ich;
     bool fNonSpaceFound = fFalse;
-    PACTR pactrDup = pvNil;
+    PActor pactrDup = pvNil;
     bool fChangesMade = fFalse;
     PTDT ptdtOld;
     STN stnOld;
@@ -834,7 +834,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new actor easel
 ***************************************************************************/
-PESLA ESLA::PeslaNew(PRCA prca, PMovie pmvie, PACTR pactr)
+PESLA ESLA::PeslaNew(PRCA prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -863,7 +863,7 @@ PESLA ESLA::PeslaNew(PRCA prca, PMovie pmvie, PACTR pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLA::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr)
+bool ESLA::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -961,7 +961,7 @@ bool ESLA::_FAcceptChanges(bool *pfDismissEasel)
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
 
-    PACTR pactrDup;
+    PActor pactrDup;
     bool fNonSpaceFound;
     long ich;
     bool fChangesMade = fFalse;
@@ -1064,7 +1064,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new listener easel
 ***************************************************************************/
-PESLL ESLL::PesllNew(PRCA prca, PMovie pmvie, PACTR pactr)
+PESLL ESLL::PesllNew(PRCA prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -1099,7 +1099,7 @@ PESLL ESLL::PesllNew(PRCA prca, PMovie pmvie, PACTR pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLL::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr)
+bool ESLL::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);

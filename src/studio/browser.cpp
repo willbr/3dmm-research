@@ -2565,7 +2565,7 @@ PBRWA BRWA::PbrwaNew(PRCA prca)
  * Build the ape
  *
  ****************************************************/
-bool BRWA::FBuildApe(PACTR pactr)
+bool BRWA::FBuildApe(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2670,7 +2670,7 @@ bool BRWA::FCmdChangeCel(PCMD pcmd)
 
     long st;
     long ccel;
-    PACTR pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
+    PActor pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
 
     if (!pactr->Ptmpl()->FGetCcelActn(_pape->Anid(), &ccel))
         return fTrue;

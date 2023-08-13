@@ -1871,7 +1871,7 @@ bool Studio::FCmdActorEaselOpen(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PACTR pactr = _pmvie->Pscen()->PactrSelected();
+    PActor pactr = _pmvie->Pscen()->PactrSelected();
     AssertPo(pactr, 0);
 
     vapp.BeginLongOp();

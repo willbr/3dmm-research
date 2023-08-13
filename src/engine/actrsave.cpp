@@ -10,7 +10,7 @@
 
     Here's the chunk hierarchy:
 
-    ACTR // contains an ACTF (origin, arid, nfrmFirst, tagTmpl...)
+    Actor // contains an ACTF (origin, arid, nfrmFirst, tagTmpl...)
      |
      +---PATH (chid 0) // _pglxyz (actor path)
      |
@@ -41,7 +41,7 @@ const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
     If this function returns false, it is the client's responsibility to
     delete the actor chunks.
 ***************************************************************************/
-bool ACTR::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
+bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -91,7 +91,7 @@ bool ACTR::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         }
     }
 
-    // Write the ACTR chunk:
+    // Write the Actor chunk:
     actf.bo = kboCur;
     actf.osk = koskCur;
     actf.dxyzFullRte = _dxyzFullRte;
@@ -154,15 +154,15 @@ bool ACTR::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     Read the actor data from disk, (re-)construct the actor, and return a
     pointer to it.
 ***************************************************************************/
-PACTR ACTR::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
+PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
 {
     AssertPo(pcrf, 0);
 
-    ACTR *pactr;
+    Actor *pactr;
     ChildChunkIdentification kid;
     PChunkyFile pcfl = pcrf->Pcfl();
 
-    pactr = NewObj ACTR;
+    pactr = NewObj Actor;
     if (pvNil == pactr)
         goto LFail;
     if (!pactr->_FReadActor(pcfl, cnoActr))
@@ -244,9 +244,9 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
 }
 
 /***************************************************************************
-    Read the ACTR chunk
+    Read the Actor chunk
 ***************************************************************************/
-bool ACTR::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
+bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -295,7 +295,7 @@ bool ACTR::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     Returns: fTrue if everything went well, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool ACTR::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
+bool Actor::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
 {
     AssertPo(pcfl, 0);
     Assert(darid != 0, "Why call this with darid == 0?");
@@ -314,7 +314,7 @@ bool ACTR::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
 /***************************************************************************
     Read the PATH (_pglrpt) chunk
 ***************************************************************************/
-bool ACTR::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
+bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -338,7 +338,7 @@ bool ACTR::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 /***************************************************************************
     Read the GGAE (_pggaev) chunk
 ***************************************************************************/
-bool ACTR::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
+bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -359,7 +359,7 @@ bool ACTR::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 /***************************************************************************
     SwapBytes all events in pggaev
 ***************************************************************************/
-void ACTR::_SwapBytesPggaev(PGG pggaev)
+void Actor::_SwapBytesPggaev(PGG pggaev)
 {
     AssertPo(pggaev, 0);
 
@@ -417,7 +417,7 @@ void ACTR::_SwapBytesPggaev(PGG pggaev)
 /***************************************************************************
     Open all tags for this actor
 ***************************************************************************/
-bool ACTR::_FOpenTags(PChunkyResourceFile pcrf)
+bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
@@ -453,7 +453,7 @@ LFail:
 /***************************************************************************
     Close all tags in this actor's event stream
 ***************************************************************************/
-void ACTR::_CloseTags(void)
+void Actor::_CloseTags(void)
 {
     AssertBaseThis(0); // because destructor calls this function
 
@@ -478,7 +478,7 @@ void ACTR::_CloseTags(void)
 /***************************************************************************
     Get all the tags that the actor uses
 ***************************************************************************/
-PGL ACTR::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
+PGL Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
@@ -579,7 +579,7 @@ LFail:
     If the iaev'th event of pggaev has a tag, sets *pptag to point to it.
     WARNING: unless you locked pggaev, *pptag is a qtag!
 ***************************************************************************/
-bool ACTR::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev)
+bool Actor::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev)
 {
     AssertPo(pggaev, 0);
     AssertIn(iaev, 0, pggaev->IvMac());

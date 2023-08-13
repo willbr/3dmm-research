@@ -103,7 +103,7 @@
     FComputeLifetime() guarantees these for all frames, but FComputeLifetime()
     can fail -> the code should not rely on future nfrm values.
 
-    The route is translated by _dxyzFullRte in class ACTR.
+    The route is translated by _dxyzFullRte in class Actor.
     Each subroute is additionally translated by _dxyzSubRte.
     _dxyzRte combines the overall actor translation for efficiency only.
 
@@ -113,14 +113,14 @@
 
 ASSERTNAME
 
-RTCLASS(ACTR)
+RTCLASS(Actor)
 
 /***************************************************************************
 
-    Constructor for ACTR - private.
+    Constructor for Actor - private.
 
 ***************************************************************************/
-ACTR::ACTR(void)
+Actor::Actor(void)
 {
     _arid = aridNil;
     _tagTmpl.sid = ksidInvalid;
@@ -132,10 +132,10 @@ ACTR::ACTR(void)
 
 /***************************************************************************
 
-    Destructor for an ACTR
+    Destructor for an Actor
 
 ***************************************************************************/
-ACTR::~ACTR(void)
+Actor::~Actor(void)
 {
     AssertBaseThis(0);
 
@@ -153,7 +153,7 @@ ACTR::~ACTR(void)
     The actor will not yet be grounded to any initial scene frame.
 
 ***************************************************************************/
-bool ACTR::_FInit(TAG *ptagTmpl)
+bool Actor::_FInit(TAG *ptagTmpl)
 {
     AssertBaseThis(0);
     AssertVarMem(ptagTmpl);
@@ -182,7 +182,7 @@ bool ACTR::_FInit(TAG *ptagTmpl)
     (Sets the absolute scale = 1, and use the rest orientation)
 
 ***************************************************************************/
-void ACTR::_InitXfrm(void)
+void Actor::_InitXfrm(void)
 {
     AssertThis(0);
 
@@ -204,7 +204,7 @@ void ACTR::_InitXfrm(void)
     user rotations can be with respect to the actor's coordinate system
 
 ***************************************************************************/
-void ACTR::_InitXfrmRot(BMAT34 *pbmat34)
+void Actor::_InitXfrmRot(BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -220,13 +220,13 @@ void ACTR::_InitXfrmRot(BMAT34 *pbmat34)
     grounded in time (_nfrmFirst) nor space (_dxyzFullRte).
 
 ***************************************************************************/
-PACTR ACTR::PactrNew(TAG *ptagTmpl)
+PActor Actor::PactrNew(TAG *ptagTmpl)
 {
     AssertVarMem(ptagTmpl);
 
-    PACTR pactr;
+    PActor pactr;
 
-    if ((pactr = NewObj ACTR()) == pvNil)
+    if ((pactr = NewObj Actor()) == pvNil)
         return pvNil;
 
     if (!pactr->_FInit(ptagTmpl))
@@ -243,7 +243,7 @@ PACTR ACTR::PactrNew(TAG *ptagTmpl)
     Create the groups _pggaev, _pglrpt and _pglsmm
 
 ***************************************************************************/
-bool ACTR::_FCreateGroups(void)
+bool Actor::_FCreateGroups(void)
 {
     AssertBaseThis(0);
 
@@ -266,7 +266,7 @@ bool ACTR::_FCreateGroups(void)
     Set the owning scene and the brender world for the body.
 
 ***************************************************************************/
-void ACTR::SetPscen(SCEN *pscen)
+void Actor::SetPscen(SCEN *pscen)
 {
     AssertBaseThis(0);
 
@@ -294,7 +294,7 @@ void ACTR::SetPscen(SCEN *pscen)
     Hide the Actor and initialize the Actor State Variables
 
 ***************************************************************************/
-void ACTR::_InitState(void)
+void Actor::_InitState(void)
 {
     AssertBaseThis(0);
 
@@ -310,7 +310,7 @@ void ACTR::_InitState(void)
     Set the actor state variables to the rewound position
 
 ***************************************************************************/
-void ACTR::_SetStateRewound(void)
+void Actor::_SetStateRewound(void)
 {
     AssertBaseThis(0);
 
@@ -348,7 +348,7 @@ void ACTR::_SetStateRewound(void)
     Note: The scope of fPosition dirty spans multiple calls to _FDoFrm
 
 ***************************************************************************/
-bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
+bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
@@ -463,7 +463,7 @@ bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     Return *pfQuickMethodValid fFalse to if this method invalid here.
 
 ***************************************************************************/
-bool ACTR::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
+bool Actor::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
 {
     AssertThis(0);
     AssertVarMem(pfQuickMethodValid);
@@ -553,7 +553,7 @@ LFail:
     state variables
 
 ***************************************************************************/
-bool ACTR::_FGetRtelBack(RTEL *prtel, bool fUpdateStateVar)
+bool Actor::_FGetRtelBack(RTEL *prtel, bool fUpdateStateVar)
 {
     AssertThis(0);
     AssertVarMem(prtel);
@@ -638,7 +638,7 @@ LFail:
     Note: The scope of *pfPositionDirty spans multiple _FDoFrm calls
 
 ***************************************************************************/
-bool ACTR::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame)
+bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertVarMem(pfPositionDirty);
@@ -803,7 +803,7 @@ bool ACTR::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFra
     grfscen - Things that are supposed to be played right now.
 
 ***************************************************************************/
-bool ACTR::FReplayFrame(long grfscen)
+bool Actor::FReplayFrame(long grfscen)
 {
     AssertThis(0);
 
@@ -834,7 +834,7 @@ bool ACTR::FReplayFrame(long grfscen)
     Returns the bool value in *pfStatic
 
 ***************************************************************************/
-bool ACTR::_FGetStatic(long anid, bool *pfStatic)
+bool Actor::_FGetStatic(long anid, bool *pfStatic)
 {
     AssertThis(0);
     AssertIn(anid, 0, klwMax);
@@ -860,7 +860,7 @@ bool ACTR::_FGetStatic(long anid, bool *pfStatic)
     Is the actor in the last active frame of the subroute?
 
 ***************************************************************************/
-bool ACTR::_FIsDoneAevSub(long iaev, RTEL rtel)
+bool Actor::_FIsDoneAevSub(long iaev, RTEL rtel)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac() + 1);
@@ -888,7 +888,7 @@ bool ACTR::_FIsDoneAevSub(long iaev, RTEL rtel)
     Is the actor at an AddOnStage event which can be applied now?
 
 ***************************************************************************/
-bool ACTR::_FIsAddNow(long iaev)
+bool Actor::_FIsAddNow(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
@@ -917,7 +917,7 @@ bool ACTR::_FIsAddNow(long iaev)
     Zero is a valid return value
 
 ***************************************************************************/
-bool ACTR::_FGetDwrPlay(BRS *pdwr)
+bool Actor::_FGetDwrPlay(BRS *pdwr)
 {
     AssertBaseThis(0);
     AssertVarMem(pdwr);
@@ -945,7 +945,7 @@ bool ACTR::_FGetDwrPlay(BRS *pdwr)
     The returned size is expected to be authored > 0
 
 ***************************************************************************/
-bool ACTR::_FGetDwrRecord(BRS *pdwr)
+bool Actor::_FGetDwrRecord(BRS *pdwr)
 {
     AssertBaseThis(0);
     AssertVarMem(pdwr);
@@ -966,7 +966,7 @@ bool ACTR::_FGetDwrRecord(BRS *pdwr)
     State Variables are updated.
 
 ***************************************************************************/
-bool ACTR::_FDoAevCur(void)
+bool Actor::_FDoAevCur(void)
 {
     AssertBaseThis(0);
 
@@ -984,7 +984,7 @@ bool ACTR::_FDoAevCur(void)
     Execute the event iaev.
 
 ***************************************************************************/
-bool ACTR::_FDoAevCore(long iaev)
+bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
@@ -1180,7 +1180,7 @@ bool ACTR::_FDoAevCore(long iaev)
     repositioning the actor based on a past Set Action.
 
 ***************************************************************************/
-bool ACTR::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
+bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 {
     AssertBaseThis(0);
     AssertIn(aetNew, 0, aetLim);
@@ -1258,7 +1258,7 @@ bool ACTR::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
     NOTE:  Add events (only) are not merged.
 
 ***************************************************************************/
-void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
+void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
 {
     AssertBaseThis(0);
     AssertIn(iaevFirst, 0, _pggaev->IvMac());
@@ -1443,7 +1443,7 @@ LDeleteOld:
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FSetActionCore(long anid, long celn, bool fFreeze)
+bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 {
     AssertThis(0);
     AssertIn(anid, 0, klwMax);
@@ -1527,7 +1527,7 @@ bool ACTR::FSetActionCore(long anid, long celn, bool fFreeze)
     NOTE: This is a low level API and has no effect on the event list
 
 ***************************************************************************/
-void ACTR::_Hide(void)
+void Actor::_Hide(void)
 {
     AssertBaseThis(0);
 
@@ -1547,7 +1547,7 @@ void ACTR::_Hide(void)
         dwrPrior is the distance from the previous node to the new one.
 
 ***************************************************************************/
-bool ACTR::_FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior)
+bool Actor::_FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior)
 {
     AssertBaseThis(0);
     AssertIn(irpt, 0, _pglrpt->IvMac() + 1);
@@ -1606,7 +1606,7 @@ bool ACTR::_FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior)
     Note that this is orthogonal and independent of freezing an actor
 
 ***************************************************************************/
-bool ACTR::FSetStep(BRS dwrStep)
+bool Actor::FSetStep(BRS dwrStep)
 {
     AssertThis(0);
     Assert(kdwrNil == dwrStep || rZero <= dwrStep, "Invalid dwrStep argument");
@@ -1624,7 +1624,7 @@ bool ACTR::FSetStep(BRS dwrStep)
     at Y = 1.0 meters.
 
 ***************************************************************************/
-void ACTR::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
+void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertVarMem(pxr);
@@ -1668,7 +1668,7 @@ void ACTR::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
     Add the initialization events for costumes, xforms, etc from the
     preceding or subsequent subroute.
 ***************************************************************************/
-bool ACTR::FAddOnStageCore(void)
+bool Actor::FAddOnStageCore(void)
 {
     AssertThis(0);
 
@@ -1782,7 +1782,7 @@ bool ACTR::FAddOnStageCore(void)
     NOTE: This is optimized to add only the latest event of each given type.
 
 ***************************************************************************/
-bool ACTR::_FAddAevFromPrev(long iaevLim, ulong grfaet)
+bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
     AssertBaseThis(0);
     AssertIn(iaevLim, 0, _pggaev->IvMac() + 1);
@@ -1915,7 +1915,7 @@ bool ACTR::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     them at the	current event index, _iaevCur.
 
 ***************************************************************************/
-bool ACTR::_FAddAevFromLater(void)
+bool Actor::_FAddAevFromLater(void)
 {
     AssertBaseThis(0);
 
@@ -1990,7 +1990,7 @@ LEnd:
     Return true if found, with its index in *piaevAdd
 
 ***************************************************************************/
-bool ACTR::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
+bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0);
     AssertIn(aet, 0, aetLim);
@@ -2020,7 +2020,7 @@ bool ACTR::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
     Return true if one is found, with its index in *piaevAdd
 
 ***************************************************************************/
-bool ACTR::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
+bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0);
     AssertIn(aet, 0, aetLim);
@@ -2054,7 +2054,7 @@ bool ACTR::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
     Return its index in *piaevAdd
 
 ***************************************************************************/
-void ACTR::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
+void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 {
     AssertBaseThis(0);
     AssertIn(iaevAdd, 0, _pggaev->IvMac());
@@ -2084,7 +2084,7 @@ void ACTR::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FRemFromStageCore(void)
+bool Actor::FRemFromStageCore(void)
 {
     AssertThis(0);
     AEV *paev;
@@ -2114,7 +2114,7 @@ bool ACTR::FRemFromStageCore(void)
     Based on current state variables
 
 ***************************************************************************/
-bool ACTR::_FDeleteEntireSubrte(void)
+bool Actor::_FDeleteEntireSubrte(void)
 {
     AssertThis(0);
     AEV *paev;
@@ -2153,7 +2153,7 @@ bool ACTR::_FDeleteEntireSubrte(void)
     Delete the events and point corresponding to a single point subroute
 
 ***************************************************************************/
-void ACTR::_DelAddFrame(long iaevAdd, long iaevLim)
+void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 {
     AssertThis(0);
     long iaev;
@@ -2194,7 +2194,7 @@ void ACTR::_DelAddFrame(long iaevAdd, long iaevLim)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmtl)
+bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmtl)
 {
     AssertThis(0);
     Assert(fCmtl || ibsetClicked >= 0, "Invalid ibsetClicked argument");
@@ -2240,7 +2240,7 @@ bool ACTR::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmt
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::_FFreeze(void)
+bool Actor::_FFreeze(void)
 {
     AssertThis(0);
 
@@ -2254,7 +2254,7 @@ bool ACTR::_FFreeze(void)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::_FUnfreeze(void)
+bool Actor::_FUnfreeze(void)
 {
     AssertThis(0);
     long faevfrz = (long)fFalse;
@@ -2274,7 +2274,7 @@ bool ACTR::_FUnfreeze(void)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
-void ACTR::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz)
+void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz)
 {
     AssertThis(0);
     AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
@@ -2319,7 +2319,7 @@ void ACTR::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz)
     rw1 is the weighting for a1
 
 ***************************************************************************/
-BRA ACTR::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
+BRA Actor::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
 {
     AssertBaseThis(0);
     AssertIn(rw1, rZero, rOne + rEps);
@@ -2365,7 +2365,7 @@ BRA ACTR::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
-bool ACTR::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
+bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
 
@@ -2434,7 +2434,7 @@ bool ACTR::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
     Insert normalize transformation events into the event list
 
 ***************************************************************************/
-bool ACTR::FNormalizeCore(ulong grfnorm)
+bool Actor::FNormalizeCore(ulong grfnorm)
 {
     AssertThis(0);
     long rScaleStepOld = _xfrm.rScaleStep;
@@ -2494,7 +2494,7 @@ bool ACTR::FNormalizeCore(ulong grfnorm)
     with the attendent specified tweak etc modifications.
 
 ***************************************************************************/
-bool ACTR::FScale(BRS rScale)
+bool Actor::FScale(BRS rScale)
 {
     AssertThis(0);
 
@@ -2539,7 +2539,7 @@ bool ACTR::FScale(BRS rScale)
     NOTE** Drag this subroute only -> sliding other subroutes in time
 
 ***************************************************************************/
-bool ACTR::FSoonerLater(long dnfrm)
+bool Actor::FSoonerLater(long dnfrm)
 {
     AssertThis(0);
 
@@ -2634,7 +2634,7 @@ bool ACTR::FSoonerLater(long dnfrm)
     Bound the allowable scaling.
 
 ***************************************************************************/
-bool ACTR::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
+bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 {
     AssertThis(0);
 
@@ -2677,7 +2677,7 @@ bool ACTR::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
     location (set by GoToFrame, ie, determined by _rtelCur).
 
 ***************************************************************************/
-bool ACTR::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
+bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 {
     AssertThis(0);
 
@@ -2708,7 +2708,7 @@ bool ACTR::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
     Update xyzRte from the overall origin & the subroute translation
 
 ***************************************************************************/
-void ACTR::_UpdateXyzRte(void)
+void Actor::_UpdateXyzRte(void)
 {
     AssertBaseThis(0);
 
@@ -2735,7 +2735,7 @@ void ACTR::_UpdateXyzRte(void)
     Return *pfmoved indicating whether or not the path moved.
 
 ***************************************************************************/
-bool ACTR::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
+bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfMoved);
@@ -2931,7 +2931,7 @@ bool ACTR::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     Load starting point orientation into state variable _xfrm
 
 ***************************************************************************/
-void ACTR::_LoadAddOrien(AEVADD *paevadd, bool fNoReset)
+void Actor::_LoadAddOrien(AEVADD *paevadd, bool fNoReset)
 {
     AssertThis(0);
 
@@ -2968,7 +2968,7 @@ void ACTR::_LoadAddOrien(AEVADD *paevadd, bool fNoReset)
         grfaet == faetNil or types of events to nuke along the way
 
 ***************************************************************************/
-void ACTR::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp, ulong grfaet)
+void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp, ulong grfaet)
 {
     AssertBaseThis(0);
     Assert(aet == aetSize || aet == aetRotF || aet == aetPull, "Illegal argument aet");
@@ -3095,7 +3095,7 @@ LEnd:
     Since _pggaev is getting a copy of a tag, a call to DupTag is required
 
 ***************************************************************************/
-bool ACTR::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
+bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac() + 1);
@@ -3139,7 +3139,7 @@ bool ACTR::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpd
     Remove Aev.  Update state variables
 
 ***************************************************************************/
-void ACTR::_RemoveAev(long iaev, bool fUpdateState)
+void Actor::_RemoveAev(long iaev, bool fUpdateState)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
@@ -3190,7 +3190,7 @@ void ACTR::_RemoveAev(long iaev, bool fUpdateState)
     regardless of the value of the celn.
 
 ***************************************************************************/
-void ACTR::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
+void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
 {
     AssertBaseThis(0);
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
@@ -3264,7 +3264,7 @@ void ACTR::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet
             costume being inserted
 
 ***************************************************************************/
-void ACTR::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
+void Actor::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
 {
     AssertBaseThis(0);
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
@@ -3357,7 +3357,7 @@ LEnd:
     adjust the rtel's of the subsequent affected events
 
 ***************************************************************************/
-void ACTR::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
+void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0);
     long irptMac = _pglrpt->IvMac();
@@ -3410,7 +3410,7 @@ void ACTR::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
     adjust the rtel's of the affected events
 
 ***************************************************************************/
-void ACTR::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
+void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0);
     long irptMac = _pglrpt->IvMac();
@@ -3470,7 +3470,7 @@ void ACTR::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
     state variables.
     Spec: The end of a subroute is <always> reached in a moving action.
 ***************************************************************************/
-void ACTR::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
+void Actor::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
@@ -3560,7 +3560,7 @@ LDone:
     Convert a route location (rtel) to an xyz point (in *pxyz)
 
 ***************************************************************************/
-void ACTR::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
+void Actor::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
@@ -3592,7 +3592,7 @@ void ACTR::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
     Store in *pxyz
 
 ***************************************************************************/
-void ACTR::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz)
+void Actor::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyzFirst);
@@ -3619,7 +3619,7 @@ void ACTR::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz)
     Post-impose a rotation looking forward along the route
 
 ***************************************************************************/
-void ACTR::_PositionBody(XYZ *pxyz)
+void Actor::_PositionBody(XYZ *pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyz);
@@ -3640,7 +3640,7 @@ void ACTR::_PositionBody(XYZ *pxyz)
     _xfrm.bmat34Cur must be kept current
 
 ***************************************************************************/
-void ACTR::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
+void Actor::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyz);
@@ -3736,7 +3736,7 @@ void ACTR::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
     NOTE: *pbmat34 is not pre-initialized
 
 ***************************************************************************/
-void ACTR::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
+void Actor::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pbmat34);
@@ -3807,7 +3807,7 @@ void ACTR::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *
     Optimized for movie PLAYing
 
 ***************************************************************************/
-void ACTR::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
+void Actor::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
 {
     AssertBaseThis(0);
 
@@ -3871,7 +3871,7 @@ void ACTR::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
     which can be done using additional arguments.
 
 ***************************************************************************/
-void ACTR::_ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
+void Actor::_ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pbmat34);
@@ -3952,7 +3952,7 @@ void ACTR::_ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA 
     pnfrmLast may be pvNil
 
 ***************************************************************************/
-bool ACTR::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
+bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
 {
     AssertThis(0);
     AssertNilOrVarMem(pnfrmFirst);
@@ -4004,7 +4004,7 @@ bool ACTR::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
     as by spec, motion fill now inherits the original movement along the path.
 
 ***************************************************************************/
-bool ACTR::_FComputeLifetime(long *pnfrmLast)
+bool Actor::_FComputeLifetime(long *pnfrmLast)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pnfrmLast);
@@ -4231,7 +4231,7 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
     Return fFalse if not stalled.
     If stalled, return the last active event.
 ***************************************************************************/
-bool ACTR::_FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast)
+bool Actor::_FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast)
 {
     AssertBaseThis(0);
     AssertIn(iaevFirst, 0, _pggaev->IvMac());
@@ -4279,7 +4279,7 @@ bool ACTR::_FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast)
     down to initialize the timing of the recording session
 
 ***************************************************************************/
-bool ACTR::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
+bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
 {
     AssertThis(0);
 
@@ -4305,7 +4305,7 @@ bool ACTR::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
     On failure, actor is restored from pactrRestore
 
 ***************************************************************************/
-bool ACTR::FBeginRecord(ulong tsCurrent, bool fReplace, PACTR pactrRestore)
+bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
     Assert(tsCurrent >= 0, "Invalid type");
@@ -4417,8 +4417,8 @@ LFail:
     NOTE: On failure, actor is restored from pactrRestore
 
 ***************************************************************************/
-bool ACTR::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfStepFrm, bool *pfStepRte,
-                       PACTR pactrRestore)
+bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfStepFrm, bool *pfStepRte,
+                       PActor pactrRestore)
 {
     AssertThis(0);
     AssertVarMem(pfStepFrm);
@@ -4574,7 +4574,7 @@ LFail:
 // REVIEW *****(*****): Ver 2.0 As motion fill is self sufficient,
 // 		FEndRecord() should be able to exit immediately on !_fModeRecord.
 //   	Also, pactrRestore should be state var _pactrRecordRestore.
-bool ACTR::FEndRecord(bool fReplace, PACTR pactrRestore)
+bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
 
@@ -4779,7 +4779,7 @@ LFail:
     Insert a Freeze event to terminate the truncated event list
 
 ***************************************************************************/
-void ACTR::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
+void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 {
     AssertThis(0);
 
@@ -4854,7 +4854,7 @@ LEnd:
     have been deleted
 
 ***************************************************************************/
-void ACTR::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
+void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 {
     AssertThis(0);
 
@@ -4970,7 +4970,7 @@ LDone:
         {
             paev = (AEV *)_pggaev->QvFixedGet(0);
             _nfrmFirst = paev->nfrm;
-            Assert(aetAdd == paev->aet, "Bug in ACTR::DeleteFwdCore");
+            Assert(aetAdd == paev->aet, "Bug in Actor::DeleteFwdCore");
         }
     }
 
@@ -4985,7 +4985,7 @@ LDone:
     Save the path specific part of the current orientation
 
 ***************************************************************************/
-void ACTR::_SaveCurPathOrien(void)
+void Actor::_SaveCurPathOrien(void)
 {
     AssertBaseThis(0);
 
@@ -5011,7 +5011,7 @@ void ACTR::_SaveCurPathOrien(void)
     Delete the path and events prior to this frame
 
 ***************************************************************************/
-void ACTR::DeleteBackCore(bool *pfAlive)
+void Actor::DeleteBackCore(bool *pfAlive)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfAlive);
@@ -5231,7 +5231,7 @@ void ACTR::DeleteBackCore(bool *pfAlive)
     Note:  This truncates the route only, not the event list.
 
 ***************************************************************************/
-void ACTR::_TruncateSubRte(long irptDelLim)
+void Actor::_TruncateSubRte(long irptDelLim)
 {
     AssertBaseThis(0);
 
@@ -5289,7 +5289,7 @@ void ACTR::_TruncateSubRte(long irptDelLim)
     Is the mouse point within this actor.
 
 ***************************************************************************/
-bool ACTR::FPtIn(long xp, long yp, long *pibset)
+bool Actor::FPtIn(long xp, long yp, long *pibset)
 {
     AssertThis(0);
     AssertVarMem(pibset);
@@ -5305,7 +5305,7 @@ bool ACTR::FPtIn(long xp, long yp, long *pibset)
     Otherwise returns fTrue.
 
 ***************************************************************************/
-bool ACTR::FMustRender(long nfrmRenderLast)
+bool Actor::FMustRender(long nfrmRenderLast)
 {
     AssertThis(0);
     Assert(nfrmRenderLast >= _nfrmCur, "Invalid argument to FMustRender");
@@ -5363,7 +5363,7 @@ LStill:
     Get actor name
 
 ***************************************************************************/
-void ACTR::GetName(PSTN pstn)
+void Actor::GetName(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -5379,7 +5379,7 @@ void ACTR::GetName(PSTN pstn)
     Get actor world coordinates
 
 ***************************************************************************/
-void ACTR::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
+void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertNilOrVarMem(pxr);
@@ -5403,7 +5403,7 @@ void ACTR::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
     Hilite the actor
 
 ***************************************************************************/
-void ACTR::Hilite(void)
+void Actor::Hilite(void)
 {
     AssertThis(0);
 
@@ -5422,7 +5422,7 @@ void ACTR::Hilite(void)
     deleted.
 
 ***************************************************************************/
-bool ACTR::FChangeTagTmpl(TAG *ptagTmplNew)
+bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
 {
     AssertThis(0);
     AssertVarMem(ptagTmplNew);
@@ -5480,13 +5480,13 @@ bool ACTR::FChangeTagTmpl(TAG *ptagTmplNew)
 #ifdef DEBUG
 /***************************************************************************
 
-    Assert the validity of the ACTR.
+    Assert the validity of the Actor.
 
 ***************************************************************************/
-void ACTR::AssertValid(ulong grfobj)
+void Actor::AssertValid(ulong grfobj)
 {
 
-    ACTR_PAR::AssertValid(fobjAllocated);
+    Actor_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pbody, 0);
     AssertNilOrPo(_ptmpl, 0);
     AssertPo(_pggaev, 0);
@@ -5622,17 +5622,17 @@ void ACTR::AssertValid(ulong grfobj)
 
 /***************************************************************************
 
-    Mark memory used by the ACTR
+    Mark memory used by the Actor
 
 ***************************************************************************/
-void ACTR::MarkMem(void)
+void Actor::MarkMem(void)
 {
     AssertThis(0);
     long iaev;
     AEV *paev;
     AEVSND *paevsnd;
 
-    ACTR_PAR::MarkMem();
+    Actor_PAR::MarkMem();
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
     {
         paev = (AEV *)_pggaev->QvFixedGet(iaev);

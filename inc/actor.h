@@ -8,7 +8,7 @@
  Primary Author : *****
  Review Status: Reviewed
 
- BASE -------> ACTR
+ BASE -------> Actor
 
  Each actor has a unique route which is defined by one or more nodes,
  and which may be a concatenation of one or more subroutes.
@@ -319,10 +319,10 @@ struct SMM
 /***********************************************
    Actor Class
 ***********************************************/
-typedef class ACTR *PACTR;
-#define ACTR_PAR BASE
-#define kclsACTR 'ACTR'
-class ACTR : public ACTR_PAR
+typedef class Actor *PActor;
+#define Actor_PAR BASE
+#define kclsActor 'ACTR'
+class Actor : public Actor_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -381,7 +381,7 @@ class ACTR : public ACTR_PAR
     //
     //	Protected functions
     //
-    ACTR(void);
+    Actor(void);
     bool _FInit(TAG *ptmplTag);         // Constructor allocation & file I/O
     void _InitXfrmRot(BMAT34 *pbmat34); // Initialize rotation only
     void _InitXfrm(void);               // Initialize rotation & scaling
@@ -449,8 +449,8 @@ class ACTR : public ACTR_PAR
     bool _FComputeLifetime(long *pnfrmLast = pvNil);
     bool _FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast = pvNil);
 
-    void _RestoreFromUndo(PACTR pactrRestore);
-    bool _FDupCopy(PACTR pactrSrc, PACTR pactrDest);
+    void _RestoreFromUndo(PActor pactrRestore);
+    bool _FDupCopy(PActor pactrSrc, PActor pactrDest);
 
     bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
@@ -462,8 +462,8 @@ class ACTR : public ACTR_PAR
     void _CloseTags(void);
 
   public:
-    ~ACTR(void);
-    static PACTR PactrNew(TAG *ptagTmpl);
+    ~Actor(void);
+    static PActor PactrNew(TAG *ptagTmpl);
     void SetPscen(SCEN *pscen);
     void SetArid(long arid)
     {
@@ -482,7 +482,7 @@ class ACTR : public ACTR_PAR
     }
 
     // ActrSave Routines
-    static PACTR PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
+    static PActor PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
     bool FWrite(PChunkyFile pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
     static PGL PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError);
     static bool FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid);
@@ -634,18 +634,18 @@ class ACTR : public ACTR_PAR
     bool FSoonerLater(long dnfrm);
 
     // ActrEdit Routines
-    bool FDup(PACTR *ppactr, bool fReset = fFalse); // Duplicate everything
-    void Restore(PACTR pactr);
+    bool FDup(PActor *ppactr, bool fReset = fFalse); // Duplicate everything
+    void Restore(PActor pactr);
 
-    bool FCreateUndo(PACTR pactr, bool fSndUndo = fFalse, PSTN pstn = pvNil); // Create undo object
+    bool FCreateUndo(PActor pactr, bool fSndUndo = fFalse, PSTN pstn = pvNil); // Create undo object
     void Reset(void);
     bool FAddOnStage(void); // add actor to the stage, w/Undo
-    bool FSetAction(long anid, long celn, bool fFreeze, PACTR *ppactrDup = pvNil);
+    bool FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup = pvNil);
     bool FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCustom);
     bool FRemFromStage(void);                                 // add event: rem actor from stage, w/Undo
-    bool FCopy(PACTR *ppactr, bool fEntireScene = fFalse);    // Duplicate actor from this frame on
-    bool FCopyRte(PACTR *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
-    bool FPasteRte(PACTR pactr);                              // Paste from clipboard from this frame on
+    bool FCopy(PActor *ppactr, bool fEntireScene = fFalse);    // Duplicate actor from this frame on
+    bool FCopyRte(PActor *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
+    bool FPasteRte(PActor pactr);                              // Paste from clipboard from this frame on
     bool FNormalize(ulong grfnorm);
     bool FPaste(long nfrm, SCEN *pscen);
     bool FDelete(bool *pfAlive, bool fDeleteAll);
@@ -665,10 +665,10 @@ class ACTR : public ACTR_PAR
         AssertBaseThis(0);
         _tsInsert = tsCurrent;
     }
-    bool FBeginRecord(ulong tsCurrent, bool fReplace, PACTR pactrRestore);
+    bool FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore);
     bool FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfLonger, bool *pfStep,
-                     PACTR pactrRestore);
-    bool FEndRecord(bool fReplace, PACTR pactrRestore);
+                     PActor pactrRestore);
+    bool FEndRecord(bool fReplace, PActor pactrRestore);
     bool FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf = fmafNil);
     bool FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved = pvNil, ulong grfmaf = fmafNil);
 };
@@ -686,7 +686,7 @@ class ACLP : public ACLP_PAR
     ASSERT
 
   protected:
-    PACTR _pactr;
+    PActor _pactr;
     bool _fRteOnly;
     STN _stnName;
 
@@ -698,7 +698,7 @@ class ACLP : public ACLP_PAR
     //
     // Constructors and destructors
     //
-    static PACLP PaclpNew(PACTR pactr, bool fRteOnly, bool fEndScene = fFalse);
+    static PACLP PaclpNew(PActor pactr, bool fRteOnly, bool fEndScene = fFalse);
     ~ACLP(void);
 
     //

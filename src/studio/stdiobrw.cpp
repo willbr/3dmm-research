@@ -497,7 +497,7 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
 
-    PACTR pactr;
+    PActor pactr;
     PMovieView pmvu;
     PKidspaceGraphicObject pgok;
 

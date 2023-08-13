@@ -583,7 +583,7 @@ PGL TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfE
 
 /***************************************************************************
     Creates a new tree of body parts (br_actors) based on this template.
-    Note: ACTR also calls FSetDefaultCost after creating the body, but
+    Note: Actor also calls FSetDefaultCost after creating the body, but
     by calling it here, it is guaranteed that the body will have a material
     on each body part (no null pointers for bact->material).  So the user
     will never see a body part that isn't texture mapped.

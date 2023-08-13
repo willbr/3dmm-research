@@ -42,7 +42,7 @@ class SUNA : public SUNA_PAR
     ASSERT
 
   protected:
-    PACTR _pactr;
+    PActor _pactr;
     long _ut; // Tells which type of undo this is.
     SUNA(void)
     {
@@ -52,7 +52,7 @@ class SUNA : public SUNA_PAR
     static PSUNA PsunaNew(void);
     ~SUNA(void);
 
-    void SetActr(PACTR pactr)
+    void SetActr(PActor pactr)
     {
         _pactr = pactr;
     }
@@ -144,7 +144,7 @@ class SCEN : public SCEN_PAR
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
     ulong _grfscen;       // Disabled functionality.
-    PACTR _pactrSelected; // Currently selected actor, if any
+    PActor _pactrSelected; // Currently selected actor, if any
     PTBOX _ptboxSelected; // Currently selected tbox, if any
     TRANS _trans;         // Transition at the end of the scene.
     PMBMP _pmbmp;         // The thumbnail for this scene.
@@ -282,23 +282,23 @@ class SCEN : public SCEN_PAR
     //
     // Actor functions
     //
-    bool FAddActrCore(ACTR *pactr); // Adds an actor to the scene at current frame.
-    bool FAddActr(ACTR *pactr);     // Adds an actor to the scene at current frame, and undo
+    bool FAddActrCore(Actor *pactr); // Adds an actor to the scene at current frame.
+    bool FAddActr(Actor *pactr);     // Adds an actor to the scene at current frame, and undo
     void RemActrCore(long arid);    // Removes an actor from the scene.
     bool FRemActr(long arid);       // Removes an actor from the scene, and undo
-    PACTR PactrSelected(void)       // Returns selected actor
+    PActor PactrSelected(void)       // Returns selected actor
     {
         return _pactrSelected;
     }
-    void SelectActr(ACTR *pactr);                      // Sets the selected actor
-    PACTR PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
+    void SelectActr(Actor *pactr);                      // Sets the selected actor
+    PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PGL PglRollCall(void)                              // Return a list of all actors in scene.
     {
         return (_pglpactr);
     } // Only to be used by the movie-class
     void HideActors(void);
     void ShowActors(void);
-    PACTR PactrFromArid(long arid); // Finds a current actor in this scene.
+    PActor PactrFromArid(long arid); // Finds a current actor in this scene.
     long Cactr(void)
     {
         return (_pglpactr == pvNil ? 0 : _pglpactr->IvMac());
@@ -375,8 +375,8 @@ class SCEN : public SCEN_PAR
     //
     // Clipboard type functions
     //
-    bool FPasteActrCore(PACTR pactr); // Pastes actor into current frame
-    bool FPasteActr(PACTR pactr);     // Pastes actor into current frame and undo
+    bool FPasteActrCore(PActor pactr); // Pastes actor into current frame
+    bool FPasteActr(PActor pactr);     // Pastes actor into current frame and undo
 
     //
     // Playing functions

@@ -19,13 +19,13 @@ ASSERTNAME
     Add a sound event to the actor event list, and create an undo object
 
 ***************************************************************************/
-bool ACTR::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
+bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     AssertIn(sty, 0, styLim);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -60,7 +60,7 @@ bool ACTR::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatc
     a current tag.
 
 ***************************************************************************/
-bool ACTR::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
+bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -164,7 +164,7 @@ LFail:
     Enter non-motion match sounds in the Msq
 
 ***************************************************************************/
-bool ACTR::_FEnqueueSnd(long iaev)
+bool Actor::_FEnqueueSnd(long iaev)
 {
     AssertThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
@@ -224,7 +224,7 @@ LFail:
     Play the motion match sounds appropriate to the current cel
 
 ***************************************************************************/
-bool ACTR::_FEnqueueSmmInMsq(void)
+bool Actor::_FEnqueueSmmInMsq(void)
 {
     AssertThis(0);
 
@@ -288,7 +288,7 @@ LFail:
     Insert a motion match sound in the smm queue
 
 ***************************************************************************/
-bool ACTR::_FInsertSmm(long iaev)
+bool Actor::_FInsertSmm(long iaev)
 {
     AssertThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
@@ -328,7 +328,7 @@ bool ACTR::_FInsertSmm(long iaev)
     Delete old motion sounds in event list
 
 ***************************************************************************/
-bool ACTR::_FRemoveAevMm(long anid)
+bool Actor::_FRemoveAevMm(long anid)
 {
     AssertThis(0);
 
@@ -369,7 +369,7 @@ bool ACTR::_FRemoveAevMm(long anid)
     Insert default motion match sounds in event list
 
 ***************************************************************************/
-bool ACTR::_FAddAevDefMm(long anid)
+bool Actor::_FAddAevDefMm(long anid)
 {
     AssertThis(0);
     TAG tag;
@@ -418,7 +418,7 @@ LFail:
     Set the Volume for sounds in the current frame of the specified sty
 
 ***************************************************************************/
-bool ACTR::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
+bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -518,7 +518,7 @@ bool ACTR::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     Query actor for current frame sounds
 
 ***************************************************************************/
-bool ACTR::FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, bool *pfLoop)
+bool Actor::FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, bool *pfLoop)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -614,7 +614,7 @@ LFail:
     Delete a sound in this frame
 
 ***************************************************************************/
-bool ACTR::FDeleteSndCore(long sty, bool fMotionMatch)
+bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -692,7 +692,7 @@ bool ACTR::FDeleteSndCore(long sty, bool fMotionMatch)
     Returns: fTrue if a sound event was found, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool ACTR::FSoundInFrm(void)
+bool Actor::FSoundInFrm(void)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -716,7 +716,7 @@ bool ACTR::FSoundInFrm(void)
     Resolve all sound tags
 
 ******************************************************************************/
-bool ACTR::FResolveAllSndTags(ChunkNumber cnoScen)
+bool Actor::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
     long iaev;

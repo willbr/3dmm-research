@@ -527,7 +527,7 @@ PSCEN SCEN::PscenNew(PMovie pmvie)
         goto LFail;
     }
 
-    pscen->_pglpactr = GL::PglNew(size(PACTR), 0);
+    pscen->_pglpactr = GL::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail;
@@ -571,7 +571,7 @@ SCEN::~SCEN(void)
     long isev;
     PSEV qsev;
     PTBOX ptbox;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Remove starting events
@@ -737,7 +737,7 @@ void SCEN::MarkMem(void)
 
     long iactr;
     long itbox;
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
 
     SCEN_PAR::MarkMem();
@@ -1082,7 +1082,7 @@ void SCEN::_DoPrerenderingWork(bool fStartNow)
     SEV sev;
     long nfrmNextChange;
     long ipactr;
-    PACTR pactr;
+    PActor pactr;
     long cactrPrerendered;
 
     //
@@ -1200,7 +1200,7 @@ void SCEN::_EndPrerendering(void)
     AssertThis(0);
 
     long ipactr;
-    PACTR pactr;
+    PActor pactr;
 
     // Show all the actors that were being prerendered
     Pmvie()->Pbwld()->Unprerender();
@@ -1235,7 +1235,7 @@ bool SCEN::FReplayFrm(ulong grfscen)
     void *qvVar;
     long isev, iactr;
     long nfrmOld = _nfrmCur;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Play events in this frame
@@ -1289,7 +1289,7 @@ void SCEN::InvalFrmRange(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     long ipo;
     long nfrmStart, nfrmLast;
@@ -1354,7 +1354,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
     AssertThis(0);
     AssertVarMem(psev);
 
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     PBackground pbkgd;
     TAG tag;
@@ -1414,7 +1414,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
         //
         // Add the actor to the roll call.
         //
-        pactr = *(PACTR *)qvVar;
+        pactr = *(PActor *)qvVar;
 
         AssertPo(pactr, 0);
 
@@ -2352,7 +2352,7 @@ void SCEN::UpdateSndFrame(void)
 
     while (++iv < _pglpactr->IvMac())
     {
-        PACTR pactr;
+        PActor pactr;
 
         _pglpactr->Get(iv, &pactr);
         AssertPo(pactr, 0);
@@ -2416,7 +2416,7 @@ bool SCEN::_FAddSev(PSEV psev, long cbVar, void *pvVar)
  *	None
  *
  ****************************************************/
-void SCEN::SelectActr(ACTR *pactr)
+void SCEN::SelectActr(Actor *pactr)
 {
     AssertThis(0);
     AssertNilOrPo(pactr, 0);
@@ -2517,7 +2517,7 @@ void SCEN::SelectTbox(PTBOX ptbox)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActrCore(ACTR *pactr)
+bool SCEN::FAddActrCore(Actor *pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2527,7 +2527,7 @@ bool SCEN::FAddActrCore(ACTR *pactr)
     long isev;
     long ipactr;
     STN stn;
-    PACTR pactrOld;
+    PActor pactrOld;
     bool fRetValue;
 
     //
@@ -2594,7 +2594,7 @@ bool SCEN::FAddActrCore(ACTR *pactr)
     // Add actor to inital list of events to do.
     //
     sev.sevt = sevtAddActr;
-    fRetValue = _pggsevStart->FInsert(0, size(PACTR), &pactr, &sev);
+    fRetValue = _pggsevStart->FInsert(0, size(PActor), &pactr, &sev);
 
     if (fRetValue)
     {
@@ -2640,7 +2640,7 @@ bool SCEN::FAddActrCore(ACTR *pactr)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActr(ACTR *pactr)
+bool SCEN::FAddActr(Actor *pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2682,7 +2682,7 @@ void SCEN::RemActrCore(long arid)
     AssertThis(0);
 
     PSEV qsev;
-    PACTR pactrTmp;
+    PActor pactrTmp;
     long isev;
 
     //
@@ -2779,7 +2779,7 @@ bool SCEN::FRemActr(long arid)
 
     PSUNA psuna;
     long ipactr;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Find the actor for undo purposes
@@ -2832,12 +2832,12 @@ bool SCEN::FRemActr(long arid)
  *  Pointer to the actor, pvNil if none.
  *
  ****************************************************/
-ACTR *SCEN::PactrFromPt(long xp, long yp, long *pibset)
+Actor *SCEN::PactrFromPt(long xp, long yp, long *pibset)
 {
     AssertThis(0);
     AssertVarMem(pibset);
 
-    ACTR *pactr;
+    Actor *pactr;
     BODY *pbody;
     long ipactr;
 
@@ -3770,7 +3770,7 @@ SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     SEV sev;
     PSEV qsev;
     short bo;
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     ChildChunkID chid;
     SCENH scenh;
@@ -3814,7 +3814,7 @@ SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Initialize roll call	for actors
     //
-    pscen->_pglpactr = GL::PglNew(size(PACTR), 0);
+    pscen->_pglpactr = GL::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail0;
@@ -3975,7 +3975,7 @@ SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
                 goto LFail1;
             }
 
-            pactr = ACTR::PactrRead(pcrf, kid.cki.cno);
+            pactr = Actor::PactrRead(pcrf, kid.cki.cno);
             AssertNilOrPo(pactr, 0);
 
             if (pactr == pvNil)
@@ -4325,7 +4325,7 @@ bool SCEN::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
                 goto LFail;
             }
 
-            if (!(*(PACTR *)_pggsevStart->QvGet(isevStart))->FWrite(pcfl, cnoChild, *pcno))
+            if (!(*(PActor *)_pggsevStart->QvGet(isevStart))->FWrite(pcfl, cnoChild, *pcno))
             {
                 goto LFail;
             }
@@ -4516,7 +4516,7 @@ bool SCEN::FResolveAllSndTags(ChunkNumber cnoScen)
     ipactrMac = _pglpactr->IvMac();
     for (ipactr = 0; ipactr < ipactrMac; ipactr++)
     {
-        PACTR pactr;
+        PActor pactr;
 
         _pglpactr->Get(ipactr, &pactr);
         if (!pactr->FResolveAllSndTags(cnoScen))
@@ -4570,7 +4570,7 @@ void SCEN::RemActrsFromRollCall(bool fDelIfOnlyRef)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
@@ -4595,7 +4595,7 @@ bool SCEN::FAddActrsToRollCall(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
     STN stn;
 
@@ -4662,7 +4662,7 @@ void SCEN::_UpdateThumbnail(void)
     PGPT pgpt, pgptThumb;
     PMovieView pmvu;
     PTBOX ptbox = PtboxSelected();
-    PACTR pactr = PactrSelected();
+    PActor pactr = PactrSelected();
     RC rc, rcThumb;
     long grfscenSave;
     long dtimSnd;
@@ -4794,7 +4794,7 @@ void SCEN::MarkDirty(bool fDirty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPasteActrCore(PACTR pactr)
+bool SCEN::FPasteActrCore(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4845,7 +4845,7 @@ bool SCEN::FPasteActrCore(PACTR pactr)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPasteActr(PACTR pactr)
+bool SCEN::FPasteActr(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4874,7 +4874,7 @@ bool SCEN::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
 
-    PACTR pactr;
+    PActor pactr;
     long iactr;
 
     for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
@@ -4968,7 +4968,7 @@ void SCEN::HideActors(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
@@ -4993,7 +4993,7 @@ void SCEN::ShowActors(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
@@ -5136,7 +5136,7 @@ bool SCEN::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
             else
             {
                 bool fError;
-                pgltagSrc = ACTR::PgltagFetch(pcfl, kid.cki.cno, &fError);
+                pgltagSrc = Actor::PgltagFetch(pcfl, kid.cki.cno, &fError);
 
                 if (fError)
                 {
@@ -5315,13 +5315,13 @@ bool SCEN::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
  *   pvNil if failure, else the actor.
  *
  ****************************************************/
-PACTR SCEN::PactrFromArid(long arid)
+PActor SCEN::PactrFromArid(long arid)
 {
     AssertThis(0);
     Assert(arid != aridNil, "Bad long");
 
     long iactr;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Search current scene for the actor.
@@ -5355,7 +5355,7 @@ bool SCEN::FChopCore()
     AssertThis(0);
 
     PTBOX ptbox;
-    PACTR pactr;
+    PActor pactr;
     bool fAlive;
     long ipo;
     long nfrmStart, nfrmLast;
@@ -5505,7 +5505,7 @@ bool SCEN::FChopBackCore()
     AssertThis(0);
 
     PTBOX ptbox;
-    PACTR pactr;
+    PActor pactr;
     SEV sev;
     bool fAlive;
     bool fCopyCam;
@@ -5690,7 +5690,7 @@ bool SCEN::FStartPlaying()
     AssertThis(0);
 
     long ipactr, iptbox;
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     PTBXG ptbxg;
     long nfrmFirst, nfrmLast;
@@ -6160,7 +6160,7 @@ bool SUNA::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    PACTR pactr, pactrDup;
+    PActor pactr, pactrDup;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -6244,7 +6244,7 @@ bool SUNA::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    PACTR pactr, pactrDup;
+    PActor pactr, pactrDup;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {

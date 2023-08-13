@@ -8,9 +8,9 @@
     Primary authors:
         ACLP::(clipbd)	Seanse
         AUND::(undo)	Seanse
-        ACTR::(undo)	Seanse
-        ACTR::(vacuum)  *****
-        ACTR::(dup/restore) *****
+        Actor::(undo)	Seanse
+        Actor::(vacuum)  *****
+        Actor::(dup/restore) *****
     Review Status:  Reviewed
 
 ***************************************************************************/
@@ -26,7 +26,7 @@ RTCLASS(AUND)
     the end of subroute or (if fEntireScene) the end of the scene
 
 ***************************************************************************/
-bool ACTR::FCopy(PACTR *ppactr, bool fEntireScene)
+bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 {
     AssertThis(0);
     AssertVarMem(ppactr);
@@ -259,17 +259,17 @@ LFail:
     If (!fReset), all state information will have been retained.
 
 ***************************************************************************/
-bool ACTR::FDup(PACTR *ppactr, bool fReset)
+bool Actor::FDup(PActor *ppactr, bool fReset)
 {
     AssertThis(0);
     AssertVarMem(ppactr);
 
     long cactRef;
-    PACTR pactrSrc = this;
-    PACTR pactrDest;
+    PActor pactrSrc = this;
+    PActor pactrDest;
 
     // Due to state var duplication, using NewObj, not PactrNew
-    pactrDest = (*ppactr) = NewObj ACTR();
+    pactrDest = (*ppactr) = NewObj Actor();
     if (*ppactr == pvNil)
     {
         return fFalse;
@@ -314,14 +314,14 @@ LFail:
     Restore the actor from *ppactr onto *this
 
 ***************************************************************************/
-void ACTR::Restore(PACTR pactr)
+void Actor::Restore(PActor pactr)
 {
     AssertThis(0);
     AssertVarMem(pactr);
 
     long cactRef;
-    PACTR pactrSrc = pactr;
-    PACTR pactrDest = this;
+    PActor pactrSrc = pactr;
+    PActor pactrDest = this;
 
     Assert(pactr->_ptmpl == _ptmpl, "Restore ptmpl logic error");
     Assert(pactr->_pbody == _pbody, "Restore pbody logic error");
@@ -353,7 +353,7 @@ void ACTR::Restore(PACTR pactr)
     Restore this actor from an undo object pactrRestore.
 
 ***************************************************************************/
-void ACTR::_RestoreFromUndo(PACTR pactrRestore)
+void Actor::_RestoreFromUndo(PActor pactrRestore)
 {
     AssertBaseThis(0);
     AssertVarMem(pactrRestore);
@@ -384,7 +384,7 @@ void ACTR::_RestoreFromUndo(PACTR pactrRestore)
     This is not from this frame on.  The entire actor is duplicated.
 
 ***************************************************************************/
-bool ACTR::_FDupCopy(PACTR pactrSrc, PACTR pactrDest)
+bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
 {
     AssertBaseThis(0);
     AssertPo(pactrDest->_pggaev, 0);
@@ -461,7 +461,7 @@ LFail:
     nodes, insert a point to make the two route sections identical.
 
 ***************************************************************************/
-bool ACTR::FCopyRte(PACTR *ppactr, bool fEntireScene)
+bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 {
     AssertThis(0);
     AssertVarMem(ppactr);
@@ -569,7 +569,7 @@ LFail:
     extend from the current point.
 
 ***************************************************************************/
-bool ACTR::FPasteRte(PACTR pactr)
+bool Actor::FPasteRte(PActor pactr)
 {
     AssertThis(0);
     AssertVarMem(pactr);
@@ -728,7 +728,7 @@ bool ACTR::FPasteRte(PACTR pactr)
     Put an already existing actor in this scene.
 
 ***************************************************************************/
-bool ACTR::FPaste(long nfrm, SCEN *pscen)
+bool Actor::FPaste(long nfrm, SCEN *pscen)
 {
     AssertThis(0);
 
@@ -880,7 +880,7 @@ bool ACTR::FPaste(long nfrm, SCEN *pscen)
     Make an actor look like they were just read in, and never in a scene.
 
 ***************************************************************************/
-void ACTR::Reset(void)
+void Actor::Reset(void)
 {
     _pscen = pvNil;
     ReleasePpo(&_pbody); // Sets _pbody = pvNil
@@ -907,13 +907,13 @@ RTCLASS(ACLP)
     This is from the current frame forward
 
 ***************************************************************************/
-PACLP ACLP::PaclpNew(PACTR pactr, bool fRteOnly, bool fEntireScene)
+PACLP ACLP::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 {
     AssertPo(pactr, 0);
     Assert(!fRteOnly || !fEntireScene, "Expecting subroute only");
 
     PACLP paclp;
-    PACTR pactrTmp;
+    PActor pactrTmp;
     STN stn, stnCopyOf;
 
     paclp = NewObj ACLP();
@@ -987,7 +987,7 @@ bool ACLP::FPaste(PMovie pmvie)
     AssertThis(0);
     AssertPo(pmvie, 0);
 
-    PACTR pactrNew;
+    PActor pactrNew;
 
     if (_fRteOnly)
     {
@@ -1061,7 +1061,7 @@ void ACLP::AssertValid(ulong grf)
     Create an undo object
 
 ***************************************************************************/
-bool ACTR::FCreateUndo(PACTR pactrDup, bool fSndUndo, PSTN pstn)
+bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PSTN pstn)
 {
     AssertPo(pactrDup, 0);
     AssertNilOrPo(pstn, 0);
@@ -1103,12 +1103,12 @@ bool ACTR::FCreateUndo(PACTR pactrDup, bool fSndUndo, PSTN pstn)
     Add (or replace) an action, and create an undo object
 
 ***************************************************************************/
-bool ACTR::FSetAction(long anid, long celn, bool fFreeze, PACTR *ppactrDup)
+bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppactrDup);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -1143,11 +1143,11 @@ bool ACTR::FSetAction(long anid, long celn, bool fFreeze, PACTR *ppactrDup)
     object.
 
 ***************************************************************************/
-bool ACTR::FAddOnStage(void)
+bool Actor::FAddOnStage(void)
 {
     AssertThis(0);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -1177,11 +1177,11 @@ bool ACTR::FAddOnStage(void)
     Normalize an actor.
 
 ***************************************************************************/
-bool ACTR::FNormalize(ulong grfnorm)
+bool Actor::FNormalize(ulong grfnorm)
 {
     AssertThis(0);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -1212,13 +1212,13 @@ bool ACTR::FNormalize(ulong grfnorm)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
+bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 {
     AssertThis(0);
     Assert(fCmtl || ibset >= 0, "Invalid ibset argument");
     AssertVarMem(ptag);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     FDup(&pactrDup);
 
@@ -1250,10 +1250,10 @@ bool ACTR::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
     have been deleted
 
 ***************************************************************************/
-bool ACTR::FDelete(bool *pfAlive, bool fDeleteAll)
+bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
 {
     AssertThis(0);
-    PACTR pactrDup;
+    PActor pactrDup;
     long iaevCurSav;
     AEV *paev;
 
@@ -1337,11 +1337,11 @@ LFail:
     Add the event to the event list: Remove actor from the stage, and an Undo.
     NOTE: This should be called <before> the call to place the actor offstage
 ***************************************************************************/
-bool ACTR::FRemFromStage(void)
+bool Actor::FRemFromStage(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
 
     if (!FDup(&pactr))
     {
@@ -1445,7 +1445,7 @@ bool AUND::FUndo(PDocumentBase pdocb)
     AssertThis(0);
     AssertPo(pdocb, 0);
 
-    PACTR pactr;
+    PActor pactr;
     PMovieView pmvu;
 
     if (!_pmvie->FSwitchScen(_iscen))
@@ -1547,7 +1547,7 @@ bool AUND::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void AUND::SetPactr(PACTR pactr)
+void AUND::SetPactr(PActor pactr)
 {
     AssertThis(0);
 

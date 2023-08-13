@@ -11,7 +11,7 @@
     A BODY holds the BRender-related data structures that make up what
     Socrates calls an actor.  The BODY keeps track of all the body parts'
     models, matrices, and materials that make up the actor's shape,
-    position, orientation, and costume.  ACTR and TMPL are the main
+    position, orientation, and costume.  Actor and TMPL are the main
     clients of BODY.  From the client's point of view, a BODY consists
     not of a tree of body parts, but an array of parts and part sets.  The
     "ibact"s and "ibset"s in the BODY APIs are indices into these arrays.

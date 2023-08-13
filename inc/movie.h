@@ -143,8 +143,8 @@ class MovieView : public MovieView_PAR
     BRS _dzrPrev;         // Z motion of the "mouse" (arrow keys)
     long _grfcust;        // Options in effect when mouse was down.
     PCURS _pcursDefault;  // Default cursor for when a tool is not applicable.
-    PACTR _pactrListener; // Pactr of the actor being auditioned
-    PACTR _pactrRestore;  // Restore for actor recording
+    PActor _pactrListener; // Pactr of the actor being auditioned
+    PActor _pactrRestore;  // Restore for actor recording
 
     long _anidTool;     // Current selected action
     TAG _tagTool;       // Tag associated with current tool.
@@ -154,7 +154,7 @@ class MovieView : public MovieView_PAR
     long _tool;         // Current tool loaded on cursor
 
     // REVIEW Seanse(SeanSe): Movie should not be creating/mucking with actor undo
-    //   objects.  V2.666 should revisit this issue and see if we can get ACTR to
+    //   objects.  V2.666 should revisit this issue and see if we can get Actor to
     //   do all its own undo objects (e.g. Growing over a long drag could become
     //   a StartGrow/Grow/EndGrow sequence).  This also effects _pactrRestore.
     PAUND _paund;        // Actor undo object to save from mouse down to drag.
@@ -173,7 +173,7 @@ class MovieView : public MovieView_PAR
     bool _fEntireScene : 1; // Does positioning effect the entire scene?
 
     bool _fMouseDownSeen; // Was the mouse depressed during a place.
-    PACTR _pactrUndo;     // Actor to use for undo object when roll-calling.
+    PActor _pactrUndo;     // Actor to use for undo object when roll-calling.
 
     AbstractColor _acr;         // Color for painting text.
     long _onn;        // Font for text
@@ -197,7 +197,7 @@ class MovieView : public MovieView_PAR
     void _MouseDrag(CMD_MOUSE *pcmd);
     void _MouseUp(CMD_MOUSE *pcmd);
 
-    void _ActorClicked(PACTR pactr, bool fDown);
+    void _ActorClicked(PActor pactr, bool fDown);
 
   public:
     static void SlowKeyboardRepeat(void);
@@ -262,7 +262,7 @@ class MovieView : public MovieView_PAR
     void StartPlaceActor(bool fEntireScene = fFalse);
     void EndPlaceActor(void);
     void WarpCursToCenter(void);
-    void WarpCursToActor(PACTR pactr);
+    void WarpCursToActor(PActor pactr);
     void AdjustCursor(long xp, long yp);
     void MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord);
     void SetAxis(BRS rgrAxis[3][3])
@@ -301,7 +301,7 @@ class MovieView : public MovieView_PAR
     {
         return _fRespectGround;
     }
-    void SetActrUndo(PACTR pactr)
+    void SetActrUndo(PActor pactr)
     {
         _pactrUndo = pactr;
     }
@@ -848,8 +848,8 @@ class Movie : public Movie_PAR
     bool FInsScenCore(long iscen, SCEN *pscen); // Insert this scene as scene number.
     bool FNewScenInsCore(long iscen);           // Inserts a blank scene before iscen
     bool FRemScenCore(long iscen);              // Removes a scene from the movie
-    bool FPasteActr(PACTR pactr);               // Pastes an actor into current scene.
-    bool FPasteActrPath(PACTR pactr);           // Pastes the path onto selected actor.
+    bool FPasteActr(PActor pactr);               // Pastes an actor into current scene.
+    bool FPasteActrPath(PActor pactr);           // Pastes the path onto selected actor.
     PMSQ Pmsq(void)
     {
         return _pmsq;
@@ -873,7 +873,7 @@ class Movie : public Movie_PAR
     // 3-D Text stuff
     //
     bool FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf); // Inserts a TDT into this movie.
-    bool FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf);
+    bool FChangeActrTdt(PActor pactr, PSTN pstn, long tdts, PTAG ptagTdf);
 
     //
     // Marking (overridden DocumentBase methods)
@@ -890,8 +890,8 @@ class Movie : public Movie_PAR
     //
     // Roll call
     //
-    bool FAddToRollCall(ACTR *pactr, PSTN pstn);                    // Add an actor to the roll call
-    void RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef = fFalse); // Remove an actor from the roll call.
+    bool FAddToRollCall(Actor *pactr, PSTN pstn);                    // Add an actor to the roll call
+    void RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef = fFalse); // Remove an actor from the roll call.
     void BuildActionMenu(void);                                     // Called when the selected actor has changed.
 
     //

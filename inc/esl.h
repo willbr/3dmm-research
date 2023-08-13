@@ -101,7 +101,7 @@ class ESLT : public ESLT_PAR
 
   protected:
     PMovie _pmvie; // Movie that this TDT is in
-    PACTR _pactr; // Actor of this TDT, or pvNil for new TDT
+    PActor _pactr; // Actor of this TDT, or pvNil for new TDT
     PAPE _pape;   // Actor Preview Entity
     PSNE _psne;   // Spletter Name Editor
     PRCA _prca;   // Resource source for cursors
@@ -115,11 +115,11 @@ class ESLT : public ESLT_PAR
     ESLT(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLT PesltNew(PRCA prca, PMovie pmvie, PACTR pactr, PSTN pstnNew = pvNil, long tdtsNew = tdtsNil,
+    static PESLT PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PSTN pstnNew = pvNil, long tdtsNew = tdtsNil,
                           PTAG ptagTdfNew = pvNil);
     ~ESLT(void);
 
@@ -148,7 +148,7 @@ class ESLA : public ESLA_PAR
 
   protected:
     PMovie _pmvie; // Movie that this actor is in
-    PACTR _pactr; // The actor that is being edited
+    PActor _pactr; // The actor that is being edited
     PAPE _pape;   // Actor Preview Entity
     PEDSL _pedsl; // Single-line edit control (for actor's name)
 
@@ -156,11 +156,11 @@ class ESLA : public ESLA_PAR
     ESLA(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLA PeslaNew(PRCA prca, PMovie pmvie, PACTR pactr);
+    static PESLA PeslaNew(PRCA prca, PMovie pmvie, PActor pactr);
     ~ESLA(void);
 
     bool FCmdRotate(PCMD pcmd);
@@ -225,7 +225,7 @@ class ESLL : public ESLL_PAR
   protected:
     PMovie _pmvie; // Movie that these sounds are in
     PSCEN _pscen; // Scene that these sounds are in
-    PACTR _pactr; // Actor that sounds are attached to (or pvNil)
+    PActor _pactr; // Actor that sounds are attached to (or pvNil)
     LSND _lsndSpeech;
     LSND _lsndSfx;
     LSND _lsndMidi;
@@ -237,11 +237,11 @@ class ESLL : public ESLL_PAR
     {
     }
 
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLL PesllNew(PRCA prca, PMovie pmvie, PACTR pactr);
+    static PESLL PesllNew(PRCA prca, PMovie pmvie, PActor pactr);
     ~ESLL(void);
 
     bool FCmdVlm(PCMD pcmd);
