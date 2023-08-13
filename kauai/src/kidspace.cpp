@@ -1725,6 +1725,7 @@ long KidspaceGraphicObject::SiiPlaySound(CTG ctg, CNO cno, long sqn, long vlm, l
 
     if (cnoNil != cno)
     {
+        return siiNil; // hack to disable tooltips
         _siiSound = vpsndm->SiiPlay(_prca, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
     }
     else
