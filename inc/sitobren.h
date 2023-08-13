@@ -369,7 +369,7 @@ class S2B : public S2B_PAR
     bool _FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal);
     bool _FBvec3Read(PS2BLX ps2blx, BVEC3 *pbvec3, PS2BTK ps2btk);
     void _Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34);
-    void _ReadLite(PSTN pstnLite, LITE *plite);
+    void _ReadLite(PSTN pstnLite, LightPosition *plite);
     void _ReadCam(PSTN pstnCam, CAM *pcam, PGL *ppglapos);
     bool _FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CAM *pcam);
 

@@ -31,7 +31,7 @@ const ByteOrderMask kbomBkgdf = 0x50000000;
     Specifies a light's kind, position,
     orientation, and brightness
 ****************************************/
-struct LITE
+struct LightPosition
 {
     BMAT34 bmat34;
     BRS rIntensity;

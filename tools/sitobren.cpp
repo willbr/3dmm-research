@@ -1488,11 +1488,11 @@ bool S2B::_FDumpLites(int cLite, PSTN pstnBkgd)
 {
     bool fRet = fFalse;
     int iLite;
-    LITE lite;
+    LightPosition lite;
     PGL pgllite;
 
     /* Create a GL of LITEs */
-    if ((pgllite = GL::PglNew(size(LITE))) == pvNil)
+    if ((pgllite = GL::PglNew(size(LightPosition))) == pvNil)
     {
         printf("Couldn't allocate GLLT\n");
         goto LFail;
@@ -1517,7 +1517,7 @@ bool S2B::_FDumpLites(int cLite, PSTN pstnBkgd)
         }
     }
 
-    /* Emit the LITE chunk */
+    /* Emit the LightPosition chunk */
     CnoNext();
     _stnT.FFormatSz(PszLit("%s Lights"), pstnBkgd);
     _DumpHeader(kctgGllt, _cnoCur, &_stnT, fTrue);
@@ -1912,15 +1912,15 @@ void S2B::_Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34)
 
 /******************************************************************************
     _ReadLite
-        Reads a SoftImage ASCII light file and fills in the LITE structure
+        Reads a SoftImage ASCII light file and fills in the LightPosition structure
     as appropriate.
 
     Arguments:
         PSTN pstnLite -- the name of the light file
-        LITE *plite   -- pointer to LITE structure to fill in
+        LightPosition *plite   -- pointer to LightPosition structure to fill in
 
 ************************************************************ PETED ***********/
-void S2B::_ReadLite(PSTN pstnLite, LITE *plite)
+void S2B::_ReadLite(PSTN pstnLite, LightPosition *plite)
 {
     Filename fni;
     FIL *pfil;

@@ -219,11 +219,11 @@ bool Background::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     pgllite = GL::PglRead(&blck, &bo);
     if (pvNil == pgllite)
         goto LFail;
-    Assert(pgllite->CbEntry() == size(LITE), "bad pgllite...you may need to update bkgds.chk");
-    AssertBomRglw(kbomLite, size(LITE));
+    Assert(pgllite->CbEntry() == size(LightPosition), "bad pgllite...you may need to update bkgds.chk");
+    AssertBomRglw(kbomLite, size(LightPosition));
     if (kboOther == bo)
     {
-        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LITE) / size(long)));
+        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LightPosition) / size(long)));
     }
     _cbactLight = pgllite->IvMac();
     if (!FAllocPv((void **)&_prgbactLight, LwMul(_cbactLight, size(BACT)), fmemClear, mprNormal))
@@ -281,13 +281,13 @@ void Background::_SetupLights(PGL pgllite)
     AssertPo(pgllite, 0);
 
     long ilite;
-    LITE *qlite;
+    LightPosition *qlite;
     BACT *pbact;
     BLIT *pblit;
 
     for (ilite = 0; ilite < _cbactLight; ilite++)
     {
-        qlite = (LITE *)pgllite->QvGet(ilite);
+        qlite = (LightPosition *)pgllite->QvGet(ilite);
         pbact = &_prgbactLight[ilite];
         pblit = &_prgblitLight[ilite];
         pblit->type = (byte)qlite->lt;
