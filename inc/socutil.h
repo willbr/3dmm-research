@@ -23,7 +23,6 @@ typedef class Scene *PScene;
 typedef class Movie *PMovie;
 typedef class Background *PBackground;
 typedef class TBOX *PTBOX;
-typedef class MVIEW *PMVIEW;
 typedef class Studio *PStudio;
 
 //
