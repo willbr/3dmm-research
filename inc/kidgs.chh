@@ -57,7 +57,7 @@
 // ---------------------------------------------------------
 // the following chids get affected by the state the gob is in
 // the default state for a gob is 1  which means chids
-// not referenced in the CUME are determined as follows:
+// not referenced in the CursorMapEntry are determined as follows:
 // hiword = state  loword = chid
 //
 // e.g. for a mouse rollon in state 2  KAUAI looks at chid
@@ -88,7 +88,7 @@
 
 
 // ---------------------------------------------------------
-// the following are bit masks for the CUME entry
+// the following are bit masks for the CursorMapEntry entry
 // ---------------------------------------------------------
 #define fgrfstNil                               0x00000001
 #define fgrfst1                                 0x00000002

@@ -30,11 +30,11 @@ struct LOP
 };
 
 // cursor map entry
-struct CUME
+struct CursorMapEntry
 {
-    ulong grfcustMask; // what cursor states this CUME is good for
+    ulong grfcustMask; // what cursor states this CursorMapEntry is good for
     ulong grfcust;
-    ulong grfbitSno; // what button states this CUME is good for
+    ulong grfbitSno; // what button states this CursorMapEntry is good for
     ChunkNumber cnoCurs;     // the cursor to use
     ChildChunkID chidScript; // execution script (absolute)
     long cidDefault; // default command
@@ -55,7 +55,7 @@ class GOKD : public GOKD_PAR
 
   public:
     virtual long Gokk(void) = 0;
-    virtual bool FGetCume(ulong grfcust, long sno, CUME *pcume) = 0;
+    virtual bool FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume) = 0;
     virtual void GetLop(long hidPar, LOP *plop) = 0;
 };
 
@@ -70,7 +70,7 @@ struct GOKDF
     short osk;
     long gokk;
     // LOP rglop[];		ends with a default entry (hidPar == hidNil)
-    // CUME rgcume[];	the cursor map
+    // CursorMapEntry rgcume[];	the cursor map
 };
 const ByteOrderMask kbomGokdf = 0x0C000000;
 
@@ -99,7 +99,7 @@ class GKDS : public GKDS_PAR
     ~GKDS(void);
 
     virtual long Gokk(void);
-    virtual bool FGetCume(ulong grfcust, long sno, CUME *pcume);
+    virtual bool FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume);
     virtual void GetLop(long hidPar, LOP *plop);
 };
 

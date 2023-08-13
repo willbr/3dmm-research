@@ -1130,7 +1130,7 @@ bool KidspaceGraphicObject::FCmdMouseMove(PCMD_MOUSE pcmd)
     else
     {
         Assert(cidMouseMove == pcmd->cid, "unknown command");
-        CUME cume;
+        CursorMapEntry cume;
         bool fCanClick = _pgokd->FGetCume(pcmd->grfcust, _sno, &cume);
 
         if (!_FAdjustGms(fCanClick ? _mpgmsgmseMove : _mpgmsgmseRollOff))
@@ -1149,7 +1149,7 @@ void KidspaceGraphicObject::SetCursor(ulong grfcust)
     AssertThis(0);
     PKidspaceGraphicObject pgok;
     PGraphicsObject pgob;
-    CUME cume;
+    CursorMapEntry cume;
 
     for (pgok = this; !pgok->_pgokd->FGetCume(grfcust, _sno, &cume) || cume.cnoCurs == cnoNil; grfcust |= fcustChildGok)
     {
@@ -1183,7 +1183,7 @@ bool KidspaceGraphicObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
     if (pcmd->cid == cidMouseDown)
     {
         // first response to mouse down
-        CUME cume;
+        CursorMapEntry cume;
 
         if (!_pgokd->FGetCume(pcmd->grfcust, _sno, &cume))
             return fTrue;
@@ -1276,7 +1276,7 @@ bool KidspaceGraphicObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xp
 ChunkNumber KidspaceGraphicObject::_CnoToolTip(void)
 {
     AssertThis(0);
-    CUME cume;
+    CursorMapEntry cume;
 
     if (!_pgokd->FGetCume(_pwoks->GrfcustCur(), _sno, &cume))
         return cnoNil;
@@ -1482,7 +1482,7 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     long rglw[3];
     long lw;
     tribool tRet;
-    CUME cume;
+    CursorMapEntry cume;
     long hid = Hid();
     long grid = Grid();
 

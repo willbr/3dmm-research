@@ -84,13 +84,13 @@ bool GKDS::FReadGkds(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBAC
         if (hidNil == qlop->hidPar)
             break;
     }
-    if ((cb % size(CUME)) != 0)
+    if ((cb % size(CursorMapEntry)) != 0)
     {
-        Bug("Bad CUME list in GOKD");
+        Bug("Bad CursorMapEntry list in GOKD");
         ReleasePpo(&pgkds);
         return fFalse;
     }
-    pgkds->_ccume = cb / size(CUME);
+    pgkds->_ccume = cb / size(CursorMapEntry);
     *ppbaco = pgkds;
     return fTrue;
 }
@@ -115,7 +115,7 @@ void GKDS::AssertValid(ulong grf)
     AssertHq(_hqData);
     AssertIn(_clop, 0, kcbMax);
     AssertIn(_ccume, 0, kcbMax);
-    Assert(LwMul(_clop, size(LOP)) + LwMul(_ccume, size(CUME)) == CbOfHq(_hqData), "GKDS _hqData wrong size");
+    Assert(LwMul(_clop, size(LOP)) + LwMul(_ccume, size(CursorMapEntry)) == CbOfHq(_hqData), "GKDS _hqData wrong size");
     qrglop = (LOP *)QvFromHq(_hqData);
     Assert(qrglop[_clop - 1].hidPar == hidNil, "bad rglop in GKDS");
 }
@@ -143,18 +143,18 @@ long GKDS::Gokk(void)
 /***************************************************************************
     Look for a cursor map entry in this GKDS.
 ***************************************************************************/
-bool GKDS::FGetCume(ulong grfcust, long sno, CUME *pcume)
+bool GKDS::FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume)
 {
     AssertThis(0);
     AssertVarMem(pcume);
-    CUME *qcume;
+    CursorMapEntry *qcume;
     long ccume;
     ulong fbitSno = (1L << (sno & 0x1F));
 
     if (0 == _ccume)
         return fFalse;
 
-    qcume = (CUME *)PvAddBv(QvFromHq(_hqData), LwMul(_clop, size(LOP)));
+    qcume = (CursorMapEntry *)PvAddBv(QvFromHq(_hqData), LwMul(_clop, size(LOP)));
     for (ccume = _ccume; ccume > 0; ccume--, qcume++)
     {
         if ((qcume->grfbitSno & fbitSno) && (qcume->grfcustMask & grfcust) == qcume->grfcust)
