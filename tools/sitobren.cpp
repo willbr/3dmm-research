@@ -1552,7 +1552,7 @@ bool S2B::_FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal)
 {
     int iCam;
     long dxp, dyp;
-    CAM cam;
+    CameraPosition cam;
     STN stnFile;
 
     /* Cameras are kept as individual chunks;
@@ -1624,7 +1624,7 @@ bool S2B::_FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal)
         cnoCam = CnoNext();
         _stnT.FFormatSz(PszLit("%s Camera %d"), pstnBkgd, iCam);
         _DumpHeader(kctgCam, cnoCam, &_stnT, fTrue);
-        Assert(_ctgPar == kctgBkgd, "Odd parent for CAM");
+        Assert(_ctgPar == kctgBkgd, "Odd parent for CameraPosition");
         _chse.DumpParentCmd(_ctgPar, _cnoPar, iCam - 1);
         _chse.DumpRgb(&cam, size(cam));
         if (pglapos != pvNil)
@@ -1674,13 +1674,13 @@ LFail:
         int iCam      -- the number of the camera
         long dxp      -- the width of the background
         long dyp      -- the height of the background
-        CAM *pcam     -- pointer to the camera data
+        CameraPosition *pcam     -- pointer to the camera data
 
     Returns: fTrue if it could successfully read and process the z-buffer
         data, fFalse otherwise.
 
 ************************************************************ PETED ***********/
-bool S2B::_FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CAM *pcam)
+bool S2B::_FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CameraPosition *pcam)
 {
     Assert(dxp > 0, "Invalid z-buffer width");
     Assert(dyp > 0, "Invalid z-buffer height");
@@ -1989,15 +1989,15 @@ LFail:
 
 /******************************************************************************
     _ReadCam
-        Reads a SoftImage ASCII camera file and fills in the given CAM
+        Reads a SoftImage ASCII camera file and fills in the given CameraPosition
     structure as appropriate.
 
     Arguments:
         PSTN pstnCam -- the name of the camera file
-        CAM *pcam    -- pointer to the CAM to fill in
+        CameraPosition *pcam    -- pointer to the CameraPosition to fill in
 
 ************************************************************ PETED ***********/
-void S2B::_ReadCam(PSTN pstnCam, CAM *pcam, PGL *ppglapos)
+void S2B::_ReadCam(PSTN pstnCam, CameraPosition *pcam, PGL *ppglapos)
 {
     bool fGotActorPos = fFalse;
     Filename fni;

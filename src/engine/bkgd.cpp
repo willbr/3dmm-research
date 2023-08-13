@@ -19,19 +19,19 @@
      |
      +---SND  (chid 0) // Background sound/music
      |
-     +---CAM  (chid 0) // Contains camera pos/orient matrix, hither, yon
+     +---CameraPosition  (chid 0) // Contains camera pos/orient matrix, hither, yon
      |    |
      |    +---MBMP (chid 0) // Background RGB bitmap
      |    |
      |    +---ZBMP (chid 0) // Background Z-buffer
      |
-     +---CAM (chid 1)
+     +---CameraPosition (chid 1)
      |    |
      |    +---MBMP (chid 0)
      |    |
      |    +---ZBMP (chid 0)
      |
-     +---CAM (chid 2)
+     +---CameraPosition (chid 2)
      .    |
      .    +---MBMP (chid 0)
      .    |
@@ -244,7 +244,7 @@ LFail:
 }
 
 /***************************************************************************
-    Return the number of camera views in this scene.  CAM chunks need to be
+    Return the number of camera views in this scene.  CameraPosition chunks need to be
     contiguous CHIDs starting at ChildChunkID 0.
 ***************************************************************************/
 long Background::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
@@ -426,7 +426,7 @@ bool Background::FSetCamera(PBWLD pbwld, long icam)
     ChildChunkIdentification kidRGB;
     ChildChunkIdentification kidZ;
     DataBlock blck;
-    CAM cam;
+    CameraPosition cam;
     PCFL pcfl = Pcrf()->Pcfl();
     BREUL breul;
 
@@ -439,19 +439,19 @@ bool Background::FSetCamera(PBWLD pbwld, long icam)
         return fFalse;
 
     // Need at least one actor position
-    if (blck.Cb() < size(CAM))
+    if (blck.Cb() < size(CameraPosition))
     {
-        Bug("CAM chunk not large enough");
+        Bug("CameraPosition chunk not large enough");
         return fFalse;
     }
-    capos = (blck.Cb() - size(CAM)) / size(APOS);
-    if ((capos * size(APOS) + size(CAM)) != blck.Cb())
+    capos = (blck.Cb() - size(CameraPosition)) / size(APOS);
+    if ((capos * size(APOS) + size(CameraPosition)) != blck.Cb())
     {
-        Bug("CAM chunk's extra data not an even multiple of size(APOS)");
+        Bug("CameraPosition chunk's extra data not an even multiple of size(APOS)");
         return fFalse;
     }
 
-    if (!blck.FReadRgb(&cam, size(CAM), 0))
+    if (!blck.FReadRgb(&cam, size(CameraPosition), 0))
         return fFalse;
 
 #ifdef DEBUG
@@ -465,8 +465,8 @@ bool Background::FSetCamera(PBWLD pbwld, long icam)
     if (kboOther == cam.bo)
     {
         SwapBytesBom(&cam, kbomCam);
-        SwapBytesRglw(PvAddBv(&cam, offset(CAM, bmat34Cam)), size(cam.bmat34Cam) / size(long));
-        SwapBytesRglw(PvAddBv(&cam, size(CAM)), capos * (size(APOS) / size(long)));
+        SwapBytesRglw(PvAddBv(&cam, offset(CameraPosition, bmat34Cam)), size(cam.bmat34Cam) / size(long));
+        SwapBytesRglw(PvAddBv(&cam, size(CameraPosition)), capos * (size(APOS) / size(long)));
     }
     Assert(kboCur == cam.bo, "bad cam");
 
@@ -492,7 +492,7 @@ bool Background::FSetCamera(PBWLD pbwld, long icam)
     {
         AssertDo(_pglapos->FSetIvMac(capos), "Should never fail");
         _pglapos->Lock();
-        if (!blck.FReadRgb(_pglapos->QvGet(0), size(APOS) * capos, size(CAM)))
+        if (!blck.FReadRgb(_pglapos->QvGet(0), size(APOS) * capos, size(CameraPosition)))
         {
             ReleasePpo(&_pglapos);
             return fFalse;

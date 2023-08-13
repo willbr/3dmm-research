@@ -52,7 +52,7 @@ typedef union _apos {
     BVEC3 bvec3Actor;
 } APOS;
 
-struct CAM
+struct CameraPosition
 {
     short bo;
     short osk;
@@ -75,7 +75,7 @@ const ByteOrderMask kbomCam = BomField(
                                                  BomField(kbomSwapLong,
                                                           BomField(kbomSwapLong, BomField(kbomSwapLong, 0)))))))));
 
-// Note that CAM is too big for a complete kbomCam.  To SwapBytes one,
+// Note that CameraPosition is too big for a complete kbomCam.  To SwapBytes one,
 // SwapBytesBom the cam, then SwapBytesRgLw from bmat34Cam on.
 
 /****************************************
