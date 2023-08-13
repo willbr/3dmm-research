@@ -42,15 +42,15 @@ struct DIT
     long ditk;   // kind of item
 };
 
-typedef class DLG *PDLG;
+typedef class Dialog *PDLG;
 
 // callback to notify of an item change (while the dialog is active)
 typedef bool (*PFNDLG)(PDLG pdlg, long *pidit, void *pv);
 
-// dialog class - a DLG is a GG of DITs
-#define DLG_PAR GG
-#define kclsDLG 'DLG'
-class DLG : public DLG_PAR
+// dialog class - a Dialog is a GG of DITs
+#define Dialog_PAR GG
+#define kclsDialog 'DLG'
+class Dialog : public Dialog_PAR
 {
     RTCLASS_DEC
 
@@ -64,7 +64,7 @@ class DLG : public DLG_PAR
     friend BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw);
 #endif // WIN
 
-    DLG(long rid);
+    Dialog(long rid);
     bool _FInit(void);
 
     long _LwGetRadioGroup(long idit);

@@ -390,7 +390,7 @@ bool DOCE::FSave(long cid)
         adcd.fCkiValid = fTrue;
         adcd.cki.ctg = _ctg;
         adcd.cki.cno = _cno;
-        pdlg = DLG::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
+        pdlg = Dialog::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
         if (pvNil == pdlg)
             goto LCancel;
         _PutCtgStn(pdlg, kiditCtgInfo, _ctg);
@@ -1338,7 +1338,7 @@ bool DCD::_FAddChunk(CTG ctgDef, CKI *pcki, bool *pfCreated)
     // put up the dialog
     adcd.pcfl = _pcfl;
     adcd.fCkiValid = fFalse;
-    pdlg = DLG::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
+    pdlg = Dialog::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
     if (pvNil == pdlg)
         goto LCancel;
     if (ctgNil != ctgDef)
@@ -1558,7 +1558,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
         if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("Bitmaps\0*.BMP\0"), vwig.hwndApp)) goto LCancel;
 
     // get the transparent pixel value
-    pdlg = DLG::PdlgNew(dlidMbmp, _FDlgMbmp);
+    pdlg = Dialog::PdlgNew(dlidMbmp, _FDlgMbmp);
     if (pvNil == pdlg)
         goto LCancel;
     // put up the initial values
@@ -1751,7 +1751,7 @@ bool DCD::_FEditChunkInfo(CKI *pckiOld)
     clan.cki = *pckiOld;
     TrashVar(&clan.kid);
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidChunkInfo, _FDlgEditChunkInfo, &clan);
+    pdlg = Dialog::PdlgNew(dlidChunkInfo, _FDlgEditChunkInfo, &clan);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -1932,7 +1932,7 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
     clan.pcfl = _pcfl;
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidChangeChid, _FDlgChangeChid, &clan);
+    pdlg = Dialog::PdlgNew(dlidChangeChid, _FDlgChangeChid, &clan);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2131,7 +2131,7 @@ bool DCD::_FDoAdoptChunkDlg(CKI *pcki, KID *pkid)
     PDLG pdlg = pvNil;
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidAdoptChunk, _FDlgAdoptChunk, _pcfl);
+    pdlg = Dialog::PdlgNew(dlidAdoptChunk, _FDlgAdoptChunk, _pcfl);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2491,7 +2491,7 @@ bool DCD::FCmdTestScript(PCMD pcmd)
         PDLG pdlg;
 
         // get the cache size
-        pdlg = DLG::PdlgNew(dlidScriptCache);
+        pdlg = Dialog::PdlgNew(dlidScriptCache);
         if (pvNil == pdlg)
             return fTrue;
 
@@ -2791,7 +2791,7 @@ bool DCD::FCmdFilterChunk(PCMD pcmd)
     _SetSel(lnNil);
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidFilter);
+    pdlg = Dialog::PdlgNew(dlidFilter);
     if (pvNil == pdlg)
         goto LCancel;
 

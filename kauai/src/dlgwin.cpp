@@ -20,7 +20,7 @@ struct DLGI
     long iditFocus;
 };
 
-achar _szDlgProp[] = PszLit("DLG");
+achar _szDlgProp[] = PszLit("Dialog");
 
 /***************************************************************************
     Read the dialog resource and construct the GGDIT.
@@ -46,7 +46,7 @@ achar _szDlgProp[] = PszLit("DLG");
         (0xFFFF, 2-byte value) or unicode string specifying the class
         (0xFFFF, 2-byte value) or unicode string specifying the title
 ***************************************************************************/
-bool DLG::_FInit(void)
+bool Dialog::_FInit(void)
 {
     HN hn;
     long cbEntry;
@@ -267,7 +267,7 @@ BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
         pdlg = pdlgi->pdlg;
         AssertPo(pdlg, 0);
 
-        // set the DLG property so we can find the pdlg easily
+        // set the Dialog property so we can find the pdlg easily
         if (!SetProp(hdlg, _szDlgProp, (HANDLE)pdlg))
             goto LFail;
 
@@ -377,7 +377,7 @@ BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
     Actually put up the dialog and don't return until it comes down.
     Returns the idit that dismissed the dialog.  Returns ivNil on failure.
 ***************************************************************************/
-long DLG::IditDo(long iditFocus)
+long Dialog::IditDo(long iditFocus)
 {
     long idit;
     DLGI dlgi;
@@ -393,7 +393,7 @@ long DLG::IditDo(long iditFocus)
     Make the given item the "focused" item and select its contents.  The
     item should be a text item or combo item.
 ***************************************************************************/
-void DLG::SelectDit(long idit)
+void Dialog::SelectDit(long idit)
 {
     HDLG hdlg;
     DIT dit;
@@ -405,7 +405,7 @@ void DLG::SelectDit(long idit)
     if (dit.ditk != ditkEditText && dit.ditk != ditkCombo)
     {
     LBug:
-        Bug("bad call to DLG::SelectDit");
+        Bug("bad call to Dialog::SelectDit");
         return;
     }
     Assert(dit.sitLim == dit.sitMin + 1, "wrong lim on edit item");
@@ -416,7 +416,7 @@ void DLG::SelectDit(long idit)
 /***************************************************************************
     Get the value of a radio group.
 ***************************************************************************/
-long DLG::_LwGetRadioGroup(long idit)
+long Dialog::_LwGetRadioGroup(long idit)
 {
     HDLG hdlg;
     DIT dit;
@@ -439,7 +439,7 @@ long DLG::_LwGetRadioGroup(long idit)
 /***************************************************************************
     Change a radio group value.
 ***************************************************************************/
-void DLG::_SetRadioGroup(long idit, long lw)
+void Dialog::_SetRadioGroup(long idit, long lw)
 {
     HDLG hdlg;
     DIT dit;
@@ -456,7 +456,7 @@ void DLG::_SetRadioGroup(long idit, long lw)
 /***************************************************************************
     Returns the current value of a check box.
 ***************************************************************************/
-bool DLG::_FGetCheckBox(long idit)
+bool Dialog::_FGetCheckBox(long idit)
 {
     HDLG hdlg;
     DIT dit;
@@ -473,7 +473,7 @@ bool DLG::_FGetCheckBox(long idit)
 /***************************************************************************
     Invert the value of a check box.
 ***************************************************************************/
-void DLG::_InvertCheckBox(long idit)
+void Dialog::_InvertCheckBox(long idit)
 {
     _SetCheckBox(idit, !_FGetCheckBox(idit));
 }
@@ -481,7 +481,7 @@ void DLG::_InvertCheckBox(long idit)
 /***************************************************************************
     Set the value of a check box.
 ***************************************************************************/
-void DLG::_SetCheckBox(long idit, bool fOn)
+void Dialog::_SetCheckBox(long idit, bool fOn)
 {
     HDLG hdlg;
     DIT dit;
@@ -498,7 +498,7 @@ void DLG::_SetCheckBox(long idit, bool fOn)
 /***************************************************************************
     Get the text from an edit control or combo.
 ***************************************************************************/
-void DLG::_GetEditText(long idit, PSTN pstn)
+void Dialog::_GetEditText(long idit, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -519,7 +519,7 @@ void DLG::_GetEditText(long idit, PSTN pstn)
 /***************************************************************************
     Set the text in an edit control or combo.
 ***************************************************************************/
-void DLG::_SetEditText(long idit, PSTN pstn)
+void Dialog::_SetEditText(long idit, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -538,7 +538,7 @@ void DLG::_SetEditText(long idit, PSTN pstn)
 /***************************************************************************
     Add a string to a combo item.
 ***************************************************************************/
-bool DLG::_FAddToList(long idit, PSTN pstn)
+bool Dialog::_FAddToList(long idit, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -564,7 +564,7 @@ bool DLG::_FAddToList(long idit, PSTN pstn)
 /***************************************************************************
     Empty the list portion of the combo item.
 ***************************************************************************/
-void DLG::_ClearList(long idit)
+void Dialog::_ClearList(long idit)
 {
     AssertThis(0);
     HDLG hdlg;

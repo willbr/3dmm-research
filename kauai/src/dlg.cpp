@@ -13,24 +13,24 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(DLG)
+RTCLASS(Dialog)
 
 /***************************************************************************
     Constructor for a dialog object.
 ***************************************************************************/
-DLG::DLG(long rid) : GG(size(DIT))
+Dialog::Dialog(long rid) : GG(size(DIT))
 {
     _rid = rid;
 }
 
 /***************************************************************************
-    Static method to create a new DLG.  Does NewObj then calls _FInit.
+    Static method to create a new Dialog.  Does NewObj then calls _FInit.
 ***************************************************************************/
-PDLG DLG::PdlgNew(long rid, PFNDLG pfn, void *pv)
+PDLG Dialog::PdlgNew(long rid, PFNDLG pfn, void *pv)
 {
     PDLG pdlg;
 
-    if ((pdlg = NewObj DLG(rid)) == pvNil)
+    if ((pdlg = NewObj Dialog(rid)) == pvNil)
         return pvNil;
 
     pdlg->_pfn = pfn;
@@ -46,7 +46,7 @@ PDLG DLG::PdlgNew(long rid, PFNDLG pfn, void *pv)
     Get the values for [iditMin, iditLim) from the actual dialog and put
     them in the GGDIT.
 ***************************************************************************/
-bool DLG::FGetValues(long iditMin, long iditLim)
+bool Dialog::FGetValues(long iditMin, long iditLim)
 {
     AssertThis(0);
     long idit;
@@ -93,7 +93,7 @@ bool DLG::FGetValues(long iditMin, long iditLim)
     Set the values for [iditMin, iditLim) from the GGDIT into the actual
     dialog.
 ***************************************************************************/
-void DLG::SetValues(long iditMin, long iditLim)
+void Dialog::SetValues(long iditMin, long iditLim)
 {
     AssertThis(0);
     long idit;
@@ -165,7 +165,7 @@ void DLG::SetValues(long iditMin, long iditLim)
 /***************************************************************************
     Get the item number from a system item number.
 ***************************************************************************/
-long DLG::IditFromSit(long sit)
+long Dialog::IditFromSit(long sit)
 {
     long idit;
     DIT dit;
@@ -185,7 +185,7 @@ long DLG::IditFromSit(long sit)
     to change *pidit.  If a nil PFNDLG was specified (in PdlgNew),
     this returns true (dismisses the dialog) on any button hit.
 ***************************************************************************/
-bool DLG::_FDitChange(long *pidit)
+bool Dialog::_FDitChange(long *pidit)
 {
     if (pvNil == _pfn)
     {
@@ -204,7 +204,7 @@ bool DLG::_FDitChange(long *pidit)
 /***************************************************************************
     Get the stn (for an edit item).
 ***************************************************************************/
-void DLG::GetStn(long idit, PSTN pstn)
+void Dialog::GetStn(long idit, PSTN pstn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -228,9 +228,9 @@ void DLG::GetStn(long idit, PSTN pstn)
 }
 
 /***************************************************************************
-    Put the stn into the DLG.
+    Put the stn into the Dialog.
 ***************************************************************************/
-bool DLG::FPutStn(long idit, PSTN pstn)
+bool Dialog::FPutStn(long idit, PSTN pstn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -279,7 +279,7 @@ bool DLG::FPutStn(long idit, PSTN pstn)
 /***************************************************************************
     Get the value of a radio group.
 ***************************************************************************/
-long DLG::LwGetRadio(long idit)
+long Dialog::LwGetRadio(long idit)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -298,7 +298,7 @@ long DLG::LwGetRadio(long idit)
 /***************************************************************************
     Set the value of the radio group.
 ***************************************************************************/
-void DLG::PutRadio(long idit, long lw)
+void Dialog::PutRadio(long idit, long lw)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -316,7 +316,7 @@ void DLG::PutRadio(long idit, long lw)
 /***************************************************************************
     Get the value of a check box.
 ***************************************************************************/
-bool DLG::FGetCheck(long idit)
+bool Dialog::FGetCheck(long idit)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -335,7 +335,7 @@ bool DLG::FGetCheck(long idit)
 /***************************************************************************
     Set the value of a check box item.
 ***************************************************************************/
-void DLG::PutCheck(long idit, bool fOn)
+void Dialog::PutCheck(long idit, bool fOn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -357,7 +357,7 @@ void DLG::PutCheck(long idit, bool fOn)
     is not nil) and returns false.  If the string doesn't parse as a number,
     returns false.
 ***************************************************************************/
-bool DLG::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
+bool Dialog::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -385,7 +385,7 @@ bool DLG::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
 /***************************************************************************
     Put the long into the indicated edit item (in decimal).
 ***************************************************************************/
-bool DLG::FPutLwInEdit(long idit, long lw)
+bool Dialog::FPutLwInEdit(long idit, long lw)
 {
     AssertThis(0);
     STN stn;
@@ -397,7 +397,7 @@ bool DLG::FPutLwInEdit(long idit, long lw)
 /***************************************************************************
     Add the string to the given list item.
 ***************************************************************************/
-bool DLG::FAddToList(long idit, PSTN pstn)
+bool Dialog::FAddToList(long idit, PSTN pstn)
 {
     AssertThis(0);
     long cb, cbTot;
@@ -431,7 +431,7 @@ bool DLG::FAddToList(long idit, PSTN pstn)
 /***************************************************************************
     Empty the list of options for the list item.
 ***************************************************************************/
-void DLG::ClearList(long idit)
+void Dialog::ClearList(long idit)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
