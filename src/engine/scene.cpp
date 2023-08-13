@@ -1650,7 +1650,7 @@ void SCEN::_MoveBackFirstFrame(long nfrm)
  *  vlm - volume to play this sound at
  *  sty - sound type (midi, speech, or SFX)
  *  ctag - number of sounds
- *  prgtag - array of MSND tags
+ *  prgtag - array of MovieSoundMSND tags
  *
  *
  * Returns:
@@ -1802,7 +1802,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
                 continue;
         }
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue;
 
@@ -1835,7 +1835,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
  *  vlm - volume to play this sound at
  *  sty - sound type (midi, speech, or SFX)
  *  ctag - number of sounds
- *  prgtagc - array of MSND tags
+ *  prgtagc - array of MovieSoundMSND tags
  *
  *
  * Returns:
@@ -3412,7 +3412,7 @@ LSuccess:
         Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
         if (vptagm->FCacheTagToHD(&tag))
         {
-            pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+            pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
             if (pvNil != pmsnd)
             {
                 sty = pmsnd->Sty();
@@ -7306,7 +7306,7 @@ void SSE::PlayAllSounds(PMVIE pmvie, ulong dtsStart)
             if (!pmvie->FResolveSndTag(Ptag(itag), *Pchid(itag)))
                 continue;
         }
-        pmsnd = (PMSND)vptagm->PbacoFetch(Ptag(itag), MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(Ptag(itag), MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             return;
 

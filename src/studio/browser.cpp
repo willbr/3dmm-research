@@ -2062,7 +2062,7 @@ bool BRWM::_FUpdateLists(void)
         tag.cno = cki.cno;
 
         // Read the msnd chunk and continue if sty's do not match
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             goto LNext;
 
@@ -2185,7 +2185,7 @@ void BRWM::_ProcessSelection(void)
         return;
     }
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
 
     if (pvNil == pmsnd)
         return;
@@ -2266,7 +2266,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
             long sty;
             if (!pcfl->FGetCkiCtg(kctgMsnd, icki, &cki))
                 goto LEnd;
-            if (!MSND::FGetMsndInfo(pcfl, kctgMsnd, cki.cno, &fInvalid, &sty))
+            if (!MovieSoundMSND::FGetMsndInfo(pcfl, kctgMsnd, cki.cno, &fInvalid, &sty))
                 goto LEnd;
 
             if (!fInvalid && sty == _sty)
@@ -2371,7 +2371,7 @@ bool BRWM::FCmdDel(PCMD pcmd)
     tag.ctg = kctgMsnd;
     _GetThumFromIthum(_ithumSelect, &tag.cno, &sid);
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         return fTrue;
 

@@ -8,18 +8,18 @@
     Primary Authors: *****, *****
     Status:  Reviewed
 
-    A MSND (movie sound) owns a MIDI or WAVE child chunk, and also
+    A MovieSoundMSND (movie sound) owns a MIDI or WAVE child chunk, and also
     specifies what sound type (sty) this sound is, and the default
     volume for the sound.
 
     Here's how the chunks look:
 
-    MSND
+    MovieSoundMSND
      |
      +---MIDI or WAVE (chid 0) // actual sound data
 
-    An MSND chunk with no child is a "no sound" or silent sound.
-    An MSND chunk with _fInvalid set requires no child.
+    An MovieSoundMSND chunk with no child is a "no sound" or silent sound.
+    An MovieSoundMSND chunk with _fInvalid set requires no child.
 
 ***************************************************************************/
 #include "soc.h"
@@ -27,7 +27,7 @@
 
 ASSERTNAME
 
-RTCLASS(MSND)
+RTCLASS(MovieSoundMSND)
 RTCLASS(MSQ)
 
 BEGIN_CMD_MAP(MSQ, CMH)
@@ -43,23 +43,23 @@ const WORD knBlockAlign = 1;
 
 /***************************************************************************
 
-    A PFNRPO to read a MSND from a file
+    A PFNRPO to read a MovieSoundMSND from a file
 
 ***************************************************************************/
-bool MSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MovieSoundMSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    MSND *pmsnd;
+    MovieSoundMSND *pmsnd;
 
-    *pcb = size(MSND); // estimate MSND size
+    *pcb = size(MovieSoundMSND); // estimate MovieSoundMSND size
     if (pvNil == ppbaco)
         return fTrue;
 
-    pmsnd = NewObj MSND();
+    pmsnd = NewObj MovieSoundMSND();
     if (pvNil == pmsnd || !pmsnd->_FInit(pcrf->Pcfl(), ctg, cno))
     {
         TrashVar(ppbaco);
@@ -79,12 +79,12 @@ bool MSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBAC
     Retrieve information contained in the msnd chunk
 
 ***************************************************************************/
-bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
+bool MovieSoundMSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
 {
     AssertPo(pcfl, 0);
 
     PMSND pmsnd;
-    pmsnd = NewObj MSND();
+    pmsnd = NewObj MovieSoundMSND();
     if (pvNil == pmsnd)
         return pvNil;
 
@@ -106,10 +106,10 @@ bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvali
 
 /***************************************************************************
 
-    Init a MSND from the given chunk of the given ChunkyFile
+    Init a MovieSoundMSND from the given chunk of the given ChunkyFile
 
 ***************************************************************************/
-bool MSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool MovieSoundMSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -154,11 +154,11 @@ LFail:
 
 /***************************************************************************
 
-    Write an MSND MIDI chunk to file *pcfl
-    ie, write the MSND chunk, its name, and the midi child
+    Write an MovieSoundMSND MIDI chunk to file *pcfl
+    ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pcflDest, 0);
     AssertPo(pmids, 0);
@@ -198,11 +198,11 @@ LFail:
 
 /***************************************************************************
 
-    Write an MSND Wave file to a file
-    ie, write the MSND chunk, its name, and the midi child
+    Write an MovieSoundMSND Wave file to a file
+    ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
@@ -254,7 +254,7 @@ LFail:
     The *pcno is returned
 
 ***************************************************************************/
-bool MSND::FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn)
+bool MovieSoundMSND::FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
@@ -278,7 +278,7 @@ bool MSND::FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn)
 
     // Create the chunk & write it to this movie
     // Adopt it later as a child of kctgMvie
-    if (!MSND::FWriteMidi(pcflDest, pmids, &stnName, pcno))
+    if (!MovieSoundMSND::FWriteMidi(pcflDest, pmids, &stnName, pcno))
         goto LFail;
 
     ReleasePpo(&pmids);
@@ -294,7 +294,7 @@ LFail:
     Copy the wave file to a chunk in the current movie
 
 ***************************************************************************/
-bool MSND::FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn)
+bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertPo(pcflDest, 0);
@@ -525,7 +525,7 @@ bool MSND::FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, P
             goto LFail;
     }
 
-    if (!MSND::FWriteWave(pfilNew, pcflDest, sty, &stnName, pcno))
+    if (!MovieSoundMSND::FWriteWave(pfilNew, pcflDest, sty, &stnName, pcno))
         goto LFail;
 
     ReleasePpo(&pfilNew);
@@ -559,7 +559,7 @@ LFail:
     Invalidate a sound
 
 ***************************************************************************/
-bool MSND::FInvalidate(void)
+bool MovieSoundMSND::FInvalidate(void)
 {
     AssertThis(0);
 
@@ -588,7 +588,7 @@ bool MSND::FInvalidate(void)
     Clean up and delete this movie sound
 
 ***************************************************************************/
-MSND::~MSND(void)
+MovieSoundMSND::~MovieSoundMSND(void)
 {
     AssertBaseThis(0);
 }
@@ -600,7 +600,7 @@ MSND::~MSND(void)
     Static function
 
 ***************************************************************************/
-long MSND::SqnActr(long sty, long objid)
+long MovieSoundMSND::SqnActr(long sty, long objid)
 {
     AssertIn(sty, 0, styLim);
 
@@ -615,7 +615,7 @@ long MSND::SqnActr(long sty, long objid)
     Static function
 
 ***************************************************************************/
-long MSND::SqnBkgd(long sty, long objid)
+long MovieSoundMSND::SqnBkgd(long sty, long objid)
 {
     long sqnsty = sty << ksqnStyShift;
     return (sqnBkgd | sqnsty | SwLow(objid));
@@ -626,7 +626,7 @@ long MSND::SqnBkgd(long sty, long objid)
     Return the priority for a tool,sty combination
 
 ***************************************************************************/
-long MSND::Spr(long tool)
+long MovieSoundMSND::Spr(long tool)
 {
     AssertThis(0);
     Assert(tool == toolMatcher || tool == toolSounder || tool == toolLooper, "Invalid tool");
@@ -651,7 +651,7 @@ long MSND::Spr(long tool)
             return 6;
         return 4;
     default:
-        Assert(0, "Invalid sty in MSND: Spr");
+        Assert(0, "Invalid sty in MovieSoundMSND: Spr");
     }
     return 0;
 }
@@ -661,7 +661,7 @@ long MSND::Spr(long tool)
     Play this sound
 
 ***************************************************************************/
-void MSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr, ulong dtsStart)
+void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr, ulong dtsStart)
 {
     AssertThis(0);
 
@@ -750,14 +750,14 @@ bool MSQ::FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, l
     if (_dtim == kdtimOffMsq)
         return fTrue;
 
-    sqn = fActr ? MSND::SqnActr(pmsnd->Sty(), objID) : MSND::SqnBkgd(pmsnd->Sty(), objID);
+    sqn = fActr ? MovieSoundMSND::SqnActr(pmsnd->Sty(), objID) : MovieSoundMSND::SqnBkgd(pmsnd->Sty(), objID);
 
     if (!fQueue)
         for (isqe = 0; isqe < _pglsqe->IvMac(); isqe++)
         {
             psqe = (SQE *)_pglsqe->QvGet(isqe);
-            sqnT = psqe->fActr ? MSND::SqnActr(psqe->pmsnd->Sty(), psqe->objID)
-                               : MSND::SqnBkgd(psqe->pmsnd->Sty(), psqe->objID);
+            sqnT = psqe->fActr ? MovieSoundMSND::SqnActr(psqe->pmsnd->Sty(), psqe->objID)
+                               : MovieSoundMSND::SqnBkgd(psqe->pmsnd->Sty(), psqe->objID);
             if (sqnT == sqn)
             {
                 if (fLowPri)
@@ -890,22 +890,22 @@ MSQ::~MSQ(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MSND.
+    Assert the validity of the MovieSoundMSND.
 ***************************************************************************/
-void MSND::AssertValid(ulong grf)
+void MovieSoundMSND::AssertValid(ulong grf)
 {
-    MSND_PAR::AssertValid(fobjAllocated);
+    MovieSoundMSND_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_prca, 0);
     AssertIn(_sty, 0, styLim);
 }
 
 /***************************************************************************
-    Mark memory used by the MSND
+    Mark memory used by the MovieSoundMSND
 ***************************************************************************/
-void MSND::MarkMem(void)
+void MovieSoundMSND::MarkMem(void)
 {
     AssertThis(0);
-    MSND_PAR::MarkMem();
+    MovieSoundMSND_PAR::MarkMem();
     // Note: don't mark _prca, because _prca marks us, and would cause
     // an infinite recursive loop.
 }
@@ -921,7 +921,7 @@ void MSQ::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the MSND
+    Mark memory used by the MovieSoundMSND
 ***************************************************************************/
 void MSQ::MarkMem(void)
 {

@@ -1353,7 +1353,7 @@ void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             // Check that the sound types match
             _pggaev->Get(iaev, &aevsnd);
             _pggaev->Get(iaevNew, &aevsndNew);
-            if (MSND::SqnActr(aevsnd.sty, _arid) != MSND::SqnActr(aevsndNew.sty, _arid))
+            if (MovieSoundMSND::SqnActr(aevsnd.sty, _arid) != MovieSoundMSND::SqnActr(aevsndNew.sty, _arid))
                 continue;
             // Queued sounds need to have multiple events reside in a single frame
             if (aevsndNew.fQueue)

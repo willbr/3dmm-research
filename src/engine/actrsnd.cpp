@@ -75,7 +75,7 @@ bool ACTR::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotion
     long cbVar;
 
     // Verify sound before including in the event list
-    pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MSND::FReadMsnd);
+    pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         goto LFail;
 
@@ -124,7 +124,7 @@ bool ACTR::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotion
 
     // Remove "no sounds" of this sqn between here and the next
     // sound of this sqn
-    sqn = MSND::SqnActr(sty, _arid);
+    sqn = MovieSoundMSND::SqnActr(sty, _arid);
     for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
     {
         AEVSND aevsndT;
@@ -134,7 +134,7 @@ bool ACTR::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotion
         if (aetSnd != paev->aet)
             continue;
         _pggaev->Get(iaev, &aevsndT);
-        if (MSND::SqnActr(aevsndT.sty, _arid) != sqn)
+        if (MovieSoundMSND::SqnActr(aevsndT.sty, _arid) != sqn)
             continue;
 
         // Quit when reach real sound of same sqn
@@ -201,7 +201,7 @@ bool ACTR::_FEnqueueSnd(long iaev)
         _pggaev->Put(iaev, &aevsnd); // Update event
     }
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&aevsnd.tag, MSND::FReadMsnd);
+    pmsnd = (PMSND)vptagm->PbacoFetch(&aevsnd.tag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         goto LFail;
 
@@ -258,7 +258,7 @@ bool ACTR::_FEnqueueSmmInMsq(void)
             _pglsmm->Put(ismm, psmm); // Update event
         }
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(&psmm->aevsnd.tag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(&psmm->aevsnd.tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
         {
             fSuccess = fFalse;
@@ -391,7 +391,7 @@ bool ACTR::_FAddAevDefMm(long anid)
         if (!fSoundExists)
             continue;
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue; // Ignore failure
 

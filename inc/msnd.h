@@ -8,7 +8,7 @@
     Primary Authors: *****, *****
     Status:  Reviewed
 
-    BASE ---> BACO ---> MSND
+    BASE ---> BACO ---> MovieSoundMSND
     BASE ---> CMH  ---> MSQ
 
     NOTE: when the MSQ stops sounds, it does it based on sound class (scl)
@@ -98,10 +98,10 @@ inline void StopAllMovieSounds(void)
     The Movie Sound class
 
 ****************************************/
-typedef class MSND *PMSND;
-#define MSND_PAR BACO
-#define kclsMSND 'MSND'
-class MSND : public MSND_PAR
+typedef class MovieSoundMSND *PMSND;
+#define MovieSoundMSND_PAR BACO
+#define kclsMovieSoundMSND 'MSND'
+class MovieSoundMSND : public MovieSoundMSND_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -129,7 +129,7 @@ class MSND : public MSND_PAR
     static bool FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno);
     static bool FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
     static bool FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno);
-    ~MSND(void);
+    ~MovieSoundMSND(void);
 
     static long SqnActr(long sty, long objID);
     static long SqnBkgd(long sty, long objID);

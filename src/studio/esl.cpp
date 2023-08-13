@@ -1216,7 +1216,7 @@ bool LSND::FValidSnd(void)
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
         _pgltag->Get(itag, &tag);
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue;
         if (!pmsnd->FValid())
@@ -1500,7 +1500,7 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgl
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
         _pgltag->Get(itag, &tag);
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             return fFalse;
         if (!pmsnd->FValid())
@@ -1551,7 +1551,7 @@ void LSND::Play(void)
 
     // Stop sounds that are already playing.  This handles, among other
     // things, a problem that would otherwise occur when changing the
-    // volume of a MIDI sound.  Normally, MSND doesn't restart a MIDI
+    // volume of a MIDI sound.  Normally, MovieSoundMSND doesn't restart a MIDI
     // sound that's currently playing, but we want to force it to
     // restart here.
     StopAllMovieSounds();
@@ -1560,7 +1560,7 @@ void LSND::Play(void)
     {
         _pgltag->Get(itag, &tag);
         // Verify sound before including in the event list
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue; // ignore failure
         Assert(pmsnd->Sty() == _sty, 0);

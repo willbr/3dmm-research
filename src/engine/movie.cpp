@@ -1595,7 +1595,7 @@ bool MVIE::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 /****************************************************
  *
  * Copies a sound file to the movie. (Importing snd)
- * Sounds are written as MSND children of the current
+ * Sounds are written as MovieSoundMSND children of the current
  * scene chunk
  *
  * Parameters:
@@ -1632,12 +1632,12 @@ bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN ps
     pfilSrc->GetFni(&fniSrc);
     if (fniSrc.Ftg() == kftgMidi)
     {
-        if (!MSND::FCopyMidi(pfilSrc, pcfl, pcno, pstn))
+        if (!MovieSoundMSND::FCopyMidi(pfilSrc, pcfl, pcno, pstn))
             goto LFail;
     }
     else
     {
-        if (!MSND::FCopyWave(pfilSrc, pcfl, sty, pcno, pstn))
+        if (!MovieSoundMSND::FCopyWave(pfilSrc, pcfl, sty, pcno, pstn))
             goto LFail;
     }
 
@@ -3645,7 +3645,7 @@ bool MVIE::FScaleActr(BRS brs)
  * Adds a sound to the background
  *
  * Parameters:
- *  ptag - tag to the MSND to insert
+ *  ptag - tag to the MovieSoundMSND to insert
  *  fLoop - play snd over and over?
  *  fQueue - replace existing sounds, or queue afterwards?
  *  vlm - volume to play sound
@@ -3664,7 +3664,7 @@ bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long 
     {
         PMSND pmsnd;
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MSND::FReadMsnd);
+        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
         if (pmsnd == pvNil)
             return fFalse;
         if (vlm == vlmNil)
@@ -3683,7 +3683,7 @@ bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long 
  *
  * Parameters:
  *  pactr - actor to attach sound to
- *  ptag - tag to the MSND to insert
+ *  ptag - tag to the MovieSoundMSND to insert
  *  fLoop - play snd over and over?
  *  fQueue - replace existing sounds, or queue afterwards?
  *  vlm - volume to use (vlmNil -> use pmsnd volume)
