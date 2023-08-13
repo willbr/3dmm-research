@@ -12,7 +12,7 @@
 
         Scene Actor Undo Object (SceneActorUndo)
 
-            BASE ---> UNDB ---> MovieUndo ---> SceneActorUndo
+            BASE ---> UndoBase ---> MovieUndo ---> SceneActorUndo
 
 ***************************************************************************/
 

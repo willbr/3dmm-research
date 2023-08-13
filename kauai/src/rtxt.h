@@ -387,7 +387,7 @@ class RichTextDocument : public RichTextDocument_PAR
     Rich text undo object.
 ***************************************************************************/
 typedef class RichTextUndo *PRichTextUndo;
-#define RichTextUndo_PAR UNDB
+#define RichTextUndo_PAR UndoBase
 #define kclsRichTextUndo 'RTUN'
 class RichTextUndo : public RichTextUndo_PAR
 {

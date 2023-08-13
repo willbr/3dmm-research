@@ -17,27 +17,27 @@
 
         Scene Chop Undo Object (SUNC)
 
-            BASE ---> UNDB ---> MovieUndo ---> SUNC
+            BASE ---> UndoBase ---> MovieUndo ---> SUNC
 
         Scene Background Undo Object (SUNK)
 
-            BASE ---> UNDB ---> MovieUndo ---> SUNK
+            BASE ---> UndoBase ---> MovieUndo ---> SUNK
 
         Scene Pause Undo Object (SUNP)
 
-            BASE ---> UNDB ---> MovieUndo ---> SUNP
+            BASE ---> UndoBase ---> MovieUndo ---> SUNP
 
         Scene Text box Undo Object (SUNX)
 
-            BASE ---> UNDB ---> MovieUndo ---> SUNX
+            BASE ---> UndoBase ---> MovieUndo ---> SUNX
 
         Scene Sound Undo Object (SUNS)
 
-            BASE ---> UNDB ---> MovieUndo ---> SUNS
+            BASE ---> UndoBase ---> MovieUndo ---> SUNS
 
         Scene Title Undo Object (SUNT)
 
-            BASE ---> UNDB ---> MovieUndo ---> SUNT
+            BASE ---> UndoBase ---> MovieUndo ---> SUNT
 
 ***************************************************************************/
 

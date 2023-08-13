@@ -19,16 +19,16 @@
 /***************************************************************************
     base undo class
 ***************************************************************************/
-typedef class UNDB *PUNDB;
-#define UNDB_PAR BASE
-#define kclsUNDB 'UNDB'
-class UNDB : public UNDB_PAR
+typedef class UndoBase *PUndoBase;
+#define UndoBase_PAR BASE
+#define kclsUndoBase 'UNDB'
+class UndoBase : public UndoBase_PAR
 {
     RTCLASS_DEC
-    NOCOPY(UNDB)
+    NOCOPY(UndoBase)
 
   protected:
-    UNDB(void)
+    UndoBase(void)
     {
     }
 
@@ -153,7 +153,7 @@ class DocumentBase : public DocumentBase_PAR
     // General undo funtionality
     virtual bool FUndo(void);
     virtual bool FRedo(void);
-    virtual bool FAddUndo(PUNDB pundb);
+    virtual bool FAddUndo(PUndoBase pundb);
     virtual void ClearUndo(void);
     virtual void ClearRedo(void);
     virtual void SetCundbMax(long cundbMax);

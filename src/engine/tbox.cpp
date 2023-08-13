@@ -168,14 +168,14 @@ class TUND : public TUND_PAR
     ASSERT
 
   protected:
-    PUNDB _pundb;
+    PUndoBase _pundb;
     long _itbox;
     TUND(void)
     {
     }
 
   public:
-    static PTUND PtundNew(PUNDB pundb);
+    static PTUND PtundNew(PUndoBase pundb);
     ~TUND(void);
 
     void SetItbox(long itbox)
@@ -2801,7 +2801,7 @@ void TBOX::SetStartFrame(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FAddUndo(PUNDB pundb)
+bool TBOX::FAddUndo(PUndoBase pundb)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3367,7 +3367,7 @@ void TUNH::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUND TUND::PtundNew(PUNDB pundb)
+PTUND TUND::PtundNew(PUndoBase pundb)
 {
     AssertPo(pundb, 0);
 

@@ -285,7 +285,7 @@ class TBOX : public TBOX_PAR
     // Overridden functions
     //
     void SetDirty(bool fDirty = fTrue);
-    virtual bool FAddUndo(PUNDB pundb);
+    virtual bool FAddUndo(PUndoBase pundb);
     virtual void ClearUndo(void);
     void ParClearUndo(void)
     {

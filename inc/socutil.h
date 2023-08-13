@@ -35,7 +35,7 @@ typedef class Studio *PStudio;
 //
 typedef class MovieUndo *PMovieUndo;
 
-#define MovieUndo_PAR UNDB
+#define MovieUndo_PAR UndoBase
 #define kclsMovieUndo 'MUNB'
 class MovieUndo : public MovieUndo_PAR
 {

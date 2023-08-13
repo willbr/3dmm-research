@@ -17,7 +17,7 @@
 
         Movie Scene actions Undo Object (MUNS)
 
-            BASE ---> UNDB ---> MovieUndo ---> MUNS
+            BASE ---> UndoBase ---> MovieUndo ---> MUNS
 
 
 Note: The client of the movie engine should always do all actions through
@@ -280,7 +280,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Create the GL for holding undo events
     //
-    pmvie->_pglpundb = GL::PglNew(size(PUNDB), 1);
+    pmvie->_pglpundb = GL::PglNew(size(PUndoBase), 1);
     if (pmvie->_pglpundb == pvNil)
     {
         goto LFail;

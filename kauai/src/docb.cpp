@@ -40,7 +40,7 @@ RTCLASS(DMW)
 RTCLASS(DSG)
 RTCLASS(DSSP)
 RTCLASS(DSSM)
-RTCLASS(UNDB)
+RTCLASS(UndoBase)
 
 /***************************************************************************
     Constructor for DocumentBase
@@ -81,7 +81,7 @@ void DocumentBase::Release(void)
 {
     AssertThis(fobjAssertFull);
     PDocumentBase pdocb;
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (--_cactRef > 0)
         return;
@@ -595,7 +595,7 @@ void DocumentBase::UpdateName(void)
 bool DocumentBase::FUndo()
 {
     AssertThis(fobjAssertFull);
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb || _ipundbLimDone <= 0)
         return fFalse;
@@ -613,7 +613,7 @@ bool DocumentBase::FUndo()
 bool DocumentBase::FRedo()
 {
     AssertThis(fobjAssertFull);
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb || _ipundbLimDone >= _pglpundb->IvMac())
         return fFalse;
@@ -630,16 +630,16 @@ bool DocumentBase::FRedo()
     the ref count on the pundb if we keep a reference to it.  Assumes
     the action has already been done.
 ***************************************************************************/
-bool DocumentBase::FAddUndo(PUNDB pundb)
+bool DocumentBase::FAddUndo(PUndoBase pundb)
 {
     AssertThis(fobjAssertFull);
-    PUNDB pundbT;
+    PUndoBase pundbT;
     bool fRet;
 
     if (_cundbMax == 0)
         return fTrue;
 
-    if (pvNil == _pglpundb && pvNil == (_pglpundb = GL::PglNew(size(PUNDB), 1)))
+    if (pvNil == _pglpundb && pvNil == (_pglpundb = GL::PglNew(size(PUndoBase), 1)))
     {
         return fFalse;
     }
@@ -671,7 +671,7 @@ bool DocumentBase::FAddUndo(PUNDB pundb)
 ***************************************************************************/
 void DocumentBase::ClearUndo(void)
 {
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb)
         return;
@@ -686,7 +686,7 @@ void DocumentBase::ClearUndo(void)
 ***************************************************************************/
 void DocumentBase::ClearRedo(void)
 {
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb)
         return;
@@ -706,7 +706,7 @@ void DocumentBase::SetCundbMax(long cundbMax)
     AssertThis(fobjAssertFull);
     AssertIn(cundbMax, 0, kcbMax);
     long ipundbLimNew;
-    PUNDB pundb;
+    PUndoBase pundb;
 
     _cundbMax = cundbMax;
     if (pvNil == _pglpundb || _pglpundb->IvMac() <= cundbMax)
@@ -789,7 +789,7 @@ void DocumentBase::AssertValid(ulong grfdocb)
     long ipddg;
     PDocumentDisplayGraphicsObject pddg;
     long ipundb;
-    PUNDB pundb;
+    PUndoBase pundb;
 
     DocumentBase_PAR::AssertValid(grfdocb & fobjAssertFull);
     AssertNilOrPo(_pglpddg, 0);
@@ -829,7 +829,7 @@ void DocumentBase::AssertValid(ulong grfdocb)
 void DocumentBase::MarkMem(void)
 {
     long ipundb;
-    PUNDB pundb;
+    PUndoBase pundb;
 
     AssertThis(fobjAssertFull);
     DocumentBase_PAR::MarkMem();
