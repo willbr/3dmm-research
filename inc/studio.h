@@ -56,7 +56,7 @@ class Studio : public Studio_PAR
   protected:
     PChunkyResourceManager _pcrm;
     PGST _pgstMisc;
-    PMVIE _pmvie;
+    PMovie _pmvie;
     PSMCC _psmcc;
     PGL _pglpbrcn;
     long _aridSelected;
@@ -191,8 +191,8 @@ class Studio : public Studio_PAR
     // Movie changing
     //
     bool FLoadMovie(PFilename pfni = pvNil, ChunkNumber cno = cnoNil);
-    bool FSetMovie(PMVIE pmvie);
-    PMVIE Pmvie()
+    bool FSetMovie(PMovie pmvie);
+    PMovie Pmvie()
     {
         return _pmvie;
     };

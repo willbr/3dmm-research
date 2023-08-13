@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     TDT, the 3-D Text class, is a derived class of TMPL.  Most clients
-    (ACTR, MVIE, etc) can treat TDTs like regular TMPLs.  But they have
+    (ACTR, Movie, etc) can treat TDTs like regular TMPLs.  But they have
     some extra functionality and work internally very differently from
     TMPLs.  Chunkwise, all the information for a TDT is in the TMPL
     chunk or the single TDT child chunk:

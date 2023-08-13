@@ -704,7 +704,7 @@ class ACLP : public ACLP_PAR
     //
     // Pasting function
     //
-    bool FPaste(PMVIE pmvie);
+    bool FPaste(PMovie pmvie);
 
     bool FRouteOnly(void)
     {

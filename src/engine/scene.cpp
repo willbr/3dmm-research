@@ -152,7 +152,7 @@ struct SSE
     }
     PSSE PsseAddTagChid(PTAG ptag, long chid);
     PSSE PsseDup(void);
-    void PlayAllSounds(PMVIE pmvie, ulong dtsStart = 0);
+    void PlayAllSounds(PMovie pmvie, ulong dtsStart = 0);
     void SwapBytes(void)
     {
         long itagc;
@@ -468,7 +468,7 @@ RTCLASS(SUNR)
  *  None.
  *
  ****************************************************/
-SCEN::SCEN(PMVIE pmvie)
+SCEN::SCEN(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
@@ -496,7 +496,7 @@ SCEN::SCEN(PMVIE pmvie)
  *  pvNil, on failure, else a pointer to an allocated SCEN object.
  *
  ****************************************************/
-PSCEN SCEN::PscenNew(PMVIE pmvie)
+PSCEN SCEN::PscenNew(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
@@ -3757,7 +3757,7 @@ bool SCEN::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-SCEN *SCEN::PscenRead(PMVIE pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
+SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
@@ -5036,7 +5036,7 @@ void SCEN::_MarkMovieDirty()
  *  None.
  *
  ****************************************************/
-void SCEN::SetMvie(PMVIE pmvie)
+void SCEN::SetMvie(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
@@ -7293,7 +7293,7 @@ PSSE SSE::PsseDup(void)
 /***************************************************************************
     Play all sounds in this SSE	-> Enqueue the sounds in the SSE
 ***************************************************************************/
-void SSE::PlayAllSounds(PMVIE pmvie, ulong dtsStart)
+void SSE::PlayAllSounds(PMovie pmvie, ulong dtsStart)
 {
     PMSND pmsnd;
     long itag;

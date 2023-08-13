@@ -89,7 +89,7 @@ PStudio Studio::PstdioNew(long hid, PChunkyResourceManager pcrmStudio, PFilename
 
     bool fSuccess = fFalse;
     PStudio pstdio;
-    PMVIE pmvie = pvNil;
+    PMovie pmvie = pvNil;
     GraphicsObjectBlock gcb;
     DataBlock blck;
 
@@ -366,7 +366,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
 
     bool fRet = fFalse;
     PMVU pmvu;
-    PMVIE pmvie = pvNil, pmvieOld = pvNil;
+    PMovie pmvie = pvNil, pmvieOld = pvNil;
     PBKGD pbkgd = pvNil;
 
 #ifdef BUG1959
@@ -398,7 +398,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
         }
     }
 
-    pmvie = MVIE::PmvieNew(vpapp->FSlowCPU(), _psmcc, pfni, cno);
+    pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), _psmcc, pfni, cno);
     if (pmvie == pvNil)
     {
         ReleasePpo(&pmvieOld);
@@ -467,7 +467,7 @@ LFail:
  *  fTrue if it was succesful, else fFalse.
  *
  **************************************************************************/
-bool Studio::FSetMovie(PMVIE pmvie)
+bool Studio::FSetMovie(PMovie pmvie)
 {
     AssertPo(pmvie, 0);
 
@@ -1182,7 +1182,7 @@ bool Studio::FCmdCreatePopup(PCMD pcmd)
 
     ckiRoot.cno = cnoNil;
 
-    Assert(_pmvie != pvNil, "No current MVIE");
+    Assert(_pmvie != pvNil, "No current Movie");
     Assert(_pmvie->Pscen() != pvNil, "No current SCEN");
     if ((ptbox = _pmvie->Pscen()->PtboxSelected()) != pvNil)
         ptbox->FetchChpSel(&chp, &grfchp);

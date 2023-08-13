@@ -84,7 +84,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
 
     PMovieClientCallbacks pmcc;
     Filename fni;
-    PMVIE pmvie = pvNil;
+    PMovie pmvie = pvNil;
     PGraphicsObject pgob;
     GraphicsObjectBlock gcb;
 
@@ -112,7 +112,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
                                            // Note: could clear out the RAM cache too, but I'm keeping this change
                                            // as small as possible.
 #endif                                     // BUG1907
-    pmvie = MVIE::PmvieNew(vpapp->FSlowCPU(), pmcc, &fni, cnoNil);
+    pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), pmcc, &fni, cnoNil);
     if (pmvie == pvNil)
         goto LFail;
     ReleasePpo(&pmcc);

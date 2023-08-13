@@ -2684,7 +2684,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
     AssertPo(pgnvDst, 0);
     AssertVarMem(prcDst);
 
-    PMVIE pmvie = _Pmvie(); // Get the current movie, if any
+    PMovie pmvie = _Pmvie(); // Get the current movie, if any
     PGraphicsObject pgob;
     RC rcDst, rcSrc, rcWorkspace;
 
@@ -3213,11 +3213,11 @@ void APP::Quit(bool fForce)
     Return a pointer to the current movie, if any.  The movie could be in
     the studio, theater, or splot machine.
 ***************************************************************************/
-PMVIE APP::_Pmvie(void)
+PMovie APP::_Pmvie(void)
 {
     AssertBaseThis(0);
 
-    PMVIE pmvie = pvNil;
+    PMovie pmvie = pvNil;
     PSPLOT psplot;
 
     if (_pstdio != pvNil && _pstdio->Pmvie() != pvNil)
@@ -3278,7 +3278,7 @@ char *LoadGenResource(HINSTANCE hInst, LPCSTR lpResource, LPCSTR lpType)
 bool APP::FCmdInfo(PCMD pcmd)
 {
     AssertThis(0);
-    PMVIE pmvie = pvNil;
+    PMovie pmvie = pvNil;
     PDLG pdlg;
     long idit;
     bool fRunInWindowNew;
@@ -3333,7 +3333,7 @@ bool APP::FCmdInfo(PCMD pcmd)
     fSaveChanges = pdlg->FGetCheck(iditSaveChanges);
     if (FPure(_fSlowCPU) != FPure(pdlg->LwGetRadio(iditRenderModeInfo)))
     {
-        PMVIE pmvie;
+        PMovie pmvie;
 
         _fSlowCPU = !_fSlowCPU;
         pmvie = _Pmvie();
@@ -4165,7 +4165,7 @@ void APP::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT 
 {
     AssertBaseThis(0);
 
-    PMVIE pmvie;
+    PMovie pmvie;
 
     pmvie = _Pmvie();
 
@@ -4188,7 +4188,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
     AssertBaseThis(0); // APP may not be completely valid
 
-    PMVIE pmvie;
+    PMovie pmvie;
 
     pmvie = _Pmvie();
 
@@ -4472,7 +4472,7 @@ bool APP::FCmdInvokeSplot(PCMD pcmd)
 /***************************************************************************
     Handoff a movie to the app so it can pass it on to the studio
 ***************************************************************************/
-void APP::HandoffMovie(PMVIE pmvie)
+void APP::HandoffMovie(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
@@ -4485,11 +4485,11 @@ void APP::HandoffMovie(PMVIE pmvie)
 /***************************************************************************
     Grab the APP movie
 ***************************************************************************/
-PMVIE APP::PmvieRetrieve(void)
+PMovie APP::PmvieRetrieve(void)
 {
     AssertThis(0);
 
-    PMVIE pmvie = _pmvieHandoff;
+    PMovie pmvie = _pmvieHandoff;
 
     _pmvieHandoff = pvNil; //  Caller now owns this pointer
     return pmvie;

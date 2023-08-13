@@ -22,7 +22,7 @@ class SPLOT : public SPLOT_PAR
 
   private:
     /* The movie */
-    PMVIE _pmvie;
+    PMovie _pmvie;
 
     /* The lists of content */
     PBCL _pbclBkgd;
@@ -64,7 +64,7 @@ class SPLOT : public SPLOT_PAR
     bool FCmdUpdate(PCMD pcmd);
     bool FCmdDismiss(PCMD pcmd);
 
-    PMVIE Pmvie(void)
+    PMovie Pmvie(void)
     {
         return _pmvie;
     }

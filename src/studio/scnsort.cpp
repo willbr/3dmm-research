@@ -112,7 +112,7 @@ SCRT::~SCRT(void)
     Returns: the pointer to the new SCRT, pvNil if the routine fails
 
 ************************************************************ PETED ***********/
-PSCRT SCRT::PscrtNew(long hid, PMVIE pmvie, PStudio pstdio, PRCA prca)
+PSCRT SCRT::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PRCA prca)
 {
     AssertPo(pmvie, 0);
     AssertPo(pstdio, 0);
@@ -489,14 +489,14 @@ bool SCRT::FCmdPortfolio(PCMD pcmd)
 
     Filename fni;
     MovieClientCallbacks mcc(2, 2, 0);
-    PMVIE pmvie = pvNil;
+    PMovie pmvie = pvNil;
 
     if (!_pstdio->FGetFniMovieOpen(&fni))
         goto LFail;
 
     /* Specific reasons for failures are reported by lower-level routines.
         There should be no reason to display an error here. */
-    pmvie = MVIE::PmvieNew(vpapp->FSlowCPU(), &mcc, &fni, cnoNil);
+    pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), &mcc, &fni, cnoNil);
     if (pmvie == pvNil)
         goto LFail;
 

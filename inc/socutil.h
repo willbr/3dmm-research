@@ -20,7 +20,7 @@ extern "C"
 
 typedef class ACTR *PACTR;
 typedef class SCEN *PSCEN;
-typedef class MVIE *PMVIE;
+typedef class Movie *PMovie;
 typedef class BKGD *PBKGD;
 typedef class TBOX *PTBOX;
 typedef class MVIEW *PMVIEW;
@@ -31,7 +31,7 @@ typedef class Studio *PStudio;
 // Class for undo items in a movie
 //
 // NOTE: All the "Set" functions are done automagically
-// in MVIE::FAddUndo().
+// in Movie::FAddUndo().
 //
 //
 typedef class MUNB *PMUNB;
@@ -44,7 +44,7 @@ class MUNB : public MUNB_PAR
     ASSERT
 
   protected:
-    PMVIE _pmvie;
+    PMovie _pmvie;
     long _iscen;
     long _nfrm;
 
@@ -53,11 +53,11 @@ class MUNB : public MUNB_PAR
     }
 
   public:
-    void SetPmvie(PMVIE pmvie)
+    void SetPmvie(PMovie pmvie)
     {
         _pmvie = pmvie;
     }
-    PMVIE Pmvie(void)
+    PMovie Pmvie(void)
     {
         return _pmvie;
     }

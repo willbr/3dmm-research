@@ -58,21 +58,21 @@ class StudioScrollbars : public StudioScrollbars_PAR
     long _itsNext;
 #endif // SHOW_FPS
 
-    PMVIE _pmvie;
-    StudioScrollbars(PMVIE pmvie);
+    PMovie _pmvie;
+    StudioScrollbars(PMovie pmvie);
 
   public:
     //
     //	Constructors and destructors
     //
-    static PStudioScrollbars PsscbNew(PMVIE pmvie);
+    static PStudioScrollbars PsscbNew(PMovie pmvie);
     ~StudioScrollbars(void);
 
     //
     //	Notification
     //
     virtual void Update(void);
-    void SetMvie(PMVIE pmvie);
+    void SetMvie(PMovie pmvie);
     void StartNoAutoadjust(void);
     void EndNoAutoadjust(void)
     {

@@ -15,9 +15,9 @@
 
                 BASE 	--->	MovieClientCallbacks
 
-        A single movie (MVIE)
+        A single movie (Movie)
 
-                DOCB	--->	MVIE
+                DOCB	--->	Movie
 
 ***************************************************************************/
 
@@ -153,7 +153,7 @@ class MVU : public MVU_PAR
     bool _fCyclingCels; // Are we cycling cels in toolRecord?
     long _tool;         // Current tool loaded on cursor
 
-    // REVIEW Seanse(SeanSe): MVIE should not be creating/mucking with actor undo
+    // REVIEW Seanse(SeanSe): Movie should not be creating/mucking with actor undo
     //   objects.  V2.666 should revisit this issue and see if we can get ACTR to
     //   do all its own undo objects (e.g. Growing over a long drag could become
     //   a StartGrow/Grow/EndGrow sequence).  This also effects _pactrRestore.
@@ -206,15 +206,15 @@ class MVU : public MVU_PAR
     //
     // Constructors and desctructors
     //
-    static MVU *PmvuNew(PMVIE pmvie, PGCB pgcb, long dxy, long dyp);
+    static MVU *PmvuNew(PMovie pmvie, PGCB pgcb, long dxy, long dyp);
     ~MVU(void);
 
     //
     // Accessor for getting the owning movie
     //
-    PMVIE Pmvie()
+    PMovie Pmvie()
     {
-        return (PMVIE)_pdocb;
+        return (PMovie)_pdocb;
     }
 
     //
@@ -515,8 +515,8 @@ typedef struct _scend
 typedef struct _mvied
 {
     PChunkyResourceFile pcrf;    // the file this scene's movie is in
-    ChunkNumber cno;      // ChunkNumber of the MVIE chunk
-    long aridLim; // _aridLim from the MVIE
+    ChunkNumber cno;      // ChunkNumber of the Movie chunk
+    long aridLim; // _aridLim from the Movie
 } MVIED, *PMVIED;
 
 /* A Composite MoVIe */
@@ -539,16 +539,16 @@ typedef struct _cmvi
 
 const long kccamMax = 9;
 
-typedef class MVIE *PMVIE;
+typedef class Movie *PMovie;
 
-#define MVIE_PAR DOCB
-#define kclsMVIE 'MVIE'
-class MVIE : public MVIE_PAR
+#define Movie_PAR DOCB
+#define kclsMovie 'MVIE'
+class Movie : public Movie_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
-    CMD_MAP_DEC(MVIE)
+    CMD_MAP_DEC(Movie)
 
   protected:
     long _aridLim; // Highest actor id in use.
@@ -599,7 +599,7 @@ class MVIE : public MVIE_PAR
     PGL _pglclrThumbPalette; // Palette to use for thumbnail rendering.
 
   private:
-    MVIE(void);
+    Movie(void);
     PTAGL _PtaglFetch(void);                      // Returns a list of all tags used in movie
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
@@ -641,7 +641,7 @@ class MVIE : public MVIE_PAR
     //
     // Create and Destroy
     //
-    static PMVIE PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
+    static PMovie PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
     static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim = pvNil);
@@ -657,7 +657,7 @@ class MVIE : public MVIE_PAR
         return FPure(_fReadOnly);
     }
 
-    ~MVIE(void);
+    ~Movie(void);
 
     //
     // MovieClientCallbacks maintenance

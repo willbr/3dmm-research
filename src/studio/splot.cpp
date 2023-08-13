@@ -109,7 +109,7 @@ bool SPLOT::FCmdInit(PCMD pcmd)
     if (pmcc == pvNil)
         goto LFail;
 
-    if ((_pmvie = MVIE::PmvieNew(vpapp->FSlowCPU(), pmcc)) == pvNil)
+    if ((_pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), pmcc)) == pvNil)
         goto LFail;
 
     _pmvie->SetFSoundsEnabled(fTrue);

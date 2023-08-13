@@ -105,7 +105,7 @@ class APP : public APP_PAR
         _fInPortfolio : 1; // Is the portfolio active?
     PCEX _pcex;            // Pointer to suspended cex.
     Filename _fniPortfolioDoc;  // document last opened in portfolio
-    PMVIE _pmvieHandoff;   // Stores movie for studio to use
+    PMovie _pmvieHandoff;   // Stores movie for studio to use
     PKWA _pkwa;            // Kidworld for App
     PGST _pgstBuildingFiles;
     PGST _pgstStudioFiles;
@@ -188,7 +188,7 @@ class APP : public APP_PAR
     bool _FDisplayIs640480(void);
     bool _FShowSplashScreen(void);
     bool _FPlaySplashSound(void);
-    PMVIE _Pmvie(void);
+    PMovie _Pmvie(void);
     void _CleanupTemp(void);
 #ifdef WIN
     bool _FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc);
@@ -357,8 +357,8 @@ class APP : public APP_PAR
                        bool *pfNoValue = pvNil);
 
     // Movie handoff routines
-    void HandoffMovie(PMVIE pmvie);
-    PMVIE PmvieRetrieve(void);
+    void HandoffMovie(PMovie pmvie);
+    PMovie PmvieRetrieve(void);
 
     // Determines whether screen savers should be blocked.
     virtual bool FAllowScreenSaver(void);

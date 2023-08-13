@@ -647,7 +647,7 @@ void BRWR::_ApplySelection(long thumSelect, long sid)
     AssertThis(0);
 
     PMVU pmvu;
-    PMVIE pmvie = _pstdio->Pmvie();
+    PMovie pmvie = _pstdio->Pmvie();
     long arid;
     STN stn;
     long cactRef;

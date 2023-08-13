@@ -37,7 +37,7 @@ class TATR : public TATR_PAR
 
   protected:
     long _kidParent; // ID of gob parent of MVU
-    PMVIE _pmvie;    // Currently loaded movie
+    PMovie _pmvie;    // Currently loaded movie
 
   protected:
     TATR(long hid) : CMH(hid)
@@ -54,7 +54,7 @@ class TATR : public TATR_PAR
     bool FCmdStop(PCMD pcmd);
     bool FCmdRewind(PCMD pcmd);
 
-    PMVIE Pmvie(void)
+    PMovie Pmvie(void)
     {
         return _pmvie;
     }

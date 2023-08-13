@@ -982,7 +982,7 @@ ACLP::~ACLP(void)
     Pastes an actor clipboard object
 
 ***************************************************************************/
-bool ACLP::FPaste(PMVIE pmvie)
+bool ACLP::FPaste(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);

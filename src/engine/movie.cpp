@@ -21,7 +21,7 @@
 
 
 Note: The client of the movie engine should always do all actions through
-MVIE level APIs, it should never use accessor functions to maniplate Scenes,
+Movie level APIs, it should never use accessor functions to maniplate Scenes,
 Actors, Text boxes, etc.
 
 ***************************************************************************/
@@ -128,13 +128,13 @@ class MUNS : public MUNS_PAR
 //
 //
 
-RTCLASS(MVIE)
+RTCLASS(Movie)
 RTCLASS(MUNB)
 RTCLASS(MUNS)
 
-BEGIN_CMD_MAP(MVIE, CMH)
-ON_CID_ME(cidAlarm, &MVIE::FCmdAlarm, pvNil)
-ON_CID_ME(cidRender, &MVIE::FCmdRender, pvNil)
+BEGIN_CMD_MAP(Movie, CMH)
+ON_CID_ME(cidAlarm, &Movie::FCmdAlarm, pvNil)
+ON_CID_ME(cidRender, &Movie::FCmdRender, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
@@ -189,7 +189,7 @@ const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
  * for public construction.
  *
  ****************************************************/
-MVIE::MVIE(void) : _clok(khidMvieClock)
+Movie::Movie(void) : _clok(khidMvieClock)
 {
     _aridLim = 0;
     _cno = cnoNil;
@@ -210,7 +210,7 @@ MVIE::MVIE(void) : _clok(khidMvieClock)
         fFalse if the FIL wasn't found.
 
 ************************************************************ PETED ***********/
-bool MVIE::_FSetPfilSave(PFilename pfni)
+bool Movie::_FSetPfilSave(PFilename pfni)
 {
     AssertBaseThis(0);
     AssertPo(pfni, 0);
@@ -252,13 +252,13 @@ bool MVIE::_FSetPfilSave(PFilename pfni)
  *  pvNil if failure, else a pointer to the movie object.
  *
  ****************************************************/
-PMVIE MVIE::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni, ChunkNumber cno)
+PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni, ChunkNumber cno)
 {
     AssertNilOrPo(pfni, 0);
     AssertPo(pmcc, 0);
 
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
-    PMVIE pmvie;
+    PMovie pmvie;
     ChildChunkIdentification kid;
     ChildChunkID chid;
     TAGL *ptagl;
@@ -271,7 +271,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni,
     //
     // Create the movie object
     //
-    pmvie = NewObj MVIE;
+    pmvie = NewObj Movie;
     if (pmvie == pvNil)
     {
         goto LFail;
@@ -452,7 +452,7 @@ LFail:
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim)
+bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim)
 {
     AssertPo(pcrf, 0);
     AssertVarMem(ppgst);
@@ -503,7 +503,7 @@ LFail:
         Ensures that the data has been written to disk.
 
 ************************************************************ PETED ***********/
-void MVIE::Flush(void)
+void Movie::Flush(void)
 {
     if (_fFniSaveValid)
     {
@@ -525,7 +525,7 @@ void MVIE::Flush(void)
  *    bool fPurgeAll -- if fFalse, only purge invalid sounds
  *
  ****************************************************/
-void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
+void Movie::_DoSndGarbageCollection(bool fPurgeAll)
 {
     AssertThis(0);
 
@@ -576,7 +576,7 @@ void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
  * Destructor for movies.
  *
  ****************************************************/
-MVIE::~MVIE(void)
+Movie::~Movie(void)
 {
     AssertBaseThis(0);
 
@@ -651,7 +651,7 @@ MVIE::~MVIE(void)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the MVIE
+ * Mark memory used by the Movie
  *
  * Parameters:
  * 	None.
@@ -660,11 +660,11 @@ MVIE::~MVIE(void)
  *  None.
  *
  ****************************************************/
-void MVIE::MarkMem(void)
+void Movie::MarkMem(void)
 {
     AssertThis(0);
 
-    MVIE_PAR::MarkMem();
+    Movie_PAR::MarkMem();
 
     MarkMemObj(_pcrfAutoSave);
 
@@ -685,7 +685,7 @@ void MVIE::MarkMem(void)
 
 /***************************************************************************
  *
- * Assert the validity of the MVIE.
+ * Assert the validity of the Movie.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -694,9 +694,9 @@ void MVIE::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::AssertValid(ulong grf)
+void Movie::AssertValid(ulong grf)
 {
-    MVIE_PAR::AssertValid(fobjAllocated);
+    Movie_PAR::AssertValid(fobjAllocated);
 
     AssertNilOrPo(_pcrfAutoSave, 0);
     AssertPo(_pgstmactr, 0);
@@ -709,7 +709,7 @@ void MVIE::AssertValid(ulong grf)
 
 /***************************************************************************
  *
- * Returns a list of all tags being used by this MVIE
+ * Returns a list of all tags being used by this Movie
  *
  * Parameters:
  *	None.
@@ -718,7 +718,7 @@ void MVIE::AssertValid(ulong grf)
  *  A TAGL (list of tags that the movie uses)
  *
  **************************************************************************/
-PTAGL MVIE::_PtaglFetch(void)
+PTAGL Movie::_PtaglFetch(void)
 {
     AssertThis(0);
     Assert(_pcrfAutoSave != pvNil, "need pcrfAutosave");
@@ -760,7 +760,7 @@ PTAGL MVIE::_PtaglFetch(void)
  *	 fTrue if successful, else fFalse if out of range.
  *
  ****************************************************/
-bool MVIE::FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef, PTAG ptagTmpl)
+bool Movie::FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef, PTAG ptagTmpl)
 {
     AssertThis(0);
     AssertPvCb(parid, size(long));
@@ -796,7 +796,7 @@ bool MVIE::FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef, PTAG pta
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FChooseArid(long arid)
+bool Movie::FChooseArid(long arid)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -892,7 +892,7 @@ bool MVIE::FChooseArid(long arid)
  *   Arid of the selected actor, else aridNil.
  *
  ****************************************************/
-long MVIE::AridSelected(void)
+long Movie::AridSelected(void)
 {
     AssertThis(0);
 
@@ -918,7 +918,7 @@ long MVIE::AridSelected(void)
  *	 fTrue if successful, else fFalse if failure.
  *
  ****************************************************/
-bool MVIE::FGetName(long arid, PSTN pstn)
+bool Movie::FGetName(long arid, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -951,7 +951,7 @@ bool MVIE::FGetName(long arid, PSTN pstn)
  *	 fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FNameActr(long arid, PSTN pstn)
+bool Movie::FNameActr(long arid, PSTN pstn)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
@@ -992,7 +992,7 @@ bool MVIE::FNameActr(long arid, PSTN pstn)
  *	 bool
  *
  ****************************************************/
-bool MVIE::FIsPropBrwsIarid(long iarid)
+bool Movie::FIsPropBrwsIarid(long iarid)
 {
     AssertThis(0);
     AssertIn(iarid, 0, _pgstmactr->IvMac());
@@ -1013,7 +1013,7 @@ bool MVIE::FIsPropBrwsIarid(long iarid)
  *	 bool
  *
  ****************************************************/
-bool MVIE::FIsIaridTdt(long iarid)
+bool Movie::FIsIaridTdt(long iarid)
 {
     AssertThis(0);
     AssertIn(iarid, 0, _pgstmactr->IvMac());
@@ -1035,7 +1035,7 @@ bool MVIE::FIsIaridTdt(long iarid)
  *	 none
  *
  ****************************************************/
-void MVIE::ChangeActrTag(long arid, PTAG ptag)
+void Movie::ChangeActrTag(long arid, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
@@ -1072,7 +1072,7 @@ void MVIE::ChangeActrTag(long arid, PTAG ptag)
  *   fTrue if successful, else fFalse indicating out of resources.
  *
  ****************************************************/
-bool MVIE::FAddToRollCall(ACTR *pactr, PSTN pstn)
+bool Movie::FAddToRollCall(ACTR *pactr, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -1154,7 +1154,7 @@ bool MVIE::FAddToRollCall(ACTR *pactr, PSTN pstn)
  *   None.
  *
  ****************************************************/
-void MVIE::RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef)
+void Movie::RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -1206,7 +1206,7 @@ void MVIE::RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef)
  *  same scene is still open (if possible).
  *
  ****************************************************/
-bool MVIE::FSwitchScen(long iscen)
+bool Movie::FSwitchScen(long iscen)
 {
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
@@ -1329,7 +1329,7 @@ LRetry:
  *  fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FNewScenInsCore(long iscen)
+bool Movie::FNewScenInsCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
@@ -1367,7 +1367,7 @@ bool MVIE::FNewScenInsCore(long iscen)
  *  None.
  *
  ****************************************************/
-void MVIE::_MoveChids(ChildChunkID chid, bool fDown)
+void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
 
@@ -1404,18 +1404,18 @@ void MVIE::_MoveChids(ChildChunkID chid, bool fDown)
 
 /******************************************************************************
     _FIsChild
-        Enumerates the children of the MVIE chunk and reports whether the
-        given (ctg, cno) chunk is an actual child of the MVIE chunk.
+        Enumerates the children of the Movie chunk and reports whether the
+        given (ctg, cno) chunk is an actual child of the Movie chunk.
 
     Arguments:
         PCFL pcfl  --  the file on which to check
         ChunkTag ctg    --  these are self-explanatory
         ChunkNumber cno
 
-    Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the MVIE
+    Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the Movie
 
 ************************************************************ PETED ***********/
-bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Movie::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;
@@ -1454,7 +1454,7 @@ bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
  * success or failure
  *
  ****************************************************/
-bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
+bool Movie::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1507,7 +1507,7 @@ LFail:
  * Updated *ptag
  *
  ****************************************************/
-bool MVIE::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
+bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -1560,7 +1560,7 @@ bool MVIE::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PCh
  * Updated *pchid
  *
  ****************************************************/
-bool MVIE::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
+bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 {
     AssertThis(0);
     AssertVarMem(pchid);
@@ -1606,7 +1606,7 @@ bool MVIE::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN pstn)
+bool Movie::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN pstn)
 {
     AssertThis(0);
     AssertVarMem(pfilSrc);
@@ -1673,7 +1673,7 @@ LFail:
  *	*pcnoDest
  *
  ****************************************************/
-bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
+bool Movie::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
     AssertBaseThis(0);
     AssertPo(pcflSrc, 0);
@@ -1718,7 +1718,7 @@ bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcno
  *  unique chid for new msnd chunk child of scene
  *
  ****************************************************/
-ChildChunkID MVIE::_ChidScenNewSnd(void)
+ChildChunkID Movie::_ChidScenNewSnd(void)
 {
     AssertBaseThis(0);
     PCFL pcfl = _pcrfAutoSave->Pcfl();
@@ -1750,7 +1750,7 @@ ChildChunkID MVIE::_ChidScenNewSnd(void)
  *  unique chid for new msnd chunk child of scene
  *
  ****************************************************/
-ChildChunkID MVIE::_ChidMvieNewSnd(void)
+ChildChunkID Movie::_ChidMvieNewSnd(void)
 {
     AssertBaseThis(0);
     PCFL pcfl = _pcrfAutoSave->Pcfl();
@@ -1780,9 +1780,9 @@ ChildChunkID MVIE::_ChidMvieNewSnd(void)
  *  *pcno updated
  *
  ****************************************************/
-bool MVIE::FVerifyVersion(PCFL pcfl, ChunkNumber *pcno)
+bool Movie::FVerifyVersion(PCFL pcfl, ChunkNumber *pcno)
 {
-    AssertBaseThis(0); // MVIE hasn't been loaded yet
+    AssertBaseThis(0); // Movie hasn't been loaded yet
     AssertPo(pcfl, 0);
 
     ChildChunkIdentification kid;
@@ -1836,7 +1836,7 @@ bool MVIE::FVerifyVersion(PCFL pcfl, ChunkNumber *pcno)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FRemScenCore(long iscen)
+bool Movie::FRemScenCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
@@ -1952,7 +1952,7 @@ bool MVIE::FRemScenCore(long iscen)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FRemScen(long iscen)
+bool Movie::FRemScen(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
@@ -2026,7 +2026,7 @@ bool MVIE::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
+bool Movie::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
 {
     AssertThis(0);
     AssertPo(pmtrl, 0);
@@ -2072,7 +2072,7 @@ bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-bool MVIE::FEnsureAutosave(PChunkyResourceFile *ppcrf)
+bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
 {
     AssertThis(0);
 
@@ -2107,7 +2107,7 @@ bool MVIE::FEnsureAutosave(PChunkyResourceFile *ppcrf)
  *  fTrue if success, fFalse if couldn't add the TDT
  *
  ****************************************************/
-bool MVIE::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2179,7 +2179,7 @@ bool MVIE::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
  *  fTrue if success, fFalse if couldn't change the TDT
  *
  ****************************************************/
-bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2292,7 +2292,7 @@ bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
  *  fTrue if success, fFalse if couldn't autosave
  *
  ****************************************************/
-bool MVIE::_FCloseCurrentScene(void)
+bool Movie::_FCloseCurrentScene(void)
 {
     AssertThis(0);
 
@@ -2321,7 +2321,7 @@ bool MVIE::_FCloseCurrentScene(void)
  *  fTrue if success, fFalse if couldn't switch
  *
  ****************************************************/
-bool MVIE::_FUseTempFile(void)
+bool Movie::_FUseTempFile(void)
 {
     AssertThis(0);
 
@@ -2371,7 +2371,7 @@ bool MVIE::_FUseTempFile(void)
  *  fTrue if success, fFalse if couldn't switch
  *
  ****************************************************/
-bool MVIE::_FMakeCrfValid(void)
+bool Movie::_FMakeCrfValid(void)
 {
     AssertThis(0);
 
@@ -2437,7 +2437,7 @@ bool MVIE::_FMakeCrfValid(void)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FAutoSave(PFilename pfni, bool fCleanRollCall)
+bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
 {
     AssertThis(0);
     AssertNilOrPo(_pcrfAutoSave, 0);
@@ -2744,7 +2744,7 @@ LFail0:
  *  fTrue on success, fFalse on failure
  *
  ****************************************************/
-bool MVIE::_FDoGarbageCollection(PCFL pcfl)
+bool Movie::_FDoGarbageCollection(PCFL pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2771,7 +2771,7 @@ bool MVIE::_FDoGarbageCollection(PCFL pcfl)
  *  fTrue on success, fFalse on failure
  *
  ****************************************************/
-bool MVIE::_FDoMtrlTmplGC(PCFL pcfl)
+bool Movie::_FDoMtrlTmplGC(PCFL pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2865,7 +2865,7 @@ LFail:
  *  pfni filled in.
  *
  ****************************************************/
-bool MVIE::FGetFni(Filename *pfni)
+bool Movie::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
@@ -2889,7 +2889,7 @@ bool MVIE::FGetFni(Filename *pfni)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FSave(long cid)
+bool Movie::FSave(long cid)
 {
     AssertThis(0);
 
@@ -2900,7 +2900,7 @@ bool MVIE::FSave(long cid)
         cid = cidSaveAs;
 
     // Now take the default action.
-    return MVIE_PAR::FSave(cid);
+    return Movie_PAR::FSave(cid);
 }
 
 /****************************************************
@@ -2915,7 +2915,7 @@ bool MVIE::FSave(long cid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FSaveToFni(Filename *pfni, bool fSetFni)
+bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
@@ -2973,7 +2973,7 @@ bool MVIE::FSaveToFni(Filename *pfni, bool fSetFni)
  *  FALSE - User canceled, (or other error).
  *
  ***************************************************************************/
-bool MVIE::FGetFniSave(Filename *pfni)
+bool Movie::FGetFniSave(Filename *pfni)
 {
     AssertThis(0);
     AssertVarMem(pfni);
@@ -2993,7 +2993,7 @@ bool MVIE::FGetFniSave(Filename *pfni)
  *  A pointer to the view, otw pvNil on failure
  *
  ****************************************************/
-PDDG MVIE::PddgNew(PGCB pgcb)
+PDDG Movie::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     AssertVarMem(pgcb);
@@ -3012,7 +3012,7 @@ PDDG MVIE::PddgNew(PGCB pgcb)
  *  pvNil
  *
  ****************************************************/
-PDMD MVIE::PdmdNew(void)
+PDMD Movie::PdmdNew(void)
 {
     Bug("Movie does not support DMDs, use multiple DDGs.");
     return (pvNil);
@@ -3029,7 +3029,7 @@ PDMD MVIE::PdmdNew(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FAddUndo(PMUNB pmunb)
+bool Movie::FAddUndo(PMUNB pmunb)
 {
     AssertThis(0);
 
@@ -3064,11 +3064,11 @@ bool MVIE::FAddUndo(PMUNB pmunb)
  *  None.
  *
  ****************************************************/
-void MVIE::ClearUndo(void)
+void Movie::ClearUndo(void)
 {
     AssertThis(0);
 
-    MVIE_PAR::ClearUndo();
+    Movie_PAR::ClearUndo();
     Pmcc()->SetUndo(undoDisabled);
 }
 
@@ -3083,7 +3083,7 @@ void MVIE::ClearUndo(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FChangeCam(long icam)
+bool Movie::FChangeCam(long icam)
 {
     AssertThis(0);
     AssertIn(icam, 0, kccamMax);
@@ -3111,7 +3111,7 @@ bool MVIE::FChangeCam(long icam)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FInsTbox(RC *prc, bool fStory)
+bool Movie::FInsTbox(RC *prc, bool fStory)
 {
     AssertThis(0);
     AssertPvCb(prc, size(RC));
@@ -3152,7 +3152,7 @@ bool MVIE::FInsTbox(RC *prc, bool fStory)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FNukeTbox(void)
+bool Movie::FNukeTbox(void)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3181,7 +3181,7 @@ bool MVIE::FNukeTbox(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FHideTbox(void)
+bool Movie::FHideTbox(void)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3210,7 +3210,7 @@ bool MVIE::FHideTbox(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::SelectTbox(long itbox)
+void Movie::SelectTbox(long itbox)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3251,7 +3251,7 @@ void MVIE::SelectTbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-void MVIE::SetPaintAcr(ACR acr)
+void Movie::SetPaintAcr(ACR acr)
 {
     AssertThis(0);
 
@@ -3270,7 +3270,7 @@ void MVIE::SetPaintAcr(ACR acr)
         long dypFont  --  the new textbox font size
 
 ************************************************************ PETED ***********/
-void MVIE::SetDypFontTextCur(long dypFont)
+void Movie::SetDypFontTextCur(long dypFont)
 {
     AssertThis(0);
 
@@ -3285,7 +3285,7 @@ void MVIE::SetDypFontTextCur(long dypFont)
         long grfont  --  the new textbox font style
 
 ************************************************************ PETED ***********/
-void MVIE::SetStyleTextCur(ulong grfont)
+void Movie::SetStyleTextCur(ulong grfont)
 {
     AssertThis(0);
 
@@ -3300,7 +3300,7 @@ void MVIE::SetStyleTextCur(ulong grfont)
         long onn  -- the new textbox font face
 
 ************************************************************ PETED ***********/
-void MVIE::SetOnnTextCur(long onn)
+void Movie::SetOnnTextCur(long onn)
 {
     AssertThis(0);
 
@@ -3312,7 +3312,7 @@ void MVIE::SetOnnTextCur(long onn)
         Returns the active MVU for this movie
 
 ************************************************************ PETED ***********/
-PMVU MVIE::PmvuCur(void)
+PMVU Movie::PmvuCur(void)
 {
     AssertThis(0);
     PMVU pmvu = (PMVU)PddgActive();
@@ -3327,7 +3327,7 @@ PMVU MVIE::PmvuCur(void)
         Returns the first MVU for this movie
 
 ************************************************************ PETED ***********/
-PMVU MVIE::PmvuFirst(void)
+PMVU Movie::PmvuFirst(void)
 {
     AssertThis(0);
     PMVU pmvu = (PMVU)PddgGet(0);
@@ -3348,7 +3348,7 @@ PMVU MVIE::PmvuFirst(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FInsActr(PTAG ptag)
+bool Movie::FInsActr(PTAG ptag)
 {
     AssertThis(0);
     AssertPvCb(ptag, size(TAG));
@@ -3402,7 +3402,7 @@ bool MVIE::FInsActr(PTAG ptag)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FAddOnstage(long arid)
+bool Movie::FAddOnstage(long arid)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3451,7 +3451,7 @@ bool MVIE::FAddOnstage(long arid)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FRemActr()
+bool Movie::FRemActr()
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3489,7 +3489,7 @@ bool MVIE::FRemActr()
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
+bool Movie::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3524,7 +3524,7 @@ bool MVIE::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FSquashStretchActr(BRS brs)
+bool Movie::FSquashStretchActr(BRS brs)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3566,7 +3566,7 @@ bool MVIE::FSquashStretchActr(BRS brs)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FSoonerLaterActr(long nfrm)
+bool Movie::FSoonerLaterActr(long nfrm)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3616,7 +3616,7 @@ bool MVIE::FSoonerLaterActr(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FScaleActr(BRS brs)
+bool Movie::FScaleActr(BRS brs)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3655,7 +3655,7 @@ bool MVIE::FScaleActr(BRS brs)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long sty)
+bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long sty)
 {
     AssertThis(0);
     Assert(Pscen(), 0);
@@ -3693,7 +3693,7 @@ bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long 
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty)
+bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty)
 {
     AssertThis(0);
     ACTR *pactr;
@@ -3720,7 +3720,7 @@ bool MVIE::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCe
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
+bool Movie::FInsScenCore(long iscen, SCEN *pscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
@@ -3852,7 +3852,7 @@ LFail0:
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FAddScen(PTAG ptag)
+bool Movie::FAddScen(PTAG ptag)
 {
     AssertThis(0);
     AssertPvCb(ptag, size(TAG));
@@ -3964,7 +3964,7 @@ bool MVIE::FAddScen(PTAG ptag)
  *  None.
  *
  **************************************************************************/
-void MVIE::Play()
+void Movie::Play()
 {
     AssertThis(0);
 
@@ -4103,7 +4103,7 @@ void MVIE::Play()
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
-bool MVIE::FCmdAlarm(PCMD pcmd)
+bool Movie::FCmdAlarm(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -4189,7 +4189,7 @@ bool MVIE::FCmdAlarm(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
-bool MVIE::FCmdRender(PCMD pcmd)
+bool Movie::FCmdRender(PCMD pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
@@ -4530,7 +4530,7 @@ bool MVIE::FCmdRender(PCMD pcmd)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
+bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -4566,7 +4566,7 @@ bool MVIE::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FPause(WIT wit, long dts)
+bool Movie::FPause(WIT wit, long dts)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -4625,7 +4625,7 @@ void CMVI::MarkMem(void)
     Returns: fTrue if it was successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
+bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
@@ -4728,9 +4728,9 @@ LFail:
 /******************************************************************************
     FSetCmvi
         Rebuilds the movie based on the given CMVI.  Any scenes
-        marked for deletion are disowned by their MVIE chunk.  Any scenes that
-        refer to a movie file other than this MVIE's auto save file are
-        copied into this MVIE's auto save file.  SCEN chunks are given new
+        marked for deletion are disowned by their Movie chunk.  Any scenes that
+        refer to a movie file other than this Movie's auto save file are
+        copied into this Movie's auto save file.  SCEN chunks are given new
         CHIDs reflecting their new position within the movie.  The non-nuked
         scenes must appear in the GL in the order that they appear in the
         movie; other than that, there is no restriction on the order of the
@@ -4744,7 +4744,7 @@ LFail:
     Returns: fTrue if it could accomplish all of the above, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FSetCmvi(PCMVI pcmvi)
+bool Movie::FSetCmvi(PCMVI pcmvi)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
@@ -4868,7 +4868,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
         {
             if (!scend.fNuked)
             {
-                Assert(mvied.pcrf == pcrf, "Scene's MVIE didn't get copied");
+                Assert(mvied.pcrf == pcrf, "Scene's Movie didn't get copied");
                 Assert(cnoScen != cnoNil, "Didn't set the cnoScen");
                 if (!SCEN::FSetTransOnFile(pcrf, cnoScen, scend.trans))
                     goto LFail;
@@ -4921,7 +4921,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             }
             else
             {
-                Bug("Can't guarantee validity of MVIE's SCEN children");
+                Bug("Can't guarantee validity of Movie's SCEN children");
                 break;
             }
         }
@@ -4950,7 +4950,7 @@ LFail:
 /******************************************************************************
     _FAddMvieToRollCall
         Updates roll call (including remapping arids for the actors found in
-        the new movie) for a given MVIE that's just been copied into this
+        the new movie) for a given Movie that's just been copied into this
         movie's file.
 
     Arguments:
@@ -4960,7 +4960,7 @@ LFail:
     Returns: fTrue if it succeeds, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
+bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 {
     AssertThis(0);
 
@@ -5029,7 +5029,7 @@ bool MVIE::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
                     if (!ACTR::FAdjustAridOnFile(pcfl, kid.cki.cno, aridMin))
                     {
                         /* Don't bother trying to fix the arids on file; the caller
-                            should be deleting the copied MVIE chunk anyway */
+                            should be deleting the copied Movie chunk anyway */
                     LFail1:
                         ReleasePpo(&pglcno);
                         goto LFail;
@@ -5148,7 +5148,7 @@ void CMVI::Empty(void)
     Returns: fTrue if successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
+bool Movie::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
 {
     AssertPo(pglscend, 0);
     AssertPo(pscend->pmbmp, 0);
@@ -5169,7 +5169,7 @@ bool MVIE::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
         long iscend  -- which SCEND to delete
 
 ************************************************************ PETED ***********/
-void MVIE::_DeleteScend(PGL pglscend, long iscend)
+void Movie::_DeleteScend(PGL pglscend, long iscend)
 {
     AssertPo(pglscend, 0);
     AssertIn(iscend, 0, pglscend->IvMac());
@@ -5193,7 +5193,7 @@ void MVIE::_DeleteScend(PGL pglscend, long iscend)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FSetTransition(TRANS trans)
+bool Movie::FSetTransition(TRANS trans)
 {
     AssertThis(0);
     AssertIn(trans, 0, transLim);
@@ -5219,7 +5219,7 @@ bool MVIE::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FPasteActr(PACTR pactr)
+bool Movie::FPasteActr(PACTR pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -5266,7 +5266,7 @@ bool MVIE::FPasteActr(PACTR pactr)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FPasteActrPath(PACTR pactr)
+bool Movie::FPasteActrPath(PACTR pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -5322,7 +5322,7 @@ bool MVIE::FPasteActrPath(PACTR pactr)
  *  None.
  *
  **************************************************************************/
-void MVIE::InvalViews(void)
+void Movie::InvalViews(void)
 {
     AssertThis(0);
 
@@ -5346,7 +5346,7 @@ void MVIE::InvalViews(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::InvalViewsAndScb(void)
+void Movie::InvalViewsAndScb(void)
 {
     AssertThis(0);
 
@@ -5366,7 +5366,7 @@ void MVIE::InvalViewsAndScb(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::MarkViews(void)
+void Movie::MarkViews(void)
 {
     AssertThis(0);
 
@@ -5412,7 +5412,7 @@ void MVIE::MarkViews(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::GetName(PSTN pstnTitle)
+void Movie::GetName(PSTN pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);
@@ -5425,7 +5425,7 @@ void MVIE::GetName(PSTN pstnTitle)
         Resets the movie title to whatever it's normal default would be (either
         from the filename or from the MovieClientCallbacks string table).
 ************************************************************ PETED ***********/
-void MVIE::ResetTitle(void)
+void Movie::ResetTitle(void)
 {
     AssertThis(0);
 
@@ -5446,7 +5446,7 @@ void MVIE::ResetTitle(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::BuildActionMenu()
+void Movie::BuildActionMenu()
 {
     AssertThis(0);
     long arid = aridNil;
@@ -5481,7 +5481,7 @@ const long kdtsTrans = 4 * kdtsSecond;
  *  None.
  *
  **************************************************************************/
-void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
+void Movie::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
 {
     AssertThis(0);
     AssertPo(pgnvDst, 0);
@@ -5551,7 +5551,7 @@ void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
  *  1 if exists, else 0.
  *
  **************************************************************************/
-long MVIE::LwQueryExists(long lwType, long lwId)
+long Movie::LwQueryExists(long lwType, long lwId)
 {
     AssertThis(0);
     AssertIn(lwType, 0, 2);
@@ -5582,7 +5582,7 @@ long MVIE::LwQueryExists(long lwType, long lwId)
  *  -1 if nonexistent or non-visible, else x in high word, y in low word.
  *
  **************************************************************************/
-long MVIE::LwQueryLocation(long lwType, long lwId)
+long Movie::LwQueryLocation(long lwType, long lwId)
 {
     AssertThis(0);
     AssertIn(lwType, 0, 2);
@@ -5664,7 +5664,7 @@ long MVIE::LwQueryLocation(long lwType, long lwId)
  *  0 if successful, else -1.
  *
  **************************************************************************/
-long MVIE::LwSetMoviePos(long lwScene, long lwFrame)
+long Movie::LwSetMoviePos(long lwScene, long lwFrame)
 {
     AssertThis(0);
 
@@ -5692,7 +5692,7 @@ long MVIE::LwSetMoviePos(long lwScene, long lwFrame)
  *                         actually usable
  **************************************************************************/
 
-bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
+bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfHaveValid);
@@ -5715,7 +5715,7 @@ bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
         ChildChunkIdentification kid;
 
         AssertDo(pcfl->FGetCkiCtg(kctgMsnd, icki, &cki), "Should never fail");
-        Assert(_FIsChild(pcfl, cki.ctg, cki.cno), "Not a child of MVIE chunk");
+        Assert(_FIsChild(pcfl, cki.ctg, cki.cno), "Not a child of Movie chunk");
         if (pcfl->CckiRef(cki.ctg, cki.cno) < 2)
         {
             fUnused = fTrue;
@@ -5745,7 +5745,7 @@ bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
  *  None.
  *
  **************************************************************************/
-void MVIE::_SetTitle(PFilename pfni)
+void Movie::_SetTitle(PFilename pfni)
 {
     AssertThis(0);
 
@@ -5830,7 +5830,7 @@ MVU::~MVU(void)
  *  A pointer to the view, otw pvNil on failure
  *
  ***************************************************************************/
-MVU *MVU::PmvuNew(PMVIE pmvie, PGCB pgcb, long dxp, long dyp)
+MVU *MVU::PmvuNew(PMovie pmvie, PGCB pgcb, long dxp, long dyp)
 {
     AssertPo(pmvie, 0);
     AssertVarMem(pgcb);
@@ -6745,7 +6745,7 @@ void MVU::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
     AssertThis(0);
     Assert(Tool() == toolPlace, "Wrong tool in effect");
 
-    PMVIE pmvie;
+    PMovie pmvie;
     PSCEN pscen;
     bool fMoved;
     PACTR pactr = pvNil;
@@ -7267,7 +7267,7 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVIE pmvie;
+    PMovie pmvie;
     PSCEN pscen;
     PACTR pactr = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
@@ -7672,7 +7672,7 @@ void MVU::_MouseUp(CMD_MOUSE *pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVIE pmvie;
+    PMovie pmvie;
     PSCEN pscen;
     PACTR pactr = pvNil;
     PACTR pactrDup;

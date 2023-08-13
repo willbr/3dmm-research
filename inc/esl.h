@@ -100,7 +100,7 @@ class ESLT : public ESLT_PAR
     CMD_MAP_DEC(ESLT)
 
   protected:
-    PMVIE _pmvie; // Movie that this TDT is in
+    PMovie _pmvie; // Movie that this TDT is in
     PACTR _pactr; // Actor of this TDT, or pvNil for new TDT
     PAPE _pape;   // Actor Preview Entity
     PSNE _psne;   // Spletter Name Editor
@@ -115,11 +115,11 @@ class ESLT : public ESLT_PAR
     ESLT(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLT PesltNew(PRCA prca, PMVIE pmvie, PACTR pactr, PSTN pstnNew = pvNil, long tdtsNew = tdtsNil,
+    static PESLT PesltNew(PRCA prca, PMovie pmvie, PACTR pactr, PSTN pstnNew = pvNil, long tdtsNew = tdtsNil,
                           PTAG ptagTdfNew = pvNil);
     ~ESLT(void);
 
@@ -147,7 +147,7 @@ class ESLA : public ESLA_PAR
     CMD_MAP_DEC(ESLA)
 
   protected:
-    PMVIE _pmvie; // Movie that this actor is in
+    PMovie _pmvie; // Movie that this actor is in
     PACTR _pactr; // The actor that is being edited
     PAPE _pape;   // Actor Preview Entity
     PEDSL _pedsl; // Single-line edit control (for actor's name)
@@ -156,11 +156,11 @@ class ESLA : public ESLA_PAR
     ESLA(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLA PeslaNew(PRCA prca, PMVIE pmvie, PACTR pactr);
+    static PESLA PeslaNew(PRCA prca, PMovie pmvie, PACTR pactr);
     ~ESLA(void);
 
     bool FCmdRotate(PCMD pcmd);
@@ -223,7 +223,7 @@ class ESLL : public ESLL_PAR
     CMD_MAP_DEC(ESLL)
 
   protected:
-    PMVIE _pmvie; // Movie that these sounds are in
+    PMovie _pmvie; // Movie that these sounds are in
     PSCEN _pscen; // Scene that these sounds are in
     PACTR _pactr; // Actor that sounds are attached to (or pvNil)
     LSND _lsndSpeech;
@@ -237,11 +237,11 @@ class ESLL : public ESLL_PAR
     {
     }
 
-    bool _FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PACTR pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLL PesllNew(PRCA prca, PMVIE pmvie, PACTR pactr);
+    static PESLL PesllNew(PRCA prca, PMovie pmvie, PACTR pactr);
     ~ESLL(void);
 
     bool FCmdVlm(PCMD pcmd);
@@ -262,7 +262,7 @@ class ESLR : public ESLR_PAR
     CMD_MAP_DEC(ESLR)
 
   protected:
-    PMVIE _pmvie;      // The movie to insert sound into
+    PMovie _pmvie;      // The movie to insert sound into
     bool _fSpeech;     // Recording Speech or SFX?
     PEDSL _pedsl;      // Single-line edit control for sound name
     PSREC _psrec;      // Sound recording object
@@ -275,12 +275,12 @@ class ESLR : public ESLR_PAR
     ESLR(PGCB pgcb) : ESL(pgcb), _clok(HidUnique())
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstnNew);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PSTN pstnNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
     void _UpdateMeter(void);
 
   public:
-    static PESLR PeslrNew(PRCA prca, PMVIE pmvie, bool fSpeech, PSTN pstnNew);
+    static PESLR PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PSTN pstnNew);
     ~ESLR(void);
 
     bool FCmdRecord(PCMD pcmd);

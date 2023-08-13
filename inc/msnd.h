@@ -21,7 +21,7 @@
     based on that information, we'd wind up calling into the SNDM a minimum
     of three times, plus three times for each actor; not only is the
     enumeration on this side inefficient (the MSQ would have to call into the
-    MVIE to enumerate all the known actors), but the number of calls to SNDM
+    Movie to enumerate all the known actors), but the number of calls to SNDM
     gets to be huge!  On top of all that, we'd probably wind up finding some
     bugs where a sound is still playing for an actor that's been deleted, and
     possibly fail to stop the sound properly (Murphy reigning strong in any

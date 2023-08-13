@@ -36,7 +36,7 @@ class SCRT : public SCRT_PAR
     long _iscenCur;   // currently selected scene
     long _iscenTop;   // first scene visible in the browser
     long _iscenMac;   // number of scenes
-    PMVIE _pmvie;     // pointer to movie we're editing
+    PMovie _pmvie;     // pointer to movie we're editing
     CMVI _cmvi;       // Composite movie
     bool _fError : 1, // Did an error occur during the easel?
         _fInited : 1; // Have I seen the cidSceneSortInit yet?
@@ -65,8 +65,8 @@ class SCRT : public SCRT_PAR
     SCRT(PGCB pgcb);
     ~SCRT(void);
 
-    static PSCRT PscrtNew(long hid, PMVIE pmvie, PStudio pstdio, PRCA prca);
-    static bool FSceneSortMovie(long hid, PMVIE pmvie);
+    static PSCRT PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PRCA prca);
+    static bool FSceneSortMovie(long hid, PMovie pmvie);
 
     /* Command API */
     bool FCmdInit(PCMD pcmd);

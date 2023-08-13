@@ -29,7 +29,7 @@ RTCLASS(StudioScrollbars)
  *	PsscbNew() for public construction.
  *
 \*****************************************************************************/
-StudioScrollbars::StudioScrollbars(PMVIE pmvie)
+StudioScrollbars::StudioScrollbars(PMovie pmvie)
 {
     _pmvie = pmvie;
 #ifdef SHOW_FPS
@@ -50,7 +50,7 @@ StudioScrollbars::StudioScrollbars(PMVIE pmvie)
  *		A pointer to the scrollbars object, pvNil if failed.
  *
 \*****************************************************************************/
-PStudioScrollbars StudioScrollbars::PsscbNew(PMVIE pmvie)
+PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
@@ -606,7 +606,7 @@ void StudioScrollbars::Update(void)
  *		Nothing.
  *
 \*****************************************************************************/
-void StudioScrollbars::SetMvie(PMVIE pmvie)
+void StudioScrollbars::SetMvie(PMovie pmvie)
 {
     _pmvie = pmvie;
     Update();

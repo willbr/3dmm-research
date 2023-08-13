@@ -141,7 +141,7 @@ class SCEN : public SCEN_PAR
     PGL _pglpactr;        // List of actors in the scene.
     PGL _pglptbox;        // List of text boxes in the scene.
     PGG _pggsevStart;     // List of frame independent events.
-    PMVIE _pmvie;         // Movie this scene is a part of.
+    PMovie _pmvie;         // Movie this scene is a part of.
     PBKGD _pbkgd;         // Background for this scene.
     ulong _grfscen;       // Disabled functionality.
     PACTR _pactrSelected; // Currently selected actor, if any
@@ -155,7 +155,7 @@ class SCEN : public SCEN_PAR
     TAG _tagBkgd;         // Tag to current BKGD
 
   protected:
-    SCEN(PMVIE pmvie);
+    SCEN(PMovie pmvie);
     ~SCEN(void);
 
     //
@@ -188,8 +188,8 @@ class SCEN : public SCEN_PAR
     //
     // Create and destroy
     //
-    static SCEN *PscenNew(PMVIE pmvie);                      // Returns pvNil if it fails.
-    static SCEN *PscenRead(PMVIE pmvie, PChunkyResourceFile pcrf, ChunkNumber cno); // Returns pvNil if it fails.
+    static SCEN *PscenNew(PMovie pmvie);                      // Returns pvNil if it fails.
+    static SCEN *PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno); // Returns pvNil if it fails.
     bool FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
     static void Close(PSCEN *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.
@@ -231,7 +231,7 @@ class SCEN : public SCEN_PAR
     //
     // Edit functions
     //
-    void SetMvie(PMVIE pmvie); // Sets the associated movie.
+    void SetMvie(PMovie pmvie); // Sets the associated movie.
     void GetName(PSTN pstn)    // Gets name of current scene.
     {
         *pstn = _stnName;
@@ -362,7 +362,7 @@ class SCEN : public SCEN_PAR
     //
     // Movie functions
     //
-    PMVIE Pmvie()
+    PMovie Pmvie()
     {
         return (_pmvie);
     } // Get the parent movie
