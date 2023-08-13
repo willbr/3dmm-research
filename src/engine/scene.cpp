@@ -449,7 +449,7 @@ class SUNT : public SUNT_PAR
 RTCLASS(Scene)
 RTCLASS(SUNT)
 RTCLASS(SUNS)
-RTCLASS(SUNA)
+RTCLASS(SceneActorUndo)
 RTCLASS(SUNK)
 RTCLASS(SUNP)
 RTCLASS(SUNX)
@@ -2777,7 +2777,7 @@ bool Scene::FRemActr(long arid)
     AssertThis(0);
     AssertIn(arid, 0, 500);
 
-    PSUNA psuna;
+    PSceneActorUndo psuna;
     long ipactr;
     PActor pactr;
 
@@ -2796,7 +2796,7 @@ bool Scene::FRemActr(long arid)
     AssertPo(pactr, 0);
     pactr->AddRef();
 
-    psuna = SUNA::PsunaNew();
+    psuna = SceneActorUndo::PsunaNew();
 
     if (psuna == pvNil)
     {
@@ -6127,10 +6127,10 @@ void SUNS::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNA SUNA::PsunaNew()
+PSceneActorUndo SceneActorUndo::PsunaNew()
 {
-    PSUNA psuna;
-    psuna = NewObj SUNA();
+    PSceneActorUndo psuna;
+    psuna = NewObj SceneActorUndo();
     return (psuna);
 }
 
@@ -6139,7 +6139,7 @@ PSUNA SUNA::PsunaNew()
  * Destructor for scene actor undo objects
  *
  ****************************************************/
-SUNA::~SUNA(void)
+SceneActorUndo::~SceneActorUndo(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pactr);
@@ -6156,7 +6156,7 @@ SUNA::~SUNA(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNA::FDo(PDocumentBase pdocb)
+bool SceneActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6240,7 +6240,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNA::FUndo(PDocumentBase pdocb)
+bool SceneActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6316,7 +6316,7 @@ LFail:
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNA
+ * Mark memory used by the SceneActorUndo
  *
  * Parameters:
  * 	None.
@@ -6325,17 +6325,17 @@ LFail:
  *  None.
  *
  ****************************************************/
-void SUNA::MarkMem(void)
+void SceneActorUndo::MarkMem(void)
 {
     AssertThis(0);
-    SUNA_PAR::MarkMem();
+    SceneActorUndo_PAR::MarkMem();
     MarkMemObj(_pactr);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNA.
+    Assert the validity of the SceneActorUndo.
 ***************************************************************************/
-void SUNA::AssertValid(ulong grf)
+void SceneActorUndo::AssertValid(ulong grf)
 {
     AssertPo(_pactr, 0);
 }

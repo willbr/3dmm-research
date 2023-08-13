@@ -10,9 +10,9 @@
 
             BASE ---> Scene
 
-        Scene Actor Undo Object (SUNA)
+        Scene Actor Undo Object (SceneActorUndo)
 
-            BASE ---> UNDB ---> MUNB ---> SUNA
+            BASE ---> UNDB ---> MUNB ---> SceneActorUndo
 
 ***************************************************************************/
 
@@ -22,9 +22,9 @@
 //
 // Undo object for actor operations
 //
-typedef class SUNA *PSUNA;
+typedef class SceneActorUndo *PSceneActorUndo;
 
-#define SUNA_PAR MUNB
+#define SceneActorUndo_PAR MUNB
 
 // Undo types
 enum
@@ -34,8 +34,8 @@ enum
     utRep,
 };
 
-#define kclsSUNA 'SUNA'
-class SUNA : public SUNA_PAR
+#define kclsSceneActorUndo 'SUNA'
+class SceneActorUndo : public SceneActorUndo_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -44,13 +44,13 @@ class SUNA : public SUNA_PAR
   protected:
     PActor _pactr;
     long _ut; // Tells which type of undo this is.
-    SUNA(void)
+    SceneActorUndo(void)
     {
     }
 
   public:
-    static PSUNA PsunaNew(void);
-    ~SUNA(void);
+    static PSceneActorUndo PsunaNew(void);
+    ~SceneActorUndo(void);
 
     void SetActr(PActor pactr)
     {

@@ -7676,7 +7676,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     PScene pscen;
     PActor pactr = pvNil;
     PActor pactrDup;
-    PSUNA psuna;
+    PSceneActorUndo psuna;
 
     pmvie = Pmvie();
     AssertPo(pmvie, 0);
@@ -7790,7 +7790,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         //
         // Now build an undo object for the placing of the actor
         //
-        psuna = SUNA::PsunaNew();
+        psuna = SceneActorUndo::PsunaNew();
 
         if ((psuna == pvNil) || ((_pactrUndo == pvNil) && !pactr->FDup(&pactrDup, fTrue)))
         {
