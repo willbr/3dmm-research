@@ -323,7 +323,7 @@ class HEDG : public HEDG_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
 #ifdef WIN
     void _StartPage(PGNV pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn);

@@ -2683,7 +2683,7 @@ void DCD::_ClearSel(void)
     REVIEW shonk: should this delete the current selection?
     REVIEW shonk: is there an easy way to make this atomic?
 ***************************************************************************/
-bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool DCD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);

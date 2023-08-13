@@ -165,7 +165,7 @@ class DocumentBase : public DocumentBase_PAR
     void SetAsClipboard(void);
     void SetInternal(bool fInternal = fTrue);
 
-    virtual void ExportFormats(PCLIP pclip);
+    virtual void ExportFormats(PClipboardObject pclip);
     virtual bool FGetFormat(long cls, PDocumentBase *ppdocb = pvNil);
 };
 
@@ -246,7 +246,7 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
     static PDocumentDisplayGraphicsObject PddgNew(PDocumentBase pdocb, PGCB pgcb);

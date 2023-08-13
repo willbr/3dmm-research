@@ -1748,7 +1748,7 @@ void TXDD::_ClearSel(void)
 /***************************************************************************
     Paste the given doc into this one.
 ***************************************************************************/
-bool TXDD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool TXDD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);

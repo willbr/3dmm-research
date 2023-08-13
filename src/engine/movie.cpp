@@ -8338,7 +8338,7 @@ void MovieView::_ClearSel()
  *  fTrue if it was successful, else fFalse.
  *
  **************************************************************************/
-bool MovieView::_FPaste(PCLIP pclip)
+bool MovieView::_FPaste(PClipboardObject pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);

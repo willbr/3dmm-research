@@ -1027,7 +1027,7 @@ void DCH::_ClearSel(void)
 /***************************************************************************
     Paste over the selection.
 ***************************************************************************/
-bool DCH::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool DCH::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);

@@ -168,7 +168,7 @@ class TextDocumentBase : public TextDocumentBase_PAR
 
     virtual bool FFind(achar *prgch, long cch, long cpStart, long *pcpMin, long *pcpLim, bool fCaseSensitive = fFalse);
 
-    virtual void ExportFormats(PCLIP pclip);
+    virtual void ExportFormats(PClipboardObject pclip);
 };
 
 /***************************************************************************
@@ -553,7 +553,7 @@ class TXLG : public TXLG_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
     static PTXLG PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
@@ -589,7 +589,7 @@ class TXRG : public TXRG_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
     void _FetchChpSel(long cp1, long cp2, PCHP pchp);
     void _EnsureChpIns(void);

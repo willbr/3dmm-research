@@ -428,7 +428,7 @@ class DCD : public DCD_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
     static PDCD PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb);
@@ -518,7 +518,7 @@ class DCH : public DCH_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
     static PDCH PdchNew(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);

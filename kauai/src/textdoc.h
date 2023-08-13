@@ -136,7 +136,7 @@ class TXDD : public TXDD_PAR
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
     static PTXDD PtxddNew(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);

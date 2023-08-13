@@ -761,7 +761,7 @@ long DocumentBase::CundbRedo(void)
 /***************************************************************************
     Export this docb as the external clipboard.
 ***************************************************************************/
-void DocumentBase::ExportFormats(PCLIP pclip)
+void DocumentBase::ExportFormats(PClipboardObject pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
@@ -1163,7 +1163,7 @@ void DocumentDisplayGraphicsObject::_ClearSel(void)
     Default for pasting over a selection.  Just returns false so the Paste
     edit menu item is disabled.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool DocumentDisplayGraphicsObject::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     return fFalse;
 }

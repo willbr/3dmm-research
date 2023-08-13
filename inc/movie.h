@@ -190,7 +190,7 @@ class MovieView : public MovieView_PAR
     //
     bool _FCopySel(PDocumentBase *ppdocb, bool fRteOnly);
     void _ClearSel(void);
-    bool _FPaste(PCLIP pclip);
+    bool _FPaste(PClipboardObject pclip);
 
     void _PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld);
     void _MouseDown(CMD_MOUSE *pcmd);

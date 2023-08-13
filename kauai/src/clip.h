@@ -19,10 +19,10 @@
 /***************************************************************************
     Clipboard object.
 ***************************************************************************/
-typedef class CLIP *PCLIP;
-#define CLIP_PAR BASE
-#define kclsCLIP 'CLIP'
-class CLIP : public CLIP_PAR
+typedef class ClipboardObject *PClipboardObject;
+#define ClipboardObject_PAR BASE
+#define kclsClipboardObject 'CLIP'
+class ClipboardObject : public ClipboardObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -46,7 +46,7 @@ class CLIP : public CLIP_PAR
     bool _FImportFormat(long clfm, void *pv = pvNil, long cb = 0, PDocumentBase *ppdocb = pvNil, bool *pfDelay = pvNil);
 
   public:
-    CLIP(void);
+    ClipboardObject(void);
 
     bool FDocIsClip(PDocumentBase pdocb);
     void Show(void);
@@ -61,7 +61,7 @@ class CLIP : public CLIP_PAR
     void Import(void);
 };
 
-extern PCLIP vpclip;
+extern PClipboardObject vpclip;
 
 const long clfmNil = 0;
 // REVIEW shonk: Mac unicode

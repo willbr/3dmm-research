@@ -2664,7 +2664,7 @@ void TXLG::_ClearSel(void)
 /***************************************************************************
     Paste the selection.
 ***************************************************************************/
-bool TXLG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool TXLG::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
@@ -2936,7 +2936,7 @@ void TXRG::_ClearSel(void)
 /***************************************************************************
     Paste the selection.
 ***************************************************************************/
-bool TXRG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool TXRG::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     long cp1, cp2;

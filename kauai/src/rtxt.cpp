@@ -865,7 +865,7 @@ bool TextDocumentBase::FGetFni(Filename *pfni)
 /***************************************************************************
     Export the text.
 ***************************************************************************/
-void TextDocumentBase::ExportFormats(PCLIP pclip)
+void TextDocumentBase::ExportFormats(PClipboardObject pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);

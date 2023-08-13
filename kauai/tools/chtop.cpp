@@ -991,7 +991,7 @@ void HEDG::_ClearSel(void)
 /***************************************************************************
     Paste all the topics of the given document into the current document.
 ***************************************************************************/
-bool HEDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool HEDG::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
