@@ -16,6 +16,8 @@
 #ifndef KIDHELP_H
 #define KIDHELP_H
 
+namespace Help {
+
 /***************************************************************************
     Help topic construction information.
 ***************************************************************************/
@@ -197,5 +199,7 @@ class HBTN : public HBTN_PAR
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdClicked(PCMD_MOUSE pcmd);
 };
+
+} // end of namespace Help
 
 #endif //! KIDHELP_H

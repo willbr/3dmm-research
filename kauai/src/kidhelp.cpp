@@ -13,6 +13,8 @@
 #include "kidframe.h"
 ASSERTNAME
 
+namespace Help {
+
 BEGIN_CMD_MAP(TXHG, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
 ON_CID_ME(cidActivateSel, pvNil, pvNil)
@@ -1338,3 +1340,5 @@ bool HBTN::FCmdClicked(PCMD_MOUSE pcmd)
 
     return fTrue;
 }
+
+} // end of namespace Help

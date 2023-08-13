@@ -17,6 +17,8 @@
 #ifndef KIDWORLD_H
 #define KIDWORLD_H
 
+using namespace Help;
+
 /***************************************************************************
     Base KidspaceGraphicObject descriptor.
 ***************************************************************************/
@@ -138,7 +140,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca);
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca);
     virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
-    virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
+    virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, Help::PHTOP phtop = pvNil);
     virtual PCMH PcmhFromHid(long hid);
     virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);
     virtual bool FFindFile(PSTN pstnSrc, PFilename pfni);

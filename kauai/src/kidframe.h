@@ -23,8 +23,12 @@
 typedef class WorldOfKidspace *PWorldOfKidspace;
 typedef class SCEG *PSCEG;
 typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
-typedef class HBAL *PHBAL;
-typedef struct HTOP *PHTOP;
+namespace Help {
+   class HBAL;
+   typedef class HBAL *PHBAL;
+   struct HTOP;
+   typedef struct HTOP *PHTOP;
+}
 
 #include "scrcomg.h"
 #include "kidworld.h"
