@@ -28,6 +28,8 @@
 #ifndef GROUPS_H
 #define GROUPS_H
 
+namespace Group {
+
 enum
 {
     fgrpNil = 0,
@@ -519,3 +521,5 @@ class AST : public AST_PAR
 };
 
 #endif //! GROUPS_H
+
+} // end of namespace Group

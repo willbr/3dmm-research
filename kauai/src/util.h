@@ -127,16 +127,31 @@ const achar kchMin = kschMin;
 #define ChLit(ch) ch
 #endif //! UNICODE
 
-typedef class GRPB *PGRPB;
-typedef class GLB *PGLB;
-typedef class GL *PGL;
-typedef class AL *PAL;
-typedef class GGB *PGGB;
-typedef class GG *PGG;
-typedef class AG *PAG;
-typedef class GSTB *PGSTB;
-typedef class StringTable *PStringTable;
-typedef class AST *PAST;
+namespace Group {
+   class GRPB;
+   class GLB;
+   class GL;
+   class AL;
+   typedef class GRPB *PGRPB;
+   typedef class GLB *PGLB;
+   typedef class GL *PGL;
+   typedef class AL *PAL;
+
+   class GGB;
+   class GG;
+   class AG;
+   typedef class GGB *PGGB;
+   typedef class GG *PGG;
+   typedef class AG *PAG;
+
+   class GSTB;
+   class StringTable;
+   class AST;
+   typedef class GSTB *PGSTB;
+   typedef class StringTable *PStringTable;
+   typedef class AST *PAST;
+}
+
 namespace ScriptInterpreter{
    class Script;
    typedef class Script *PScript;

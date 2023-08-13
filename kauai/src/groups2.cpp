@@ -25,6 +25,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace Group {
+
 RTCLASS(GSTB)
 RTCLASS(StringTable)
 RTCLASS(AST)
@@ -1128,3 +1130,5 @@ void AST::AssertValid(ulong grfobj)
     AssertIn(_cbstFree, 0, LwMax(1, _ivMac));
 }
 #endif // DEBUG
+
+} // end of namespace Group

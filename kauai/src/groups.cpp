@@ -25,6 +25,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace Group {
+
 RTCLASS(GRPB)
 RTCLASS(GLB)
 RTCLASS(GL)
@@ -2277,3 +2279,5 @@ void AG::AssertValid(ulong grfobj)
     AssertIn(_clocFree, 0, LwMax(1, _ivMac));
 }
 #endif // DEBUG
+
+} // end of namespace Group

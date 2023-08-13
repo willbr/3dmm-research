@@ -16,6 +16,8 @@
 #ifndef DLG_H
 #define DLG_H
 
+using Group::GG;
+
 #ifdef MAC
 typedef DialogPtr HDLG;
 #endif // MAC

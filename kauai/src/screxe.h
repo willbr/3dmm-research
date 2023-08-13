@@ -21,6 +21,7 @@ namespace ScriptInterpreter {
 
 using namespace Chunky;
 using namespace ScriptCompiler;
+using namespace Group;
 
 /****************************************
     Run-Time Variable Map structure

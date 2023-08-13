@@ -16,6 +16,8 @@
 #ifndef FNI_H
 #define FNI_H
 
+using Group::PGL;
+
 #ifdef MAC
 typedef FSSpec FSS;
 #endif // MAC

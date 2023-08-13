@@ -19,6 +19,7 @@
 namespace ScriptCompiler {
 
 using namespace ScriptInterpreter;
+using namespace Group;
 
 /***************************************************************************
     Opcodes for scripts - these are the opcodes that can actually exist in

@@ -22,6 +22,8 @@
 #ifndef STREAM_H
 #define STREAM_H
 
+using Group::PGG;
+
 /***************************************************************************
     Byte stream in memory.  The entire stream is in contiguous memory.
 ***************************************************************************/

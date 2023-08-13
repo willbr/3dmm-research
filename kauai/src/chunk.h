@@ -18,6 +18,8 @@
 
 namespace Chunky {
 
+using namespace Group;
+
 /***************************************************************************
     These must be unsigned longs!  We sort on them and assume in the code
     that they are unsinged.

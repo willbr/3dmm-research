@@ -16,6 +16,9 @@
 #ifndef GFX_H
 #define GFX_H
 
+using Group::GL;
+using Group::PGL;
+
 /****************************************
     Text and fonts.
 ****************************************/
