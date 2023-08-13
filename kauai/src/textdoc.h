@@ -12,14 +12,14 @@
 
     For editing a text file or text stream as a document.  Unlike the edit
     controls in text.h/text.cpp, all the text need not be in memory (this
-    uses a BSF) and there can be multiple views on the same text.
+    uses a FileByteStream) and there can be multiple views on the same text.
 
 ***************************************************************************/
 #ifndef TEXTDOC_H
 #define TEXTDOC_H
 
 /***************************************************************************
-    Text document.  A doc wrapper for a BSF.
+    Text document.  A doc wrapper for a FileByteStream.
 ***************************************************************************/
 typedef class TXDC *PTXDC;
 #define TXDC_PAR DocumentBase
@@ -31,17 +31,17 @@ class TXDC : public TXDC_PAR
     MARKMEM
 
   protected:
-    PBSF _pbsf;
+    PFileByteStream _pbsf;
     PFIL _pfil;
 
     TXDC(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXDC(void);
-    bool _FInit(PFilename pfni = pvNil, PBSF pbsf = pvNil);
+    bool _FInit(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil);
 
   public:
-    static PTXDC PtxdcNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    static PTXDC PtxdcNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
-    PBSF Pbsf(void)
+    PFileByteStream Pbsf(void)
     {
         return _pbsf;
     }
@@ -67,7 +67,7 @@ class TXDD : public TXDD_PAR
     MARKMEM
 
   protected:
-    PBSF _pbsf;
+    PFileByteStream _pbsf;
     long _clnDisp;
     long _clnDispWhole;
     PGL _pglichStarts;
@@ -92,7 +92,7 @@ class TXDD : public TXDD_PAR
     long _ichMinCache;
     long _ichLimCache;
 
-    TXDD(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
+    TXDD(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
     ~TXDD(void);
     virtual bool _FInit(void);
     virtual void _NewRc(void);
@@ -139,7 +139,7 @@ class TXDD : public TXDD_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PTXDD PtxddNew(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
+    static PTXDD PtxddNew(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);

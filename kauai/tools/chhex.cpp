@@ -25,7 +25,7 @@ class DHEX : public DHEX_PAR
     MARKMEM
 
   protected:
-    BSF _bsf;
+    FileByteStream _bsf;
 
     DHEX(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil) : DHEX_PAR(pdocb, grfdoc)
     {
@@ -34,7 +34,7 @@ class DHEX : public DHEX_PAR
   public:
     static PDHEX PdhexNew(void);
 
-    PBSF Pbsf(void)
+    PFileByteStream Pbsf(void)
     {
         return &_bsf;
     }
@@ -92,7 +92,7 @@ void DHEX::MarkMem(void)
 /***************************************************************************
     Constructor for the DCH.
 ***************************************************************************/
-DCH::DCH(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCH::DCH(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, pgcb)
 {
     _pbsf = pbsf;
     _cbLine = kcbMaxLineDch;
@@ -103,7 +103,7 @@ DCH::DCH(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, p
 /***************************************************************************
     Static method to create a new DCH.
 ***************************************************************************/
-PDCH DCH::PdchNew(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb)
+PDCH DCH::PdchNew(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb)
 {
     PDCH pdch;
 
@@ -1033,7 +1033,7 @@ bool DCH::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
     AssertPo(pclip, 0);
     long ib1, ib2, cb;
     PDocumentBase pdocb;
-    PBSF pbsf;
+    PFileByteStream pbsf;
 
     if (cidPaste != cid)
         return fFalse;

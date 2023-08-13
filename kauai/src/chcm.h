@@ -95,7 +95,7 @@ class CompilerLexer : public CompilerLexer_PAR
     bool _FDoSet(PTOK ptok);
 
   public:
-    CompilerLexer(PBSF pbsf, PSTN pstnFile);
+    CompilerLexer(PFileByteStream pbsf, PSTN pstnFile);
     ~CompilerLexer(void);
 
     // override the LEXB FGetTok to resolve variables, hande SET
@@ -196,7 +196,7 @@ class Compiler : public Compiler_PAR
     PChunkyFile _pcfl;       // current sub file
     PGL _pglckiLoner; // the chunks that must be loners
 
-    BSF _bsf;     // temporary buffer for the chunk data
+    FileByteStream _bsf;     // temporary buffer for the chunk data
     PCompilerLexer _pchlx; // lexer for compiling
     long _sm;     // current string mode
     long _cbNum;  // current numerical size (1, 2, or 4)
@@ -257,7 +257,7 @@ class Compiler : public Compiler_PAR
     }
 
     PChunkyFile PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk);
-    PChunkyFile PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk);
+    PChunkyFile PcflCompile(PFileByteStream pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk);
 };
 
 /***************************************************************************
@@ -276,7 +276,7 @@ class Decompiler : public Decompiler_PAR
   protected:
     long _ert;  // error type
     PChunkyFile _pcfl; // the chunky file to read from
-    BSF _bsf;   // temporary buffer for the chunk data
+    FileByteStream _bsf;   // temporary buffer for the chunk data
     short _bo;  // current byte order and osk
     short _osk;
     SourceEmitter _chse; // chunky source emitter

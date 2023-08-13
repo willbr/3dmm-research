@@ -97,7 +97,7 @@ TextDocumentBase::~TextDocumentBase(void)
 /***************************************************************************
     Initializer for the base text document class.
 ***************************************************************************/
-bool TextDocumentBase::_FInit(PFilename pfni, PBSF pbsf, short osk)
+bool TextDocumentBase::_FInit(PFilename pfni, PFileByteStream pbsf, short osk)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -110,18 +110,18 @@ bool TextDocumentBase::_FInit(PFilename pfni, PBSF pbsf, short osk)
     {
         if (osk != koskCur)
         {
-            Bug("Can't translate a BSF");
+            Bug("Can't translate a FileByteStream");
             return fFalse;
         }
         if (pbsf->IbMac() % size(achar) != 0)
         {
-            Bug("BSF has a partial character");
+            Bug("FileByteStream has a partial character");
             return fFalse;
         }
         pbsf->AddRef();
         _pbsf = pbsf;
     }
-    else if (pvNil == (_pbsf = NewObj BSF))
+    else if (pvNil == (_pbsf = NewObj FileByteStream))
         return fFalse;
     else if (!_FLoad(osk))
         return fFalse;
@@ -140,7 +140,7 @@ bool TextDocumentBase::_FInit(PFilename pfni, PBSF pbsf, short osk)
 ***************************************************************************/
 bool TextDocumentBase::_FLoad(short osk)
 {
-    // initialize the BSF to just point to the file
+    // initialize the FileByteStream to just point to the file
     FLO flo;
     bool fRet = fFalse;
 
@@ -781,7 +781,7 @@ bool TextDocumentBase::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, 
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc.
 ***************************************************************************/
-bool TextDocumentBase::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool TextDocumentBase::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -894,7 +894,7 @@ PlainTextDocument::PlainTextDocument(PDocumentBase pdocb, ulong grfdoc) : PlainT
 /***************************************************************************
     Static method to create a new plain text document.
 ***************************************************************************/
-PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
+PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PFileByteStream pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -965,7 +965,7 @@ bool PlainTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
     if (!_pbsf->FWriteRgb(&flo))
         goto LFail;
 
-    // redirect the BSF to the new file
+    // redirect the FileByteStream to the new file
     if (fSetFni)
         _pbsf->FReplaceFlo(&flo, fFalse, 0, flo.cb);
 
@@ -2530,7 +2530,7 @@ bool RichTextDocument::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpD
     using the given chp and pap. If ccpIns is zero, prgch can be nil. pchp
     and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PBSF pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
+bool RichTextDocument::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
                          PCHP pchp, PPAP ppap, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
@@ -2692,7 +2692,7 @@ bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, 
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc.
 ***************************************************************************/
-bool RichTextDocument::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -2727,7 +2727,7 @@ bool RichTextDocument::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long c
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
+bool RichTextDocument::FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
                        ulong grfdoc)
 {
     AssertThis(0);

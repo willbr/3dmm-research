@@ -40,7 +40,7 @@ class SourceEmitter : public SourceEmitter_PAR
   protected:
     PMSNK _pmsnkDump;
     PMSNK _pmsnkError;
-    BSF _bsf;
+    FileByteStream _bsf;
     bool _fError;
 
   protected:

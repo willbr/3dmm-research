@@ -122,7 +122,7 @@ class LEXB : public LEXB_PAR
     static ushort _mpchgrfct[];
 
     PFIL _pfil; // exactly one of _pfil, _pbsf should be non-nil
-    PBSF _pbsf;
+    PFileByteStream _pbsf;
     STN _stnFile;
     long _lwLine;  // which line
     long _ichLine; // which character on the line
@@ -157,7 +157,7 @@ class LEXB : public LEXB_PAR
 
   public:
     LEXB(PFIL pfil, bool fUnionStrings = fTrue);
-    LEXB(PBSF pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
+    LEXB(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
     ~LEXB(void);
 
     virtual bool FGetTok(PTOK ptok);

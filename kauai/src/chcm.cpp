@@ -1204,7 +1204,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
 
     for (;;)
     {
-        // empty the BSF
+        // empty the FileByteStream
         _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
         if (ttFree == tok.tt)
@@ -1336,7 +1336,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber c
 
     for (;;)
     {
-        // empty the BSF
+        // empty the FileByteStream
         _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
         fFree = (ttFree == tok.tt);
@@ -1535,7 +1535,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
         if (cbExtra <= 0 || fFree)
             continue;
 
-        // empty the BSF and get the extra data
+        // empty the FileByteStream and get the extra data
         _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
         _FParseData(&tok);
 
@@ -1810,7 +1810,7 @@ void Compiler::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
     bool fFetch;
     bool fPack, fPrePacked;
 
-    // empty the BSF
+    // empty the FileByteStream
     _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
     fFetch = fTrue;
@@ -1990,7 +1990,7 @@ PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pm
     AssertPo(pfniSrc, ffniFile);
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
-    BSF bsfSrc;
+    FileByteStream bsfSrc;
     STN stnFile;
     FLO flo;
     bool fRet;
@@ -2013,9 +2013,9 @@ PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pm
 }
 
 /***************************************************************************
-    Compile the given BSF, using initial file name given by pstnFile.
+    Compile the given FileByteStream, using initial file name given by pstnFile.
 ***************************************************************************/
-PChunkyFile Compiler::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
+PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pbsfSrc, ffniFile);
@@ -2090,7 +2090,7 @@ PChunkyFile Compiler::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst
         }
     }
 
-    // empty the BSF
+    // empty the FileByteStream
     _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
     // make sure we're not in any subfiles
@@ -2161,7 +2161,7 @@ static KEYTT _rgkeytt[] = {
 /***************************************************************************
     Constructor for the chunky compiler lexer.
 ***************************************************************************/
-CompilerLexer::CompilerLexer(PBSF pbsf, PSTN pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
+CompilerLexer::CompilerLexer(PFileByteStream pbsf, PSTN pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
 {
     _pgstVariables = pvNil;
     AssertThis(0);

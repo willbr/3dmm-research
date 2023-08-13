@@ -322,7 +322,7 @@ LEXB::LEXB(PFIL pfil, bool fUnionStrings)
 /***************************************************************************
     Constructor for the lexer.
 ***************************************************************************/
-LEXB::LEXB(PBSF pbsf, PSTN pstnFile, bool fUnionStrings)
+LEXB::LEXB(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings)
 {
     AssertPo(pbsf, 0);
     AssertPo(pstnFile, 0);

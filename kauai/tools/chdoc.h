@@ -116,7 +116,7 @@ class DOCH : public DOCH_PAR
     MARKMEM
 
   protected:
-    BSF _bsf; // the byte stream
+    FileByteStream _bsf; // the byte stream
 
     DOCH(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
@@ -181,7 +181,7 @@ class DOCI : public DOCI_PAR
     long _iv; // which item is being edited
     long _dln;
     bool _fFixed; // indicates if the data is fixed length
-    BSF _bsf;     // the byte stream we're editing
+    FileByteStream _bsf;     // the byte stream we're editing
 
     DOCI(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln);
     bool _FInit(void);
@@ -465,7 +465,7 @@ class DCD : public DCD_PAR
 };
 
 /***************************************************************************
-    Display chunk in hex - displays a BSF (byte stream), but
+    Display chunk in hex - displays a FileByteStream (byte stream), but
     doesn't necessarily display a DOCH.
 ***************************************************************************/
 #define DCH_PAR DCLB
@@ -477,7 +477,7 @@ class DCH : public DCH_PAR
     MARKMEM
 
   protected:
-    PBSF _pbsf;   // the byte stream
+    PFileByteStream _pbsf;   // the byte stream
     long _cbLine; // number of bytes per line
 
     // the selection
@@ -490,7 +490,7 @@ class DCH : public DCH_PAR
     bool _fHexSel : 1;   // hex area active
     bool _fFixed : 1;    // indicates if the data is fixed length
 
-    DCH(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);
+    DCH(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
@@ -521,7 +521,7 @@ class DCH : public DCH_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PDCH PdchNew(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);
+    static PDCH PdchNew(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -718,7 +718,7 @@ class CHTXD : public CHTXD_PAR
     CHTXD(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
   public:
-    static PCHTXD PchtxdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
+    static PCHTXD PchtxdNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                             ulong grfdoc = fdocNil);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);

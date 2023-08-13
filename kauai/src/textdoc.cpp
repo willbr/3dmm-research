@@ -9,7 +9,7 @@
 
     For editing a text file or text stream as a document.  Unlike the edit
     controls in text.h/text.cpp, all the text need not be in memory (this
-    uses a BSF) and there can be multiple views on the same text.
+    uses a FileByteStream) and there can be multiple views on the same text.
 
 ***************************************************************************/
 #include "frame.h"
@@ -39,7 +39,7 @@ TXDC::~TXDC(void)
 /***************************************************************************
     Create a new document based on the given text file and or text stream.
 ***************************************************************************/
-PTXDC TXDC::PtxdcNew(PFilename pfni, PBSF pbsf, PDocumentBase pdocb, ulong grfdoc)
+PTXDC TXDC::PtxdcNew(PFilename pfni, PFileByteStream pbsf, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -58,7 +58,7 @@ PTXDC TXDC::PtxdcNew(PFilename pfni, PBSF pbsf, PDocumentBase pdocb, ulong grfdo
 /***************************************************************************
     Initialize the TXDC.
 ***************************************************************************/
-bool TXDC::_FInit(PFilename pfni, PBSF pbsf)
+bool TXDC::_FInit(PFilename pfni, PFileByteStream pbsf)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -74,11 +74,11 @@ bool TXDC::_FInit(PFilename pfni, PBSF pbsf)
         pbsf->AddRef();
         _pbsf = pbsf;
     }
-    else if (pvNil == (_pbsf = NewObj BSF))
+    else if (pvNil == (_pbsf = NewObj FileByteStream))
         return fFalse;
     else if (pvNil != _pfil && _pfil->FpMac() > 0)
     {
-        // initialize the BSF to just point to the file
+        // initialize the FileByteStream to just point to the file
         FLO flo;
 
         flo.pfil = _pfil;
@@ -149,7 +149,7 @@ bool TXDC::FSaveToFni(Filename *pfni, bool fSetFni)
     if (!_pbsf->FWriteRgb(&flo))
         goto LFail;
 
-    // redirect the BSF to the new file
+    // redirect the FileByteStream to the new file
     if (fSetFni)
         _pbsf->FReplaceFlo(&flo, fFalse, 0, flo.cb);
 
@@ -198,7 +198,7 @@ void TXDC::MarkMem(void)
 /***************************************************************************
     Constructor for a text document display gob.
 ***************************************************************************/
-TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     AssertPo(pbsf, 0);
     Assert(vntl.FValidOnn(onn), "bad onn");
@@ -231,7 +231,7 @@ TXDD::~TXDD(void)
 /***************************************************************************
     Create a new TXDD.
 ***************************************************************************/
-PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont)
+PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont)
 {
     PTXDD ptxdd;
 
@@ -1754,7 +1754,7 @@ bool TXDD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
     AssertPo(pclip, 0);
     long ich1, ich2, cch;
     PTXDC ptxdc;
-    PBSF pbsf;
+    PFileByteStream pbsf;
 
     if (cidPaste != cid || !pclip->FGetFormat(kclsTXDC))
         return fFalse;

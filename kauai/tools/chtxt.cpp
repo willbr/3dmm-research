@@ -19,7 +19,7 @@ CHTXD::CHTXD(PDocumentBase pdocb, ulong grfdoc) : CHTXD_PAR(pdocb, grfdoc)
 /***************************************************************************
     Create a new chunky text doc.
 ***************************************************************************/
-PCHTXD CHTXD::PchtxdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
+PCHTXD CHTXD::PchtxdNew(PFilename pfni, PFileByteStream pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);

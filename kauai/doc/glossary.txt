@@ -7,7 +7,7 @@ chdoc.h		docpic - picture display document
 chdoc.h		dclb - line-based document
 chdoc.h		sel - selection
 chdoc.h		dcd - display for chunky document - displays a DOC
-chdoc.h		dch - display chunk in hex - displays a BSF
+chdoc.h		dch - display chunk in hex - displays a FileByteStream
 chdoc.h		dcgb - display for group chunk
 chdoc.h		dcgl - display for GL or AL chunk
 chdoc.h		dcgg - display for GG or AG chunk
