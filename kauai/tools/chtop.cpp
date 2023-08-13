@@ -2438,7 +2438,7 @@ bool HETG::FCmdInsertEdit(PCMD pcmd)
     AssertVarMem(pcmd);
     long cpMin, cpLim;
     PDLG pdlg;
-    ECOS ecos;
+    EditControl ecos;
 
     ecos.ctg = 'EDIT';
     pdlg = Dialog::PdlgNew(dlidFormatEdit, _FDlgFormatEdit);
@@ -2906,7 +2906,7 @@ bool HETG::FCmdFormatEdit(PCMD pcmd)
     void *pv;
     PDLG pdlg;
     long cp, cpT, cb;
-    ECOS ecos;
+    EditControl ecos;
 
     if (LwAbs(_cpAnchor - _cpOther) > 1)
         return fTrue;

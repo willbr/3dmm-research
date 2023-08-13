@@ -43,7 +43,7 @@ struct TopicFile
 };
 
 // edit control object
-struct ECOS
+struct EditControl
 {
     ChunkTag ctg;  // kctgEditControl
     long dxp; // width

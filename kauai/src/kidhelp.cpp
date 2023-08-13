@@ -740,9 +740,9 @@ bool TopicGraphicsObject::_FInit(void)
         switch (*(ChunkTag *)pv)
         {
         case kctgEditControl:
-            if (cb < size(ECOS))
+            if (cb < size(EditControl))
                 goto LContinue;
-            dxp = ((ECOS *)pv)->dxp;
+            dxp = ((EditControl *)pv)->dxp;
             FreePpv(&pv);
 
             // get the bounding rectangle
