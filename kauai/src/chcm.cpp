@@ -14,7 +14,7 @@ ASSERTNAME
 
 namespace Chunky {
 RTCLASS(Compiler)
-RTCLASS(CHLX)
+RTCLASS(CompilerLexer)
 RTCLASS(CHDC)
 
 PSZ _mpertpsz[] = {
@@ -2028,7 +2028,7 @@ PChunkyFile Compiler::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst
     PChunkyFile pcfl;
     bool fReportBadTok;
 
-    if (pvNil == (_pchlx = NewObj CHLX(pbsfSrc, pstnFile)))
+    if (pvNil == (_pchlx = NewObj CompilerLexer(pbsfSrc, pstnFile)))
     {
         pmsnk->ReportLine(PszLit("Memory failure"));
         return pvNil;
@@ -2161,7 +2161,7 @@ static KEYTT _rgkeytt[] = {
 /***************************************************************************
     Constructor for the chunky compiler lexer.
 ***************************************************************************/
-CHLX::CHLX(PBSF pbsf, PSTN pstnFile) : CHLX_PAR(pbsf, pstnFile)
+CompilerLexer::CompilerLexer(PBSF pbsf, PSTN pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
 {
     _pgstVariables = pvNil;
     AssertThis(0);
@@ -2170,7 +2170,7 @@ CHLX::CHLX(PBSF pbsf, PSTN pstnFile) : CHLX_PAR(pbsf, pstnFile)
 /***************************************************************************
     Destructor for the chunky compiler lexer.
 ***************************************************************************/
-CHLX::~CHLX(void)
+CompilerLexer::~CompilerLexer(void)
 {
     ReleasePpo(&_pgstVariables);
 }
@@ -2178,7 +2178,7 @@ CHLX::~CHLX(void)
 /***************************************************************************
     Reads in the next token.  Resolves certain names to keyword tokens.
 ***************************************************************************/
-bool CHLX::FGetTok(PTOK ptok)
+bool CompilerLexer::FGetTok(PTOK ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2187,7 +2187,7 @@ bool CHLX::FGetTok(PTOK ptok)
 
     for (;;)
     {
-        if (!CHLX_PAR::FGetTok(ptok))
+        if (!CompilerLexer_PAR::FGetTok(ptok))
             return fFalse;
 
         if (ttName != ptok->tt)
@@ -2229,7 +2229,7 @@ bool CHLX::FGetTok(PTOK ptok)
 /***************************************************************************
     Reads in the next token.  Skips semicolons and commas.
 ***************************************************************************/
-bool CHLX::FGetTokSkipSemi(PTOK ptok)
+bool CompilerLexer::FGetTokSkipSemi(PTOK ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2247,7 +2247,7 @@ bool CHLX::FGetTokSkipSemi(PTOK ptok)
 /***************************************************************************
     Reads a path and builds an Filename.
 ***************************************************************************/
-bool CHLX::FGetPath(Filename *pfni)
+bool CompilerLexer::FGetPath(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
@@ -2298,7 +2298,7 @@ bool CHLX::FGetPath(Filename *pfni)
 /***************************************************************************
     Handle a set command.
 ***************************************************************************/
-bool CHLX::_FDoSet(PTOK ptok)
+bool CompilerLexer::_FDoSet(PTOK ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2307,7 +2307,7 @@ bool CHLX::_FDoSet(PTOK ptok)
     long istn;
     bool fNegate;
 
-    if (!CHLX_PAR::FGetTok(ptok) || ttName != ptok->tt)
+    if (!CompilerLexer_PAR::FGetTok(ptok) || ttName != ptok->tt)
         return fFalse;
 
     lw = 0;
@@ -2320,7 +2320,7 @@ bool CHLX::_FDoSet(PTOK ptok)
             istn = ivNil;
     }
 
-    if (!CHLX_PAR::FGetTok(ptok))
+    if (!CompilerLexer_PAR::FGetTok(ptok))
         return fFalse;
 
     switch (ptok->tt)
@@ -2347,7 +2347,7 @@ bool CHLX::_FDoSet(PTOK ptok)
         fNegate = fFalse;
         for (;;)
         {
-            if (!CHLX_PAR::FGetTok(ptok))
+            if (!CompilerLexer_PAR::FGetTok(ptok))
                 return fFalse;
             if (ttLong == ptok->tt)
                 break;
@@ -2421,21 +2421,21 @@ bool CHLX::_FDoSet(PTOK ptok)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert that the CHLX is a valid object.
+    Assert that the CompilerLexer is a valid object.
 ***************************************************************************/
-void CHLX::AssertValid(ulong grf)
+void CompilerLexer::AssertValid(ulong grf)
 {
-    CHLX_PAR::AssertValid(grf);
+    CompilerLexer_PAR::AssertValid(grf);
     AssertNilOrPo(_pgstVariables, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CHLX object.
+    Mark memory for the CompilerLexer object.
 ***************************************************************************/
-void CHLX::MarkMem(void)
+void CompilerLexer::MarkMem(void)
 {
     AssertValid(0);
-    CHLX_PAR::MarkMem();
+    CompilerLexer_PAR::MarkMem();
     MarkMemObj(_pgstVariables);
 }
 #endif

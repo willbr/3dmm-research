@@ -11,7 +11,7 @@
     Copyright (c) Microsoft Corporation
 
     Header file for the Compiler class - the chunky compiler class, and
-    CHLX - its lexer.
+    CompilerLexer - its lexer.
 
 ***************************************************************************/
 #ifndef CHCM_H
@@ -79,15 +79,15 @@ struct KEYTT
 /***************************************************************************
     Chunky Compiler lexer class.
 ***************************************************************************/
-typedef class CHLX *PCHLX;
-#define CHLX_PAR LEXB
-#define kclsCHLX 'CHLX'
-class CHLX : public CHLX_PAR
+typedef class CompilerLexer *PCompilerLexer;
+#define CompilerLexer_PAR LEXB
+#define kclsCompilerLexer 'CHLX'
+class CompilerLexer : public CompilerLexer_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CHLX)
+    NOCOPY(CompilerLexer)
 
   protected:
     PStringTable _pgstVariables;
@@ -95,8 +95,8 @@ class CHLX : public CHLX_PAR
     bool _FDoSet(PTOK ptok);
 
   public:
-    CHLX(PBSF pbsf, PSTN pstnFile);
-    ~CHLX(void);
+    CompilerLexer(PBSF pbsf, PSTN pstnFile);
+    ~CompilerLexer(void);
 
     // override the LEXB FGetTok to resolve variables, hande SET
     // and recognize our additional key words
@@ -197,7 +197,7 @@ class Compiler : public Compiler_PAR
     PGL _pglckiLoner; // the chunks that must be loners
 
     BSF _bsf;     // temporary buffer for the chunk data
-    PCHLX _pchlx; // lexer for compiling
+    PCompilerLexer _pchlx; // lexer for compiling
     long _sm;     // current string mode
     long _cbNum;  // current numerical size (1, 2, or 4)
     short _bo;    // current byte order and osk
