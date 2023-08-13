@@ -8,7 +8,7 @@
     Copyright (c) Microsoft Corporation
 
     Script compiler for gob based scripts.  The real compilation is
-    done at the CompilerBase class level.  The SCCG class just provides mapping
+    done at the CompilerBase class level.  The GraphicsObjectCompiler class just provides mapping
     of identifiers to opcodes for GraphicsObject specific script primitives.
 
 ***************************************************************************/
@@ -17,7 +17,7 @@ ASSERTNAME
 
 namespace ScriptCompiler {
 
-RTCLASS(SCCG)
+RTCLASS(GraphicsObjectCompiler)
 
 StringOpcodeMap _rgszopSccg[] = {
     {kopCreateChildGob, PszLit("CreateChildGob")},
@@ -266,7 +266,7 @@ StringOpcodeArgumentMap _rgaropSccg[] = {
 /***************************************************************************
     Map a string to an operator.
 ***************************************************************************/
-long SCCG::_OpFromStn(PSTN pstn)
+long GraphicsObjectCompiler::_OpFromStn(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -274,39 +274,39 @@ long SCCG::_OpFromStn(PSTN pstn)
     long op;
     if (opNil != (op = _OpFromStnRgszop(pstn, _rgszopSccg)))
         return op;
-    return SCCG_PAR::_OpFromStn(pstn);
+    return GraphicsObjectCompiler_PAR::_OpFromStn(pstn);
 }
 
 /***************************************************************************
     Map an op code to a string.
 ***************************************************************************/
-bool SCCG::_FGetStnFromOp(long op, PSTN pstn)
+bool GraphicsObjectCompiler::_FGetStnFromOp(long op, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
     if (_FGetStnFromOpRgszop(op, pstn, _rgszopSccg))
         return fTrue;
-    return SCCG_PAR::_FGetStnFromOp(op, pstn);
+    return GraphicsObjectCompiler_PAR::_FGetStnFromOp(op, pstn);
 }
 
 /***************************************************************************
     Map a string to an operator with argument information (for in-fix
     compiler).
 ***************************************************************************/
-bool SCCG::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
+bool GraphicsObjectCompiler::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
 {
     if (_FGetArop(pstn, _rgaropSccg, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid))
     {
         return fTrue;
     }
-    return SCCG_PAR::_FGetOpFromName(pstn, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid);
+    return GraphicsObjectCompiler_PAR::_FGetOpFromName(pstn, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid);
 }
 
 /***************************************************************************
     Return the current version number of the script compiler.
 ***************************************************************************/
-short SCCG::_SwCur(void)
+short GraphicsObjectCompiler::_SwCur(void)
 {
     return kswCurSccg;
 }
@@ -315,7 +315,7 @@ short SCCG::_SwCur(void)
     Return the back version number of the script compiler.  Versions
     back to here can read this script.
 ***************************************************************************/
-short SCCG::_SwBack(void)
+short GraphicsObjectCompiler::_SwBack(void)
 {
     return kswBackSccg;
 }
@@ -324,7 +324,7 @@ short SCCG::_SwBack(void)
     Return the min version number of the script compiler.  We can read
     scripts back to this version.
 ***************************************************************************/
-short SCCG::_SwMin(void)
+short GraphicsObjectCompiler::_SwMin(void)
 {
     return kswMinSccg;
 }

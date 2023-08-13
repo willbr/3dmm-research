@@ -1598,7 +1598,7 @@ LFail:
 void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    SCCG sccg;
+    GraphicsObjectCompiler sccg;
     PScript pscpt;
 
     if (pvNil == (pscpt = sccg.PscptCompileLex(_pchlx, fInfix, _pmsnkError, ttEndChunk)))
@@ -2592,7 +2592,7 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
     AssertVarMem(pcki);
     PScript pscpt;
     bool fRet;
-    SCCG sccg;
+    GraphicsObjectCompiler sccg;
     long cfmt;
     bool fPacked;
     DataBlock blck;

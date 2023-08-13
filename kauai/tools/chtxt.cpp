@@ -129,7 +129,7 @@ bool CHTDD::FCmdCompileScript(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    SCCG sccg;
+    GraphicsObjectCompiler sccg;
     MSFIL msfil;
     STN stnFile;
     PScript pscpt;

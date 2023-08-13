@@ -2410,7 +2410,7 @@ bool DCD::FCmdImportScript(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    SCCG sccg;
+    GraphicsObjectCompiler sccg;
     ChunkIdentification cki;
     long lnOld;
     Filename fni;
@@ -2608,7 +2608,7 @@ bool DCD::FCmdDisasmScript(PCMD pcmd)
 {
     ChunkIdentification cki;
     PScript pscpt;
-    SCCG sccg;
+    GraphicsObjectCompiler sccg;
     Filename fni;
     MSFIL msfil, msfilError;
 
