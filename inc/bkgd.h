@@ -136,7 +136,7 @@ class BKGD : public BKGD_PAR
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     ~BKGD(void);
     void GetName(PSTN pstn);
 

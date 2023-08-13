@@ -54,7 +54,7 @@ const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr
 /***************************************************************************
     A PFNRPO to read a TDF from a file.
 ***************************************************************************/
-bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -88,7 +88,7 @@ bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLC
     Initialize the font.  Does not clean up on failure because the
     destructor will.
 ***************************************************************************/
-bool TDF::_FInit(PBLCK pblck)
+bool TDF::_FInit(PDataBlock pblck)
 {
     AssertBaseThis(0);
     AssertPo(pblck, 0);

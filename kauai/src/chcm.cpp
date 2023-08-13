@@ -659,7 +659,7 @@ void CHCM::_ParseBodyFile(void)
     Otherwise, get the block on the ChunkyFile. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
-bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck)
+bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -677,7 +677,7 @@ bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PBLCK
 /***************************************************************************
     Balances a call to _FPrepWrite.
 ***************************************************************************/
-bool CHCM::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PBLCK pblck)
+bool CHCM::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, fblckUnpacked);
@@ -2615,7 +2615,7 @@ bool CHDC::_FDumpScript(ChunkIdentification *pcki)
     Try to read the chunk as a list and dump it out.  If the chunk isn't
     a list, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpList(PBLCK pblck, bool fAl)
+bool CHDC::_FDumpList(PDataBlock pblck, bool fAl)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
@@ -2653,7 +2653,7 @@ bool CHDC::_FDumpList(PBLCK pblck, bool fAl)
     Try to read the chunk as a group and dump it out.  If the chunk isn't
     a group, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpGroup(PBLCK pblck, bool fAg)
+bool CHDC::_FDumpGroup(PDataBlock pblck, bool fAg)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
@@ -2691,7 +2691,7 @@ bool CHDC::_FDumpGroup(PBLCK pblck, bool fAg)
     Try to read the chunk as a string table and dump it out.  If the chunk
     isn't a string table, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpStringTable(PBLCK pblck, bool fAst)
+bool CHDC::_FDumpStringTable(PDataBlock pblck, bool fAst)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);

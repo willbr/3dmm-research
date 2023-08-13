@@ -65,7 +65,7 @@ long DOCPIC::_CbOnFile(void)
 /***************************************************************************
     Write the data out.
 ***************************************************************************/
-bool DOCPIC::_FWrite(PBLCK pblck, bool fRedirect)
+bool DOCPIC::_FWrite(PDataBlock pblck, bool fRedirect)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -76,7 +76,7 @@ bool DOCPIC::_FWrite(PBLCK pblck, bool fRedirect)
 /***************************************************************************
     Read the PIC.
 ***************************************************************************/
-bool DOCPIC::_FRead(PBLCK pblck)
+bool DOCPIC::_FRead(PDataBlock pblck)
 {
     Assert(_ppic == pvNil, "losing existing PIC");
     AssertPo(pblck, 0);

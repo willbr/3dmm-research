@@ -64,6 +64,6 @@ class SCEG : public SCEG_PAR
 };
 
 // a Chunky resource reader for a color table
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
 
 #endif //! SCREXEG_H

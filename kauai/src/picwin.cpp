@@ -57,7 +57,7 @@ PPIC PIC::PpicFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
     Read a picture from a chunky file.  This routine only reads a system
     specific pict (Mac PICT or Windows MetaFile) and its header.
 ***************************************************************************/
-PPIC PIC::PpicRead(PBLCK pblck)
+PPIC PIC::PpicRead(PDataBlock pblck)
 {
     AssertPo(pblck, fblckReadable);
     HPIC hpic;
@@ -112,7 +112,7 @@ long PIC::CbOnFile(void)
 /***************************************************************************
     Write the meta file (and its header) to the given DataBlock.
 ***************************************************************************/
-bool PIC::FWrite(PBLCK pblck)
+bool PIC::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);

@@ -181,7 +181,7 @@ bool GRPB::FWriteFlo(PFLO pflo, short bo, short osk)
     Write the GRPB data to the block.  First write the (pv, cb), then
     cb1 bytes from the first section and cb2 bytes from the second.
 ***************************************************************************/
-bool GRPB::_FWrite(PBLCK pblck, void *pv, long cb, long cb1, long cb2)
+bool GRPB::_FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2)
 {
     AssertPo(pblck, 0);
     AssertIn(cb, 1, kcbMax);
@@ -221,7 +221,7 @@ bool GRPB::_FWrite(PBLCK pblck, void *pv, long cb, long cb1, long cb2)
     Read the two sections of data from the given location in the given
     block.
 ***************************************************************************/
-bool GRPB::_FReadData(PBLCK pblck, long cb1, long cb2, long ib)
+bool GRPB::_FReadData(PDataBlock pblck, long cb1, long cb2, long ib)
 {
     AssertPo(pblck, fblckUnpacked);
     AssertIn(cb1, 0, kcbMax);
@@ -392,7 +392,7 @@ PGL GL::PglNew(long cb, long cvInit)
 /***************************************************************************
     Read a list from a block and return it.
 ***************************************************************************/
-PGL GL::PglRead(PBLCK pblck, short *pbo, short *posk)
+PGL GL::PglRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
@@ -481,7 +481,7 @@ long GL::CbOnFile(void)
 /***************************************************************************
     Write the list to disk.
 ***************************************************************************/
-bool GL::FWrite(PBLCK pblck, short bo, short osk)
+bool GL::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -506,7 +506,7 @@ bool GL::FWrite(PBLCK pblck, short bo, short osk)
 /***************************************************************************
     Read list data from disk.
 ***************************************************************************/
-bool GL::_FRead(PBLCK pblck, short *pbo, short *posk)
+bool GL::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -749,7 +749,7 @@ PAL AL::PalNew(long cb, long cvInit)
 /***************************************************************************
     Read an allocated list from the block and return it.
 ***************************************************************************/
-PAL AL::PalRead(PBLCK pblck, short *pbo, short *posk)
+PAL AL::PalRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
@@ -833,7 +833,7 @@ long AL::CbOnFile(void)
 /***************************************************************************
     Write the list to disk.
 ***************************************************************************/
-bool AL::FWrite(PBLCK pblck, short bo, short osk)
+bool AL::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -859,7 +859,7 @@ bool AL::FWrite(PBLCK pblck, short bo, short osk)
 /***************************************************************************
     Read allocated list data from the block.
 ***************************************************************************/
-bool AL::_FRead(PBLCK pblck, short *pbo, short *posk)
+bool AL::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -1133,7 +1133,7 @@ long GGB::CbOnFile(void)
     Write the group to disk.  The client must ensure that the data in the
     GGB has the correct byte order (as specified by the bo).
 ***************************************************************************/
-bool GGB::FWrite(PBLCK pblck, short bo, short osk)
+bool GGB::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -1170,7 +1170,7 @@ bool GGB::FWrite(PBLCK pblck, short bo, short osk)
 /***************************************************************************
     Read group data from disk.
 ***************************************************************************/
-bool GGB::_FRead(PBLCK pblck, short *pbo, short *posk)
+bool GGB::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -1854,7 +1854,7 @@ PGG GG::PggNew(long cbFixed, long cvInit, long cbInit)
 /***************************************************************************
     Read a group from a block and return it.
 ***************************************************************************/
-PGG GG::PggRead(PBLCK pblck, short *pbo, short *posk)
+PGG GG::PggRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
@@ -2108,7 +2108,7 @@ PAG AG::PagNew(long cbFixed, long cvInit, long cbInit)
 /***************************************************************************
     Read an allocated group from a block and return it.
 ***************************************************************************/
-PAG AG::PagRead(PBLCK pblck, short *pbo, short *posk)
+PAG AG::PagRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);

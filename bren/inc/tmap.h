@@ -66,18 +66,18 @@ class TMAP : public TMAP_PAR
   public:
     ~TMAP(void);
 
-    //  REVIEW *****(peted): MBMP's ...Read function just takes a PBLCK; this
+    //  REVIEW *****(peted): MBMP's ...Read function just takes a PDataBlock; this
     //  is more like the FRead... function, just without the BACO stuff.  Why
     //  the difference?
     //	Addendum: to enable compiling 'TMAP' chunks, I added an FWrite that does
-    //	take just a PBLCK.  Should this be necessary for PtmapRead in the future,
+    //	take just a PDataBlock.  Should this be necessary for PtmapRead in the future,
     //	it's a simple matter of extracting the code in PtmapRead that is needed,
     //	like I did for FWrite.
     static PTMAP PtmapRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TMAP
-    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TMAP
     static PTMAP PtmapNewFromBpmp(BPMP *pbpmp);
@@ -102,7 +102,7 @@ class TMAP : public TMAP_PAR
     {
         return (size(TMAPF) + LwMul(_bpmp.row_bytes, _bpmp.height));
     }
-    bool FWrite(PBLCK pblck);
+    bool FWrite(PDataBlock pblck);
 
 #ifdef NOT_YET_REVIEWED
     // Useful shade-table type method

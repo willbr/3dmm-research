@@ -61,7 +61,7 @@ bool BACO::FWriteFlo(PFLO pflo)
 /***************************************************************************
     Placeholder function for BACO generic writer.
 ***************************************************************************/
-bool BACO::FWrite(PBLCK pblck)
+bool BACO::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     RawRtn(); // Derived class should be defining this
@@ -991,7 +991,7 @@ void ChunkyResourceManager::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read GHQ objects.
 ***************************************************************************/
-bool GHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool GHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

@@ -138,7 +138,7 @@ typedef class GSTB *PGSTB;
 typedef class GST *PGST;
 typedef class AST *PAST;
 typedef class SCPT *PSCPT;
-typedef class DataBlock *PBLCK;
+typedef class DataBlock *PDataBlock;
 
 #include "framedef.h"
 #include "debug.h"

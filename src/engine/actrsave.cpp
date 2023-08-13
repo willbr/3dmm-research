@@ -206,7 +206,7 @@ LFail:
     Read the ACTF. This handles converting an ACTF that doesn't have an
     nfrmLast.
 ***************************************************************************/
-bool _FReadActf(PBLCK pblck, ACTF *pactf)
+bool _FReadActf(PDataBlock pblck, ACTF *pactf)
 {
     AssertPo(pblck, 0);
     AssertVarMem(pactf);

@@ -92,7 +92,7 @@ class MBMP : public MBMP_PAR
     static PMBMP PmbmpReadNative(Filename *pfni, byte bTransparent = 0, long xp = 0, long yp = 0, ulong grfmbmp = fmbmpNil,
                                  byte bDefault = 0);
 
-    static PMBMP PmbmpRead(PBLCK pblck);
+    static PMBMP PmbmpRead(PDataBlock pblck);
 
     void GetRc(RC *prc);
     void Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
@@ -100,11 +100,11 @@ class MBMP : public MBMP_PAR
     void DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil);
     bool FPtIn(long xp, long yp);
 
-    virtual bool FWrite(PBLCK pblck);
+    virtual bool FWrite(PDataBlock pblck);
     virtual long CbOnFile(void);
 
     // a chunky resource reader for an MBMP
-    static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
 };
 const ByteOrderMask kbomMbmph = 0xAFFC0000;
 

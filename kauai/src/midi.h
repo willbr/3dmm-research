@@ -85,12 +85,12 @@ class MIDS : public MIDS_PAR
     static long _CbEncodeLu(ulong lu, byte *prgb);
 
   public:
-    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PMIDS PmidsRead(PBLCK pblck);
+    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
+    static PMIDS PmidsRead(PDataBlock pblck);
     static PMIDS PmidsReadNative(Filename *pfni);
     ~MIDS(void);
 
-    virtual bool FWrite(PBLCK pblck);
+    virtual bool FWrite(PDataBlock pblck);
     virtual long CbOnFile(void);
 };
 

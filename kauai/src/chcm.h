@@ -242,8 +242,8 @@ class CHCM : public CHCM_PAR
     void _ParseAdopt(void);
     void _ParsePackFmt(void);
 
-    bool _FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck);
-    bool _FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PBLCK pblck);
+    bool _FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck);
+    bool _FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck);
 
   public:
     CHCM(void);
@@ -281,9 +281,9 @@ class CHDC : public CHDC_PAR
 
   protected:
     bool _FDumpScript(ChunkIdentification *pcki);
-    bool _FDumpList(PBLCK pblck, bool fAl);
-    bool _FDumpGroup(PBLCK pblck, bool fAg);
-    bool _FDumpStringTable(PBLCK pblck, bool fAst);
+    bool _FDumpList(PDataBlock pblck, bool fAl);
+    bool _FDumpGroup(PDataBlock pblck, bool fAg);
+    bool _FDumpStringTable(PDataBlock pblck, bool fAst);
     void _WritePack(long cfmt);
 
   public:

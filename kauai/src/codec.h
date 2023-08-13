@@ -69,7 +69,7 @@ class CODM : public CODM_PAR
 
     // Gets the type of compression used on the block (assuming it is
     // compressed).
-    virtual bool FGetCfmtFromBlck(PBLCK pblck, long *pcfmt);
+    virtual bool FGetCfmtFromBlck(PDataBlock pblck, long *pcfmt);
 
     // FDecompress allows pvDst to be nil (in which case *pcbDst is filled
     // in with the buffer size required).

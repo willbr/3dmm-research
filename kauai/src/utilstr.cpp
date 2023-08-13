@@ -253,7 +253,7 @@ void STN::GetData(void *pv)
 /***************************************************************************
     Writes the string data to the given block starting at position ib.
 ***************************************************************************/
-bool STN::FWrite(PBLCK pblck, long ib)
+bool STN::FWrite(PDataBlock pblck, long ib)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -385,7 +385,7 @@ bool STN::FSetData(void *pv, long cbMax, long *pcbRead)
 /***************************************************************************
     Read a string from a block.
 ***************************************************************************/
-bool STN::FRead(PBLCK pblck, long ib, long *pcbRead)
+bool STN::FRead(PDataBlock pblck, long ib, long *pcbRead)
 {
     AssertThis(0);
     AssertPo(pblck, 0);

@@ -95,7 +95,7 @@ long GSTB::CbOnFile(void)
     strings are actually saved in the corresponding osk with the same sized
     characters.
 ***************************************************************************/
-bool GSTB::FWrite(PBLCK pblck, short bo, short osk)
+bool GSTB::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -150,7 +150,7 @@ bool GSTB::FWrite(PBLCK pblck, short bo, short osk)
 /***************************************************************************
     Read string table data from a block.
 ***************************************************************************/
-bool GSTB::_FRead(PBLCK pblck, short *pbo, short *posk)
+bool GSTB::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -729,7 +729,7 @@ PGST GST::PgstNew(long cbExtra, long cstnInit, long cchInit)
 /***************************************************************************
     Read a string table from a block and return it.
 ***************************************************************************/
-PGST GST::PgstRead(PBLCK pblck, short *pbo, short *posk)
+PGST GST::PgstRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
@@ -975,7 +975,7 @@ PAST AST::PastNew(long cbExtra, long cstnInit, long cchInit)
 /***************************************************************************
     Read an allocated string table from a block and return it.
 ***************************************************************************/
-PAST AST::PastRead(PBLCK pblck, short *pbo, short *posk)
+PAST AST::PastRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);

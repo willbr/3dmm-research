@@ -2005,7 +2005,7 @@ void ChunkyFile::_GetFlo(long icrp, PFLO pflo)
 /***************************************************************************
     Get the DataBlock from the chunk.
 ***************************************************************************/
-void ChunkyFile::_GetBlck(long icrp, PBLCK pblck)
+void ChunkyFile::_GetBlck(long icrp, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -2333,7 +2333,7 @@ void ChunkyFile::_GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno)
 /***************************************************************************
     Add a new chunk.
 ***************************************************************************/
-bool ChunkyFile::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck)
+bool ChunkyFile::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -2400,7 +2400,7 @@ bool ChunkyFile::FAddHq(HQ hq, ChunkTag ctg, ChunkNumber *pcno)
 /***************************************************************************
     Add a new chunk and write the block to it.
 ***************************************************************************/
-bool ChunkyFile::FAddBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber *pcno)
+bool ChunkyFile::FAddBlck(PDataBlock pblckSrc, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pblckSrc, 0);
@@ -2427,7 +2427,7 @@ bool ChunkyFile::FAddBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber *pcno)
     Adds the chunk and makes it a child of (ctgPar, cnoPar). The loner flag
     of the new chunk will be clear.
 ***************************************************************************/
-bool ChunkyFile::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck)
+bool ChunkyFile::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertVarMem(pcno);
@@ -2483,7 +2483,7 @@ bool ChunkyFile::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID c
 /***************************************************************************
     Low level add.  Sets the loner flag.
 ***************************************************************************/
-bool ChunkyFile::_FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PBLCK pblck)
+bool ChunkyFile::_FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataBlock pblck)
 {
     AssertBaseThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -2528,7 +2528,7 @@ bool ChunkyFile::_FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PBLCK 
 /***************************************************************************
     Replace or create a chunk of a particular cno.
 ***************************************************************************/
-bool ChunkyFile::FPut(long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck)
+bool ChunkyFile::FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertNilOrPo(pblck, 0);
@@ -2570,7 +2570,7 @@ bool ChunkyFile::FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno)
     Replace or create a chunk with the given cno and put the block's
     data in it.  Set the packed flag as in the block.
 ***************************************************************************/
-bool ChunkyFile::FPutBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber cno)
+bool ChunkyFile::FPutBlck(PDataBlock pblckSrc, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pblckSrc, 0);
@@ -2588,7 +2588,7 @@ bool ChunkyFile::FPutBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber cno)
     else except the data.  If pblck isn't nil, this sets it to the location
     of the new data.  Doesn't change the packed flag.
 ***************************************************************************/
-bool ChunkyFile::_FPut(long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBLCK pblckSrc, void *pv)
+bool ChunkyFile::_FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv)
 {
     AssertBaseThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -3410,7 +3410,7 @@ long ChunkyFile::Ccki(void)
     Finds the icki'th chunk.  If there is such a chunk (icki isn't too big),
     fills in *pcki and *pckid and returns true.  Otherwise, returns fFalse.
 ***************************************************************************/
-bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki, long *pckid, PBLCK pblck)
+bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki, long *pckid, PDataBlock pblck)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -3477,7 +3477,7 @@ long ChunkyFile::CckiCtg(ChunkTag ctg)
     Finds the icki'th chunk of type ctg.  If there is such a chunk,
     fills in *pcki and returns true.  Otherwise, returns fFalse.
 ***************************************************************************/
-bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, long *pckid, PBLCK pblck)
+bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, long *pckid, PDataBlock pblck)
 {
     AssertThis(0);
     AssertIn(icki, 0, kcbMax);

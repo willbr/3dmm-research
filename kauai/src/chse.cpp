@@ -121,7 +121,7 @@ void CHSE::DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
 /***************************************************************************
     Dump a raw data chunk
 ***************************************************************************/
-void CHSE::DumpBlck(PBLCK pblck)
+void CHSE::DumpBlck(PDataBlock pblck)
 {
     AssertThis(fchseDump);
     AssertPo(pblck, 0);

@@ -54,7 +54,7 @@ class SCPT : public SCPT_PAR
     friend class SCCB;
 
   public:
-    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     static PSCPT PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~SCPT(void);
 

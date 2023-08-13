@@ -46,7 +46,7 @@ const WORD knBlockAlign = 1;
     A PFNRPO to read a MovieSoundMSND from a file
 
 ***************************************************************************/
-bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

@@ -83,7 +83,7 @@ class BACO : public BACO_PAR
     // Many objects know how big they are, and how to write themselves to a
     // chunky file.  Here are some useful prototypes so that the users of those
     // objects don't need to know what the actual class is.
-    virtual bool FWrite(PBLCK pblck);
+    virtual bool FWrite(PDataBlock pblck);
     virtual bool FWriteFlo(PFLO pflo);
     virtual long CbOnFile(void);
 };
@@ -94,7 +94,7 @@ class BACO : public BACO_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
 typedef FNRPO *PFNRPO;
 
 typedef class RCA *PRCA;
@@ -232,7 +232,7 @@ class GHQ : public GHQ_PAR
     }
 
     // An object reader for a GHQ.
-    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
 };
 
 /***************************************************************************

@@ -120,7 +120,7 @@ bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Read the group from the given flo.
 ***************************************************************************/
-bool DOCG::_FRead(PBLCK pblck)
+bool DOCG::_FRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
     Assert(pvNil == _pgrpb, "group not nil");
@@ -262,7 +262,7 @@ PDDG DOCG::PddgNew(PGCB pgcb)
 /***************************************************************************
     Write the group to disk.
 ***************************************************************************/
-bool DOCG::_FWrite(PBLCK pblck, bool fRedirect)
+bool DOCG::_FWrite(PDataBlock pblck, bool fRedirect)
 {
     AssertThis(0);
     AssertPo(pblck, 0);

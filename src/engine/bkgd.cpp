@@ -117,7 +117,7 @@ bool BKGD::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     A PFNRPO to read a BKGD from a file
 ***************************************************************************/
-bool BKGD::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool BKGD::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

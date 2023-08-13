@@ -164,7 +164,7 @@ PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
     AssertPo(pflo, ffloReadable);
     PSTBL pstbl;
     DataBlock blck;
-    PBLCK pblck;
+    PDataBlock pblck;
 
     if (pvNil == (pstbl = new STBL))
         return pvNil;
@@ -262,7 +262,7 @@ CAMS::~CAMS(void)
 /***************************************************************************
     Static BACO reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

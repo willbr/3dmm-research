@@ -177,7 +177,7 @@ void MDWS::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MDWS::FReadMdws(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MDWS::FReadMdws(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -208,7 +208,7 @@ bool MDWS::FReadMdws(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PB
 /***************************************************************************
     Read a midi stream from the given block.
 ***************************************************************************/
-PMDWS MDWS::PmdwsRead(PBLCK pblck)
+PMDWS MDWS::PmdwsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 

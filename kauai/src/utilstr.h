@@ -474,8 +474,8 @@ class STN
     long CbData(void);
     void GetData(void *pv);
     bool FSetData(void *pv, long cbMax, long *pcbRead = pvNil);
-    bool FWrite(PBLCK pblck, long ib);
-    bool FRead(PBLCK pblck, long ib, long *pcbRead = pvNil);
+    bool FWrite(PDataBlock pblck, long ib);
+    bool FRead(PDataBlock pblck, long ib, long *pcbRead = pvNil);
 
     bool FFormat(PSTN pstnFormat, ...);
     bool FFormatSz(PSZ pszFormat, ...);

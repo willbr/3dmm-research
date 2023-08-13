@@ -143,7 +143,7 @@ bool BSM::FWriteRgb(PFLO pflo, long ib)
 /***************************************************************************
     Write the byte stream to a block.
 ***************************************************************************/
-bool BSM::FWriteRgb(PBLCK pblck, long ib)
+bool BSM::FWriteRgb(PDataBlock pblck, long ib)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -795,7 +795,7 @@ bool BSF::FWriteRgb(PFLO pflo, long ib)
 /***************************************************************************
     Write a portion of a BSF to the given block.
 ***************************************************************************/
-bool BSF::FWriteRgb(PBLCK pblck, long ib)
+bool BSF::FWriteRgb(PDataBlock pblck, long ib)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);

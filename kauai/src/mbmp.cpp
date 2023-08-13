@@ -260,7 +260,7 @@ PMBMP MBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, long xp, long yp,
 /***************************************************************************
     Read a masked bitmap from a block.  May free the block or modify it.
 ***************************************************************************/
-PMBMP MBMP::PmbmpRead(PBLCK pblck)
+PMBMP MBMP::PmbmpRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
     PMBMP pmbmp;
@@ -373,7 +373,7 @@ long MBMP::CbOnFile(void)
 /***************************************************************************
     Write the masked bitmap (and its header) to the given block.
 ***************************************************************************/
-bool MBMP::FWrite(PBLCK pblck)
+bool MBMP::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -483,7 +483,7 @@ void MBMP::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read an MBMP.
 ***************************************************************************/
-bool MBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);

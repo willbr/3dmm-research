@@ -1079,7 +1079,7 @@ bool DataBlock::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
 /***************************************************************************
     Write this block to another block.
 ***************************************************************************/
-bool DataBlock::FWriteToBlck(PBLCK pblckDst, bool fPackedOk)
+bool DataBlock::FWriteToBlck(PDataBlock pblckDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pblckDst, 0);

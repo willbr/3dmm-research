@@ -313,7 +313,7 @@ void MIDS::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MIDS::FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MIDS::FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -343,7 +343,7 @@ bool MIDS::FReadMids(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PB
 /***************************************************************************
     Read a midi stream from the given block.
 ***************************************************************************/
-PMIDS MIDS::PmidsRead(PBLCK pblck)
+PMIDS MIDS::PmidsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 
@@ -662,7 +662,7 @@ long MIDS::_CbEncodeLu(ulong lu, byte *prgb)
 /***************************************************************************
     Write a midi stream to the given block.
 ***************************************************************************/
-bool MIDS::FWrite(PBLCK pblck)
+bool MIDS::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);

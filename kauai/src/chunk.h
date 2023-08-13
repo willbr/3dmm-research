@@ -129,8 +129,8 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FFindCtgCno(ChunkTag ctg, ChunkNumber cno, long *picrp);
     void _GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno);
     void _FreeFpCb(bool fOnExtra, FP fp, long cb);
-    bool _FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PBLCK pblck);
-    bool _FPut(long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBLCK pblckSrc, void *pv);
+    bool _FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataBlock pblck);
+    bool _FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv);
     bool _FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst, bool fClone);
     bool _FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
     bool _FFindCtgRti(ChunkTag ctg, long rti, ChunkNumber cnoMin, ChunkNumber *pcnoDst);
@@ -143,7 +143,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FSetName(long icrp, PSTN pstn);
     bool _FGetName(long icrp, PSTN pstn);
     void _GetFlo(long icrp, PFLO pflo);
-    void _GetBlck(long icrp, PBLCK pblck);
+    void _GetBlck(long icrp, PDataBlock pblck);
     bool _FEnsureOnExtra(long icrp, FLO *pflo = pvNil);
 
     long _Rti(ChunkTag ctg, ChunkNumber cno);
@@ -204,14 +204,14 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FPackData(ChunkTag ctg, ChunkNumber cno);
 
     // creating and replacing chunks
-    bool FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck = pvNil);
+    bool FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, PDataBlock pblck = pvNil);
     bool FAddPv(void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
     bool FAddHq(HQ hq, ChunkTag ctg, ChunkNumber *pcno);
-    bool FAddBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber *pcno);
-    bool FPut(long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck = pvNil);
+    bool FAddBlck(PDataBlock pblckSrc, ChunkTag ctg, ChunkNumber *pcno);
+    bool FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck = pvNil);
     bool FPutPv(void *pv, long cb, ChunkTag ctg, ChunkNumber cno);
     bool FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno);
-    bool FPutBlck(PBLCK pblck, ChunkTag ctg, ChunkNumber cno);
+    bool FPutBlck(PDataBlock pblck, ChunkTag ctg, ChunkNumber cno);
     bool FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
     bool FClone(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
     void SwapData(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkNumber cno2);
@@ -219,7 +219,7 @@ class ChunkyFile : public ChunkyFile_PAR
     void Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumber cnoNew);
 
     // creating child chunks
-    bool FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck = pvNil);
+    bool FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PDataBlock pblck = pvNil);
     bool FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
     bool FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, HQ hq, ChunkTag ctg, ChunkNumber *pcno);
 
@@ -241,10 +241,10 @@ class ChunkyFile : public ChunkyFile_PAR
 
     // enumerating chunks
     long Ccki(void);
-    bool FGetCki(long icki, ChunkIdentification *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
+    bool FGetCki(long icki, ChunkIdentification *pcki, long *pckid = pvNil, PDataBlock pblck = pvNil);
     bool FGetIcki(ChunkTag ctg, ChunkNumber cno, long *picki);
     long CckiCtg(ChunkTag ctg);
-    bool FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
+    bool FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, long *pckid = pvNil, PDataBlock pblck = pvNil);
 
     // enumerating child chunks
     long Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);

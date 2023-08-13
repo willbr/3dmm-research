@@ -76,8 +76,8 @@ class GRPB : public GRPB_PAR
         return _cb2;
     }
     bool _FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp);
-    bool _FWrite(PBLCK pblck, void *pv, long cb, long cb1, long cb2);
-    bool _FReadData(PBLCK pblck, long ib, long cb1, long cb2);
+    bool _FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2);
+    bool _FReadData(PDataBlock pblck, long ib, long cb1, long cb2);
     bool _FDup(PGRPB pgrpbDst, long cb1, long cb2);
 
     GRPB(void)
@@ -106,7 +106,7 @@ class GRPB : public GRPB_PAR
 
     // writing
     virtual bool FWriteFlo(PFLO pflo, short bo = kboCur, short osk = koskCur);
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur) = 0;
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur) = 0;
     virtual long CbOnFile(void) = 0;
 };
 
@@ -151,12 +151,12 @@ class GL : public GL_PAR
 
   protected:
     GL(long cb);
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
     static PGL PglNew(long cb, long cvInit = 0);
-    static PGL PglRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PGL PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PGL PglRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
@@ -165,7 +165,7 @@ class GL : public GL_PAR
     // methods required by parent class
     virtual bool FAdd(void *pv, long *piv = pvNil);
     virtual void Delete(long iv);
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long iv);
 
@@ -212,12 +212,12 @@ class AL : public AL_PAR
 
   protected:
     AL(long cb);
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
     static PAL PalNew(long cb, long cvInit = 0);
-    static PAL PalRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAL PalRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PAL PalRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
@@ -226,7 +226,7 @@ class AL : public AL_PAR
     // methods required by parent class
     virtual bool FAdd(void *pv, long *piv = pvNil);
     virtual void Delete(long iv);
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long iv);
 
@@ -267,13 +267,13 @@ class GGB : public GGB_PAR
     {
         return (LOC *)_Qb2(LwMul(iloc, size(LOC)));
     }
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
     bool _FDup(PGGB pggbDst);
 
   public:
     // methods required by parent class
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long iv);
 
@@ -325,7 +325,7 @@ class GG : public GG_PAR
   public:
     // static methods
     static PGG PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
-    static PGG PggRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PGG PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PGG PggRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
@@ -360,7 +360,7 @@ class AG : public AG_PAR
   public:
     // static methods
     static PAG PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
-    static PAG PagRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAG PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PAG PagRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
@@ -417,13 +417,13 @@ class GSTB : public GSTB_PAR
     void _SwapBytesRgbst(void);
     void _TranslateGrst(short osk, bool fToCur);
     bool _FTranslateGrst(short osk);
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
     bool _FDup(PGSTB pgstbDst);
 
   public:
     // methods required by parent class
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long istn);
 
@@ -472,7 +472,7 @@ class GST : public GST_PAR
   public:
     // static methods
     static PGST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PGST PgstRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PGST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PGST PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
@@ -507,7 +507,7 @@ class AST : public AST_PAR
   public:
     // static methods
     static PAST PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PAST PastRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAST PastRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PAST PastRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication

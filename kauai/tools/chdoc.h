@@ -92,9 +92,9 @@ class DOCE : public DOCE_PAR
     bool _FInit(void);
 
     virtual bool _FSaveToChunk(ChunkTag ctg, ChunkNumber cno, bool fRedirect);
-    virtual bool _FWrite(PBLCK pblck, bool fRedirect) = 0;
+    virtual bool _FWrite(PDataBlock pblck, bool fRedirect) = 0;
     virtual long _CbOnFile(void) = 0;
-    virtual bool _FRead(PBLCK pblck) = 0;
+    virtual bool _FRead(PDataBlock pblck) = 0;
 
   public:
     static PDOCE PdoceFromChunk(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
@@ -119,9 +119,9 @@ class DOCH : public DOCH_PAR
     BSF _bsf; // the byte stream
 
     DOCH(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    virtual bool _FWrite(PBLCK pblck, bool fRedirect);
+    virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
     virtual long _CbOnFile(void);
-    virtual bool _FRead(PBLCK pblck);
+    virtual bool _FRead(PDataBlock pblck);
 
   public:
     static PDOCH PdochNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
@@ -147,9 +147,9 @@ class DOCG : public DOCG_PAR
 
     DOCG(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     ~DOCG(void);
-    virtual bool _FWrite(PBLCK pblck, bool fRedirect);
+    virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
     virtual long _CbOnFile(void);
-    virtual bool _FRead(PBLCK pblck);
+    virtual bool _FRead(PDataBlock pblck);
 
   public:
     static PDOCG PdocgNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
@@ -224,9 +224,9 @@ class DOCPIC : public DOCPIC_PAR
     DOCPIC(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCPIC(void);
 
-    virtual bool _FWrite(PBLCK pblck, bool fRedirect);
+    virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
     virtual long _CbOnFile(void);
-    virtual bool _FRead(PBLCK pblck);
+    virtual bool _FRead(PDataBlock pblck);
 
   public:
     static PDOCPIC PdocpicNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
@@ -255,9 +255,9 @@ class DOCMBMP : public DOCMBMP_PAR
     DOCMBMP(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCMBMP(void);
 
-    virtual bool _FWrite(PBLCK pblck, bool fRedirect);
+    virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
     virtual long _CbOnFile(void);
-    virtual bool _FRead(PBLCK pblck);
+    virtual bool _FRead(PDataBlock pblck);
 
   public:
     static PDOCMBMP PdocmbmpNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);

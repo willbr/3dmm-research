@@ -69,7 +69,7 @@ class MTRL : public MTRL_PAR
   public:
     static bool FSetShadeTable(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     static PMTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
-    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     static PMTRL PmtrlNewFromPix(PFilename pfni);
     static PMTRL PmtrlNewFromBmp(PFilename pfni, PGL pglclr = pvNil);
     static PMTRL PmtrlFromBmtl(PBMTL pbmtl);
@@ -113,7 +113,7 @@ class CMTL : public CMTL_PAR
 
   public:
     static PCMTL PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl);
-    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     static bool FHasModels(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     static bool FEqualModels(PCFL pcfl, ChunkNumber cno1, ChunkNumber cno2);
     ~CMTL(void);

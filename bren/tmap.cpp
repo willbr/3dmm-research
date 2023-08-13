@@ -12,7 +12,7 @@ RTCLASS(TMAP)
 /***************************************************************************
     A PFNRPO to read TMAP objects.
 ***************************************************************************/
-bool TMAP::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool TMAP::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -134,7 +134,7 @@ bool TMAP::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
 /***************************************************************************
     Write a TMAP to the given FLO
 ***************************************************************************/
-bool TMAP::FWrite(PBLCK pblck)
+bool TMAP::FWrite(PDataBlock pblck)
 {
     TMAPF tmapf;
 

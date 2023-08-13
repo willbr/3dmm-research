@@ -150,7 +150,7 @@ bool CODM::FCanDo(long cfmt, bool fEncode)
     Gets the type of compression used on the block (assuming it is
     compressed).
 ***************************************************************************/
-bool CODM::FGetCfmtFromBlck(PBLCK pblck, long *pcfmt)
+bool CODM::FGetCfmtFromBlck(PDataBlock pblck, long *pcfmt)
 {
     AssertThis(0);
     AssertPo(pblck, 0);

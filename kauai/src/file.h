@@ -219,7 +219,7 @@ enum
     fblckReadable = 16,
 };
 
-typedef class DataBlock *PBLCK;
+typedef class DataBlock *PDataBlock;
 #define DataBlock_PAR BASE
 #define kclsDataBlock 'BLCK'
 class DataBlock : public DataBlock_PAR
@@ -281,7 +281,7 @@ class DataBlock : public DataBlock_PAR
 
     // writing a block to a flo or another blck.
     bool FWriteToFlo(PFLO pfloDst, bool fPackedOk = fFalse);
-    bool FWriteToBlck(PBLCK pblckDst, bool fPackedOk = fFalse);
+    bool FWriteToBlck(PDataBlock pblckDst, bool fPackedOk = fFalse);
     bool FGetFlo(PFLO pflo, bool fPackedOk = fFalse);
 
     // packing and unpacking

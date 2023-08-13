@@ -48,12 +48,12 @@ class MODL : public MODL_PAR
     MODL(void)
     {
     }
-    bool _FInit(PBLCK pblck);
+    bool _FInit(PDataBlock pblck);
     bool _FPrelight(long cblit, BVEC3 *prgbvec3Light);
 
   public:
     static PMODL PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
-    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     static PMODL PmodlReadFromDat(Filename *pfni);
     static PMODL PmodlFromBmdl(PBMDL pbmdl);
     ~MODL(void);

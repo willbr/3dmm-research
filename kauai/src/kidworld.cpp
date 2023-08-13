@@ -21,7 +21,7 @@ RTCLASS(WorldOfKidspace)
 /***************************************************************************
     Static method to read a GKDS from the ChunkyResourceFile. This is a ChunkyResourceFile object reader.
 ***************************************************************************/
-bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     PGKDS pgkds;
     GOKDF gokdf;

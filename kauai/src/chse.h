@@ -61,7 +61,7 @@ class CHSE : public CHSE_PAR
     void DumpList(PGLB pglb);
     void DumpGroup(PGGB pggb);
     bool FDumpStringTable(PGSTB pgstb);
-    void DumpBlck(PBLCK pblck);
+    void DumpBlck(PDataBlock pblck);
     bool FDumpScript(PSCPT pscpt, PSCCB psccb);
 
     // General sz emitting routines

@@ -65,7 +65,7 @@ long DOCMBMP::_CbOnFile(void)
 /****************************************************************************
     Write the data out.
 ****************************************************************************/
-bool DOCMBMP::_FWrite(PBLCK pblck, bool fRedirect)
+bool DOCMBMP::_FWrite(PDataBlock pblck, bool fRedirect)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -76,7 +76,7 @@ bool DOCMBMP::_FWrite(PBLCK pblck, bool fRedirect)
 /*****************************************************************************
     Read the MBMP.
 *****************************************************************************/
-bool DOCMBMP::_FRead(PBLCK pblck)
+bool DOCMBMP::_FRead(PDataBlock pblck)
 {
     Assert(pvNil == _pmbmp, "losing existing MBMP");
     AssertPo(pblck, 0);

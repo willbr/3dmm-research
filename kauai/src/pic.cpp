@@ -125,7 +125,7 @@ void PIC::AssertValid(ulong grf)
 /***************************************************************************
     A PFNRPO to read PIC 0 from a GRAF chunk.
 ***************************************************************************/
-bool FReadMainPic(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool FReadMainPic(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     PPIC ppic;
 

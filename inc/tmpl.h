@@ -106,7 +106,7 @@ class ACTN : public ACTN_PAR
 
   public:
     static PACTN PactnNew(PGG pggcel, PGL pglbmat34, ulong grfactn);
-    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     ~ACTN(void);
 
     ulong Grfactn(void)
@@ -171,7 +171,7 @@ class TMPL : public TMPL_PAR
     bool _FWriteTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
   public:
-    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb);
     ~TMPL(void);
     static PGL PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError);
 

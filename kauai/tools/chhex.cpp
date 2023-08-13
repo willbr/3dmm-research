@@ -1144,7 +1144,7 @@ PDOCH DOCH::PdochNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber c
 /***************************************************************************
     Initialize the stream from the given flo.
 ***************************************************************************/
-bool DOCH::_FRead(PBLCK pblck)
+bool DOCH::_FRead(PDataBlock pblck)
 {
     FLO flo;
     bool fRet;
@@ -1189,7 +1189,7 @@ long DOCH::_CbOnFile(void)
 /***************************************************************************
     Writes the data and returns success/failure.
 ***************************************************************************/
-bool DOCH::_FWrite(PBLCK pblck, bool fRedirect)
+bool DOCH::_FWrite(PDataBlock pblck, bool fRedirect)
 {
     AssertThis(0);
     if (!_bsf.FWriteRgb(pblck))
