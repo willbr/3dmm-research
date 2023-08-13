@@ -1356,7 +1356,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 
     PACTR pactr;
     PTBOX ptbox;
-    PBKGD pbkgd;
+    PBackground pbkgd;
     TAG tag;
     WIT wit;
     long dts;
@@ -1388,7 +1388,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
     case sevtSetBkgd:
 
         tag = *(PTAG)qvVar;
-        pbkgd = (PBKGD)vptagm->PbacoFetch(&tag, BKGD::FReadBkgd);
+        pbkgd = (PBackground)vptagm->PbacoFetch(&tag, Background::FReadBkgd);
         if (pvNil == pbkgd)
         {
             return fFalse;
@@ -3406,7 +3406,7 @@ LSuccess:
     {
         // Note: since FSetBkgdCore is only called at edit time,
         // it's okay to call FCacheTag.  The background default
-        // sound is not an intrinsic part of the BKGD...it's more
+        // sound is not an intrinsic part of the Background...it's more
         // of a "serving suggestion" that the user can remove
         // once the background is added.
         Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
@@ -3546,7 +3546,7 @@ bool SCEN::FIsEmpty(void)
  * This routine changes the camera view point at this frame.
  *
  * Parameters:
- *  icam - The camera number in the BKGD to switch to.
+ *  icam - The camera number in the Background to switch to.
  *
  *
  * Returns:
@@ -3686,7 +3686,7 @@ LSuccess:
  * and creates an undo object for the action.
  *
  * Parameters:
- *  icam - The camera number in the BKGD to switch to.
+ *  icam - The camera number in the Background to switch to.
  *
  *
  * Returns:
@@ -5171,7 +5171,7 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl)
                 SwapBytesBom((void *)&tag, kbomTag);
             }
 
-            if (!BKGD::FAddTagsToTagl(&tag, ptagl))
+            if (!Background::FAddTagsToTagl(&tag, ptagl))
             {
                 ReleasePpo(&pggsev);
                 return fFalse;

@@ -364,7 +364,7 @@ class S2B : public S2B_PAR
     bool _FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl);
     bool _FFlushTmaps(void);
 
-    /* BKGD-specific stuff */
+    /* Background-specific stuff */
     bool _FDumpLites(int cLite, PSTN stnBkgd);
     bool _FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal);
     bool _FBvec3Read(PS2BLX ps2blx, BVEC3 *pbvec3, PS2BTK ps2btk);

@@ -142,7 +142,7 @@ class SCEN : public SCEN_PAR
     PGL _pglptbox;        // List of text boxes in the scene.
     PGG _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
-    PBKGD _pbkgd;         // Background for this scene.
+    PBackground _pbkgd;         // Background for this scene.
     ulong _grfscen;       // Disabled functionality.
     PACTR _pactrSelected; // Currently selected actor, if any
     PTBOX _ptboxSelected; // Currently selected tbox, if any
@@ -152,7 +152,7 @@ class SCEN : public SCEN_PAR
                           // at start time even if snd event is
                           // earlier)
     long _nfrmSseBkgd;    // Frame at which _psseBkgd starts
-    TAG _tagBkgd;         // Tag to current BKGD
+    TAG _tagBkgd;         // Tag to current Background
 
   protected:
     SCEN(PMovie pmvie);
@@ -350,7 +350,7 @@ class SCEN : public SCEN_PAR
     //
     bool FSetBkgdCore(PTAG ptag, PTAG ptagOld); // Sets the background for this scene.
     bool FSetBkgd(PTAG ptag);                   // Sets the background for this scene, and undo
-    BKGD *Pbkgd(void)
+    Background *Pbkgd(void)
     {
         return _pbkgd;
     }                                               // Gets the background for this scene.

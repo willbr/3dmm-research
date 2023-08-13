@@ -367,7 +367,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
     bool fRet = fFalse;
     PMVU pmvu;
     PMovie pmvie = pvNil, pmvieOld = pvNil;
-    PBKGD pbkgd = pvNil;
+    PBackground pbkgd = pvNil;
 
 #ifdef BUG1959
     *pfClosedOld = fTrue;
@@ -438,7 +438,7 @@ LFail:
     {
         bool fResetLites = (_pmvie->Pscen() != pvNil && _pmvie->Pscen()->Pbkgd() == pbkgd);
 
-        Assert(!fResetLites || pbkgd->CactRef() > 1, "Not enough refs for BKGD");
+        Assert(!fResetLites || pbkgd->CactRef() > 1, "Not enough refs for Background");
         pmvieOld->CloseAllDdg();
         ReleasePpo(&pmvieOld);
 

@@ -3866,7 +3866,7 @@ bool Movie::FAddScen(PTAG ptag)
     //
     // Set the background
     //
-    if (!BKGD::FCacheToHD(ptag))
+    if (!Background::FCacheToHD(ptag))
     {
         vpappb->EndLongOp();
         return (fFalse);

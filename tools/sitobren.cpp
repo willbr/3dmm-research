@@ -16,7 +16,7 @@
     ACTION NAMED "<action_name>" FILEBASE "<file_name_base>"
         FIRST <start-#> LAST <end-#> FLAGS <action_flags>
         [SCALE <dwrScale>] [SKIP <skip_count>] [SUBMODEL "<submodel>"]
-    BACKGROUND ChunkNumber <BKGD-id> NAMED "<bkgd_name>" [LIGHTS <#lights>]
+    BACKGROUND ChunkNumber <Background-id> NAMED "<bkgd_name>" [LIGHTS <#lights>]
         [CAMERAS <#cameras>] [FIRST <first_pal>] [LENGTH <#entries>]
     COSTUME FILE "<filename>" USE_SETS <set #> [<set #> [<set #> [...]]]
 
@@ -39,7 +39,7 @@
         <bkgd_name>      -- any string conforming to actor/action naming
             conventions
         <TMPL-id>
-        <BKGD-id>        -- Chunk number for TMPL or BKGD chunk
+        <Background-id>        -- Chunk number for TMPL or Background chunk
         <xaRest>
         <yaRest>
         <zaRest>         -- Any valid integer, units are degrees
@@ -1325,7 +1325,7 @@ bool S2B::_FDoTtBackgroundS2B(void)
                        &cPal))
         goto LFail;
 
-    /* Generate the BKGD chunk */
+    /* Generate the Background chunk */
     bkgdf.bo = kboCur;
     bkgdf.osk = koskCur;
     Assert(iPalBase >= 0 && iPalBase <= kbMax, "Palette base out of range");

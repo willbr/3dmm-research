@@ -8,12 +8,12 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    A BKGD (background) consists of a set of light sources (GLLT), a
+    A Background (background) consists of a set of light sources (GLLT), a
     background sound (SND), and one or more camera views.  Each camera view
     consists of a camera specification, a pre-rendered RGB bitmap, and a
     pre-rendered Z-buffer.  Here's how the chunks look:
 
-    BKGD // Contains stage bounding cuboid
+    Background // Contains stage bounding cuboid
      |
      +---GLLT (chid 0) // GL of light position specs (LITEs)
      |
@@ -41,7 +41,7 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(BKGD)
+RTCLASS(Background)
 
 const ChildChunkID kchidBds = 0;  // Background default sound
 const ChildChunkID kchidGllt = 0; // GL of LITEs
@@ -51,7 +51,7 @@ const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 /***************************************************************************
     Add the background's chunks (excluding camera views) to the tag list
 ***************************************************************************/
-bool BKGD::FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl)
+bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl)
 {
     AssertVarMem(ptagBkgd);
     AssertPo(ptagl, 0);
@@ -75,7 +75,7 @@ bool BKGD::FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl)
 /***************************************************************************
     Cache the background's chunks (excluding camera views) to HD
 ***************************************************************************/
-bool BKGD::FCacheToHD(PTAG ptagBkgd)
+bool Background::FCacheToHD(PTAG ptagBkgd)
 {
     AssertVarMem(ptagBkgd);
 
@@ -94,7 +94,7 @@ bool BKGD::FCacheToHD(PTAG ptagBkgd)
     if (!vptagm->FBuildChildTag(ptagBkgd, 0, kctgCam, &tagCam))
         return fFalse;
 
-    // Cache the BKGD chunk
+    // Cache the Background chunk
     if (!vptagm->FCacheTagToHD(ptagBkgd, fFalse))
         return fFalse;
 
@@ -115,21 +115,21 @@ bool BKGD::FCacheToHD(PTAG ptagBkgd)
 }
 
 /***************************************************************************
-    A PFNRPO to read a BKGD from a file
+    A PFNRPO to read a Background from a file
 ***************************************************************************/
-bool BKGD::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
+bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    BKGD *pbkgd;
+    Background *pbkgd;
 
-    *pcb = size(BKGD) + size(BACT) + size(BLIT); // estimate BKGD size
+    *pcb = size(Background) + size(BACT) + size(BLIT); // estimate Background size
     if (pvNil == ppbaco)
         return fTrue;
-    pbkgd = NewObj BKGD;
+    pbkgd = NewObj Background;
     if (pvNil == pbkgd || !pbkgd->_FInit(pcrf->Pcfl(), ctg, cno))
     {
         TrashVar(ppbaco);
@@ -140,17 +140,17 @@ bool BKGD::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     AssertPo(pbkgd, 0);
     *ppbaco = pbkgd;
     *pcb =
-        size(BKGD) + LwMul(pbkgd->_cbactLight, size(BACT)) + LwMul(pbkgd->_cbactLight, size(BLIT)); // actual BKGD size
+        size(Background) + LwMul(pbkgd->_cbactLight, size(BACT)) + LwMul(pbkgd->_cbactLight, size(BLIT)); // actual Background size
     return fTrue;
 }
 
 /***************************************************************************
-    Read a BKGD from the given chunk of the given ChunkyFile.
+    Read a Background from the given chunk of the given ChunkyFile.
     Note: Although we read the data for the lights here, we don't turn
     them on yet because we don't have a BWLD to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool BKGD::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Background::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -247,7 +247,7 @@ LFail:
     Return the number of camera views in this scene.  CAM chunks need to be
     contiguous CHIDs starting at ChildChunkID 0.
 ***************************************************************************/
-long BKGD::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+long Background::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -275,7 +275,7 @@ long BKGD::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Fill _prgbactLight and _prgblitLight using a GL of LITEs
 ***************************************************************************/
-void BKGD::_SetupLights(PGL pgllite)
+void Background::_SetupLights(PGL pgllite)
 {
     AssertBaseThis(0);
     AssertPo(pgllite, 0);
@@ -303,7 +303,7 @@ void BKGD::_SetupLights(PGL pgllite)
 /***************************************************************************
     Clean up and delete this background
 ***************************************************************************/
-BKGD::~BKGD(void)
+Background::~Background(void)
 {
     AssertBaseThis(0);
     Assert(!_fLeaveLitesOn, "Shouldn't be freeing background now");
@@ -318,7 +318,7 @@ BKGD::~BKGD(void)
 /***************************************************************************
     Get the background's name
 ***************************************************************************/
-void BKGD::GetName(PSTN pstn)
+void Background::GetName(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -331,7 +331,7 @@ void BKGD::GetName(PSTN pstn)
     an error occurs.  Sets *ppglclr to an empty GL and *piclrMin to 0 if
     this background has no custom palette.
 ***************************************************************************/
-bool BKGD::FGetPalette(PGL *ppglclr, long *piclrMin)
+bool Background::FGetPalette(PGL *ppglclr, long *piclrMin)
 {
     AssertThis(0);
     AssertVarMem(ppglclr);
@@ -352,7 +352,7 @@ bool BKGD::FGetPalette(PGL *ppglclr, long *piclrMin)
 /***************************************************************************
     Get the camera position in worldspace
 ***************************************************************************/
-void BKGD::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
+void Background::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertNilOrVarMem(pxr);
@@ -370,7 +370,7 @@ void BKGD::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
 /***************************************************************************
     Turn on lights in pbwld
 ***************************************************************************/
-void BKGD::TurnOnLights(PBWLD pbwld)
+void Background::TurnOnLights(PBWLD pbwld)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
@@ -394,7 +394,7 @@ void BKGD::TurnOnLights(PBWLD pbwld)
 /***************************************************************************
     Turn off lights in pbwld
 ***************************************************************************/
-void BKGD::TurnOffLights(void)
+void Background::TurnOffLights(void)
 {
     AssertThis(0);
 
@@ -415,7 +415,7 @@ void BKGD::TurnOffLights(void)
 /***************************************************************************
     Set the camera and associated bitmaps to icam
 ***************************************************************************/
-bool BKGD::FSetCamera(PBWLD pbwld, long icam)
+bool Background::FSetCamera(PBWLD pbwld, long icam)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
@@ -524,7 +524,7 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
 /***************************************************************************
     Gets the matrix for mouse-dragging relative to the camera
 ***************************************************************************/
-void BKGD::GetMouseMatrix(BMAT34 *pbmat34)
+void Background::GetMouseMatrix(BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -535,7 +535,7 @@ void BKGD::GetMouseMatrix(BMAT34 *pbmat34)
 /***************************************************************************
     Gets the point at which to place new actors for this bkgd/view.
 ***************************************************************************/
-void BKGD::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
+void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertVarMem(pxr);
@@ -573,7 +573,7 @@ void BKGD::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
         from the actor placement code if the actor was placed at a point other
         than the one you just asked for.
 ************************************************************ PETED ***********/
-void BKGD::ReuseActorPlacePoint(void)
+void Background::ReuseActorPlacePoint(void)
 {
     _iaposNext = _iaposLast;
 }
@@ -582,7 +582,7 @@ void BKGD::ReuseActorPlacePoint(void)
 /***************************************************************************
     Authoring only.  Writes a special file with the given place info.
 ***************************************************************************/
-bool BKGD::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
+bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
 {
     AssertThis(0);
     Assert(yrPlace == rZero, "are you sure you want non-zero Y?");
@@ -631,11 +631,11 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the BKGD.
+    Assert the validity of the Background.
 ***************************************************************************/
-void BKGD::AssertValid(ulong grf)
+void Background::AssertValid(ulong grf)
 {
-    BKGD_PAR::AssertValid(fobjAllocated);
+    Background_PAR::AssertValid(fobjAllocated);
     AssertIn(_cbactLight, 1, 100); // 100 is sanity check
     AssertIn(_ccam, 1, 100);       // 100 is sanity check
     Assert(_icam == ivNil || (_icam >= 0 && _icam < _ccam), "bad _icam");
@@ -646,12 +646,12 @@ void BKGD::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the BKGD
+    Mark memory used by the Background
 ***************************************************************************/
-void BKGD::MarkMem(void)
+void Background::MarkMem(void)
 {
     AssertThis(0);
-    BKGD_PAR::MarkMem();
+    Background_PAR::MarkMem();
     MarkPv(_prgbactLight);
     MarkPv(_prgblitLight);
     MarkMemObj(_pglclr);

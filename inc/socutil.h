@@ -21,7 +21,7 @@ extern "C"
 typedef class ACTR *PACTR;
 typedef class SCEN *PSCEN;
 typedef class Movie *PMovie;
-typedef class BKGD *PBKGD;
+typedef class Background *PBackground;
 typedef class TBOX *PTBOX;
 typedef class MVIEW *PMVIEW;
 typedef class Studio *PStudio;
