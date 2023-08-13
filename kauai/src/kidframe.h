@@ -22,13 +22,23 @@
 // forward declarations
 typedef class WorldOfKidspace *PWorldOfKidspace;
 typedef class SCEG *PSCEG;
-typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
+namespace GraphicalObjectRepresentation {
+   class KidspaceGraphicObject;
+   typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
+   class GORP;
+   typedef class GORP *PGORP;
+}
 namespace Help {
    class Balloon;
    typedef class Balloon *PBalloon;
    struct Topic;
    typedef struct Topic *PTopic;
 }
+
+using GraphicalObjectRepresentation::KidspaceGraphicObject;
+using GraphicalObjectRepresentation::PKidspaceGraphicObject;
+using GraphicalObjectRepresentation::GORP;
+using GraphicalObjectRepresentation::PGORP;
 
 #include "scrcomg.h"
 #include "kidworld.h"

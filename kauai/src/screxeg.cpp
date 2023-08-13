@@ -13,6 +13,10 @@
 #include "kidframe.h"
 ASSERTNAME
 
+using GraphicalObjectRepresentation::fgokNil;
+using GraphicalObjectRepresentation::fgokKillAnim;
+using GraphicalObjectRepresentation::fgokNoAnim;
+
 RTCLASS(SCEG)
 
 #ifdef DEBUG

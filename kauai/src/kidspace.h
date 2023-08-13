@@ -16,6 +16,8 @@
 #ifndef KIDSPACE_H
 #define KIDSPACE_H
 
+namespace GraphicalObjectRepresentation {
+
 #define ChidFromSnoDchid(sno, dchid) LwHighLow((short)(sno), (short)(dchid))
 
 /***************************************************************************
@@ -439,4 +441,5 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual void Stream(bool fStream);
 };
 
+} // end of namespace GraphicalObjectRepresentation
 #endif //! KIDSPACE_H

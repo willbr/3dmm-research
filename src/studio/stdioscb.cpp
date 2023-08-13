@@ -15,6 +15,8 @@
 #include "studio.h"
 ASSERTNAME
 
+using GraphicalObjectRepresentation::fgokNoAnim;
+
 /*****************************************************************************\
  *
  *	The studio scrollbars class.

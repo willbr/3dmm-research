@@ -18,6 +18,7 @@
 #define KIDWORLD_H
 
 using namespace Help;
+using GraphicalObjectRepresentation::PKidspaceGraphicObject;
 
 /***************************************************************************
     Base KidspaceGraphicObject descriptor.

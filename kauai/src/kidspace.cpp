@@ -13,6 +13,8 @@
 #include "kidframe.h"
 ASSERTNAME
 
+namespace GraphicalObjectRepresentation {
+
 RTCLASS(KidspaceGraphicObject)
 RTCLASS(GORP)
 RTCLASS(GORF)
@@ -2848,3 +2850,5 @@ void GORV::MarkMem(void)
     MarkMemObj(_pgvid);
 }
 #endif // DEBUG
+
+} // end of namespace GraphicalObjectRepresentation

@@ -14,6 +14,8 @@
 #include "kidframe.h"
 ASSERTNAME
 
+using GraphicalObjectRepresentation::PKidspaceGraphicObject;
+
 RTCLASS(KidspaceGraphicObjectDescriptor)
 RTCLASS(KidspaceGraphicObjectDescriptorLocation)
 RTCLASS(WorldOfKidspace)
