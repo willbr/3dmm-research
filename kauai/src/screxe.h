@@ -17,6 +17,8 @@
 #ifndef SCREXE_H
 #define SCREXE_H
 
+using namespace Chunky;
+
 /****************************************
     Run-Time Variable Map structure
 ****************************************/

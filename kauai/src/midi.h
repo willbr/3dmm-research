@@ -15,6 +15,8 @@
 #ifndef MIDI_H
 #define MIDI_H
 
+using namespace Chunky;
+
 typedef class MIDS *PMIDS;
 
 // midi event

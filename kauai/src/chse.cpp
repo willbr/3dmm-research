@@ -13,6 +13,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace Chunky {
+
 RTCLASS(SourceEmitter)
 
 /***************************************************************************
@@ -437,3 +439,5 @@ bool SourceEmitter::FDumpStringTable(PGSTB pgstb)
     FreePpv(&pvExtra);
     return fTrue;
 }
+
+} // end of namespace Chunky

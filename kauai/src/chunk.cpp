@@ -76,6 +76,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace Chunky {
+
 /* HISTORY of ChunkyFile version numbers
 
     1	ShonK: instantiated, 10/28/93
@@ -4439,3 +4441,5 @@ bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar,
     TrashVarIf((*pgrfcgeOut & fcgeRoot), &pkid->chid);
     return fTrue;
 }
+
+} // end of namespace Chunky

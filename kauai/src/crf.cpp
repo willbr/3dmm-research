@@ -18,6 +18,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace Chunky {
+
 RTCLASS(BaseCacheableObject)
 RTCLASS(GHQ)
 RTCLASS(RCA)
@@ -1063,3 +1065,5 @@ void GenericCacheableObject::MarkMem(void)
     MarkMemObj(po);
 }
 #endif // DEBUG
+
+} // end of namespace Chunky

@@ -12,6 +12,8 @@
 #ifndef CHDOC_H
 #define CHDOC_H
 
+using namespace Chunky;
+
 typedef class DOC *PDOC;
 typedef class DOCE *PDOCE;
 typedef class DOCH *PDOCH;

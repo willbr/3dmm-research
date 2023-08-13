@@ -16,6 +16,8 @@
 #ifndef CHUNK_H
 #define CHUNK_H
 
+namespace Chunky {
+
 /***************************************************************************
     These must be unsigned longs!  We sort on them and assume in the code
     that they are unsinged.
@@ -323,5 +325,7 @@ class CGE : public CGE_PAR
 #ifdef CHUNK_STATS
 extern bool vfDumpChunkRequests;
 #endif // CHUNK_STATS
+
+} // end of namespace Chunky
 
 #endif //! CHUNK_H

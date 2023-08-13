@@ -13,6 +13,7 @@
 ASSERTNAME
 
 namespace Chunky {
+
 RTCLASS(Compiler)
 RTCLASS(CompilerLexer)
 RTCLASS(Decompiler)

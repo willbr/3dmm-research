@@ -19,6 +19,8 @@
 #ifndef CHRES_H
 #define CHRES_H
 
+namespace Chunky {
+
 typedef class ChunkyResourceFile *PChunkyResourceFile;
 typedef ChunkNumber RSC;
 const RSC rscNil = 0L;
@@ -259,5 +261,7 @@ class GenericCacheableObject : public GenericCacheableObject_PAR
         ReleasePpo(&po);
     }
 };
+
+} // end of namespace Chunky
 
 #endif //! CHRES_H

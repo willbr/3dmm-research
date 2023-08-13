@@ -16,6 +16,8 @@
 #ifndef CHSE_H
 #define CHSE_H
 
+namespace Chunky {
+
 /***************************************************************************
     Chunky source emitter class
 ***************************************************************************/
@@ -82,5 +84,7 @@ class SourceEmitter : public SourceEmitter_PAR
         return _fError || pvNil != _pmsnkDump && _pmsnkDump->FError();
     }
 };
+
+} // end of namespace Chunky
 
 #endif // !CHSE_H

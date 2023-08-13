@@ -16,6 +16,8 @@
 #ifndef RTXT_H
 #define RTXT_H
 
+using namespace Chunky;
+
 /***************************************************************************
     Character properties - if you change this, make sure to update
     FetchChp and _TGetLwFromChp.
