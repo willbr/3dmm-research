@@ -276,10 +276,10 @@ bool SCEG::_FExecOp(long op)
             RC rc;
 
             pgob->GetRc(&rc, cooParent);
-            if (pgob->FIs(kclsGOK))
+            if (pgob->FIs(kclsKidspaceGraphicObject))
             {
                 PT pt;
-                ((PGOK)pgob)->GetPtReg(&pt, cooLocal);
+                ((PKidspaceGraphicObject)pgob)->GetPtReg(&pt, cooLocal);
                 dxp -= pt.xp;
                 dyp -= pt.yp;
             }
@@ -324,7 +324,7 @@ bool SCEG::_FExecOp(long op)
         else
             pv = pvNil;
 
-        if (pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for RunScript[Cno](Gob|This) (gid = %d)"), hid));
             lw2 = 0;
@@ -335,9 +335,9 @@ bool SCEG::_FExecOp(long op)
 
             GobMayDie();
             if (kopRunScriptCnoGob == op || kopRunScriptCnoThis == op)
-                ((PGOK)pgob)->FRunScriptCno(lw1, (long *)pv, clw, &lw2, &tRet);
+                ((PKidspaceGraphicObject)pgob)->FRunScriptCno(lw1, (long *)pv, clw, &lw2, &tRet);
             else
-                ((PGOK)pgob)->FRunScript(lw1, (long *)pv, clw, &lw2, &tRet);
+                ((PKidspaceGraphicObject)pgob)->FRunScript(lw1, (long *)pv, clw, &lw2, &tRet);
             if (tYes != tRet)
             {
                 Debug(_WarnSz(PszLit("Running script failed (chid = 0x%x, gid = %d)"), lw1, hid));
@@ -353,7 +353,7 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopChangeStateThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK) || !FIn(lw1, 0, kswMax))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject) || !FIn(lw1, 0, kswMax))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject or state out of range for ")
                               PszLit("ChangeState(Gob|This) (gid = %d, sno = %d)"),
@@ -362,7 +362,7 @@ bool SCEG::_FExecOp(long op)
         else
         {
             GobMayDie();
-            ((PGOK)pgob)->FChangeState(lw1);
+            ((PKidspaceGraphicObject)pgob)->FChangeState(lw1);
         }
         break;
 
@@ -371,14 +371,14 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopAnimateThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for Animate(Gob|This) (gid = %d)"), hid));
         }
         else
         {
             GobMayDie();
-            ((PGOK)pgob)->FSetRep(lw1, fgokNil, kctgAnimation);
+            ((PKidspaceGraphicObject)pgob)->FSetRep(lw1, fgokNil, kctgAnimation);
         }
         break;
 
@@ -387,14 +387,14 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopSetPictureThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for SetPicture(Gob|This) (gid = %d)"), hid));
         }
         else
         {
             GobMayDie();
-            ((PGOK)pgob)->FSetRep(lw1, fgokKillAnim, kctgMbmp);
+            ((PKidspaceGraphicObject)pgob)->FSetRep(lw1, fgokKillAnim, kctgMbmp);
         }
         break;
 
@@ -403,14 +403,14 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopSetRepThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for SetRep(Gob|This) (gid = %d)"), hid));
         }
         else
         {
             GobMayDie();
-            ((PGOK)pgob)->FSetRep(lw1);
+            ((PKidspaceGraphicObject)pgob)->FSetRep(lw1);
         }
         break;
 
@@ -418,13 +418,13 @@ bool SCEG::_FExecOp(long op)
         hid = _LwPop();
         // fall through
     case kopStateThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             lw1 = 0;
             Debug(_WarnSz(PszLit("Missing GraphicsObject for State(Gob|This) (gid = %d)"), hid));
         }
         else
-            lw1 = ((PGOK)pgob)->Sno();
+            lw1 = ((PKidspaceGraphicObject)pgob)->Sno();
         _Push(lw1);
         break;
 
@@ -594,10 +594,10 @@ bool SCEG::_FExecOp(long op)
             Debug(_WarnSz(PszLit("Missing GraphicsObject for (X|Y)(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
-        else if (pgob->FIs(kclsGOK))
+        else if (pgob->FIs(kclsKidspaceGraphicObject))
         {
             PT pt;
-            ((PGOK)pgob)->GetPtReg(&pt);
+            ((PKidspaceGraphicObject)pgob)->GetPtReg(&pt);
             _Push(op == kopXThis || op == kopXGob ? pt.xp : pt.yp);
         }
         else
@@ -612,13 +612,13 @@ bool SCEG::_FExecOp(long op)
         hid = _LwPop();
         // fall through
     case kopZThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for Z(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
-            _Push(((PGOK)pgob)->ZPlane());
+            _Push(((PKidspaceGraphicObject)pgob)->ZPlane());
         break;
 
     case kopSetZGob:
@@ -626,12 +626,12 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopSetZThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for SetZ(Gob|This) (gid = %d)"), hid));
         }
         else
-            ((PGOK)pgob)->SetZPlane(lw1);
+            ((PKidspaceGraphicObject)pgob)->SetZPlane(lw1);
         break;
 
     case kopSetColorTable:
@@ -653,7 +653,7 @@ bool SCEG::_FExecOp(long op)
         else
         {
             GobMayDie();
-            ((PGOK)pgob)->FSetRep(lw1, fgokNoAnim, ctgNil, dxp, dyp, dtim);
+            ((PKidspaceGraphicObject)pgob)->FSetRep(lw1, fgokNoAnim, ctgNil, dxp, dyp, dtim);
         }
         break;
 
@@ -729,63 +729,63 @@ bool SCEG::_FExecOp(long op)
         hid = _LwPop();
         // fall through
     case kopPlayThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for Play(Gob|This) (gid = %d)"), hid));
         }
         else
-            ((PGOK)pgob)->FPlay();
+            ((PKidspaceGraphicObject)pgob)->FPlay();
         break;
 
     case kopPlayingGob:
         hid = _LwPop();
         // fall through
     case kopPlayingThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for Playing(Gob|This) (gid = %d)"), hid));
             _Push(fFalse);
         }
         else
-            _Push(((PGOK)pgob)->FPlaying());
+            _Push(((PKidspaceGraphicObject)pgob)->FPlaying());
         break;
 
     case kopStopGob:
         hid = _LwPop();
         // fall through
     case kopStopThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for Stop(Gob|This) (gid = %d)"), hid));
         }
         else
-            ((PGOK)pgob)->Stop();
+            ((PKidspaceGraphicObject)pgob)->Stop();
         break;
 
     case kopCurFrameGob:
         hid = _LwPop();
         // fall through
     case kopCurFrameThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for (CurFrame(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
-            _Push(((PGOK)pgob)->NfrCur());
+            _Push(((PKidspaceGraphicObject)pgob)->NfrCur());
         break;
 
     case kopCountFramesGob:
         hid = _LwPop();
         // fall through
     case kopCountFramesThis:
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for CountFrames(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
-            _Push(((PGOK)pgob)->NfrMac());
+            _Push(((PKidspaceGraphicObject)pgob)->NfrMac());
         break;
 
     case kopGotoFrameGob:
@@ -793,12 +793,12 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopGotoFrameThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for GotoFrame(Gob|This) (gid = %d)"), hid));
         }
         else
-            ((PGOK)pgob)->GotoNfr(lw1);
+            ((PKidspaceGraphicObject)pgob)->GotoNfr(lw1);
         break;
 
     case kopFilterCmdsGob:
@@ -808,11 +808,11 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         lw2 = _LwPop();
         lw3 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for FilterCmds(Gob|This) (gid = %d)"), hid));
         }
-        else if (!((PGOK)pgob)->FFilterCidHid(lw1, lw2, lw3))
+        else if (!((PKidspaceGraphicObject)pgob)->FFilterCidHid(lw1, lw2, lw3))
         {
             Debug(_WarnSz(PszLit("Filtering failed (gid = %d)"), hid));
         }
@@ -841,11 +841,11 @@ bool SCEG::_FExecOp(long op)
         {
             pgob = (hidNil == hid) ? pvNil : _PgobFromHid(hid);
 
-            if (pvNil != pgob && pgob->FIs(kclsGOK))
+            if (pvNil != pgob && pgob->FIs(kclsKidspaceGraphicObject))
             {
                 if (pvNil != (qrglw = _QlwGet(7)))
                 {
-                    lw1 = ((PGOK)pgob)
+                    lw1 = ((PKidspaceGraphicObject)pgob)
                               ->SiiPlaySound(qrglw[6], qrglw[5], qrglw[4], qrglw[3], qrglw[2], 0, qrglw[1], qrglw[0]);
                 }
             }
@@ -854,7 +854,7 @@ bool SCEG::_FExecOp(long op)
 #ifdef DEBUG
                 if (hidNil != hid)
                 {
-                    _WarnSz(PszLit("No GOK for PlaySound(Gob|This) (gid = %d)"), hid);
+                    _WarnSz(PszLit("No KidspaceGraphicObject for PlaySound(Gob|This) (gid = %d)"), hid);
                 }
 #endif // DEBUG
 
@@ -927,9 +927,9 @@ bool SCEG::_FExecOp(long op)
     case kopPlayMouseSoundThis:
         lw1 = _LwPop();
         lw2 = _LwPop();
-        if (!_fError && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsGOK))
+        if (!_fError && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsKidspaceGraphicObject))
         {
-            _Push(((PGOK)pgob)->SiiPlayMouseSound(lw1, lw2));
+            _Push(((PKidspaceGraphicObject)pgob)->SiiPlayMouseSound(lw1, lw2));
         }
         else
             _Push(siiNil);
@@ -963,9 +963,9 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopSetNoSlipThis:
         lw1 = _LwPop();
-        if (!_fError && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsGOK))
+        if (!_fError && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsKidspaceGraphicObject))
         {
-            ((PGOK)pgob)->SetNoSlip(lw1);
+            ((PKidspaceGraphicObject)pgob)->SetNoSlip(lw1);
         }
         else
         {
@@ -1017,9 +1017,9 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopSetToolTipSourceThis:
         lw1 = _LwPop();
-        if (!_fError && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsGOK))
+        if (!_fError && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsKidspaceGraphicObject))
         {
-            ((PGOK)pgob)->SetHidToolTip(lw1);
+            ((PKidspaceGraphicObject)pgob)->SetHidToolTip(lw1);
         }
         else
         {
@@ -1048,12 +1048,12 @@ bool SCEG::_FExecOp(long op)
         // fall through
     case kopStreamThis:
         lw1 = _LwPop();
-        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
+        if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for Stream(Gob|This) (gid = %d)"), hid));
         }
         else
-            ((PGOK)pgob)->Stream(FPure(lw1));
+            ((PKidspaceGraphicObject)pgob)->Stream(FPure(lw1));
         break;
 
     default:

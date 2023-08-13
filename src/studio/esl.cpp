@@ -41,10 +41,10 @@ bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
 {
     AssertVarMem(pgcb);
 
-    PGOK pgokPar;
+    PKidspaceGraphicObject pgokPar;
     RC rcRel;
 
-    pgokPar = (PGOK)vpapp->Pkwa()->PgobFromHid(kidParent);
+    pgokPar = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidParent);
     if (pvNil == pgokPar)
     {
         TrashVar(pgcb);
@@ -61,10 +61,10 @@ bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
 ***************************************************************************/
 void SetGokState(long kid, long st)
 {
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kid);
-    if (pvNil != pgok && pgok->FIs(kclsGOK) && pgok->Sno() != st)
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kid);
+    if (pvNil != pgok && pgok->FIs(kclsKidspaceGraphicObject) && pgok->Sno() != st)
         pgok->FChangeState(st); // ignore failure
 }
 
@@ -76,7 +76,7 @@ void SetGokState(long kid, long st)
 //
 //
 
-BEGIN_CMD_MAP(ESL, GOK)
+BEGIN_CMD_MAP(ESL, KidspaceGraphicObject)
 ON_CID_GEN(cidEaselOk, &ESL::FCmdDismiss, pvNil)
 ON_CID_GEN(cidEaselCancel, &ESL::FCmdDismiss, pvNil)
 END_CMD_MAP_NIL()
@@ -1462,7 +1462,7 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgl
     AssertNilOrPo(*ppgltag, 0);
 
     long st;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     PTGOB ptgob;
     PMSND pmsnd;
     long itag;
@@ -1526,8 +1526,8 @@ LFound:
     // Update the slider volume
     vpcex->EnqueueCid(cidListenVolSet, vpapp->Pkwa()->PgobFromHid(kidVol), pvNil, _vlm);
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidIcon);
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidIcon);
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         pgok->FChangeState(st);
 
     return fTrue;
@@ -1712,7 +1712,7 @@ bool ESLR::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstn
     _clok.Start(0);
 
     // Set sound meter to 0
-    PGOK pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
+    PKidspaceGraphicObject pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
     if (pvNil != pgok)
         vpcex->EnqueueCid(cidRecordSetLength, pgok, 0, 0, 0, 0, 0);
     return fTrue;
@@ -1735,7 +1735,7 @@ void ESLR::_UpdateMeter(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     long dtsRec;
     long percentDone; // no good hungarian for a percent
 
@@ -1746,7 +1746,7 @@ void ESLR::_UpdateMeter(void)
         percentDone = LwMulDiv(dtsRec, 100, kdtsMaxRecord);
         percentDone = LwBound(percentDone, 0, 100);
 
-        pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
+        pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
         if (pvNil != pgok)
             vpcex->EnqueueCid(cidRecordSetLength, pgok, 0, percentDone, 0, 0, 0);
         else

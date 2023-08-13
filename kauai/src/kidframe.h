@@ -22,7 +22,7 @@
 // forward declarations
 typedef class WorldOfKidspace *PWorldOfKidspace;
 typedef class SCEG *PSCEG;
-typedef class GOK *PGOK;
+typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
 typedef class HBAL *PHBAL;
 typedef struct HTOP *PHTOP;
 

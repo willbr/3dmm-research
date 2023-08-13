@@ -14,7 +14,7 @@
 
 ASSERTNAME
 
-BEGIN_CMD_MAP(SCRT, GOK)
+BEGIN_CMD_MAP(SCRT, KidspaceGraphicObject)
 ON_CID_ME(cidSceneSortInit, &SCRT::FCmdInit, pvNil)
 ON_CID_ME(cidSceneSortSelect, &SCRT::FCmdSelect, pvNil)
 ON_CID_ME(cidSceneSortInsert, &SCRT::FCmdInsert, pvNil)
@@ -138,7 +138,7 @@ PSCRT SCRT::PscrtNew(long hid, PMVIE pmvie, PStudio pstdio, PRCA prca)
         goto LOom;
     if (!pscrt->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         pscrt = pvNil;
         goto LFail;
     }
@@ -183,8 +183,8 @@ void SCRT::_ErrorExit(void)
 
     Arguments:
         PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
-            rglw[0] -- kid of the first thumbnail frame GOK
-            rglw[1] -- kid of the first scrollbar GOK button (scroll up)
+            rglw[0] -- kid of the first thumbnail frame KidspaceGraphicObject
+            rglw[1] -- kid of the first scrollbar KidspaceGraphicObject button (scroll up)
             rglw[2] -- number of GOKs in a single frame
 
     Returns: fTrue if the command was handled by this routine.
@@ -196,7 +196,7 @@ bool SCRT::FCmdInit(PCMD pcmd)
 
     bool fSuccess = fFalse;
     long kidCur, kidThumb;
-    PGOK pgokFrame;
+    PKidspaceGraphicObject pgokFrame;
 
     /* If I'm already inited, this must be for some other scene sorter */
     if (_fInited)
@@ -213,14 +213,14 @@ bool SCRT::FCmdInit(PCMD pcmd)
     kidThumb = _kidFrameMin - 1;
     kidCur = _kidFrameMin;
 
-    while ((pgokFrame = (PGOK)vpapp->Pkwa()->PgobFromHid(kidCur)) != pvNil)
+    while ((pgokFrame = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidCur)) != pvNil)
     {
         PGOMP pgomp;
         PGraphicsObject pgobThumb;
 
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
+        Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
 
-        pgobThumb = (PGOK)pgokFrame->PgobFirstChild();
+        pgobThumb = (PKidspaceGraphicObject)pgokFrame->PgobFirstChild();
         Assert(pgobThumb != pvNil, "Frame has no children");
 
         pgomp = GOMP::PgompNew(pgobThumb, kidThumb--);
@@ -359,16 +359,16 @@ bool SCRT::FCmdScroll(PCMD pcmd)
 ************************************************************ PETED ***********/
 void SCRT::_EnableScroll(void)
 {
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     /* Enable or disable scroll up */
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin);
     if (pgok != pvNil)
     {
         long lwState;
 
         lwState = (_iscenTop > 0) ? kstBrowserEnabled : kstBrowserDisabled;
-        Assert(pgok->FIs(kclsGOK), "Scroll up button is not a GOK");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Scroll up button is not a KidspaceGraphicObject");
         if (pgok->Sno() != lwState)
             pgok->FChangeState(lwState);
     }
@@ -376,13 +376,13 @@ void SCRT::_EnableScroll(void)
         Bug("Can't find scroll up button");
 
     /* Enable or disable scroll down */
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin + 1);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin + 1);
     if (pgok != pvNil)
     {
         long lwState;
 
         lwState = (_iscenTop + _cfrmPage < _iscenMac) ? kstBrowserEnabled : kstBrowserDisabled;
-        Assert(pgok->FIs(kclsGOK), "Scroll down button is not a GOK");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Scroll down button is not a KidspaceGraphicObject");
         if (pgok->Sno() != lwState)
             pgok->FChangeState(lwState);
     }
@@ -518,7 +518,7 @@ LFail:
 
     Arguments:
         PCMD pcmd -- pointer to command data.  Extra parms are as follows:
-            rglw[0] -- GOK id of the frame
+            rglw[0] -- KidspaceGraphicObject id of the frame
             rglw[1] -- which transition to use
 
     Returns: fTrue if the command was handled by this routine
@@ -531,14 +531,14 @@ bool SCRT::FCmdTransition(PCMD pcmd)
 
     long iscen = _IscenFromKid(pcmd->rglw[0]);
     SCEND scend;
-    PGOK pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(pcmd->rglw[0]);
+    PKidspaceGraphicObject pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(pcmd->rglw[0]);
 
     if (pgokFrame == pvNil)
     {
         Bug("kid doesn't exist");
         return fTrue;
     }
-    Assert(pgokFrame->FIs(kclsGOK), "kid isn't a GOK");
+    Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "kid isn't a KidspaceGraphicObject");
 
     AssertIn(iscen, 0, _iscenMac);
     _cmvi.pglscend->Get(iscen, &scend);
@@ -567,13 +567,13 @@ void SCRT::_SetSelectionVis(bool fShow, bool fHideSel)
 {
     if (_iscenCur < _iscenMac && FIn(_iscenCur - _iscenTop, 0, _cfrmPage))
     {
-        PGOK pgok = (PGOK)vapp.Pkwa()->PgobFromHid(_KidFromIscen(_iscenCur));
+        PKidspaceGraphicObject pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(_KidFromIscen(_iscenCur));
 
         if (pgok != pvNil)
         {
             long lwState;
 
-            Assert(pgok->FIs(kclsGOK), "Didn't get a GOK GraphicsObject");
+            Assert(pgok->FIs(kclsKidspaceGraphicObject), "Didn't get a KidspaceGraphicObject GraphicsObject");
             lwState = fShow ? (fHideSel ? kstBrowserScrollingSel : kstBrowserSelected) : kstBrowserEnabled;
             if (pgok->Sno() != lwState)
                 pgok->FChangeState(lwState);
@@ -601,7 +601,7 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
     long kidCur = _kidFrameMin - 1, kidFrameCur = _kidFrameMin;
     long iscen = _iscenTop, cFrame = _cfrmPage;
     long lwSelState = fHideSel ? kstBrowserScrollingSel : kstBrowserSelected;
-    PGOK pgokFrame;
+    PKidspaceGraphicObject pgokFrame;
     PGOMP pgomp;
     SCEND scend;
 
@@ -611,7 +611,7 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
         PMBMP pmbmp;
         RC rc;
 
-        pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameCur);
+        pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
         pgomp = GOMP::PgompFromHidScr(kidCur);
 
         if (pgokFrame == pvNil || pgomp == pvNil)
@@ -620,7 +620,7 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
             goto LFail;
         }
         Assert(pgomp->FIs(kclsGOMP), "Thumbnail GraphicsObject isn't a GOMP");
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
+        Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
         if (iscen < _iscenMac)
         {
             long lwStateNew;
@@ -658,9 +658,9 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
     if (_iscenMac > 0)
     {
         _cmvi.pglscend->Get(_iscenCur, &scend);
-        pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameCur);
-        Assert(pgokFrame != pvNil, "Selection GOK is missing");
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
+        pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
+        Assert(pgokFrame != pvNil, "Selection KidspaceGraphicObject is missing");
+        Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
         pgomp = GOMP::PgompFromHidScr(kidCur);
         Assert(pgomp != pvNil, "Selection GOMP is missing");
         _FResetTransition(pgokFrame, scend.trans);
@@ -688,24 +688,24 @@ const TRANS SCRT::_mplwtrans[] = {
         Updates the transition buttons for a given scene frame.
 
     Arguments:
-        PGOK pgokPar -- the parent scene frame GOK
+        PKidspaceGraphicObject pgokPar -- the parent scene frame KidspaceGraphicObject
         TRANS trans  -- the transition state for this scene
 
     Returns: fTrue if the scene has a new transition and the frame needs
         to be updated
 
 ************************************************************ PETED ***********/
-bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
+bool SCRT::_FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans)
 {
     bool fRedrawTrans = fFalse;
-    PGOK pgokTrans, pgokThumb;
+    PKidspaceGraphicObject pgokTrans, pgokThumb;
     long lwTrans = kctrans, lwThis = _LwFromTrans(trans);
     long lwStateCur, lwStateNew;
 
-    pgokThumb = (PGOK)pgokPar->PgobFirstChild();
-    Assert(pgokThumb->FIs(kclsGOK), "First child wasn't a GOK");
-    pgokTrans = (PGOK)pgokThumb->PgobNextSib();
-    Assert(pgokTrans->FIs(kclsGOK), "Transition GraphicsObject isn't a GOK");
+    pgokThumb = (PKidspaceGraphicObject)pgokPar->PgobFirstChild();
+    Assert(pgokThumb->FIs(kclsKidspaceGraphicObject), "First child wasn't a KidspaceGraphicObject");
+    pgokTrans = (PKidspaceGraphicObject)pgokThumb->PgobNextSib();
+    Assert(pgokTrans->FIs(kclsKidspaceGraphicObject), "Transition GraphicsObject isn't a KidspaceGraphicObject");
     while (lwTrans--)
     {
         lwStateCur = pgokTrans->Sno();
@@ -715,8 +715,8 @@ bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
             fRedrawTrans = fTrue;
             pgokTrans->FChangeState(lwStateNew);
         }
-        pgokTrans = (PGOK)pgokTrans->PgobNextSib();
-        Assert(pgokTrans == pvNil || pgokTrans->FIs(kclsGOK), "Transition GraphicsObject isn't a GOK");
+        pgokTrans = (PKidspaceGraphicObject)pgokTrans->PgobNextSib();
+        Assert(pgokTrans == pvNil || pgokTrans->FIs(kclsKidspaceGraphicObject), "Transition GraphicsObject isn't a KidspaceGraphicObject");
     }
 
     return fRedrawTrans;
@@ -826,12 +826,12 @@ PGOMP GOMP::PgompNew(PGraphicsObject pgobPar, long hid)
 
     pgomp = NewObj GOMP(&gcb);
 
-    if (pgomp != pvNil && pgobPar->FIs(kclsGOK))
+    if (pgomp != pvNil && pgobPar->FIs(kclsKidspaceGraphicObject))
     {
         PT pt;
         RC rcAbs;
 
-        ((GOK *)pgobPar)->GetPtReg(&pt);
+        ((KidspaceGraphicObject *)pgobPar)->GetPtReg(&pt);
         pgomp->GetPos(&rcAbs, &rcRel);
         rcAbs.Offset(-pt.xp, -pt.yp);
         pgomp->SetPos(&rcAbs, &rcRel);

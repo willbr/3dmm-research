@@ -981,9 +981,9 @@ void TXHG::SetCursor(ulong grfcust)
             vpappb->SetCurs(pvNil);
             break;
         }
-        if (pgob->FIs(kclsGOK))
+        if (pgob->FIs(kclsKidspaceGraphicObject))
         {
-            ((PGOK)pgob)->SetCursor(grfcust | fcustChildGok);
+            ((PKidspaceGraphicObject)pgob)->SetCursor(grfcust | fcustChildGok);
             break;
         }
     }
@@ -1192,8 +1192,8 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
         pgob = PgobPar();
     }
 
-    if (pgob->FIs(kclsGOK))
-        ((PGOK)pgob)->GetPtReg(&pt);
+    if (pgob->FIs(kclsKidspaceGraphicObject))
+        ((PKidspaceGraphicObject)pgob)->GetPtReg(&pt);
     else
     {
         RC rc;
@@ -1280,7 +1280,7 @@ PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, 
 
     if (!phbtn->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         return pvNil;
     }
     phbtn->GetRc(&rcAbs, cooParent);

@@ -2618,10 +2618,10 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     gte.Init(Pkwa(), fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Suspend();
+        ((PKidspaceGraphicObject)pgob)->Suspend();
     }
 
     if (FPushModal())
@@ -2661,10 +2661,10 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     gte.Init(Pkwa(), fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Resume();
+        ((PKidspaceGraphicObject)pgob)->Resume();
     }
 
     return (fTrue);
@@ -2780,7 +2780,7 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
     CHID chidProject;
     long kidBuilding;
     PGraphicsObject pgob;
-    PGOK pgokBackground;
+    PKidspaceGraphicObject pgokBackground;
 
     kidBuilding = pcmd->rglw[0];
     chidProject = pcmd->rglw[1];
@@ -2797,8 +2797,8 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
         // Start a project, if requested
         if (chidProject != chidNil)
         {
-            pgokBackground = (PGOK)Pkwa()->PgobFromHid(kidBackground);
-            if ((pgokBackground != pvNil) && pgokBackground->FIs(kclsGOK))
+            pgokBackground = (PKidspaceGraphicObject)Pkwa()->PgobFromHid(kidBackground);
+            if ((pgokBackground != pvNil) && pgokBackground->FIs(kclsKidspaceGraphicObject))
             {
                 AssertPo(pgokBackground, 0);
                 // REVIEW *****: if this fails, what happens?

@@ -15,7 +15,7 @@
   Browsers (abbrev Brws) include display, list and text classes.
 
     Studio Independent Browsers:
-    BASE --> CMH --> GOK	-->	BRWD  (Browser display class)
+    BASE --> CMH --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
     BRWD --> BRWL  (Browser list class; chunky based)
     BRWD --> BRWT  (Browser text class)
     BRWD --> BRWL --> BRWN  (Browser named list class)
@@ -92,7 +92,7 @@ RTCLASS(BCL)
 RTCLASS(BCLS)
 RTCLASS(FNET)
 
-BEGIN_CMD_MAP(BRWD, GOK)
+BEGIN_CMD_MAP(BRWD, KidspaceGraphicObject)
 ON_CID_GEN(cidBrowserFwd, &BRWD::FCmdFwd, pvNil)
 ON_CID_GEN(cidBrowserBack, &BRWD::FCmdBack, pvNil)
 ON_CID_GEN(cidBrowserCancel, &BRWD::FCmdCancel, pvNil)
@@ -155,11 +155,11 @@ bool BRWD::_FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidGlass)
     }
 
 #ifdef DEBUG
-    Assert(pgobPar->FIs(kclsGOK), "Parent isn't a GOK");
+    Assert(pgobPar->FIs(kclsKidspaceGraphicObject), "Parent isn't a KidspaceGraphicObject");
     {
         PGraphicsObject pgob = vapp.Pkwa()->PgobFromHid(kidGlass);
 
-        Assert(pgob == pvNil, "GOK already exists with given ID");
+        Assert(pgob == pvNil, "KidspaceGraphicObject already exists with given ID");
     }
 #endif // DEBUG
 
@@ -434,12 +434,12 @@ bool BRWD::FDraw(void)
         pgobPar = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrm);
         if (pvNil == pgobPar)
             goto LContinue;
-        Assert(pgobPar->FIs(kclsGOK), "Invalid class");
+        Assert(pgobPar->FIs(kclsKidspaceGraphicObject), "Invalid class");
 
         if (ithum >= cthum)
         {
             // Render invisible
-            ((PGOK)pgobPar)->FChangeState(kstBrowserInvisible); // Ignore error
+            ((PKidspaceGraphicObject)pgobPar)->FChangeState(kstBrowserInvisible); // Ignore error
             _FClearHelp(ifrm);                                  // Clear rollover help
             continue;
         }
@@ -450,11 +450,11 @@ bool BRWD::FDraw(void)
 
         if (ithum == _ithumSelect)
         {
-            ((PGOK)pgobPar)->FChangeState(kstBrowserSelected);
+            ((PKidspaceGraphicObject)pgobPar)->FChangeState(kstBrowserSelected);
         }
         else
         {
-            ((PGOK)pgobPar)->FChangeState(kstBrowserEnabled);
+            ((PKidspaceGraphicObject)pgobPar)->FChangeState(kstBrowserEnabled);
         }
     LContinue:
         if (ithum < cthum)
@@ -526,16 +526,16 @@ void BRWD::_SetScrollState(void)
     pgob = vapp.Pkwa()->PgobFromHid(_kidControlFirst);
     if (pvNil != pgob)
     {
-        Assert(pgob->FIs(kclsGOK), "Invalid class");
-        if (!((PGOK)pgob)->FChangeState(st))
+        Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+        if (!((PKidspaceGraphicObject)pgob)->FChangeState(st))
             Warn("Failed to change state Page Fwd button");
     }
 
     pgob = vapp.Pkwa()->PgobFromHid(_kidControlFirst + 1);
     if (pvNil != pgob)
     {
-        Assert(pgob->FIs(kclsGOK), "Invalid class");
-        if (!((PGOK)pgob)->FChangeState(st))
+        Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+        if (!((PKidspaceGraphicObject)pgob)->FChangeState(st))
             Warn("Failed to change state Page Back button");
     }
 }
@@ -717,8 +717,8 @@ bool BRWD::_FHiliteFrm(long ifrmSelect)
     if (pvNil == pgob)
         return fFalse;
 
-    Assert(pgob->FIs(kclsGOK), "Invalid class");
-    if (!((PGOK)pgob)->FChangeState(kstBrowserSelected))
+    Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+    if (!((PKidspaceGraphicObject)pgob)->FChangeState(kstBrowserSelected))
     {
         _ithumSelect = ivNil;
         return fFalse;
@@ -743,8 +743,8 @@ void BRWD::_UnhiliteCurFrm(void)
         pgob = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrmSelectOld);
         if (pvNil == pgob)
             return;
-        Assert(pgob->FIs(kclsGOK), "Invalid class");
-        ((PGOK)pgob)->FChangeState(kstBrowserEnabled); // Ignore failure
+        Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+        ((PKidspaceGraphicObject)pgob)->FChangeState(kstBrowserEnabled); // Ignore failure
     }
 }
 
@@ -843,7 +843,7 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
     AssertPo(prca, 0);
 
     PBRWL pbrwl;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
@@ -863,11 +863,11 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
     // Stop the studio action button animation while
     // any browser is up.
     //
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
-        Assert(pgok->FIs(kclsGOK), "Invalid class");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Invalid class");
         pgok->FChangeState(kstFreeze);
     }
 
@@ -1364,7 +1364,7 @@ bool BRWL::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
     AssertPo(pgobPar, 0);
 
     THD thd;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     RC rcAbs;
     RC rcRel;
     long kidThum;
@@ -2529,7 +2529,7 @@ PBRWA BRWA::PbrwaNew(PRCA prca)
     AssertPo(prca, 0);
 
     PBRWA pbrwa;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidActionGlass))
@@ -2548,11 +2548,11 @@ PBRWA BRWA::PbrwaNew(PRCA prca)
     //
     // Stop the action browser animation while the browser is up.
     //
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
-        Assert(pgok->FIs(kclsGOK), "Invalid class");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Invalid class");
         pgok->FChangeState(kstSelected);
     }
 
@@ -2571,14 +2571,14 @@ bool BRWA::FBuildApe(PACTR pactr)
     AssertPo(pactr, 0);
 
     COST cost;
-    PGOK pgokFrame;
+    PKidspaceGraphicObject pgokFrame;
     RC rcRel;
     GraphicsObjectBlock gcb;
 
     if (!cost.FGet(pactr->Pbody()))
         return fFalse;
-    pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidBrwsActionPrev);
-    Assert(pgokFrame->FIs(kclsGOK), "Invalid class");
+    pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidBrwsActionPrev);
+    Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Invalid class");
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(kidBrwsActionPrev, pgokFrame, fgobNil, kginDefault, pvNil, &rcRel);
     _pape = APE::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fTrue);
@@ -3281,7 +3281,7 @@ bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
 
     if (!_pstdio->Pmvie()->FIsIaridTdt(iarid))
     {
-        PGOK pgok;
+        PKidspaceGraphicObject pgok;
         CNO cno = _pstdio->CnoGokdFromCnoTmpl(tag.cno);
         long kidThum = _KidThumFromIfrm(_cfrmPageCur);
         pgok = vapp.Pkwa()->PgokNew(pgobPar, kidThum, cno, _pcrm);

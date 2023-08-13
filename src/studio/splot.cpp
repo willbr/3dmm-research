@@ -14,7 +14,7 @@ ASSERTNAME
 
 RTCLASS(SPLOT)
 
-BEGIN_CMD_MAP(SPLOT, GOK)
+BEGIN_CMD_MAP(SPLOT, KidspaceGraphicObject)
 ON_CID_GEN(cidSplotInit, &SPLOT::FCmdInit, pvNil)
 ON_CID_GEN(cidSplotDo, &SPLOT::FCmdSplot, pvNil)
 ON_CID_GEN(cidSplotUpdate, &SPLOT::FCmdUpdate, pvNil)
@@ -61,7 +61,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
     }
     if (!psplot->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         goto LFail;
     }
 
@@ -77,7 +77,7 @@ LFail:
 /******************************************************************************
     FCmdInit
         Initializes the splot machine; right now, just sets up the movie
-        and MVU for the splot machine, inside the given GOK parent.  In the
+        and MVU for the splot machine, inside the given KidspaceGraphicObject parent.  In the
         future, perhaps the content data structures can be inited here, and
         only updated if we fail loading something (which would indicate that
         the user removed a CD or something during the splot machine).

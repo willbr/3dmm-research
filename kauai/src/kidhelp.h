@@ -153,7 +153,7 @@ class TXHG : public TXHG_PAR
     Help balloon.
 ***************************************************************************/
 typedef class HBAL *PHBAL;
-#define HBAL_PAR GOK
+#define HBAL_PAR KidspaceGraphicObject
 #define kclsHBAL 'HBAL'
 class HBAL : public HBAL_PAR
 {
@@ -178,7 +178,7 @@ class HBAL : public HBAL_PAR
     Help balloon button.
 ***************************************************************************/
 typedef class HBTN *PHBTN;
-#define HBTN_PAR GOK
+#define HBTN_PAR KidspaceGraphicObject
 #define kclsHBTN 'HBTN'
 class HBTN : public HBTN_PAR
 {

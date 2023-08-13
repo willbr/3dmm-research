@@ -402,8 +402,8 @@ ENDCHUNK
 	cidSceneSortInit:
 		Initializes the Scene Sorter with the information about the easel
 		in kidspace.
-			rglw[0] -- kid of the first thumbnail frame GOK
-			rglw[1] -- kid of the first scrollbar GOK button (scroll up)
+			rglw[0] -- kid of the first thumbnail frame KidspaceGraphicObject
+			rglw[1] -- kid of the first scrollbar KidspaceGraphicObject button (scroll up)
 			rglw[2] -- number of GOKs in a single frame
 
 	cidSceneSortSelect:
@@ -442,7 +442,7 @@ ENDCHUNK
 
 	cidSceneSortTransition:
 		Sets the transition for the scene corresponding to the given frame.
-			rglw[0] -- GOK id of the frame
+			rglw[0] -- KidspaceGraphicObject id of the frame
 			rglw[1] -- which transition to use
 
 	

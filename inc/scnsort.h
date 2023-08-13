@@ -13,7 +13,7 @@
 #ifndef SCNSORT_H
 #define SCNSORT_H
 
-#define SCRT_PAR GOK
+#define SCRT_PAR KidspaceGraphicObject
 #define kclsSCRT 'SCRT'
 typedef class SCRT *PSCRT;
 class SCRT : public SCRT_PAR
@@ -27,10 +27,10 @@ class SCRT : public SCRT_PAR
     static const TRANS _mplwtrans[];
 
     /* Obtained from the script */
-    long _kidFrameMin;  // kid of first frame GOK in the easel
+    long _kidFrameMin;  // kid of first frame KidspaceGraphicObject in the easel
     long _kidScbtnsMin; // kid of the first scroll button (scroll up)
     long _cfrmPage;     // number of frame GOKs on the easel
-    long _cgokFrame;    // number of pieces to a frame GOK
+    long _cgokFrame;    // number of pieces to a frame KidspaceGraphicObject
 
     /* Hidden from the script */
     long _iscenCur;   // currently selected scene
@@ -57,7 +57,7 @@ class SCRT : public SCRT_PAR
     void _SetSelectionVis(bool fShow, bool fHideSel = fFalse);
     void _ErrorExit(void);
     bool _FResetThumbnails(bool fHideSel);
-    bool _FResetTransition(PGOK pgokPar, TRANS trans);
+    bool _FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans);
     TRANS _TransFromLw(long lwTrans);
     long _LwFromTrans(TRANS trans);
 

@@ -70,7 +70,7 @@ class GORF : public GORF_PAR
     long _dyp;
 
   public:
-    static PGORF PgorfNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -98,7 +98,7 @@ class GORB : public GORB_PAR
     ~GORB(void);
 
   public:
-    static PGORB PgorbNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -164,7 +164,7 @@ class GORT : public GORT_PAR
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
-    static PGORT PgortNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORT PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -196,10 +196,10 @@ class GORV : public GORV_PAR
 
     ~GORV(void);
 
-    virtual bool _FInit(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno);
+    virtual bool _FInit(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
 
   public:
-    static PGORV PgorvNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -275,9 +275,9 @@ enum
 };
 
 /***************************************************************************
-    Graphic Object in Kidspace.  Because of script invocation, the GOK
-    may be destroyed in just about every method of the GOK.  So most methods
-    return a boolean indicating whether the GOK still exists.
+    Graphic Object in Kidspace.  Because of script invocation, the KidspaceGraphicObject
+    may be destroyed in just about every method of the KidspaceGraphicObject.  So most methods
+    return a boolean indicating whether the KidspaceGraphicObject still exists.
 ***************************************************************************/
 enum
 {
@@ -288,25 +288,25 @@ enum
     fgokMouseSound = 8, // set the mouse sound as well
 };
 
-typedef class GOK *PGOK;
-#define GOK_PAR GraphicsObject
-#define kclsGOK 'GOK'
-class GOK : public GOK_PAR
+typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
+#define KidspaceGraphicObject_PAR GraphicsObject
+#define kclsKidspaceGraphicObject 'GOK'
+class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(GOK)
+    CMD_MAP_DEC(KidspaceGraphicObject)
 
   protected:
     long _dxp; // offset from top-left to the registration point
     long _dyp;
-    long _zp; // z-coord (for placing GOK's relative to this one)
+    long _zp; // z-coord (for placing KidspaceGraphicObject's relative to this one)
 
     long _dxpPref; // preferred size (if non-zero)
     long _dypPref;
 
-    PWorldOfKidspace _pwoks; // the kidspace world that this GOK belongs to
+    PWorldOfKidspace _pwoks; // the kidspace world that this KidspaceGraphicObject belongs to
     PRCA _prca;   // Chunky resource chain
     PCRF _pcrf;   // Chunky resource file
 
@@ -317,7 +317,7 @@ class GOK : public GOK_PAR
 
     bool _fRect : 1;          // whether to use rectangular hit testing exclusively
     bool _fNoHit : 1;         // invisible to the mouse
-    bool _fNoHitKids : 1;     // children of this GOK are invisible to the mouse
+    bool _fNoHitKids : 1;     // children of this KidspaceGraphicObject are invisible to the mouse
     bool _fNoSlip : 1;        // animations shouldn't slip
     bool _fGorpDirty : 1;     // whether the GORP changed while deferred
     bool _fMouseSndDirty : 1; // whether playing the mouse sound was deferred
@@ -347,10 +347,10 @@ class GOK : public GOK_PAR
     };
     PGL _pglcmflt; // list of cmd filtering structs, sorted by cid
 
-    long _hidToolTipSrc; // get the tool tip info from this GOK
+    long _hidToolTipSrc; // get the tool tip info from this KidspaceGraphicObject
 
-    GOK(GraphicsObjectBlock *pgcb);
-    ~GOK(void);
+    KidspaceGraphicObject(GraphicsObjectBlock *pgcb);
+    ~KidspaceGraphicObject(void);
 
     static PGraphicsObject _PgobBefore(PGraphicsObject pgobPar, long zp);
 
@@ -378,7 +378,7 @@ class GOK : public GOK_PAR
     void _DeferSnd(bool fDefer);
 
   public:
-    static PGOK PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca);
+    static PKidspaceGraphicObject PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca);
 
     PWorldOfKidspace Pwoks(void)
     {

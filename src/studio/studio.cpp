@@ -409,11 +409,11 @@ bool Studio::_FLoadMovie(PFilename pfni, CNO cno, bool *pfClosedOld)
 
     if (fRet)
     {
-        PGOK pgok;
+        PKidspaceGraphicObject pgok;
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
-        if ((pgok != pvNil) && pgok->FIs(kclsGOK) && (_pmvie->Pscen() != pvNil))
+        if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject) && (_pmvie->Pscen() != pvNil))
         {
             AssertPo(pgok, 0);
             pgok->FRunScript((kstDefault << 16) | kchidOpenDoorsAll);
@@ -474,7 +474,7 @@ bool Studio::FSetMovie(PMVIE pmvie)
     bool fRet = fFalse;
     PMVU pmvu = pvNil;
     RC rcRel, rcAbs;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     GraphicsObjectBlock gcb;
 
     vapp.BeginLongOp();
@@ -490,7 +490,7 @@ bool Studio::FSetMovie(PMVIE pmvie)
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     rcAbs.Set(0, 0, 0, 0);
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidWorkspace);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidWorkspace);
     AssertPo(pgok, 0);
 
     if (pvNil == _psmcc->Psscb())
@@ -525,9 +525,9 @@ bool Studio::FSetMovie(PMVIE pmvie)
     pmvu->SetTool(toolDefault);
     _psmcc->UpdateRollCall();
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSettingsCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSettingsCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         pgok->FChangeState(kstOpen);
     }
@@ -774,26 +774,26 @@ bool Studio::FCmdPlay(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     if (pvNil != _pmvie)
     {
         AssertPo(_pmvie, 0);
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsActionBrowser);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
         if (_pmvie->FPlaying())
         {
 
             vpappb->FSetProp(kpridToolTipDelay, _dtimToolTipDelay);
-            if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+            if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
             {
                 AssertPo(pgok, 0);
                 pgok->FChangeState(kstDefault);
             }
 
-            pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidWorkspace);
-            if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+            pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidWorkspace);
+            if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
             {
                 AssertPo(pgok, 0);
                 pgok->SetZPlane(0);
@@ -808,7 +808,7 @@ bool Studio::FCmdPlay(PCMD pcmd)
             }
 
             vpappb->FSetProp(kpridToolTipDelay, 0x0FFFFFFF);
-            if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+            if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
             {
                 AssertPo(pgok, 0);
                 pgok->FChangeState(kstFreeze);
@@ -1026,14 +1026,14 @@ bool Studio::FCmdSooner(PCMD pcmd)
     if (!Pmvie()->FSoonerLaterActr(Pmvie()->Pscen()->Nfrm() - 1))
     {
         PMVU pmvu;
-        PGOK pgok;
+        PKidspaceGraphicObject pgok;
 
         pmvu = (PMVU)Pmvie()->PddgActive();
         pmvu->SetTool(toolCompose);
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
 
-        if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+        if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         {
             AssertPo(pgok, 0);
             pgok->FChangeState(kstClosed);
@@ -1058,14 +1058,14 @@ bool Studio::FCmdLater(PCMD pcmd)
     if (!Pmvie()->FSoonerLaterActr(Pmvie()->Pscen()->Nfrm() + 1))
     {
         PMVU pmvu;
-        PGOK pgok;
+        PKidspaceGraphicObject pgok;
 
         pmvu = (PMVU)Pmvie()->PddgActive();
         pmvu->SetTool(toolCompose);
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
 
-        if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+        if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         {
             AssertPo(pgok, 0);
             pgok->FChangeState(kstClosed);
@@ -1564,19 +1564,19 @@ void Studio::PlayStopped(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidPlay);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidPlay);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK) && (pgok->Sno() != kstDefault))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() != kstDefault))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstDefault);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstDefault);
@@ -1592,22 +1592,22 @@ void Studio::ChangeTool(long tool)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     if (tool == toolTboxMove)
     {
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidTextsCover);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidTextsCover);
     }
     else if (tool == toolDefault)
     {
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSettingsCover);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSettingsCover);
     }
     else
     {
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCover);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCover);
     }
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK) && (pgok->Sno() != kstOpen))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() != kstOpen))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstOpen);
@@ -1618,19 +1618,19 @@ void Studio::ChangeTool(long tool)
     switch (tool)
     {
     case toolCompose:
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCompose);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCompose);
         break;
 
     case toolRecordSameAction:
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsContinue);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsContinue);
         break;
 
     case toolTboxMove:
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidTextsSelect);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidTextsSelect);
         break;
 
     case toolDefault:
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSettingsBackground);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSettingsBackground);
         pgok->FRunScript((kstDefault << 16) | kchidResetTools);
         return;
 
@@ -1638,7 +1638,7 @@ void Studio::ChangeTool(long tool)
         break;
     }
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK) && (pgok->Sno() != kstSelected))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() != kstSelected))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstSelected);
@@ -1652,7 +1652,7 @@ void Studio::SceneNuked(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     if (_pmvie->Pscen() == pvNil)
     {
@@ -1660,9 +1660,9 @@ void Studio::SceneNuked(void)
         _SetToolStates();
         _psmcc->UpdateRollCall();
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidUndosCover);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidUndosCover);
 
-        if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+        if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         {
             AssertPo(pgok, 0);
             pgok->FChangeState(kstOpen);
@@ -1716,11 +1716,11 @@ void Studio::_SetToolStates(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK) && (_pmvie->Pscen() == pvNil))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject) && (_pmvie->Pscen() == pvNil))
     {
         AssertPo(pgok, 0);
         pgok->FRunScript((kstDefault << 16) | kchidResetTools);
@@ -1730,47 +1730,47 @@ void Studio::_SetToolStates(void)
     //
     // Enable everything, since we now have a scene.
     //
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FRunScript((kstDefault << 16) | kchidEnableSceneTools);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstClosed);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSoundsCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidSoundsCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstClosed);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidTextsCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidTextsCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstClosed);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidScrollbarsCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidScrollbarsCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstOpen);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidUndosCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidUndosCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstOpen);
@@ -1778,9 +1778,9 @@ void Studio::_SetToolStates(void)
 
     SetUndo(_pmvie->CundbUndo() != 0 ? undoUndo : _pmvie->CundbRedo() != 0 ? undoRedo : undoDisabled);
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBooksCover);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBooksCover);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstOpen);
@@ -1794,11 +1794,11 @@ void Studio::EnableActorTools(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FRunScript((kstDefault << 16) | kchidEnableActorTools);
@@ -1812,11 +1812,11 @@ void Studio::EnableTboxTools(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FRunScript((kstDefault << 16) | kchidEnableTboxTools);
@@ -1838,11 +1838,11 @@ void Studio::SetUndo(long undo)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidUndo);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidUndo);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(undo == undoUndo ? kstOpen : (undo == undoRedo ? kstClosed : kstDisabled));
@@ -1900,15 +1900,15 @@ void Studio::PauseType(WIT wit)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     long fFlag;
 
     fFlag = FPure(wit == witUntilSnd);
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidPausesSound);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidPausesSound);
     AssertNilOrPo(pgok, 0);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
 
         if (fFlag)
@@ -1923,7 +1923,7 @@ void Studio::PauseType(WIT wit)
     else
     {
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
         if (pgok != pvNil)
         {
             pgok->FRunScript((kstDefault << 16) | kchidSetPauseType, &fFlag, 1);
@@ -1943,9 +1943,9 @@ void Studio::Recording(bool fRecording, bool fRecord)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidPlay);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidPlay);
     AssertNilOrPo(pgok, 0);
 
     if (pgok == pvNil)
@@ -1978,9 +1978,9 @@ void Studio::StartSoonerLater(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
     AssertNilOrPo(pgok, 0);
 
     if (pgok == pvNil)
@@ -1990,12 +1990,12 @@ void Studio::StartSoonerLater(void)
 
     pgok->FChangeState(kstOpen);
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsLaterButton);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsLaterButton);
     AssertNilOrPo(pgok, 0);
 
     if (pgok == pvNil)
     {
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
         AssertPo(pgok, 0);
         pgok->FChangeState(kstClosed);
         return;
@@ -2015,14 +2015,14 @@ void Studio::EndSoonerLater(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     if (!_fStartedSoonerLater)
         return;
 
     _psmcc->Psscb()->EndNoAutoadjust();
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
     AssertNilOrPo(pgok, 0);
 
     if (pgok != pvNil)
@@ -2030,7 +2030,7 @@ void Studio::EndSoonerLater(void)
         pgok->FChangeState(kstClosed);
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsLaterButton);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsLaterButton);
     AssertNilOrPo(pgok, 0);
 
     if (pgok != pvNil)
@@ -2049,16 +2049,16 @@ void Studio::NewActor(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     PMVU pmvu;
 
     pmvu = (PMVU)_pmvie->PddgGet(0);
     AssertPo(pmvu, 0);
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsXY);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsXY);
     AssertNilOrPo(pgok, 0);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         if (pgok->Sno() == kstOpen)
         {
@@ -2071,18 +2071,18 @@ void Studio::NewActor(void)
 
         pmvu->SetAxis(rgr);
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
-        if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+        if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         {
             AssertPo(pgok, 0);
             pgok->FRunScript((kstDefault << 16) | kchidResetXZAxisAndGround);
         }
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsGround);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsGround);
     AssertNilOrPo(pgok, 0);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         if (pgok->Sno() == kstClosed)
         {
@@ -2093,18 +2093,18 @@ void Studio::NewActor(void)
     {
         pmvu->SetFRespectGround(fFalse);
 
-        pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
-        if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+        pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+        if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         {
             AssertPo(pgok, 0);
             pgok->FRunScript((kstDefault << 16) | kchidResetXZAxisAndGround);
         }
     }
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCompose);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsCompose);
     AssertNilOrPo(pgok, 0);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
         pgok->FChangeState(kstSelected);
     }
@@ -2166,10 +2166,10 @@ void Studio::StartActionBrowser(void)
     AssertPo(_pmvie->Pscen(), 0);
     AssertPo(_pmvie->Pscen()->PactrSelected(), 0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     CMD cmd;
 
-    pgok = (PGOK)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
     if (pgok != pvNil)
     {
@@ -2236,10 +2236,10 @@ bool Studio::FShutdown(bool fClearCache)
 ***************************************************************************/
 void Studio::PauseActionButton(void)
 {
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidActorsActionBrowser);
-    if (pgok != pvNil && pgok->FIs(kclsGOK))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstFreeze);
@@ -2251,10 +2251,10 @@ void Studio::PauseActionButton(void)
 ***************************************************************************/
 void Studio::ResumeActionButton(void)
 {
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidActorsActionBrowser);
-    if (pgok != pvNil && pgok->FIs(kclsGOK))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         pgok->FChangeState(kstDefault);
@@ -2511,10 +2511,10 @@ bool Studio::FCmdToggleXY(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidActorsXY);
-    if (pgok != pvNil && pgok->FIs(kclsGOK))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidActorsXY);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         vpcex->EnqueueCid(cidClicked, pgok, pvNil, pvNil);
@@ -2538,11 +2538,11 @@ bool Studio::FCmdHelpBook(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidBook);
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidBook);
 
-    if (pgok != pvNil && pgok->FIs(kclsGOK))
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
         vpcex->EnqueueCid(cidClicked, pgok, pvNil, pvNil);

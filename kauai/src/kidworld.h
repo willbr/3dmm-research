@@ -18,7 +18,7 @@
 #define KIDWORLD_H
 
 /***************************************************************************
-    Base GOK descriptor.
+    Base KidspaceGraphicObject descriptor.
 ***************************************************************************/
 // location from parent map structure
 struct LOP
@@ -26,7 +26,7 @@ struct LOP
     long hidPar;
     long xp;
     long yp;
-    long zp; // the z-plane number used for placing the GOK in the GraphicsObject tree
+    long zp; // the z-plane number used for placing the KidspaceGraphicObject in the GraphicsObject tree
 };
 
 // cursor map entry
@@ -60,10 +60,10 @@ class GOKD : public GOKD_PAR
 };
 
 /***************************************************************************
-    Standard GOK descriptor. Contains location information and cursor
+    Standard KidspaceGraphicObject descriptor. Contains location information and cursor
     map stuff.
 ***************************************************************************/
-// GOK construction descriptor on file - these are stored in chunky resource files
+// KidspaceGraphicObject construction descriptor on file - these are stored in chunky resource files
 struct GOKDF
 {
     short bo;
@@ -136,7 +136,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
 
     virtual bool FGobIn(PGraphicsObject pgob);
     virtual PGOKD PgokdFetch(CTG ctg, CNO cno, PRCA prca);
-    virtual PGOK PgokNew(PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca);
+    virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca);
     virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
     virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
     virtual PCMH PcmhFromHid(long hid);

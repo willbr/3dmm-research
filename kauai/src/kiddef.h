@@ -51,7 +51,7 @@
 #define kctgVideo 'VIDE'
 
 /***************************************************************************
-    GOK defines
+    KidspaceGraphicObject defines
 ***************************************************************************/
 #define kdchidState 0x00010000 // this times the sno is the base chid
 #define ksnoInit 1
@@ -88,7 +88,7 @@
 #define gokkNoHitThis 2 // this bit means it's invisible to the mouse
 #define gokkNoHitKids 4 // this bit means its childrean are invis to mouse
 #define gokkNoHit 6     // means it and its childrean are invis to mouse
-#define gokkNoSlip 8    // anims for this GOK shouldn't slip (by default)
+#define gokkNoSlip 8    // anims for this KidspaceGraphicObject shouldn't slip (by default)
 
 /***************************************************************************
     Misc. constants

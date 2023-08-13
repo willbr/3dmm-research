@@ -10,7 +10,7 @@
 
 ***************************************************************************/
 
-#define SPLOT_PAR GOK
+#define SPLOT_PAR KidspaceGraphicObject
 typedef class SPLOT *PSPLOT;
 #define kclsSPLOT 'splt'
 class SPLOT : public SPLOT_PAR

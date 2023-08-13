@@ -9,7 +9,7 @@
     Review Status: Reviewed
 
     Studio Independent Browsers:
-    BASE --> CMH --> GOK	-->	BRWD  (Browser display class)
+    BASE --> CMH --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
     BRWD --> BRWL  (Browser list class; chunky based)
     BRWD --> BRWT  (Browser text class)
     BRWD --> BRWL --> BRWN  (Browser named list class)
@@ -99,7 +99,7 @@ const ByteOrderMask kbomTfc = 0x5f000000;
    Browser Display Class
 
 *************************************/
-#define BRWD_PAR GOK
+#define BRWD_PAR KidspaceGraphicObject
 #define kclsBRWD 'BRWD'
 #define brwdidNil ivNil
 typedef class BRWD *PBRWD;

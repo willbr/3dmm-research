@@ -132,7 +132,7 @@ void GKDS::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    Return the GOK kind id.
+    Return the KidspaceGraphicObject kind id.
 ***************************************************************************/
 long GKDS::Gokk(void)
 {
@@ -265,12 +265,12 @@ PGOKD WorldOfKidspace::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
 /***************************************************************************
     Create a new gob in this kidspace world.
 ***************************************************************************/
-PGOK WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
+PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
     PGOKD pgokd;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     if (pgobPar == pvNil)
         pgobPar = this;
@@ -292,7 +292,7 @@ PGOK WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PR
     if (pvNil == (pgokd = PgokdFetch(kctgGokd, cnoGokd, prca)))
         return pvNil;
 
-    pgok = GOK::PgokNew(this, pgobPar, hid, pgokd, prca);
+    pgok = KidspaceGraphicObject::PgokNew(this, pgobPar, hid, pgokd, prca);
     ReleasePpo(&pgokd);
 
     return pgok;
@@ -479,10 +479,10 @@ bool WorldOfKidspace::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Suspend();
+        ((PKidspaceGraphicObject)pgob)->Suspend();
     }
 
     if (vpappb->FPushModal())
@@ -507,10 +507,10 @@ bool WorldOfKidspace::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Resume();
+        ((PKidspaceGraphicObject)pgob)->Resume();
     }
 
     return fRet;

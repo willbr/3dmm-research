@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GraphicsObject ---> GOK ---> ESL (generic easel)
+    BASE ---> CMH ---> GraphicsObject ---> KidspaceGraphicObject ---> ESL (generic easel)
                                           |
                                           +---> ESLT (text easel)
                                           |
@@ -25,14 +25,14 @@
 // Function to build a GraphicsObjectBlock to construct a child under a parent
 bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild);
 
-// Function to set a GOK to a different state
+// Function to set a KidspaceGraphicObject to a different state
 void SetGokState(long kid, long st);
 
 /*****************************
     The generic easel class
 *****************************/
 typedef class ESL *PESL;
-#define ESL_PAR GOK
+#define ESL_PAR KidspaceGraphicObject
 #define kclsESL 'ESL'
 class ESL : public ESL_PAR
 {
@@ -42,7 +42,7 @@ class ESL : public ESL_PAR
     CMD_MAP_DEC(ESL)
 
   protected:
-    ESL(PGCB pgcb) : GOK(pgcb)
+    ESL(PGCB pgcb) : KidspaceGraphicObject(pgcb)
     {
     }
     bool _FInit(PRCA prca, long kidEasel);

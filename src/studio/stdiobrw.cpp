@@ -15,7 +15,7 @@
     and applies browser selections.
 
     Studio Independent Browsers:
-    BASE --> CMH --> GOK	-->	BRWD  (Browser display class)
+    BASE --> CMH --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
     BRWD --> BRWL  (Browser list class; chunky based)
     BRWD --> BRWT  (Browser text class)
     BRWD --> BRWL --> BRWN  (Browser named list class)
@@ -499,7 +499,7 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
 
     PACTR pactr;
     PMVU pmvu;
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     // Apply the action to the actor
     pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
@@ -515,11 +515,11 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
     _pstdio->Pmvie()->Pmcc()->ChangeTool(toolRecordSameAction);
 
     // Reset the studio action button state	(record will be depressed)
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
-        Assert(pgok->FIs(kclsGOK), "Invalid class");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Invalid class");
         pgok->FChangeState(kstDefault);
     }
 
@@ -538,7 +538,7 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     PMVU pmvu;
     TAG tag;
     BOOL fClick = fTrue;
@@ -559,22 +559,22 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     }
 
     // Set the tool to "play once", if necessary
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidSoundsLooping);
-    if (pgok != pvNil && pgok->FIs(kclsGOK) && (pgok->Sno() == kstSelected))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidSoundsLooping);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() == kstSelected))
     {
         fClick = fFalse;
     }
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidSoundsAttachToCell);
-    if (pgok != pvNil && pgok->FIs(kclsGOK) && (pgok->Sno() == kstSelected) && (_sty != styMidi))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidSoundsAttachToCell);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() == kstSelected) && (_sty != styMidi))
     {
         fClick = fFalse;
     }
 
     if (fClick)
     {
-        pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidSoundsPlayOnce);
-        if (pgok != pvNil && pgok->FIs(kclsGOK) && (pgok->Sno() != kstSelected))
+        pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidSoundsPlayOnce);
+        if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() != kstSelected))
         {
             AssertPo(pgok, 0);
             vpcex->EnqueueCid(cidClicked, pgok, pvNil, pvNil);

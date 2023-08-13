@@ -501,7 +501,7 @@ void StudioScrollbars::Update(void)
         {
             pgob->GetPos(&rc, pvNil);
             dxp = xp - rc.xpLeft;
-            ((PGOK)pgob)->FSetRep(chidNil, fgokNoAnim, ctgNil, dxp, 0, 0);
+            ((PKidspaceGraphicObject)pgob)->FSetRep(chidNil, fgokNoAnim, ctgNil, dxp, 0, 0);
         }
     }
 
@@ -538,7 +538,7 @@ void StudioScrollbars::Update(void)
         {
             pgob->GetPos(&rc, pvNil);
             dxp = xp - rc.xpLeft;
-            ((PGOK)pgob)->FSetRep(chidNil, fgokNoAnim, ctgNil, dxp, 0, 0);
+            ((PKidspaceGraphicObject)pgob)->FSetRep(chidNil, fgokNoAnim, ctgNil, dxp, 0, 0);
         }
     }
 
@@ -637,9 +637,9 @@ void StudioScrollbars::StartNoAutoadjust(void)
 void StudioScrollbars::SetSndFrame(bool fSoundInFrame)
 {
     long snoNew = fSoundInFrame ? kst2 : kst1;
-    PGOK pgokThumb = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameThumb);
+    PKidspaceGraphicObject pgokThumb = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameThumb);
 
-    if (pgokThumb != pvNil && pgokThumb->FIs(kclsGOK))
+    if (pgokThumb != pvNil && pgokThumb->FIs(kclsKidspaceGraphicObject))
     {
         if (pgokThumb->Sno() != snoNew)
             pgokThumb->FChangeState(snoNew);
