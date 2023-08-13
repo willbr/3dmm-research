@@ -22,7 +22,7 @@ END_CMD_MAP_NIL()
 
 RTCLASS(TextDocument)
 RTCLASS(TopicGraphicsObject)
-RTCLASS(HBAL)
+RTCLASS(Balloon)
 RTCLASS(HBTN)
 
 const achar kchHelpString = '~';
@@ -994,7 +994,7 @@ void TopicGraphicsObject::SetCursor(ulong grfcust)
 /***************************************************************************
     Create a new help topic balloon based on the given topic number.
 ***************************************************************************/
-PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop)
+PBalloon Balloon::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1002,7 +1002,7 @@ PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA pr
     AssertNilOrVarMem(phtop);
     PChunkyResourceFile pcrf;
     PTextDocument ptxhd;
-    PHBAL phbal;
+    PBalloon phbal;
 
     pcrf = prca->PcrfFindChunk(kctgHelpTopic, cnoTopic);
     if (pvNil == pcrf)
@@ -1023,7 +1023,7 @@ PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA pr
     Static method to create a new help balloon based on the given help
     topic document and htop.
 ***************************************************************************/
-PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop)
+PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1032,7 +1032,7 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
     AssertNilOrVarMem(phtop);
     HTOP htop;
     GraphicsObjectBlock gcb;
-    PHBAL phbal;
+    PBalloon phbal;
     long grid;
 
     ptxhd->GetHtop(&htop);
@@ -1055,9 +1055,9 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
 
     if (htop.hidThis == hidNil)
         htop.hidThis = CMH::HidUnique();
-    else if (pvNil != (phbal = (PHBAL)pwoks->PcmhFromHid(htop.hidThis)))
+    else if (pvNil != (phbal = (PBalloon)pwoks->PcmhFromHid(htop.hidThis)))
     {
-        if (!phbal->FIs(kclsHBAL))
+        if (!phbal->FIs(kclsBalloon))
         {
             Bug("command handler with this ID already exists");
             return pvNil;
@@ -1080,7 +1080,7 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
     }
 
     gcb.Set(htop.hidThis, pgobPar, fgobNil, kginMark);
-    if (pvNil == (phbal = NewObj HBAL(&gcb)))
+    if (pvNil == (phbal = NewObj Balloon(&gcb)))
         return pvNil;
     grid = phbal->Grid();
 
@@ -1092,7 +1092,7 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
 
     if (!phbal->_FEnterState(ksnoInit))
     {
-        Warn("HBAL immediately destroyed!");
+        Warn("Balloon immediately destroyed!");
         return pvNil;
     }
 
@@ -1100,7 +1100,7 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
     phbal->_ptxhg->DoHit(0, cnoNil, fcustNil, hidNil);
     if (phbal != pwoks->PgobFromGrid(grid))
     {
-        Warn("HBAL immediately destroyed 2!");
+        Warn("Balloon immediately destroyed 2!");
         return pvNil;
     }
 
@@ -1111,21 +1111,21 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
 /***************************************************************************
     Constructor for a help balloon.
 ***************************************************************************/
-HBAL::HBAL(GraphicsObjectBlock *pgcb) : HBAL_PAR(pgcb)
+Balloon::Balloon(GraphicsObjectBlock *pgcb) : Balloon_PAR(pgcb)
 {
 }
 
 /***************************************************************************
     Initialize the help balloon.
 ***************************************************************************/
-bool HBAL::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca)
+bool Balloon::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
     AssertVarMem(phtop);
     AssertPo(prca, 0);
 
-    if (!HBAL_PAR::_FInit(pwoks, phtop->cnoBalloon, prca))
+    if (!Balloon_PAR::_FInit(pwoks, phtop->cnoBalloon, prca))
         return fFalse;
 
     return _FSetTopic(ptxhd, phtop, prca);
@@ -1135,7 +1135,7 @@ bool HBAL::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA
     Set the topic for this balloon.  Returns false if setting the topic
     fails or if the balloon is instantly killed by a script.
 ***************************************************************************/
-bool HBAL::FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
+bool Balloon::FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 {
     AssertThis(0);
     AssertPo(ptxhd, 0);
@@ -1151,7 +1151,7 @@ bool HBAL::FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 /***************************************************************************
     Set the topic in the help balloon.  Don't enter the initial state.
 ***************************************************************************/
-bool HBAL::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
+bool Balloon::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
@@ -1218,11 +1218,11 @@ bool HBAL::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
     Our representation is changing, so make sure we stay inside our parent
     and reposition the TopicGraphicsObject.
 ***************************************************************************/
-void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
+void Balloon::_SetGorp(PGORP pgorp, long dxp, long dyp)
 {
     RC rc1, rc2, rc3;
 
-    HBAL_PAR::_SetGorp(pgorp, dxp, dyp);
+    Balloon_PAR::_SetGorp(pgorp, dxp, dyp);
 
     // make sure we stay inside our parent
     GetRc(&rc1, cooParent);

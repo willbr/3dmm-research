@@ -313,7 +313,7 @@ PSCEG WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject pgob)
 /***************************************************************************
     Create a new help balloon.
 ***************************************************************************/
-PHBAL WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop)
+PBalloon WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -329,7 +329,7 @@ PHBAL WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber 
         return pvNil;
     }
 
-    return HBAL::PhbalCreate(this, pgobPar, prca, cnoTopic, phtop);
+    return Balloon::PhbalCreate(this, pgobPar, prca, cnoTopic, phtop);
 }
 
 /***************************************************************************

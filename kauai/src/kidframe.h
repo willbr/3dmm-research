@@ -24,8 +24,8 @@ typedef class WorldOfKidspace *PWorldOfKidspace;
 typedef class SCEG *PSCEG;
 typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
 namespace Help {
-   class HBAL;
-   typedef class HBAL *PHBAL;
+   class Balloon;
+   typedef class Balloon *PBalloon;
    struct HTOP;
    typedef struct HTOP *PHTOP;
 }

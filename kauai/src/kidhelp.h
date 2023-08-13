@@ -154,24 +154,24 @@ class TopicGraphicsObject : public TopicGraphicsObject_PAR
 /***************************************************************************
     Help balloon.
 ***************************************************************************/
-typedef class HBAL *PHBAL;
-#define HBAL_PAR KidspaceGraphicObject
-#define kclsHBAL 'HBAL'
-class HBAL : public HBAL_PAR
+typedef class Balloon *PBalloon;
+#define Balloon_PAR KidspaceGraphicObject
+#define kclsBalloon 'HBAL'
+class Balloon : public Balloon_PAR
 {
     RTCLASS_DEC
 
   protected:
     PTopicGraphicsObject _ptxhg;
 
-    HBAL(GraphicsObjectBlock *pgcb);
+    Balloon(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
     virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca);
     virtual bool _FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca);
 
   public:
-    static PHBAL PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
-    static PHBAL PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop = pvNil);
+    static PBalloon PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
+    static PBalloon PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop = pvNil);
 
     virtual bool FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca);
 };
