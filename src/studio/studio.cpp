@@ -188,7 +188,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     AssertBaseThis(0);
 
     PSCPT pscpt = pvNil;
-    PSSCB psscb = pvNil;
+    PStudioScrollbars psscb = pvNil;
     PSCEG psceg = pvNil;
     STN stn;
     RC rcAbs, rcRel;
@@ -251,7 +251,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     }
 
     // Create the scroll bars
-    if (pvNil == (psscb = SSCB::PsscbNew(_pmvie)))
+    if (pvNil == (psscb = StudioScrollbars::PsscbNew(_pmvie)))
     {
         goto LFail;
     }
@@ -2747,7 +2747,7 @@ void Studio::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for SMCC.
 ***************************************************************************/
-SMCC::SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PStudio pstdio) : MCC(dxp, dyp, cbCache)
+SMCC::SMCC(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio) : MCC(dxp, dyp, cbCache)
 {
     AssertNilOrPo(psscb, 0);
     // Note: Would like to do an AssertPo here but can't

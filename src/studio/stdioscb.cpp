@@ -6,7 +6,7 @@
  *	Author: ******
  *	Date: March, 1995
  *
- *	This file contains the studio scrollbars class SSCB.  These are the frame
+ *	This file contains the studio scrollbars class StudioScrollbars.  These are the frame
  *	and scene scrollbar master controls.
  *
 \*****************************************************************************/
@@ -21,7 +21,7 @@ ASSERTNAME
  *
 \*****************************************************************************/
 
-RTCLASS(SSCB)
+RTCLASS(StudioScrollbars)
 
 /*****************************************************************************\
  *
@@ -29,7 +29,7 @@ RTCLASS(SSCB)
  *	PsscbNew() for public construction.
  *
 \*****************************************************************************/
-SSCB::SSCB(PMVIE pmvie)
+StudioScrollbars::StudioScrollbars(PMVIE pmvie)
 {
     _pmvie = pmvie;
 #ifdef SHOW_FPS
@@ -50,11 +50,11 @@ SSCB::SSCB(PMVIE pmvie)
  *		A pointer to the scrollbars object, pvNil if failed.
  *
 \*****************************************************************************/
-PSSCB SSCB::PsscbNew(PMVIE pmvie)
+PStudioScrollbars StudioScrollbars::PsscbNew(PMVIE pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
-    PSSCB psscb;
+    PStudioScrollbars psscb;
     PGraphicsObject pgob;
     STN stn;
     GraphicsObjectBlock gcb;
@@ -64,7 +64,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
     //
     // Create the view
     //
-    if (pvNil == (psscb = NewObj SSCB(pmvie)))
+    if (pvNil == (psscb = NewObj StudioScrollbars(pmvie)))
         return pvNil;
 
     rcRel.xpLeft = rcRel.ypTop = 0;
@@ -134,7 +134,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
  * Destructor for studio scroll bars.
  *
  ****************************************************/
-SSCB::~SSCB(void)
+StudioScrollbars::~StudioScrollbars(void)
 {
     AssertBaseThis(0);
 
@@ -150,7 +150,7 @@ SSCB::~SSCB(void)
 /*****************************************************************************\
  *
  *	FCmdScroll
- *		Handles scrollbar commands.  Cids to the SSCB are enqueued
+ *		Handles scrollbar commands.  Cids to the StudioScrollbars are enqueued
  *		in the following format:
  *
  *		EnqueueCid(cid, khidSscb, chtt, param1, param2, param3);
@@ -165,7 +165,7 @@ SSCB::~SSCB(void)
  *		fTrue if the command was handled
  *
 \*****************************************************************************/
-bool SSCB::FCmdScroll(PCMD pcmd)
+bool StudioScrollbars::FCmdScroll(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -415,7 +415,7 @@ LExecuteCmd:
  *		Length of the slidable region of the scrollbar
  *
 \*****************************************************************************/
-long SSCB::_CxScrollbar(long kidScrollbar, long kidThumb)
+long StudioScrollbars::_CxScrollbar(long kidScrollbar, long kidThumb)
 {
     AssertThis(0);
 
@@ -453,7 +453,7 @@ long SSCB::_CxScrollbar(long kidScrollbar, long kidThumb)
  *		Nothing.
  *
 \*****************************************************************************/
-void SSCB::Update(void)
+void StudioScrollbars::Update(void)
 {
     AssertThis(0);
 
@@ -606,7 +606,7 @@ void SSCB::Update(void)
  *		Nothing.
  *
 \*****************************************************************************/
-void SSCB::SetMvie(PMVIE pmvie)
+void StudioScrollbars::SetMvie(PMVIE pmvie)
 {
     _pmvie = pmvie;
     Update();
@@ -623,7 +623,7 @@ void SSCB::SetMvie(PMVIE pmvie)
  *		Nothing.
  *
 \*****************************************************************************/
-void SSCB::StartNoAutoadjust(void)
+void StudioScrollbars::StartNoAutoadjust(void)
 {
     AssertThis(0);
 
@@ -634,7 +634,7 @@ void SSCB::StartNoAutoadjust(void)
     Update();
 }
 
-void SSCB::SetSndFrame(bool fSoundInFrame)
+void StudioScrollbars::SetSndFrame(bool fSoundInFrame)
 {
     long snoNew = fSoundInFrame ? kst2 : kst1;
     PGOK pgokThumb = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameThumb);
@@ -652,7 +652,7 @@ void SSCB::SetSndFrame(bool fSoundInFrame)
 
 /*****************************************************************************\
  *
- *	Mark memory used by the SSCB
+ *	Mark memory used by the StudioScrollbars
  *
  *	Parameters:
  *		None.
@@ -661,16 +661,16 @@ void SSCB::SetSndFrame(bool fSoundInFrame)
  *		Nothing.
  *
 \*****************************************************************************/
-void SSCB::MarkMem(void)
+void StudioScrollbars::MarkMem(void)
 {
     AssertThis(0);
 
-    SSCB_PAR::MarkMem();
+    StudioScrollbars_PAR::MarkMem();
 }
 
 /*****************************************************************************\
  *
- *	Assert the validity of the SSCB
+ *	Assert the validity of the StudioScrollbars
  *
  *	Parameters:
  *		grf - bit array of options.
@@ -679,9 +679,9 @@ void SSCB::MarkMem(void)
  *		Nothing.
  *
 \*****************************************************************************/
-void SSCB::AssertValid(ulong grf)
+void StudioScrollbars::AssertValid(ulong grf)
 {
-    SSCB_PAR::AssertValid(fobjAllocated);
+    StudioScrollbars_PAR::AssertValid(fobjAllocated);
 }
 
 #endif // DEBUG

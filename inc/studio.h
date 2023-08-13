@@ -216,7 +216,7 @@ class SMCC : public SMCC_PAR
     MARKMEM
 
   private:
-    PSSCB _psscb;
+    PStudioScrollbars _psscb;
     PStudio _pstdio;
     long _dypTextTbox;
 
@@ -225,7 +225,7 @@ class SMCC : public SMCC_PAR
     {
         ReleasePpo(&_psscb);
     }
-    SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PStudio pstdio);
+    SMCC(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio);
 
     virtual long Dxp(void)
     {
@@ -239,7 +239,7 @@ class SMCC : public SMCC_PAR
     {
         return _cbCache;
     }
-    virtual PSSCB Psscb(void)
+    virtual PStudioScrollbars Psscb(void)
     {
         return _psscb;
     }
@@ -261,7 +261,7 @@ class SMCC : public SMCC_PAR
         if (pvNil != _psscb)
             _psscb->Update();
     }
-    virtual void SetSscb(PSSCB psscb)
+    virtual void SetSscb(PStudioScrollbars psscb)
     {
         AssertNilOrPo(psscb, 0);
         ReleasePpo(&_psscb);
