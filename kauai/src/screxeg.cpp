@@ -13,6 +13,8 @@
 #include "kidframe.h"
 ASSERTNAME
 
+namespace ScriptInterpreter {
+
 using GraphicalObjectRepresentation::fgokNil;
 using GraphicalObjectRepresentation::fgokKillAnim;
 using GraphicalObjectRepresentation::fgokNoAnim;
@@ -1281,3 +1283,5 @@ bool SCEG::_FLaunch(long stid)
     return fFalse;
 #endif //! WIN
 }
+
+} // end of namespace ScriptInterpreter

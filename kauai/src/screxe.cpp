@@ -14,6 +14,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace ScriptInterpreter {
+
 RTCLASS(SCEB)
 RTCLASS(SCPT)
 RTCLASS(STRG)
@@ -1675,3 +1677,5 @@ bool STRG::_FEnsureGst(void)
 
     return pvNil != _pgst;
 }
+
+} // end of namespace ScriptInterpreter

@@ -16,6 +16,8 @@
 #ifndef SCRCOM_H
 #define SCRCOM_H
 
+using namespace ScriptInterpreter;
+
 /***************************************************************************
     Opcodes for scripts - these are the opcodes that can actually exist in
     script.  They don't necessarily map directly to the compiler's notion of

@@ -17,6 +17,8 @@
 #ifndef SCREXE_H
 #define SCREXE_H
 
+namespace ScriptInterpreter {
+
 using namespace Chunky;
 
 /****************************************
@@ -177,5 +179,7 @@ class SCEB : public SCEB_PAR
     virtual bool FAttachScript(PSCPT pscpt, long *prglw = pvNil, long clw = 0);
     virtual void Free(void);
 };
+
+} // end of namespace ScriptInterpreter
 
 #endif //! SCREXE_H

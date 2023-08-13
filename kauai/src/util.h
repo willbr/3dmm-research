@@ -137,7 +137,10 @@ typedef class AG *PAG;
 typedef class GSTB *PGSTB;
 typedef class StringTable *PStringTable;
 typedef class AST *PAST;
-typedef class SCPT *PSCPT;
+namespace ScriptInterpreter{
+   class SCPT;
+   typedef class SCPT *PSCPT;
+}
 typedef class DataBlock *PDataBlock;
 
 #include "framedef.h"

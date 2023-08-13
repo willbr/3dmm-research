@@ -16,6 +16,8 @@
 #ifndef SCREXEG_H
 #define SCREXEG_H
 
+namespace ScriptInterpreter {
+
 /****************************************
     Gob based script interpreter
 ****************************************/
@@ -65,5 +67,7 @@ class SCEG : public SCEG_PAR
 
 // a Chunky resource reader for a color table
 bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+
+} // end of namespace ScriptInterpreter
 
 #endif //! SCREXEG_H

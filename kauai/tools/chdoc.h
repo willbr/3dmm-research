@@ -13,6 +13,7 @@
 #define CHDOC_H
 
 using namespace Chunky;
+using namespace ScriptInterpreter;
 
 typedef class DOC *PDOC;
 typedef class DOCE *PDOCE;
