@@ -21,8 +21,8 @@
 #include "soc.h"
 ASSERTNAME
 
-const CHID kchidPath = 0;
-const CHID kchidGgae = 0;
+const ChildChunkID kchidPath = 0;
+const ChildChunkID kchidGgae = 0;
 
 struct ACTF // Actor chunk on file
 {

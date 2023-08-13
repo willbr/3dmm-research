@@ -45,7 +45,7 @@ class TDF : public TDF_PAR
     // This authoring-only API creates a new TDF based on a set of models
     static bool FCreate(PCRF pcrf, PGL pglkid, STN *pstn, CKI *pckiTdf = pvNil);
 
-    PMODL PmodlFetch(CHID chid);
+    PMODL PmodlFetch(ChildChunkID chid);
     BRS DxrChar(long ich);
     BRS DyrChar(long ich);
     BRS DyrMax(void)

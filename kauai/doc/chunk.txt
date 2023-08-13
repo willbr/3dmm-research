@@ -30,14 +30,14 @@
 		A struct consisting of a ctg and cno.  Identifies a chunk within
 		a chunky file.
 
-	typedef ulong CHID;
+	typedef ulong ChildChunkID;
 		A child id.  When adding a child to a chunk, you can specify an
 		id by which you will refer to the child (in the context of the
 		parent).  These are preserved when chunks are copied to other
 		files (while cno's may not be).
 
 	struct KID;
-		A struct consisting of a CKI and a CHID.  Identifies a child chunk.
+		A struct consisting of a CKI and a ChildChunkID.  Identifies a child chunk.
 
 	ulong grfcfl;
 		A group of flags indicating chunky file options.
@@ -172,11 +172,11 @@ REVIEW shonk: assert and check for cycles.
 		it.  Fills in *pcno with the cno for the chunk.  pv can only be nil
 		if cb is zero.
 
-	bool CFL::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid,
+	bool CFL::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			long cb, ChunkTag ctg, ChunkNumber *pcno, FLO *pflo);
-	bool CFL::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid,
+	bool CFL::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
-	bool CFL::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid,
+	bool CFL::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			HQ hq, ChunkTag ctg, ChunkNumber *pcno);
 		These atomize the adding of a chunk and adopting the new chunk by
 		(ctgPar, cnoPar).
@@ -205,14 +205,14 @@ REVIEW shonk: assert and check for cycles.
 		(or decrements reference counts of) descendents of the chunk.
 
 	bool CFL::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar,
-			ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid = 0);
+			ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0);
 		Makes (ctgChild, cnoChild) a child of (ctgPar, cnoPar) with the
 		given chid value.  If it already is a child with this chid value,
 		this does nothing.  Note that a chunk may be a child of another
 		chunk multiple times (with different chid values).
 
 	void DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar,
-			ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid);
+			ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid);
 		Deletes (ctgChild, cnoChild, chid) as a child of (ctgPar, cnoPar).
 		If the child is no longer a child of any chunks, it is deleted from
 		the cfl.  This deletes (or decrements reference counts of)
@@ -244,11 +244,11 @@ REVIEW shonk: assert and check for cycles.
 		Gets a kid for the ikid'th child of (ctgPar, cnoPar).
 		Returns false if ikid is too big.
 
-	bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, KID *pkid);
+	bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, KID *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid.
 
 	bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar,
-			CHID chid, ChunkTag ctg, KID *pkid);
+			ChildChunkID chid, ChunkTag ctg, KID *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid
 		and ctg.
 

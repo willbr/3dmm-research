@@ -88,7 +88,7 @@ struct TFC
         struct
         {
             ChunkTag ctg;
-            CHID chid;
+            ChildChunkID chid;
         };
     };
 };
@@ -280,12 +280,12 @@ struct THD
             long lwFill1;
             long lwFill2;
             ChunkTag ctg;
-            CHID chid; // CHID of CD content
+            ChildChunkID chid; // ChildChunkID of CD content
         };
     };
 
     ChunkNumber cno;       // GOKD cno
-    CHID chidThum; // GOKD's parent's CHID (relative to GOKD parent's parent)
+    ChildChunkID chidThum; // GOKD's parent's ChildChunkID (relative to GOKD parent's parent)
     long ithd;     // Original index for this THD, before sorting (used to
                    // retrieve proper STN for the BRWN-derived browsers)
 };

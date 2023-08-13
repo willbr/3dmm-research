@@ -51,8 +51,8 @@ ENDCHUNK
 
 
 OBJECT("projects1: mon1", kgobProj1Mon1, 75, kcrsHand1)
-	REP_PPMBMP( CHID(kst1, krepDefault ), "building\pbm\projects\prj1mon1.pbm" )
-	REP_ANIM(CHID(kst2, krepDefault ), "projects1: monitor1")
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault ), "building\pbm\projects\prj1mon1.pbm" )
+	REP_ANIM(ChildChunkID(kst2, krepDefault ), "projects1: monitor1")
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		DEBUGCMD(PrintStr("Monitor1: animation"));
 		
@@ -80,12 +80,12 @@ OBJECT("projects1: mon1", kgobProj1Mon1, 75, kcrsHand1)
 	#include "PrjMon1.seq"
 
 OBJECTTY( "Projects1: TV animation", kgobTvViewL, 150, kcrsHand1, gokkNoHitThis )
-	REP_MBMP( CHID(kst1, krepDefault ), "building\bitmaps\projects\holder1.bmp"	)
+	REP_MBMP( ChildChunkID(kst1, krepDefault ), "building\bitmaps\projects\holder1.bmp"	)
 
 
 OBJECT("projects1: mon2", kgobProj1Mon2, 155, kcrsHand1)
-	REP_PPMBMP( CHID(kst1, krepDefault ), "building\pbm\projects\prj1mon2.pbm" )
-	REP_ANIM(CHID(kst2, krepDefault ), "projects1: monitor2")
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault ), "building\pbm\projects\prj1mon2.pbm" )
+	REP_ANIM(ChildChunkID(kst2, krepDefault ), "projects1: monitor2")
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		DEBUGCMD(PrintStr("Monitor2: animation"));
 		
@@ -112,7 +112,7 @@ OBJECT("projects1: mon2", kgobProj1Mon2, 155, kcrsHand1)
 	#include "PrjMon2.seq"
 
 OBJECTTY( "Projects1: TV animation", kgobTvViewR, 155, kcrsHand1, gokkNoHitThis )
-	REP_MBMP( CHID(kst1, krepDefault ), "building\bitmaps\projects\holder2.bmp"	)
+	REP_MBMP( ChildChunkID(kst1, krepDefault ), "building\bitmaps\projects\holder2.bmp"	)
 
 // -----------------------------------------------------
 // Projects Main Melanie
@@ -123,12 +123,12 @@ OBJECT( "projects1: melanie", kgobProj1Melanie, 100, kcrsHand1 )
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 1: Default and hidden state.
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_RECT(CHID(kst1, krepDefault), "projects1:melanie", 0, 0, 640, 480)
+	REP_RECT(ChildChunkID(kst1, krepDefault), "projects1:melanie", 0, 0, 640, 480)
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 2: Wait state or been here before -- no intro.
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_ANIM( CHID(kst2, krepDefault), "projects1: melanie")
+	REP_ANIM( ChildChunkID(kst2, krepDefault), "projects1: melanie")
 		DEBUGCMD(PrintStr("Melanie state 2 rep."));
 		Cell(kcell201, 0, 0, 0);
 
@@ -152,7 +152,7 @@ OBJECT( "projects1: melanie", kgobProj1Melanie, 100, kcrsHand1 )
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 3: First time to projects room this session -- run intro
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_ANIM(CHID(kst3, krepEnterAnimation), "projects1: melanie")
+	REP_ANIM(ChildChunkID(kst3, krepEnterAnimation), "projects1: melanie")
 		DEBUGCMD(PrintStr("Melanie state 3 rep."));
 
 		// create the avi object

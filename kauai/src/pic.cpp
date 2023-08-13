@@ -48,7 +48,7 @@ void PIC::GetRc(RC *prc)
     Add the picture to the chunky file. The OS specific representation
     will be a child of the chunk and have the given chid value.
 ***************************************************************************/
-bool PIC::FAddToCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno, CHID chid)
+bool PIC::FAddToCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChunkID chid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -74,7 +74,7 @@ bool PIC::FAddToCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno, CHID chid)
     OS specific representation will be a child of the chunk and have the
     given chid value.
 ***************************************************************************/
-bool PIC::FPutInCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, CHID chid)
+bool PIC::FPutInCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

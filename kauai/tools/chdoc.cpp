@@ -798,7 +798,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
     rc.ypTop = 0;
     rc.ypBottom = _dypHeader - _dypBorder;
     pgnv->FillRc(&rc, kacrWhite);
-    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (CHID)   ChunkTag     ChunkNumber     Name   Lines: %d"), _sel.LnLim());
+    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (ChildChunkID)   ChunkTag     ChunkNumber     Name   Lines: %d"), _sel.LnLim());
     pgnv->DrawStn(&stn, xp, 0);
     rc = *prcClip;
     rc.ypTop = _dypHeader - _dypBorder;
@@ -984,7 +984,7 @@ void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
     if (lnNil == lnNew)
         return;
 
-    // handle a control/command click--edit chunk information/change CHID
+    // handle a control/command click--edit chunk information/change ChildChunkID
     if (grfcust & fcustCmd)
     {
         _SetSel(lnNil);
@@ -1850,7 +1850,7 @@ LCancel:
 }
 
 /**************************************************************************
-    Change CHID dialog
+    Change ChildChunkID dialog
 **************************************************************************/
 enum
 {
@@ -1863,13 +1863,13 @@ enum
 bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv);
 
 /**************************************************************************
-    Dialog proc for Change CHID dialog.
+    Dialog proc for Change ChildChunkID dialog.
 **************************************************************************/
 bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    CHID chid;
+    ChildChunkID chid;
     long lw;
     long ikid;
     CLAN *pclan = (CLAN *)pv;
@@ -1890,13 +1890,13 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
         // get the new chid
         if (!pdlg->FGetLwFromEdit(kiditChidChid, &lw))
         {
-            vpappb->TGiveAlertSz(PszLit("CHID value is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChildChunkID value is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditChidChid);
             return fFalse;
         }
         chid = lw;
 
-        // check the new chid to make sure that the ChunkTag/ChunkNumber/new CHID does not
+        // check the new chid to make sure that the ChunkTag/ChunkNumber/new ChildChunkID does not
         // already exist
         if (pclan->pcfl->FGetIkid(pclan->cki.ctg, pclan->cki.cno, pclan->kid.cki.ctg, pclan->kid.cki.cno, chid,
                                   &ikid) &&
@@ -1914,7 +1914,7 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
 }
 
 /****************************************************************************
-    Put up the dialog with initial values and change the CHID. *pkid will be
+    Put up the dialog with initial values and change the ChildChunkID. *pkid will be
     affected to reflect this change.
 ****************************************************************************/
 bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
@@ -1922,7 +1922,7 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
     AssertVarMem(pcki);
     AssertVarMem(pkid);
     long idit;
-    CHID chid;
+    ChildChunkID chid;
     PDLG pdlg;
     long lw;
     CLAN clan;
@@ -1948,13 +1948,13 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
     chid = lw;
     ReleasePpo(&pdlg);
 
-    // If new CHID is different, unadopt and adopt child to change CHID.
+    // If new ChildChunkID is different, unadopt and adopt child to change ChildChunkID.
     // This is easier than directly changing the GG which keeps track of the
     // parent and its children.
     if (chid != pkid->chid)
     {
         _pcfl->ChangeChid(pcki->ctg, pcki->cno, pkid->cki.ctg, pkid->cki.cno, pkid->chid, chid);
-        // set the new CHID so the caller has the right kid
+        // set the new ChildChunkID so the caller has the right kid
         pkid->chid = chid;
     }
 
@@ -1962,7 +1962,7 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
 }
 
 /**************************************************************************
-    Handle command to change the CHID.
+    Handle command to change the ChildChunkID.
 **************************************************************************/
 bool DCD::FCmdChangeChid(PCMD pcmd)
 {

@@ -329,7 +329,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     long _dtim;       // current time increment for animation
     PSCEG _pscegAnim; // animation script
-    CHID _chidAnim;   // chid of current animation
+    ChildChunkID _chidAnim;   // chid of current animation
 
     PGOKD _pgokd;
 
@@ -343,7 +343,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     {
         long cid;
         long hid;
-        CHID chidScript;
+        ChildChunkID chidScript;
     };
     PGL _pglcmflt; // list of cmd filtering structs, sorted by cid
 
@@ -362,7 +362,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool _FSetGms(long gms, ulong grfact);
 
     virtual bool _FEnterState(long sno);
-    virtual bool _FSetRep(CHID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
+    virtual bool _FSetRep(ChildChunkID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
                           bool *pfSet = pvNil);
     virtual bool _FAdvanceFrame(void);
 
@@ -370,10 +370,10 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual PGORP _PgorpNew(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
-    bool _FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilter);
-    void _PlayMouseSound(CHID chid);
+    bool _FFilterCmd(PCMD pcmd, ChildChunkID chidScript, bool *pfFilter);
+    void _PlayMouseSound(ChildChunkID chid);
     ChunkNumber _CnoToolTip(void);
-    CHID _ChidMouse(void);
+    ChildChunkID _ChidMouse(void);
     void _DeferGorp(bool fDefer);
     void _DeferSnd(bool fDefer);
 
@@ -411,17 +411,17 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
         return FCmdClicked((PCMD_MOUSE)pcmd);
     }
     virtual bool FCmdAll(PCMD pcmd);
-    virtual bool FFilterCidHid(long cid, long hid, CHID chidScript);
+    virtual bool FFilterCidHid(long cid, long hid, ChildChunkID chidScript);
 
     virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
     virtual long LwState(void);
 
-    virtual bool FRunScript(CHID chid, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScript(ChildChunkID chid, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                             tribool *ptSuccess = pvNil);
     virtual bool FRunScriptCno(ChunkNumber cno, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                                tribool *ptSuccess = pvNil);
     virtual bool FChangeState(long sno);
-    virtual bool FSetRep(CHID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
+    virtual bool FSetRep(ChildChunkID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
                          ulong dtim = 0);
 
     virtual bool FPlay(void);

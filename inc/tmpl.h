@@ -28,7 +28,7 @@
 ****************************************/
 struct CPS
 {
-    short chidModl; // CHID (under TMPL chunk) of model for this body part
+    short chidModl; // ChildChunkID (under TMPL chunk) of model for this body part
     short imat34;   // index into ACTN's GL of transforms
 };
 const ByteOrderMask kbomCps = 0x50000000;
@@ -42,7 +42,7 @@ const ByteOrderMask kbomCps = 0x50000000;
 ****************************************/
 struct CEL
 {
-    CHID chidSnd; // sound to play at this cel (CHID under ACTN chunk)
+    ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ACTN chunk)
     BRS dwr;      // distance from previous cel
                   //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
 };
@@ -167,7 +167,7 @@ class TMPL : public TMPL_PAR
     bool _FReadTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual bool _FInit(PCFL pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl);
     virtual PACTN _PactnFetch(long anid);
-    virtual PMODL _PmodlFetch(CHID chidModl);
+    virtual PMODL _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
   public:

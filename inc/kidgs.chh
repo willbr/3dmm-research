@@ -309,7 +309,7 @@
 // The following is used to combine "button" state with
 // subid to get the proper "childid" or chid.
 // ---------------------------------------------------------
-#define CHID( st, ch ) \
+#define ChildChunkID( st, ch ) \
 	SET _st = st \
 	SET _st <<= 16 \
 	SET _st += ch \
@@ -459,7 +459,7 @@
 
 // ---------------------------------------------------------
 // The following Adopt the last chunk of type 'foo' to their
-// most recent GOKD using the appropriate CHID.
+// most recent GOKD using the appropriate ChildChunkID.
 // ---------------------------------------------------------
 #define ADOPT_MASK( _cno,  _chid ) \
 	ADOPT( kctgGokd,  _curgok,  kctgMask,  _cno,  _chid )
@@ -494,20 +494,20 @@
 	REP_ANIM( CHID1( krepEnterAnimation ), __NAME( _szName ))
 
 #define CREATE_SCRIPTST( _szName, _kstState ) \
-	REP_ANIM( CHID( _kstState, krepEnterAnimation ),  _szName )
+	REP_ANIM( ChildChunkID( _kstState, krepEnterAnimation ),  _szName )
 
 #define CREATE_ANIM( _szName ) \
 	REP_ANIM( CHID1( krepEnterAnimation ), _szName)
 
 #define CREATE_ANIMST( _szName, _kstState ) \
-	REP_ANIM( CHID( _kstState, krepEnterAnimation ),  _szName )
+	REP_ANIM( ChildChunkID( _kstState, krepEnterAnimation ),  _szName )
 
 
 #define CLICK_SCRIPT( _szName ) \
 	CHILD_SCRIPT( _szName, CHID1( kchidClick ) )
 
 #define CLICK_SCRIPTST( _szName, _kstState ) \
-	CHILD_SCRIPT( _szName, CHID( _kstState, kchidClick ))
+	CHILD_SCRIPT( _szName, ChildChunkID( _kstState, kchidClick ))
 
 #define IRISVAL( _xp, _yp, _kdir ) \
 	SET _foo = _xp \

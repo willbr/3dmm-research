@@ -62,7 +62,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Fil&ter...",                  cidFilterChunk
         MENUITEM "&Edit Chunk Information...\tCtrl+Enter", cidEditChunkInfo
-        MENUITEM "C&hange CHID...\tCtrl+Enter", cidChangeChid
+        MENUITEM "C&hange ChildChunkID...\tCtrl+Enter", cidChangeChid
         MENUITEM SEPARATOR
         MENUITEM "&Add Child...",               cidAdoptChunk
         MENUITEM "De&lete Child",               cidUnadoptChunk
@@ -183,7 +183,7 @@ BEGIN
     RTEXT           "Parent ChunkNumber:",101,15,30,55,8
     RTEXT           "Child ChunkTag:",102,15,55,55,8
     RTEXT           "Child ChunkNumber:",dlidAdoptChunk,15,75,55,8
-    RTEXT           "CHID:",104,15,95,55,8
+    RTEXT           "ChildChunkID:",104,15,95,55,8
 END
 
 dlidGlbNew DIALOG DISCARDABLE  100, 100, 185, 68
@@ -227,13 +227,13 @@ END
 
 dlidChangeChid DIALOG DISCARDABLE  50, 50, 121, 42
 STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
-CAPTION "Change CHID"
+CAPTION "Change ChildChunkID"
 FONT 10, "System"
 BEGIN
     DEFPUSHBUTTON   "&OK",1,7,20,50,14
     PUSHBUTTON      "&Cancel",2,63,20,50,14
     EDITTEXT        3,57,4,40,12,ES_AUTOHSCROLL
-    RTEXT           "CHID:",10,14,6,39,8
+    RTEXT           "ChildChunkID:",10,14,6,39,8
 END
 
 dlidMbmp DIALOG DISCARDABLE  50, 50, 167, 69

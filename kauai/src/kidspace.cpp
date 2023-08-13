@@ -187,7 +187,7 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PGOKD pgokd, PRCA prc
     the actual chid is gotten by putting the current gob state number in
     the high word.
 ***************************************************************************/
-const CHID _mpgmschidRep[] = {
+const ChildChunkID _mpgmschidRep[] = {
     chidNil,
 
     kchidEnterState, kchidUpOff,    kchidUpOffOn, kchidUpOnOff,   kchidUpOn,      kchidDownUpOff,
@@ -198,10 +198,10 @@ const CHID _mpgmschidRep[] = {
 /***************************************************************************
     Return the chid value for the current mouse tracking state.
 ***************************************************************************/
-CHID KidspaceGraphicObject::_ChidMouse(void)
+ChildChunkID KidspaceGraphicObject::_ChidMouse(void)
 {
     AssertThisMem();
-    CHID chid;
+    ChildChunkID chid;
 
     chid = _mpgmschidRep[_gmsCur];
     if (chidNil != chid)
@@ -525,7 +525,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     AssertThis(0);
     AssertIn(gms, gmsNil, kgmsLim);
     AssertVarMem(pfStable);
-    CHID chid;
+    ChildChunkID chid;
     ChunkTag ctg;
 
     // set the gms
@@ -584,7 +584,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FSetRep(CHID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, bool *pfSet)
+bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, bool *pfSet)
 {
     AssertThis(0);
     long ikid;
@@ -927,7 +927,7 @@ bool KidspaceGraphicObject::FCmdAlarm(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CHID chid;
+    ChildChunkID chid;
     long hid = pcmd->rglw[0];
 
     if (_pwoks->PclokAnim()->Hid() == hid || _pwoks->PclokNoSlip()->Hid() == hid)
@@ -989,7 +989,7 @@ bool KidspaceGraphicObject::FCmdAll(PCMD pcmd)
     is filtered out or the KidspaceGraphicObject goes away, in which case *pfFilter is set
     to whether the command was filtered.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilter)
+bool KidspaceGraphicObject::_FFilterCmd(PCMD pcmd, ChildChunkID chidScript, bool *pfFilter)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1017,7 +1017,7 @@ bool KidspaceGraphicObject::_FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilt
     If both cid and hid are nil, chidScript should be nil. If the cid, hid
     and chidScript are all nil, we turn off all filtering.
 ***************************************************************************/
-bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, CHID chidScript)
+bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidScript)
 {
     AssertThis(0);
     CMFLT cmflt;
@@ -1377,7 +1377,7 @@ void KidspaceGraphicObject::SetNoSlip(bool fNoSlip)
     succeeded.
     CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FRunScript(CHID chid, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
+bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
@@ -1456,7 +1456,7 @@ bool KidspaceGraphicObject::FChangeState(long sno)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FSetRep(CHID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, ulong dtim)
+bool KidspaceGraphicObject::FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, ulong dtim)
 {
     AssertThis(0);
 
@@ -1781,7 +1781,7 @@ long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Play a sound with the given chid as the current mouse tracking sound.
 ***************************************************************************/
-void KidspaceGraphicObject::_PlayMouseSound(CHID chid)
+void KidspaceGraphicObject::_PlayMouseSound(ChildChunkID chid)
 {
     AssertThis(0);
     KID kid;

@@ -2777,7 +2777,7 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
     AssertVarMem(pcmd);
 
     Filename fniUserDoc;
-    CHID chidProject;
+    ChildChunkID chidProject;
     long kidBuilding;
     PGraphicsObject pgob;
     PKidspaceGraphicObject pgokBackground;

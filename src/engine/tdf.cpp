@@ -15,7 +15,7 @@
     characters.  It also holds an array of widths and heights of every
     character, to allow proportional spacing.  Fetching a letter's model
     from a TDF involves	looking for a child chunk of the TDF chunk with a
-    CHID equal to the ASCII value of the desired character:
+    ChildChunkID equal to the ASCII value of the desired character:
 
     TDF  // Contains font info (width and height of characters)
      |
@@ -173,7 +173,7 @@ bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, CKI *pckiTdf)
     long cbrgdwr; // space taken by rgdxr or rgdyr
     long ikid;
     long ckid;
-    CHID chidMax = 0;
+    ChildChunkID chidMax = 0;
     long ikidLetteri = -1;
 
     // Find chidMax
@@ -183,7 +183,7 @@ bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, CKI *pckiTdf)
         pglkid->Get(ikid, &kid);
         if (kid.chid > chidMax)
             chidMax = kid.chid;
-        if (kid.chid == (CHID)ChLit('i'))
+        if (kid.chid == (ChildChunkID)ChLit('i'))
             ikidLetteri = ikid;
     }
 
@@ -215,7 +215,7 @@ bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, CKI *pckiTdf)
         {
             goto LFail;
         }
-        if (pmodl->Dxr() == 0 && kid.chid == (CHID)ChLit(' ') && ikidLetteri != -1)
+        if (pmodl->Dxr() == 0 && kid.chid == (ChildChunkID)ChLit(' ') && ikidLetteri != -1)
         {
             // Hack to turn null models into space characters:
             // space is the width and height of an "i"
@@ -253,7 +253,7 @@ LFail:
     Get a model for a character from the font.  The chid is equal to the
     ASCII (or Unicode) value of the desired character.
 ***************************************************************************/
-PMODL TDF::PmodlFetch(CHID chid)
+PMODL TDF::PmodlFetch(ChildChunkID chid)
 {
     AssertThis(0);
 

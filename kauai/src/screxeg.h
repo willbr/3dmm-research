@@ -48,7 +48,7 @@ class SCEG : public SCEG_PAR
     virtual short _SwMin(void);
 
     void _DoAlert(long op);
-    void _SetColorTable(CHID chid);
+    void _SetColorTable(ChildChunkID chid);
     void _DoEditControl(long hid, long stid, bool fGet);
     PGL _PglclrGet(ChunkNumber cno);
     bool _FLaunch(long stid);

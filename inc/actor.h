@@ -231,7 +231,7 @@ struct AEVSND
     long celn;        // motion match	: ivNil if not
     long sty;         // sound type
     tribool fNoSound; // no sound
-    CHID chid;        // user sound requires chid
+    ChildChunkID chid;        // user sound requires chid
     TAG tag;
 };
 const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);

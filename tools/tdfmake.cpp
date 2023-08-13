@@ -16,7 +16,7 @@
 
     All the DAT files for a given font should be in a directory.  The
     directory name becomes the name of the TDF chunk.  The DAT file names
-    should contain a number, which becomes the CHID of the model chunk
+    should contain a number, which becomes the ChildChunkID of the model chunk
     under the TDF.
 
 ***************************************************************************/
@@ -111,8 +111,8 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
     Filename fni;
     STN stn;
     STN stn2;
-    CHID chid;
-    CHID chidMax = 0;
+    ChildChunkID chid;
+    ChildChunkID chidMax = 0;
     PMODL pmodl;
     ChunkNumber cnoModl;
     PCRF pcrf;
@@ -159,7 +159,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
         chid = lw;
         if (chid > chidMax)
             chidMax = chid;
-        if (chid == (CHID)ChLit(' '))
+        if (chid == (ChildChunkID)ChLit(' '))
             fFoundSpace = fTrue;
         if (chid == 0xa0) // nonbreaking space
             fFoundSpace2 = fTrue;
@@ -192,7 +192,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
             goto LFail;
         if (!pmodl->FWrite(pcflDst, kctgBmdl, cnoModl))
             goto LFail;
-        kid.chid = (CHID)ChLit(' ');
+        kid.chid = (ChildChunkID)ChLit(' ');
         kid.cki.ctg = kctgBmdl;
         kid.cki.cno = cnoModl;
         if (!pglkid->FAdd(&kid))

@@ -41,7 +41,7 @@ class TAGL : public TAGL_PAR
     void GetTag(long itag, PTAG ptag);
 
     bool FInsertTag(PTAG ptag, bool fCacheChildren = fTrue);
-    bool FInsertChild(PTAG ptag, CHID chid, ChunkTag ctg);
+    bool FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTag ctg);
 
     bool FCacheTags(void);
 };

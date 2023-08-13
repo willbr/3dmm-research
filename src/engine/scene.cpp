@@ -106,7 +106,7 @@ const ByteOrderMask kbomTagc = kbomChid | (kbomTag >> 2);
 typedef struct TAGC *PTAGC;
 struct TAGC
 {
-    CHID chid;
+    ChildChunkID chid;
     TAG tag;
 };
 
@@ -145,7 +145,7 @@ struct SSE
         PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
         return &(prgtagc[itagc]);
     }
-    CHID *Pchid(long itagc)
+    ChildChunkID *Pchid(long itagc)
     {
         PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
         return &(prgtagc[itagc].chid);
@@ -1669,7 +1669,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
     PSSE psseOld;
     PSSE psseNew;
     long isev;
-    CHID chid;
+    ChildChunkID chid;
     long isevSnd = ivNil;
     PTAG ptag;
     PMSND pmsnd;
@@ -3772,7 +3772,7 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, ChunkNumber cno)
     short bo;
     PACTR pactr;
     PTBOX ptbox;
-    CHID chid;
+    ChildChunkID chid;
     SCENH scenh;
     PCFL pcfl;
 
@@ -4188,7 +4188,7 @@ bool SCEN::FWrite(PCRF pcrf, ChunkNumber *pcno)
     PGG pggFrmTemp = pvNil;
     PGG pggStartTemp = pvNil;
     SEV sev;
-    CHID chidActr, chidTbox;
+    ChildChunkID chidActr, chidTbox;
     ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
     SCENH scenh;
     long isevFrm = -1;
@@ -4330,7 +4330,7 @@ bool SCEN::FWrite(PCRF pcrf, ChunkNumber *pcno)
                 goto LFail;
             }
 
-            if (!pggStartTemp->FInsert(isevStart, size(CHID), &chidActr, &sev))
+            if (!pggStartTemp->FInsert(isevStart, size(ChildChunkID), &chidActr, &sev))
             {
                 goto LFail;
             }
@@ -4368,7 +4368,7 @@ bool SCEN::FWrite(PCRF pcrf, ChunkNumber *pcno)
                 goto LFail;
             }
 
-            if (!pggStartTemp->FInsert(isevStart, size(CHID), &chidTbox, &sev))
+            if (!pggStartTemp->FInsert(isevStart, size(ChildChunkID), &chidTbox, &sev))
             {
                 goto LFail;
             }
@@ -5074,7 +5074,7 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl)
     PGL pgltagSrc;
     TAG tagSrc;
     long itagSrc;
-    CHID chid;
+    ChildChunkID chid;
 
     tagBkgd.sid = ksidInvalid;
 

@@ -23,7 +23,7 @@
     Mathematically speaking, the chunks form an acyclic directed graph.
 
     A parent-child relationship has a client specified number associated
-    with it. This is called the child id (CHID). Child id's don't have to
+    with it. This is called the child id (ChildChunkID). Child id's don't have to
     be unique. CFL places no significance on child id's. The only
     restriction concerning CHIDs is that if chunk B is to be a child of
     chunk A twice, then those two parent-child relationships must have
@@ -45,7 +45,7 @@
 
     The index is implemented as a general group (GG). The fixed portion
     of each entry is a CRP (defined below). The variable portion contains
-    the list of children of the chunk (including CHID values) and the
+    the list of children of the chunk (including ChildChunkID values) and the
     chunk name (if it has one).
 
     The CRP indicates where in the heap the chunk data is, whether
@@ -574,7 +574,7 @@ struct ECDF
     short bo;
     short osk;
     ChunkTag ctg;
-    CHID chid;
+    ChildChunkID chid;
     long cb;
     long ckid;
     ulong grfcrp;
@@ -2427,7 +2427,7 @@ bool CFL::FAddBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber *pcno)
     Adds the chunk and makes it a child of (ctgPar, cnoPar). The loner flag
     of the new chunk will be clear.
 ***************************************************************************/
-bool CFL::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck)
+bool CFL::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck)
 {
     AssertThis(0);
     AssertVarMem(pcno);
@@ -2450,7 +2450,7 @@ bool CFL::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, long cb, Chu
     Adds the chunk and makes it a child of (ctgPar, cnoPar).  The child's
     loner flag will be clear.
 ***************************************************************************/
-bool CFL::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno)
+bool CFL::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno)
 {
     if (!FAddPv(pv, cb, ctg, pcno))
         return fFalse;
@@ -2467,7 +2467,7 @@ bool CFL::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, void *pv, 
     Adds the chunk and makes it a child of (ctgPar, cnoPar).  The child's
     loner flag will be clear.
 ***************************************************************************/
-bool CFL::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, HQ hq, ChunkTag ctg, ChunkNumber *pcno)
+bool CFL::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, HQ hq, ChunkTag ctg, ChunkNumber *pcno)
 {
     if (!FAddHq(hq, ctg, pcno))
         return fFalse;
@@ -2986,7 +2986,7 @@ tribool CFL::TIsDescendent(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgSub, Chunk
     Delete the given child chunk.  Handles deleting child chunks that are
     no longer referenced and don't have the fcrpLoner flag set.
 ***************************************************************************/
-void CFL::DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid)
+void CFL::DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid)
 {
     AssertThis(0);
     long icrpPar, icrpChild, ikid;
@@ -3284,7 +3284,7 @@ bool CFL::_FGetName(long icrp, PSTN pstn)
     Make a node a child of another node.  If fClearLoner is set, the loner
     flag of the child is cleared.
 ***************************************************************************/
-bool CFL::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid, bool fClearLoner)
+bool CFL::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
 {
     AssertThis(0);
     long icrpPar;
@@ -3311,7 +3311,7 @@ bool CFL::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, Ch
 /***************************************************************************
     Make (ctgChild, cnoChild) a child of icrpPar.
 ***************************************************************************/
-bool CFL::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid, bool fClearLoner)
+bool CFL::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
 {
     AssertBaseThis(0);
     AssertIn(icrpPar, 0, _pggcrp->IvMac());
@@ -3368,7 +3368,7 @@ bool CFL::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber c
     (ctgChild, cnoChild, chidOld) is a child of (ctgPar, cnoPar) and that
     (ctgChild, cnoChild, chidNew) is not currently a child.
 ***************************************************************************/
-void CFL::ChangeChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chidOld, CHID chidNew)
+void CFL::ChangeChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chidOld, ChildChunkID chidNew)
 {
     AssertThis(0);
     long icrp, ikidOld, ikidNew;
@@ -3571,7 +3571,7 @@ bool CFL::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, KID *pkid)
     is found, fill in *pkid and return true; else return false.  Kid's are
     sorted by (chid, ctg, cno).
 ***************************************************************************/
-bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, KID *pkid)
+bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, KID *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
@@ -3583,7 +3583,7 @@ bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, KID *pkid)
     If one is found, fill in *pkid and return true; else return false.
     Kid's are sorted by (chid, ctg, cno).
 ***************************************************************************/
-bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, ChunkTag ctg, KID *pkid)
+bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, KID *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
@@ -3602,7 +3602,7 @@ bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, ChunkTa
     Find the first child with the given chid and with ctg >= the given ctg.
     Returns true iff there is such a child and fills in the *pkid.
 ***************************************************************************/
-bool CFL::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, ChunkTag ctg, KID *pkid)
+bool CFL::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, KID *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
@@ -3659,7 +3659,7 @@ LFail:
     the given chunk.  If the (ctg, cno, chid) is not a child of
     (ctgPar, cnoPar), fills *pikid with where it would be if it were.
 ***************************************************************************/
-bool CFL::FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumber cno, CHID chid, long *pikid)
+bool CFL::FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid, long *pikid)
 {
     AssertThis(0);
     AssertVarMem(pikid);
@@ -3680,7 +3680,7 @@ bool CFL::FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumbe
     the index in *pikid.  If not set *pikid to where to insert it.  Kids are
     sorted by (chid, ctg, cno).
 ***************************************************************************/
-bool CFL::_FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid, long *pikid)
+bool CFL::_FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid, long *pikid)
 {
     AssertBaseThis(0);
     AssertVarMem(pikid);

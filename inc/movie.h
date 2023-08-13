@@ -504,7 +504,7 @@ typedef struct _scend
         in fact, generally shouldn't even look at them */
     long imvied;     // index of the MVIED for this scene
     ChunkNumber cno;         // the ChunkNumber of this scene chunk
-    CHID chid;       // the original CHID
+    ChildChunkID chid;       // the original ChildChunkID
     PMBMP pmbmp;     // pointer to thumbnail MBMP
                      /* The client can read or write the following fields */
     TRANS trans;     // the transition that will occur after this scene
@@ -604,12 +604,12 @@ class MVIE : public MVIE_PAR
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
-    void _MoveChids(CHID chid, bool fDown);       // Move the chids of scenes in the movie.
+    void _MoveChids(ChildChunkID chid, bool fDown);       // Move the chids of scenes in the movie.
     bool _FDoGarbageCollection(PCFL pcfl);        // Remove unused chunks from movie.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
     bool _FDoMtrlTmplGC(PCFL pcfl);               // Material and template garbage collection
-    CHID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
-    CHID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
+    ChildChunkID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
+    ChildChunkID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
     bool _FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     bool _FSetPfilSave(PFilename pfni);
@@ -746,8 +746,8 @@ class MVIE : public MVIE_PAR
     bool FVerifyVersion(PCFL pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PCRF *pcrf = pvNil);
     bool FCopyMsndFromPcfl(PCFL pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
-    bool FResolveSndTag(PTAG ptag, CHID chid, ChunkNumber cnoScen = cnoNil, PCRF pcrf = pvNil);
-    bool FChidFromUserSndCno(ChunkNumber cno, CHID *pchid);
+    bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PCRF pcrf = pvNil);
+    bool FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid);
     void SetDocClosing(bool fClose)
     {
         _fDocClosing = fClose;

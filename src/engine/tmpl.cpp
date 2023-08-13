@@ -627,7 +627,7 @@ PACTN TMPL::_PactnFetch(long anid)
 
     KID kid;
     ACTN *pactn;
-    CHID chidActn = anid;
+    ChildChunkID chidActn = anid;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), chidActn, kctgActn, &kid))
     {
@@ -641,7 +641,7 @@ PACTN TMPL::_PactnFetch(long anid)
 /***************************************************************************
     Reads a MODL chunk from disk
 ***************************************************************************/
-PMODL TMPL::_PmodlFetch(CHID chidModl)
+PMODL TMPL::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
 

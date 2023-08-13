@@ -3958,7 +3958,7 @@ LFail:
 bool S2B::_FSetCps(PBMHR pbmhr, CPS *pcps)
 {
     long imat34;
-    CHID chid;
+    ChildChunkID chid;
 
     if (pbmhr->fAccessory)
     {
@@ -3994,14 +3994,14 @@ LFail:
 |
 |	Arguments:
 |		PBMHR pbmhr -- points to BMHR node that contains the pmodlf
-|		CHID *pchid -- points to CHID var that takes the result
+|		ChildChunkID *pchid -- points to ChildChunkID var that takes the result
 |
 |	Returns:
 |		fTrue if it could find or allocate the new MODLF node, fFalse otherwise
-|		*pchid takes the CHID for the MODL chunk
+|		*pchid takes the ChildChunkID for the MODL chunk
 |
 -------------------------------------------------------------PETED-----------*/
-bool S2B::_FChidFromModlf(PBMHR pbmhr, CHID *pchid, PBMDB *ppbmdb)
+bool S2B::_FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb)
 {
     AssertNilOrVarMem(pchid);
     AssertNilOrVarMem(ppbmdb);

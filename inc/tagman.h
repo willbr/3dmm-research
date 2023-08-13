@@ -127,7 +127,7 @@ class TAGM : public TAGM_PAR
     bool FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD);
     void SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort);
 
-    bool FBuildChildTag(PTAG ptagPar, CHID chid, ChunkTag ctgChild, PTAG ptagChild);
+    bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
     PBACO PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
     void ClearCache(long sid = sidNil,

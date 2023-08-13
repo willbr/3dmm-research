@@ -496,7 +496,7 @@ void CHCM::_ParseBodyChild(ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     ChunkTag ctgChild;
     ChunkNumber cnoChild;
-    CHID chid;
+    ChildChunkID chid;
     PHP rgphp[3];
     long cphp;
 
@@ -540,7 +540,7 @@ void CHCM::_ParseBodyParent(ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     ChunkTag ctgParent;
     ChunkNumber cnoParent;
-    CHID chid;
+    ChildChunkID chid;
     PHP rgphp[3];
     long cphp;
 
@@ -1940,7 +1940,7 @@ void CHCM::_ParseAdopt(void)
     AssertThis(0);
     ChunkTag ctgParent, ctgChild;
     ChunkNumber cnoParent, cnoChild;
-    CHID chid;
+    ChildChunkID chid;
     PHP rgphp[5];
     long cphp;
 

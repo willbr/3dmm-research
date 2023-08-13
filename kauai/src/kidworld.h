@@ -36,7 +36,7 @@ struct CUME
     ulong grfcust;
     ulong grfbitSno; // what button states this CUME is good for
     ChunkNumber cnoCurs;     // the cursor to use
-    CHID chidScript; // execution script (absolute)
+    ChildChunkID chidScript; // execution script (absolute)
     long cidDefault; // default command
     ChunkNumber cnoTopic;    // tool tip topic
 };

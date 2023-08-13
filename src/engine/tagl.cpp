@@ -37,7 +37,7 @@ struct TAGF
 ****************************************/
 struct CC
 {
-    CHID chid;
+    ChildChunkID chid;
     ChunkTag ctg;
 };
 
@@ -196,7 +196,7 @@ bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
 /***************************************************************************
     Insert a TAG child into the TAGL
 ***************************************************************************/
-bool TAGL::FInsertChild(PTAG ptag, CHID chid, ChunkTag ctg)
+bool TAGL::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTag ctg)
 {
     AssertThis(0);
     AssertVarMem(ptag);

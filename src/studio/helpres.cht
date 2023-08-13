@@ -87,7 +87,7 @@ HELP_MBMP( mbmpActorsNormalizeRot, "studio\bmp\hpp5norm.bmp" )
 // REVIEW THIS PLEASE!
 
 //#define mbmpBrwsAction                0x2001A
-//REP_MBMPREG(CHID(kstDefault, krepDefault), "2act01.bmp",
+//REP_MBMPREG(ChildChunkID(kstDefault, krepDefault), "2act01.bmp",
 
 HELP_MBMP( mbmpActorsRecordMode, "studio\bmp\hp2recd.bmp" )
 

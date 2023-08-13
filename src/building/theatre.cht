@@ -90,7 +90,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 	REP_RECT( kcellNull, "No representation.", 0,0,1,1 )
 	#include "mzthea.seq"
 
- 	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Theater1: McZee!")	 		
+ 	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Theater1: McZee!")	 		
 		DEBUGCMD( PrintStr("Theater McZee: State 1") );
 
 		// The only entry states are kst4, kst5, and kst7
@@ -123,7 +123,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 	// the animation is completed the next state or action is determined by the value
 	// of the MzNextAction variable.
 
-	REP_ANIM( CHID( kst2, krepDefault ), "McZee leans onto the stage" )
+	REP_ANIM( ChildChunkID( kst2, krepDefault ), "McZee leans onto the stage" )
 		DEBUGCMD( PrintStr("Theater McZee: State 2") );
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		// Animation "thr2a" (Mz leaning onto the stage).
@@ -134,7 +134,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 		ChangeStateThis( .MzNextAction );
 	ENDCHUNK 
 
-	REP_ANIM( CHID( kst3, krepDefault ), "McZee leaves the stage" )
+	REP_ANIM( ChildChunkID( kst3, krepDefault ), "McZee leaves the stage" )
 		DEBUGCMD(PrintStr("Theater McZee: State 3"));
 		DISABLEHOTSPOTS(kflgBuildingMin);
 
@@ -171,7 +171,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 
 	ENDCHUNK 
 
-  	REP_ANIM( CHID( kst4, krepDefault ), "Wait state.")
+  	REP_ANIM( ChildChunkID( kst4, krepDefault ), "Wait state.")
 		DEBUGCMD( PrintStr("Theater McZee: State 4") );
 		
 		If (FGobExists(kgobMovie));
@@ -200,7 +200,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 		End;
 	ENDCHUNK	
 
-  	REP_ANIM( CHID( kst5, krepDefault ), "Decsion and shadow puppet.")
+  	REP_ANIM( ChildChunkID( kst5, krepDefault ), "Decsion and shadow puppet.")
 		DEBUGCMD( PrintStr("Theater McZee: State 5") );
 		If( GLOBAL( fMovie ) == fTrue );
 			SETGLOBAL( fMovie, fFalse ); 				
@@ -231,7 +231,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 		End; 
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst6, krepDefault ), "Theater help1 animation" )
+	REP_ANIM( ChildChunkID( kst6, krepDefault ), "Theater help1 animation" )
 		DEBUGCMD( PrintStr("Theater McZee: State 6") );
 		Cell( kcell101, 0, 0, 6 );
 
@@ -246,7 +246,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 		ChangeStateThis( kst4 );
 	ENDCHUNK 
 
-	REP_ANIM( CHID( kst7, krepDefault ), "Open the portfolio." )
+	REP_ANIM( ChildChunkID( kst7, krepDefault ), "Open the portfolio." )
 		DEBUGCMD(PrintStr("Theater McZee: State 7"));
 
 		DISABLEHOTSPOTS(kflgBuildingMin);
@@ -266,7 +266,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 
 	ENDCHUNK 
 
-	REP_ANIM( CHID( kst8, krepDefault ), "Movie paused animation" )
+	REP_ANIM( ChildChunkID( kst8, krepDefault ), "Movie paused animation" )
 		.fHelpState=2;
 		ENABLEHOTSPOTS(kflgBuildingMin); // Enabeling hotspots here allows the help balloon to be
 							  // preempted by clicking the play button again.
@@ -284,7 +284,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 		ChangeStateThis( kst4 );
 	ENDCHUNK 
 
-	REP_ANIM( CHID( kst9, krepDefault ), "Movie done animation" )
+	REP_ANIM( ChildChunkID( kst9, krepDefault ), "Movie done animation" )
  		.fHelpState=2;
 
 		DEBUGCMD( PrintStr("Theater McZee: State 9") );
@@ -306,7 +306,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 		ChangeStateThis( kst4 );
 	ENDCHUNK 
 
-   	REP_ANIM( CHID( kst10, krepDefault ), "Close the portfolio.")
+   	REP_ANIM( ChildChunkID( kst10, krepDefault ), "Close the portfolio.")
 		DEBUGCMD( PrintStr("Theater McZee: State 10") );
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		// Destroy portfolio help.
@@ -329,7 +329,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
 	ENDCHUNK;
 
 
-  	REP_ANIM( CHID( kst11, krepDefault ), "Let explore animation" )
+  	REP_ANIM( ChildChunkID( kst11, krepDefault ), "Let explore animation" )
 		DEBUGCMD( PrintStr("Theater McZee: State 11") );
 		// Animation thr2f.
 
@@ -348,7 +348,7 @@ OBJECT( "Theater1 McZee", kgobTheatre1McZee , 550, kcrsHand1 )
  		ChangeStateThis( kst4 ); 
 	ENDCHUNK 
 
-    REP_ANIM( CHID( kst12, krepDefault ), "Theater McZee null representation.")
+    REP_ANIM( ChildChunkID( kst12, krepDefault ), "Theater McZee null representation.")
 		DEBUGCMD( PrintStr("Theater McZee: State 12") );
 		Cell( kcellNull, 0, 0, 0 );
 	ENDCHUNK 
@@ -458,7 +458,7 @@ OBJECT( "theatre 1, right door",   kgobTheatre1RightDoor, 450, kcrsHand1 )
 OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 	REP_RECT(kcell4, "Movie workspace dimensions",
 			xLeftMovie, yTopMovie, xRightMovie, yBottomMovie)
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "lobby1: McZee!")
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "lobby1: McZee!")
 		DEBUGCMD( PrintStr("Movie Work space: Entry state ", NumToStr(GLOBAL(kstEntry), "")));
 		ASSERT(GLOBAL(kstEntry) == kst2 || GLOBAL(kstEntry) == kst3);
 
@@ -474,7 +474,7 @@ OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 		EnqueueCid(cidTheaterOpen, 0, kgobMovie, 0, 0, 0);
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst2, krepDefault ), "Movie ready.")
+	REP_ANIM( ChildChunkID( kst2, krepDefault ), "Movie ready.")
 		DEBUGCMD( PrintStr("Movie Work space: State 2") );
 		Cell( kcell4, 0, 0, 0 ); 
 
@@ -484,7 +484,7 @@ OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 		End;
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst3, krepDefault ), "Count down.")
+	REP_ANIM( ChildChunkID( kst3, krepDefault ), "Count down.")
 		DEBUGCMD( PrintStr("Movie Work space: State 3") );
 		PLAYMIDI(cnoNil);
 		Cell( kcell4, 0, 0, 0 );
@@ -509,7 +509,7 @@ OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 		ChangeStateThis( kst4 );	
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst4, krepDefault ), "Movie playing.")
+	REP_ANIM( ChildChunkID( kst4, krepDefault ), "Movie playing.")
 		DEBUGCMD( PrintStr("Movie Work space: State 4") );
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		PLAYMIDI(cnoNil);
@@ -537,7 +537,7 @@ OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 
  	ENDCHUNK
 
-	REP_ANIM( CHID( kst5, krepDefault ), "Movie done.")
+	REP_ANIM( ChildChunkID( kst5, krepDefault ), "Movie done.")
 		DEBUGCMD( PrintStr("Movie Work space: State 5") );
 		Cell( kcell4, 0, 0, 0 );
 		ChangeStateGob(kgobPlayButton, kst1);			// put play button in stopped
@@ -547,7 +547,7 @@ OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 		ChangeStateGob( kgobTheatre1McZee, kst2 );
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst6, krepDefault ), "Movie paused.")
+	REP_ANIM( ChildChunkID( kst6, krepDefault ), "Movie paused.")
 		DEBUGCMD( PrintStr("Movie Work space: State 6") );
 		DISABLEHOTSPOTS(kflgBuildingMin);
  		Cell( kcell4, 0, 0, 0 );
@@ -652,8 +652,8 @@ OBJECTREG( "theater - volume slidepath", kgobTheaterVolume, 9, 110, 451, kcrsHan
 	#undef _kdySlider
 
 OBJECTREG( "Movie play/stop button", kgobPlayButton, 318, 7, 451, kcrsHand1 )
-	REP_PPMBMP( CHID( kst1, krepDefault ), "building\pbm\theatre\play1.pbm" )
-	REP_PPMBMP( CHID( kst2, krepDefault ), "building\pbm\theatre\play2.pbm" )
+	REP_PPMBMP( ChildChunkID( kst1, krepDefault ), "building\pbm\theatre\play1.pbm" )
+	REP_PPMBMP( ChildChunkID( kst2, krepDefault ), "building\pbm\theatre\play2.pbm" )
 	CLICK_SCRIPT( "Movie play/stop button clicked." )
 		// Pressing play to start the movie...
 		If( StateThis() == kst1 ); 
@@ -691,23 +691,23 @@ ENDCHUNK
 	REP_PPMBMP( kcell1, "building\pbm\theatre\rewind1.pbm" )
 	REP_PPMBMP( kcell2, "building\pbm\theatre\rewind2.pbm" )
 
-	REP_ANIM( CHID( kst1, krepDefault ), "Default" )
+	REP_ANIM( ChildChunkID( kst1, krepDefault ), "Default" )
 		Cell (kcell1, 0, 0, 0);
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst2, krepDefault ), "Default" )
+	REP_ANIM( ChildChunkID( kst2, krepDefault ), "Default" )
 		Cell (kcell1, 0, 0, 0);
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst1, krepMouseDnOn ), "Rewind down on" )
+	REP_ANIM( ChildChunkID( kst1, krepMouseDnOn ), "Rewind down on" )
 		Cell (kcell2, 0, 0, 0);
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst1, krepMouseDnOff ), "Rewind down off" )
+	REP_ANIM( ChildChunkID( kst1, krepMouseDnOff ), "Rewind down off" )
 		Cell (kcell1, 0, 0, 0);
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst1, krepMouseUpOn ), "Rewind up on" )
+	REP_ANIM( ChildChunkID( kst1, krepMouseUpOn ), "Rewind up on" )
 		Cell (kcell1, 0, 0, 0);
 	ENDCHUNK
 
@@ -778,7 +778,7 @@ OBJECT( "theatre3 exit",  kgobTheatre3Exit, 44, kcrsHand1 )
 
 
 OBJECT( "Theater4 McZee", kgobTheatre4McZee , 550, kcrsArrow1 )
-    REP_ANIM( CHID( kst1, krepDefault ), "Theatre4 McZee pass thru!")
+    REP_ANIM( ChildChunkID( kst1, krepDefault ), "Theatre4 McZee pass thru!")
 		DEBUGCMD(PrintStr("Create theatre4 McZee"));
 
 		DISABLEHOTSPOTS(kflgBuildingMin);
@@ -798,7 +798,7 @@ OBJECT( "Theater4 McZee", kgobTheatre4McZee , 550, kcrsArrow1 )
     #include "mzthea4.seq"
 
 OBJECT( "Theatre  left door opening", kgobThe4OpenDoor, 150, kcrsArrow1 )
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Theatre4 door opening" )
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Theatre4 door opening" )
 		PLAYMIDI( kmidTheatre );
 		cnt=kcell1;
 		While( cnt <= kcell5 );

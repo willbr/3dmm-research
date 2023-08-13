@@ -159,7 +159,7 @@ void CHSE::DumpRgb(void *prgb, long cb, long cactTab)
 /***************************************************************************
     Dump a parent directive
 ***************************************************************************/
-void CHSE::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid)
+void CHSE::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid)
 {
     AssertThis(fchseDump);
 

@@ -56,7 +56,7 @@ struct CMDF
     long cid;
     long hid;
     long cact;
-    CHID chidGg; // child id of the pgg, 0 if none
+    ChildChunkID chidGg; // child id of the pgg, 0 if none
     long rglw[kclwCmd];
 };
 
@@ -238,7 +238,7 @@ class CEX : public CEX_PAR
     PGL _pglcmdf;   // the command stream
     ChunkNumber _cno;       // which macro is being played
     long _icmdf;    // current command for recording or playback
-    CHID _chidLast; // last chid used for recording
+    ChildChunkID _chidLast; // last chid used for recording
     long _cact;     // number of times on this command
     CMD _cmd;       // previous command recorded or played
 

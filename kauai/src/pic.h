@@ -50,7 +50,7 @@ class PIC : public PIC_PAR
   public:
     ~PIC(void);
 
-    static PPIC PpicFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, CHID chid = 0);
+    static PPIC PpicFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
     static PPIC PpicRead(PBLCK pblck);
     static PPIC PpicReadNative(Filename *pfni);
     static PPIC PpicNew(HPIC hpic, RC *prc);
@@ -60,8 +60,8 @@ class PIC : public PIC_PAR
     {
         return _hpic;
     }
-    bool FAddToCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno, CHID chid = 0);
-    bool FPutInCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, CHID chid = 0);
+    bool FAddToCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChunkID chid = 0);
+    bool FPutInCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
     virtual long CbOnFile(void);
     virtual bool FWrite(PBLCK pblck);
 };

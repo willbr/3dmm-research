@@ -31,7 +31,7 @@ typedef struct _bmdb
     HSHDB hshdb;   // hash DB header
     MODLF *pmodlf; // the file data
     long cbModlf;
-    CHID chidBmdl;  // BMDL child ID
+    ChildChunkID chidBmdl;  // BMDL child ID
     ChunkNumber cnoBmdl;    // BMDL ChunkNumber
     char *pszName;  // name of the BMDL
     PGL pglkidCmtl; // GL of CMTL parents' CNOs
@@ -76,9 +76,9 @@ typedef struct _crng
 typedef struct _cmtld
 {
     ChunkNumber cno;      // the CMTL's ChunkNumber
-    CHID chidCur; // the next CHID for the CMTL's children
+    ChildChunkID chidCur; // the next ChildChunkID for the CMTL's children
     short ibps;   // the body part set as specified in the .hrc file
-    CHID chid;    // the CHID of this CMTL
+    ChildChunkID chid;    // the ChildChunkID of this CMTL
 } CMTLD, *PCMTLD;
 
 /* A TMAP descriptor */
@@ -288,9 +288,9 @@ class S2B : public S2B_PAR
     /* Used by TMPL-specific stuff */
     STN _stnTmpl;
     STN _stnActn;
-    CHID _chidActn; // Next available ACTN CHID
-    CHID _chidBmdl;
-    CHID _chidCmtl;
+    ChildChunkID _chidActn; // Next available ACTN ChildChunkID
+    ChildChunkID _chidBmdl;
+    ChildChunkID _chidCmtl;
     short _ibpCur; // current body part #
     PGL _pglibactPar;
     PGL _pglbs;
@@ -348,7 +348,7 @@ class S2B : public S2B_PAR
     bool _FModlfToBmdl(PMODLF pmodlf, PBMDL *ppbmdl);
     bool _FBmdlToModlf(PBMDL pbmdl, PMODLF *ppmodlf, long *pcb);
     bool _FSetCps(PBMHR pbmhr, CPS *pcps);
-    bool _FChidFromModlf(PBMHR pbmhr, CHID *pchid, PBMDB *ppbmdb = pvNil);
+    bool _FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb = pvNil);
     bool _FAddBmdlParent(PBMDB pbmdb, KID *pkid);
     bool _FInsertPhshdb(PHSHDB phshdb, PGL pglphshdb);
     bool _FIphshdbFromLuHash(uint luHash, long *piphshdb, PGL pglphshdb);

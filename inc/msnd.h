@@ -83,7 +83,7 @@ struct MSNDF
 };
 const ByteOrderMask kbomMsndf = 0x5FC00000;
 
-const CHID kchidSnd = 0; // Movie Sound sound/music
+const ChildChunkID kchidSnd = 0; // Movie Sound sound/music
 
 // Function to stop all movie sounds.
 inline void StopAllMovieSounds(void)

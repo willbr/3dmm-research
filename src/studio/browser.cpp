@@ -1139,7 +1139,7 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
     {
     case kbwsChid:
         Assert(thd.chid != chidNil, "Bogus sort order for THD list");
-        *((CHID *)pvthumSelect) = thd.chid;
+        *((ChildChunkID *)pvthumSelect) = thd.chid;
         break;
     case kbwsCnoRoot:
         *((ChunkNumber *)pvthumSelect) = thd.tag.cno;

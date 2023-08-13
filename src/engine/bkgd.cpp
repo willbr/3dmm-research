@@ -43,9 +43,9 @@ ASSERTNAME
 
 RTCLASS(BKGD)
 
-const CHID kchidBds = 0;  // Background default sound
-const CHID kchidGllt = 0; // GL of LITEs
-const CHID kchidGlcr = 0; // Palette
+const ChildChunkID kchidBds = 0;  // Background default sound
+const ChildChunkID kchidGllt = 0; // GL of LITEs
+const ChildChunkID kchidGlcr = 0; // Palette
 const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 
 /***************************************************************************
@@ -245,7 +245,7 @@ LFail:
 
 /***************************************************************************
     Return the number of camera views in this scene.  CAM chunks need to be
-    contiguous CHIDs starting at CHID 0.
+    contiguous CHIDs starting at ChildChunkID 0.
 ***************************************************************************/
 long BKGD::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {

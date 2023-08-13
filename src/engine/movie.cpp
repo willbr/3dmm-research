@@ -40,7 +40,7 @@ ASSERTNAME
 #define kdtimVlmFade (kdtimSecond / 4)  // number of clock ticks necessary to split 1 sec into 4 events
 #define kzrMouseScalingFactor BR_SCALAR(100.0)
 
-const CHID kchidGstSource = 1;
+const ChildChunkID kchidGstSource = 1;
 
 //
 // How many pixels from edge to warp cursor back to center
@@ -260,7 +260,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, ChunkNumber cno)
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
     PMVIE pmvie;
     KID kid;
-    CHID chid;
+    ChildChunkID chid;
     TAGL *ptagl;
     PCFL pcfl = pvNil;
     DataBlock blck;
@@ -725,7 +725,7 @@ PTAGL MVIE::_PtaglFetch(void)
 
     PTAGL ptagl;
     KID kid;
-    CHID chid;
+    ChildChunkID chid;
 
     ptagl = TAGL::PtaglNew();
     if (pvNil == ptagl)
@@ -1367,13 +1367,13 @@ bool MVIE::FNewScenInsCore(long iscen)
  *  None.
  *
  ****************************************************/
-void MVIE::_MoveChids(CHID chid, bool fDown)
+void MVIE::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
 
     PCFL pcfl = _pcrfAutoSave->Pcfl();
     KID kid;
-    CHID chidTmp;
+    ChildChunkID chidTmp;
 
     if (fDown)
     {
@@ -1393,7 +1393,7 @@ void MVIE::_MoveChids(CHID chid, bool fDown)
         //
         // Move up chids of all old scenes (decrease by one)
         //
-        for (chidTmp = chid; chidTmp < (CHID)_cscen; chidTmp++)
+        for (chidTmp = chid; chidTmp < (ChildChunkID)_cscen; chidTmp++)
         {
             AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, chidTmp + 1, kctgScen, &kid), "Should never fail");
 
@@ -1459,7 +1459,7 @@ bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    CHID chidMvie;
+    ChildChunkID chidMvie;
     long ckid, ikid;
     KID kid;
 
@@ -1507,7 +1507,7 @@ LFail:
  * Updated *ptag
  *
  ****************************************************/
-bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, ChunkNumber cnoScen, PCRF pcrf)
+bool MVIE::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PCRF pcrf)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -1560,7 +1560,7 @@ bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, ChunkNumber cnoScen, PCRF pcrf)
  * Updated *pchid
  *
  ****************************************************/
-bool MVIE::FChidFromUserSndCno(ChunkNumber cno, CHID *pchid)
+bool MVIE::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 {
     AssertThis(0);
     AssertVarMem(pchid);
@@ -1616,7 +1616,7 @@ bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN ps
 
     PCFL pcfl;
     Filename fniSrc;
-    CHID chid;
+    ChildChunkID chid;
     KID kidScen;
 
     pcfl = _pcrfAutoSave->Pcfl();
@@ -1681,7 +1681,7 @@ bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcno
 
     PCFL pcflDest;
     KID kidScen;
-    CHID chid;
+    ChildChunkID chid;
     Filename fni;
 
     if (!FEnsureAutosave())
@@ -1718,7 +1718,7 @@ bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcno
  *  unique chid for new msnd chunk child of scene
  *
  ****************************************************/
-CHID MVIE::_ChidScenNewSnd(void)
+ChildChunkID MVIE::_ChidScenNewSnd(void)
 {
     AssertBaseThis(0);
     PCFL pcfl = _pcrfAutoSave->Pcfl();
@@ -1734,9 +1734,9 @@ CHID MVIE::_ChidScenNewSnd(void)
     for (chid = 0; chid < ckid; chid++)
     {
         if (!pcfl->FGetKidChidCtg(kctgScen, kidScen.cki.cno, chid, kctgMsnd, &kid))
-            return (CHID)chid;
+            return (ChildChunkID)chid;
     }
-    return (CHID)chid;
+    return (ChildChunkID)chid;
 }
 
 /****************************************************
@@ -1750,7 +1750,7 @@ CHID MVIE::_ChidScenNewSnd(void)
  *  unique chid for new msnd chunk child of scene
  *
  ****************************************************/
-CHID MVIE::_ChidMvieNewSnd(void)
+ChildChunkID MVIE::_ChidMvieNewSnd(void)
 {
     AssertBaseThis(0);
     PCFL pcfl = _pcrfAutoSave->Pcfl();
@@ -1762,9 +1762,9 @@ CHID MVIE::_ChidMvieNewSnd(void)
     for (chid = 0; chid < ckid; chid++)
     {
         if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, chid, kctgMsnd, &kid))
-            return (CHID)chid;
+            return (ChildChunkID)chid;
     }
-    return (CHID)chid;
+    return (ChildChunkID)chid;
 }
 
 /****************************************************
@@ -1902,7 +1902,7 @@ bool MVIE::FRemScenCore(long iscen)
     // Move up chids of all old scenes.
     //
     _cscen--;
-    _MoveChids((CHID)iscen, fFalse);
+    _MoveChids((ChildChunkID)iscen, fFalse);
 
     //
     // Save changes, if this fails, we don't care.  It only
@@ -3770,7 +3770,7 @@ bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
     pscen->AddRef();
     SCEN::Close(&pscen);
 
-    _MoveChids((CHID)iscen, fTrue);
+    _MoveChids((ChildChunkID)iscen, fTrue);
 
     _cscen++;
 
@@ -3815,7 +3815,7 @@ bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
 LFail3:
     _cscen--;
     pcfl->DeleteChild(kctgMvie, _cno, kctgScen, cnoScen, iscen);
-    _MoveChids((CHID)iscen, fFalse);
+    _MoveChids((ChildChunkID)iscen, fFalse);
     pcfl->FSave(kctgSoc);
 
     if (_cscen > 0)
@@ -3834,7 +3834,7 @@ LFail3:
     return (fFalse);
 
 LFail2:
-    _MoveChids((CHID)iscen, fFalse);
+    _MoveChids((ChildChunkID)iscen, fFalse);
     pcfl->Delete(kctgScen, cnoScen);
 
 LFail0:
@@ -4756,7 +4756,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
     long iscenOld = Iscen();
     long imvied, imviedMac = pcmvi->pglmvied->IvMac();
     long aridMin = 0;
-    CHID chidScen = 0;
+    ChildChunkID chidScen = 0;
     PCFL pcfl = _pcrfAutoSave->Pcfl();
     PCRF pcrf = _pcrfAutoSave;
     PGL pglmviedNew;
@@ -4836,7 +4836,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             {
                 PSCEN pscen;
 
-                if (scend.chid != (CHID)iscenOld)
+                if (scend.chid != (ChildChunkID)iscenOld)
                 {
                     pscen = SCEN::PscenRead(this, pcrf, scend.cno);
                     if (pscen == pvNil || !pscen->FPlayStartEvents(fTrue))
@@ -4857,14 +4857,14 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             }
             else
             {
-                /* Set the CHID to be the current scene number */
+                /* Set the ChildChunkID to be the current scene number */
                 cnoScen = scend.cno;
                 pcfl->ChangeChid(kctgMvie, _cno, kctgScen, scend.cno, scend.chid, chidScen++);
             }
         }
 
         /* If we didn't delete the scene, go ahead and update its transition */
-        if (scend.chid != (CHID)iscenOld || scend.imvied != 0)
+        if (scend.chid != (ChildChunkID)iscenOld || scend.imvied != 0)
         {
             if (!scend.fNuked)
             {
@@ -4907,7 +4907,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
     {
         long ckid = pcfl->Ckid(kctgMvie, _cno);
         KID kid;
-        CHID chidLast = chidNil;
+        ChildChunkID chidLast = chidNil;
 
         for (long ikid = 0; ikid < ckid; ikid++)
         {
@@ -4915,7 +4915,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             {
                 if (kid.cki.ctg == kctgScen)
                 {
-                    Assert(chidLast == chidNil || kid.chid > chidLast, "Found duplicate CHID in scene children");
+                    Assert(chidLast == chidNil || kid.chid > chidLast, "Found duplicate ChildChunkID in scene children");
                     chidLast = kid.chid;
                 }
             }

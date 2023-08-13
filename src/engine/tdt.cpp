@@ -42,7 +42,7 @@ ASSERTNAME
 
 RTCLASS(TDT)
 
-const CHID kchidTdt = 0; // CHID of TDT under TMPL chunk
+const ChildChunkID kchidTdt = 0; // ChildChunkID of TDT under TMPL chunk
 
 // All actions have a step size of kdwrStep, except tdaWalk
 const BRS kdwrStepWalk = BR_SCALAR(1.0); // step size for walk action
@@ -344,7 +344,7 @@ bool TDT::FGetActnName(long anid, PSTN pstn)
 /***************************************************************************
     Fetch the given model for this TDT (use the TDT's current font)
 ***************************************************************************/
-PMODL TDT::_PmodlFetch(CHID chidModl)
+PMODL TDT::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
     AssertIn(chidModl, 0, _stn.Cch());

@@ -1792,7 +1792,7 @@ struct TBOXH
     long xpRight;
     long ypTop;
     long ypBottom;
-    CHID chid;
+    ChildChunkID chid;
     bool fStory;
 };
 

@@ -456,7 +456,7 @@ bool CMTL::FEqualModels(PCFL pcfl, ChunkNumber cno1, ChunkNumber cno2)
 {
     AssertPo(pcfl, 0);
 
-    CHID chid = 0;
+    ChildChunkID chid = 0;
     KID kid1;
     KID kid2;
 
