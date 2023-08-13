@@ -18,7 +18,7 @@
 
 namespace Chunky {
 
-using ScriptInterpreter::PSCPT;
+using ScriptInterpreter::PScript;
 
 /***************************************************************************
     Chunky source emitter class
@@ -66,7 +66,7 @@ class SourceEmitter : public SourceEmitter_PAR
     void DumpGroup(PGGB pggb);
     bool FDumpStringTable(PGSTB pgstb);
     void DumpBlck(PDataBlock pblck);
-    bool FDumpScript(PSCPT pscpt, PSCCB psccb);
+    bool FDumpScript(PScript pscpt, PSCCB psccb);
 
     // General sz emitting routines
     void DumpSz(PSZ psz)

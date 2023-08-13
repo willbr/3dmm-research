@@ -1789,7 +1789,7 @@ bool APP::_FInitCrm(void)
     AssertPo(_pgstStudioFiles, 0);
 
     PSCEG psceg = pvNil;
-    PSCPT pscpt = pvNil;
+    PScript pscpt = pvNil;
 
     _pcrmAll = ChunkyResourceManager::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
     if (pvNil == _pcrmAll)
@@ -1817,7 +1817,7 @@ bool APP::_FInitCrm(void)
     if (pvNil == psceg)
         goto LFail;
 
-    pscpt = (PSCPT)_pcrmAll->PbacoFetch(kctgScript, kcnoInitShared, SCPT::FReadScript);
+    pscpt = (PScript)_pcrmAll->PbacoFetch(kctgScript, kcnoInitShared, Script::FReadScript);
     if (pvNil == pscpt)
         goto LFail;
 
@@ -1922,7 +1922,7 @@ bool APP::_FInitBuilding(void)
     long iv;
     PChunkyResourceFile pcrfT;
     PSCEG psceg = pvNil;
-    PSCPT pscpt = pvNil;
+    PScript pscpt = pvNil;
 
     BeginLongOp();
 
@@ -1930,7 +1930,7 @@ bool APP::_FInitBuilding(void)
     if (pvNil == psceg)
         goto LFail;
 
-    pscpt = (PSCPT)_pcrmAll->PbacoFetch(kctgScript, kcnoStartApp, SCPT::FReadScript);
+    pscpt = (PScript)_pcrmAll->PbacoFetch(kctgScript, kcnoStartApp, Script::FReadScript);
     if (pvNil == pscpt)
         goto LFail;
 

@@ -187,7 +187,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
 {
     AssertBaseThis(0);
 
-    PSCPT pscpt = pvNil;
+    PScript pscpt = pvNil;
     PStudioScrollbars psscb = pvNil;
     PSCEG psceg = pvNil;
     STN stn;
@@ -237,7 +237,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     // kidStudio should be kcnoStudio according to Hungarian, but the "kid"
     // prefix is entrenched into the script/help stuff and can't be easily
     // all changed to kcno.
-    if (pvNil == (pscpt = (PSCPT)_pcrm->PbacoFetch(kctgScript, kidStudio, SCPT::FReadScript)))
+    if (pvNil == (pscpt = (PScript)_pcrm->PbacoFetch(kctgScript, kidStudio, Script::FReadScript)))
     {
         goto LFail;
     }

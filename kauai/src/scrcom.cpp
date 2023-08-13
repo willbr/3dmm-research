@@ -369,7 +369,7 @@ bool SCCB::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
         _pgletnStack->SetMinGrow(100);
     }
 
-    if (pvNil == (_pscpt = NewObj SCPT) || pvNil == (_pscpt->_pgllw = GL::PglNew(size(long))))
+    if (pvNil == (_pscpt = NewObj Script) || pvNil == (_pscpt->_pgllw = GL::PglNew(size(long))))
     {
         ReleasePpo(&_pscpt);
     }
@@ -422,12 +422,12 @@ void SCCB::_Free(void)
     allows scripts to be embedded in source for other tools (such as
     chomp.exe).
 ***************************************************************************/
-PSCPT SCCB::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
+PScript SCCB::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
 {
     AssertThis(0);
     AssertPo(plexb, 0);
     AssertPo(pmsnk, 0);
-    PSCPT pscpt;
+    PScript pscpt;
 
     if (!_FInit(plexb, fInFix, pmsnk))
         return pvNil;
@@ -475,12 +475,12 @@ PSCPT SCCB::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttE
     Compile the given text file and return the executable script.
     Uses the in-fix or post-fix compiler according to fInFix.
 ***************************************************************************/
-PSCPT SCCB::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
+PScript SCCB::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
     AssertPo(pmsnk, 0);
-    PSCPT pscpt;
+    PScript pscpt;
     PLexerBase plexb;
 
     if (pvNil == (plexb = NewObj LexerBase(pfil)))
@@ -493,12 +493,12 @@ PSCPT SCCB::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
 /***************************************************************************
     Compile a script from the given text file name.
 ***************************************************************************/
-PSCPT SCCB::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
+PScript SCCB::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
 {
     AssertPo(pfni, ffniFile);
     AssertPo(pmsnk, 0);
     PFIL pfil;
-    PSCPT pscpt;
+    PScript pscpt;
 
     if (pvNil == (pfil = FIL::PfilOpen(pfni)))
         return pvNil;
@@ -2547,7 +2547,7 @@ void SCCB::_CompileIn(void)
     Disassemble the script into a message sink (MSNK) and return whether
     there was an error.
 ***************************************************************************/
-bool SCCB::FDisassemble(PSCPT pscpt, PMSNK pmsnk, PMSNK pmsnkError)
+bool SCCB::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pscpt, 0);

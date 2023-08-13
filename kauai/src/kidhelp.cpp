@@ -908,7 +908,7 @@ bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, a
     AssertThis(0);
     AssertNilOrVarMem(plwRet);
 
-    PSCPT pscpt;
+    PScript pscpt;
     PSCEG psceg;
     Topic htop;
     bool fRet = fTrue;
@@ -922,7 +922,7 @@ bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, a
     if (cnoNil == htop.cnoScript)
         return fTrue;
 
-    pscpt = (PSCPT)prca->PbacoFetch(kctgScript, htop.cnoScript, SCPT::FReadScript);
+    pscpt = (PScript)prca->PbacoFetch(kctgScript, htop.cnoScript, Script::FReadScript);
     if (pvNil != pscpt && pvNil != (psceg = _pwoks->PscegNew(prca, this)))
     {
         AssertPo(pscpt, 0);

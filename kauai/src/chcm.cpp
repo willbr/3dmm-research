@@ -1599,7 +1599,7 @@ void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumb
 {
     AssertThis(0);
     SCCG sccg;
-    PSCPT pscpt;
+    PScript pscpt;
 
     if (pvNil == (pscpt = sccg.PscptCompileLex(_pchlx, fInfix, _pmsnkError, ttEndChunk)))
     {
@@ -2590,7 +2590,7 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
 {
     AssertThis(0);
     AssertVarMem(pcki);
-    PSCPT pscpt;
+    PScript pscpt;
     bool fRet;
     SCCG sccg;
     long cfmt;
@@ -2600,7 +2600,7 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
     _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
     fPacked = blck.FPacked(&cfmt);
 
-    if (pvNil == (pscpt = SCPT::PscptRead(_pcfl, pcki->ctg, pcki->cno)))
+    if (pvNil == (pscpt = Script::PscptRead(_pcfl, pcki->ctg, pcki->cno)))
         return fFalse;
 
     if (fPacked)

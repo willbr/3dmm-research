@@ -2416,7 +2416,7 @@ bool DCD::FCmdImportScript(PCMD pcmd)
     Filename fni;
     bool fCreated;
     MSFIL msfil;
-    PSCPT pscpt = pvNil;
+    PScript pscpt = pvNil;
 
     // save and clear the sel
     lnOld = _sel.Ln();
@@ -2577,7 +2577,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
     AssertIn(cbCache, 0, kcbMax);
     STN stn;
     PTSCG ptscg;
-    PSCPT pscpt = pvNil;
+    PScript pscpt = pvNil;
     PSCEG psceg = pvNil;
     PChunkyResourceFile pcrf = pvNil;
 
@@ -2589,7 +2589,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
     stn.FFormatSz(PszLit("Run Script: %f %08x"), ctg, cno);
     if (!ptscg->FCreateAndAttachMdi(&stn) || pvNil == (pcrf = ChunkyResourceFile::PcrfNew(_pcfl, cbCache)) ||
         pvNil == (psceg = ptscg->PscegNew(pcrf, ptscg)) ||
-        pvNil == (pscpt = (PSCPT)pcrf->PbacoFetch(ctg, cno, SCPT::FReadScript)) || !psceg->FRunScript(pscpt))
+        pvNil == (pscpt = (PScript)pcrf->PbacoFetch(ctg, cno, Script::FReadScript)) || !psceg->FRunScript(pscpt))
     {
     LFail:
         vpappb->TGiveAlertSz(PszLit("Running script failed"), bkOk, cokExclamation);
@@ -2607,7 +2607,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
 bool DCD::FCmdDisasmScript(PCMD pcmd)
 {
     ChunkIdentification cki;
-    PSCPT pscpt;
+    PScript pscpt;
     SCCG sccg;
     Filename fni;
     MSFIL msfil, msfilError;
@@ -2615,7 +2615,7 @@ bool DCD::FCmdDisasmScript(PCMD pcmd)
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
 
-    if (pvNil == (pscpt = SCPT::PscptRead(_pcfl, cki.ctg, cki.cno)))
+    if (pvNil == (pscpt = Script::PscptRead(_pcfl, cki.ctg, cki.cno)))
     {
         vpappb->TGiveAlertSz(PszLit("Error reading script (or it's not a script)"), bkOk, cokExclamation);
         return fTrue;

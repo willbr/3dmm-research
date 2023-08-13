@@ -138,8 +138,8 @@ typedef class GSTB *PGSTB;
 typedef class StringTable *PStringTable;
 typedef class AST *PAST;
 namespace ScriptInterpreter{
-   class SCPT;
-   typedef class SCPT *PSCPT;
+   class Script;
+   typedef class Script *PScript;
 }
 typedef class DataBlock *PDataBlock;
 

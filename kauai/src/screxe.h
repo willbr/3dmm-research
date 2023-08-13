@@ -37,10 +37,10 @@ bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw);
     A script.  This is here rather than in scrcom.* because scrcom is
     rarely included in shipping products, but screxe.* is.
 ***************************************************************************/
-typedef class SCPT *PSCPT;
-#define SCPT_PAR BaseCacheableObject
-#define kclsSCPT 'SCPT'
-class SCPT : public SCPT_PAR
+typedef class Script *PScript;
+#define Script_PAR BaseCacheableObject
+#define kclsScript 'SCPT'
+class Script : public Script_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -50,7 +50,7 @@ class SCPT : public SCPT_PAR
     PGL _pgllw;
     PStringTable _pgstLiterals;
 
-    SCPT(void)
+    Script(void)
     {
     }
 
@@ -59,8 +59,8 @@ class SCPT : public SCPT_PAR
 
   public:
     static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PSCPT PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    ~SCPT(void);
+    static PScript PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    ~Script(void);
 
     bool FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack = fFalse);
 };
@@ -119,7 +119,7 @@ class Interpreter : public Interpreter_PAR
     PSTRG _pstrg;
     PGL _pgllwStack;   // the execution stack
     PGL _pglrtvm;      // the local variables
-    PSCPT _pscpt;      // the script
+    PScript _pscpt;      // the script
     long _ilwMac;      // the length of the script
     long _ilwCur;      // the current location in the script
     bool _fError : 1;  // an error has occured
@@ -173,10 +173,10 @@ class Interpreter : public Interpreter_PAR
     Interpreter(PRCA prca = pvNil, PSTRG pstrg = pvNil);
     ~Interpreter(void);
 
-    virtual bool FRunScript(PSCPT pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScript(PScript pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                             bool *pfPaused = pvNil);
     virtual bool FResume(long *plwReturn = pvNil, bool *pfPaused = pvNil);
-    virtual bool FAttachScript(PSCPT pscpt, long *prglw = pvNil, long clw = 0);
+    virtual bool FAttachScript(PScript pscpt, long *prglw = pvNil, long clw = 0);
     virtual void Free(void);
 };
 

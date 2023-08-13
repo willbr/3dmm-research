@@ -281,7 +281,7 @@ void SourceEmitter::_DumpBsf(long cactTab)
     Disassembles a script (pscpt) using the given script compiler (psccb)
     and dumps the result (including a "SCRIPTPF" directive).
 ******************************************************************************/
-bool SourceEmitter::FDumpScript(PSCPT pscpt, PSCCB psccb)
+bool SourceEmitter::FDumpScript(PScript pscpt, PSCCB psccb)
 {
     AssertThis(fchseDump);
     AssertPo(pscpt, 0);

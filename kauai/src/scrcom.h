@@ -186,7 +186,7 @@ class SCCB : public SCCB_PAR
     };
 
     PLexerBase _plexb;       // the lexer
-    PSCPT _pscpt;       // the script we're building
+    PScript _pscpt;       // the script we're building
     PGL _pgletnTree;    // expression tree (in-fix only)
     PGL _pgletnStack;   // token stack for building expression tree (in-fix only)
     PGL _pglcstd;       // control structure stack (in-fix only)
@@ -260,10 +260,10 @@ class SCCB : public SCCB_PAR
     SCCB(void);
     ~SCCB(void);
 
-    virtual PSCPT PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
-    virtual PSCPT PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk);
-    virtual PSCPT PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
-    virtual bool FDisassemble(PSCPT pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);
+    virtual PScript PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
+    virtual PScript PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk);
+    virtual PScript PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
+    virtual bool FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);
 };
 
 #endif //! SCRCOM_H

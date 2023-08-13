@@ -611,10 +611,10 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag c
 
         if (pcfl->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
         {
-            PSCPT pscpt;
+            PScript pscpt;
             PSCEG psceg = pvNil;
 
-            if (pvNil != (pscpt = (PSCPT)_pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, SCPT::FReadScript)) &&
+            if (pvNil != (pscpt = (PScript)_pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Script::FReadScript)) &&
                 pvNil != (psceg = _pwoks->PscegNew(_prca, this)) && psceg->FAttachScript(pscpt))
             {
                 ReleasePpo(&pscpt);
@@ -1406,12 +1406,12 @@ bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, long *prglw, long clw
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
-    PSCPT pscpt;
+    PScript pscpt;
     bool fError, fExists;
     tribool tRet;
 
     fExists = fTrue;
-    pscpt = (PSCPT)_pcrf->PbacoFetch(kctgScript, cno, SCPT::FReadScript, &fError);
+    pscpt = (PScript)_pcrf->PbacoFetch(kctgScript, cno, Script::FReadScript, &fError);
     if (pvNil != pscpt)
     {
         AssertPo(pscpt, 0);

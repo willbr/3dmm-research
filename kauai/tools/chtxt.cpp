@@ -132,7 +132,7 @@ bool CHTDD::FCmdCompileScript(PCMD pcmd)
     SCCG sccg;
     MSFIL msfil;
     STN stnFile;
-    PSCPT pscpt;
+    PScript pscpt;
     PDOC pdoc = pvNil;
 
     Ptxtb()->GetName(&stnFile);

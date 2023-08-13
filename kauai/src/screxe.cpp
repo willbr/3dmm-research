@@ -17,7 +17,7 @@ ASSERTNAME
 namespace ScriptInterpreter {
 
 RTCLASS(Interpreter)
-RTCLASS(SCPT)
+RTCLASS(Script)
 RTCLASS(STRG)
 
 #ifdef DEBUG
@@ -125,7 +125,7 @@ void Interpreter::MarkMem(void)
     Run the given script.  (prglw, clw) is the list of parameters for the
     script.
 ***************************************************************************/
-bool Interpreter::FRunScript(PSCPT pscpt, long *prglw, long clw, long *plwReturn, bool *pfPaused)
+bool Interpreter::FRunScript(PScript pscpt, long *prglw, long clw, long *plwReturn, bool *pfPaused)
 {
     AssertThis(0);
     return FAttachScript(pscpt, prglw, clw) && FResume(plwReturn, pfPaused);
@@ -134,7 +134,7 @@ bool Interpreter::FRunScript(PSCPT pscpt, long *prglw, long clw, long *plwReturn
 /***************************************************************************
     Attach a script to this Interpreter and pause the script.
 ***************************************************************************/
-bool Interpreter::FAttachScript(PSCPT pscpt, long *prglw, long clw)
+bool Interpreter::FAttachScript(PScript pscpt, long *prglw, long clw)
 {
     AssertThis(0);
     AssertPo(pscpt, 0);
@@ -1334,7 +1334,7 @@ bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw)
 /***************************************************************************
     A chunky resource reader to read a script.
 ***************************************************************************/
-bool SCPT::FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1351,13 +1351,13 @@ bool SCPT::FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, 
 /***************************************************************************
     Static method to read a script.
 ***************************************************************************/
-PSCPT SCPT::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+PScript Script::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
     short bo;
     ChildChunkIdentification kid;
     DataBlock blck;
-    PSCPT pscpt = pvNil;
+    PScript pscpt = pvNil;
     PGL pgllw = pvNil;
     PStringTable pgst = pvNil;
 
@@ -1375,7 +1375,7 @@ PSCPT SCPT::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
             goto LFail;
         }
     }
-    if (pvNil == (pscpt = NewObj SCPT))
+    if (pvNil == (pscpt = NewObj Script))
     {
     LFail:
         ReleasePpo(&pgllw);
@@ -1393,7 +1393,7 @@ PSCPT SCPT::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Destructor for a script.
 ***************************************************************************/
-SCPT::~SCPT(void)
+Script::~Script(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgllw);
@@ -1403,7 +1403,7 @@ SCPT::~SCPT(void)
 /***************************************************************************
     Save the script to the given chunky file.
 ***************************************************************************/
-bool SCPT::FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack)
+bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1465,22 +1465,22 @@ bool SCPT::FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fP
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SCPT.
+    Assert the validity of a Script.
 ***************************************************************************/
-void SCPT::AssertValid(ulong grf)
+void Script::AssertValid(ulong grf)
 {
-    SCPT_PAR::AssertValid(0);
+    Script_PAR::AssertValid(0);
     AssertPo(_pgllw, 0);
     AssertNilOrPo(_pgstLiterals, 0);
 }
 
 /***************************************************************************
-    Mark memory for the SCPT.
+    Mark memory for the Script.
 ***************************************************************************/
-void SCPT::MarkMem(void)
+void Script::MarkMem(void)
 {
     AssertValid(0);
-    SCPT_PAR::MarkMem();
+    Script_PAR::MarkMem();
     MarkMemObj(_pgllw);
     MarkMemObj(_pgstLiterals);
 }
