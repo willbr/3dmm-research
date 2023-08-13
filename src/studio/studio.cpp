@@ -2272,6 +2272,8 @@ void Studio::PlayUISound(long tool, long grfcust)
     long cactRepeat = 1;
     long cno;
 
+    return; // hack to disable UI sounds
+
     _fStopUISound = fFalse;
 
     switch (tool)
