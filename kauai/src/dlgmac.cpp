@@ -214,7 +214,7 @@ long DLG::IditDo(long iditFocus)
         goto LDone;
     }
 
-    if (pvNil == (_pgob = NewObj GOB(khidDialog)))
+    if (pvNil == (_pgob = NewObj GraphicsObject(khidDialog)))
     {
         PushErc(ercDlgOom);
         goto LDone;

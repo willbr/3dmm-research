@@ -46,8 +46,8 @@ ON_CID_GEN(cidCloneChunk, &DCD::FCmdCloneChunk, &DCD::FEnableDcdCmd)
 ON_CID_GEN(cidReopen, &DCD::FCmdReopen, pvNil)
 END_CMD_MAP_NIL()
 
-BEGIN_CMD_MAP(TSCG, GOB)
-ON_CID_GEN(cidClose, &GOB::FCmdCloseWnd, pvNil)
+BEGIN_CMD_MAP(TSCG, GraphicsObject)
+ON_CID_GEN(cidClose, &GraphicsObject::FCmdCloseWnd, pvNil)
 END_CMD_MAP_NIL()
 
 bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg);
@@ -1026,7 +1026,7 @@ void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
     {
         ptT = pt;
         MapPt(&ptT, cooLocal, cooGlobal);
-        pgob = GOB::PgobFromPtGlobal(ptT.xp, ptT.yp, &ptT);
+        pgob = GraphicsObject::PgobFromPtGlobal(ptT.xp, ptT.yp, &ptT);
         if (pgob != this && (pvNil == pgob || !pgob->FIs(kclsDCD) || _pcfl != ((PDCD)pgob)->_pcfl))
         {
             pdcdNew = pvNil;
@@ -2581,7 +2581,7 @@ bool DCD::FTestScript(CTG ctg, CNO cno, long cbCache)
     PSCEG psceg = pvNil;
     PCRF pcrf = pvNil;
 
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
     if (pvNil == (ptscg = NewObj TSCG(&gcb)))
         goto LFail;
     vpcex->FAddCmh(ptscg, 0);

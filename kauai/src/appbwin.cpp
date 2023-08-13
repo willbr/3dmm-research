@@ -147,7 +147,7 @@ bool APPB::_FGetNextEvt(PEVT pevt)
 }
 
 /***************************************************************************
-    The given GOB is tracking the mouse. See if there are any relevant
+    The given GraphicsObject is tracking the mouse. See if there are any relevant
     mouse events in the system event queue. Fill in *ppt with the location
     of the mouse relative to pgob. Also ensure that GrfcustCur() will
     return the correct mouse state.
@@ -485,13 +485,13 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
 
     // these are for automated testing support...
     case WM_GOB_STATE:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)))
             *plwRet = pgob->LwState();
         return fTrue;
 
     case WM_GOB_LOCATION:
         *plwRet = -1;
-        if (pvNil == (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil == (pgob = GraphicsObject::PgobFromHidScr(lw)))
             return fTrue;
 
         pgob->GetRcVis(&rc, cooLocal);
@@ -505,11 +505,11 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
             {
                 for (xp = rc.xpLeft + (lwT >> 4); xp < rc.xpRight; xp += 16)
                 {
-                    if (pgob->FPtIn(xp, yp) && pgob == GOB::PgobFromPtGlobal(xp + pt.xp, yp + pt.yp))
+                    if (pgob->FPtIn(xp, yp) && pgob == GraphicsObject::PgobFromPtGlobal(xp + pt.xp, yp + pt.yp))
                     {
                         pt.xp += xp;
                         pt.yp += yp;
-                        GOB::PgobScreen()->MapPt(&pt, cooGlobal, cooLocal);
+                        GraphicsObject::PgobScreen()->MapPt(&pt, cooGlobal, cooLocal);
                         *plwRet = LwHighLow((short)pt.xp, (short)pt.yp);
                         return fTrue;
                     }
@@ -542,39 +542,39 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
     case WM_GOB_FROM_PT:
         pt.xp = wParam;
         pt.yp = lw;
-        GOB::PgobScreen()->MapPt(&pt, cooLocal, cooGlobal);
-        if (pvNil != (pgob = GOB::PgobFromPtGlobal(pt.xp, pt.yp)))
+        GraphicsObject::PgobScreen()->MapPt(&pt, cooLocal, cooGlobal);
+        if (pvNil != (pgob = GraphicsObject::PgobFromPtGlobal(pt.xp, pt.yp)))
             *plwRet = pgob->Hid();
         return fTrue;
 
     case WM_FIRST_CHILD:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobFirstChild()))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobFirstChild()))
         {
             *plwRet = pgob->Hid();
         }
         return fTrue;
 
     case WM_NEXT_SIB:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobNextSib()))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobNextSib()))
         {
             *plwRet = pgob->Hid();
         }
         return fTrue;
 
     case WM_PARENT:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobPar()))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobPar()))
         {
             *plwRet = pgob->Hid();
         }
         return fTrue;
 
     case WM_GOB_TYPE:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)))
             *plwRet = pgob->Cls();
         return fTrue;
 
     case WM_IS_GOB:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)))
             *plwRet = pgob->FIs(wParam);
         return fTrue;
     }
@@ -622,12 +622,12 @@ bool APPB::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwR
         return fTrue;
 
     case WM_CLOSE:
-        if ((pgob = GOB::PgobFromHwnd(hwnd)) != pvNil)
+        if ((pgob = GraphicsObject::PgobFromHwnd(hwnd)) != pvNil)
             vpcex->EnqueueCid(cidCloseWnd, pgob);
         return fTrue;
 
     case WM_MDIACTIVATE:
-        GOB::ActivateHwnd(hwnd, GET_WM_MDIACTIVATE_FACTIVATE(hwnd, wParam, lw));
+        GraphicsObject::ActivateHwnd(hwnd, GET_WM_MDIACTIVATE_FACTIVATE(hwnd, wParam, lw));
         break;
     }
 
@@ -706,7 +706,7 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
         break;
 
     case WM_GETMINMAXINFO:
-        if (pvNil != (pgob = GOB::PgobFromHwnd(hwnd)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         {
             MINMAXINFO *pmmi = (MINMAXINFO far *)lw;
 
@@ -719,14 +719,14 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
         return fTrue;
 
     case WM_SIZE:
-        if (pvNil != (pgob = GOB::PgobFromHwnd(hwnd)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
             pgob->SetRcFromHwnd();
         break;
 
     case WM_LBUTTONDOWN:
     case WM_LBUTTONDBLCLK:
         ResetToolTip();
-        if (pvNil != (pgob = GOB::PgobFromHwnd(hwnd)) && pvNil != (pgob = pgob->PgobFromPt(SwLow(lw), SwHigh(lw), &pt)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(hwnd)) && pvNil != (pgob = pgob->PgobFromPt(SwLow(lw), SwHigh(lw), &pt)))
         {
             long ts;
 

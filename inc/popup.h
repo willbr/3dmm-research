@@ -9,7 +9,7 @@
              MPFNT: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GOB ---> GOK ---> BRWD ---> BRWL ---> MP
+    BASE ---> CMH ---> GraphicsObject ---> GOK ---> BRWD ---> BRWL ---> MP
                                           |
                                           +------> BRWT ---> MPFNT
 

@@ -40,7 +40,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(hidPar)) == pvNil)
     {
-        Bug("Couldn't find background GOB");
+        Bug("Couldn't find background GraphicsObject");
         goto LFail;
     }
 
@@ -101,7 +101,7 @@ bool SPLOT::FCmdInit(PCMD pcmd)
 
     if ((pgobParent = vpapp->Pkwa()->PgobFromHid(pcmd->rglw[0])) == pvNil)
     {
-        Bug("Parent GOB for view doesn't exist");
+        Bug("Parent GraphicsObject for view doesn't exist");
         goto LFail;
     }
 

@@ -91,8 +91,8 @@ void FrameMain(void)
 
     Arguments:
         ulong grfapp -- app flags
-        ulong grfgob -- GOB flags
-        long ginDef  -- default GOB invalidation
+        ulong grfgob -- GraphicsObject flags
+        long ginDef  -- default GraphicsObject invalidation
 
 ************************************************************ PETED ***********/
 void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
@@ -1727,7 +1727,7 @@ bool APP::_FInitKidworld(void)
     AssertBaseThis(0);
 
     RC rcRel(0, 0, krelOne, krelOne);
-    GCB gcb(CMH::HidUnique(), GOB::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
+    GCB gcb(CMH::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
 
     _pkwa = NewObj KWA(&gcb);
     if (pvNil == _pkwa)
@@ -1980,7 +1980,7 @@ bool APP::_FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
     PCRF pcrfT;
     bool fRet = fFalse;
 
-    _pstdio = STDIO::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),
+    _pstdio = Studio::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),
                                fFailIfDocOpenFailed);
     if (_pstdio == pvNil)
     {
@@ -4449,8 +4449,8 @@ bool APP::FCmdEnableAccel(PCMD pcmd)
 
     Arguments:
         PCMD pcmd
-            rglw[0]  --  contains the GOB id of the parent of the Splot machine
-            rglw[1]  --  contains the GOB id of the Splot machine itself
+            rglw[0]  --  contains the GraphicsObject id of the parent of the Splot machine
+            rglw[1]  --  contains the GraphicsObject id of the Splot machine itself
 
     Returns: fTrue always
 

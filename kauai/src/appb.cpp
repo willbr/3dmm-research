@@ -381,7 +381,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
     }
 #endif // DEBUG
 
-    if ((_cactIdle & 0x0F) == 1 && pvNil != (pgob = GOB::PgobScreen()))
+    if ((_cactIdle & 0x0F) == 1 && pvNil != (pgob = GraphicsObject::PgobScreen()))
     {
         // check to see if the mouse moved
         PT pt;
@@ -394,7 +394,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
             return fTrue;
 
         pgob->MapPt(&pt, cooLocal, cooGlobal);
-        pgob = GOB::PgobFromPtGlobal(pt.xp, pt.yp, &pt);
+        pgob = GraphicsObject::PgobFromPtGlobal(pt.xp, pt.yp, &pt);
         grfcust = GrfcustCur();
         if (pgob != _pgobMouse || pt.xp != _xpMouse || pt.yp != _ypMouse || _grfcustMouse != grfcust)
         {
@@ -445,7 +445,7 @@ void APPB::_TakeDownToolTip(void)
     AssertThis(0);
     PGOB pgob;
 
-    if (pvNil != (pgob = GOB::PgobFromHidScr(khidToolTip)))
+    if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(khidToolTip)))
     {
         if (pgob == _pgobMouse)
         {
@@ -471,7 +471,7 @@ void APPB::_EnsureToolTip(void)
     if (_pgobToolTipTarget == _pgobMouse)
         return;
 
-    pgob = GOB::PgobFromHidScr(khidToolTip);
+    pgob = GraphicsObject::PgobFromHidScr(khidToolTip);
     _fToolTip = FPure(_pgobMouse->FEnsureToolTip(&pgob, _xpMouse, _ypMouse));
     if (!_fToolTip)
     {
@@ -512,7 +512,7 @@ bool APPB::FEnableAppCmd(PCMD pcmd, ulong *pgrfeds)
         break;
 
     case cidChooseWnd:
-        if ((HWND)pcmd->rglw[0] == GOB::HwndMdiActive())
+        if ((HWND)pcmd->rglw[0] == GraphicsObject::HwndMdiActive())
             *pgrfeds |= fedsCheck;
         else
             *pgrfeds |= fedsUncheck;
@@ -536,7 +536,7 @@ bool APPB::FCmdChooseWnd(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    GOB::MakeHwndActive((HWND)pcmd->rglw[0]);
+    GraphicsObject::MakeHwndActive((HWND)pcmd->rglw[0]);
     return fTrue;
 }
 
@@ -575,7 +575,7 @@ bool APPB::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         return fFalse;
 
     // initialize the screen gob
-    if (!GOB::FInitScreen(grfgob, ginDef))
+    if (!GraphicsObject::FInitScreen(grfgob, ginDef))
         return fFalse;
 
     // initialize sound functionality
@@ -692,7 +692,7 @@ void APPB::_CleanUp(void)
 #endif // DEBUG
 #endif // WIN
 
-    GOB::ShutDown();
+    GraphicsObject::ShutDown();
     FIL::ShutDown();
 #ifdef WIN
     _ShutDownViewer();
@@ -728,7 +728,7 @@ void APPB::TopOfLoop(void)
         PGOB pgob;
         ulong grfgte;
 
-        gte.Init(GOB::PgobScreen(), fgteNil);
+        gte.Init(GraphicsObject::PgobScreen(), fgteNil);
         while (gte.FNextGob(&pgob, &grfgte, fgteNil))
         {
             if ((grfgte & fgtePre) && pgob->Hwnd() != hNil)
@@ -757,7 +757,7 @@ void APPB::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     PGOB pgob;
     PGPT pgpt = pvNil;
 
-    if (pvNil == (pgob = GOB::PgobFromHwnd(hwnd)))
+    if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
 
 #ifdef DEBUG
@@ -809,7 +809,7 @@ PCMH APPB::PcmhFromHid(long hid)
 
     if (pvNil != (pcmh = CLOK::PclokFromHid(hid)))
         return pcmh;
-    return GOB::PgobFromHidScr(hid);
+    return GraphicsObject::PgobFromHidScr(hid);
 }
 
 /***************************************************************************
@@ -897,7 +897,7 @@ void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
     {
         if (pvNil == pregn)
         {
-            // use the full rectangle for the GOB
+            // use the full rectangle for the GraphicsObject
             if (rc.FEmpty())
                 return;
             prc = &rc;
@@ -1023,7 +1023,7 @@ void APPB::_UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
     {
         if (pvNil == pregn)
         {
-            // use the full rectangle for the GOB
+            // use the full rectangle for the GraphicsObject
             if (rc.FEmpty())
                 return;
             prc = &rc;
@@ -1132,7 +1132,7 @@ void APPB::UpdateMarked(void)
 
     while (_pglmkrgn->FPop(&mkrgn))
     {
-        if (pvNil != (pgob = GOB::PgobFromHwnd(mkrgn.hwnd)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(mkrgn.hwnd)))
             _FastUpdate(pgob, mkrgn.pregn);
         ReleasePpo(&mkrgn.pregn);
     }
@@ -1759,7 +1759,7 @@ void APPB::MarkMem(void)
 
     GPT::MarkStaticMem();
     CLOK::MarkAllCloks();
-    if ((pgob = GOB::PgobScreen()) != pvNil)
+    if ((pgob = GraphicsObject::PgobScreen()) != pvNil)
         pgob->MarkGobTree();
 }
 

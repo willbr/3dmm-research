@@ -141,14 +141,14 @@ class LIG : public LIG_PAR
 };
 
 /***************************************************************************
-    Color chooser GOB.
+    Color chooser GraphicsObject.
 ***************************************************************************/
 const long kcacrCcg = 8;
 const long kdxpCcg = 78;
 const long kdxpFrameCcg = 2;
 
 typedef class CCG *PCCG;
-#define CCG_PAR GOB
+#define CCG_PAR GraphicsObject
 #define kclsCCG 'CCG'
 class CCG : public CCG_PAR
 {
@@ -176,7 +176,7 @@ class CCG : public CCG_PAR
     Color chooser tool tip.
 ***************************************************************************/
 typedef class CCGT *PCCGT;
-#define CCGT_PAR GOB
+#define CCGT_PAR GraphicsObject
 #define kclsCCGT 'CCGT'
 class CCGT : public CCGT_PAR
 {
@@ -277,7 +277,7 @@ class TSEL : public TSEL_PAR
 };
 
 /***************************************************************************
-    Help editor document display GOB - displays a HEDO.
+    Help editor document display GraphicsObject - displays a HEDO.
 ***************************************************************************/
 typedef class HEDG *PHEDG;
 #define HEDG_PAR DDG

@@ -273,7 +273,7 @@
 
 
 // ---------------------------------------------------------
-// the following define positioning info for a GOB
+// the following define positioning info for a GraphicsObject
 // Note: DEFAULT_POSITION is required.
 // ---------------------------------------------------------
 #define POSITION( _kidPar,  _xp,  _yp,  _zp ) \

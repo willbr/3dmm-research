@@ -35,7 +35,7 @@ RTCLASS(LSND)
 RTCLASS(ESLR)
 
 /***************************************************************************
-    Function to build a GCB for creating a child GOB
+    Function to build a GCB for creating a child GraphicsObject
 ***************************************************************************/
 bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
 {
@@ -121,7 +121,7 @@ bool ESL::_FInit(PRCA prca, long kidEasel)
 
     vpapp->DisableAccel();
 
-    STDIO::PauseActionButton();
+    Studio::PauseActionButton();
 
     return fTrue;
 }
@@ -134,7 +134,7 @@ ESL::~ESL(void)
     AssertBaseThis(0);
 
     vpapp->EnableAccel();
-    STDIO::ResumeActionButton();
+    Studio::ResumeActionButton();
 }
 
 /***************************************************************************
@@ -686,7 +686,7 @@ void ESLT::AssertValid(ulong grf)
 
 /***************************************************************************
     Mark memory used by the ESLT.  The _pape and _psne are marked
-    automatically with the GOB tree.
+    automatically with the GraphicsObject tree.
 ***************************************************************************/
 void ESLT::MarkMem(void)
 {
@@ -1038,7 +1038,7 @@ void ESLA::AssertValid(ulong grf)
 
 /***************************************************************************
     Mark memory used by the ESLA.  The _pape and _pedsl are marked
-    automatically with the GOB tree.
+    automatically with the GraphicsObject tree.
 ***************************************************************************/
 void ESLA::MarkMem(void)
 {

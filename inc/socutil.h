@@ -24,7 +24,7 @@ typedef class MVIE *PMVIE;
 typedef class BKGD *PBKGD;
 typedef class TBOX *PTBOX;
 typedef class MVIEW *PMVIEW;
-typedef class STDIO *PSTDIO;
+typedef class Studio *PSTDIO;
 
 //
 //

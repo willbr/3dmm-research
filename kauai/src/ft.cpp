@@ -152,7 +152,7 @@ bool APP::FCmdTestSuite(PCMD pcmd)
 }
 
 // graphic pattern rectangle
-#define GPRC_PAR GOB
+#define GPRC_PAR GraphicsObject
 #define kclsGPRC 'GPRC'
 class GPRC : public GPRC_PAR
 {
@@ -176,7 +176,7 @@ class GPRC : public GPRC_PAR
 };
 
 // graphic fill rectangle
-#define GFRC_PAR GOB
+#define GFRC_PAR GraphicsObject
 #define kclsGFRC 'GFRC'
 class GFRC : public GFRC_PAR
 {
@@ -200,7 +200,7 @@ RTCLASS(GFRC)
 /***************************************************************************
     Constructor for patterned rectangle.
 ***************************************************************************/
-GPRC::GPRC(PGCB pgcb, APT *papt, ACR acrFore, ACR acrBack, bool fTrackMouse) : GOB(pgcb)
+GPRC::GPRC(PGCB pgcb, APT *papt, ACR acrFore, ACR acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
 {
     _apt = *papt;
     _acrFore = acrFore;
@@ -359,7 +359,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Constructor for filled rectangle.
 ***************************************************************************/
-GFRC::GFRC(PGCB pgcb, ACR acr, bool fOval) : GOB(pgcb)
+GFRC::GFRC(PGCB pgcb, ACR acr, bool fOval) : GraphicsObject(pgcb)
 {
     _acr = acr;
     _fOval = fOval;
@@ -406,7 +406,7 @@ void GFRC::MouseDown(long xp, long yp, long cact, ulong grfcust)
 }
 
 // test document
-#define TDC_PAR GOB
+#define TDC_PAR GraphicsObject
 #define kclsTDC 'TDC'
 class TDC : public TDC_PAR
 {
@@ -416,7 +416,7 @@ class TDC : public TDC_PAR
     virtual void _NewRc(void);
 
   public:
-    TDC(PGCB pgcb) : GOB(pgcb)
+    TDC(PGCB pgcb) : GraphicsObject(pgcb)
     {
         _NewRc();
     }
@@ -427,7 +427,7 @@ class TDC : public TDC_PAR
 RTCLASS(TDC)
 
 /***************************************************************************
-    _NewRc (from GOB) of TDC.
+    _NewRc (from GraphicsObject) of TDC.
 ***************************************************************************/
 void TDC::_NewRc(void)
 {
@@ -467,7 +467,7 @@ void TDC::Draw(PGNV pgnv, RC *prcClip)
 }
 
 // graphic test doc window
-#define DWN_PAR GOB
+#define DWN_PAR GraphicsObject
 #define kclsDWN 'DWN'
 class DWN : public DWN_PAR
 {
@@ -477,7 +477,7 @@ class DWN : public DWN_PAR
   protected:
     static long _cdwn;
 
-    DWN(PGCB pgcb) : GOB(pgcb)
+    DWN(PGCB pgcb) : GraphicsObject(pgcb)
     {
     }
 
@@ -487,7 +487,7 @@ class DWN : public DWN_PAR
     virtual bool FCmdScroll(PCMD pcmd);
 };
 
-BEGIN_CMD_MAP(DWN, GOB)
+BEGIN_CMD_MAP(DWN, GraphicsObject)
 ON_CID_ME(cidDoScroll, &DWN::FCmdScroll, pvNil)
 ON_CID_ME(cidEndScroll, &DWN::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
@@ -505,7 +505,7 @@ DWN *DWN::PdwnNew(void)
     PGOB pgob;
     STN stn;
 
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
     if ((pdwn = NewObj DWN(&gcb)) == pvNil)
         return pvNil;
 
@@ -530,7 +530,7 @@ DWN *DWN::PdwnNew(void)
     // create a content gob
     gcb.Set(98, pdwn);
     SCB::GetClientRc(fscbVert | fscbHorz, &gcb._rcAbs, &gcb._rcRel);
-    pgob = NewObj GOB(&gcb);
+    pgob = NewObj GraphicsObject(&gcb);
 
     if (pgob == pvNil)
         return pdwn;
@@ -685,7 +685,7 @@ TTW *TTW::PttwNew(void)
     STN stn;
     RC rc;
     PEDPL pedpl;
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if ((pttw = NewObj TTW(&gcb)) == pvNil)
         return pvNil;
@@ -808,7 +808,7 @@ RTW *RTW::PrtwNew(void)
 {
     RTW *prtw;
     STN stn;
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (prtw = NewObj RTW(&gcb)))
         return pvNil;
@@ -984,7 +984,7 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 }
 
 /******************************************************************************
-    Paint the RTW GOB.
+    Paint the RTW GraphicsObject.
 ******************************************************************************/
 void RTW::Draw(PGNV pgnv, RC *prcClip)
 {
@@ -1983,7 +1983,7 @@ bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
 
 // test animations
 typedef class TAN *PTAN;
-#define TAN_PAR GOB
+#define TAN_PAR GraphicsObject
 class TAN : public TAN_PAR
 {
     CMD_MAP_DEC(TAN)
@@ -2002,7 +2002,7 @@ class TAN : public TAN_PAR
     virtual bool FCmdAlarm(PCMD pcmd);
 };
 
-BEGIN_CMD_MAP(TAN, GOB)
+BEGIN_CMD_MAP(TAN, GraphicsObject)
 ON_CID_ME(cidAlarm, &TAN::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
@@ -2020,7 +2020,7 @@ bool APP::FCmdFastUpdate(PCMD pcmd)
 /***************************************************************************
     Constructor for a Test animation gob.
 ***************************************************************************/
-TAN::TAN(PGCB pgcb) : GOB(pgcb)
+TAN::TAN(PGCB pgcb) : GraphicsObject(pgcb)
 {
 }
 
@@ -2033,7 +2033,7 @@ PTAN TAN::PtanNew(void)
     RC rc;
     STN stn;
     APT apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GCB gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (ptan = NewObj TAN(&gcb)))
         return pvNil;
@@ -2103,11 +2103,11 @@ void TAN::Draw(PGNV pgnv, RC *prcClip)
 }
 
 typedef class TED *PTED;
-#define TED_PAR GOB
+#define TED_PAR GraphicsObject
 class TED : public TED_PAR
 {
   protected:
-    TED(void) : GOB(khidMdi)
+    TED(void) : GraphicsObject(khidMdi)
     {
     }
 

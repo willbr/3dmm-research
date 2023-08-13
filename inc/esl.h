@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GOB ---> GOK ---> ESL (generic easel)
+    BASE ---> CMH ---> GraphicsObject ---> GOK ---> ESL (generic easel)
                                           |
                                           +---> ESLT (text easel)
                                           |

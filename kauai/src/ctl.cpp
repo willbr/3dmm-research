@@ -27,7 +27,7 @@ RTCLASS(WSB)
 /***************************************************************************
     Constructor for a control.
 ***************************************************************************/
-CTL::CTL(PGCB pgcb) : GOB(pgcb)
+CTL::CTL(PGCB pgcb) : GraphicsObject(pgcb)
 {
     _hctl = hNil;
 }

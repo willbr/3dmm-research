@@ -24,7 +24,7 @@ typedef ControlHandle HCTL;
 
 // general control
 typedef class CTL *PCTL;
-#define CTL_PAR GOB
+#define CTL_PAR GraphicsObject
 #define kclsCTL 'CTL'
 class CTL : public CTL_PAR
 {

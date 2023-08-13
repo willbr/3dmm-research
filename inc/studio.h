@@ -7,7 +7,7 @@
 
         The Studio
 
-                STDIO 	--->   	GOB
+                Studio 	--->   	GraphicsObject
 
 ***************************************************************************/
 
@@ -44,14 +44,14 @@ extern APP vapp;
 //
 // Studio class
 //
-#define STDIO_PAR GOB
-#define kclsSTDIO 'stio'
-class STDIO : public STDIO_PAR
+#define Studio_PAR GraphicsObject
+#define kclsStudio 'stio'
+class Studio : public Studio_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(STDIO)
+    CMD_MAP_DEC(Studio)
 
   protected:
     PCRM _pcrm;
@@ -72,7 +72,7 @@ class STDIO : public STDIO_PAR
     PTGOB _ptgobTitle;
     bool _fStartedSoonerLater;
 
-    STDIO(PGCB pgcb) : GOB(pgcb){};
+    Studio(PGCB pgcb) : GraphicsObject(pgcb){};
     bool _FOpenStudio(bool fPaletteFade);
     void _SetToolStates(void);
     bool _FBuildMenuCidCtg(long cid, CTG ctg, PGL pgl, ulong grfHotKey, ulong grfNum, bool fNew);
@@ -87,7 +87,7 @@ class STDIO : public STDIO_PAR
     //
     static PSTDIO PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
     void ReleaseBrcn(void);
-    ~STDIO(void);
+    ~Studio(void);
 
     //
     // Command functions for getting from scripts to here.

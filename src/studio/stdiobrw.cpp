@@ -70,7 +70,7 @@ ASSERTNAME
  **************************************************************************/
 const long kglpbrcnGrow = 5;
 
-bool STDIO::FCmdBrowserReady(PCMD pcmd)
+bool Studio::FCmdBrowserReady(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -349,7 +349,7 @@ LFail:
  * Destroy browser context (when Studio destructs)
  *
  **************************************************************************/
-void STDIO::ReleaseBrcn(void)
+void Studio::ReleaseBrcn(void)
 {
     long ipbrcn;
     PBRCN pbrcn;
@@ -370,7 +370,7 @@ void STDIO::ReleaseBrcn(void)
  * Locate a browser pbrwd
  *
  **************************************************************************/
-PBRCN STDIO::_PbrcnFromBrwdid(long brwdid)
+PBRCN Studio::_PbrcnFromBrwdid(long brwdid)
 {
     AssertThis(0);
     long ipbrcn;

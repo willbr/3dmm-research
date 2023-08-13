@@ -14,52 +14,52 @@
 #include "studio.h"
 
 ASSERTNAME
-RTCLASS(STDIO)
+RTCLASS(Studio)
 RTCLASS(SMCC)
 
-BEGIN_CMD_MAP(STDIO, CMH)
-ON_CID_GEN(cidNew, &STDIO::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpen, &STDIO::FCmdOpen, pvNil)
-ON_CID_GEN(cidXYAxis, &STDIO::FCmdXYAxis, pvNil)
-ON_CID_GEN(cidXZAxis, &STDIO::FCmdXZAxis, pvNil)
-ON_CID_GEN(cidSetTool, &STDIO::FCmdSetTool, pvNil)
-ON_CID_GEN(cidPlay, &STDIO::FCmdPlay, pvNil)
-ON_CID_GEN(cidNewScene, &STDIO::FCmdNewScene, pvNil)
-ON_CID_GEN(cidRespectGround, &STDIO::FCmdRespectGround, pvNil)
-ON_CID_GEN(cidPauseUntilClick, &STDIO::FCmdPause, pvNil)
-ON_CID_GEN(cidPauseForSound, &STDIO::FCmdPause, pvNil)
-ON_CID_GEN(cidClearPause, &STDIO::FCmdPause, pvNil)
-ON_CID_GEN(cidBrowserReady, &STDIO::FCmdBrowserReady, pvNil)
-ON_CID_GEN(cidFrameScrollbar, &STDIO::FCmdScroll, pvNil)
-ON_CID_GEN(cidFrameThumb, &STDIO::FCmdScroll, pvNil)
-ON_CID_GEN(cidSceneScrollbar, &STDIO::FCmdScroll, pvNil)
-ON_CID_GEN(cidSceneThumb, &STDIO::FCmdScroll, pvNil)
-ON_CID_GEN(cidStartScroll, &STDIO::FCmdScroll, pvNil)
-ON_CID_GEN(cidEndScroll, &STDIO::FCmdScroll, pvNil)
-ON_CID_GEN(cidSooner, &STDIO::FCmdSooner, pvNil)
-ON_CID_GEN(cidLater, &STDIO::FCmdLater, pvNil)
-ON_CID_GEN(cidNewSpletter, &STDIO::FCmdNewSpletter, pvNil)
-ON_CID_GEN(cidTextBkgdColor, &STDIO::FCmdCreatePopup, pvNil)
-ON_CID_GEN(cidTextColor, &STDIO::FCmdCreatePopup, pvNil)
-ON_CID_GEN(cidTextFont, &STDIO::FCmdCreatePopup, pvNil)
-ON_CID_GEN(cidTextSize, &STDIO::FCmdCreatePopup, pvNil)
-ON_CID_GEN(cidTextStyle, &STDIO::FCmdCreatePopup, pvNil)
-ON_CID_GEN(cidTextSetColor, &STDIO::FCmdTextSetColor, pvNil)
-ON_CID_GEN(cidTextSetBkgdColor, &STDIO::FCmdTextSetBkgdColor, pvNil)
-ON_CID_GEN(cidTextSetFont, &STDIO::FCmdTextSetFont, pvNil)
-ON_CID_GEN(cidTextSetSize, &STDIO::FCmdTextSetSize, pvNil)
-ON_CID_GEN(cidTextSetStyle, &STDIO::FCmdTextSetStyle, pvNil)
-ON_CID_GEN(cidOpenSoundRecord, &STDIO::FCmdOpenSoundRecord, pvNil)
-ON_CID_GEN(cidToggleXY, &STDIO::FCmdToggleXY, pvNil)
-ON_CID_GEN(cidHelpBook, &STDIO::FCmdHelpBook, pvNil)
-ON_CID_GEN(cidMovieGoto, &STDIO::FCmdMovieGoto, pvNil)
-ON_CID_GEN(cidLoadProjectMovie, &STDIO::FCmdLoadProjectMovie, pvNil)
-ON_CID_GEN(cidSoundsEnabled, &STDIO::FCmdSoundsEnabled, pvNil)
-ON_CID_GEN(cidCreateTbox, &STDIO::FCmdCreateTbox, pvNil)
-ON_CID_GEN(cidActorEaselOpen, &STDIO::FCmdActorEaselOpen, pvNil)
-ON_CID_GEN(cidListenerEaselOpen, &STDIO::FCmdListenerEaselOpen, pvNil)
+BEGIN_CMD_MAP(Studio, CMH)
+ON_CID_GEN(cidNew, &Studio::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpen, &Studio::FCmdOpen, pvNil)
+ON_CID_GEN(cidXYAxis, &Studio::FCmdXYAxis, pvNil)
+ON_CID_GEN(cidXZAxis, &Studio::FCmdXZAxis, pvNil)
+ON_CID_GEN(cidSetTool, &Studio::FCmdSetTool, pvNil)
+ON_CID_GEN(cidPlay, &Studio::FCmdPlay, pvNil)
+ON_CID_GEN(cidNewScene, &Studio::FCmdNewScene, pvNil)
+ON_CID_GEN(cidRespectGround, &Studio::FCmdRespectGround, pvNil)
+ON_CID_GEN(cidPauseUntilClick, &Studio::FCmdPause, pvNil)
+ON_CID_GEN(cidPauseForSound, &Studio::FCmdPause, pvNil)
+ON_CID_GEN(cidClearPause, &Studio::FCmdPause, pvNil)
+ON_CID_GEN(cidBrowserReady, &Studio::FCmdBrowserReady, pvNil)
+ON_CID_GEN(cidFrameScrollbar, &Studio::FCmdScroll, pvNil)
+ON_CID_GEN(cidFrameThumb, &Studio::FCmdScroll, pvNil)
+ON_CID_GEN(cidSceneScrollbar, &Studio::FCmdScroll, pvNil)
+ON_CID_GEN(cidSceneThumb, &Studio::FCmdScroll, pvNil)
+ON_CID_GEN(cidStartScroll, &Studio::FCmdScroll, pvNil)
+ON_CID_GEN(cidEndScroll, &Studio::FCmdScroll, pvNil)
+ON_CID_GEN(cidSooner, &Studio::FCmdSooner, pvNil)
+ON_CID_GEN(cidLater, &Studio::FCmdLater, pvNil)
+ON_CID_GEN(cidNewSpletter, &Studio::FCmdNewSpletter, pvNil)
+ON_CID_GEN(cidTextBkgdColor, &Studio::FCmdCreatePopup, pvNil)
+ON_CID_GEN(cidTextColor, &Studio::FCmdCreatePopup, pvNil)
+ON_CID_GEN(cidTextFont, &Studio::FCmdCreatePopup, pvNil)
+ON_CID_GEN(cidTextSize, &Studio::FCmdCreatePopup, pvNil)
+ON_CID_GEN(cidTextStyle, &Studio::FCmdCreatePopup, pvNil)
+ON_CID_GEN(cidTextSetColor, &Studio::FCmdTextSetColor, pvNil)
+ON_CID_GEN(cidTextSetBkgdColor, &Studio::FCmdTextSetBkgdColor, pvNil)
+ON_CID_GEN(cidTextSetFont, &Studio::FCmdTextSetFont, pvNil)
+ON_CID_GEN(cidTextSetSize, &Studio::FCmdTextSetSize, pvNil)
+ON_CID_GEN(cidTextSetStyle, &Studio::FCmdTextSetStyle, pvNil)
+ON_CID_GEN(cidOpenSoundRecord, &Studio::FCmdOpenSoundRecord, pvNil)
+ON_CID_GEN(cidToggleXY, &Studio::FCmdToggleXY, pvNil)
+ON_CID_GEN(cidHelpBook, &Studio::FCmdHelpBook, pvNil)
+ON_CID_GEN(cidMovieGoto, &Studio::FCmdMovieGoto, pvNil)
+ON_CID_GEN(cidLoadProjectMovie, &Studio::FCmdLoadProjectMovie, pvNil)
+ON_CID_GEN(cidSoundsEnabled, &Studio::FCmdSoundsEnabled, pvNil)
+ON_CID_GEN(cidCreateTbox, &Studio::FCmdCreateTbox, pvNil)
+ON_CID_GEN(cidActorEaselOpen, &Studio::FCmdActorEaselOpen, pvNil)
+ON_CID_GEN(cidListenerEaselOpen, &Studio::FCmdListenerEaselOpen, pvNil)
 #ifdef DEBUG
-ON_CID_GEN(cidWriteBmps, &STDIO::FCmdWriteBmps, pvNil)
+ON_CID_GEN(cidWriteBmps, &Studio::FCmdWriteBmps, pvNil)
 #endif // DEBUG
 END_CMD_MAP_NIL()
 
@@ -81,7 +81,7 @@ const long kcbCursorCache = 1024;
  *  Pointer to the studio if successful, else pvNil.
  *
  **************************************************************************/
-PSTDIO STDIO::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
+PSTDIO Studio::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
 {
     AssertPo(pcrmStudio, 0);
     AssertNilOrPo(pfniUserDoc, ffniFile);
@@ -94,7 +94,7 @@ PSTDIO STDIO::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFailI
     BLCK blck;
 
     gcb.Set(hid, ((APP *)vpappb)->Pkwa());
-    pstdio = NewObj STDIO(&gcb);
+    pstdio = NewObj Studio(&gcb);
 
     if (pstdio == pvNil)
     {
@@ -156,7 +156,7 @@ LFail:
  *  None.
  *
  **************************************************************************/
-STDIO::~STDIO(void)
+Studio::~Studio(void)
 {
     ReleasePpo(&_pmvie);
     ReleasePpo(&_psmcc);
@@ -183,7 +183,7 @@ STDIO::~STDIO(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool STDIO::_FOpenStudio(bool fPaletteFade)
+bool Studio::_FOpenStudio(bool fPaletteFade)
 {
     AssertBaseThis(0);
 
@@ -283,7 +283,7 @@ LFail:
 /***************************************************************************
     Set the portfolio doc from one of Melanie's project documents
 ***************************************************************************/
-bool STDIO::FCmdLoadProjectMovie(PCMD pcmd)
+bool Studio::FCmdLoadProjectMovie(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -339,7 +339,7 @@ LEnd:
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FLoadMovie(PFNI pfni, CNO cno)
+bool Studio::FLoadMovie(PFNI pfni, CNO cno)
 #ifdef BUG1959
 {
     bool fRet, fClosedOld;
@@ -358,7 +358,7 @@ LDone:
     return fRet;
 }
 
-bool STDIO::_FLoadMovie(PFNI pfni, CNO cno, bool *pfClosedOld)
+bool Studio::_FLoadMovie(PFNI pfni, CNO cno, bool *pfClosedOld)
 #endif // BUG1959
 {
     AssertBaseThis(0);
@@ -467,7 +467,7 @@ LFail:
  *  fTrue if it was succesful, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FSetMovie(PMVIE pmvie)
+bool Studio::FSetMovie(PMVIE pmvie)
 {
     AssertPo(pmvie, 0);
 
@@ -557,7 +557,7 @@ LFail:
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdXYAxis(PCMD pcmd)
+bool Studio::FCmdXYAxis(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -593,7 +593,7 @@ bool STDIO::FCmdXYAxis(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdXZAxis(PCMD pcmd)
+bool Studio::FCmdXZAxis(PCMD pcmd)
 {
     AssertThis(0);
     PMVU pmvu;
@@ -627,7 +627,7 @@ bool STDIO::FCmdXZAxis(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdSetTool(PCMD pcmd)
+bool Studio::FCmdSetTool(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -769,7 +769,7 @@ bool STDIO::FCmdSetTool(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdPlay(PCMD pcmd)
+bool Studio::FCmdPlay(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -835,7 +835,7 @@ bool STDIO::FCmdPlay(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdNewScene(PCMD pcmd)
+bool Studio::FCmdNewScene(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -875,7 +875,7 @@ bool STDIO::FCmdNewScene(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdRespectGround(PCMD pcmd)
+bool Studio::FCmdRespectGround(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -905,7 +905,7 @@ bool STDIO::FCmdRespectGround(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdPause(PCMD pcmd)
+bool Studio::FCmdPause(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -939,7 +939,7 @@ bool STDIO::FCmdPause(PCMD pcmd)
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool STDIO::FCmdOpen(PCMD pcmd)
+bool Studio::FCmdOpen(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -996,7 +996,7 @@ bool STDIO::FCmdOpen(PCMD pcmd)
     Returns: nothing
 
 ******************************************************************************/
-bool STDIO::FCmdScroll(PCMD pcmd)
+bool Studio::FCmdScroll(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1018,7 +1018,7 @@ bool STDIO::FCmdScroll(PCMD pcmd)
     returns fTrue.
 
 ******************************************************************************/
-bool STDIO::FCmdSooner(PCMD pcmd)
+bool Studio::FCmdSooner(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1050,7 +1050,7 @@ bool STDIO::FCmdSooner(PCMD pcmd)
     returns fTrue.
 
 ******************************************************************************/
-bool STDIO::FCmdLater(PCMD pcmd)
+bool Studio::FCmdLater(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1082,7 +1082,7 @@ bool STDIO::FCmdLater(PCMD pcmd)
     returns fTrue.
 
 ******************************************************************************/
-bool STDIO::FCmdNewSpletter(PCMD pcmd)
+bool Studio::FCmdNewSpletter(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1125,7 +1125,7 @@ bool STDIO::FCmdNewSpletter(PCMD pcmd)
 /******************************************************************************
     Start the sound recording easel
 ******************************************************************************/
-bool STDIO::FCmdOpenSoundRecord(PCMD pcmd)
+bool Studio::FCmdOpenSoundRecord(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1153,7 +1153,7 @@ bool STDIO::FCmdOpenSoundRecord(PCMD pcmd)
     Returns: nothing
 
 ************************************************************ PETED ***********/
-void STDIO::SceneChange(void)
+void Studio::SceneChange(void)
 {
 }
 
@@ -1168,7 +1168,7 @@ void STDIO::SceneChange(void)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdCreatePopup(PCMD pcmd)
+bool Studio::FCmdCreatePopup(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1271,7 +1271,7 @@ bool STDIO::FCmdCreatePopup(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdTextSetBkgdColor(PCMD pcmd)
+bool Studio::FCmdTextSetBkgdColor(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1301,7 +1301,7 @@ bool STDIO::FCmdTextSetBkgdColor(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool STDIO::FCmdTextSetColor(PCMD pcmd)
+bool Studio::FCmdTextSetColor(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1330,7 +1330,7 @@ bool STDIO::FCmdTextSetColor(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ PETED ***********/
-bool STDIO::FCmdTextSetSize(PCMD pcmd)
+bool Studio::FCmdTextSetSize(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1356,7 +1356,7 @@ bool STDIO::FCmdTextSetSize(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ PETED ***********/
-bool STDIO::FCmdTextSetStyle(PCMD pcmd)
+bool Studio::FCmdTextSetStyle(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1385,7 +1385,7 @@ bool STDIO::FCmdTextSetStyle(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ PETED ***********/
-bool STDIO::FCmdTextSetFont(PCMD pcmd)
+bool Studio::FCmdTextSetFont(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1403,7 +1403,7 @@ bool STDIO::FCmdTextSetFont(PCMD pcmd)
     Load a cursor only.  Do not set the tool permanently.  Used for
     roll over cursors.
 ***************************************************************************/
-void STDIO::SetCurs(long tool)
+void Studio::SetCurs(long tool)
 {
     PCURS pcurs;
     long cursID;
@@ -1560,7 +1560,7 @@ void STDIO::SetCurs(long tool)
 /***************************************************************************
     Tell the play button to go back to Play
 ***************************************************************************/
-void STDIO::PlayStopped(void)
+void Studio::PlayStopped(void)
 {
     AssertThis(0);
 
@@ -1588,7 +1588,7 @@ void STDIO::PlayStopped(void)
 /***************************************************************************
     The movie engine changed the tool, now change the UI
 ***************************************************************************/
-void STDIO::ChangeTool(long tool)
+void Studio::ChangeTool(long tool)
 {
     AssertThis(0);
 
@@ -1648,7 +1648,7 @@ void STDIO::ChangeTool(long tool)
 /***************************************************************************
     The movie engine deleted the scene.
 ***************************************************************************/
-void STDIO::SceneNuked(void)
+void Studio::SceneNuked(void)
 {
     AssertThis(0);
 
@@ -1673,7 +1673,7 @@ void STDIO::SceneNuked(void)
 /***************************************************************************
     The movie engine Undeleted a scene.
 ***************************************************************************/
-void STDIO::SceneUnnuked(void)
+void Studio::SceneUnnuked(void)
 {
     AssertThis(0);
 
@@ -1699,7 +1699,7 @@ void STDIO::SceneUnnuked(void)
 /***************************************************************************
     The movie engine deleted an actor.
 ***************************************************************************/
-void STDIO::ActorNuked(void)
+void Studio::ActorNuked(void)
 {
     AssertThis(0);
 
@@ -1712,7 +1712,7 @@ void STDIO::ActorNuked(void)
 /***************************************************************************
     Enables/Disables the tools
 ***************************************************************************/
-void STDIO::_SetToolStates(void)
+void Studio::_SetToolStates(void)
 {
     AssertThis(0);
 
@@ -1790,7 +1790,7 @@ void STDIO::_SetToolStates(void)
 /***************************************************************************
     The movie engine inserted the first actor into the movie.
 ***************************************************************************/
-void STDIO::EnableActorTools(void)
+void Studio::EnableActorTools(void)
 {
     AssertThis(0);
 
@@ -1808,7 +1808,7 @@ void STDIO::EnableActorTools(void)
 /***************************************************************************
     The movie engine inserted the first actor into the movie.
 ***************************************************************************/
-void STDIO::EnableTboxTools(void)
+void Studio::EnableTboxTools(void)
 {
     AssertThis(0);
 
@@ -1826,7 +1826,7 @@ void STDIO::EnableTboxTools(void)
 /***************************************************************************
     The movie engine has a new selected textbox.
 ***************************************************************************/
-void STDIO::TboxSelected(void)
+void Studio::TboxSelected(void)
 {
     AssertThis(0);
 }
@@ -1834,7 +1834,7 @@ void STDIO::TboxSelected(void)
 /***************************************************************************
     The movie engine has a new undo buffer state
 ***************************************************************************/
-void STDIO::SetUndo(long undo)
+void Studio::SetUndo(long undo)
 {
     AssertThis(0);
 
@@ -1853,7 +1853,7 @@ void STDIO::SetUndo(long undo)
     Put up the costume changer / 3-D Text easel.  Returns fTrue if user
     made changes, else fFalse.
 ***************************************************************************/
-void STDIO::ActorEasel(bool *pfActrChanged)
+void Studio::ActorEasel(bool *pfActrChanged)
 {
     AssertThis(0);
     AssertVarMem(pfActrChanged);
@@ -1866,7 +1866,7 @@ void STDIO::ActorEasel(bool *pfActrChanged)
     Put up the costume changer / 3-D Text easel.  Returns fTrue if user
     made changes, else fFalse.
 ***************************************************************************/
-bool STDIO::FCmdActorEaselOpen(PCMD pcmd)
+bool Studio::FCmdActorEaselOpen(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1896,7 +1896,7 @@ bool STDIO::FCmdActorEaselOpen(PCMD pcmd)
 /***************************************************************************
     This frame has a pause type.
 ***************************************************************************/
-void STDIO::PauseType(WIT wit)
+void Studio::PauseType(WIT wit)
 {
     AssertThis(0);
 
@@ -1939,7 +1939,7 @@ void STDIO::PauseType(WIT wit)
 /***************************************************************************
     The movie engine is recording
 ***************************************************************************/
-void STDIO::Recording(bool fRecording, bool fRecord)
+void Studio::Recording(bool fRecording, bool fRecord)
 {
     AssertThis(0);
 
@@ -1974,7 +1974,7 @@ void STDIO::Recording(bool fRecording, bool fRecord)
 /***************************************************************************
     The movie engine has an actor ready to be sooner/latered
 ***************************************************************************/
-void STDIO::StartSoonerLater(void)
+void Studio::StartSoonerLater(void)
 {
     AssertThis(0);
 
@@ -2011,7 +2011,7 @@ void STDIO::StartSoonerLater(void)
 /***************************************************************************
     The movie engine has completed a sooner/later
 ***************************************************************************/
-void STDIO::EndSoonerLater(void)
+void Studio::EndSoonerLater(void)
 {
     AssertThis(0);
 
@@ -2045,7 +2045,7 @@ void STDIO::EndSoonerLater(void)
 /***************************************************************************
     The movie engine has placed an actor.
 ***************************************************************************/
-void STDIO::NewActor(void)
+void Studio::NewActor(void)
 {
     AssertThis(0);
 
@@ -2113,7 +2113,7 @@ void STDIO::NewActor(void)
 /***************************************************************************
     The RollCall needs a mapping from Tmpl CNO's to the GOKD thumb cno
 ***************************************************************************/
-bool STDIO::FAddCmg(CNO cnoTmpl, CNO cnoGokd)
+bool Studio::FAddCmg(CNO cnoTmpl, CNO cnoGokd)
 {
     AssertThis(0);
 
@@ -2140,7 +2140,7 @@ bool STDIO::FAddCmg(CNO cnoTmpl, CNO cnoGokd)
 /***************************************************************************
     Return the cnoGokd corres to the cnoTmpl
 ***************************************************************************/
-CNO STDIO::CnoGokdFromCnoTmpl(CNO cnoTmpl)
+CNO Studio::CnoGokdFromCnoTmpl(CNO cnoTmpl)
 {
     AssertThis(0);
 
@@ -2160,7 +2160,7 @@ CNO STDIO::CnoGokdFromCnoTmpl(CNO cnoTmpl)
 /***************************************************************************
     The movie engine needs the action browser for the currently selected actor
 ***************************************************************************/
-void STDIO::StartActionBrowser(void)
+void Studio::StartActionBrowser(void)
 {
     AssertThis(0);
     AssertPo(_pmvie->Pscen(), 0);
@@ -2184,7 +2184,7 @@ void STDIO::StartActionBrowser(void)
 /***************************************************************************
     Start the listener easel
 ***************************************************************************/
-void STDIO::StartListenerEasel(void)
+void Studio::StartListenerEasel(void)
 {
     AssertThis(0);
 
@@ -2194,7 +2194,7 @@ void STDIO::StartListenerEasel(void)
 /***************************************************************************
     Start the listener easel
 ***************************************************************************/
-bool STDIO::FCmdListenerEaselOpen(PCMD pcmd)
+bool Studio::FCmdListenerEaselOpen(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2210,7 +2210,7 @@ bool STDIO::FCmdListenerEaselOpen(PCMD pcmd)
     bother clearing the caches (since it's slow and requires the CD(s) to
     be in.)
 ***************************************************************************/
-bool STDIO::FShutdown(bool fClearCache)
+bool Studio::FShutdown(bool fClearCache)
 {
     AssertThis(0);
 
@@ -2234,7 +2234,7 @@ bool STDIO::FShutdown(bool fClearCache)
 /***************************************************************************
     Static function to stop the action button animation
 ***************************************************************************/
-void STDIO::PauseActionButton(void)
+void Studio::PauseActionButton(void)
 {
     PGOK pgok;
 
@@ -2249,7 +2249,7 @@ void STDIO::PauseActionButton(void)
 /***************************************************************************
     Static function to resume the action button animation
 ***************************************************************************/
-void STDIO::ResumeActionButton(void)
+void Studio::ResumeActionButton(void)
 {
     PGOK pgok;
 
@@ -2264,7 +2264,7 @@ void STDIO::ResumeActionButton(void)
 /***************************************************************************
     The movie engine is using the tool, now play the sound
 ***************************************************************************/
-void STDIO::PlayUISound(long tool, long grfcust)
+void Studio::PlayUISound(long tool, long grfcust)
 {
     AssertThis(0);
 
@@ -2477,7 +2477,7 @@ void STDIO::PlayUISound(long tool, long grfcust)
 /***************************************************************************
     The movie engine is done using the tool, now stop the sound
 ***************************************************************************/
-void STDIO::StopUISound(void)
+void Studio::StopUISound(void)
 {
     AssertThis(0);
 
@@ -2490,7 +2490,7 @@ void STDIO::StopUISound(void)
 /***************************************************************************
     Read a Misc Studio stn
 ***************************************************************************/
-void STDIO::GetStnMisc(long ids, PSTN pstn)
+void Studio::GetStnMisc(long ids, PSTN pstn)
 {
     AssertBaseThis(0);
     AssertDo(_pgstMisc->FFindExtra(&ids, pstn), "Invalid studio.cht or ids");
@@ -2506,7 +2506,7 @@ void STDIO::GetStnMisc(long ids, PSTN pstn)
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool STDIO::FCmdToggleXY(PCMD pcmd)
+bool Studio::FCmdToggleXY(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2533,7 +2533,7 @@ bool STDIO::FCmdToggleXY(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool STDIO::FCmdHelpBook(PCMD pcmd)
+bool Studio::FCmdHelpBook(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2561,7 +2561,7 @@ bool STDIO::FCmdHelpBook(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool STDIO::FCmdMovieGoto(PCMD pcmd)
+bool Studio::FCmdMovieGoto(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2581,7 +2581,7 @@ bool STDIO::FCmdMovieGoto(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool STDIO::FCmdSoundsEnabled(PCMD pcmd)
+bool Studio::FCmdSoundsEnabled(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2599,7 +2599,7 @@ bool STDIO::FCmdSoundsEnabled(PCMD pcmd)
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool STDIO::FCmdCreateTbox(PCMD pcmd)
+bool Studio::FCmdCreateTbox(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2626,7 +2626,7 @@ bool STDIO::FCmdCreateTbox(PCMD pcmd)
  *  None.
  *
  ****************************************************/
-void STDIO::UpdateTitle(PSTN pstnTitle)
+void Studio::UpdateTitle(PSTN pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);
@@ -2661,7 +2661,7 @@ void STDIO::UpdateTitle(PSTN pstnTitle)
 /******************************************************************************
         Tells the movie to write bitmaps as it plays, and plays the movie.
 ************************************************************ PETED ***********/
-bool STDIO::FCmdWriteBmps(PCMD pcmd)
+bool Studio::FCmdWriteBmps(PCMD pcmd)
 {
     if (_pmvie != pvNil)
     {
@@ -2676,7 +2676,7 @@ bool STDIO::FCmdWriteBmps(PCMD pcmd)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the STDIO
+ * Mark memory used by the Studio
  *
  * Parameters:
  *  None.
@@ -2685,10 +2685,10 @@ bool STDIO::FCmdWriteBmps(PCMD pcmd)
  *  None.
  *
  ****************************************************/
-void STDIO::MarkMem(void)
+void Studio::MarkMem(void)
 {
     AssertThis(0);
-    STDIO_PAR::MarkMem();
+    Studio_PAR::MarkMem();
     MarkMemObj(_pmvie);
     MarkMemObj(_psmcc);
     MarkMemObj(_pcrm);
@@ -2719,7 +2719,7 @@ void STDIO::MarkMem(void)
 
 /***************************************************************************
  *
- * Assert the validity of the STDIO.
+ * Assert the validity of the Studio.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -2728,9 +2728,9 @@ void STDIO::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void STDIO::AssertValid(ulong grf)
+void Studio::AssertValid(ulong grf)
 {
-    STDIO_PAR::AssertValid(fobjAllocated);
+    Studio_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pmvie, 0);
     AssertPo(_pcrm, 0);
     AssertPo(_pgstMisc, 0);

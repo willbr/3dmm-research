@@ -289,7 +289,7 @@ enum
 };
 
 typedef class GOK *PGOK;
-#define GOK_PAR GOB
+#define GOK_PAR GraphicsObject
 #define kclsGOK 'GOK'
 class GOK : public GOK_PAR
 {

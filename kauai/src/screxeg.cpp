@@ -7,7 +7,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Script interpreter for GOB based scripts.
+    Script interpreter for GraphicsObject based scripts.
 
 ***************************************************************************/
 #include "kidframe.h"
@@ -21,8 +21,8 @@ static STN _stn;
 #endif // DEBUG
 
 /***************************************************************************
-    Constructor for a GOB based script interpreter. We don't just keep
-    the pgob in case the GOB goes away while the script is running.
+    Constructor for a GraphicsObject based script interpreter. We don't just keep
+    the pgob in case the GraphicsObject goes away while the script is running.
 ***************************************************************************/
 SCEG::SCEG(PWOKS pwoks, PRCA prca, PGOB pgob) : SCEG_PAR(prca, pwoks->Pstrg())
 {
@@ -94,7 +94,7 @@ PGOB SCEG::_PgobFromHid(long hid)
 }
 
 /***************************************************************************
-    Return the address of the variable table for the GOB associated with
+    Return the address of the variable table for the GraphicsObject associated with
     this script interpreter.
 ***************************************************************************/
 PGL *SCEG::_PpglrtvmThis(void)
@@ -118,7 +118,7 @@ PGL *SCEG::_PpglrtvmGlobal(void)
 }
 
 /***************************************************************************
-    Return the address of the variable table for the GOB with given hid.
+    Return the address of the variable table for the GraphicsObject with given hid.
 ***************************************************************************/
 PGL *SCEG::_PpglrtvmRemote(long lw)
 {
@@ -198,7 +198,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing parent GOB for CreateChild(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing parent GraphicsObject for CreateChild(Gob|This) (gid = %d)"), hid));
         }
         _Push(pvNil == pgob ? hidNil : pgob->Hid());
         break;
@@ -216,7 +216,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing parent GOB for CreateHelp(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing parent GraphicsObject for CreateHelp(Gob|This) (gid = %d)"), hid));
         }
         _Push(pvNil == pgob ? hidNil : pgob->Hid());
         break;
@@ -239,7 +239,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Resize(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Resize(Gob|This) (gid = %d)"), hid));
         }
         break;
 
@@ -260,7 +260,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing GOB for MoveRel(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for MoveRel(Gob|This) (gid = %d)"), hid));
         }
         break;
 
@@ -288,7 +288,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing GOB for MoveAbs(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for MoveAbs(Gob|This) (gid = %d)"), hid));
         }
         break;
 
@@ -326,7 +326,7 @@ bool SCEG::_FExecOp(long op)
 
         if (pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for RunScript[Cno](Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for RunScript[Cno](Gob|This) (gid = %d)"), hid));
             lw2 = 0;
         }
         else
@@ -355,7 +355,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK) || !FIn(lw1, 0, kswMax))
         {
-            Debug(_WarnSz(PszLit("Missing GOB or state out of range for ")
+            Debug(_WarnSz(PszLit("Missing GraphicsObject or state out of range for ")
                               PszLit("ChangeState(Gob|This) (gid = %d, sno = %d)"),
                           hid, lw1));
         }
@@ -373,7 +373,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Animate(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Animate(Gob|This) (gid = %d)"), hid));
         }
         else
         {
@@ -389,7 +389,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for SetPicture(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for SetPicture(Gob|This) (gid = %d)"), hid));
         }
         else
         {
@@ -405,7 +405,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for SetRep(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for SetRep(Gob|This) (gid = %d)"), hid));
         }
         else
         {
@@ -421,7 +421,7 @@ bool SCEG::_FExecOp(long op)
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
             lw1 = 0;
-            Debug(_WarnSz(PszLit("Missing GOB for State(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for State(Gob|This) (gid = %d)"), hid));
         }
         else
             lw1 = ((PGOK)pgob)->Sno();
@@ -567,7 +567,7 @@ bool SCEG::_FExecOp(long op)
     case kopYMouseThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for (X|Y)Mouse(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for (X|Y)Mouse(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
@@ -591,7 +591,7 @@ bool SCEG::_FExecOp(long op)
     case kopYThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for (X|Y)(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for (X|Y)(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else if (pgob->FIs(kclsGOK))
@@ -614,7 +614,7 @@ bool SCEG::_FExecOp(long op)
     case kopZThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Z(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Z(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
@@ -628,7 +628,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for SetZ(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for SetZ(Gob|This) (gid = %d)"), hid));
         }
         else
             ((PGOK)pgob)->SetZPlane(lw1);
@@ -648,7 +648,7 @@ bool SCEG::_FExecOp(long op)
         dtim = _LwPop();
         if (_fError || pvNil == (pgob = _PgobThis()))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Cell[NoPause] (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Cell[NoPause] (gid = %d)"), hid));
         }
         else
         {
@@ -731,7 +731,7 @@ bool SCEG::_FExecOp(long op)
     case kopPlayThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Play(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Play(Gob|This) (gid = %d)"), hid));
         }
         else
             ((PGOK)pgob)->FPlay();
@@ -743,7 +743,7 @@ bool SCEG::_FExecOp(long op)
     case kopPlayingThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Playing(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Playing(Gob|This) (gid = %d)"), hid));
             _Push(fFalse);
         }
         else
@@ -756,7 +756,7 @@ bool SCEG::_FExecOp(long op)
     case kopStopThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Stop(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Stop(Gob|This) (gid = %d)"), hid));
         }
         else
             ((PGOK)pgob)->Stop();
@@ -768,7 +768,7 @@ bool SCEG::_FExecOp(long op)
     case kopCurFrameThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for (CurFrame(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for (CurFrame(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
@@ -781,7 +781,7 @@ bool SCEG::_FExecOp(long op)
     case kopCountFramesThis:
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for CountFrames(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for CountFrames(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         else
@@ -795,7 +795,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for GotoFrame(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for GotoFrame(Gob|This) (gid = %d)"), hid));
         }
         else
             ((PGOK)pgob)->GotoNfr(lw1);
@@ -810,7 +810,7 @@ bool SCEG::_FExecOp(long op)
         lw3 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for FilterCmds(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for FilterCmds(Gob|This) (gid = %d)"), hid));
         }
         else if (!((PGOK)pgob)->FFilterCidHid(lw1, lw2, lw3))
         {
@@ -953,7 +953,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing GOB for (Width|Height)(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for (Width|Height)(Gob|This) (gid = %d)"), hid));
             _Push(0);
         }
         break;
@@ -969,7 +969,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing GOB for SetNoSlip(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for SetNoSlip(Gob|This) (gid = %d)"), hid));
         }
         break;
 
@@ -1023,7 +1023,7 @@ bool SCEG::_FExecOp(long op)
         }
         else
         {
-            Debug(_WarnSz(PszLit("Missing GOB for SetToolTipSource(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for SetToolTipSource(Gob|This) (gid = %d)"), hid));
         }
         break;
 
@@ -1050,7 +1050,7 @@ bool SCEG::_FExecOp(long op)
         lw1 = _LwPop();
         if (_fError || pvNil == (pgob = _PgobFromHid(hid)) || !pgob->FIs(kclsGOK))
         {
-            Debug(_WarnSz(PszLit("Missing GOB for Stream(Gob|This) (gid = %d)"), hid));
+            Debug(_WarnSz(PszLit("Missing GraphicsObject for Stream(Gob|This) (gid = %d)"), hid));
         }
         else
             ((PGOK)pgob)->Stream(FPure(lw1));

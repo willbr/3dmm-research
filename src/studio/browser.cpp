@@ -137,7 +137,7 @@ PBRWD BRWD::PbrwdNew(PRCA prca, long kidPar, long kidGlass)
 
 /****************************************************
  *
- * Build the GOB creation block
+ * Build the GraphicsObject creation block
  *
  ****************************************************/
 bool BRWD::_FBuildGcb(GCB *pgcb, long kidPar, long kidGlass)
@@ -491,7 +491,7 @@ long BRWD::_KidThumFromIfrm(long ifrm)
     if (_ithumPageFirst + ifrm == _ithumOverride)
         kidThum = _kidThumOverride;
     else
-        kidThum = GOB::HidUnique();
+        kidThum = GraphicsObject::HidUnique();
 
     return kidThum;
 }
@@ -2505,7 +2505,7 @@ bool BRWT::_FSetThumFrame(long istn, PGOB pgobPar)
     Assert(pvNil != ptgob, "No TGOB for the text");
     if (pvNil != ptgob)
     {
-        Assert(ptgob->FIs(kclsTGOB), "GOB isn't a TGOB");
+        Assert(ptgob->FIs(kclsTGOB), "GraphicsObject isn't a TGOB");
         if (ptgob->FIs(kclsTGOB))
         {
             ptgob->SetText(&stnLabel);

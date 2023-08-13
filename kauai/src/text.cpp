@@ -73,11 +73,11 @@ void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, AC
 /***************************************************************************
     Constructor for edit control.
 ***************************************************************************/
-EDCB::EDCB(PGCB pgcb, long cmhl) : GOB(pgcb)
+EDCB::EDCB(PGCB pgcb, long cmhl) : GraphicsObject(pgcb)
 {
     AssertBaseThis(0);
     _cmhl = cmhl;
-    _fMark = (kginMark == pgcb->_gin || kginDefault == pgcb->_gin && kginMark == GOB::GinDefault());
+    _fMark = (kginMark == pgcb->_gin || kginDefault == pgcb->_gin && kginMark == GraphicsObject::GinDefault());
     _pgnv = pvNil;
 }
 
@@ -440,7 +440,7 @@ void EDCB::_GetRcContent(RC *prc)
 }
 
 /***************************************************************************
-    Set the vis for the GNV to be the intersection of the GOB's vis and
+    Set the vis for the GNV to be the intersection of the GraphicsObject's vis and
     the content rc.
 ***************************************************************************/
 void EDCB::_InitGnv(PGNV pgnv)
@@ -1858,7 +1858,7 @@ long EDMW::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax
 }
 
 /***************************************************************************
-    The size of the GOB changed - relayout.
+    The size of the GraphicsObject changed - relayout.
 ***************************************************************************/
 void EDMW::_NewRc(void)
 {

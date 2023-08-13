@@ -47,7 +47,7 @@ class EDPAR
     Edit control base class.
 ***************************************************************************/
 typedef class EDCB *PEDCB;
-#define EDCB_PAR GOB
+#define EDCB_PAR GraphicsObject
 #define kclsEDCB 'EDCB'
 class EDCB : public EDCB_PAR
 {

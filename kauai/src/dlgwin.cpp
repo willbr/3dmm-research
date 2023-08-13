@@ -276,7 +276,7 @@ BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
             goto LFail;
 
         // create a container gob and attach the hdlg
-        pdlg->_pgob = NewObj GOB(khidDialog);
+        pdlg->_pgob = NewObj GraphicsObject(khidDialog);
         if (pdlg->_pgob == pvNil)
             goto LFail;
         if (!pdlg->_pgob->FAttachHwnd((HWND)hdlg))

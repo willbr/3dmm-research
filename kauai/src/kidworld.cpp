@@ -185,7 +185,7 @@ void GKDS::GetLop(long hidPar, LOP *plop)
 }
 
 /***************************************************************************
-    Constructor for a World of Kidspace GOB.
+    Constructor for a World of Kidspace GraphicsObject.
 ***************************************************************************/
 WOKS::WOKS(GCB *pgcb, PSTRG pstrg)
     : WOKS_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
@@ -235,7 +235,7 @@ void WOKS::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    Return whether the GOB is in this kidspace world.
+    Return whether the GraphicsObject is in this kidspace world.
 ***************************************************************************/
 bool WOKS::FGobIn(PGOB pgob)
 {

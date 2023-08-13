@@ -89,7 +89,7 @@ SCRT::~SCRT(void)
     if (_pmvie != pvNil)
         ReleasePpo(&_pmvie);
 
-    /* Kill the glass GOB (it's not a child of me) */
+    /* Kill the glass GraphicsObject (it's not a child of me) */
     pgob = vpapp->Pkwa()->PgobFromHid(kidGenericDisableGlass);
     ReleasePpo(&pgob);
 
@@ -124,7 +124,7 @@ PSCRT SCRT::PscrtNew(long hid, PMVIE pmvie, PSTDIO pstdio, PRCA prca)
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(kidBackground)) == pvNil)
     {
-        Bug("Couldn't find background GOB");
+        Bug("Couldn't find background GraphicsObject");
         goto LFail;
     }
 
@@ -218,7 +218,7 @@ bool SCRT::FCmdInit(PCMD pcmd)
         PGOMP pgomp;
         PGOB pgobThumb;
 
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GOB isn't a GOK");
+        Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
 
         pgobThumb = (PGOK)pgokFrame->PgobFirstChild();
         Assert(pgobThumb != pvNil, "Frame has no children");
@@ -266,7 +266,7 @@ bool SCRT::FCmdSelect(PCMD pcmd)
     {
         _iscenCur = iscen;
 
-        /* Fill in thumbnail for selection GOB */
+        /* Fill in thumbnail for selection GraphicsObject */
         if (_FResetThumbnails(fFalse))
             _SetSelectionVis(fTrue);
         else
@@ -573,7 +573,7 @@ void SCRT::_SetSelectionVis(bool fShow, bool fHideSel)
         {
             long lwState;
 
-            Assert(pgok->FIs(kclsGOK), "Didn't get a GOK GOB");
+            Assert(pgok->FIs(kclsGOK), "Didn't get a GOK GraphicsObject");
             lwState = fShow ? (fHideSel ? kstBrowserScrollingSel : kstBrowserSelected) : kstBrowserEnabled;
             if (pgok->Sno() != lwState)
                 pgok->FChangeState(lwState);
@@ -619,8 +619,8 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
             Bug("Couldn't find thumbnail or its frame");
             goto LFail;
         }
-        Assert(pgomp->FIs(kclsGOMP), "Thumbnail GOB isn't a GOMP");
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GOB isn't a GOK");
+        Assert(pgomp->FIs(kclsGOMP), "Thumbnail GraphicsObject isn't a GOMP");
+        Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
         if (iscen < _iscenMac)
         {
             long lwStateNew;
@@ -660,7 +660,7 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
         _cmvi.pglscend->Get(_iscenCur, &scend);
         pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameCur);
         Assert(pgokFrame != pvNil, "Selection GOK is missing");
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GOB isn't a GOK");
+        Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
         pgomp = GOMP::PgompFromHidScr(kidCur);
         Assert(pgomp != pvNil, "Selection GOMP is missing");
         _FResetTransition(pgokFrame, scend.trans);
@@ -705,7 +705,7 @@ bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
     pgokThumb = (PGOK)pgokPar->PgobFirstChild();
     Assert(pgokThumb->FIs(kclsGOK), "First child wasn't a GOK");
     pgokTrans = (PGOK)pgokThumb->PgobNextSib();
-    Assert(pgokTrans->FIs(kclsGOK), "Transition GOB isn't a GOK");
+    Assert(pgokTrans->FIs(kclsGOK), "Transition GraphicsObject isn't a GOK");
     while (lwTrans--)
     {
         lwStateCur = pgokTrans->Sno();
@@ -716,7 +716,7 @@ bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
             pgokTrans->FChangeState(lwStateNew);
         }
         pgokTrans = (PGOK)pgokTrans->PgobNextSib();
-        Assert(pgokTrans == pvNil || pgokTrans->FIs(kclsGOK), "Transition GOB isn't a GOK");
+        Assert(pgokTrans == pvNil || pgokTrans->FIs(kclsGOK), "Transition GraphicsObject isn't a GOK");
     }
 
     return fRedrawTrans;
@@ -795,7 +795,7 @@ void GOMP::MarkMem(void)
         PMBMP pmbmp  -- the MBMP to use when drawing this GOMP
 
 ************************************************************ PETED ***********/
-GOMP::GOMP(PGCB pgcb) : GOB(pgcb)
+GOMP::GOMP(PGCB pgcb) : GraphicsObject(pgcb)
 {
     _pmbmp = pvNil;
     AssertThis(0);
@@ -905,6 +905,6 @@ PGOMP GOMP::PgompFromHidScr(long hid)
 
     pgomp = (PGOMP)vapp.Pkwa()->PgobFromHid(hid);
     if (pgomp != pvNil)
-        Assert(pgomp->FIs(kclsGOMP), "GOB isn't a GOMP");
+        Assert(pgomp->FIs(kclsGOMP), "GraphicsObject isn't a GOMP");
     return pgomp;
 }
