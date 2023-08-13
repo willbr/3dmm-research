@@ -21,7 +21,7 @@ namespace Help {
 /***************************************************************************
     Help topic construction information.
 ***************************************************************************/
-struct HTOP
+struct Topic
 {
     ChunkNumber cnoBalloon;
     long hidThis;
@@ -31,7 +31,7 @@ struct HTOP
     long dyp;
     ChunkIdentification ckiSnd;
 };
-typedef HTOP *PHTOP;
+typedef Topic *PTopic;
 const ByteOrderMask kbomHtop = 0xFFF00000;
 
 // help topic on file
@@ -39,7 +39,7 @@ struct HTOPF
 {
     short bo;
     short osk;
-    HTOP htop;
+    Topic htop;
 };
 
 // edit control object
@@ -75,7 +75,7 @@ class TextDocument : public TextDocument_PAR
     };
 
     PRCA _prca;         // source of pictures and buttons
-    HTOP _htop;         // our gob creation information
+    Topic _htop;         // our gob creation information
     bool _fHideButtons; // whether to draw buttons
 
     TextDocument(PRCA prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
@@ -104,8 +104,8 @@ class TextDocument : public TextDocument_PAR
     bool FGrouped(long cp, long *pcpMin = pvNil, long *pcpLim = pvNil, byte *pbGroup = pvNil, ChunkNumber *pcnoTopic = pvNil,
                   PSTN pstnTopic = pvNil);
 
-    void GetHtop(PHTOP phtop);
-    void SetHtop(PHTOP phtop);
+    void GetHtop(PTopic phtop);
+    void SetHtop(PTopic phtop);
     void HideButtons(bool fHide = fTrue)
     {
         _fHideButtons = FPure(fHide);
@@ -166,14 +166,14 @@ class Balloon : public Balloon_PAR
 
     Balloon(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca);
-    virtual bool _FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PRCA prca);
+    virtual bool _FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca);
 
   public:
-    static PBalloon PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
-    static PBalloon PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop = pvNil);
+    static PBalloon PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PTopic phtop = pvNil);
+    static PBalloon PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PTopic phtop = pvNil);
 
-    virtual bool FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca);
+    virtual bool FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca);
 };
 
 /***************************************************************************

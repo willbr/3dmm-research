@@ -26,8 +26,8 @@ typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
 namespace Help {
    class Balloon;
    typedef class Balloon *PBalloon;
-   struct HTOP;
-   typedef struct HTOP *PHTOP;
+   struct Topic;
+   typedef struct Topic *PTopic;
 }
 
 #include "scrcomg.h"

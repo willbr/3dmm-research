@@ -1228,7 +1228,7 @@ bool KidspaceGraphicObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xp
     AssertVarMem(ppgobCurTip);
     AssertNilOrPo(*ppgobCurTip, 0);
     ChunkNumber cno;
-    HTOP htop;
+    Topic htop;
     PKidspaceGraphicObject pgokSrc;
 
     ReleasePpo(ppgobCurTip);

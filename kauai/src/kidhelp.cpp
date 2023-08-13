@@ -118,7 +118,7 @@ bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, 
     else
         pcfl->AddRef();
 
-    // The old version of HTOP didn't have the ckiSnd - accept both old and new
+    // The old version of Topic didn't have the ckiSnd - accept both old and new
     // versions.
     htopf.htop.ckiSnd.ctg = ctgNil;
     htopf.htop.ckiSnd.cno = cnoNil;
@@ -634,7 +634,7 @@ bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, 
 /***************************************************************************
     Get the help topic information.
 ***************************************************************************/
-void TextDocument::GetHtop(PHTOP phtop)
+void TextDocument::GetHtop(PTopic phtop)
 {
     AssertThis(0);
     AssertVarMem(phtop);
@@ -645,7 +645,7 @@ void TextDocument::GetHtop(PHTOP phtop)
 /***************************************************************************
     Set the topic info.
 ***************************************************************************/
-void TextDocument::SetHtop(PHTOP phtop)
+void TextDocument::SetHtop(PTopic phtop)
 {
     AssertThis(0);
     AssertVarMem(phtop);
@@ -910,7 +910,7 @@ bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, a
 
     PSCPT pscpt;
     PSCEG psceg;
-    HTOP htop;
+    Topic htop;
     bool fRet = fTrue;
     PTextDocument ptxhd = Ptxhd();
     PRCA prca = ptxhd->Prca();
@@ -994,7 +994,7 @@ void TopicGraphicsObject::SetCursor(ulong grfcust)
 /***************************************************************************
     Create a new help topic balloon based on the given topic number.
 ***************************************************************************/
-PBalloon Balloon::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop)
+PBalloon Balloon::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PTopic phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1023,14 +1023,14 @@ PBalloon Balloon::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, P
     Static method to create a new help balloon based on the given help
     topic document and htop.
 ***************************************************************************/
-PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop)
+PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PTopic phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
     AssertPo(ptxhd, 0);
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
-    HTOP htop;
+    Topic htop;
     GraphicsObjectBlock gcb;
     PBalloon phbal;
     long grid;
@@ -1118,7 +1118,7 @@ Balloon::Balloon(GraphicsObjectBlock *pgcb) : Balloon_PAR(pgcb)
 /***************************************************************************
     Initialize the help balloon.
 ***************************************************************************/
-bool Balloon::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca)
+bool Balloon::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
@@ -1135,7 +1135,7 @@ bool Balloon::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, P
     Set the topic for this balloon.  Returns false if setting the topic
     fails or if the balloon is instantly killed by a script.
 ***************************************************************************/
-bool Balloon::FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
+bool Balloon::FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca)
 {
     AssertThis(0);
     AssertPo(ptxhd, 0);
@@ -1151,7 +1151,7 @@ bool Balloon::FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 /***************************************************************************
     Set the topic in the help balloon.  Don't enter the initial state.
 ***************************************************************************/
-bool Balloon::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
+bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);

@@ -1185,7 +1185,7 @@ bool HEDG::FCmdPrint(PCMD pcmd)
     long dxpTopic;
     long dypLine, dyp;
     long ilin;
-    HTOP htop;
+    Topic htop;
 
     PHETD phetd = pvNil;
     PHETG phetg = pvNil;
@@ -2125,7 +2125,7 @@ bool HETD::FDoReplace(long cp1, long cp2, long *pcpMin, long *pcpLim)
 }
 
 /***************************************************************************
-    Get a string corresponding to an entry in the HTOP. -1 means get the
+    Get a string corresponding to an entry in the Topic. -1 means get the
     topic description.
 ***************************************************************************/
 void HETD::GetHtopStn(long istn, PSTN pstn)
