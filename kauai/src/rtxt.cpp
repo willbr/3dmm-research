@@ -16,7 +16,7 @@ ASSERTNAME
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
 RTCLASS(RichTextDocument)
-RTCLASS(TXTG)
+RTCLASS(TextDocumentGraphicsObject)
 RTCLASS(TXLG)
 RTCLASS(TXRG)
 RTCLASS(RichTextUndo)
@@ -322,8 +322,8 @@ void TextDocumentBase::HideSel(void)
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
 
-    if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTXTG))
-        ((PTXTG)pddg)->HideSel();
+    if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTextDocumentGraphicsObject))
+        ((PTextDocumentGraphicsObject)pddg)->HideSel();
 }
 
 /***************************************************************************
@@ -334,8 +334,8 @@ void TextDocumentBase::SetSel(long cpAnchor, long cpOther, long gin)
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
 
-    if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTXTG))
-        ((PTXTG)pddg)->SetSel(cpAnchor, cpOther, gin);
+    if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTextDocumentGraphicsObject))
+        ((PTextDocumentGraphicsObject)pddg)->SetSel(cpAnchor, cpOther, gin);
 }
 
 /***************************************************************************
@@ -347,8 +347,8 @@ void TextDocumentBase::ShowSel(void)
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
 
-    if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTXTG))
-        ((PTXTG)pddg)->ShowSel();
+    if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTextDocumentGraphicsObject))
+        ((PTextDocumentGraphicsObject)pddg)->ShowSel();
 }
 
 /***************************************************************************
@@ -685,8 +685,8 @@ void TextDocumentBase::InvalAllDdg(long cp, long ccpIns, long ccpDel, ulong grfd
     // inform the DDGs
     for (ipddg = 0; pvNil != (pddg = PddgGet(ipddg)); ipddg++)
     {
-        if ((grfdoc & fdocUpdate) && pddg->FIs(kclsTXTG))
-            ((PTXTG)pddg)->InvalCp(cp, ccpIns, ccpDel);
+        if ((grfdoc & fdocUpdate) && pddg->FIs(kclsTextDocumentGraphicsObject))
+            ((PTextDocumentGraphicsObject)pddg)->InvalCp(cp, ccpIns, ccpDel);
         else
             pddg->InvalRc(pvNil);
     }

@@ -2662,14 +2662,14 @@ void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
     long cpMin, cpMac;
     long cpMinChp, cpMacChp;
     CHP chp;
-    PTXTG ptxtg;
+    PTextDocumentGraphicsObject ptxtg;
 
-    ptxtg = (PTXTG)PddgActive();
+    ptxtg = (PTextDocumentGraphicsObject)PddgActive();
     if (ptxtg == pvNil)
         goto LFail;
-    if (!ptxtg->FIs(kclsTXTG))
+    if (!ptxtg->FIs(kclsTextDocumentGraphicsObject))
     {
-        Bug("DocumentDisplayGraphicsObject isn't a TXTG");
+        Bug("DocumentDisplayGraphicsObject isn't a TextDocumentGraphicsObject");
     LFail:
         *pgrfchp = 0;
         return;

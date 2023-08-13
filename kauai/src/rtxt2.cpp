@@ -487,7 +487,7 @@ void CHR::_DoTab(void)
 /***************************************************************************
     Constructor for the text document display GraphicsObject.
 ***************************************************************************/
-TXTG::TXTG(PTextDocumentBase ptxtb, PGCB pgcb) : TXTG_PAR(ptxtb, pgcb)
+TextDocumentGraphicsObject::TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGCB pgcb) : TextDocumentGraphicsObject_PAR(ptxtb, pgcb)
 {
     AssertBaseThis(0);
     _ptxtb = ptxtb;
@@ -496,9 +496,9 @@ TXTG::TXTG(PTextDocumentBase ptxtb, PGCB pgcb) : TXTG_PAR(ptxtb, pgcb)
 }
 
 /***************************************************************************
-    Destructor for TXTG.
+    Destructor for TextDocumentGraphicsObject.
 ***************************************************************************/
-TXTG::~TXTG(void)
+TextDocumentGraphicsObject::~TextDocumentGraphicsObject(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgllin);
@@ -507,25 +507,25 @@ TXTG::~TXTG(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXTG.
+    Assert the validity of a TextDocumentGraphicsObject.
 ***************************************************************************/
-void TXTG::AssertValid(ulong grf)
+void TextDocumentGraphicsObject::AssertValid(ulong grf)
 {
-    TXTG_PAR::AssertValid(0);
+    TextDocumentGraphicsObject_PAR::AssertValid(0);
     AssertPo(_pgllin, 0);
     AssertIn(_ilinInval, 0, _pgllin->IvMac() + 1);
     AssertPo(_pgnv, 0);
     AssertNilOrPo(_ptrul, 0);
-    // REVIEW shonk: TXTG::AssertValid: fill out.
+    // REVIEW shonk: TextDocumentGraphicsObject::AssertValid: fill out.
 }
 
 /***************************************************************************
-    Mark memory for the TXTG.
+    Mark memory for the TextDocumentGraphicsObject.
 ***************************************************************************/
-void TXTG::MarkMem(void)
+void TextDocumentGraphicsObject::MarkMem(void)
 {
     AssertValid(0);
-    TXTG_PAR::MarkMem();
+    TextDocumentGraphicsObject_PAR::MarkMem();
     MarkMemObj(_pgllin);
     MarkMemObj(_pgnv);
 }
@@ -534,12 +534,12 @@ void TXTG::MarkMem(void)
 /***************************************************************************
     Initialize the text document display gob.
 ***************************************************************************/
-bool TXTG::_FInit(void)
+bool TextDocumentGraphicsObject::_FInit(void)
 {
     AssertBaseThis(0);
     PGPT pgpt;
 
-    if (!TXTG_PAR::_FInit())
+    if (!TextDocumentGraphicsObject_PAR::_FInit())
         return fFalse;
     if (pvNil == (_pgllin = GL::PglNew(size(LIN))))
         return fFalse;
@@ -581,13 +581,13 @@ bool TXTG::_FInit(void)
 }
 
 /***************************************************************************
-    Deactivate the TXTG - turn off the selection.
+    Deactivate the TextDocumentGraphicsObject - turn off the selection.
 ***************************************************************************/
-void TXTG::_Activate(bool fActive)
+void TextDocumentGraphicsObject::_Activate(bool fActive)
 {
     AssertThis(0);
 
-    TXTG_PAR::_Activate(fActive);
+    TextDocumentGraphicsObject_PAR::_Activate(fActive);
     if (!fActive)
         _SwitchSel(fFalse, kginSysInval);
 }
@@ -597,7 +597,7 @@ void TXTG::_Activate(bool fActive)
     _CalcLine is called repeatedly and new lines are added to _pgllin.
     The actual index of the returned line is put in *pilinActual (if not nil).
 ***************************************************************************/
-void TXTG::_FetchLin(long ilin, LIN *plin, long *pilinActual)
+void TextDocumentGraphicsObject::_FetchLin(long ilin, LIN *plin, long *pilinActual)
 {
     AssertThis(0);
     AssertIn(ilin, 0, kcbMax);
@@ -680,7 +680,7 @@ void TXTG::_FetchLin(long ilin, LIN *plin, long *pilinActual)
     If fCalcLines is false, we won't calculate any new lines and the
     returned LIN may be before cpFind.
 ***************************************************************************/
-void TXTG::_FindCp(long cpFind, LIN *plin, long *pilin, bool fCalcLines)
+void TextDocumentGraphicsObject::_FindCp(long cpFind, LIN *plin, long *pilin, bool fCalcLines)
 {
     AssertThis(0);
     AssertIn(cpFind, 0, _ptxtb->CpMac());
@@ -800,7 +800,7 @@ void TXTG::_FindCp(long cpFind, LIN *plin, long *pilin, bool fCalcLines)
     If fCalcLines is false, we won't calculate any new lines and the
     returned LIN may be before dypFind.
 ***************************************************************************/
-void TXTG::_FindDyp(long dypFind, LIN *plin, long *pilin, bool fCalcLines)
+void TextDocumentGraphicsObject::_FindDyp(long dypFind, LIN *plin, long *pilin, bool fCalcLines)
 {
     AssertThis(0);
     AssertIn(dypFind, 0, kcbMax);
@@ -934,7 +934,7 @@ void TXTG::_FindDyp(long dypFind, LIN *plin, long *pilin, bool fCalcLines)
     Recalculate the _pgllin after an edit.  Sets *pyp, *pdypIns, *pdypDel
     to indicate the vertical display space that was affected.
 ***************************************************************************/
-void TXTG::_Reformat(long cp, long ccpIns, long ccpDel, long *pyp, long *pdypIns, long *pdypDel)
+void TextDocumentGraphicsObject::_Reformat(long cp, long ccpIns, long ccpDel, long *pyp, long *pdypIns, long *pdypDel)
 {
     AssertThis(0);
     AssertIn(cp, 0, _ptxtb->CpMac());
@@ -1089,7 +1089,7 @@ void TXTG::_Reformat(long cp, long ccpIns, long ccpDel, long *pyp, long *pdypIns
     Calculate the end of the line, the left position of the line, the height
     of the line and the ascent of the line.
 ***************************************************************************/
-void TXTG::_CalcLine(long cpMin, long dypBase, LIN *plin)
+void TextDocumentGraphicsObject::_CalcLine(long cpMin, long dypBase, LIN *plin)
 {
     AssertThis(0);
     AssertIn(cpMin, 0, _ptxtb->CpMac());
@@ -1212,7 +1212,7 @@ void TXTG::_CalcLine(long cpMin, long dypBase, LIN *plin)
     cp boundary that the point is closest to (for traditional selection).
     If fClosest is false, it finds the character that the point is over.
 ***************************************************************************/
-bool TXTG::_FGetCpFromPt(long xp, long yp, long *pcp, bool fClosest)
+bool TextDocumentGraphicsObject::_FGetCpFromPt(long xp, long yp, long *pcp, bool fClosest)
 {
     AssertThis(0);
     AssertVarMem(pcp);
@@ -1242,7 +1242,7 @@ bool TXTG::_FGetCpFromPt(long xp, long yp, long *pcp, bool fClosest)
     that the xp is over. This only returns false if fClosest is false and
     the xp is before the beginning of the line.
 ***************************************************************************/
-bool TXTG::_FGetCpFromXp(long xp, LIN *plin, long *pcp, bool fClosest)
+bool TextDocumentGraphicsObject::_FGetCpFromXp(long xp, LIN *plin, long *pcp, bool fClosest)
 {
     AssertThis(0);
     AssertVarMem(plin);
@@ -1337,7 +1337,7 @@ bool TXTG::_FGetCpFromXp(long xp, LIN *plin, long *pcp, bool fClosest)
     view coordinates. If fView is false, the values are in logical values
     (independent of the current scrolling of the view).
 ***************************************************************************/
-void TXTG::_GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *pypBaseLine, bool fView)
+void TextDocumentGraphicsObject::_GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *pypBaseLine, bool fView)
 {
     AssertThis(0);
     AssertIn(cp, 0, _ptxtb->CpMac());
@@ -1373,7 +1373,7 @@ void TXTG::_GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *
     kdxpIndentTxtg, but doesn't include centering or right justification
     correction.
 ***************************************************************************/
-long TXTG::_DxpFromCp(long cpLine, long cp)
+long TextDocumentGraphicsObject::_DxpFromCp(long cpLine, long cp)
 {
     AssertThis(0);
     AssertIn(cpLine, 0, _ptxtb->CpMac());
@@ -1420,7 +1420,7 @@ long TXTG::_DxpFromCp(long cpLine, long cp)
 /***************************************************************************
     Replaces the characters between cp1 and cp2 with the given ones.
 ***************************************************************************/
-bool TXTG::FReplace(achar *prgch, long cch, long cp1, long cp2)
+bool TextDocumentGraphicsObject::FReplace(achar *prgch, long cch, long cp1, long cp2)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1440,9 +1440,9 @@ bool TXTG::FReplace(achar *prgch, long cch, long cp1, long cp2)
 }
 
 /***************************************************************************
-    Invalidate the display from cp.  If we're the active TXTG, also redraw.
+    Invalidate the display from cp.  If we're the active TextDocumentGraphicsObject, also redraw.
 ***************************************************************************/
-void TXTG::InvalCp(long cp, long ccpIns, long ccpDel)
+void TextDocumentGraphicsObject::InvalCp(long cp, long ccpIns, long ccpDel)
 {
     AssertThis(0);
     AssertIn(cp, 0, _ptxtb->CpMac() + 1);
@@ -1472,10 +1472,10 @@ void TXTG::InvalCp(long cp, long ccpIns, long ccpDel)
 }
 
 /***************************************************************************
-    Reformat the TXTG and update the display.  If this TXTG is not the
+    Reformat the TextDocumentGraphicsObject and update the display.  If this TextDocumentGraphicsObject is not the
     active one, the display is invalidated instead of updated.
 ***************************************************************************/
-void TXTG::_ReformatAndDraw(long cp, long ccpIns, long ccpDel)
+void TextDocumentGraphicsObject::_ReformatAndDraw(long cp, long ccpIns, long ccpDel)
 {
     RC rcLoc, rc;
     long yp, dypIns, dypDel;
@@ -1526,7 +1526,7 @@ void TXTG::_ReformatAndDraw(long cp, long ccpIns, long ccpDel)
 /***************************************************************************
     Perform a scroll according to scaHorz and scaVert.
 ***************************************************************************/
-void TXTG::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
+void TextDocumentGraphicsObject::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
 {
     RC rc;
     long dxp, dyp;
@@ -1661,7 +1661,7 @@ void TXTG::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
 /***************************************************************************
     Move the bits in the window.
 ***************************************************************************/
-void TXTG::_ScrollDxpDyp(long dxp, long dyp)
+void TextDocumentGraphicsObject::_ScrollDxpDyp(long dxp, long dyp)
 {
     AssertThis(0);
     RC rcLoc, rcBad1, rcBad2;
@@ -1683,7 +1683,7 @@ void TXTG::_ScrollDxpDyp(long dxp, long dyp)
 /***************************************************************************
     Update the display of the document.
 ***************************************************************************/
-void TXTG::Draw(PGNV pgnv, RC *prcClip)
+void TextDocumentGraphicsObject::Draw(PGNV pgnv, RC *prcClip)
 {
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
@@ -1697,7 +1697,7 @@ void TXTG::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draws some lines of the document.
 ***************************************************************************/
-void TXTG::DrawLines(PGNV pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim, ulong grftxtg)
+void TextDocumentGraphicsObject::DrawLines(PGNV pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim, ulong grftxtg)
 {
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
@@ -1789,14 +1789,14 @@ void TXTG::DrawLines(PGNV pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, l
     Gives a subclass an opportunity to draw extra stuff associated with
     the line. Default does nothing.
 ***************************************************************************/
-void TXTG::_DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg)
+void TextDocumentGraphicsObject::_DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg)
 {
 }
 
 /***************************************************************************
-    Handle a mousedown in the TXTG.
+    Handle a mousedown in the TextDocumentGraphicsObject.
 ***************************************************************************/
-bool TXTG::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TextDocumentGraphicsObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1869,7 +1869,7 @@ bool TXTG::FCmdTrackMouse(PCMD_MOUSE pcmd)
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool TXTG::FCmdSelIdle(PCMD pcmd)
+bool TextDocumentGraphicsObject::FCmdSelIdle(PCMD pcmd)
 {
     AssertThis(0);
 
@@ -1890,7 +1890,7 @@ bool TXTG::FCmdSelIdle(PCMD pcmd)
 /***************************************************************************
     Get the current selection.
 ***************************************************************************/
-void TXTG::GetSel(long *pcpAnchor, long *pcpOther)
+void TextDocumentGraphicsObject::GetSel(long *pcpAnchor, long *pcpOther)
 {
     AssertThis(0);
     AssertVarMem(pcpAnchor);
@@ -1903,7 +1903,7 @@ void TXTG::GetSel(long *pcpAnchor, long *pcpOther)
 /***************************************************************************
     Set the selection.
 ***************************************************************************/
-void TXTG::SetSel(long cpAnchor, long cpOther, long gin)
+void TextDocumentGraphicsObject::SetSel(long cpAnchor, long cpOther, long gin)
 {
     AssertThis(0);
     long cpMac = _ptxtb->CpMac();
@@ -1945,7 +1945,7 @@ void TXTG::SetSel(long cpAnchor, long cpOther, long gin)
 /***************************************************************************
     Make sure the selection is visible (at least the _cpOther end of it).
 ***************************************************************************/
-void TXTG::ShowSel(void)
+void TextDocumentGraphicsObject::ShowSel(void)
 {
     AssertThis(0);
     long cpScroll;
@@ -2028,7 +2028,7 @@ void TXTG::ShowSel(void)
 /***************************************************************************
     Turn the selection off.
 ***************************************************************************/
-void TXTG::HideSel(void)
+void TextDocumentGraphicsObject::HideSel(void)
 {
     AssertThis(0);
 
@@ -2042,7 +2042,7 @@ void TXTG::HideSel(void)
 /***************************************************************************
     Turn the sel on or off according to fOn.
 ***************************************************************************/
-void TXTG::_SwitchSel(bool fOn, long gin)
+void TextDocumentGraphicsObject::_SwitchSel(bool fOn, long gin)
 {
     AssertThis(0);
 
@@ -2060,7 +2060,7 @@ void TXTG::_SwitchSel(bool fOn, long gin)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void TXTG::_InvertSel(PGNV pgnv, long gin)
+void TextDocumentGraphicsObject::_InvertSel(PGNV pgnv, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2087,7 +2087,7 @@ void TXTG::_InvertSel(PGNV pgnv, long gin)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void TXTG::_InvertCpRange(PGNV pgnv, long cp1, long cp2, long gin)
+void TextDocumentGraphicsObject::_InvertCpRange(PGNV pgnv, long cp1, long cp2, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2154,7 +2154,7 @@ void TXTG::_InvertCpRange(PGNV pgnv, long cp1, long cp2, long gin)
 /***************************************************************************
     Handle a key down.
 ***************************************************************************/
-bool TXTG::FCmdKey(PCMD_KEY pcmd)
+bool TextDocumentGraphicsObject::FCmdKey(PCMD_KEY pcmd)
 {
     const long kcchInsBuf = 64;
     AssertThis(0);
@@ -2384,7 +2384,7 @@ LInsert:
 /***************************************************************************
     Return the maximum scroll value for this view of the doc.
 ***************************************************************************/
-long TXTG::_ScvMax(bool fVert)
+long TextDocumentGraphicsObject::_ScvMax(bool fVert)
 {
     RC rc;
     long dxp;
@@ -2400,7 +2400,7 @@ long TXTG::_ScvMax(bool fVert)
 /***************************************************************************
     Return the logical width of the text "page".
 ***************************************************************************/
-long TXTG::_DxpDoc(void)
+long TextDocumentGraphicsObject::_DxpDoc(void)
 {
     return _ptxtb->DxpDef();
 }
@@ -2408,7 +2408,7 @@ long TXTG::_DxpDoc(void)
 /***************************************************************************
     Set the tab width.  Default does nothing.
 ***************************************************************************/
-void TXTG::SetDxpTab(long dxp)
+void TextDocumentGraphicsObject::SetDxpTab(long dxp)
 {
     AssertThis(0);
 }
@@ -2416,7 +2416,7 @@ void TXTG::SetDxpTab(long dxp)
 /***************************************************************************
     Set the document width.  Default calls SetDxpDef on the TextDocumentBase.
 ***************************************************************************/
-void TXTG::SetDxpDoc(long dxp)
+void TextDocumentGraphicsObject::SetDxpDoc(long dxp)
 {
     AssertThis(0);
     dxp = LwBound(dxp, 1, kcbMax);
@@ -2426,7 +2426,7 @@ void TXTG::SetDxpDoc(long dxp)
 /***************************************************************************
     Show or hide the ruler.
 ***************************************************************************/
-void TXTG::ShowRuler(bool fShow)
+void TextDocumentGraphicsObject::ShowRuler(bool fShow)
 {
     AssertThis(0);
     RC rcAbs, rcRel;
@@ -2470,7 +2470,7 @@ void TXTG::ShowRuler(bool fShow)
 /***************************************************************************
     Return the height of the ruler.
 ***************************************************************************/
-long TXTG::_DypTrul(void)
+long TextDocumentGraphicsObject::_DypTrul(void)
 {
     AssertThis(0);
     return 0;
@@ -2479,7 +2479,7 @@ long TXTG::_DypTrul(void)
 /***************************************************************************
     Create the ruler.
 ***************************************************************************/
-PTRUL TXTG::_PtrulNew(PGCB pgcb)
+PTRUL TextDocumentGraphicsObject::_PtrulNew(PGCB pgcb)
 {
     AssertThis(0);
     return pvNil;
@@ -2488,7 +2488,7 @@ PTRUL TXTG::_PtrulNew(PGCB pgcb)
 /***************************************************************************
     Get the natural width and height of the view on the document.
 ***************************************************************************/
-void TXTG::GetNaturalSize(long *pdxp, long *pdyp)
+void TextDocumentGraphicsObject::GetNaturalSize(long *pdxp, long *pdyp)
 {
     AssertThis(0);
     AssertNilOrVarMem(pdxp);

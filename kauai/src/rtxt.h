@@ -424,10 +424,10 @@ enum
     ftxtgNoColor = 1,
 };
 
-typedef class TXTG *PTXTG;
-#define TXTG_PAR DocumentDisplayGraphicsObject
-#define kclsTXTG 'TXTG'
-class TXTG : public TXTG_PAR
+typedef class TextDocumentGraphicsObject *PTextDocumentGraphicsObject;
+#define TextDocumentGraphicsObject_PAR DocumentDisplayGraphicsObject
+#define kclsTextDocumentGraphicsObject 'TXTG'
+class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -467,8 +467,8 @@ class TXTG : public TXTG_PAR
     // the ruler
     PTRUL _ptrul;
 
-    TXTG(PTextDocumentBase ptxtb, PGCB pgcb);
-    ~TXTG(void);
+    TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGCB pgcb);
+    ~TextDocumentGraphicsObject(void);
 
     virtual bool _FInit(void);
     virtual void _Activate(bool fActive);
@@ -530,7 +530,7 @@ class TXTG : public TXTG_PAR
     Line text document display gob
 ***************************************************************************/
 typedef class TXLG *PTXLG;
-#define TXLG_PAR TXTG
+#define TXLG_PAR TextDocumentGraphicsObject
 #define kclsTXLG 'TXLG'
 class TXLG : public TXLG_PAR
 {
@@ -566,7 +566,7 @@ class TXLG : public TXLG_PAR
     Rich text document display gob
 ***************************************************************************/
 typedef class TXRG *PTXRG;
-#define TXRG_PAR TXTG
+#define TXRG_PAR TextDocumentGraphicsObject
 #define kclsTXRG 'TXRG'
 class TXRG : public TXRG_PAR
 {

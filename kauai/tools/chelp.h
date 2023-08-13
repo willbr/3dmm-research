@@ -488,7 +488,7 @@ class HTRU : public HTRU_PAR
         krttDoc
     };
 
-    PTXTG _ptxtg;
+    PTextDocumentGraphicsObject _ptxtg;
     long _dxpTab;
     long _dxpDoc;
     long _dyp;
@@ -499,10 +499,10 @@ class HTRU : public HTRU_PAR
     long _dypFont;
     ulong _grfont;
 
-    HTRU(GraphicsObjectBlock *pgcb, PTXTG ptxtg);
+    HTRU(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg);
 
   public:
-    static PHTRU PhtruNew(GraphicsObjectBlock *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
+    static PHTRU PhtruNew(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
                           long dypFont, ulong grfont);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);

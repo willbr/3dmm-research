@@ -3464,7 +3464,7 @@ long HETG::DypLine(long ilin)
 /***************************************************************************
     Constructor for a text ruler.
 ***************************************************************************/
-HTRU::HTRU(GraphicsObjectBlock *pgcb, PTXTG ptxtg) : HTRU_PAR(pgcb)
+HTRU::HTRU(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg) : HTRU_PAR(pgcb)
 {
     AssertPo(ptxtg, 0);
     _ptxtg = ptxtg;
@@ -3473,7 +3473,7 @@ HTRU::HTRU(GraphicsObjectBlock *pgcb, PTXTG ptxtg) : HTRU_PAR(pgcb)
 /***************************************************************************
     Create a new text ruler.
 ***************************************************************************/
-PHTRU HTRU::PhtruNew(GraphicsObjectBlock *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn, long dypFont,
+PHTRU HTRU::PhtruNew(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn, long dypFont,
                      ulong grfont)
 {
     AssertVarMem(pgcb);
