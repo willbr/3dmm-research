@@ -1315,7 +1315,7 @@ bool S2B::_FDoTtBackgroundS2B(void)
     ChunkTag ctgSav;
     ChunkNumber cnoBkgd, cnoSav;
     STN stnBkgd;
-    BKGDF bkgdf;
+    BackgroundFile bkgdf;
 
     ctgSav = _ctgPar;
     cnoSav = _cnoPar;

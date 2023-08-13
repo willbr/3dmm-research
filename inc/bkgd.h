@@ -17,7 +17,7 @@
 /****************************************
     Background on file
 ****************************************/
-struct BKGDF
+struct BackgroundFile
 {
     short bo;
     short osk;

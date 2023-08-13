@@ -156,7 +156,7 @@ bool Background::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     AssertPo(pcfl, 0);
 
     DataBlock blck;
-    BKGDF bkgdf;
+    BackgroundFile bkgdf;
     ChildChunkIdentification kid;
     PGL pgllite = pvNil;
     short bo;
@@ -166,13 +166,13 @@ bool Background::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         goto LFail;
-    if (blck.Cb() != size(BKGDF))
+    if (blck.Cb() != size(BackgroundFile))
         goto LFail;
-    if (!blck.FReadRgb(&bkgdf, size(BKGDF), 0))
+    if (!blck.FReadRgb(&bkgdf, size(BackgroundFile), 0))
         goto LFail;
     if (kboCur != bkgdf.bo)
         SwapBytesBom(&bkgdf, kbomBkgdf);
-    Assert(kboCur == bkgdf.bo, "bad BKGDF");
+    Assert(kboCur == bkgdf.bo, "bad BackgroundFile");
 
     if (!pcfl->FGetName(ctg, cno, &_stn))
         goto LFail;
