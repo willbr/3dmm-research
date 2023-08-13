@@ -15,7 +15,7 @@ ASSERTNAME
 namespace Chunky {
 RTCLASS(Compiler)
 RTCLASS(CompilerLexer)
-RTCLASS(CHDC)
+RTCLASS(Decompiler)
 
 PSZ _mpertpsz[] = {
     PszLit("no error"),
@@ -2441,9 +2441,9 @@ void CompilerLexer::MarkMem(void)
 #endif
 
 /***************************************************************************
-    Constructor for the CHDC class. This is the chunky decompiler.
+    Constructor for the Decompiler class. This is the chunky decompiler.
 ***************************************************************************/
-CHDC::CHDC(void)
+Decompiler::Decompiler(void)
 {
     _ert = ertNil;
     _pcfl = pvNil;
@@ -2451,32 +2451,32 @@ CHDC::CHDC(void)
 }
 
 /***************************************************************************
-    Destructor for the CHDC class.
+    Destructor for the Decompiler class.
 ***************************************************************************/
-CHDC::~CHDC(void)
+Decompiler::~Decompiler(void)
 {
     ReleasePpo(&_pcfl);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CHDC.
+    Assert the validity of a Decompiler.
 ***************************************************************************/
-void CHDC::AssertValid(ulong grf)
+void Decompiler::AssertValid(ulong grf)
 {
-    CHDC_PAR::AssertValid(0);
+    Decompiler_PAR::AssertValid(0);
     AssertNilOrPo(_pcfl, 0);
     AssertPo(&_bsf, 0);
     AssertPo(&_chse, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CHDC.
+    Mark memory for the Decompiler.
 ***************************************************************************/
-void CHDC::MarkMem(void)
+void Decompiler::MarkMem(void)
 {
     AssertValid(0);
-    CHDC_PAR::MarkMem();
+    Decompiler_PAR::MarkMem();
     MarkMemObj(&_bsf);
     MarkMemObj(&_chse);
 }
@@ -2485,7 +2485,7 @@ void CHDC::MarkMem(void)
 /***************************************************************************
     Decompile a chunky file.
 ***************************************************************************/
-bool CHDC::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
+bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pcflSrc, 0);
@@ -2585,7 +2585,7 @@ bool CHDC::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 /***************************************************************************
     Disassemble the script and dump it.
 ***************************************************************************/
-bool CHDC::_FDumpScript(ChunkIdentification *pcki)
+bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
 {
     AssertThis(0);
     AssertVarMem(pcki);
@@ -2616,7 +2616,7 @@ bool CHDC::_FDumpScript(ChunkIdentification *pcki)
     Try to read the chunk as a list and dump it out.  If the chunk isn't
     a list, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpList(PDataBlock pblck, bool fAl)
+bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
@@ -2654,7 +2654,7 @@ bool CHDC::_FDumpList(PDataBlock pblck, bool fAl)
     Try to read the chunk as a group and dump it out.  If the chunk isn't
     a group, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpGroup(PDataBlock pblck, bool fAg)
+bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
@@ -2692,7 +2692,7 @@ bool CHDC::_FDumpGroup(PDataBlock pblck, bool fAg)
     Try to read the chunk as a string table and dump it out.  If the chunk
     isn't a string table, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpStringTable(PDataBlock pblck, bool fAst)
+bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
@@ -2730,7 +2730,7 @@ bool CHDC::_FDumpStringTable(PDataBlock pblck, bool fAst)
 /***************************************************************************
     Write out the PACKFMT and PACK commands
 ***************************************************************************/
-void CHDC::_WritePack(long cfmt)
+void Decompiler::_WritePack(long cfmt)
 {
     AssertThis(0);
     STN stn;

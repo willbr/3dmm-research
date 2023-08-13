@@ -263,15 +263,15 @@ class Compiler : public Compiler_PAR
 /***************************************************************************
     Chunky decompiler class.
 ***************************************************************************/
-typedef class CHDC *PCHDC;
-#define CHDC_PAR BASE
-#define kclsCHDC 'CHDC'
-class CHDC : public CHDC_PAR
+typedef class Decompiler *PDecompiler;
+#define Decompiler_PAR BASE
+#define kclsDecompiler 'CHDC'
+class Decompiler : public Decompiler_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CHDC)
+    NOCOPY(Decompiler)
 
   protected:
     long _ert;  // error type
@@ -289,8 +289,8 @@ class CHDC : public CHDC_PAR
     void _WritePack(long cfmt);
 
   public:
-    CHDC(void);
-    ~CHDC(void);
+    Decompiler(void);
+    ~Decompiler(void);
 
     bool FError(void)
     {

@@ -103,7 +103,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         bool fRet;
         MSSIO mssioDump(stdout);
         MSFIL msfilDump;
-        CHDC chdc;
+        Decompiler chdc;
 
         if (pvNil == (pcfl = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
         {
