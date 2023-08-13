@@ -23,7 +23,7 @@ ASSERTNAME
 
 RTCLASS(MSCB)
 
-BEGIN_CMD_MAP(MSCB, GOB)
+BEGIN_CMD_MAP(MSCB, GraphicsObject)
 ON_CID_ME(cidDoScroll, MSCB::FCmdScroll, pvNil)
 ON_CID_ME(cidEndScroll, MSCB::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
@@ -34,7 +34,7 @@ END_CMD_MAP_NIL()
  * is private, use PmscbNew() for public construction.
  *
  ****************************************************/
-MSCB::MSCB(PMVIE pmvie, PGCB pgcb) : GOB(pgcb)
+MSCB::MSCB(PMVIE pmvie, PGCB pgcb) : GraphicsObject(pgcb)
 {
     _pmvie = pmvie;
 }

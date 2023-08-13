@@ -40,7 +40,7 @@ class SCRT : public SCRT_PAR
     CMVI _cmvi;       // Composite movie
     bool _fError : 1, // Did an error occur during the easel?
         _fInited : 1; // Have I seen the cidSceneSortInit yet?
-    PSTDIO _pstdio;   // The STDIO that instantiated me
+    PSTDIO _pstdio;   // The Studio that instantiated me
 
   protected:
     long _IscenFromKid(long kid)
@@ -81,11 +81,11 @@ class SCRT : public SCRT_PAR
 
 /******************************************************************************
 
-    GOMP class -- wraps an MBMP in a GOB for display in the Scene Sorter
+    GOMP class -- wraps an MBMP in a GraphicsObject for display in the Scene Sorter
 
 ************************************************************ PETED ***********/
 
-#define GOMP_PAR GOB
+#define GOMP_PAR GraphicsObject
 #define kclsGOMP 'GOMP'
 typedef class GOMP *PGOMP;
 class GOMP : public GOMP_PAR

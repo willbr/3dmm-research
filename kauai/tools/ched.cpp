@@ -152,7 +152,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     AssertThis(0);
     PGOB pgob;
 
-    if (pvNil == (pgob = GOB::PgobFromHwnd(hwnd)))
+    if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
 
     // for script windows, do offscreen updating

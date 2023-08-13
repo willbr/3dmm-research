@@ -645,7 +645,7 @@ void GVDW::Draw(PGNV pgnv, RC *prc)
 }
 
 /***************************************************************************
-    Position the hwnd associated with the video to match the GOB's position.
+    Position the hwnd associated with the video to match the GraphicsObject's position.
 ***************************************************************************/
 void GVDW::_SetRc(void)
 {

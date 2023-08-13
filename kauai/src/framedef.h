@@ -288,7 +288,7 @@
 #define cidIdle 400000
 #define cidSelIdle 400001   // idle for settting/clearing selection.
 #define cidMouseMove 400002 // mouse moved
-#define cidRollOff 400003   // mouse rolled off the GOB
+#define cidRollOff 400003   // mouse rolled off the GraphicsObject
 
 #define cidLimNoRecord 600000
 

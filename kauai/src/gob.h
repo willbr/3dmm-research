@@ -26,7 +26,7 @@ enum
     fgobUseVis = 8,     // for DrawTree
 };
 
-// GOB invalidation types
+// GraphicsObject invalidation types
 enum
 {
     ginNil,
@@ -86,7 +86,7 @@ enum
 };
 
 /****************************************
-    GOB creation block
+    GraphicsObject creation block
 ****************************************/
 struct GCB
 {
@@ -112,12 +112,12 @@ typedef GCB *PGCB;
 /****************************************
     Graphics object
 ****************************************/
-#define GOB_PAR CMH
-#define kclsGOB 'GOB'
-class GOB : public GOB_PAR
+#define GraphicsObject_PAR CMH
+#define kclsGraphicsObject 'GOB'
+class GraphicsObject : public GraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(GOB)
+    CMD_MAP_DEC(GraphicsObject)
     ASSERT
     MARKMEM
 
@@ -155,7 +155,7 @@ class GOB : public GOB_PAR
     long _fFreeing : 1;
     long _fCreating : 1;
 
-    ~GOB(void);
+    ~GraphicsObject(void);
 
     static HWND _HwndNewMdi(PSTN pstnTitle);
     static void _DestroyHwnd(HWND hwnd);
@@ -189,8 +189,8 @@ class GOB : public GOB_PAR
         return _ginDefGob;
     }
 
-    GOB(GCB *pgcb);
-    GOB(long hid);
+    GraphicsObject(GCB *pgcb);
+    GraphicsObject(long hid);
     virtual void Release(void);
 
     // hwnd stuff

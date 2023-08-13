@@ -23,7 +23,7 @@
 class GPT;  // graphics port
 class GNV;  // graphics environment
 class CMH;  // command handler
-class GOB;  // graphic object
+class GraphicsObject;  // graphic object
 class MUB;  // menu bar
 class DOCB; // base document
 class DMD;  // document mdi window
@@ -35,7 +35,7 @@ class SNDM; // sound manager
 typedef class GPT *PGPT;
 typedef class GNV *PGNV;
 typedef class CMH *PCMH;
-typedef class GOB *PGOB;
+typedef class GraphicsObject *PGOB;
 typedef class MUB *PMUB;
 typedef class DOCB *PDOCB;
 typedef class DMD *PDMD;

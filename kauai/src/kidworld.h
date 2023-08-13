@@ -26,7 +26,7 @@ struct LOP
     long hidPar;
     long xp;
     long yp;
-    long zp; // the z-plane number used for placing the GOK in the GOB tree
+    long zp; // the z-plane number used for placing the GOK in the GraphicsObject tree
 };
 
 // cursor map entry
@@ -107,7 +107,7 @@ class GKDS : public GKDS_PAR
     World of Kidspace class.
 ***************************************************************************/
 typedef class WOKS *PWOKS;
-#define WOKS_PAR GOB
+#define WOKS_PAR GraphicsObject
 #define kclsWOKS 'WOKS'
 class WOKS : public WOKS_PAR
 {

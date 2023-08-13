@@ -6,7 +6,7 @@
     Lite, low-cholestoral, politically correct, ethinically and genderally
     mixed text gobs.
 
-        TGOB 	--->   	GOB
+        TGOB 	--->   	GraphicsObject
 
 ***************************************************************************/
 
@@ -18,7 +18,7 @@
 //
 // Tgob class
 //
-#define TGOB_PAR GOB
+#define TGOB_PAR GraphicsObject
 #define kclsTGOB 'tgob'
 typedef class TGOB *PTGOB;
 class TGOB : public TGOB_PAR

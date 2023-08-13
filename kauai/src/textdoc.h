@@ -52,7 +52,7 @@ class TXDC : public TXDC_PAR
 };
 
 /***************************************************************************
-    Text document display GOB - DDG for a TXDC.
+    Text document display GraphicsObject - DDG for a TXDC.
 ***************************************************************************/
 const long kcchMaxLine = 512;
 const long kdxpIndentTxdd = 5;

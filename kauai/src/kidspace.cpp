@@ -20,7 +20,7 @@ RTCLASS(GORB)
 RTCLASS(GORT)
 RTCLASS(GORV)
 
-BEGIN_CMD_MAP(GOK, GOB)
+BEGIN_CMD_MAP(GOK, GraphicsObject)
 ON_CID_ME(cidClicked, &GOK::FCmdClickedCore, pvNil)
 ON_CID_ME(cidAlarm, &GOK::FCmdAlarm, pvNil)
 ON_CID_ME(cidRollOff, &GOK::FCmdMouseMoveCore, pvNil)
@@ -68,7 +68,7 @@ PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
 }
 
 /***************************************************************************
-    Static method to find the GOB that should be before a new GOK with
+    Static method to find the GraphicsObject that should be before a new GOK with
     this zp.
 ***************************************************************************/
 PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
@@ -76,7 +76,7 @@ PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
     AssertPo(pgobPar, 0);
     PGOB pgobBefore, pgobT;
 
-    // find the place in the GOB tree to put the GOK.
+    // find the place in the GraphicsObject tree to put the GOK.
     for (pgobBefore = pvNil, pgobT = pgobPar->PgobFirstChild(); pgobT != pvNil; pgobT = pgobT->PgobNextSib())
     {
         if (pgobT->FIs(kclsGOK))
@@ -92,7 +92,7 @@ PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
 /***************************************************************************
     Constructor for the Kidspace graphic object.
 ***************************************************************************/
-GOK::GOK(GCB *pgcb) : GOB(pgcb)
+GOK::GOK(GCB *pgcb) : GraphicsObject(pgcb)
 {
     _chidAnim = chidNil;
     _siiSound = siiNil;

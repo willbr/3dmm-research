@@ -127,7 +127,7 @@ GNV::GNV(PGOB pgob)
 {
     AssertPo(pgob, 0);
 
-    _Init(pgob->Pgpt()); // use the GOB's port
+    _Init(pgob->Pgpt()); // use the GraphicsObject's port
     SetGobRc(pgob);      // set the rc's according to the gob
     AssertThis(0);
 }

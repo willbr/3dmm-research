@@ -80,7 +80,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
         return (pvNil);
     }
 
-    hid = GOB::HidUnique();
+    hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
     if (pvNil == (psscb->_ptgobFrame = NewObj TGOB(&gcb)))
@@ -97,7 +97,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
         return (pvNil);
     }
 
-    hid = GOB::HidUnique();
+    hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
     if (pvNil == (psscb->_ptgobScene = NewObj TGOB(&gcb)))
@@ -115,7 +115,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
         return (pvNil);
     }
 
-    hid = GOB::HidUnique();
+    hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
     if (pvNil == (psscb->_ptgobFps = NewObj TGOB(&gcb)))
@@ -645,7 +645,7 @@ void SSCB::SetSndFrame(bool fSoundInFrame)
             pgokThumb->FChangeState(snoNew);
     }
     else
-        Bug("Missing or invalid thumb GOB");
+        Bug("Missing or invalid thumb GraphicsObject");
 }
 
 #ifdef DEBUG

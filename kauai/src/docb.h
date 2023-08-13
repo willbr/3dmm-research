@@ -215,7 +215,7 @@ class DTE : public DTE_PAR
     document display gob - normally a child of a DSG but can be a child
     of any gob (for doc previewing, etc)
 ***************************************************************************/
-#define DDG_PAR GOB
+#define DDG_PAR GraphicsObject
 #define kclsDDG 'DDG'
 class DDG : public DDG_PAR
 {
@@ -264,7 +264,7 @@ class DDG : public DDG_PAR
         return _fActive;
     }
 
-    // members of GOB
+    // members of GraphicsObject
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdActivateSel(PCMD pcmd);
 
@@ -280,7 +280,7 @@ class DDG : public DDG_PAR
     Document mdi window - this communicates with the docb to coordinate
     closing and querying the user about saving
 ***************************************************************************/
-#define DMD_PAR GOB
+#define DMD_PAR GraphicsObject
 #define kclsDMD 'DMD'
 class DMD : public DMD_PAR
 {
@@ -308,7 +308,7 @@ class DMD : public DMD_PAR
     Document main window
     provides basic pane management - including splitting, etc
 ***************************************************************************/
-#define DMW_PAR GOB
+#define DMW_PAR GraphicsObject
 #define kclsDMW 'DMW'
 class DMW : public DMW_PAR
 {
@@ -373,7 +373,7 @@ class DMW : public DMW_PAR
     holds any scroll bars, splitter boxes and split movers
     dialogs tightly with DMW and DDG
 ***************************************************************************/
-#define DSG_PAR GOB
+#define DSG_PAR GraphicsObject
 #define kclsDSG 'DSG'
 class DSG : public DSG_PAR
 {
@@ -418,7 +418,7 @@ enum
     document scroll window splitter - must be a child of a DSG
 ***************************************************************************/
 typedef class DSSP *PDSSP;
-#define DSSP_PAR GOB
+#define DSSP_PAR GraphicsObject
 #define kclsDSSP 'DSSP'
 class DSSP : public DSSP_PAR
 {
@@ -453,7 +453,7 @@ enum
     document scroll split mover - must be a child of a DSG
 ***************************************************************************/
 typedef class DSSM *PDSSM;
-#define DSSM_PAR GOB
+#define DSSM_PAR GraphicsObject
 #define kclsDSSM 'DSSM'
 class DSSM : public DSSM_PAR
 {

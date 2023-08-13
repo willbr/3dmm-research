@@ -18,7 +18,7 @@ ON_CID_GEN(cidLoadResFile, &APP::FCmdLoadResFile, pvNil)
 ON_CID_GEN(cidChooseLanguage, &APP::FCmdChooseLanguage, &APP::FEnableChooseLanguage)
 END_CMD_MAP_NIL()
 
-BEGIN_CMD_MAP(LIG, GOB)
+BEGIN_CMD_MAP(LIG, GraphicsObject)
 ON_CID_ME(cidDoScroll, &LIG::FCmdScroll, pvNil)
 ON_CID_ME(cidEndScroll, &LIG::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
@@ -220,7 +220,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     AssertThis(0);
     PGOB pgob;
 
-    if (pvNil == (pgob = GOB::PgobFromHwnd(hwnd)))
+    if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
 
     // for text windows, do offscreen updating

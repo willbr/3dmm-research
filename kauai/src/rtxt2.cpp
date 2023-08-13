@@ -485,13 +485,13 @@ void CHR::_DoTab(void)
 }
 
 /***************************************************************************
-    Constructor for the text document display GOB.
+    Constructor for the text document display GraphicsObject.
 ***************************************************************************/
 TXTG::TXTG(PTXTB ptxtb, PGCB pgcb) : TXTG_PAR(ptxtb, pgcb)
 {
     AssertBaseThis(0);
     _ptxtb = ptxtb;
-    _fMark = (kginMark == pgcb->_gin || kginDefault == pgcb->_gin && kginMark == GOB::GinDefault());
+    _fMark = (kginMark == pgcb->_gin || kginDefault == pgcb->_gin && kginMark == GraphicsObject::GinDefault());
     _pgnv = pvNil;
 }
 
@@ -2712,7 +2712,7 @@ TXRG::TXRG(PTXRD ptxrd, PGCB pgcb) : TXRG_PAR(ptxrd, pgcb)
 }
 
 /***************************************************************************
-    Create a new rich text document display GOB.
+    Create a new rich text document display GraphicsObject.
 ***************************************************************************/
 PTXRG TXRG::PtxrgNew(PTXRD ptxrd, PGCB pgcb)
 {

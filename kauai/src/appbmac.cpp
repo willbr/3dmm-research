@@ -141,7 +141,7 @@ bool APPB::_FGetNextEvt(EVT *pevt)
 }
 
 /***************************************************************************
-    The given GOB is tracking the mouse.  See if there are any relevant
+    The given GraphicsObject is tracking the mouse.  See if there are any relevant
     mouse events in the system event queue.  Fill in *ppt with the location
     of the mouse relative to pgob. Also ensure that GrfcustCur() will
     return the correct mouse state.
@@ -290,21 +290,21 @@ void APPB::_MouseDownEvt(EVT *pevt)
         break;
 
     case inGoAway:
-        if (TrackGoAway(&hwnd->port, pevt->where) && (pgob = GOB::PgobFromHwnd(hwnd)) != pvNil)
+        if (TrackGoAway(&hwnd->port, pevt->where) && (pgob = GraphicsObject::PgobFromHwnd(hwnd)) != pvNil)
         {
             vpcex->EnqueueCid(cidCloseWnd, pgob);
         }
         break;
 
     case inGrow:
-        if ((pgob = GOB::PgobFromHwnd(hwnd)) != pvNil)
+        if ((pgob = GraphicsObject::PgobFromHwnd(hwnd)) != pvNil)
             pgob->TrackGrow(pevt);
         break;
 
     case inContent:
         if (hwnd != (HWND)FrontWindow())
             SelectWindow(&hwnd->port);
-        else if ((pgob = GOB::PgobFromHwnd(hwnd)) != pvNil)
+        else if ((pgob = GraphicsObject::PgobFromHwnd(hwnd)) != pvNil)
         {
             PPRT pprt;
             PT pt;
@@ -459,7 +459,7 @@ void APPB::_ActivateEvt(EVT *pevt)
     AssertVarMem(pevt);
 
     // Tell the gob code that an hwnd is being activated or deactivated
-    GOB::ActivateHwnd((HWND)pevt->message, pevt->modifiers & 1);
+    GraphicsObject::ActivateHwnd((HWND)pevt->message, pevt->modifiers & 1);
 }
 
 /***************************************************************************

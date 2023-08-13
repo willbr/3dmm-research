@@ -282,7 +282,7 @@ bool MPFNT::_FSetThumFrame(long istn, PGOB pgobPar)
         /* By the time we get this far, MPFNT_PAR should have already checked
             these */
         Assert(ptgob != pvNil, "No TGOB for the text");
-        Assert(ptgob->FIs(kclsTGOB), "GOB isn't a TGOB");
+        Assert(ptgob->FIs(kclsTGOB), "GraphicsObject isn't a TGOB");
 
         _pgst->GetExtra(istn, &onn);
         ptgob->SetFont(onn);

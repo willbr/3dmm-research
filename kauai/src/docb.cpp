@@ -17,7 +17,7 @@ ASSERTNAME
 long DOCB::_cactLast = 0;
 PDOCB DOCB::_pdocbFirst = pvNil;
 
-BEGIN_CMD_MAP(DDG, GOB)
+BEGIN_CMD_MAP(DDG, GraphicsObject)
 ON_CID_GEN(cidClose, &DDG::FCmdCloseDoc, pvNil)
 ON_CID_GEN(cidSaveAndClose, &DDG::FCmdCloseDoc, pvNil)
 ON_CID_GEN(cidSave, &DDG::FCmdSave, &DDG::FEnableDdgCmd)
@@ -507,7 +507,7 @@ void DOCB::ActivateDmd(void)
         pdmd = (PDMD)pddg->PgobParFromCls(kclsDMD);
         if (pvNil != pdmd)
         {
-            GOB::MakeHwndActive(pdmd->HwndContainer());
+            GraphicsObject::MakeHwndActive(pdmd->HwndContainer());
             return;
         }
     }
@@ -960,7 +960,7 @@ PDDG DDG::PddgNew(PDOCB pdocb, PGCB pgcb)
 /***************************************************************************
     Constructor for a DDG.  AddRef's the DOCB.
 ***************************************************************************/
-DDG::DDG(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
+DDG::DDG(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertBasePo(pdocb, 0);
     pdocb->AddRef();
@@ -1004,7 +1004,7 @@ bool DDG::_FInit(void)
 ***************************************************************************/
 PDMD DDG::Pdmd(void)
 {
-    return (PDMD)GOB::PgobParFromCls(kclsDMD);
+    return (PDMD)GraphicsObject::PgobParFromCls(kclsDMD);
 }
 
 /***************************************************************************
@@ -1335,7 +1335,7 @@ PDMD DMD::PdmdNew(PDOCB pdocb)
     STN stn;
     RC rcRel, rcAbs;
 
-    GCB gcb(khidDmd, GOB::PgobScreen());
+    GCB gcb(khidDmd, GraphicsObject::PgobScreen());
     if (pvNil == (pdmd = NewObj DMD(pdocb, &gcb)))
         return pvNil;
     pdocb->GetName(&stn);
@@ -1367,7 +1367,7 @@ PDMD DMD::PdmdTop(void)
 {
     PGOB pgob;
 
-    if (pvNil == (pgob = GOB::PgobMdiActive()))
+    if (pvNil == (pgob = GraphicsObject::PgobMdiActive()))
         return pvNil;
     AssertPo(pgob, 0);
     if (!pgob->FIs(kclsDMD))
@@ -1379,7 +1379,7 @@ PDMD DMD::PdmdTop(void)
 /***************************************************************************
     Constructor for document mdi window.
 ***************************************************************************/
-DMD::DMD(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
+DMD::DMD(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1459,7 +1459,7 @@ PDMW DMW::PdmwNew(PDOCB pdocb, PGCB pgcb)
 /***************************************************************************
     Constructor for document window class
 ***************************************************************************/
-DMW::DMW(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
+DMW::DMW(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1470,7 +1470,7 @@ DMW::DMW(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
 
 /***************************************************************************
     Free the DSED tree so we don't bother with the tree manipulations
-    during freeing.  Then call GOB::Free.
+    during freeing.  Then call GraphicsObject::Free.
 ***************************************************************************/
 void DMW::Release(void)
 {
@@ -2082,7 +2082,7 @@ void DMW::MarkMem(void)
 }
 #endif // DEBUG
 
-BEGIN_CMD_MAP(DSG, GOB)
+BEGIN_CMD_MAP(DSG, GraphicsObject)
 ON_CID_ME(cidDoScroll, &DSG::FCmdScroll, pvNil)
 ON_CID_ME(cidEndScroll, &DSG::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
@@ -2112,7 +2112,7 @@ PDSG DSG::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
 /***************************************************************************
     Constructor for DSG.
 ***************************************************************************/
-DSG::DSG(PGCB pgcb) : GOB(pgcb)
+DSG::DSG(PGCB pgcb) : GraphicsObject(pgcb)
 {
     _dsno = dsnoNil;
     AssertThis(fobjAssertFull);
@@ -2241,7 +2241,7 @@ void DSG::AssertValid(ulong grfobj)
 /***************************************************************************
     Constructor for the splitter.
 ***************************************************************************/
-DSSP::DSSP(PGCB pgcb) : GOB(pgcb)
+DSSP::DSSP(PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertThis(0);
 }
@@ -2338,7 +2338,7 @@ void DSSP::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Constructor for the split mover.
 ***************************************************************************/
-DSSM::DSSM(PGCB pgcb) : GOB(pgcb)
+DSSM::DSSM(PGCB pgcb) : GraphicsObject(pgcb)
 {
 }
 

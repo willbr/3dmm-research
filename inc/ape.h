@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GOB ---> APE
+    BASE ---> CMH ---> GraphicsObject ---> APE
 
 ***************************************************************************/
 #ifndef APE_H
@@ -44,7 +44,7 @@ struct APET
     Actor preview entity class
 ****************************************/
 typedef class APE *PAPE;
-#define APE_PAR GOB
+#define APE_PAR GraphicsObject
 #define kclsAPE 'APE'
 class APE : public APE_PAR
 {
@@ -70,7 +70,7 @@ class APE : public APE_PAR
     long _ibsetOnlyAcc; // ibset of accessory, if only one (else ivNil)
 
   protected:
-    APE(PGCB pgcb) : GOB(pgcb), _clok(CMH::HidUnique())
+    APE(PGCB pgcb) : GraphicsObject(pgcb), _clok(CMH::HidUnique())
     {
     }
     bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca);

@@ -15,7 +15,7 @@
 
         Textbox border (TBXB)
 
-            GOB  ---> TBXB
+            GraphicsObject  ---> TBXB
 
         Textbox Ddg (TBXG)
 
@@ -65,7 +65,7 @@ enum TBXT
     tbxtMove
 };
 
-#define TBXB_PAR GOB
+#define TBXB_PAR GraphicsObject
 
 typedef class TBXB *PTBXB;
 #define kclsTBXB 'TBXB'
@@ -83,7 +83,7 @@ class TBXB : public TBXB_PAR
     long _ypPrev;         // Previous y coord of the mouse.
     RC _rcOrig;           // Original size of the border.
 
-    TBXB(PTBOX ptbox, PGCB pgcb) : GOB(pgcb)
+    TBXB(PTBOX ptbox, PGCB pgcb) : GraphicsObject(pgcb)
     {
         _ptbox = ptbox;
     }

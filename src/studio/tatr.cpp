@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    A TATR (theater) is similar to a STDIO, but has no UI and is used for
+    A TATR (theater) is similar to a Studio, but has no UI and is used for
     playback only.
 
 ***************************************************************************/
@@ -117,7 +117,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
         goto LFail;
     ReleasePpo(&pmcc);
 
-    // Create a new MVU (with PddgNew()) as a child GOB of _kidParent.
+    // Create a new MVU (with PddgNew()) as a child GraphicsObject of _kidParent.
     // Make it invisible until we get a play command
     pgob = vpapp->Pkwa()->PgobFromHid(_kidParent);
     if (pvNil == pgob)

@@ -412,7 +412,7 @@ class RTUN : public RTUN_PAR
 };
 
 /***************************************************************************
-    Text document display GOB - DDG for a TXTB.
+    Text document display GraphicsObject - DDG for a TXTB.
 ***************************************************************************/
 const long kdxpIndentTxtg = (kdzpInch / 8);
 const long kcchMaxLineTxtg = 512;
@@ -613,7 +613,7 @@ class TXRG : public TXRG_PAR
     The ruler for a rich text document.
 ***************************************************************************/
 typedef class TRUL *PTRUL;
-#define TRUL_PAR GOB
+#define TRUL_PAR GraphicsObject
 #define kclsTRUL 'TRUL'
 class TRUL : public TRUL_PAR
 {

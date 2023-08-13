@@ -1037,7 +1037,7 @@ void TBXG::Draw(PGNV pgnv, RC *prcClip)
     // the drawing to within the border.
     //
     // The DDG will automatically be clipped to within
-    // the border GOB, but the drawn border (dashes and
+    // the border GraphicsObject, but the drawn border (dashes and
     // anchors) must then be subtracted.
     //
     GetRc(&rc, cooParent);
@@ -2270,7 +2270,7 @@ bool TBOX::FGotoFrame(long nfrm)
         {
 
             //
-            // Create a GOB for this text box
+            // Create a GraphicsObject for this text box
             //
             gcb.Set(khidDdg, Pscen()->Pmvie()->PddgActive(), fgobNil, kginMark, &_rc, pvNil);
             ptbxb = TBXB::PtbxbNew(this, &gcb);
@@ -2289,7 +2289,7 @@ bool TBOX::FGotoFrame(long nfrm)
     if (!FIsVisible() && (ptbxg != pvNil))
     {
         //
-        // Release the GOB for the text box.
+        // Release the GraphicsObject for the text box.
         //
         ptbxb = ptbxg->Ptbxb();
         ReleasePpo(&ptbxb);

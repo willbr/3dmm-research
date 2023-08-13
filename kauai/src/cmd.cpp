@@ -592,7 +592,7 @@ bool CEX::_FCmhOk(PCMH pcmh)
     AssertNilOrPo(pcmh, 0);
     PGOB pgob;
 
-    if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGOB))
+    if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGraphicsObject))
         return fTrue;
 
     for (pgob = (PGOB)pcmh; pgob != _pgobModal; pgob = pgob->PgobPar())
@@ -1169,7 +1169,7 @@ bool CEX::FGetNextKey(PCMD pcmd)
 }
 
 /***************************************************************************
-    The given GOB wants to track the mouse.
+    The given GraphicsObject wants to track the mouse.
 ***************************************************************************/
 void CEX::TrackMouse(PGOB pgob)
 {
@@ -1232,7 +1232,7 @@ void CEX::Suspend(bool fSuspend)
 }
 
 /***************************************************************************
-    Set the modal GOB.
+    Set the modal GraphicsObject.
 ***************************************************************************/
 void CEX::SetModalGob(PGOB pgob)
 {
