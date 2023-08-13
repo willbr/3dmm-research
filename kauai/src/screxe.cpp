@@ -68,7 +68,7 @@ void Interpreter::Free(void)
     // nuke literal strings left in the global string table
     if (pvNil != _pscpt && pvNil != _pstrg && pvNil != _pscpt->_pgstLiterals && pvNil != _pglrtvm)
     {
-        RTVN rtvn;
+        RuntimeVariableName rtvn;
         long stid;
 
         rtvn.lu1 = 0;
@@ -199,7 +199,7 @@ bool Interpreter::FResume(long *plwReturn, bool *pfPaused)
     AssertThis(fscebRunnable);
     AssertNilOrVarMem(plwReturn);
     AssertNilOrVarMem(pfPaused);
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long ilw, clwPush;
     long lw;
     long op;
@@ -284,7 +284,7 @@ void Interpreter::_AddParameters(long *prglw, long clw)
     AssertPvCb(prglw, LwMul(clw, size(long)));
     STN stn;
     long ilw;
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
 
     // put the parameters in the local variable gl
     stn = PszLit("_cparm");
@@ -307,7 +307,7 @@ void Interpreter::_AddStrings(PStringTable pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long stid;
     STN stn;
 
@@ -357,7 +357,7 @@ short Interpreter::_SwMin(void)
 /***************************************************************************
     Execute an instruction that has a variable as an argument.
 ***************************************************************************/
-bool Interpreter::_FExecVarOp(long op, RTVN *prtvn)
+bool Interpreter::_FExecVarOp(long op, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1155,7 +1155,7 @@ void Interpreter::_StrToNum(long stid, long lwEmpty, long lwError)
 /***************************************************************************
     Push the value of a variable onto the runtime stack.
 ***************************************************************************/
-void Interpreter::_PushVar(PGL pglrtvm, RTVN *prtvn)
+void Interpreter::_PushVar(PGL pglrtvm, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1180,7 +1180,7 @@ void Interpreter::_PushVar(PGL pglrtvm, RTVN *prtvn)
 /***************************************************************************
     Pop the top value off the runtime stack into a variable.
 ***************************************************************************/
-void Interpreter::_AssignVar(PGL *ppglrtvm, RTVN *prtvn, long lw)
+void Interpreter::_AssignVar(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1261,10 +1261,10 @@ PGL *Interpreter::_PpglrtvmRemote(long lw)
 
 /***************************************************************************
     Find a RunTimeVariableMap in the pglrtvm.  Assumes the pglrtvm is sorted by rtvn.
-    If the RTVN is not in the GL, sets *pirtvm to where it would be if
+    If the RuntimeVariableName is not in the GL, sets *pirtvm to where it would be if
     it were.
 ***************************************************************************/
-bool FFindRtvm(PGL pglrtvm, RTVN *prtvn, long *plw, long *pirtvm)
+bool FFindRtvm(PGL pglrtvm, RuntimeVariableName *prtvn, long *plw, long *pirtvm)
 {
     AssertPo(pglrtvm, 0);
     AssertVarMem(prtvn);
@@ -1305,7 +1305,7 @@ bool FFindRtvm(PGL pglrtvm, RTVN *prtvn, long *plw, long *pirtvm)
 /***************************************************************************
     Put the given value into a runtime variable.
 ***************************************************************************/
-bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw)
+bool FAssignRtvm(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 {
     AssertVarMem(ppglrtvm);
     AssertNilOrPo(*ppglrtvm, 0);

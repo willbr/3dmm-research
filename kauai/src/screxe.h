@@ -27,12 +27,12 @@ using namespace ScriptCompiler;
 ****************************************/
 struct RunTimeVariableMap
 {
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long lwValue;
 };
 
-bool FFindRtvm(PGL pglrtvm, RTVN *prtvn, long *plwValue, long *pirtvm);
-bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw);
+bool FFindRtvm(PGL pglrtvm, RuntimeVariableName *prtvn, long *plwValue, long *pirtvm);
+bool FAssignRtvm(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw);
 
 /***************************************************************************
     A script.  This is here rather than in scrcom.* because scrcom is
@@ -152,10 +152,10 @@ class Interpreter : public Interpreter_PAR
 
     virtual void _AddParameters(long *prglw, long clw);
     virtual void _AddStrings(PStringTable pgst);
-    virtual bool _FExecVarOp(long op, RTVN *prtvn);
+    virtual bool _FExecVarOp(long op, RuntimeVariableName *prtvn);
     virtual bool _FExecOp(long op);
-    virtual void _PushVar(PGL pglrtvm, RTVN *prtvn);
-    virtual void _AssignVar(PGL *ppglrtvm, RTVN *prtvn, long lw);
+    virtual void _PushVar(PGL pglrtvm, RuntimeVariableName *prtvn);
+    virtual void _AssignVar(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw);
     virtual PGL _PglrtvmThis(void);
     virtual PGL *_PpglrtvmThis(void);
     virtual PGL _PglrtvmGlobal(void);

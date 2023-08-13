@@ -698,7 +698,7 @@ bool TopicGraphicsObject::_FInit(void)
     ChunkNumber cnoTopic;
     byte bGroup;
     long lwMax;
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long hid;
     CHP chp;
     RC rc;
@@ -1162,7 +1162,7 @@ bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca)
     GraphicsObjectBlock gcb;
     PT pt, ptReg;
     STN stn;
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     PTopicGraphicsObject ptxhgSave = _ptxhg;
 
     // create the topic DocumentDisplayGraphicsObject.

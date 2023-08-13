@@ -158,7 +158,7 @@ const byte kbLabel = 0xCC;
     2 bytes of lu1, so clients can store the info in 6 bytes. The high
     2 bytes of lu1 are used for array subscripts.
 ***************************************************************************/
-struct RTVN
+struct RuntimeVariableName
 {
     ulong lu1;
     ulong lu2;
@@ -212,7 +212,7 @@ class CompilerBase : public CompilerBase_PAR
     void _PushString(PSTN pstn);
     void _PushOp(long op);
     void _EndOp(void);
-    void _PushVarOp(long op, RTVN *prtvn);
+    void _PushVarOp(long op, RuntimeVariableName *prtvn);
     bool _FFindLabel(PSTN pstn, long *plwLoc);
     void _AddLabel(PSTN pstn);
     void _PushLabelRequest(PSTN pstn);
@@ -237,7 +237,7 @@ class CompilerBase : public CompilerBase_PAR
     virtual void _CompileIn(void);
     bool _FResolveToOpl(long opl, long oplMin, long *pietn);
     void _EmitCode(long ietnTop, ulong grfscc, long *pclwArg);
-    void _EmitVarAccess(long ietn, RTVN *prtvn, long *popPush, long *popPop, long *pclwStack);
+    void _EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack);
     virtual bool _FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
     bool _FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                    bool *pfVoid);
@@ -245,7 +245,7 @@ class CompilerBase : public CompilerBase_PAR
     void _AddLabelIetn(long ietn);
     void _PushOpFromName(long ietn, ulong grfscc, long clwArg);
     void _GetIstnNameFromIetn(long ietn, long *pistn);
-    void _GetRtvnFromName(long istn, RTVN *prtvn);
+    void _GetRtvnFromName(long istn, RuntimeVariableName *prtvn);
     bool _FKeyWord(PSTN pstn);
     void _GetStnFromIstn(long istn, PSTN pstn);
     void _AddNameRef(PSTN pstn, long *pistn);

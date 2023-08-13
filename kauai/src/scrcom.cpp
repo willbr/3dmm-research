@@ -598,7 +598,7 @@ void CompilerBase::_PushString(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long istn;
 
     if (_fError)
@@ -665,7 +665,7 @@ void CompilerBase::_EndOp(void)
 /***************************************************************************
     Add an opcode that acts on a variable.
 ***************************************************************************/
-void CompilerBase::_PushVarOp(long op, RTVN *prtvn)
+void CompilerBase::_PushVarOp(long op, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     Assert((long)(byte)op == op, "bad opcode");
@@ -868,7 +868,7 @@ void CompilerBase::_CompilePost(void)
     AssertPo(_plexb, 0);
     Token tok;
     long op;
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
 
     while (_FGetTok(&tok))
     {
@@ -1621,7 +1621,7 @@ void CompilerBase::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
     Assert(!(grfscc & fsccTop) || (grfscc & fsccWantVoid), "fsccTop but not fsccWantVoid set");
     AssertNilOrVarMem(pclwArg);
     ETN etn;
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long opPush, opPop;
     long clwStack;
     long lw1, lw2;
@@ -2130,7 +2130,7 @@ bool CompilerBase::_FHandleCst(long ietn)
     variable (iff the variable is a remote variable or an array access).
     Fills in *prtvn.
 ***************************************************************************/
-void CompilerBase::_EmitVarAccess(long ietn, RTVN *prtvn, long *popPush, long *popPop, long *pclwStack)
+void CompilerBase::_EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -2336,7 +2336,7 @@ void CompilerBase::_GetStnFromIstn(long istn, PSTN pstn)
 /***************************************************************************
     Get the rtvn for the given string (in _pgstNames).
 ***************************************************************************/
-void CompilerBase::_GetRtvnFromName(long istn, RTVN *prtvn)
+void CompilerBase::_GetRtvnFromName(long istn, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -2555,7 +2555,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     AssertPo(pscpt, 0);
     AssertPo(pmsnk, 0);
     AssertPo(pmsnkError, 0);
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long ilwMac, ilw, clwPush;
     long lw;
     long op;
@@ -2719,11 +2719,11 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
 }
 
 /***************************************************************************
-    Set the values of the RTVN from the given stn.  Only the first 8
+    Set the values of the RuntimeVariableName from the given stn.  Only the first 8
     characters of the stn are significant.  The high word of lu1 is
     guaranteed to be zero.
 ***************************************************************************/
-void RTVN::SetFromStn(PSTN pstn)
+void RuntimeVariableName::SetFromStn(PSTN pstn)
 {
     AssertThisMem();
     AssertPo(pstn, 0);
@@ -2780,7 +2780,7 @@ void RTVN::SetFromStn(PSTN pstn)
 /***************************************************************************
     Get the variable name that an rtvn stores.
 ***************************************************************************/
-void RTVN::GetStn(PSTN pstn)
+void RuntimeVariableName::GetStn(PSTN pstn)
 {
     AssertThisMem();
     AssertPo(pstn, 0);
