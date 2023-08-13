@@ -104,7 +104,7 @@ class MBMP : public MBMP_PAR
     virtual long CbOnFile(void);
 
     // a chunky resource reader for an MBMP
-    static bool FReadMbmp(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 };
 const ByteOrderMask kbomMbmph = 0xAFFC0000;
 

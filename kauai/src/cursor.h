@@ -56,7 +56,7 @@ class CURS : public CURS_PAR
     ~CURS(void);
 
   public:
-    static bool FReadCurs(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
 
     void Set(void);
 };

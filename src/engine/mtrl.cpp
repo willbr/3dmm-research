@@ -89,7 +89,7 @@ PMTRL MTRL::PmtrlNew(long iclrBase, long cclr)
 /***************************************************************************
     A PFNRPO to read MTRL objects.
 ***************************************************************************/
-bool MTRL::FReadMtrl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -117,7 +117,7 @@ bool MTRL::FReadMtrl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBAC
 /***************************************************************************
     Read the given MTRL chunk from file
 ***************************************************************************/
-bool MTRL::_FInit(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+bool MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
@@ -512,7 +512,7 @@ PCMTL CMTL::PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl)
 /***************************************************************************
     A PFNRPO to read CMTL objects.
 ***************************************************************************/
-bool CMTL::FReadCmtl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -541,7 +541,7 @@ bool CMTL::FReadCmtl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBAC
 /***************************************************************************
     Read a CMTL from file
 ***************************************************************************/
-bool CMTL::_FInit(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+bool CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);

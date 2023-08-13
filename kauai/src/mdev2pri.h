@@ -67,7 +67,7 @@ class MDWS : public MDWS_PAR
     bool _FInit(PMIDS pmids);
 
   public:
-    static bool FReadMdws(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     static PMDWS PmdwsRead(PBLCK pblck);
 
     ~MDWS(void);

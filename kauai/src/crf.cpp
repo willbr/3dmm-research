@@ -11,7 +11,7 @@
 
     WARNING: BACOs should only be released or fetched from the main
     thread! CRFs are NOT thread safe! Alternatively, the BACO can be
-    detached from the CRF (in the main thread), then later released
+    detached from the ChunkyResourceFile (in the main thread), then later released
     in a different thread.
 
 ***************************************************************************/
@@ -21,7 +21,7 @@ ASSERTNAME
 RTCLASS(BACO)
 RTCLASS(GHQ)
 RTCLASS(RCA)
-RTCLASS(CRF)
+RTCLASS(ChunkyResourceFile)
 RTCLASS(CRM)
 RTCLASS(CABO)
 
@@ -126,7 +126,7 @@ void BACO::Release(void)
 }
 
 /***************************************************************************
-    Detach a BACO from its CRF.
+    Detach a BACO from its ChunkyResourceFile.
 ***************************************************************************/
 void BACO::Detach(void)
 {
@@ -157,9 +157,9 @@ void BACO::SetCrep(long crep)
 }
 
 /***************************************************************************
-    Constructor for CRF.  Increments the open count on the ChunkyFile.
+    Constructor for ChunkyResourceFile.  Increments the open count on the ChunkyFile.
 ***************************************************************************/
-CRF::CRF(PCFL pcfl, long cbMax)
+ChunkyResourceFile::ChunkyResourceFile(PCFL pcfl, long cbMax)
 {
     AssertBaseThis(fobjAllocated);
     AssertPo(pcfl, 0);
@@ -171,10 +171,10 @@ CRF::CRF(PCFL pcfl, long cbMax)
 }
 
 /***************************************************************************
-    Destructor for the CRF.  Decrements the open count on the ChunkyFile and frees
+    Destructor for the ChunkyResourceFile.  Decrements the open count on the ChunkyFile and frees
     all the cached data.
 ***************************************************************************/
-CRF::~CRF(void)
+ChunkyResourceFile::~ChunkyResourceFile(void)
 {
     AssertBaseThis(fobjAllocated);
     CRE cre;
@@ -192,20 +192,20 @@ CRF::~CRF(void)
         }
         ReleasePpo(&_pglcre);
     }
-    Assert(_cactRef == 1, "someone still refers to this CRF");
+    Assert(_cactRef == 1, "someone still refers to this ChunkyResourceFile");
     ReleasePpo(&_pcfl);
 }
 
 /***************************************************************************
     Static method to create a new chunky resource file cache.
 ***************************************************************************/
-PCRF CRF::PcrfNew(PCFL pcfl, long cbMax)
+PChunkyResourceFile ChunkyResourceFile::PcrfNew(PCFL pcfl, long cbMax)
 {
     AssertPo(pcfl, 0);
     AssertIn(cbMax, 0, kcbMax);
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
-    if (pvNil != (pcrf = NewObj CRF(pcfl, cbMax)) && pvNil == (pcrf->_pglcre = GL::PglNew(size(CRE), 5)))
+    if (pvNil != (pcrf = NewObj ChunkyResourceFile(pcfl, cbMax)) && pvNil == (pcrf->_pglcre = GL::PglNew(size(CRE), 5)))
     {
         ReleasePpo(&pcrf);
     }
@@ -218,7 +218,7 @@ PCRF CRF::PcrfNew(PCFL pcfl, long cbMax)
     (all non-required BACOs are flushed) or is bigger than the current
     cbMax.
 ***************************************************************************/
-void CRF::SetCbMax(long cbMax)
+void ChunkyResourceFile::SetCbMax(long cbMax)
 {
     AssertThis(0);
     AssertIn(cbMax, 0, kcbMax);
@@ -251,10 +251,10 @@ void CRF::SetCbMax(long cbMax)
 
 /***************************************************************************
     Pre-fetch the object.  Returns tYes if the chunk is successfully cached,
-    tNo if the chunk isn't in the CRF and tMaybe if there wasn't room
+    tNo if the chunk isn't in the ChunkyResourceFile and tMaybe if there wasn't room
     to cache the chunk.
 ***************************************************************************/
-tribool CRF::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
+tribool ChunkyResourceFile::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -263,7 +263,7 @@ tribool CRF::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long c
     long icre;
     DataBlock blck;
 
-    // see if this CRF contains this resource type
+    // see if this ChunkyResourceFile contains this resource type
     if (rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
         return tNo;
 
@@ -335,7 +335,7 @@ tribool CRF::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long c
     Make sure the object is loaded and increment its reference count.  If
     successful, must be balanced with a call to ReleasePpo.
 ***************************************************************************/
-PBACO CRF::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBACO ChunkyResourceFile::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -347,7 +347,7 @@ PBACO CRF::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfErro
     if (pvNil != pfError)
         *pfError = fFalse;
 
-    // see if this CRF contains this resource type
+    // see if this ChunkyResourceFile contains this resource type
     if (rscNil != rsc && !_pcfl->FFind(kctgRsc, rsc))
         return pvNil;
 
@@ -413,7 +413,7 @@ PBACO CRF::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfErro
     If the object is loaded, increment its reference count and return it.
     If it's not already loaded, just return nil.
 ***************************************************************************/
-PBACO CRF::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+PBACO ChunkyResourceFile::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -437,7 +437,7 @@ PBACO CRF::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
     If the baco indicated chunk is cached, set its crep.  Returns true
     iff the baco was cached.
 ***************************************************************************/
-bool CRF::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+bool ChunkyResourceFile::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -461,7 +461,7 @@ bool CRF::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC 
     Return this if the chunk is in this crf, otherwise return nil. The
     caller is not given a reference count.
 ***************************************************************************/
-PCRF CRF::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
 
@@ -475,13 +475,13 @@ PCRF CRF::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
 
 /***************************************************************************
     Check the _fAttached flag.  If it's false, make sure the BACO is not
-    in the CRF.
+    in the ChunkyResourceFile.
 ***************************************************************************/
-void CRF::BacoDetached(PBACO pbaco)
+void ChunkyResourceFile::BacoDetached(PBACO pbaco)
 {
     AssertThis(0);
     AssertPo(pbaco, 0);
-    Assert(pbaco->_pcrf == this, "BACO doesn't have right CRF");
+    Assert(pbaco->_pcrf == this, "BACO doesn't have right ChunkyResourceFile");
     long icre;
     CRE cre;
 
@@ -492,7 +492,7 @@ void CRF::BacoDetached(PBACO pbaco)
     }
     if (!_FFindBaco(pbaco, &icre))
     {
-        Bug("why isn't the BACO in the CRF?");
+        Bug("why isn't the BACO in the ChunkyResourceFile?");
         return;
     }
     _pglcre->Get(icre, &cre);
@@ -504,11 +504,11 @@ void CRF::BacoDetached(PBACO pbaco)
 /***************************************************************************
     The BACO was released.  See if it should be flushed.
 ***************************************************************************/
-void CRF::BacoReleased(PBACO pbaco)
+void ChunkyResourceFile::BacoReleased(PBACO pbaco)
 {
     AssertThis(0);
     AssertPo(pbaco, 0);
-    Assert(pbaco->_pcrf == this, "BACO doesn't have right CRF");
+    Assert(pbaco->_pcrf == this, "BACO doesn't have right ChunkyResourceFile");
     long icre;
     CRE cre;
 
@@ -520,7 +520,7 @@ void CRF::BacoReleased(PBACO pbaco)
 
     if (!_FFindBaco(pbaco, &icre))
     {
-        Bug("why isn't the BACO in the CRF?");
+        Bug("why isn't the BACO in the ChunkyResourceFile?");
         return;
     }
     _pglcre->Get(icre, &cre);
@@ -538,7 +538,7 @@ void CRF::BacoReleased(PBACO pbaco)
     Find the cre corresponding to the (ctg, cno, pfnrpo).  Set *picre to
     its location (or where it would be if it were in the list).
 ***************************************************************************/
-bool CRF::_FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre)
+bool ChunkyResourceFile::_FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre)
 {
     AssertThis(0);
     AssertVarMem(picre);
@@ -578,11 +578,11 @@ bool CRF::_FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre)
 /***************************************************************************
     Find the cre corresponding to the BACO.  Set *picre to its location.
 ***************************************************************************/
-bool CRF::_FFindBaco(PBACO pbaco, long *picre)
+bool ChunkyResourceFile::_FFindBaco(PBACO pbaco, long *picre)
 {
     AssertThis(0);
     AssertPo(pbaco, 0);
-    Assert(pbaco->_pcrf == this, "BACO doesn't have right CRF");
+    Assert(pbaco->_pcrf == this, "BACO doesn't have right ChunkyResourceFile");
     AssertVarMem(picre);
     ChunkTag ctg;
     ChunkNumber cno;
@@ -650,7 +650,7 @@ bool CRF::_FFindBaco(PBACO pbaco, long *picre)
     Try to purge at least cbPurge bytes of space.  Doesn't free anything
     with a crep > crepLast or that is locked.
 ***************************************************************************/
-bool CRF::_FPurgeCb(long cbPurge, long crepLast)
+bool ChunkyResourceFile::_FPurgeCb(long cbPurge, long crepLast)
 {
     AssertThis(0);
     AssertIn(cbPurge, 1, kcbMax);
@@ -718,11 +718,11 @@ bool CRF::_FPurgeCb(long cbPurge, long crepLast)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CRF (chunky resource file).
+    Assert the validity of a ChunkyResourceFile (chunky resource file).
 ***************************************************************************/
-void CRF::AssertValid(ulong grf)
+void ChunkyResourceFile::AssertValid(ulong grf)
 {
-    CRF_PAR::AssertValid(fobjAllocated);
+    ChunkyResourceFile_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglcre, 0);
     AssertPo(_pcfl, 0);
     AssertIn(_cbMax, 0, kcbMax);
@@ -731,15 +731,15 @@ void CRF::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by a CRF.
+    Mark memory used by a ChunkyResourceFile.
 ***************************************************************************/
-void CRF::MarkMem(void)
+void ChunkyResourceFile::MarkMem(void)
 {
     AssertThis(0);
     long icre;
     CRE cre;
 
-    CRF_PAR::MarkMem();
+    ChunkyResourceFile_PAR::MarkMem();
     MarkMemObj(_pglcre);
     MarkMemObj(_pcfl);
 
@@ -761,7 +761,7 @@ CRM::~CRM(void)
 {
     AssertBaseThis(fobjAllocated);
     long ipcrf;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
     if (pvNil != _pglpcrf)
     {
@@ -785,7 +785,7 @@ PCRM CRM::PcrmNew(long ccrfInit)
 
     if (pvNil == (pcrm = NewObj CRM()))
         return pvNil;
-    if (pvNil == (pcrm->_pglpcrf = GL::PglNew(size(PCRF), ccrfInit)))
+    if (pvNil == (pcrm->_pglpcrf = GL::PglNew(size(PChunkyResourceFile), ccrfInit)))
     {
         ReleasePpo(&pcrm);
         return pvNil;
@@ -802,7 +802,7 @@ tribool CRM::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long c
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     tribool t;
     long ipcrf;
     long cpcrf = _pglpcrf->IvMac();
@@ -829,7 +829,7 @@ PBACO CRM::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfErro
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
     AssertNilOrVarMem(pfError);
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     long ipcrf;
     bool fError = fFalse;
     PBACO pbaco = pvNil;
@@ -858,7 +858,7 @@ PBACO CRM::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
 
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
     if (pvNil == (pcrf = PcrfFindChunk(ctg, cno, rsc)))
         return pvNil;
@@ -874,7 +874,7 @@ bool CRM::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC 
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     long ipcrf;
     long cpcrf = _pglpcrf->IvMac();
 
@@ -889,13 +889,13 @@ bool CRM::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC 
 }
 
 /***************************************************************************
-    Return which CRF the given chunk is in. The caller is not given a
+    Return which ChunkyResourceFile the given chunk is in. The caller is not given a
     reference count.
 ***************************************************************************/
-PCRF CRM::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile CRM::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     long ipcrf;
     long cpcrf = _pglpcrf->IvMac();
 
@@ -924,9 +924,9 @@ bool CRM::FAddCfl(PCFL pcfl, long cbMax, long *piv)
     AssertIn(cbMax, 0, kcbMax);
     AssertNilOrVarMem(piv);
 
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
-    if (pvNil == (pcrf = CRF::PcrfNew(pcfl, cbMax)))
+    if (pvNil == (pcrf = ChunkyResourceFile::PcrfNew(pcfl, cbMax)))
     {
         TrashVar(piv);
         return fFalse;
@@ -940,13 +940,13 @@ bool CRM::FAddCfl(PCFL pcfl, long cbMax, long *piv)
 }
 
 /***************************************************************************
-    Get the icrf'th CRF.
+    Get the icrf'th ChunkyResourceFile.
 ***************************************************************************/
-PCRF CRM::PcrfGet(long icrf)
+PChunkyResourceFile CRM::PcrfGet(long icrf)
 {
     AssertThis(0);
     AssertIn(icrf, 0, kcbMax);
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
     if (!FIn(icrf, 0, _pglpcrf->IvMac()))
         return pvNil;
@@ -974,7 +974,7 @@ void CRM::MarkMem(void)
     AssertThis(0);
     long ipcrf;
     long cpcrf;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
     CRM_PAR::MarkMem();
     MarkMemObj(_pglpcrf);
@@ -991,7 +991,7 @@ void CRM::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read GHQ objects.
 ***************************************************************************/
-bool GHQ::FReadGhq(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool GHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

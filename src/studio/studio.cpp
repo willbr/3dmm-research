@@ -195,7 +195,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     DataBlock blck;
     bool fRet = fFalse;
     long icrf;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     long lwParm;
 
     vapp.BeginLongOp();
@@ -2268,7 +2268,7 @@ void Studio::PlayUISound(long tool, long grfcust)
 {
     AssertThis(0);
 
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     long cactRepeat = 1;
     long cno;
 

@@ -1533,10 +1533,10 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGORP KidspaceGraphicObject::_PgorpNew(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORP KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
     PFNGORP pfngorp;
 
     switch (ctg)
@@ -1971,7 +1971,7 @@ const ByteOrderMask kbomGokfl = 0x5FFF0000;
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2076,7 +2076,7 @@ void GORF::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2213,7 +2213,7 @@ void GORB::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2613,7 +2613,7 @@ void GORT::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2635,7 +2635,7 @@ PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, Chunk
 /***************************************************************************
     Initialize the GORV - load the movie indicated byt (pcrf, ctg, cno).
 ***************************************************************************/
-bool GORV::_FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);

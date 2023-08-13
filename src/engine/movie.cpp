@@ -357,11 +357,11 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, ChunkNumber cno)
     }
 
     //
-    // Note (by *****): CRF *must* have 0 cache size, because of
+    // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
     // serious cache-coherency problems otherwise.  TMPL data is not
     // read-only, and chunk numbers change over time.
     //
-    pmvie->_pcrfAutoSave = CRF::PcrfNew(pcfl, 0); // cache size must be 0
+    pmvie->_pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
     if (pvNil == pmvie->_pcrfAutoSave)
     {
         goto LFail;
@@ -444,7 +444,7 @@ LFail:
 
     Arguments:
         PCFL pcfl       -- the file the movie is on
-        PCRF pcrf       -- the autosave CRF for the movie's ACTR tags
+        PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's ACTR tags
         ChunkNumber cno         -- the cno of the movie
         PGST *ppgst     -- the PGST to fill in
         long *paridLim  -- the max arid to update
@@ -452,7 +452,7 @@ LFail:
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FReadRollCall(PCRF pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim)
+bool MVIE::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim)
 {
     AssertPo(pcrf, 0);
     AssertVarMem(ppgst);
@@ -1507,7 +1507,7 @@ LFail:
  * Updated *ptag
  *
  ****************************************************/
-bool MVIE::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PCRF pcrf)
+bool MVIE::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -2032,7 +2032,7 @@ bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
     AssertPo(pmtrl, 0);
     AssertVarMem(ptag);
 
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     PCFL pcfl;
     ChunkNumber cno;
 
@@ -2072,7 +2072,7 @@ bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-bool MVIE::FEnsureAutosave(PCRF *ppcrf)
+bool MVIE::FEnsureAutosave(PChunkyResourceFile *ppcrf)
 {
     AssertThis(0);
 
@@ -2400,11 +2400,11 @@ bool MVIE::_FMakeCrfValid(void)
     Assert(pcfl->FTemp(), "Bad ChunkyFile");
 
     //
-    // Note (by *****): CRF *must* have 0 cache size, because of
+    // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
     // serious cache-coherency problems otherwise.  TMPL data is not
     // read-only, and chunk numbers change over time.
     //
-    _pcrfAutoSave = CRF::PcrfNew(pcfl, 0); // cache size must be 0
+    _pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
     if (pvNil == _pcrfAutoSave)
     {
         ReleasePpo(&pcfl);
@@ -2822,7 +2822,7 @@ bool MVIE::_FDoMtrlTmplGC(PCFL pcfl)
     {
         pglckiDoomed->Get(icki1, &cki);
         pcfl->Delete(cki.ctg, cki.cno);
-        if (pcfl == _pcrfAutoSave->Pcfl()) // remove chunk from CRF cache
+        if (pcfl == _pcrfAutoSave->Pcfl()) // remove chunk from ChunkyResourceFile cache
         {
             PFNRPO pfnrpo;
 
@@ -2839,7 +2839,7 @@ bool MVIE::_FDoMtrlTmplGC(PCFL pcfl)
                 Bug("unexpected ctg");
             }
             // ignore failure of FSetCrep, because return value of fFalse
-            // just means that the chunk is not stored in the CRF's cache
+            // just means that the chunk is not stored in the ChunkyResourceFile's cache
             _pcrfAutoSave->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
         }
     }
@@ -4758,7 +4758,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
     long aridMin = 0;
     ChildChunkID chidScen = 0;
     PCFL pcfl = _pcrfAutoSave->Pcfl();
-    PCRF pcrf = _pcrfAutoSave;
+    PChunkyResourceFile pcrf = _pcrfAutoSave;
     PGL pglmviedNew;
 
     pglmviedNew = pcmvi->pglmvied->PglDup();

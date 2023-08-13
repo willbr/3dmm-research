@@ -514,7 +514,7 @@ typedef struct _scend
 /* A MoVIE Descriptor */
 typedef struct _mvied
 {
-    PCRF pcrf;    // the file this scene's movie is in
+    PChunkyResourceFile pcrf;    // the file this scene's movie is in
     ChunkNumber cno;      // ChunkNumber of the MVIE chunk
     long aridLim; // _aridLim from the MVIE
 } MVIED, *PMVIED;
@@ -553,7 +553,7 @@ class MVIE : public MVIE_PAR
   protected:
     long _aridLim; // Highest actor id in use.
 
-    PCRF _pcrfAutoSave; // CRF/ChunkyFile of auto save file.
+    PChunkyResourceFile _pcrfAutoSave; // ChunkyResourceFile/ChunkyFile of auto save file.
     PFIL _pfilSave;     // User's document
 
     ChunkNumber _cno; // ChunkNumber of movie in current file.
@@ -644,7 +644,7 @@ class MVIE : public MVIE_PAR
     static PMVIE PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
-    static bool FReadRollCall(PCRF pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim = pvNil);
+    static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim = pvNil);
     // reads roll call for a given movie
     void ForceSaveAs(void)
     {
@@ -744,9 +744,9 @@ class MVIE : public MVIE_PAR
     }
     bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
     bool FVerifyVersion(PCFL pcfl, ChunkNumber *pcno = pvNil);
-    bool FEnsureAutosave(PCRF *pcrf = pvNil);
+    bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
     bool FCopyMsndFromPcfl(PCFL pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
-    bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PCRF pcrf = pvNil);
+    bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PChunkyResourceFile pcrf = pvNil);
     bool FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid);
     void SetDocClosing(bool fClose)
     {

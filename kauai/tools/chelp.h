@@ -82,7 +82,7 @@ class LID : public LID_PAR
   protected:
     struct CACH
     {
-        PCRF pcrf;
+        PChunkyResourceFile pcrf;
         ChunkNumber cno;
         ChunkNumber cnoMbmp;
     };
@@ -102,7 +102,7 @@ class LID : public LID_PAR
 
     bool FRefresh(void);
     long Ccki(void);
-    void GetCki(long icki, ChunkIdentification *pcki, PCRF *ppcrf = pvNil);
+    void GetCki(long icki, ChunkIdentification *pcki, PChunkyResourceFile *ppcrf = pvNil);
     PMBMP PmbmpGet(long icki);
 };
 
@@ -438,8 +438,8 @@ class HETG : public HETG_PAR
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FInsertPicture(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
-    virtual bool FInsertButton(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual bool FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual bool FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool FCmdGroupText(PCMD pcmd);
     virtual bool FCmdFormatPicture(PCMD pcmd);

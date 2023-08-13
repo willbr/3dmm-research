@@ -806,7 +806,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             int xOff = 0;
             int yOff = 0;
             LONG lStyle;
-            PCRF pcrf;
+            PChunkyResourceFile pcrf;
             HWND hwndDlg = GetParent(hwndCustom);
             HWND hwndApp = GetParent(hwndDlg);
             HWND hwndPreview = GetDlgItem(hwndCustom, IDC_PREVIEW);

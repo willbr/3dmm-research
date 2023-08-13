@@ -633,7 +633,7 @@ void TestCrf(void)
     ChunkNumber cno;
     PGHQ rgpghq[cnoLim];
     PCFL pcfl;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     HQ hq;
     PGHQ pghq;
 
@@ -648,9 +648,9 @@ void TestCrf(void)
         AssertDo(pcfl->FPutPv("Test string", 11, ctg, cno), 0);
     }
 
-    if (pvNil == (pcrf = CRF::PcrfNew(pcfl, 50)))
+    if (pvNil == (pcrf = ChunkyResourceFile::PcrfNew(pcfl, 50)))
     {
-        Bug("creating CRF failed");
+        Bug("creating ChunkyResourceFile failed");
         ReleasePpo(&pcfl);
         return;
     }

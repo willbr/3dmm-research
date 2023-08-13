@@ -39,11 +39,11 @@ class TDF : public TDF_PAR
     bool _FInit(PBLCK pblck);
 
   public:
-    static bool FReadTdf(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     ~TDF(void);
 
     // This authoring-only API creates a new TDF based on a set of models
-    static bool FCreate(PCRF pcrf, PGL pglkid, STN *pstn, ChunkIdentification *pckiTdf = pvNil);
+    static bool FCreate(PChunkyResourceFile pcrf, PGL pglkid, STN *pstn, ChunkIdentification *pckiTdf = pvNil);
 
     PMODL PmodlFetch(ChildChunkID chid);
     BRS DxrChar(long ich);

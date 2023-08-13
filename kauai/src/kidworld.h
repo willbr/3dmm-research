@@ -95,7 +95,7 @@ class GKDS : public GKDS_PAR
 
   public:
     // An object reader for a GOKD.
-    static bool FReadGkds(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
     ~GKDS(void);
 
     virtual long Gokk(void);

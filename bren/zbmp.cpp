@@ -56,7 +56,7 @@ PZBMP ZBMP::PzbmpNewFromBpmp(BPMP *pbpmp)
 /***************************************************************************
     Chunky resource reader for ZBMP
 ***************************************************************************/
-bool ZBMP::FReadZbmp(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool ZBMP::FReadZbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

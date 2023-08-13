@@ -323,7 +323,7 @@ inline void SqueezePb(void *pvSrc, void *pvDst, long cbSrc)
     Load bitmaps from the given chunks into _pgptBackground and
     _pzbmpBackground.
 ***************************************************************************/
-bool BWLD::FSetBackground(PCRF pcrf, ChunkTag ctgRGB, ChunkNumber cnoRGB, ChunkTag ctgZ, ChunkNumber cnoZ)
+bool BWLD::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumber cnoRGB, ChunkTag ctgZ, ChunkNumber cnoZ)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -536,7 +536,7 @@ void BWLD::Prerender(void)
     _pzbmpWorking->Draw((byte *)_pzbmpBackground->Prgb(), _pzbmpBackground->CbRow(), _rcBuffer.Dyp(), 0, 0, &_rcBuffer,
                         pvNil);
 
-    // Need to detach _pzbmpBackground from the CRF so when we unprerender,
+    // Need to detach _pzbmpBackground from the ChunkyResourceFile so when we unprerender,
     // a fresh copy of the ZBMP is fetched
     _pzbmpBackground->Detach();
 

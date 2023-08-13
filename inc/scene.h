@@ -189,8 +189,8 @@ class SCEN : public SCEN_PAR
     // Create and destroy
     //
     static SCEN *PscenNew(PMVIE pmvie);                      // Returns pvNil if it fails.
-    static SCEN *PscenRead(PMVIE pmvie, PCRF pcrf, ChunkNumber cno); // Returns pvNil if it fails.
-    bool FWrite(PCRF pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
+    static SCEN *PscenRead(PMVIE pmvie, PChunkyResourceFile pcrf, ChunkNumber cno); // Returns pvNil if it fails.
+    bool FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
     static void Close(PSCEN *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.
     bool FAddActrsToRollCall(void);                          // Adds actors from movie roll call.
@@ -259,8 +259,8 @@ class SCEN : public SCEN_PAR
         return _trans;
     } // Returns the transition setting.
     // These two operate a specific SCEN chunk rather than a SCEN in memory
-    static bool FTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS *ptrans);
-    static bool FSetTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS trans);
+    static bool FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans);
+    static bool FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans);
 
     //
     // State functions

@@ -403,7 +403,7 @@ bool APP::FLoadResFile(PFilename pfni)
     AssertPo(pfni, ffniFile);
     PCFL pcfl;
     long ipcrf;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     DataBlock blck;
 
     if (pvNil == _pcrm && pvNil == (_pcrm = CRM::PcrmNew(1)))
@@ -608,7 +608,7 @@ bool LID::FRefresh(void)
     AssertThis(0);
     long ipcrf, icki;
     CACH cach, cachT;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     PCFL pcfl;
     ChunkIdentification cki;
     long ivMin, ivLim, iv;
@@ -678,7 +678,7 @@ long LID::Ccki(void)
 /***************************************************************************
     Get the ChunkIdentification for the indicated item.
 ***************************************************************************/
-void LID::GetCki(long icki, ChunkIdentification *pcki, PCRF *ppcrf)
+void LID::GetCki(long icki, ChunkIdentification *pcki, PChunkyResourceFile *ppcrf)
 {
     AssertThis(0);
     AssertIn(icki, 0, _pglcach->IvMac());
@@ -920,7 +920,7 @@ void LIG::MouseDown(long xp, long yp, long cact, ulong grfcust)
     ChunkIdentification cki;
     RC rc, rcT;
     PHETG phetg;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     PLID plid;
 
     plid = (PLID)_pdocb;

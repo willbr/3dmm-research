@@ -304,7 +304,7 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
     AssertVarMem(prc);
     long cb;
     PMBMP pmbmp;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     ChildChunkIdentification kid;
     long rglw[2];
 
@@ -367,7 +367,7 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
     long cb;
     RC rc;
     PMBMP pmbmp;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     ChildChunkIdentification kid;
     long rglw[2];
     bool fDrawMbmp = fTrue;
@@ -998,7 +998,7 @@ PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA pr
     AssertPo(pgobPar, 0);
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     PTXHD ptxhd;
     PHBAL phbal;
 

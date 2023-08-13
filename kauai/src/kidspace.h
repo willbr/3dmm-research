@@ -70,7 +70,7 @@ class GORF : public GORF_PAR
     long _dyp;
 
   public:
-    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -90,7 +90,7 @@ class GORB : public GORB_PAR
     RTCLASS_DEC
 
   protected:
-    PCRF _pcrf;
+    PChunkyResourceFile _pcrf;
     ChunkTag _ctg;
     ChunkNumber _cno;
     bool _fStream;
@@ -98,7 +98,7 @@ class GORB : public GORB_PAR
     ~GORB(void);
 
   public:
-    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -142,7 +142,7 @@ class GORT : public GORT_PAR
         short rgdyp[idzpLimGort];
     };
 
-    PCRF _pcrf;
+    PChunkyResourceFile _pcrf;
     ChunkTag _ctg;
     ChunkNumber _cno;
     short _rgdxp[idzpLimGort];
@@ -164,7 +164,7 @@ class GORT : public GORT_PAR
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
-    static PGORT PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    static PGORT PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -196,10 +196,10 @@ class GORV : public GORV_PAR
 
     ~GORV(void);
 
-    virtual bool _FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual bool _FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
   public:
-    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -308,7 +308,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     PWorldOfKidspace _pwoks; // the kidspace world that this KidspaceGraphicObject belongs to
     PRCA _prca;   // Chunky resource chain
-    PCRF _pcrf;   // Chunky resource file
+    PChunkyResourceFile _pcrf;   // Chunky resource file
 
     short _sno;       // state number
     short _cactMouse; // mouse click count of last mouse down
@@ -367,7 +367,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool _FAdvanceFrame(void);
 
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual PGORP _PgorpNew(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual PGORP _PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
     bool _FFilterCmd(PCMD pcmd, ChildChunkID chidScript, bool *pfFilter);

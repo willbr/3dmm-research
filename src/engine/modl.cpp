@@ -48,7 +48,7 @@ LFail:
 /***************************************************************************
     A PFNRPO to read a MODL from a file
 ***************************************************************************/
-bool MODL::FReadModl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MODL::FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

@@ -105,7 +105,7 @@ LFail:
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read an ACTN from a file
 ***************************************************************************/
-bool ACTN::FReadActn(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -310,7 +310,7 @@ void ACTN::MarkMem(void)
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read TMPL objects.
 ***************************************************************************/
-bool TMPL::FReadTmpl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -504,13 +504,13 @@ bool TMPL::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 LBuildGgcm:
     long ikid;
     PCMTL pcmtl;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     long rgcmid[50];
     long ccmid;
 
     Warn("missing GGCM...building one on the fly");
 
-    pcrf = CRF::PcrfNew(pcfl, 0);
+    pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
     if (pvNil == pcrf)
         return fFalse;
 

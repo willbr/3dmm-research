@@ -744,7 +744,7 @@ bool ACTR::FPaste(long nfrm, SCEN *pscen)
     long dnfrm;
 #ifdef BUG1888
     PTMPL ptmpl;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     TAG tag;
 
     //

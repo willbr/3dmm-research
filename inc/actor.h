@@ -457,7 +457,7 @@ class ACTR : public ACTR_PAR
     bool _FReadRoute(PCFL pcfl, ChunkNumber cno);
     bool _FReadEvents(PCFL pcfl, ChunkNumber cno);
     static void _SwapBytesPggaev(PGG pggaev);
-    bool _FOpenTags(PCRF pcrf);
+    bool _FOpenTags(PChunkyResourceFile pcrf);
     static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev = pvNil);
     void _CloseTags(void);
 
@@ -482,7 +482,7 @@ class ACTR : public ACTR_PAR
     }
 
     // ActrSave Routines
-    static PACTR PactrRead(PCRF pcrf, ChunkNumber cno);    // Construct from a document
+    static PACTR PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
     bool FWrite(PCFL pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
     static PGL PgltagFetch(PCFL pcfl, ChunkNumber cno, bool *pfError);
     static bool FAdjustAridOnFile(PCFL pcfl, ChunkNumber cno, long darid);

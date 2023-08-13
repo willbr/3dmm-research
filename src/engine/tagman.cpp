@@ -11,10 +11,10 @@
     It is important to keep in mind that there are two layers of caching
     going on in TAGM: Caching content from the CD (or other slow source)
     to the local hard disk, and caching resources in RAM using chunky
-    resources (the CRF and CRM classes).
+    resources (the ChunkyResourceFile and CRM classes).
 
     For each source, TAGM maintains (in an SFS) a CRM (Chunky Resource
-    Manager) of all the content	files on the source and a CRF (Chunky
+    Manager) of all the content	files on the source and a ChunkyResourceFile (Chunky
     Resource File), which is a single file on the HD which can be used
     for faster access to the source.  Both CRFs and CRMs can cache
     resources in RAM.  Since Socrates copies *all* content from the CD
@@ -772,7 +772,7 @@ bool TAGM::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PT
     AssertVarMem(ptagChild);
 
     PCRM pcrmSource;
-    PCRF pcrfSource;
+    PChunkyResourceFile pcrfSource;
     ChildChunkIdentification kid;
 
     TrashVar(ptagChild);
@@ -818,7 +818,7 @@ bool TAGM::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
     Assert(ptag->sid >= 0, "Invalid sid");
 
     PCRM pcrmSource;
-    PCRF pcrfSource;
+    PChunkyResourceFile pcrfSource;
     bool fSourceIsOnHD;
     PCFL pcfl;
 
@@ -943,7 +943,7 @@ void TAGM::ClearCache(long sid, ulong grftagm)
         icrfMac = pcrmSource->Ccrf();
         for (icrf = 0; icrf < icrfMac; icrf++)
         {
-            PCRF pcrf;
+            PChunkyResourceFile pcrf;
 
             pcrf = pcrmSource->PcrfGet(icrf);
             AssertPo(pcrf->Pcfl(), 0);
@@ -957,7 +957,7 @@ void TAGM::ClearCache(long sid, ulong grftagm)
                 if (grftagm & ftagmMemory)
                 {
                     // Clear RAM cache (for BACOs with 0 cactRef) by
-                    // temporarily setting the CRF's cbMax to 0
+                    // temporarily setting the ChunkyResourceFile's cbMax to 0
                     cbMax = pcrf->CbMax();
                     pcrf->SetCbMax(0);
                     pcrf->SetCbMax(cbMax);
@@ -975,7 +975,7 @@ void TAGM::ClearCache(long sid, ulong grftagm)
     calling FOpenTag().  If you FOpenTag() a tag, you must CloseTag() it
     when you're done with it.
 ***************************************************************************/
-bool TAGM::FOpenTag(PTAG ptag, PCRF pcrfDest, PCFL pcflSrc)
+bool TAGM::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PCFL pcflSrc)
 {
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
@@ -1001,10 +1001,10 @@ bool TAGM::FOpenTag(PTAG ptag, PCRF pcrfDest, PCFL pcflSrc)
 }
 
 /***************************************************************************
-    Save tag's data in the given CRF.  If fRedirect, the tag now points
-    to the copy in the CRF.
+    Save tag's data in the given ChunkyResourceFile.  If fRedirect, the tag now points
+    to the copy in the ChunkyResourceFile.
 ***************************************************************************/
-bool TAGM::FSaveTag(PTAG ptag, PCRF pcrf, bool fRedirect)
+bool TAGM::FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect)
 {
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
@@ -1035,7 +1035,7 @@ bool TAGM::FSaveTag(PTAG ptag, PCRF pcrf, bool fRedirect)
 
 /***************************************************************************
     Call this for each tag when you're duplicating it.  Increments
-    refcount on the tag's CRF.
+    refcount on the tag's ChunkyResourceFile.
 ***************************************************************************/
 void TAGM::DupTag(PTAG ptag)
 {

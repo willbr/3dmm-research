@@ -1878,7 +1878,7 @@ void TBOX::SetDirty(bool fDirty)
  *  Pointer to a new tbox, else pvNil.
  *
  ****************************************************/
-PTBOX TBOX::PtboxRead(PCRF pcrf, ChunkNumber cno, PSCEN pscen)
+PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PSCEN pscen)
 {
     AssertPo(pcrf, 0);
     AssertNilOrPo(pscen, 0);

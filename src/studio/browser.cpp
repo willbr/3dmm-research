@@ -2771,7 +2771,7 @@ bool BRWI::FInit(PCMD pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
     pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
     if (pvNil == pcfl)
         goto LFail; // Error already reported
-    _pcrf = CRF::PcrfNew(pcfl, 0);
+    _pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
     ReleasePpo(&pcfl);
 
     if (pvNil == _pcrf)

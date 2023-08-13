@@ -122,7 +122,7 @@ class CAMS : public CAMS_PAR
 
     IAMSound *psnd; // the sound to use
 
-    static bool FReadCams(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     bool FInMemory(void)
     {
         return _pstbl->FInMemory();

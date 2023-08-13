@@ -54,7 +54,7 @@ struct TAG
 #endif // DEBUG
 
     long sid;  // Source ID (or ksidUseCrf)
-    PCRF pcrf; // File to look in for this chunk if sid is ksidUseCrf
+    PChunkyResourceFile pcrf; // File to look in for this chunk if sid is ksidUseCrf
     ChunkTag ctg;   // ChunkTag of chunk
     ChunkNumber cno;   // ChunkNumber of chunk
 };
@@ -71,7 +71,7 @@ enum
 {
     ftagmNil = 0x0000,
     ftagmFile = 0x0001,   // for ClearCache: clear HD cache
-    ftagmMemory = 0x0002, // for ClearCache: clear CRF RAM cache
+    ftagmMemory = 0x0002, // for ClearCache: clear ChunkyResourceFile RAM cache
 };
 
 /****************************************
@@ -134,8 +134,8 @@ class TAGM : public TAGM_PAR
                     ulong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 
     // For ksidUseCrf tags:
-    static bool FOpenTag(PTAG ptag, PCRF pcrfDest, PCFL pcflSrc = pvNil);
-    static bool FSaveTag(PTAG ptag, PCRF pcrf, bool fRedirect);
+    static bool FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PCFL pcflSrc = pvNil);
+    static bool FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect);
     static void DupTag(PTAG ptag); // call this when you're copying a tag
     static void CloseTag(PTAG ptag);
 

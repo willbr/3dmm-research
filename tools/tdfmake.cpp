@@ -115,7 +115,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
     ChildChunkID chidMax = 0;
     PMODL pmodl;
     ChunkNumber cnoModl;
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
     PSZ psz;
     long cch;
     long lw;
@@ -128,7 +128,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
     pglkid = GL::PglNew(size(ChildChunkIdentification));
     if (pglkid == pvNil)
         goto LFail;
-    pcrf = CRF::PcrfNew(pcflDst, 0);
+    pcrf = ChunkyResourceFile::PcrfNew(pcflDst, 0);
     if (pvNil == pcrf)
         goto LFail;
     // get directory name (don't actually move up a dir)

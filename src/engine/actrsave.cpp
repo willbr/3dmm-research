@@ -154,7 +154,7 @@ bool ACTR::FWrite(PCFL pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     Read the actor data from disk, (re-)construct the actor, and return a
     pointer to it.
 ***************************************************************************/
-PACTR ACTR::PactrRead(PCRF pcrf, ChunkNumber cnoActr)
+PACTR ACTR::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
 {
     AssertPo(pcrf, 0);
 
@@ -417,7 +417,7 @@ void ACTR::_SwapBytesPggaev(PGG pggaev)
 /***************************************************************************
     Open all tags for this actor
 ***************************************************************************/
-bool ACTR::_FOpenTags(PCRF pcrf)
+bool ACTR::_FOpenTags(PChunkyResourceFile pcrf)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);

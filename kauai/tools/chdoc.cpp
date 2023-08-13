@@ -2362,9 +2362,9 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         if ((pcki->ctg == kctgMidi || pcki->ctg == kctgWave) && pvNil != vpsndm)
         {
             // play once
-            PCRF pcrf;
+            PChunkyResourceFile pcrf;
 
-            if (pvNil == (pcrf = CRF::PcrfNew(_pcfl, 1)))
+            if (pvNil == (pcrf = ChunkyResourceFile::PcrfNew(_pcfl, 1)))
             {
                 ReleasePpo(&pcrf);
                 // edit as hex
@@ -2579,7 +2579,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
     PTSCG ptscg;
     PSCPT pscpt = pvNil;
     PSCEG psceg = pvNil;
-    PCRF pcrf = pvNil;
+    PChunkyResourceFile pcrf = pvNil;
 
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
     if (pvNil == (ptscg = NewObj TSCG(&gcb)))
@@ -2587,7 +2587,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
     vpcex->FAddCmh(ptscg, 0);
 
     stn.FFormatSz(PszLit("Run Script: %f %08x"), ctg, cno);
-    if (!ptscg->FCreateAndAttachMdi(&stn) || pvNil == (pcrf = CRF::PcrfNew(_pcfl, cbCache)) ||
+    if (!ptscg->FCreateAndAttachMdi(&stn) || pvNil == (pcrf = ChunkyResourceFile::PcrfNew(_pcfl, cbCache)) ||
         pvNil == (psceg = ptscg->PscegNew(pcrf, ptscg)) ||
         pvNil == (pscpt = (PSCPT)pcrf->PbacoFetch(ctg, cno, SCPT::FReadScript)) || !psceg->FRunScript(pscpt))
     {

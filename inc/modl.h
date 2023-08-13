@@ -53,7 +53,7 @@ class MODL : public MODL_PAR
 
   public:
     static PMODL PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
-    static bool FReadModl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     static PMODL PmodlReadFromDat(Filename *pfni);
     static PMODL PmodlFromBmdl(PBMDL pbmdl);
     ~MODL(void);

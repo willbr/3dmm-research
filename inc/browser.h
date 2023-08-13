@@ -692,7 +692,7 @@ class BRWM : public BRWM_PAR
 
   protected:
     long _sty;  // Identifies type of sound
-    PCRF _pcrf; // NOT created here (autosave or BRWI file)
+    PChunkyResourceFile _pcrf; // NOT created here (autosave or BRWI file)
 
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type

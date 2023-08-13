@@ -10,16 +10,16 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Chunky resource file management. A CRF is a cache wrapped around a
+    Chunky resource file management. A ChunkyResourceFile is a cache wrapped around a
     chunky file. A CRM is a list of CRFs. A BACO is an object that
-    can be cached in a CRF. An RCA is an interface that CRF and CRM both
+    can be cached in a ChunkyResourceFile. An RCA is an interface that ChunkyResourceFile and CRM both
     implement (are a super set of).
 
 ***************************************************************************/
 #ifndef CHRES_H
 #define CHRES_H
 
-typedef class CRF *PCRF;
+typedef class ChunkyResourceFile *PChunkyResourceFile;
 typedef ChunkNumber RSC;
 const RSC rscNil = 0L;
 
@@ -44,14 +44,14 @@ class BACO : public BACO_PAR
     MARKMEM
 
   private:
-    // These fields are owned by the CRF
-    PCRF _pcrf; // The BACO has a ref count on this iff !_fAttached
+    // These fields are owned by the ChunkyResourceFile
+    PChunkyResourceFile _pcrf; // The BACO has a ref count on this iff !_fAttached
     ChunkTag _ctg;
     ChunkNumber _cno;
     long _crep : 16;
     long _fAttached : 1;
 
-    friend class CRF;
+    friend class ChunkyResourceFile;
 
   protected:
     BACO(void);
@@ -71,7 +71,7 @@ class BACO : public BACO_PAR
     {
         return _cno;
     }
-    PCRF Pcrf(void)
+    PChunkyResourceFile Pcrf(void)
     {
         return _pcrf;
     }
@@ -94,7 +94,7 @@ class BACO : public BACO_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 typedef FNRPO *PFNRPO;
 
 typedef class RCA *PRCA;
@@ -109,15 +109,15 @@ class RCA : public RCA_PAR
     virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
     virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
-    virtual PCRF PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
+    virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
 };
 
 /***************************************************************************
     Chunky resource file.
 ***************************************************************************/
-#define CRF_PAR RCA
-#define kclsCRF 'CRF'
-class CRF : public CRF_PAR
+#define ChunkyResourceFile_PAR RCA
+#define kclsChunkyResourceFile 'CRF'
+class ChunkyResourceFile : public ChunkyResourceFile_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -138,20 +138,20 @@ class CRF : public CRF_PAR
     long _cbCur;
     long _cactRelease;
 
-    CRF(PCFL pcfl, long cbMax);
+    ChunkyResourceFile(PCFL pcfl, long cbMax);
     bool _FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre);
     bool _FFindBaco(PBACO pbaco, long *picre);
     bool _FPurgeCb(long cbPurge, long crepLast);
 
   public:
-    ~CRF(void);
-    static PCRF PcrfNew(PCFL pcfl, long cbMax);
+    ~ChunkyResourceFile(void);
+    static PChunkyResourceFile PcrfNew(PCFL pcfl, long cbMax);
 
     virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
     virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
     virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual PCRF PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
+    virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
     long CbMax(void)
     {
@@ -196,7 +196,7 @@ class CRM : public CRM_PAR
     virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
     virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual PCRF PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
+    virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
     bool FAddCfl(PCFL pcfl, long cbMax, long *piv = pvNil);
     long Ccrf(void)
@@ -204,7 +204,7 @@ class CRM : public CRM_PAR
         AssertThis(0);
         return _pglpcrf->IvMac();
     }
-    PCRF PcrfGet(long icrf);
+    PChunkyResourceFile PcrfGet(long icrf);
 };
 
 /***************************************************************************
@@ -232,7 +232,7 @@ class GHQ : public GHQ_PAR
     }
 
     // An object reader for a GHQ.
-    static bool FReadGhq(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 };
 
 /***************************************************************************

@@ -2228,7 +2228,7 @@ enum
 /***************************************************************************
     Insert a picture into the help text document.
 ***************************************************************************/
-bool HETG::FInsertPicture(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+bool HETG::FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2328,7 +2328,7 @@ bool _FDlgFormatButton(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Insert a button into the help text document.
 ***************************************************************************/
-bool HETG::FInsertButton(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
+bool HETG::FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);

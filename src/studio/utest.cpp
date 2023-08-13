@@ -1764,9 +1764,9 @@ bool APP::_FPlaySplashSound(void)
 {
     AssertBaseThis(0);
 
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
-    pcrf = CRF::PcrfNew(_pcfl, 0);
+    pcrf = ChunkyResourceFile::PcrfNew(_pcfl, 0);
     if (pvNil == pcrf)
         return fFalse;
     vpsndm->SiiPlay(pcrf, kctgMidi, kcnoMidiSplash);
@@ -1920,7 +1920,7 @@ bool APP::_FInitBuilding(void)
     long i;
     long cbCache;
     long iv;
-    PCRF pcrfT;
+    PChunkyResourceFile pcrfT;
     PSCEG psceg = pvNil;
     PSCPT pscpt = pvNil;
 
@@ -1977,7 +1977,7 @@ bool APP::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
     long i;
     long cbCache;
     long iv;
-    PCRF pcrfT;
+    PChunkyResourceFile pcrfT;
     bool fRet = fFalse;
 
     _pstdio = Studio::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),

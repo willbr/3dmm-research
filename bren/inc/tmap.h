@@ -77,7 +77,7 @@ class TMAP : public TMAP_PAR
     bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TMAP
-    static bool FReadTmap(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TMAP
     static PTMAP PtmapNewFromBpmp(BPMP *pbpmp);

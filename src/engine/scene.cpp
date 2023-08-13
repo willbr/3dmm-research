@@ -186,7 +186,7 @@ class SUNC : public SUNC_PAR
 
   protected:
     ChunkNumber _cno;
-    PCRF _pcrf;
+    PChunkyResourceFile _pcrf;
     SUNC(void)
     {
     }
@@ -3757,7 +3757,7 @@ bool SCEN::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, ChunkNumber cno)
+SCEN *SCEN::PscenRead(PMVIE pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
@@ -4180,7 +4180,7 @@ bool SCEN::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
-bool SCEN::FWrite(PCRF pcrf, ChunkNumber *pcno)
+bool SCEN::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -5756,18 +5756,18 @@ void SCEN::StopPlaying()
 
 /******************************************************************************
     FTransOnFile
-        For a given SCEN chunk on a given CRF, get the scene transition
+        For a given SCEN chunk on a given ChunkyResourceFile, get the scene transition
         state for the scene.
 
     Arguments:
-        PCRF pcrf     -- the chunky resource file the SCEN lives on
+        PChunkyResourceFile pcrf     -- the chunky resource file the SCEN lives on
         ChunkNumber cno       -- the ChunkNumber of the SCEN chunk
         TRANS *ptrans -- pointer to memory to take the transition setting
 
     Returns: fTrue if it was able to set *ptrans, fFalse if something failed
 
 ************************************************************ PETED ***********/
-bool SCEN::FTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS *ptrans)
+bool SCEN::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
     DataBlock blck;
     SCENH scenh;
@@ -5790,11 +5790,11 @@ LFail:
 
 /******************************************************************************
     FSetTransOnFile
-        For a given SCEN chunk on a given CRF, set the scene transition
+        For a given SCEN chunk on a given ChunkyResourceFile, set the scene transition
         state for the scene.
 
     Arguments:
-        PCRF pcrf   -- the chunky resource file the SCEN lives on
+        PChunkyResourceFile pcrf   -- the chunky resource file the SCEN lives on
         ChunkNumber cno     -- the ChunkNumber of the SCEN chunk
         TRANS trans -- the transition state to use
 
@@ -5802,7 +5802,7 @@ LFail:
         given transition state.
 
 ************************************************************ PETED ***********/
-bool SCEN::FSetTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS trans)
+bool SCEN::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
     DataBlock blck;
     SCENH scenh;
@@ -6998,7 +6998,7 @@ bool SUNC::FSave(PSCEN pscen)
         return (fFalse);
     }
 
-    _pcrf = CRF::PcrfNew(pcfl, 0);
+    _pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
     if (_pcrf == pvNil)
     {
         ReleasePpo(&pcfl);
