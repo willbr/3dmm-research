@@ -54,7 +54,7 @@ class Studio : public Studio_PAR
     CMD_MAP_DEC(Studio)
 
   protected:
-    PCRM _pcrm;
+    PChunkyResourceManager _pcrm;
     PGST _pgstMisc;
     PMVIE _pmvie;
     PSMCC _psmcc;
@@ -85,7 +85,7 @@ class Studio : public Studio_PAR
     //
     // Create and destroy functions
     //
-    static PStudio PstdioNew(long hid, PCRM pcrmStudio, PFilename pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
+    static PStudio PstdioNew(long hid, PChunkyResourceManager pcrmStudio, PFilename pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
     void ReleaseBrcn(void);
     ~Studio(void);
 

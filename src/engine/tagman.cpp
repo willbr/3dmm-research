@@ -11,18 +11,18 @@
     It is important to keep in mind that there are two layers of caching
     going on in TAGM: Caching content from the CD (or other slow source)
     to the local hard disk, and caching resources in RAM using chunky
-    resources (the ChunkyResourceFile and CRM classes).
+    resources (the ChunkyResourceFile and ChunkyResourceManager classes).
 
-    For each source, TAGM maintains (in an SFS) a CRM (Chunky Resource
+    For each source, TAGM maintains (in an SFS) a ChunkyResourceManager (Chunky Resource
     Manager) of all the content	files on the source and a ChunkyResourceFile (Chunky
     Resource File), which is a single file on the HD which can be used
     for faster access to the source.  Both CRFs and CRMs can cache
     resources in RAM.  Since Socrates copies *all* content from the CD
-    to the cache file, the CRM is told not to cache its resources in
+    to the cache file, the ChunkyResourceManager is told not to cache its resources in
     RAM.  However, if the source is actually on the HD, TAGM notices and
     doesn't copy any content to a cache file, since that would be a waste
-    of time.  Instead, the content is read directly from the CRM.  In this
-    case, TAGM does tell the CRM to cache its resources in RAM.
+    of time.  Instead, the content is read directly from the ChunkyResourceManager.  In this
+    case, TAGM does tell the ChunkyResourceManager to cache its resources in RAM.
 
     Source names: every source has a long and short name.  This is so we
     can use long names for the source directory on the HD (e.g., "3D Movie
@@ -52,7 +52,7 @@ struct SFS
     long sid;             // ID for this source
     Filename fniHD;            // Filename of the HD directory
     Filename fniCD;            // Filename of the CD directory
-    PCRM pcrmSource;      // CRM of files on the CD (or possibly HD)
+    PChunkyResourceManager pcrmSource;      // ChunkyResourceManager of files on the CD (or possibly HD)
     tribool tContentOnHD; // Is the content on the HD or CD?
 
   public:
@@ -424,7 +424,7 @@ bool TAGM::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
         }
         else
         {
-            // With the way the CRM stuff works now, the CRM can't
+            // With the way the ChunkyResourceManager stuff works now, the ChunkyResourceManager can't
             // move to another path.  So fail if the CD isn't exactly
             // where it was before.
             return fFalse;
@@ -476,10 +476,10 @@ bool TAGM::_FRetry(long sid)
 }
 
 /***************************************************************************
-    Builds the CRM for the given sid's source.  pfniDir tells where the
+    Builds the ChunkyResourceManager for the given sid's source.  pfniDir tells where the
     content files are.
 ***************************************************************************/
-PCRM TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
+PChunkyResourceManager TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -487,12 +487,12 @@ PCRM TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
 
     STN stn;
     Filename fni;
-    PCRM pcrmSource = pvNil;
+    PChunkyResourceManager pcrmSource = pvNil;
     FNE fne;
     FileType ftgChk = kftgContent;
     PCFL pcfl = pvNil;
 
-    pcrmSource = CRM::PcrmNew(0);
+    pcrmSource = ChunkyResourceManager::PcrmNew(0);
     if (pvNil == pcrmSource)
         goto LFail;
 
@@ -516,11 +516,11 @@ LFail:
 }
 
 /***************************************************************************
-    Returns the source CRM for the given sid, creating (and remembering) a
+    Returns the source ChunkyResourceManager for the given sid, creating (and remembering) a
     new one if there isn't one already.  It verifies that the CD is still
     in the drive, unless fDontHitCD is fTrue.
 ***************************************************************************/
-PCRM TAGM::_PcrmSourceGet(long sid, bool fDontHitCD)
+PChunkyResourceManager TAGM::_PcrmSourceGet(long sid, bool fDontHitCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -771,7 +771,7 @@ bool TAGM::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PT
     Assert(ptagPar->sid >= 0, "Invalid sid");
     AssertVarMem(ptagChild);
 
-    PCRM pcrmSource;
+    PChunkyResourceManager pcrmSource;
     PChunkyResourceFile pcrfSource;
     ChildChunkIdentification kid;
 
@@ -817,7 +817,7 @@ bool TAGM::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
 
-    PCRM pcrmSource;
+    PChunkyResourceManager pcrmSource;
     PChunkyResourceFile pcrfSource;
     bool fSourceIsOnHD;
     PCFL pcfl;
@@ -884,7 +884,7 @@ PBACO TAGM::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
     Assert(pvNil != pfnrpo, "bad rpo");
 
     PBACO pbaco = pvNil;
-    PCRM pcrmSource;
+    PChunkyResourceManager pcrmSource;
 
     if (ptag->sid == ksidUseCrf)
     {
@@ -921,7 +921,7 @@ void TAGM::ClearCache(long sid, ulong grftagm)
     {
         long icrf, icrfMac;
         SFS sfs;
-        PCRM pcrmSource;
+        PChunkyResourceManager pcrmSource;
 
         _pglsfs->Get(isfs, &sfs);
         if ((sid != sidNil && sfs.sid != sid) || sfs.pcrmSource == pvNil)

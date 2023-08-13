@@ -914,7 +914,7 @@ bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdent
         // Cache the GOKD's by first creating a
         // chunky resource manager
         Assert(pvNil == _pcrm, "Logic error releasing pcrm");
-        _pcrm = CRM::PcrmNew(ccrf);
+        _pcrm = ChunkyResourceManager::PcrmNew(ccrf);
         if (pvNil == _pcrm)
             goto LDismiss;
 
@@ -1082,7 +1082,7 @@ LFail:
  * BRWL _FGetContent : Enum files & build the THD
  *
  ****************************************************/
-bool BRWL::_FGetContent(PCRM pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
+bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1408,7 +1408,7 @@ void BRWL::_ReleaseThumFrame(long ifrm)
  * BCL class routines
  *
  ****************************************************/
-PBCL BCL::PbclNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, bool fOnlineOnly)
+PBCL BCL::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, bool fOnlineOnly)
 {
     PBCL pbcl;
 
@@ -1422,7 +1422,7 @@ PBCL BCL::PbclNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent,
     return pbcl;
 }
 
-bool BCLS::_FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd)
+bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
@@ -1443,7 +1443,7 @@ LFail:
     return fFalse;
 }
 
-bool BCL::_FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd)
+bool BCL::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd)
 {
     AssertNilOrPo(pcrm, 0);
     Assert(pckiRoot->ctg != ctgNil, "Bad ChunkIdentification");
@@ -1472,7 +1472,7 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
+PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
 {
     PBCLS pbcls;
 
@@ -1500,7 +1500,7 @@ LFail:
  * Sort based on _bws (browser selection flag)
  *
  ****************************************************/
-bool BCL::_FBuildThd(PCRM pcrm)
+bool BCL::_FBuildThd(PChunkyResourceManager pcrm)
 {
     AssertThis(0);
     AssertNilOrPo(pcrm, 0);
@@ -1862,7 +1862,7 @@ bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdent
  * Build the thd
  *
  ****************************************************/
-bool BRWN::_FGetContent(PCRM pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
+bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -3016,7 +3016,7 @@ bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pst
     _ctg = ctgTmplThum;
     BRWD::Init(pcmd, ivNil, ithumDisplay, pstdio, fFalse, 1);
 
-    _pcrm = CRM::PcrmNew(ccrf);
+    _pcrm = ChunkyResourceManager::PcrmNew(ccrf);
     if (pvNil == _pcrm)
         goto LFail; // Error already reported
 

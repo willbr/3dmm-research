@@ -93,7 +93,7 @@ class APP : public APP_PAR
     PCFL _pcfl;                   // resource file for app
     PStudio _pstdio;               // Current studio
     PTATR _ptatr;                 // Current theater
-    PCRM _pcrmAll;                // The app CRM -- all crfs are loaded into this.
+    PChunkyResourceManager _pcrmAll;                // The app ChunkyResourceManager -- all crfs are loaded into this.
     PGL _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
     PGL _pglicrfStudio;           // List of crfs in _pcrmAll belonging to Studio.
     bool _fDontMinimize : 1,      // "/M" command-line switch
@@ -179,7 +179,7 @@ class APP : public APP_PAR
     bool _FReadStringTables(void);
     bool _FSetWindowTitle(void);
     bool _FInitCrm(void);
-    bool _FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles);
+    bool _FAddToCrm(PGST pgstFiles, PChunkyResourceManager pcrm, PGL pglFiles);
     bool _FInitBuilding(void);
     bool _FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
     void _GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle);
@@ -276,7 +276,7 @@ class APP : public APP_PAR
     {
         return _pkwa;
     }
-    PCRM PcrmAll(void)
+    PChunkyResourceManager PcrmAll(void)
     {
         return _pcrmAll;
     }

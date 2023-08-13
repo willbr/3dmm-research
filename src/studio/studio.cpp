@@ -71,7 +71,7 @@ const long kcbCursorCache = 1024;
  *
  * Parameters:
  *  hid - The hid to use for the studio
- *  pcrmStudio - CRM to read script chunks from
+ *  pcrmStudio - ChunkyResourceManager to read script chunks from
  *  pfniUserDoc - movie file to open, or pvNil
  *  fFailIfDocOpenFailed - if fTrue, this function fails if pfniUserDoc
  *     cannot be opened.  If fFalse, this function creates a blank document
@@ -81,7 +81,7 @@ const long kcbCursorCache = 1024;
  *  Pointer to the studio if successful, else pvNil.
  *
  **************************************************************************/
-PStudio Studio::PstdioNew(long hid, PCRM pcrmStudio, PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
+PStudio Studio::PstdioNew(long hid, PChunkyResourceManager pcrmStudio, PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
 {
     AssertPo(pcrmStudio, 0);
     AssertNilOrPo(pfniUserDoc, ffniFile);

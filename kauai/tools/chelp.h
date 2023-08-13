@@ -46,7 +46,7 @@ class APP : public APP_PAR
     CMD_MAP_DEC(APP)
 
   protected:
-    PCRM _pcrm;
+    PChunkyResourceManager _pcrm;
     PLID _plidPicture;
     PLID _plidButton;
 
@@ -87,7 +87,7 @@ class LID : public LID_PAR
         ChunkNumber cnoMbmp;
     };
 
-    PCRM _pcrm;   // where to look for the chunks
+    PChunkyResourceManager _pcrm;   // where to look for the chunks
     ChunkTag _ctg;     // what ctg to look for
     ChildChunkID _chid;   // what chid value the MBMP should be at (if _ctg is not MBMP)
     PGL _pglcach; // list of the chunks that we found
@@ -95,10 +95,10 @@ class LID : public LID_PAR
     LID(void);
     ~LID(void);
 
-    bool _FInit(PCRM pcrm, ChunkTag ctg, ChildChunkID chid);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid);
 
   public:
-    static PLID PlidNew(PCRM pcrm, ChunkTag ctg, ChildChunkID chid = 0);
+    static PLID PlidNew(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid = 0);
 
     bool FRefresh(void);
     long Ccki(void);

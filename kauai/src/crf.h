@@ -11,8 +11,8 @@
     Copyright (c) Microsoft Corporation
 
     Chunky resource file management. A ChunkyResourceFile is a cache wrapped around a
-    chunky file. A CRM is a list of CRFs. A BACO is an object that
-    can be cached in a ChunkyResourceFile. An RCA is an interface that ChunkyResourceFile and CRM both
+    chunky file. A ChunkyResourceManager is a list of CRFs. A BACO is an object that
+    can be cached in a ChunkyResourceFile. An RCA is an interface that ChunkyResourceFile and ChunkyResourceManager both
     implement (are a super set of).
 
 ***************************************************************************/
@@ -172,10 +172,10 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
 /***************************************************************************
     Chunky resource manager - a list of CRFs.
 ***************************************************************************/
-typedef class CRM *PCRM;
-#define CRM_PAR RCA
-#define kclsCRM 'CRM'
-class CRM : public CRM_PAR
+typedef class ChunkyResourceManager *PChunkyResourceManager;
+#define ChunkyResourceManager_PAR RCA
+#define kclsChunkyResourceManager 'CRM'
+class ChunkyResourceManager : public ChunkyResourceManager_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -184,13 +184,13 @@ class CRM : public CRM_PAR
   protected:
     PGL _pglpcrf;
 
-    CRM(void)
+    ChunkyResourceManager(void)
     {
     }
 
   public:
-    ~CRM(void);
-    static PCRM PcrmNew(long ccrfInit);
+    ~ChunkyResourceManager(void);
+    static PChunkyResourceManager PcrmNew(long ccrfInit);
 
     virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
     virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);

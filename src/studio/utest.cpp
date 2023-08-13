@@ -1777,7 +1777,7 @@ bool APP::_FPlaySplashSound(void)
 
 /***************************************************************************
     Read the chunky files specified by _pgstSharedFiles, _pgstBuildingFiles
-    and _pgstStudioFiles and create the global CRM; indices to the Building
+    and _pgstStudioFiles and create the global ChunkyResourceManager; indices to the Building
     and Studio CRFs are stored in _pglicrfBuilding and _pglicrfStudio.
 ***************************************************************************/
 bool APP::_FInitCrm(void)
@@ -1791,7 +1791,7 @@ bool APP::_FInitCrm(void)
     PSCEG psceg = pvNil;
     PSCPT pscpt = pvNil;
 
-    _pcrmAll = CRM::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
+    _pcrmAll = ChunkyResourceManager::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
     if (pvNil == _pcrmAll)
         goto LFail;
 
@@ -1835,11 +1835,11 @@ LFail:
 
 /***************************************************************************
     Helper function for _FInitCrm.  Adds the list of chunky files specified
-    in pgstFiles to the CRM pointed to by pcrm.  If pglFiles is not pvNil,
-    it is filled in with the positions in the CRM of each of the loaded
+    in pgstFiles to the ChunkyResourceManager pointed to by pcrm.  If pglFiles is not pvNil,
+    it is filled in with the positions in the ChunkyResourceManager of each of the loaded
     crfs.
 ***************************************************************************/
-bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
+bool APP::_FAddToCrm(PGST pgstFiles, PChunkyResourceManager pcrm, PGL pglFiles)
 {
     AssertBaseThis(0);
     AssertPo(&_fniProductDir, ffniDir);
@@ -1945,7 +1945,7 @@ bool APP::_FInitBuilding(void)
         _pgstBuildingFiles->GetExtra(i, &cbCache);
         _pglicrfBuilding->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(cbCache);
     }
 
@@ -1954,7 +1954,7 @@ bool APP::_FInitBuilding(void)
     {
         _pglicrfStudio->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(0);
     }
 
@@ -1993,7 +1993,7 @@ bool APP::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
         _pgstStudioFiles->GetExtra(i, &cbCache);
         _pglicrfStudio->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(cbCache);
     }
 
@@ -2002,7 +2002,7 @@ bool APP::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
     {
         _pglicrfBuilding->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(0);
     }
 

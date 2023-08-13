@@ -350,7 +350,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
         break;
 
     default:
-        if (pvNil == _pcrm && pvNil == (_pcrm = CRM::PcrmNew(1)))
+        if (pvNil == _pcrm && pvNil == (_pcrm = ChunkyResourceManager::PcrmNew(1)))
             return fFalse;
         if (pvNil == _plidPicture && pvNil == (_plidPicture = LID::PlidNew(_pcrm, kctgMbmp)))
         {
@@ -406,7 +406,7 @@ bool APP::FLoadResFile(PFilename pfni)
     PChunkyResourceFile pcrf;
     DataBlock blck;
 
-    if (pvNil == _pcrm && pvNil == (_pcrm = CRM::PcrmNew(1)))
+    if (pvNil == _pcrm && pvNil == (_pcrm = ChunkyResourceManager::PcrmNew(1)))
         return fFalse;
 
     if (pvNil == (pcfl = ChunkyFile::PcflOpen(pfni, fcflNil)))
@@ -566,7 +566,7 @@ void LID::MarkMem(void)
 /***************************************************************************
     Static method to create a new list document.
 ***************************************************************************/
-PLID LID::PlidNew(PCRM pcrm, ChunkTag ctg, ChildChunkID chid)
+PLID LID::PlidNew(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid)
 {
     AssertPo(pcrm, 0);
     PLID plid;
@@ -583,7 +583,7 @@ PLID LID::PlidNew(PCRM pcrm, ChunkTag ctg, ChildChunkID chid)
 /***************************************************************************
     Initialization for the list document.
 ***************************************************************************/
-bool LID::_FInit(PCRM pcrm, ChunkTag ctg, ChildChunkID chid)
+bool LID::_FInit(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid)
 {
     AssertPo(pcrm, 0);
     GraphicsObjectBlock gcb;

@@ -256,7 +256,7 @@ class BRCNL : public BRCNL_PAR
     ChunkIdentification ckiRoot;
     PGL pglthd;
     PGST pgst;
-    PCRM pcrm;
+    PChunkyResourceManager pcrm;
 };
 
 //
@@ -318,15 +318,15 @@ class BCL : public BCL_PAR
         ReleasePpo(&_pglthd);
     }
 
-    bool _FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd);
     bool _FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki);
     bool _FAddFileToThd(PCFL pcfl, long sid);
-    bool _FBuildThd(PCRM pcrm);
+    bool _FBuildThd(PChunkyResourceManager pcrm);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCL PbclNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBCL PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
 
     PGL Pglthd(void)
     {
@@ -366,13 +366,13 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
     bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
+    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
     PGST Pgst(void)
@@ -411,7 +411,7 @@ class BRWL : public BRWL_PAR
     bool _fEnableAccel;
 
     // Thumnail descriptor lists
-    PCRM _pcrm;  // Chunky resource manager
+    PChunkyResourceManager _pcrm;  // Chunky resource manager
     PGL _pglthd; // Thumbnail descriptor	gl
     PGST _pgst;  // Chunk name
 
@@ -425,7 +425,7 @@ class BRWL : public BRWL_PAR
     // BRWL List
     bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
     bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
-    virtual bool _FGetContent(PCRM pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
+    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         AssertThis(0);
@@ -518,7 +518,7 @@ class BRWN : public BRWN_PAR
     RTCLASS_DEC
 
   protected:
-    virtual bool _FGetContent(PCRM pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
+    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         return _pglthd->IvMac();
@@ -767,7 +767,7 @@ class BRWR : public BRWR_PAR
 
   protected:
     ChunkTag _ctg;
-    PCRM _pcrm; // Chunky resource manager
+    PChunkyResourceManager _pcrm; // Chunky resource manager
     bool _fApplyingSel;
 
   protected:

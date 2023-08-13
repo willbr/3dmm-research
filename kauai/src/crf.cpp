@@ -22,7 +22,7 @@ RTCLASS(BACO)
 RTCLASS(GHQ)
 RTCLASS(RCA)
 RTCLASS(ChunkyResourceFile)
-RTCLASS(CRM)
+RTCLASS(ChunkyResourceManager)
 RTCLASS(CABO)
 
 /***************************************************************************
@@ -757,7 +757,7 @@ void ChunkyResourceFile::MarkMem(void)
 /***************************************************************************
     Destructor for Chunky resource manager.
 ***************************************************************************/
-CRM::~CRM(void)
+ChunkyResourceManager::~ChunkyResourceManager(void)
 {
     AssertBaseThis(fobjAllocated);
     long ipcrf;
@@ -776,14 +776,14 @@ CRM::~CRM(void)
 }
 
 /***************************************************************************
-    Static method to create a new CRM.
+    Static method to create a new ChunkyResourceManager.
 ***************************************************************************/
-PCRM CRM::PcrmNew(long ccrfInit)
+PChunkyResourceManager ChunkyResourceManager::PcrmNew(long ccrfInit)
 {
     AssertIn(ccrfInit, 0, kcbMax);
-    PCRM pcrm;
+    PChunkyResourceManager pcrm;
 
-    if (pvNil == (pcrm = NewObj CRM()))
+    if (pvNil == (pcrm = NewObj ChunkyResourceManager()))
         return pvNil;
     if (pvNil == (pcrm->_pglpcrf = GL::PglNew(size(PChunkyResourceFile), ccrfInit)))
     {
@@ -798,7 +798,7 @@ PCRM CRM::PcrmNew(long ccrfInit)
     Prefetch the object if there is room in the cache.  Assigns the fetched
     object the given priority (crep).
 ***************************************************************************/
-tribool CRM::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
+tribool ChunkyResourceManager::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -824,7 +824,7 @@ tribool CRM::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long c
     and pfError is not nil, *pfError is set iff the chunk exists but
     couldn't be loaded.
 ***************************************************************************/
-PBACO CRM::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBACO ChunkyResourceManager::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -853,7 +853,7 @@ PBACO CRM::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfErro
     If the object is loaded, increment its reference count and return it.
     If it's not already loaded, just return nil.
 ***************************************************************************/
-PBACO CRM::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+PBACO ChunkyResourceManager::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -870,7 +870,7 @@ PBACO CRM::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
     If the chunk is cached, set its crep.  Returns true iff the chunk
     was cached.
 ***************************************************************************/
-bool CRM::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+bool ChunkyResourceManager::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -892,7 +892,7 @@ bool CRM::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC 
     Return which ChunkyResourceFile the given chunk is in. The caller is not given a
     reference count.
 ***************************************************************************/
-PChunkyResourceFile CRM::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
     PChunkyResourceFile pcrf;
@@ -917,7 +917,7 @@ PChunkyResourceFile CRM::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
     Add a chunky file to the list of chunky resource files, by
     creating the chunky resource file object and adding it to the GL
 ***************************************************************************/
-bool CRM::FAddCfl(PCFL pcfl, long cbMax, long *piv)
+bool ChunkyResourceManager::FAddCfl(PCFL pcfl, long cbMax, long *piv)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -942,7 +942,7 @@ bool CRM::FAddCfl(PCFL pcfl, long cbMax, long *piv)
 /***************************************************************************
     Get the icrf'th ChunkyResourceFile.
 ***************************************************************************/
-PChunkyResourceFile CRM::PcrfGet(long icrf)
+PChunkyResourceFile ChunkyResourceManager::PcrfGet(long icrf)
 {
     AssertThis(0);
     AssertIn(icrf, 0, kcbMax);
@@ -958,25 +958,25 @@ PChunkyResourceFile CRM::PcrfGet(long icrf)
 
 #ifdef DEBUG
 /***************************************************************************
-    Check the sanity of the CRM
+    Check the sanity of the ChunkyResourceManager
 ***************************************************************************/
-void CRM::AssertValid(ulong grfobj)
+void ChunkyResourceManager::AssertValid(ulong grfobj)
 {
-    CRM_PAR::AssertValid(grfobj | fobjAllocated);
+    ChunkyResourceManager_PAR::AssertValid(grfobj | fobjAllocated);
     AssertPo(_pglpcrf, 0);
 }
 
 /***************************************************************************
-    mark the memory associated with the CRM
+    mark the memory associated with the ChunkyResourceManager
 ***************************************************************************/
-void CRM::MarkMem(void)
+void ChunkyResourceManager::MarkMem(void)
 {
     AssertThis(0);
     long ipcrf;
     long cpcrf;
     PChunkyResourceFile pcrf;
 
-    CRM_PAR::MarkMem();
+    ChunkyResourceManager_PAR::MarkMem();
     MarkMemObj(_pglpcrf);
 
     for (ipcrf = 0, cpcrf = _pglpcrf->IvMac(); ipcrf < cpcrf; ipcrf++)

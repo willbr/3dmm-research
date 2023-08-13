@@ -15,7 +15,7 @@
     a SID, or source ID, that helps TAGM find the content.
 
     A source (identified by a SID) is a group of chunky files (managed
-    by a CRM) in one directory of one disk whose chunks all have unique
+    by a ChunkyResourceManager) in one directory of one disk whose chunks all have unique
     ChunkTag/CNOs.  Each Socrates series member will be a source, and the
     user rolls might also be implemented as a source.  A SID of less
     than 0 is invalid; a TAG with a negative SID is an invalid TAG.
@@ -88,7 +88,7 @@ class TAGM : public TAGM_PAR
 
   protected:
     Filename _fniHDRoot;     // Root HD directory to search for content
-    long _cbCache;      // Size of RAM Cache on files in CRM for each source
+    long _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
     PGL _pglsfs;        // GL of source file structs
     PGST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
@@ -110,8 +110,8 @@ class TAGM : public TAGM_PAR
     bool _FGetFniCD(long sid, PFilename pfniHD, bool fAskForCD);
 
     bool _FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists);
-    PCRM _PcrmSourceNew(long sid, PFilename pfniInfo);
-    PCRM _PcrmSourceGet(long sid, bool fDontHitCD = fFalse);
+    PChunkyResourceManager _PcrmSourceNew(long sid, PFilename pfniInfo);
+    PChunkyResourceManager _PcrmSourceGet(long sid, bool fDontHitCD = fFalse);
     PCFL _PcflFindTag(PTAG ptag);
 
   public:
