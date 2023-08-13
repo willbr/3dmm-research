@@ -214,7 +214,7 @@ void Compiler::_ErrorOnData(PSZ pszPreceed)
     Get a token, automatically handling mode change commands and negatives.
     Return true iff *ptok is valid, not whether an error occurred.
 ***************************************************************************/
-bool Compiler::_FGetCleanTok(TOK *ptok, bool fEofOk)
+bool Compiler::_FGetCleanTok(Token *ptok, bool fEofOk)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -288,7 +288,7 @@ bool Compiler::_FGetCleanTok(TOK *ptok, bool fEofOk)
 void Compiler::_SkipPastTok(long tt)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
 
     while (_FGetCleanTok(&tok) && tt != tok.tt)
         ;
@@ -304,7 +304,7 @@ bool Compiler::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
     AssertPvCb(prgphp, LwMul(cphpMax, size(PHP)));
     AssertVarMem(pcphp);
 
-    TOK tok;
+    Token tok;
     long iphp;
 
     if (!_pchlx->FGetTok(&tok))
@@ -583,7 +583,7 @@ void Compiler::_ParseBodyParent(ChunkTag ctg, ChunkNumber cno)
 void Compiler::_ParseBodyAlign(void)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
 
     if (!_FGetCleanTok(&tok))
         return;
@@ -703,7 +703,7 @@ void Compiler::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
     Filename fni;
     DataBlock blck;
     PPIC ppic;
-    TOK tok;
+    Token tok;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -743,7 +743,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumbe
     AssertThis(0);
     Filename fni;
     DataBlock blck;
-    TOK tok;
+    Token tok;
     PHP rgphp[3];
     long cphp;
     PMBMP pmbmp = pvNil;
@@ -796,7 +796,7 @@ void Compiler::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     Filename fni;
     DataBlock blck;
-    TOK tok;
+    Token tok;
     PGL pglclr;
 
     if (!_pchlx->FGetPath(&fni))
@@ -837,7 +837,7 @@ void Compiler::_ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     Filename fni;
     DataBlock blck;
-    TOK tok;
+    Token tok;
     PMIDS pmids;
 
     if (!_pchlx->FGetPath(&fni))
@@ -909,7 +909,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
     Filename fni;
     DataBlock blck;
     FLO floSrc;
-    TOK tok;
+    Token tok;
     long ccurdir, cbBits;
     CURF curf;
     short rgsw[3];
@@ -1043,7 +1043,7 @@ LFail:
     with the first token and when _FParseData returns it contains the next
     token to be processed.  Returns false iff no tokens were consumed.
 ***************************************************************************/
-bool Compiler::_FParseData(PTOK ptok)
+bool Compiler::_FParseData(PToken ptok)
 {
     enum
     {
@@ -1163,7 +1163,7 @@ bool Compiler::_FParseData(PTOK ptok)
 void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     PHP rgphp[1];
     long cphp;
     long cbEntry, cb;
@@ -1294,7 +1294,7 @@ LFail:
 void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     PHP rgphp[1];
     long cphp;
     long cbFixed, cb;
@@ -1451,7 +1451,7 @@ LFail:
 void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     PHP rgphp[1];
     long cphp;
     long cbExtra, cb;
@@ -1619,7 +1619,7 @@ void Compiler::_ParseBodyPackedFile(bool *pfPacked)
 {
     AssertThis(0);
     long lw, lwSwapped;
-    TOK tok;
+    Token tok;
 
     _ParseBodyFile();
     if (_bsf.IbMac() < size(long))
@@ -1804,7 +1804,7 @@ void Compiler::_ParsePackFmt(void)
 void Compiler::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     DataBlock blck;
     ChunkIdentification cki;
     bool fFetch;
@@ -2022,7 +2022,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PSTN pstnFile, PFilen
     AssertPo(pstnFile, 0);
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
-    TOK tok;
+    Token tok;
     ChunkTag ctg;
     ChunkNumber cno;
     PChunkyFile pcfl;
@@ -2178,7 +2178,7 @@ CompilerLexer::~CompilerLexer(void)
 /***************************************************************************
     Reads in the next token.  Resolves certain names to keyword tokens.
 ***************************************************************************/
-bool CompilerLexer::FGetTok(PTOK ptok)
+bool CompilerLexer::FGetTok(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2229,7 +2229,7 @@ bool CompilerLexer::FGetTok(PTOK ptok)
 /***************************************************************************
     Reads in the next token.  Skips semicolons and commas.
 ***************************************************************************/
-bool CompilerLexer::FGetTokSkipSemi(PTOK ptok)
+bool CompilerLexer::FGetTokSkipSemi(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2298,7 +2298,7 @@ bool CompilerLexer::FGetPath(Filename *pfni)
 /***************************************************************************
     Handle a set command.
 ***************************************************************************/
-bool CompilerLexer::_FDoSet(PTOK ptok)
+bool CompilerLexer::_FDoSet(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);

@@ -4599,7 +4599,7 @@ static KEYTT _rgkeyttS2B[] = {"ACTOR",
     Read a number.  The first character is passed in ch.  lwBase is the base
     of the number (must be <= 10).
 ***************************************************************************/
-void S2BLX::_ReadNumTok(PTOK ptok, achar ch, long lwBase, long cchMax)
+void S2BLX::_ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -4646,7 +4646,7 @@ bool S2BLX::FGetS2btk(PS2BTK ps2btk)
     AssertVarMem(ps2btk);
     bool fRet;
     long ikeytt;
-    PTOK ptok = &ps2btk->tok;
+    PToken ptok = &ps2btk->tok;
 
     while ((fRet = S2BLX_PAR::FGetTok(ptok)) && (ptok->tt == ttComma || ptok->tt == ttSemi))
         ;
@@ -4694,15 +4694,15 @@ LDone:
 
 /******************************************************************************
     FGetTok
-        Gets a base TOK.  Will filter out ttFloat.
+        Gets a base Token.  Will filter out ttFloat.
 
     Arguments:
-        PTOK ptok -- pointer to TOK to fill in
+        PToken ptok -- pointer to Token to fill in
 
     Returns: fTrue if it got a valid token
 
 ************************************************************ PETED ***********/
-bool S2BLX::FGetTok(PTOK ptok)
+bool S2BLX::FGetTok(PToken ptok)
 {
     bool fRet;
     S2BTK s2btk;
@@ -4779,7 +4779,7 @@ bool S2BLX::FTextFromS2btk(PS2BTK ps2btk, PSTN pstn)
     }
 
     //	return FTextFromTok(&ps2btk->tok, pstn);
-    PTOK ptok = &ps2btk->tok;
+    PToken ptok = &ps2btk->tok;
 
     switch (ptok->tt)
     {

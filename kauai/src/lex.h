@@ -96,13 +96,13 @@ enum
     ttLimBase
 };
 
-struct TOK
+struct Token
 {
     long tt;
     long lw;
     STN stn;
 };
-typedef TOK *PTOK;
+typedef Token *PToken;
 
 /***************************************************************************
     Base lexer.
@@ -148,7 +148,7 @@ class LEXB : public LEXB_PAR
     }
     bool _FSkipWhiteSpace(void);
     virtual void _ReadNumber(long *plw, achar ch, long lwBase, long cchMax);
-    virtual void _ReadNumTok(PTOK ptok, achar ch, long lwBase, long cchMax)
+    virtual void _ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
     {
         _ReadNumber(&ptok->lw, ch, lwBase, cchMax);
     }
@@ -160,7 +160,7 @@ class LEXB : public LEXB_PAR
     LEXB(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
     ~LEXB(void);
 
-    virtual bool FGetTok(PTOK ptok);
+    virtual bool FGetTok(PToken ptok);
     virtual long CbExtra(void);
     virtual void GetExtra(void *pv);
 

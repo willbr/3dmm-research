@@ -510,7 +510,7 @@ PSCPT SCCB::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
 /***************************************************************************
     Get the next token.  Returns false if the token is a _ttEnd.
 ***************************************************************************/
-bool SCCB::_FGetTok(PTOK ptok)
+bool SCCB::_FGetTok(PToken ptok)
 {
     AssertBaseThis(0);
     AssertPo(_plexb, 0);
@@ -864,7 +864,7 @@ void SCCB::_CompilePost(void)
 {
     AssertThis(0);
     AssertPo(_plexb, 0);
-    TOK tok;
+    Token tok;
     long op;
     RTVN rtvn;
 
@@ -2417,7 +2417,7 @@ void SCCB::_CompileIn(void)
     AssertPo(_plexb, 0);
     AssertPo(_pgletnStack, 0);
     AssertPo(_pgletnTree, 0);
-    TOK tok;
+    Token tok;
     TOME *ptome;
     ETN etn, etnT;
     long ietn;

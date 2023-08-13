@@ -133,7 +133,7 @@ enum
 
 typedef struct _s2btk
 {
-    TOK tok;
+    Token tok;
     double fl;
 } S2BTK, *PS2BTK;
 
@@ -151,7 +151,7 @@ class S2BLX : public S2BLX_PAR
     double _fl;
 
   protected:
-    virtual void _ReadNumTok(PTOK ptok, achar ch, long lwBase, long cchMax);
+    virtual void _ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax);
 
   public:
     S2BLX(PFIL pfil, bool fUnionStrings = fTrue) : S2BLX_PAR(pfil, fUnionStrings)
@@ -161,7 +161,7 @@ class S2BLX : public S2BLX_PAR
     {
     }
 
-    virtual bool FGetTok(PTOK ptok);
+    virtual bool FGetTok(PToken ptok);
     bool FGetS2btk(PS2BTK ps2btk);
     void GetFni(PFilename pfni)
     {

@@ -92,7 +92,7 @@ class CompilerLexer : public CompilerLexer_PAR
   protected:
     PStringTable _pgstVariables;
 
-    bool _FDoSet(PTOK ptok);
+    bool _FDoSet(PToken ptok);
 
   public:
     CompilerLexer(PFileByteStream pbsf, PSTN pstnFile);
@@ -100,8 +100,8 @@ class CompilerLexer : public CompilerLexer_PAR
 
     // override the LEXB FGetTok to resolve variables, hande SET
     // and recognize our additional key words
-    virtual bool FGetTok(PTOK ptok);
-    virtual bool FGetTokSkipSemi(PTOK ptok); // also skip ';' & ','
+    virtual bool FGetTok(PToken ptok);
+    virtual bool FGetTokSkipSemi(PToken ptok); // also skip ';' & ','
     virtual bool FGetPath(Filename *pfni);        // read a path
 };
 
@@ -216,7 +216,7 @@ class Compiler : public Compiler_PAR
     void _GetRgbFromLw(long lw, byte *prgb);
     void _ErrorOnData(PSZ pszPreceed);
     bool _FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp);
-    bool _FGetCleanTok(TOK *ptok, bool fEofOk = fFalse);
+    bool _FGetCleanTok(Token *ptok, bool fEofOk = fFalse);
     void _SkipPastTok(long tt);
     void _ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno);
     void _AppendString(PSTN pstnValue);
@@ -234,7 +234,7 @@ class Compiler : public Compiler_PAR
     void _ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno);
     void _ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno);
     void _ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno);
-    bool _FParseData(PTOK ptok);
+    bool _FParseData(PToken ptok);
     void _ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cno);
     void _ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber cno);
     void _ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkNumber cno);

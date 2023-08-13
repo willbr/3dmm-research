@@ -220,7 +220,7 @@ class SCCB : public SCCB_PAR
     virtual short _SwBack(void);
     virtual short _SwMin(void);
 
-    virtual bool _FGetTok(PTOK ptok);
+    virtual bool _FGetTok(PToken ptok);
 
     // post-fix compiler routines
     virtual void _CompilePost(void);

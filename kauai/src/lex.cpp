@@ -600,7 +600,7 @@ bool LEXB::_FSkipWhiteSpace(void)
 /***************************************************************************
     Get the next token from the file.
 ***************************************************************************/
-bool LEXB::FGetTok(PTOK ptok)
+bool LEXB::FGetTok(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
