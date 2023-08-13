@@ -1120,7 +1120,7 @@ void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
     {
         // patterned fill
         AbstractColor acrBack = pgdd->acrBack;
-        APT apt = pgdd->apt;
+        AbstractPattern apt = pgdd->apt;
 
         // check for a solid pattern
         if (apt.FSolidFore() || acrFore == acrBack)
@@ -1360,9 +1360,9 @@ void GPT::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, DSF *pdsf)
 }
 
 /***************************************************************************
-    Select a monochrome patterned brush corresponding to the APT.
+    Select a monochrome patterned brush corresponding to the AbstractPattern.
 ***************************************************************************/
-void GPT::_SetAptBrush(APT *papt)
+void GPT::_SetAptBrush(AbstractPattern *papt)
 {
     AssertVarMem(papt);
     short rgw[8];

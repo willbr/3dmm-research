@@ -13,9 +13,9 @@
 #include "frame.h"
 ASSERTNAME
 
-APT vaptGray = {0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55};
-APT vaptLtGray = {0x22, 0x88, 0x44, 0x11, 0x22, 0x88, 0x44, 0x11};
-APT vaptDkGray = {0xDD, 0x77, 0xBB, 0xEE, 0xDD, 0x77, 0xBB, 0xEE};
+AbstractPattern vaptGray = {0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55};
+AbstractPattern vaptLtGray = {0x22, 0x88, 0x44, 0x11, 0x22, 0x88, 0x44, 0x11};
+AbstractPattern vaptDkGray = {0xDD, 0x77, 0xBB, 0xEE, 0xDD, 0x77, 0xBB, 0xEE};
 
 NTL vntl;
 
@@ -93,7 +93,7 @@ void AbstractColor::AssertValid(ulong grfacr)
 /***************************************************************************
     Change the origin on the pattern.
 ***************************************************************************/
-void APT::MoveOrigin(long dxp, long dyp)
+void AbstractPattern::MoveOrigin(long dxp, long dyp)
 {
     // this cast to ulong works because 2^32 is a multiple of 8.
     dxp = (ulong)dxp % 8;
@@ -223,7 +223,7 @@ void GNV::MarkMem(void)
 /***************************************************************************
     Fill a rectangle with a two color pattern.
 ***************************************************************************/
-void GNV::FillRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FillRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -268,7 +268,7 @@ void GNV::FillRc(RC *prc, AbstractColor acr)
 /***************************************************************************
     Frame a rectangle with a two color pattern.
 ***************************************************************************/
-void GNV::FrameRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FrameRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -330,7 +330,7 @@ void GNV::HiliteRc(RC *prc, AbstractColor acrBack)
 /***************************************************************************
     Fill an oval with a two color pattern.
 ***************************************************************************/
-void GNV::FillOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FillOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -375,7 +375,7 @@ void GNV::FillOval(RC *prc, AbstractColor acr)
 /***************************************************************************
     Frame an oval with a two color pattern.
 ***************************************************************************/
-void GNV::FrameOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -420,7 +420,7 @@ void GNV::FrameOval(RC *prc, AbstractColor acr)
 /***************************************************************************
     Draw a line with a pattern.  Sets the pen position to (xp2, yp2).
 ***************************************************************************/
-void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(papt);
@@ -469,7 +469,7 @@ void GNV::Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr)
 /***************************************************************************
     Fill a polygon with a pattern.
 ***************************************************************************/
-void GNV::FillOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -522,7 +522,7 @@ void GNV::FillOgn(POGN pogn, AbstractColor acr)
     NOTE: Using kacrInvert produces slightly different results on the Mac.
     (Mac only does alternate winding).
 ***************************************************************************/
-void GNV::FrameOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -581,7 +581,7 @@ void GNV::FrameOgn(POGN pogn, AbstractColor acr)
     Frame a poly-line with a pattern.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FramePolyLineApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GNV::FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);

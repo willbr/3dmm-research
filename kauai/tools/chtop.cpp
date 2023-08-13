@@ -2547,7 +2547,7 @@ void HETG::Draw(PGNV pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
-    APT apt = {0x88, 0x00, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00};
+    AbstractPattern apt = {0x88, 0x00, 0x00, 0x00, 0x22, 0x00, 0x00, 0x00};
 
     GetRc(&rc, cooLocal);
     pgnv->FillRcApt(prcClip, &apt, kacrLtGray, kacrWhite);

@@ -612,7 +612,7 @@ void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
     if (pgdd->grfgdd & fgddPattern)
     {
         // pattern fill
-        APT apt = pgdd->apt;
+        AbstractPattern apt = pgdd->apt;
         AbstractColor acrBack = pgdd->acrBack;
 
         // check for a solid pattern

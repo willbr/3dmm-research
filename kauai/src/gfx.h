@@ -255,15 +255,15 @@ const AbstractColor kacrInvert(fFalse, fFalse);
 #endif //! SYMC
 
 // abstract pattern
-struct APT
+struct AbstractPattern
 {
     byte rgb[8];
 
-    bool operator==(APT &apt)
+    bool operator==(AbstractPattern &apt)
     {
         return ((long *)rgb)[0] == ((long *)apt.rgb)[0] && ((long *)rgb)[1] == ((long *)apt.rgb)[1];
     }
-    bool operator!=(APT &apt)
+    bool operator!=(AbstractPattern &apt)
     {
         return ((long *)rgb)[0] != ((long *)apt.rgb)[0] || ((long *)rgb)[1] != ((long *)apt.rgb)[1];
     }
@@ -293,9 +293,9 @@ struct APT
     }
     void MoveOrigin(long dxp, long dyp);
 };
-extern APT vaptGray;
-extern APT vaptLtGray;
-extern APT vaptDkGray;
+extern AbstractPattern vaptGray;
+extern AbstractPattern vaptLtGray;
+extern AbstractPattern vaptDkGray;
 
 /****************************************
     Polygon structure - designed to be
@@ -396,7 +396,7 @@ enum
 struct GDD
 {
     ulong grfgdd;  // what to do
-    APT apt;       // pattern to use
+    AbstractPattern apt;       // pattern to use
     AbstractColor acrFore;   // foreground color (used for solid fills also)
     AbstractColor acrBack;   // background color
     long dxpPen;   // pen width (used if framing)
@@ -468,22 +468,22 @@ class GNV : public GNV_PAR
 
     void SetPenSize(long dxp, long dyp);
 
-    void FillRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FillRc(RC *prc, AbstractColor acr);
-    void FrameRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FrameRc(RC *prc, AbstractColor acr);
     void HiliteRc(RC *prc, AbstractColor acrBack);
 
-    void FillOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FillOval(RC *prc, AbstractColor acr);
-    void FrameOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FrameOval(RC *prc, AbstractColor acr);
 
-    void FillOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FillOgn(POGN pogn, AbstractColor acr);
-    void FrameOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FrameOgn(POGN pogn, AbstractColor acr);
-    void FramePolyLineApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FramePolyLine(POGN pogn, AbstractColor acr);
 
     void MoveTo(long xp, long yp)
@@ -496,7 +496,7 @@ class GNV : public GNV_PAR
         _xp += dxp;
         _yp += dyp;
     }
-    void LineToApt(long xp, long yp, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+    void LineToApt(long xp, long yp, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
     {
         LineApt(_xp, _yp, xp, yp, papt, acrFore, acrBack);
     }
@@ -504,7 +504,7 @@ class GNV : public GNV_PAR
     {
         Line(_xp, _yp, xp, yp, acr);
     }
-    void LineRelApt(long dxp, long dyp, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
+    void LineRelApt(long dxp, long dyp, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
     {
         LineApt(_xp, _yp, _xp + dxp, _yp + dyp, papt, acrFore, acrBack);
     }
@@ -512,7 +512,7 @@ class GNV : public GNV_PAR
     {
         Line(_xp, _yp, _xp + dxp, _yp + dyp, acr);
     }
-    void LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void LineApt(long xp1, long yp1, long xp2, long yp2, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr);
 
     void ScrollRc(RC *prc, long dxp, long dyp, RC *prc1 = pvNil, RC *prc2 = pvNil);
@@ -617,7 +617,7 @@ class GPT : public GPT_PAR
     };
     HBRUSH _hbr;
     long _bk;
-    APT _apt;   // for bkApt
+    AbstractPattern _apt;   // for bkApt
     AbstractColor _acr;   // for bkAcr
     int _wType; // for bkStock (stock brush)
 
@@ -632,7 +632,7 @@ class GPT : public GPT_PAR
     void _SetClip(RCS *prcsClip);
     void _EnsurePalette(void);
     void _SetTextProps(DSF *pdsf);
-    void _SetAptBrush(APT *papt);
+    void _SetAptBrush(AbstractPattern *papt);
     void _SetAcrBrush(AbstractColor acr);
     void _SetStockBrush(int wType);
 

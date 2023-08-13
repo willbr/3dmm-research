@@ -64,7 +64,7 @@ class GORF : public GORF_PAR
   protected:
     AbstractColor _acrFore;
     AbstractColor _acrBack;
-    APT _apt;
+    AbstractPattern _apt;
     RC _rc;
     long _dxp;
     long _dyp;

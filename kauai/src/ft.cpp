@@ -162,13 +162,13 @@ class GPRC : public GPRC_PAR
   private:
     AbstractColor _acrFore;
     AbstractColor _acrBack;
-    APT _apt;
+    AbstractPattern _apt;
     bool _fLit;
     bool _fTrackMouse;
     POGN _pogn;
 
   public:
-    GPRC(PGCB pgcb, APT *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
+    GPRC(PGCB pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
     ~GPRC(void);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
@@ -200,7 +200,7 @@ RTCLASS(GFRC)
 /***************************************************************************
     Constructor for patterned rectangle.
 ***************************************************************************/
-GPRC::GPRC(PGCB pgcb, APT *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
+GPRC::GPRC(PGCB pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
 {
     _apt = *papt;
     _acrFore = acrFore;
@@ -518,7 +518,7 @@ DWN *DWN::PdwnNew(void)
 
     RC rcRel;
     RC rcAbs;
-    APT apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
+    AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
 
     // add a size box and some scroll bar
     WSB::PwsbNew(pdwn, fgobNil);
@@ -725,7 +725,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
     };
     static TNM _rgtnmVert[] = {{tavTop, 'T'}, {tavCenter, 'C'}, {tavBaseline, 'S'}, {tavBottom, 'B'}};
     static TNM _rgtnmHorz[] = {{tahLeft, 'L'}, {tahCenter, 'C'}, {tahRight, 'R'}};
-    static APT _apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
+    static AbstractPattern _apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
 
     pgnv->GetRcSrc(&rc);
     pgnv->FillRc(&rc, kacrWhite);
@@ -915,7 +915,7 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
     PT *qrgpt;
     POGN pogn;
     long xp1, xp2, xp3, yp1, yp2, yp3;
-    APT apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
+    AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
     ulong ts;
     STN stn;
 
@@ -1990,7 +1990,7 @@ class TAN : public TAN_PAR
 
   protected:
     static long _cact;
-    APT _apt;
+    AbstractPattern _apt;
     ulong _dtim;
 
     TAN(PGCB pgcb);
@@ -2032,7 +2032,7 @@ PTAN TAN::PtanNew(void)
     PTAN ptan;
     RC rc;
     STN stn;
-    APT apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
+    AbstractPattern apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (ptan = NewObj TAN(&gcb)))
