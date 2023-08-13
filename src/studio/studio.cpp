@@ -375,7 +375,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
 
     if (_pmvie != pvNil)
     {
-        PSCEN pscen;
+        PScene pscen;
 
         pmvu = (PMovieView)_pmvie->PddgActive();
         AssertPo(pmvu, 0);
@@ -1183,7 +1183,7 @@ bool Studio::FCmdCreatePopup(PCMD pcmd)
     ckiRoot.cno = cnoNil;
 
     Assert(_pmvie != pvNil, "No current Movie");
-    Assert(_pmvie->Pscen() != pvNil, "No current SCEN");
+    Assert(_pmvie->Pscen() != pvNil, "No current Scene");
     if ((ptbox = _pmvie->Pscen()->PtboxSelected()) != pvNil)
         ptbox->FetchChpSel(&chp, &grfchp);
     else

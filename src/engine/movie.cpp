@@ -88,7 +88,7 @@ class MUNS : public MUNS_PAR
   protected:
     long _iscen;
     TAG _tag;
-    PSCEN _pscen;
+    PScene _pscen;
     MUNST _munst;
     MUNS(void)
     {
@@ -102,7 +102,7 @@ class MUNS : public MUNS_PAR
     {
         _iscen = iscen;
     }
-    void SetPscen(PSCEN pscen)
+    void SetPscen(PScene pscen)
     {
         _pscen = pscen;
         _pscen->AddRef();
@@ -612,7 +612,7 @@ Movie::~Movie(void)
         //
         // Release open scene.
         //
-        SCEN::Close(&_pscenOpen);
+        Scene::Close(&_pscenOpen);
     }
 
     //
@@ -736,7 +736,7 @@ PTAGL Movie::_PtaglFetch(void)
     //
     for (chid = 0; _pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, chid, kctgScen, &kid); chid++)
     {
-        if (!SCEN::FAddTagsToTagl(_pcrfAutoSave->Pcfl(), kid.cki.cno, ptagl))
+        if (!Scene::FAddTagsToTagl(_pcrfAutoSave->Pcfl(), kid.cki.cno, ptagl))
         {
             ReleasePpo(&ptagl);
             return pvNil;
@@ -1212,7 +1212,7 @@ bool Movie::FSwitchScen(long iscen)
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
     Assert((iscen == ivNil) || (_pcrfAutoSave != pvNil), "Invalid save file");
 
-    PSCEN pscen;
+    PScene pscen;
     ChildChunkIdentification kid;
     long iscenOld;
     bool fRet = fTrue;
@@ -1266,7 +1266,7 @@ LRetry:
     //
     AssertDo(_pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
 
-    pscen = SCEN::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
+    pscen = Scene::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
 
     if ((pscen == pvNil) || !pscen->FPlayStartEvents())
     {
@@ -1275,7 +1275,7 @@ LRetry:
 
         if (pscen != pvNil)
         {
-            SCEN::Close(&pscen);
+            Scene::Close(&pscen);
         }
 
         if (iscenOld != ivNil)
@@ -1299,7 +1299,7 @@ LRetry:
 
         _pscenOpen = pvNil;
         _iscen = ivNil;
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
 
         if (iscenOld != ivNil)
         {
@@ -1334,12 +1334,12 @@ bool Movie::FNewScenInsCore(long iscen)
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
 
-    PSCEN pscen;
+    PScene pscen;
 
     //
     // Create the new scene.
     //
-    pscen = SCEN::PscenNew(this);
+    pscen = Scene::PscenNew(this);
     if (pscen == pvNil)
     {
         return (fFalse);
@@ -1347,11 +1347,11 @@ bool Movie::FNewScenInsCore(long iscen)
 
     if (!FInsScenCore(iscen, pscen))
     {
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         return (fFalse);
     }
 
-    SCEN::Close(&pscen);
+    Scene::Close(&pscen);
     return (fTrue);
 }
 
@@ -1844,7 +1844,7 @@ bool Movie::FRemScenCore(long iscen)
 
     ChildChunkIdentification kid;
     PChunkyFile pcfl;
-    PSCEN pscen;
+    PScene pscen;
     long iscenOld;
 
     pcfl = _pcrfAutoSave->Pcfl();
@@ -1883,7 +1883,7 @@ bool Movie::FRemScenCore(long iscen)
     //
     // Close the current scene
     //
-    SCEN::Close(&_pscenOpen);
+    Scene::Close(&_pscenOpen);
     _iscen = ivNil;
 
     //
@@ -1959,7 +1959,7 @@ bool Movie::FRemScen(long iscen)
 
     ChildChunkIdentification kid;
     PMUNS pmuns;
-    PSCEN pscen;
+    PScene pscen;
 
     if (_iscen == iscen)
     {
@@ -1971,11 +1971,11 @@ bool Movie::FRemScen(long iscen)
 
         AssertDo(_pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
 
-        pscen = SCEN::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
+        pscen = Scene::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
 
         if ((pscen == pvNil) || !pscen->FPlayStartEvents())
         {
-            SCEN::Close(&pscen);
+            Scene::Close(&pscen);
             return (fFalse);
         }
 
@@ -2304,7 +2304,7 @@ bool Movie::_FCloseCurrentScene(void)
             return fFalse;
         }
 
-        SCEN::Close(&_pscenOpen);
+        Scene::Close(&_pscenOpen);
         _iscen = ivNil;
     }
     return fTrue;
@@ -3720,7 +3720,7 @@ bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnC
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool Movie::FInsScenCore(long iscen, SCEN *pscen)
+bool Movie::FInsScenCore(long iscen, Scene *pscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
@@ -3768,7 +3768,7 @@ bool Movie::FInsScenCore(long iscen, SCEN *pscen)
     // Hide all bodies, textboxes, etc, created when the write updated the thumbnail.
     //
     pscen->AddRef();
-    SCEN::Close(&pscen);
+    Scene::Close(&pscen);
 
     _MoveChids((ChildChunkID)iscen, fTrue);
 
@@ -4684,7 +4684,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
         {
             DataBlock blck;
 
-            if (!SCEN::FTransOnFile(mvied.pcrf, scend.cno, &scend.trans))
+            if (!Scene::FTransOnFile(mvied.pcrf, scend.cno, &scend.trans))
                 goto LFail;
 
             AssertDo(pcfl->FGetKidChidCtg(kctgScen, scend.cno, 0, kctgThumbMbmp, &kid),
@@ -4730,7 +4730,7 @@ LFail:
         Rebuilds the movie based on the given CMVI.  Any scenes
         marked for deletion are disowned by their Movie chunk.  Any scenes that
         refer to a movie file other than this Movie's auto save file are
-        copied into this Movie's auto save file.  SCEN chunks are given new
+        copied into this Movie's auto save file.  Scene chunks are given new
         CHIDs reflecting their new position within the movie.  The non-nuked
         scenes must appear in the GL in the order that they appear in the
         movie; other than that, there is no restriction on the order of the
@@ -4813,13 +4813,13 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
             /* If so, only bother keeping it if the user didn't delete it */
             if (!scend.fNuked)
             {
-                PSCEN pscen;
+                PScene pscen;
 
                 if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgScen, cnoScen, chidScen++))
                     goto LFail;
                 if (!_FAdoptMsndInMvie(pcfl, cnoScen))
                     goto LFail;
-                if ((pscen = SCEN::PscenRead(this, pcrf, cnoScen)) == pvNil || !pscen->FPlayStartEvents(fTrue) ||
+                if ((pscen = Scene::PscenRead(this, pcrf, cnoScen)) == pvNil || !pscen->FPlayStartEvents(fTrue) ||
                     !pscen->FAddActrsToRollCall())
                 {
                     PushErc(ercSocNoImportRollCall);
@@ -4834,11 +4834,11 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
         {
             if (scend.fNuked)
             {
-                PSCEN pscen;
+                PScene pscen;
 
                 if (scend.chid != (ChildChunkID)iscenOld)
                 {
-                    pscen = SCEN::PscenRead(this, pcrf, scend.cno);
+                    pscen = Scene::PscenRead(this, pcrf, scend.cno);
                     if (pscen == pvNil || !pscen->FPlayStartEvents(fTrue))
                         PushErc(ercSocNoNukeRollCall);
                 }
@@ -4870,7 +4870,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
             {
                 Assert(mvied.pcrf == pcrf, "Scene's Movie didn't get copied");
                 Assert(cnoScen != cnoNil, "Didn't set the cnoScen");
-                if (!SCEN::FSetTransOnFile(pcrf, cnoScen, scend.trans))
+                if (!Scene::FSetTransOnFile(pcrf, cnoScen, scend.trans))
                     goto LFail;
             }
         }
@@ -4879,7 +4879,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
             if (scend.fNuked)
             {
                 /* Basically, do an _FCloseCurrentScene w/out the autosave */
-                SCEN::Close(&_pscenOpen);
+                Scene::Close(&_pscenOpen);
                 _iscen = ivNil;
             }
             else
@@ -4921,7 +4921,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
             }
             else
             {
-                Bug("Can't guarantee validity of Movie's SCEN children");
+                Bug("Can't guarantee validity of Movie's Scene children");
                 break;
             }
         }
@@ -6746,7 +6746,7 @@ void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
     Assert(Tool() == toolPlace, "Wrong tool in effect");
 
     PMovie pmvie;
-    PSCEN pscen;
+    PScene pscen;
     bool fMoved;
     PActor pactr = pvNil;
     ulong grfmaf = fmafOrient;
@@ -7268,7 +7268,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     AssertVarMem(pcmd);
 
     PMovie pmvie;
-    PSCEN pscen;
+    PScene pscen;
     PActor pactr = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
     BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
@@ -7673,7 +7673,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     AssertVarMem(pcmd);
 
     PMovie pmvie;
-    PSCEN pscen;
+    PScene pscen;
     PActor pactr = pvNil;
     PActor pactrDup;
     PSUNA psuna;

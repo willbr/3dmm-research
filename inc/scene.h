@@ -6,9 +6,9 @@
     THIS IS A CODE REVIEWED FILE
 
     Basic scene classes:
-        Scene (SCEN)
+        Scene (Scene)
 
-            BASE ---> SCEN
+            BASE ---> Scene
 
         Scene Actor Undo Object (SUNA)
 
@@ -96,7 +96,7 @@ enum
 typedef struct SSE *PSSE;
 typedef struct TAGC *PTAGC;
 
-typedef class SCEN *PSCEN;
+typedef class Scene *PScene;
 
 //
 // Notes:
@@ -109,9 +109,9 @@ typedef class SCEN *PSCEN;
 //		- Enumerating through text boxes in a scene is not necessary.
 //
 
-#define SCEN_PAR BASE
-#define kclsSCEN 'SCEN'
-class SCEN : public SCEN_PAR
+#define Scene_PAR BASE
+#define kclsScene 'SCEN'
+class Scene : public Scene_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -155,8 +155,8 @@ class SCEN : public SCEN_PAR
     TAG _tagBkgd;         // Tag to current Background
 
   protected:
-    SCEN(PMovie pmvie);
-    ~SCEN(void);
+    Scene(PMovie pmvie);
+    ~Scene(void);
 
     //
     // Event stuff
@@ -188,10 +188,10 @@ class SCEN : public SCEN_PAR
     //
     // Create and destroy
     //
-    static SCEN *PscenNew(PMovie pmvie);                      // Returns pvNil if it fails.
-    static SCEN *PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno); // Returns pvNil if it fails.
+    static Scene *PscenNew(PMovie pmvie);                      // Returns pvNil if it fails.
+    static Scene *PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno); // Returns pvNil if it fails.
     bool FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
-    static void Close(PSCEN *ppscen);                        // Public destructor
+    static void Close(PScene *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.
     bool FAddActrsToRollCall(void);                          // Adds actors from movie roll call.
 
@@ -258,7 +258,7 @@ class SCEN : public SCEN_PAR
     {
         return _trans;
     } // Returns the transition setting.
-    // These two operate a specific SCEN chunk rather than a SCEN in memory
+    // These two operate a specific Scene chunk rather than a Scene in memory
     static bool FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans);
     static bool FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans);
 

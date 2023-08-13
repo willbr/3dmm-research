@@ -360,7 +360,7 @@ void Actor::_RestoreFromUndo(PActor pactrRestore)
     Assert(pactrRestore->_pbody == pvNil, "Not restoring from undo object");
 
     long nfrmCur = _nfrmCur;
-    PSCEN pscen = pactrRestore->_pscen;
+    PScene pscen = pactrRestore->_pscen;
 
     // Modify pactrRestore for Restore()
     pactrRestore->_pbody = _pbody;
@@ -728,7 +728,7 @@ bool Actor::FPasteRte(PActor pactr)
     Put an already existing actor in this scene.
 
 ***************************************************************************/
-bool Actor::FPaste(long nfrm, SCEN *pscen)
+bool Actor::FPaste(long nfrm, Scene *pscen)
 {
     AssertThis(0);
 

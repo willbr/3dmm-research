@@ -339,7 +339,7 @@ class Actor : public Actor_PAR
     BODY *_pbody;     // Actor's body
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
     TAG _tagSnd;      // Sound (played on entrance)
-    SCEN *_pscen;     // Underlying scene
+    Scene *_pscen;     // Underlying scene
     RoutePoint _dxyzFullRte; // Origin of the route
     long _nfrmFirst;  // klwMax -or- First frame : Set	when event created
     long _arid;       // Unique id assigned to this actor.
@@ -464,7 +464,7 @@ class Actor : public Actor_PAR
   public:
     ~Actor(void);
     static PActor PactrNew(TAG *ptagTmpl);
-    void SetPscen(SCEN *pscen);
+    void SetPscen(Scene *pscen);
     void SetArid(long arid)
     {
         AssertBaseThis(0);
@@ -475,7 +475,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         _fLifeDirty = fTrue;
     }
-    PSCEN Pscen(void)
+    PScene Pscen(void)
     {
         AssertThis(0);
         return _pscen;
@@ -647,7 +647,7 @@ class Actor : public Actor_PAR
     bool FCopyRte(PActor *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
     bool FPasteRte(PActor pactr);                              // Paste from clipboard from this frame on
     bool FNormalize(ulong grfnorm);
-    bool FPaste(long nfrm, SCEN *pscen);
+    bool FPaste(long nfrm, Scene *pscen);
     bool FDelete(bool *pfAlive, bool fDeleteAll);
 
     // ActrSnd Routines

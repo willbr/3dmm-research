@@ -224,7 +224,7 @@ class ESLL : public ESLL_PAR
 
   protected:
     PMovie _pmvie; // Movie that these sounds are in
-    PSCEN _pscen; // Scene that these sounds are in
+    PScene _pscen; // Scene that these sounds are in
     PActor _pactr; // Actor that sounds are attached to (or pvNil)
     LSND _lsndSpeech;
     LSND _lsndSfx;

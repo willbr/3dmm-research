@@ -176,7 +176,7 @@ bool StudioScrollbars::FCmdScroll(PCMD pcmd)
     long cRangeDest, iRangeDestFirst;
     long tool = -1;
     RC rc;
-    PSCEN pscen = pvNil;
+    PScene pscen = pvNil;
 
     // verify that the command is for the studio scrollbars
     if ((pcmd->cid != cidSceneScrollbar) && (pcmd->cid != cidFrameScrollbar) && (pcmd->cid != cidSceneThumb) &&
@@ -457,7 +457,7 @@ void StudioScrollbars::Update(void)
 {
     AssertThis(0);
 
-    PSCEN pscen;
+    PScene pscen;
     STN stn;
     PGraphicsObject pgob;
     RC rc;

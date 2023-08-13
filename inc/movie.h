@@ -561,7 +561,7 @@ class Movie : public Movie_PAR
     STN _stnTitle; // Title of the movie
 
     PStringTable _pgstmactr;             // StringTable of actors in the movie (for roll call)
-    PSCEN _pscenOpen;            // Index of current open scene.
+    PScene _pscenOpen;            // Index of current open scene.
     long _cscen;                 // Number of scenes in the movie.
     long _iscen;                 // Number of scene open in the movie.
     bool _fAutosaveDirty : 1;    // Is the movie in memory different than disk
@@ -841,11 +841,11 @@ class Movie : public Movie_PAR
     //
     // Scene stuff
     //
-    PSCEN Pscen(void)
+    PScene Pscen(void)
     {
         return _pscenOpen;
     }                                           // The currently open scene.
-    bool FInsScenCore(long iscen, SCEN *pscen); // Insert this scene as scene number.
+    bool FInsScenCore(long iscen, Scene *pscen); // Insert this scene as scene number.
     bool FNewScenInsCore(long iscen);           // Inserts a blank scene before iscen
     bool FRemScenCore(long iscen);              // Removes a scene from the movie
     bool FPasteActr(PActor pactr);               // Pastes an actor into current scene.

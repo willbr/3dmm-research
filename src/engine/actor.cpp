@@ -266,7 +266,7 @@ bool Actor::_FCreateGroups(void)
     Set the owning scene and the brender world for the body.
 
 ***************************************************************************/
-void Actor::SetPscen(SCEN *pscen)
+void Actor::SetPscen(Scene *pscen)
 {
     AssertBaseThis(0);
 

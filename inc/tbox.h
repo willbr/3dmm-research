@@ -210,7 +210,7 @@ class TBOX : public TBOX_PAR
     MARKMEM
 
   private:
-    PSCEN _pscen;    // The owning scene
+    PScene _pscen;    // The owning scene
     long _nfrmFirst; // Frame the tbox appears in.
     long _nfrmMax;   // Frame the tbox disappears in.
     long _nfrmCur;   // Current frame number.
@@ -226,19 +226,19 @@ class TBOX : public TBOX_PAR
     //
     // Creation routines
     //
-    static PTBOX PtboxNew(PSCEN pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
+    static PTBOX PtboxNew(PScene pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
     PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb)
     {
         return TBXG::PtbxgNew(this, pgcb);
     }
-    static PTBOX PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PSCEN pscen);
+    static PTBOX PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen);
     bool FWrite(PChunkyFile pcfl, ChunkNumber cno);
     bool FDup(PTBOX *pptbox);
 
     //
     // Movie specific functions
     //
-    void SetScen(PSCEN pscen);
+    void SetScen(PScene pscen);
     bool FIsVisible(void);
     bool FGotoFrame(long nfrm);
     void Select(bool fSel);
@@ -259,7 +259,7 @@ class TBOX : public TBOX_PAR
     bool FSetType(bool fStory);
     bool FNeedToScroll(void);
     void Scroll(void);
-    PSCEN Pscen(void)
+    PScene Pscen(void)
     {
         return _pscen;
     }
@@ -347,7 +347,7 @@ class TCLP : public TCLP_PAR
     //
     // Pasting
     //
-    bool FPaste(PSCEN pscen);
+    bool FPaste(PScene pscen);
 };
 
 #endif

@@ -19,7 +19,7 @@ extern "C"
 };
 
 typedef class Actor *PActor;
-typedef class SCEN *PSCEN;
+typedef class Scene *PScene;
 typedef class Movie *PMovie;
 typedef class Background *PBackground;
 typedef class TBOX *PTBOX;

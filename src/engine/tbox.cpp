@@ -1810,7 +1810,7 @@ struct TBOXH
  *  None.
  *
  ****************************************************/
-PTBOX TBOX::PtboxNew(PSCEN pscen, RC *prcRel, bool fStory)
+PTBOX TBOX::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 {
     AssertNilOrPo(pscen, 0);
     AssertPvCb(prcRel, size(RC));
@@ -1878,7 +1878,7 @@ void TBOX::SetDirty(bool fDirty)
  *  Pointer to a new tbox, else pvNil.
  *
  ****************************************************/
-PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PSCEN pscen)
+PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
 {
     AssertPo(pcrf, 0);
     AssertNilOrPo(pscen, 0);
@@ -2003,7 +2003,7 @@ bool TBOX::FWrite(PChunkyFile pcfl, ChunkNumber cno)
  *  None.
  *
  ****************************************************/
-void TBOX::SetScen(PSCEN pscen)
+void TBOX::SetScen(PScene pscen)
 {
     AssertThis(0);
     AssertPo(pscen, 0);
@@ -3711,7 +3711,7 @@ PTCLP TCLP::PtclpNew(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool TCLP::FPaste(PSCEN pscen)
+bool TCLP::FPaste(PScene pscen)
 {
     AssertThis(0);
     AssertPo(pscen, 0);

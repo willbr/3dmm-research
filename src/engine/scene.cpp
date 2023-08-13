@@ -195,7 +195,7 @@ class SUNC : public SUNC_PAR
     static PSUNC PsuncNew(void);
     ~SUNC(void);
 
-    bool FSave(PSCEN pscen);
+    bool FSave(PScene pscen);
 
     virtual bool FDo(PDocumentBase pdocb);
     virtual bool FUndo(PDocumentBase pdocb);
@@ -446,7 +446,7 @@ class SUNT : public SUNT_PAR
     virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(SCEN)
+RTCLASS(Scene)
 RTCLASS(SUNT)
 RTCLASS(SUNS)
 RTCLASS(SUNA)
@@ -468,7 +468,7 @@ RTCLASS(SUNR)
  *  None.
  *
  ****************************************************/
-SCEN::SCEN(PMovie pmvie)
+Scene::Scene(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
@@ -493,19 +493,19 @@ SCEN::SCEN(PMovie pmvie)
  *
  *
  * Returns:
- *  pvNil, on failure, else a pointer to an allocated SCEN object.
+ *  pvNil, on failure, else a pointer to an allocated Scene object.
  *
  ****************************************************/
-PSCEN SCEN::PscenNew(PMovie pmvie)
+PScene Scene::PscenNew(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
-    PSCEN pscen;
+    PScene pscen;
 
     //
     // Create the object
     //
-    pscen = NewObj SCEN(pmvie);
+    pscen = NewObj Scene(pmvie);
     if (pscen == pvNil)
     {
         goto LFail;
@@ -564,7 +564,7 @@ LFail:
  *  None.
  *
  ****************************************************/
-SCEN::~SCEN(void)
+Scene::~Scene(void)
 {
     AssertBaseThis(0);
 
@@ -706,7 +706,7 @@ SCEN::~SCEN(void)
  *
  ****************************************************/
 
-void SCEN::Close(PSCEN *ppscen)
+void Scene::Close(PScene *ppscen)
 {
     AssertPo(*ppscen, 0);
 
@@ -722,7 +722,7 @@ void SCEN::Close(PSCEN *ppscen)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the SCEN
+ * Mark memory used by the Scene
  *
  * Parameters:
  * 	None.
@@ -731,7 +731,7 @@ void SCEN::Close(PSCEN *ppscen)
  *  None.
  *
  ****************************************************/
-void SCEN::MarkMem(void)
+void Scene::MarkMem(void)
 {
     AssertThis(0);
 
@@ -740,7 +740,7 @@ void SCEN::MarkMem(void)
     PActor pactr;
     PTBOX ptbox;
 
-    SCEN_PAR::MarkMem();
+    Scene_PAR::MarkMem();
 
     MarkMemObj(_pggsevStart);
     MarkMemObj(_pggsevFrm);
@@ -765,14 +765,14 @@ void SCEN::MarkMem(void)
 }
 
 /***************************************************************************
-    Assert the validity of the SCEN.
+    Assert the validity of the Scene.
 ***************************************************************************/
-void SCEN::AssertValid(ulong grf)
+void Scene::AssertValid(ulong grf)
 {
     long isev;
     SEV sev;
 
-    SCEN_PAR::AssertValid(fobjAllocated);
+    Scene_PAR::AssertValid(fobjAllocated);
 
     AssertPo(&_stnName, 0);
     AssertNilOrPo(_pactrSelected, 0);
@@ -826,7 +826,7 @@ void SCEN::AssertValid(ulong grf)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetTransition(TRANS trans)
+bool Scene::FSetTransition(TRANS trans)
 {
     AssertThis(0);
 
@@ -862,7 +862,7 @@ bool SCEN::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetName(PSTN pstn)
+bool Scene::FSetName(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -906,7 +906,7 @@ bool SCEN::FSetName(PSTN pstn)
  *
  ****************************************************/
 
-bool SCEN::FGotoFrm(long nfrm)
+bool Scene::FGotoFrm(long nfrm)
 {
     AssertThis(0);
 
@@ -1074,7 +1074,7 @@ bool SCEN::FGotoFrm(long nfrm)
  *  none
  *
  ****************************************************/
-void SCEN::_DoPrerenderingWork(bool fStartNow)
+void Scene::_DoPrerenderingWork(bool fStartNow)
 {
     AssertThis(0);
 
@@ -1195,7 +1195,7 @@ void SCEN::_DoPrerenderingWork(bool fStartNow)
  *  none
  *
  ****************************************************/
-void SCEN::_EndPrerendering(void)
+void Scene::_EndPrerendering(void)
 {
     AssertThis(0);
 
@@ -1227,7 +1227,7 @@ void SCEN::_EndPrerendering(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FReplayFrm(ulong grfscen)
+bool Scene::FReplayFrm(ulong grfscen)
 {
     AssertThis(0);
 
@@ -1285,7 +1285,7 @@ bool SCEN::FReplayFrm(ulong grfscen)
  *	None.
  *
  ****************************************************/
-void SCEN::InvalFrmRange(void)
+void Scene::InvalFrmRange(void)
 {
     AssertThis(0);
 
@@ -1349,7 +1349,7 @@ void SCEN::InvalFrmRange(void)
  *	fTrue if the event was played, fFalse in the case of failure.
  *
  ****************************************************/
-bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
+bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 {
     AssertThis(0);
     AssertVarMem(psev);
@@ -1514,7 +1514,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
  *	fTrue if the unplay worked, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FUnPlaySev(PSEV psev, void *qvVar)
+bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
 {
     AssertThis(0);
     AssertVarMem(psev);
@@ -1601,7 +1601,7 @@ bool SCEN::_FUnPlaySev(PSEV psev, void *qvVar)
  *	None.
  *
  ****************************************************/
-void SCEN::_MoveBackFirstFrame(long nfrm)
+void Scene::_MoveBackFirstFrame(long nfrm)
 {
     AssertThis(0);
     Assert(nfrm < _nfrmFirst, "Can only be called to extend scene back.");
@@ -1657,7 +1657,7 @@ void SCEN::_MoveBackFirstFrame(long nfrm)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, PTAG prgtag)
+bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, PTAG prgtag)
 {
     AssertThis(0);
     AssertPvCb(prgtag, LwMul(ctag, size(TAG)));
@@ -1842,7 +1842,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTAGC prgtagc)
+bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTAGC prgtagc)
 {
     AssertThis(0);
     AssertPvCb(prgtagc, LwMul(ctagc, size(TAGC)));
@@ -1941,7 +1941,7 @@ bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long cta
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
+bool Scene::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -2007,7 +2007,7 @@ bool SCEN::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
  *  None
  *
  ****************************************************/
-void SCEN::RemSndCore(long sty)
+void Scene::RemSndCore(long sty)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2071,7 +2071,7 @@ void SCEN::RemSndCore(long sty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemSnd(long sty)
+bool Scene::FRemSnd(long sty)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2143,7 +2143,7 @@ bool SCEN::FRemSnd(long sty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
+bool Scene::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2200,7 +2200,7 @@ bool SCEN::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
  *  none
  *
  ****************************************************/
-void SCEN::PlayBkgdSnd(void)
+void Scene::PlayBkgdSnd(void)
 {
     AssertThis(0);
 
@@ -2228,7 +2228,7 @@ void SCEN::PlayBkgdSnd(void)
  *  fFalse if an error occurs
  *
  ****************************************************/
-bool SCEN::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
+bool Scene::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
 {
     AssertThis(0);
     AssertVarMem(ppgltagSnd);
@@ -2280,7 +2280,7 @@ bool SCEN::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
  *  none
  *
  ****************************************************/
-void SCEN::SetSndVlmCore(long sty, long vlmNew)
+void Scene::SetSndVlmCore(long sty, long vlmNew)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2328,7 +2328,7 @@ void SCEN::SetSndVlmCore(long sty, long vlmNew)
         for a sound event.  Has the movie's MovieClientCallbacks update the frame-sound state
         based on the results of the search.
 ************************************************************ PETED ***********/
-void SCEN::UpdateSndFrame(void)
+void Scene::UpdateSndFrame(void)
 {
     bool fSoundInFrame = fFalse;
     long iv = _isevFrmLim;
@@ -2381,7 +2381,7 @@ LDone:
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FAddSev(PSEV psev, long cbVar, void *pvVar)
+bool Scene::_FAddSev(PSEV psev, long cbVar, void *pvVar)
 {
     AssertThis(0);
     AssertVarMem(psev);
@@ -2416,7 +2416,7 @@ bool SCEN::_FAddSev(PSEV psev, long cbVar, void *pvVar)
  *	None
  *
  ****************************************************/
-void SCEN::SelectActr(Actor *pactr)
+void Scene::SelectActr(Actor *pactr)
 {
     AssertThis(0);
     AssertNilOrPo(pactr, 0);
@@ -2462,7 +2462,7 @@ void SCEN::SelectActr(Actor *pactr)
  *	None
  *
  ****************************************************/
-void SCEN::SelectTbox(PTBOX ptbox)
+void Scene::SelectTbox(PTBOX ptbox)
 {
     AssertThis(0);
     AssertNilOrPo(ptbox, 0);
@@ -2517,7 +2517,7 @@ void SCEN::SelectTbox(PTBOX ptbox)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActrCore(Actor *pactr)
+bool Scene::FAddActrCore(Actor *pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2640,7 +2640,7 @@ bool SCEN::FAddActrCore(Actor *pactr)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActr(Actor *pactr)
+bool Scene::FAddActr(Actor *pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2677,7 +2677,7 @@ bool SCEN::FAddActr(Actor *pactr)
  *  None
  *
  ****************************************************/
-void SCEN::RemActrCore(long arid)
+void Scene::RemActrCore(long arid)
 {
     AssertThis(0);
 
@@ -2772,7 +2772,7 @@ void SCEN::RemActrCore(long arid)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemActr(long arid)
+bool Scene::FRemActr(long arid)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
@@ -2832,7 +2832,7 @@ bool SCEN::FRemActr(long arid)
  *  Pointer to the actor, pvNil if none.
  *
  ****************************************************/
-Actor *SCEN::PactrFromPt(long xp, long yp, long *pibset)
+Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
 {
     AssertThis(0);
     AssertVarMem(pibset);
@@ -2876,7 +2876,7 @@ Actor *SCEN::PactrFromPt(long xp, long yp, long *pibset)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddTboxCore(PTBOX ptbox)
+bool Scene::FAddTboxCore(PTBOX ptbox)
 {
     AssertThis(0);
     AssertPo(ptbox, 0);
@@ -2941,7 +2941,7 @@ bool SCEN::FAddTboxCore(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddTbox(PTBOX ptbox)
+bool Scene::FAddTbox(PTBOX ptbox)
 {
     PSUNX psunx;
     long itbox;
@@ -3002,7 +3002,7 @@ bool SCEN::FAddTbox(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemTboxCore(PTBOX ptbox)
+bool Scene::FRemTboxCore(PTBOX ptbox)
 {
     AssertThis(0);
     AssertPo(ptbox, 0);
@@ -3091,7 +3091,7 @@ bool SCEN::FRemTboxCore(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemTbox(PTBOX ptbox)
+bool Scene::FRemTbox(PTBOX ptbox)
 {
     AssertThis(0);
     AssertPo(ptbox, 0);
@@ -3141,7 +3141,7 @@ bool SCEN::FRemTbox(PTBOX ptbox)
  *  Pointer to the text box if itbox is valid, else pvNil.
  *
  ****************************************************/
-TBOX *SCEN::PtboxFromItbox(long itbox)
+TBOX *Scene::PtboxFromItbox(long itbox)
 {
     AssertThis(0);
     Assert(itbox >= 0, "Bad index value");
@@ -3182,7 +3182,7 @@ TBOX *SCEN::PtboxFromItbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPauseCore(WIT *pwit, long *pdts)
+bool Scene::FPauseCore(WIT *pwit, long *pdts)
 {
     AssertThis(0);
     AssertIn(*pwit, witNil, witLim);
@@ -3269,7 +3269,7 @@ bool SCEN::FPauseCore(WIT *pwit, long *pdts)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPause(WIT wit, long dts)
+bool Scene::FPause(WIT wit, long dts)
 {
     PSUNP psunp;
 
@@ -3313,7 +3313,7 @@ bool SCEN::FPause(WIT wit, long dts)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
+bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -3445,7 +3445,7 @@ LSuccess:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetBkgd(PTAG ptag)
+bool Scene::FSetBkgd(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -3516,7 +3516,7 @@ bool SCEN::FSetBkgd(PTAG ptag)
  *    and is only 1 frame long, else fFalse.
  *
  ****************************************************/
-bool SCEN::FIsEmpty(void)
+bool Scene::FIsEmpty(void)
 {
     AssertThis(0);
 
@@ -3553,7 +3553,7 @@ bool SCEN::FIsEmpty(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FChangeCamCore(long icam, long *picamOld)
+bool Scene::FChangeCamCore(long icam, long *picamOld)
 {
     AssertThis(0);
     AssertIn(icam, 0, 500);
@@ -3693,7 +3693,7 @@ LSuccess:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FChangeCam(long icam)
+bool Scene::FChangeCam(long icam)
 {
     long icamOld;
     PSUNK psunk;
@@ -3757,12 +3757,12 @@ bool SCEN::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
+Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
 
-    PSCEN pscen = pvNil;
+    PScene pscen = pvNil;
     DataBlock blck;
     ChildChunkIdentification kid;
     long isevFrm = 0;
@@ -3802,7 +3802,7 @@ SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Create our scene object.
     //
-    pscen = NewObj SCEN(pmvie);
+    pscen = NewObj Scene(pmvie);
 
     if (pscen == pvNil)
     {
@@ -4117,7 +4117,7 @@ LFail0:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPlayStartEvents(bool fActorsOnly)
+bool Scene::FPlayStartEvents(bool fActorsOnly)
 {
     AssertThis(0);
 
@@ -4148,7 +4148,7 @@ bool SCEN::FPlayStartEvents(bool fActorsOnly)
  * This routine returns the bkgd tag in *ptag
  *
  ****************************************************/
-bool SCEN::FGetTagBkgd(PTAG ptag)
+bool Scene::FGetTagBkgd(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -4180,7 +4180,7 @@ bool SCEN::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
-bool SCEN::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
+bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -4505,7 +4505,7 @@ LFail:
  *  None
  *
  ****************************************************/
-bool SCEN::FResolveAllSndTags(ChunkNumber cnoScen)
+bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
 
@@ -4566,7 +4566,7 @@ LFail:
  *  None
  *
  ****************************************************/
-void SCEN::RemActrsFromRollCall(bool fDelIfOnlyRef)
+void Scene::RemActrsFromRollCall(bool fDelIfOnlyRef)
 {
     AssertThis(0);
 
@@ -4591,7 +4591,7 @@ void SCEN::RemActrsFromRollCall(bool fDelIfOnlyRef)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActrsToRollCall(void)
+bool Scene::FAddActrsToRollCall(void)
 {
     AssertThis(0);
 
@@ -4634,7 +4634,7 @@ bool SCEN::FAddActrsToRollCall(void)
  *  None
  *
  ****************************************************/
-PMBMP SCEN::PmbmpThumbnail(void)
+PMBMP Scene::PmbmpThumbnail(void)
 {
     AssertThis(0);
 
@@ -4654,7 +4654,7 @@ PMBMP SCEN::PmbmpThumbnail(void)
  *  None
  *
  ****************************************************/
-void SCEN::_UpdateThumbnail(void)
+void Scene::_UpdateThumbnail(void)
 {
     AssertThis(0);
 
@@ -4774,7 +4774,7 @@ LEnd:
  *  None
  *
  ****************************************************/
-void SCEN::MarkDirty(bool fDirty)
+void Scene::MarkDirty(bool fDirty)
 {
     AssertThis(0);
     if (fDirty)
@@ -4794,7 +4794,7 @@ void SCEN::MarkDirty(bool fDirty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPasteActrCore(PActor pactr)
+bool Scene::FPasteActrCore(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4845,7 +4845,7 @@ bool SCEN::FPasteActrCore(PActor pactr)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPasteActr(PActor pactr)
+bool Scene::FPasteActr(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4869,7 +4869,7 @@ bool SCEN::FPasteActr(PActor pactr)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
+bool Scene::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
@@ -4902,7 +4902,7 @@ bool SCEN::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FForceTboxesToFrm(long nfrm)
+bool Scene::_FForceTboxesToFrm(long nfrm)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
@@ -4935,7 +4935,7 @@ bool SCEN::_FForceTboxesToFrm(long nfrm)
  *  None.
  *
  ****************************************************/
-void SCEN::HideTboxes(void)
+void Scene::HideTboxes(void)
 {
     AssertThis(0);
 
@@ -4964,7 +4964,7 @@ void SCEN::HideTboxes(void)
  *  None.
  *
  ****************************************************/
-void SCEN::HideActors(void)
+void Scene::HideActors(void)
 {
     AssertThis(0);
 
@@ -4989,7 +4989,7 @@ void SCEN::HideActors(void)
  *  None.
  *
  ****************************************************/
-void SCEN::ShowActors(void)
+void Scene::ShowActors(void)
 {
     AssertThis(0);
 
@@ -5015,7 +5015,7 @@ void SCEN::ShowActors(void)
  *  None.
  *
  ****************************************************/
-void SCEN::_MarkMovieDirty()
+void Scene::_MarkMovieDirty()
 {
     AssertThis(0);
 
@@ -5036,7 +5036,7 @@ void SCEN::_MarkMovieDirty()
  *  None.
  *
  ****************************************************/
-void SCEN::SetMvie(PMovie pmvie)
+void Scene::SetMvie(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
@@ -5058,7 +5058,7 @@ void SCEN::SetMvie(PMovie pmvie)
  *  fFalse if an error occurred, else fTrue
  *
  ****************************************************/
-bool SCEN::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
+bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
@@ -5315,7 +5315,7 @@ bool SCEN::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
  *   pvNil if failure, else the actor.
  *
  ****************************************************/
-PActor SCEN::PactrFromArid(long arid)
+PActor Scene::PactrFromArid(long arid)
 {
     AssertThis(0);
     Assert(arid != aridNil, "Bad long");
@@ -5350,7 +5350,7 @@ PActor SCEN::PactrFromArid(long arid)
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChopCore()
+bool Scene::FChopCore()
 {
     AssertThis(0);
 
@@ -5452,7 +5452,7 @@ bool SCEN::FChopCore()
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChop()
+bool Scene::FChop()
 {
     PSUNC psunc;
     bool fValid;
@@ -5500,7 +5500,7 @@ bool SCEN::FChop()
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChopBackCore()
+bool Scene::FChopBackCore()
 {
     AssertThis(0);
 
@@ -5637,7 +5637,7 @@ bool SCEN::FChopBackCore()
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChopBack()
+bool Scene::FChopBack()
 {
     PSUNC psunc;
     bool fValid;
@@ -5685,7 +5685,7 @@ bool SCEN::FChopBack()
  *   None.
  *
  ****************************************************/
-bool SCEN::FStartPlaying()
+bool Scene::FStartPlaying()
 {
     AssertThis(0);
 
@@ -5737,7 +5737,7 @@ bool SCEN::FStartPlaying()
  *   None.
  *
  ****************************************************/
-void SCEN::StopPlaying()
+void Scene::StopPlaying()
 {
     AssertThis(0);
 
@@ -5756,18 +5756,18 @@ void SCEN::StopPlaying()
 
 /******************************************************************************
     FTransOnFile
-        For a given SCEN chunk on a given ChunkyResourceFile, get the scene transition
+        For a given Scene chunk on a given ChunkyResourceFile, get the scene transition
         state for the scene.
 
     Arguments:
-        PChunkyResourceFile pcrf     -- the chunky resource file the SCEN lives on
-        ChunkNumber cno       -- the ChunkNumber of the SCEN chunk
+        PChunkyResourceFile pcrf     -- the chunky resource file the Scene lives on
+        ChunkNumber cno       -- the ChunkNumber of the Scene chunk
         TRANS *ptrans -- pointer to memory to take the transition setting
 
     Returns: fTrue if it was able to set *ptrans, fFalse if something failed
 
 ************************************************************ PETED ***********/
-bool SCEN::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
+bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
     DataBlock blck;
     SCENH scenh;
@@ -5790,19 +5790,19 @@ LFail:
 
 /******************************************************************************
     FSetTransOnFile
-        For a given SCEN chunk on a given ChunkyResourceFile, set the scene transition
+        For a given Scene chunk on a given ChunkyResourceFile, set the scene transition
         state for the scene.
 
     Arguments:
-        PChunkyResourceFile pcrf   -- the chunky resource file the SCEN lives on
-        ChunkNumber cno     -- the ChunkNumber of the SCEN chunk
+        PChunkyResourceFile pcrf   -- the chunky resource file the Scene lives on
+        ChunkNumber cno     -- the ChunkNumber of the Scene chunk
         TRANS trans -- the transition state to use
 
     Returns: fTrue if the routine could guarantee that the scene has the
         given transition state.
 
 ************************************************************ PETED ***********/
-bool SCEN::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
+bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
     DataBlock blck;
     SCENH scenh;
@@ -6987,7 +6987,7 @@ SUNC::~SUNC(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FSave(PSCEN pscen)
+bool SUNC::FSave(PScene pscen)
 {
     PChunkyFile pcfl;
     bool fRet;
@@ -7028,12 +7028,12 @@ bool SUNC::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    PSCEN pscen;
-    PSCEN pscenSave;
+    PScene pscen;
+    PScene pscenSave;
 
     vpappb->BeginLongOp();
 
-    pscen = SCEN::PscenRead(_pmvie, _pcrf, _cno);
+    pscen = Scene::PscenRead(_pmvie, _pcrf, _cno);
 
     if (pscen == pvNil)
     {
@@ -7042,13 +7042,13 @@ bool SUNC::FDo(PDocumentBase pdocb)
 
     if (!pscen->FPlayStartEvents())
     {
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         goto LFail;
     }
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         goto LFail;
     }
 
@@ -7058,22 +7058,22 @@ bool SUNC::FDo(PDocumentBase pdocb)
     if (!_pmvie->FInsScenCore(_iscen, pscen))
     {
         ReleasePpo(&pscenSave);
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         goto LFail;
     }
 
-    SCEN::Close(&pscen);
+    Scene::Close(&pscen);
 
     _pcrf->Pcfl()->Delete(kctgScen, _cno);
     pscenSave->SetNfrmCur(pscenSave->NfrmFirst() - 1);
     if (!pscenSave->FWrite(_pcrf, &_cno))
     {
         _pmvie->FRemScenCore(_iscen + 1);
-        SCEN::Close(&pscenSave);
+        Scene::Close(&pscenSave);
         goto LFail;
     }
 
-    SCEN::Close(&pscenSave);
+    Scene::Close(&pscenSave);
 
     if (!_pmvie->FRemScenCore(_iscen + 1))
     {

@@ -2597,7 +2597,7 @@ bool BRWA::FBuildApe(PActor pactr)
  * string table is built for fast scrolling.
  *
  **************************************************************************/
-bool BRWA::FBuildGst(PSCEN pscen)
+bool BRWA::FBuildGst(PScene pscen)
 {
     AssertThis(0);
 
