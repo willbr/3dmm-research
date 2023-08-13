@@ -340,7 +340,7 @@ void SCCB::MarkMem(void)
     Initializes the script compiler to compile the stream from the given
     lexer object.  pmsnk is a message sink for error reporting.
 ***************************************************************************/
-bool SCCB::_FInit(PLEXB plexb, bool fInFix, PMSNK pmsnk)
+bool SCCB::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(plexb, 0);
@@ -422,7 +422,7 @@ void SCCB::_Free(void)
     allows scripts to be embedded in source for other tools (such as
     chomp.exe).
 ***************************************************************************/
-PSCPT SCCB::PscptCompileLex(PLEXB plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
+PSCPT SCCB::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
 {
     AssertThis(0);
     AssertPo(plexb, 0);
@@ -481,9 +481,9 @@ PSCPT SCCB::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
     AssertPo(pfil, 0);
     AssertPo(pmsnk, 0);
     PSCPT pscpt;
-    PLEXB plexb;
+    PLexerBase plexb;
 
-    if (pvNil == (plexb = NewObj LEXB(pfil)))
+    if (pvNil == (plexb = NewObj LexerBase(pfil)))
         return pvNil;
     pscpt = PscptCompileLex(plexb, fInFix, pmsnk);
     ReleasePpo(&plexb);

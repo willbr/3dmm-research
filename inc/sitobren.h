@@ -139,7 +139,7 @@ typedef struct _s2btk
 
 typedef class S2BLX *PS2BLX;
 #define kclsS2BLX 's2bl'
-#define S2BLX_PAR LEXB
+#define S2BLX_PAR LexerBase
 class S2BLX : public S2BLX_PAR
 {
     RTCLASS_DEC

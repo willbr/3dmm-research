@@ -183,7 +183,7 @@ class SCCB : public SCCB_PAR
         fsccTop = 2
     };
 
-    PLEXB _plexb;       // the lexer
+    PLexerBase _plexb;       // the lexer
     PSCPT _pscpt;       // the script we're building
     PGL _pgletnTree;    // expression tree (in-fix only)
     PGL _pgletnStack;   // token stack for building expression tree (in-fix only)
@@ -200,7 +200,7 @@ class SCCB : public SCCB_PAR
     long _ttEnd;        // stop compiling when we see this
     PMSNK _pmsnk;       // the message sink - for error reporting when compiling
 
-    bool _FInit(PLEXB plexb, bool fInFix, PMSNK pmsnk);
+    bool _FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk);
     void _Free(void);
 
     // general compilation methods
@@ -258,7 +258,7 @@ class SCCB : public SCCB_PAR
     SCCB(void);
     ~SCCB(void);
 
-    virtual PSCPT PscptCompileLex(PLEXB plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
+    virtual PSCPT PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
     virtual PSCPT PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk);
     virtual PSCPT PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
     virtual bool FDisassemble(PSCPT pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);

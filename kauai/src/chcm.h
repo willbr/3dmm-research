@@ -80,7 +80,7 @@ struct KEYTT
     Chunky Compiler lexer class.
 ***************************************************************************/
 typedef class CompilerLexer *PCompilerLexer;
-#define CompilerLexer_PAR LEXB
+#define CompilerLexer_PAR LexerBase
 #define kclsCompilerLexer 'CHLX'
 class CompilerLexer : public CompilerLexer_PAR
 {
@@ -98,7 +98,7 @@ class CompilerLexer : public CompilerLexer_PAR
     CompilerLexer(PFileByteStream pbsf, PSTN pstnFile);
     ~CompilerLexer(void);
 
-    // override the LEXB FGetTok to resolve variables, hande SET
+    // override the LexerBase FGetTok to resolve variables, hande SET
     // and recognize our additional key words
     virtual bool FGetTok(PToken ptok);
     virtual bool FGetTokSkipSemi(PToken ptok); // also skip ';' & ','

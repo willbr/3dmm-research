@@ -14,13 +14,13 @@
 #include "util.h"
 ASSERTNAME
 
-RTCLASS(LEXB)
+RTCLASS(LexerBase)
 
 // #line handling
 achar _szPoundLine[] = PszLit("#line");
 #define kcchPoundLine (CvFromRgv(_szPoundLine) - 1)
 
-ushort LEXB::_mpchgrfct[128] = {
+ushort LexerBase::_mpchgrfct[128] = {
     // 0x00 - 0x07
     fctNil,
     fctNil,
@@ -300,7 +300,7 @@ long _TtFromChCh(achar ch1, achar ch2)
 /***************************************************************************
     Constructor for the lexer.
 ***************************************************************************/
-LEXB::LEXB(PFIL pfil, bool fUnionStrings)
+LexerBase::LexerBase(PFIL pfil, bool fUnionStrings)
 {
     AssertPo(pfil, 0);
 
@@ -322,7 +322,7 @@ LEXB::LEXB(PFIL pfil, bool fUnionStrings)
 /***************************************************************************
     Constructor for the lexer.
 ***************************************************************************/
-LEXB::LEXB(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings)
+LexerBase::LexerBase(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings)
 {
     AssertPo(pbsf, 0);
     AssertPo(pstnFile, 0);
@@ -345,7 +345,7 @@ LEXB::LEXB(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings)
 /***************************************************************************
     Destructor for the lexer.
 ***************************************************************************/
-LEXB::~LEXB(void)
+LexerBase::~LexerBase(void)
 {
     ReleasePpo(&_pfil);
     ReleasePpo(&_pbsf);
@@ -353,11 +353,11 @@ LEXB::~LEXB(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a LEXB.
+    Assert the validity of a LexerBase.
 ***************************************************************************/
-void LEXB::AssertValid(ulong grf)
+void LexerBase::AssertValid(ulong grf)
 {
-    LEXB_PAR::AssertValid(0);
+    LexerBase_PAR::AssertValid(0);
     AssertNilOrPo(_pfil, 0);
     AssertNilOrPo(_pbsf, 0);
     Assert((_pfil == pvNil) != (_pbsf == pvNil), "exactly one of _pfil, _pbsf should be non-nil");
@@ -371,12 +371,12 @@ void LEXB::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the LEXB.
+    Mark memory for the LexerBase.
 ***************************************************************************/
-void LEXB::MarkMem(void)
+void LexerBase::MarkMem(void)
 {
     AssertValid(0);
-    LEXB_PAR::MarkMem();
+    LexerBase_PAR::MarkMem();
     MarkMemObj(_pfil);
     MarkMemObj(_pbsf);
 }
@@ -385,7 +385,7 @@ void LEXB::MarkMem(void)
 /***************************************************************************
     Get the current file that we're reading tokens from.
 ***************************************************************************/
-void LEXB::GetStnFile(PSTN pstn)
+void LexerBase::GetStnFile(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -396,7 +396,7 @@ void LEXB::GetStnFile(PSTN pstn)
     Fetch some characters.  Don't advance the pointer into the file.  Can
     fetch at most kcchLexbBuf characters at a time.
 ***************************************************************************/
-bool LEXB::_FFetchRgch(achar *prgch, long cch)
+bool LexerBase::_FFetchRgch(achar *prgch, long cch)
 {
     AssertThis(0);
     AssertIn(cch, 1, kcchLexbBuf);
@@ -457,7 +457,7 @@ bool LEXB::_FFetchRgch(achar *prgch, long cch)
     handles #line directives and comments.  Comments are not allowed on
     the same line as a #line directive.
 ***************************************************************************/
-bool LEXB::_FSkipWhiteSpace(void)
+bool LexerBase::_FSkipWhiteSpace(void)
 {
     AssertThis(0);
     achar ch;
@@ -600,7 +600,7 @@ bool LEXB::_FSkipWhiteSpace(void)
 /***************************************************************************
     Get the next token from the file.
 ***************************************************************************/
-bool LEXB::FGetTok(PToken ptok)
+bool LexerBase::FGetTok(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -789,7 +789,7 @@ LError:
 /***************************************************************************
     Return the size of extra data associated with the last token returned.
 ***************************************************************************/
-long LEXB::CbExtra(void)
+long LexerBase::CbExtra(void)
 {
     AssertThis(0);
     return 0;
@@ -798,7 +798,7 @@ long LEXB::CbExtra(void)
 /***************************************************************************
     Get the extra data for the last token returned.
 ***************************************************************************/
-void LEXB::GetExtra(void *pv)
+void LexerBase::GetExtra(void *pv)
 {
     AssertThis(0);
     Bug("no extra data");
@@ -808,7 +808,7 @@ void LEXB::GetExtra(void *pv)
     Read a number.  The first character is passed in ch.  lwBase is the base
     of the number (must be <= 10).
 ***************************************************************************/
-void LEXB::_ReadNumber(long *plw, achar ch, long lwBase, long cchMax)
+void LexerBase::_ReadNumber(long *plw, achar ch, long lwBase, long cchMax)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -826,7 +826,7 @@ void LEXB::_ReadNumber(long *plw, achar ch, long lwBase, long cchMax)
 /***************************************************************************
     Read in a hexadecimal value (without the 0x).
 ***************************************************************************/
-bool LEXB::_FReadHex(long *plw)
+bool LexerBase::_FReadHex(long *plw)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -858,7 +858,7 @@ bool LEXB::_FReadHex(long *plw)
     Read a control character (eg, \x3F).  This code assumes the \ has
     already been read.
 ***************************************************************************/
-bool LEXB::_FReadControlCh(achar *pch)
+bool LexerBase::_FReadControlCh(achar *pch)
 {
     AssertThis(0);
     AssertVarMem(pch);

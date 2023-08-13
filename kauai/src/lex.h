@@ -109,10 +109,10 @@ typedef Token *PToken;
 ***************************************************************************/
 #define kcchLexbBuf 512
 
-typedef class LEXB *PLEXB;
-#define LEXB_PAR BASE
-#define kclsLEXB 'LEXB'
-class LEXB : public LEXB_PAR
+typedef class LexerBase *PLexerBase;
+#define LexerBase_PAR BASE
+#define kclsLexerBase 'LEXB'
+class LexerBase : public LexerBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -156,9 +156,9 @@ class LEXB : public LEXB_PAR
     bool _FReadControlCh(achar *pch);
 
   public:
-    LEXB(PFIL pfil, bool fUnionStrings = fTrue);
-    LEXB(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
-    ~LEXB(void);
+    LexerBase(PFIL pfil, bool fUnionStrings = fTrue);
+    LexerBase(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
+    ~LexerBase(void);
 
     virtual bool FGetTok(PToken ptok);
     virtual long CbExtra(void);

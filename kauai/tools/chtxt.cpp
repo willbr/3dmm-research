@@ -136,7 +136,7 @@ bool CHTDD::FCmdCompileScript(PCMD pcmd)
     PDOC pdoc = pvNil;
 
     Ptxtb()->GetName(&stnFile);
-    LEXB lexb(Ptxtb()->Pbsf(), &stnFile);
+    LexerBase lexb(Ptxtb()->Pbsf(), &stnFile);
     pscpt = sccg.PscptCompileLex(&lexb, pcmd->cid == cidCompileScript, &msfil);
     if (pvNil == pscpt)
     {
