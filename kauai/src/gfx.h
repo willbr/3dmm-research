@@ -152,7 +152,7 @@ const ulong kluAcrInvert = 0xFF000000L;
 const ulong kluAcrClear = 0xFFFFFFFFL;
 
 // Abstract ColoR
-class ACR
+class AbstractColor
 {
     friend class GPT;
     ASSERT
@@ -169,11 +169,11 @@ class ACR
 #endif // MAC
 
   public:
-    ACR(void)
+    AbstractColor(void)
     {
         _lu = 0;
     }
-    ACR(CLR clr)
+    AbstractColor(CLR clr)
     {
         _lu = LwFromBytes(kbRgbAcr, clr.bRed, clr.bGreen, clr.bBlue);
     }
@@ -181,7 +181,7 @@ class ACR
     {
         _lu = LwFromBytes(kbRgbAcr, clr.bRed, clr.bGreen, clr.bBlue);
     }
-    ACR(byte bRed, byte bGreen, byte bBlue)
+    AbstractColor(byte bRed, byte bGreen, byte bBlue)
     {
         _lu = LwFromBytes(kbRgbAcr, bRed, bGreen, bBlue);
     }
@@ -189,7 +189,7 @@ class ACR
     {
         _lu = LwFromBytes(kbRgbAcr, bRed, bGreen, bBlue);
     }
-    ACR(byte iscr)
+    AbstractColor(byte iscr)
     {
         _lu = LwFromBytes(kbIndexAcr, 0, 0, iscr);
     }
@@ -197,7 +197,7 @@ class ACR
     {
         _lu = LwFromBytes(kbIndexAcr, 0, 0, iscr);
     }
-    ACR(bool fClear, bool fIgnored)
+    AbstractColor(bool fClear, bool fIgnored)
     {
         _lu = fClear ? kluAcrClear : kluAcrInvert;
     }
@@ -214,44 +214,44 @@ class ACR
     long LwGet(void) const;
     void GetClr(CLR *pclr);
 
-    bool operator==(const ACR &acr) const
+    bool operator==(const AbstractColor &acr) const
     {
         return _lu == acr._lu;
     }
-    bool operator!=(const ACR &acr) const
+    bool operator!=(const AbstractColor &acr) const
     {
         return _lu != acr._lu;
     }
 };
 
 #ifdef SYMC
-extern ACR kacrBlack;
-extern ACR kacrDkGray;
-extern ACR kacrGray;
-extern ACR kacrLtGray;
-extern ACR kacrWhite;
-extern ACR kacrRed;
-extern ACR kacrGreen;
-extern ACR kacrBlue;
-extern ACR kacrYellow;
-extern ACR kacrCyan;
-extern ACR kacrMagenta;
-extern ACR kacrClear;
-extern ACR kacrInvert;
+extern AbstractColor kacrBlack;
+extern AbstractColor kacrDkGray;
+extern AbstractColor kacrGray;
+extern AbstractColor kacrLtGray;
+extern AbstractColor kacrWhite;
+extern AbstractColor kacrRed;
+extern AbstractColor kacrGreen;
+extern AbstractColor kacrBlue;
+extern AbstractColor kacrYellow;
+extern AbstractColor kacrCyan;
+extern AbstractColor kacrMagenta;
+extern AbstractColor kacrClear;
+extern AbstractColor kacrInvert;
 #else  //! SYMC
-const ACR kacrBlack(0, 0, 0);
-const ACR kacrDkGray(0x3F, 0x3F, 0x3F);
-const ACR kacrGray(0x7F, 0x7F, 0x7F);
-const ACR kacrLtGray(0xBF, 0xBF, 0xBF);
-const ACR kacrWhite(kbMax, kbMax, kbMax);
-const ACR kacrRed(kbMax, 0, 0);
-const ACR kacrGreen(0, kbMax, 0);
-const ACR kacrBlue(0, 0, kbMax);
-const ACR kacrYellow(kbMax, kbMax, 0);
-const ACR kacrCyan(0, kbMax, kbMax);
-const ACR kacrMagenta(kbMax, 0, kbMax);
-const ACR kacrClear(fTrue, fTrue);
-const ACR kacrInvert(fFalse, fFalse);
+const AbstractColor kacrBlack(0, 0, 0);
+const AbstractColor kacrDkGray(0x3F, 0x3F, 0x3F);
+const AbstractColor kacrGray(0x7F, 0x7F, 0x7F);
+const AbstractColor kacrLtGray(0xBF, 0xBF, 0xBF);
+const AbstractColor kacrWhite(kbMax, kbMax, kbMax);
+const AbstractColor kacrRed(kbMax, 0, 0);
+const AbstractColor kacrGreen(0, kbMax, 0);
+const AbstractColor kacrBlue(0, 0, kbMax);
+const AbstractColor kacrYellow(kbMax, kbMax, 0);
+const AbstractColor kacrCyan(0, kbMax, kbMax);
+const AbstractColor kacrMagenta(kbMax, 0, kbMax);
+const AbstractColor kacrClear(fTrue, fTrue);
+const AbstractColor kacrInvert(fFalse, fFalse);
 #endif //! SYMC
 
 // abstract pattern
@@ -397,8 +397,8 @@ struct GDD
 {
     ulong grfgdd;  // what to do
     APT apt;       // pattern to use
-    ACR acrFore;   // foreground color (used for solid fills also)
-    ACR acrBack;   // background color
+    AbstractColor acrFore;   // foreground color (used for solid fills also)
+    AbstractColor acrBack;   // background color
     long dxpPen;   // pen width (used if framing)
     long dypPen;   // pen height
     RCS *prcsClip; // clipping (may be pvNil)
@@ -468,23 +468,23 @@ class GNV : public GNV_PAR
 
     void SetPenSize(long dxp, long dyp);
 
-    void FillRcApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack);
-    void FillRc(RC *prc, ACR acr);
-    void FrameRcApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack);
-    void FrameRc(RC *prc, ACR acr);
-    void HiliteRc(RC *prc, ACR acrBack);
+    void FillRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillRc(RC *prc, AbstractColor acr);
+    void FrameRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameRc(RC *prc, AbstractColor acr);
+    void HiliteRc(RC *prc, AbstractColor acrBack);
 
-    void FillOvalApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack);
-    void FillOval(RC *prc, ACR acr);
-    void FrameOvalApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack);
-    void FrameOval(RC *prc, ACR acr);
+    void FillOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillOval(RC *prc, AbstractColor acr);
+    void FrameOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameOval(RC *prc, AbstractColor acr);
 
-    void FillOgnApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack);
-    void FillOgn(POGN pogn, ACR acr);
-    void FrameOgnApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack);
-    void FrameOgn(POGN pogn, ACR acr);
-    void FramePolyLineApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack);
-    void FramePolyLine(POGN pogn, ACR acr);
+    void FillOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillOgn(POGN pogn, AbstractColor acr);
+    void FrameOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameOgn(POGN pogn, AbstractColor acr);
+    void FramePolyLineApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FramePolyLine(POGN pogn, AbstractColor acr);
 
     void MoveTo(long xp, long yp)
     {
@@ -496,24 +496,24 @@ class GNV : public GNV_PAR
         _xp += dxp;
         _yp += dyp;
     }
-    void LineToApt(long xp, long yp, APT *papt, ACR acrFore, ACR acrBack)
+    void LineToApt(long xp, long yp, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
     {
         LineApt(_xp, _yp, xp, yp, papt, acrFore, acrBack);
     }
-    void LineTo(long xp, long yp, ACR acr)
+    void LineTo(long xp, long yp, AbstractColor acr)
     {
         Line(_xp, _yp, xp, yp, acr);
     }
-    void LineRelApt(long dxp, long dyp, APT *papt, ACR acrFore, ACR acrBack)
+    void LineRelApt(long dxp, long dyp, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
     {
         LineApt(_xp, _yp, _xp + dxp, _yp + dyp, papt, acrFore, acrBack);
     }
-    void LineRel(long dxp, long dyp, ACR acr)
+    void LineRel(long dxp, long dyp, AbstractColor acr)
     {
         Line(_xp, _yp, _xp + dxp, _yp + dyp, acr);
     }
-    void LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, ACR acrFore, ACR acrBack);
-    void Line(long xp1, long yp1, long xp2, long yp2, ACR acr);
+    void LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr);
 
     void ScrollRc(RC *prc, long dxp, long dyp, RC *prc1 = pvNil, RC *prc2 = pvNil);
     static void GetBadRcForScroll(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2);
@@ -538,8 +538,8 @@ class GNV : public GNV_PAR
     void SetFontAlign(long tah, long tav);
     void GetDsf(DSF *pdsf);
     void SetDsf(DSF *pdsf);
-    void DrawRgch(achar *prgch, long cch, long xp, long yp, ACR acrFore = kacrBlack, ACR acrBack = kacrClear);
-    void DrawStn(PSTN pstn, long xp, long yp, ACR acrFore = kacrBlack, ACR acrBack = kacrClear);
+    void DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
+    void DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
     void GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp = 0, long yp = 0);
     void GetRcFromStn(RC *prc, PSTN pstn, long xp = 0, long yp = 0);
 
@@ -550,12 +550,12 @@ class GNV : public GNV_PAR
     void DrawMbmp(PMBMP pmbmp, RC *prc);
 
     // transitions
-    void Wipe(long gfd, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
-    void Slide(long gfd, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
-    void Dissolve(long crcWidth, long crcHeight, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+    void Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
+    void Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
+    void Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
                   PGL pglclr = pvNil);
-    void Fade(long cactMax, ACR acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
-    void Iris(long gfd, long xp, long yp, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+    void Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
+    void Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
               PGL pglclr = pvNil);
 };
 
@@ -618,7 +618,7 @@ class GPT : public GPT_PAR
     HBRUSH _hbr;
     long _bk;
     APT _apt;   // for bkApt
-    ACR _acr;   // for bkAcr
+    AbstractColor _acr;   // for bkAcr
     int _wType; // for bkStock (stock brush)
 
     HFONT _hfnt;
@@ -633,7 +633,7 @@ class GPT : public GPT_PAR
     void _EnsurePalette(void);
     void _SetTextProps(DSF *pdsf);
     void _SetAptBrush(APT *papt);
-    void _SetAcrBrush(ACR acr);
+    void _SetAcrBrush(AbstractColor acr);
     void _SetStockBrush(int wType);
 
     void _FillRcs(RCS *prcs);
@@ -641,7 +641,7 @@ class GPT : public GPT_PAR
     void _FillPoly(OLY *poly);
     void _FillRgn(HRGN *phrgn);
     void _FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval);
-    SCR _Scr(ACR acr);
+    SCR _Scr(AbstractColor acr);
 
     bool _FInit(HDC hdc);
 #endif // WIN

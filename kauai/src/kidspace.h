@@ -62,8 +62,8 @@ class GORF : public GORF_PAR
     RTCLASS_DEC
 
   protected:
-    ACR _acrFore;
-    ACR _acrBack;
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
     APT _apt;
     RC _rc;
     long _dxp;

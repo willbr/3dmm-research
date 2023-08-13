@@ -26,7 +26,7 @@ const long kdxpInsetSled = 2;
     Constructor for edit control parameter block.
 ***************************************************************************/
 EDPAR::EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
-             long tah, long tav, ACR acrFore, ACR acrBack, long cmhl)
+             long tah, long tav, AbstractColor acrFore, AbstractColor acrBack, long cmhl)
     : _gcb(hid, pgob, grfgob, gin, prcAbs, prcRel)
 {
     _onn = onn;
@@ -43,7 +43,7 @@ EDPAR::EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs,
     Set the data in the EDPAR.
 ***************************************************************************/
 void EDPAR::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
-                long dypFont, long tah, long tav, ACR acrFore, ACR acrBack, long cmhl)
+                long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack, long cmhl)
 {
     _gcb.Set(hid, pgob, grfgob, gin, prcAbs, prcRel);
     _onn = onn;
@@ -59,7 +59,7 @@ void EDPAR::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcA
 /***************************************************************************
     Set the font portion of the EDPAR.
 ***************************************************************************/
-void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, ACR acrFore, ACR acrBack)
+void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack)
 {
     _onn = onn;
     _grfont = grfont;

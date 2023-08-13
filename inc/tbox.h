@@ -264,8 +264,8 @@ class TBOX : public TBOX_PAR
         return _pscen;
     }
     bool FTextSelected(void);
-    bool FSetAcrBack(ACR acr);
-    bool FSetAcrText(ACR acr);
+    bool FSetAcrBack(AbstractColor acr);
+    bool FSetAcrText(AbstractColor acr);
     bool FSetOnnText(long onn);
     bool FSetDypFontText(long dypFont);
     bool FSetStyleText(ulong grfont);

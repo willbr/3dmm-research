@@ -175,7 +175,7 @@ class MVU : public MVU_PAR
     bool _fMouseDownSeen; // Was the mouse depressed during a place.
     PACTR _pactrUndo;     // Actor to use for undo object when roll-calling.
 
-    ACR _acr;         // Color for painting text.
+    AbstractColor _acr;         // Color for painting text.
     long _onn;        // Font for text
     long _dypFont;    // Font size for text
     ulong _grfont;    // Font style for text
@@ -305,11 +305,11 @@ class MVU : public MVU_PAR
     {
         _pactrUndo = pactr;
     }
-    void SetPaintAcr(ACR acr)
+    void SetPaintAcr(AbstractColor acr)
     {
         _acr = acr;
     }
-    ACR AcrPaint(void)
+    AbstractColor AcrPaint(void)
     {
         return _acr;
     }
@@ -702,7 +702,7 @@ class Movie : public Movie_PAR
     bool FHideTbox(void);                                        // Hide selected text box from the scene at this fram.
     bool FNukeTbox(void);                                        // Remove selected text box from the scene.
     void SelectTbox(long itbox);                                 // Select the itbox'th text box in the frame.
-    void SetPaintAcr(ACR acr);                                   // Sets color that painting will occur with.
+    void SetPaintAcr(AbstractColor acr);                                   // Sets color that painting will occur with.
     void SetOnnTextCur(long onn);                                // Sets font that text will be in
     void SetDypFontTextCur(long dypFont);                        // Sets font size that text will be in
     void SetStyleTextCur(ulong grfont);                          // Sets font style that text will be in

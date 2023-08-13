@@ -33,8 +33,8 @@ class TGOB : public TGOB_PAR
     STN _stn;
     long _tah;
     long _tav;
-    ACR _acrFore;
-    ACR _acrBack;
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
     ~TGOB(void)
     {
     }
@@ -62,12 +62,12 @@ class TGOB : public TGOB_PAR
         _stn = *pstn;
         InvalRc(pvNil, kginMark);
     }
-    void SetAcrFore(ACR acrFore)
+    void SetAcrFore(AbstractColor acrFore)
     {
         AssertThis(0);
         _acrFore = acrFore;
     }
-    void SetAcrBack(ACR acrBack)
+    void SetAcrBack(AbstractColor acrBack)
     {
         AssertThis(0);
         _acrBack = acrBack;
@@ -83,12 +83,12 @@ class TGOB : public TGOB_PAR
         AssertThis(0);
         return _dypFont;
     }
-    ACR GetAcrFore(void)
+    AbstractColor GetAcrFore(void)
     {
         AssertThis(0);
         return (_acrFore);
     }
-    ACR GetAcrBack(void)
+    AbstractColor GetAcrBack(void)
     {
         AssertThis(0);
         return (_acrBack);

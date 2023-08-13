@@ -26,8 +26,8 @@ struct CHP
     long onn;       // which font
     long dypFont;   // size of the font
     long dypOffset; // sub/superscript (-128 to 127)
-    ACR acrFore;    // text color
-    ACR acrBack;    // background color
+    AbstractColor acrFore;    // text color
+    AbstractColor acrBack;    // background color
 
     void Clear(void)
     {
@@ -98,7 +98,7 @@ class TXTB : public TXTB_PAR
   protected:
     PFIL _pfil;
     PBSF _pbsf;
-    ACR _acrBack;
+    AbstractColor _acrBack;
     long _dxpDef; // default width of the document
     long _cpMinCache;
     long _cpLimCache;
@@ -132,11 +132,11 @@ class TXTB : public TXTB_PAR
     long CpLimPara(long cp);
     long CpPrev(long cp, bool fWord = fFalse);
     long CpNext(long cp, bool fWord = fFalse);
-    ACR AcrBack(void)
+    AbstractColor AcrBack(void)
     {
         return _acrBack;
     }
-    void SetAcrBack(ACR acr, ulong grfdoc = fdocUpdate);
+    void SetAcrBack(AbstractColor acr, ulong grfdoc = fdocUpdate);
     long DxpDef(void)
     {
         return _dxpDef;
@@ -604,7 +604,7 @@ class TXRG : public TXRG_PAR
 
     virtual bool FCmdApplyProperty(PCMD pcmd);
     virtual bool FEnablePropCmd(PCMD pcmd, ulong *pgrfeds);
-    bool FSetColor(ACR *pacrFore, ACR *pacrBack);
+    bool FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack);
 
     virtual void SetDxpTab(long dxp);
 };

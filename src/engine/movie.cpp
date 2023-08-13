@@ -3251,7 +3251,7 @@ void Movie::SelectTbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-void Movie::SetPaintAcr(ACR acr)
+void Movie::SetPaintAcr(AbstractColor acr)
 {
     AssertThis(0);
 

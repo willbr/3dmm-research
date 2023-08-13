@@ -3206,7 +3206,7 @@ bool TXRG::_FGetOtherSubSuper(long *pdypOffset)
 /***************************************************************************
     Apply a character or paragraph property
 ***************************************************************************/
-bool TXRG::FSetColor(ACR *pacrFore, ACR *pacrBack)
+bool TXRG::FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack)
 {
     AssertThis(0);
     AssertNilOrPo(pacrFore, 0);

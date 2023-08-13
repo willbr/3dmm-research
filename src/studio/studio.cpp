@@ -1278,7 +1278,7 @@ bool Studio::FCmdTextSetBkgdColor(PCMD pcmd)
     AssertIn(pcmd->rglw[0], 0, kbMax);
 
     byte iscr = (byte)pcmd->rglw[0];
-    ACR acr(iscr);
+    AbstractColor acr(iscr);
     PMVU pmvu = (PMVU)_pmvie->PddgActive();
 
     if (iscr == 0)
@@ -1308,7 +1308,7 @@ bool Studio::FCmdTextSetColor(PCMD pcmd)
     AssertIn(pcmd->rglw[0], 0, kbMax);
 
     byte iscr = (byte)pcmd->rglw[0];
-    ACR acr(iscr);
+    AbstractColor acr(iscr);
     PMVU pmvu = (PMVU)_pmvie->PddgActive();
 
     if (iscr == 0)

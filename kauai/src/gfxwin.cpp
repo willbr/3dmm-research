@@ -52,7 +52,7 @@ HRGN _HrgnNew(RCS *prcs, long dxpInset, long dypInset, bool fOval)
 /***************************************************************************
     Get a system color from the abstract color.
 ***************************************************************************/
-SCR ACR::_Scr(void)
+SCR AbstractColor::_Scr(void)
 {
     AssertThis(facrRgb | facrIndex);
     return B3Lw(_lu) == kbIndexAcr ? PALETTEINDEX(B0Lw(_lu)) : PALETTERGB(B2Lw(_lu), B1Lw(_lu), B0Lw(_lu));
@@ -456,7 +456,7 @@ GPT::~GPT(void)
 /***************************************************************************
     Get the system color for this abstract color.
 ***************************************************************************/
-SCR GPT::_Scr(ACR acr)
+SCR GPT::_Scr(AbstractColor acr)
 {
     SCR scr;
     long iclr;
@@ -1111,7 +1111,7 @@ void GPT::_EnsurePalette(void)
 ***************************************************************************/
 void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
 {
-    ACR acrFore;
+    AbstractColor acrFore;
 
     acrFore = pgdd->acrFore;
     _SetClip(pgdd->prcsClip);
@@ -1119,7 +1119,7 @@ void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
     if (pgdd->grfgdd & fgddPattern)
     {
         // patterned fill
-        ACR acrBack = pgdd->acrBack;
+        AbstractColor acrBack = pgdd->acrBack;
         APT apt = pgdd->apt;
 
         // check for a solid pattern
@@ -1232,7 +1232,7 @@ void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, DSF *pdsf)
     AssertVarMem(pgdd);
     AssertPo(pdsf, 0);
 
-    ACR acrFore, acrBack;
+    AbstractColor acrFore, acrBack;
     RCS rcs;
 
     _SetClip(pgdd->prcsClip);
@@ -1399,7 +1399,7 @@ void GPT::_SetAptBrush(APT *papt)
 /***************************************************************************
     Select a solid brush corresponding to the acr.
 ***************************************************************************/
-void GPT::_SetAcrBrush(ACR acr)
+void GPT::_SetAcrBrush(AbstractColor acr)
 {
     HBRUSH hbr;
 

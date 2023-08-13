@@ -160,7 +160,7 @@ class CCG : public CCG_PAR
     long _cacrRow;    // how many colors to put on a row
     bool _fForeColor; // whether this sets the foreground or background color
 
-    bool _FGetAcrFromPt(long xp, long yp, ACR *pacr, RC *prc = pvNil, long *piscr = pvNil);
+    bool _FGetAcrFromPt(long xp, long yp, AbstractColor *pacr, RC *prc = pvNil, long *piscr = pvNil);
 
   public:
     CCG(GraphicsObjectBlock *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
@@ -183,14 +183,14 @@ class CCGT : public CCGT_PAR
     RTCLASS_DEC
 
   protected:
-    ACR _acr;
+    AbstractColor _acr;
     STN _stn;
 
   public:
-    CCGT(PGCB pgcb, ACR acr = kacrBlack, PSTN pstn = pvNil);
+    CCGT(PGCB pgcb, AbstractColor acr = kacrBlack, PSTN pstn = pvNil);
 
-    void SetAcr(ACR acr, PSTN pstn = pvNil);
-    ACR AcrCur(void)
+    void SetAcr(AbstractColor acr, PSTN pstn = pvNil);
+    AbstractColor AcrCur(void)
     {
         return _acr;
     }

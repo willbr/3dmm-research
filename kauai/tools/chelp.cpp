@@ -974,7 +974,7 @@ void CCG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
     PHETG phetg;
-    ACR acr;
+    AbstractColor acr;
 
     if (!_FGetAcrFromPt(xp, yp, &acr))
         return;
@@ -995,7 +995,7 @@ void CCG::Draw(PGNV pgnv, RC *prcClip)
     long crcHeight, ircHeight, ircWidth;
     long iscr;
     RC rc, rcT;
-    ACR acr;
+    AbstractColor acr;
 
     GetRc(&rc, cooLocal);
     rc.ypTop -= kdxpFrameCcg;
@@ -1035,7 +1035,7 @@ void CCG::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Map the given point to a color.
 ***************************************************************************/
-bool CCG::_FGetAcrFromPt(long xp, long yp, ACR *pacr, RC *prc, long *piscr)
+bool CCG::_FGetAcrFromPt(long xp, long yp, AbstractColor *pacr, RC *prc, long *piscr)
 {
     AssertThis(0);
     AssertVarMem(pacr);
@@ -1096,7 +1096,7 @@ bool CCG::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMous
     AssertVarMem(ppgobCurTip);
     AssertNilOrPo(*ppgobCurTip, 0);
     RC rc;
-    ACR acr;
+    AbstractColor acr;
 
     ReleasePpo(ppgobCurTip);
 
@@ -1115,7 +1115,7 @@ bool CCG::FCmdMouseMove(PCMD_MOUSE pcmd)
     AssertVarMem(pcmd);
     PCCGT pccgt;
     RC rc, rcOld;
-    ACR acr;
+    AbstractColor acr;
     STN stn;
     long iscr;
 
@@ -1168,7 +1168,7 @@ void CCG::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for color chooser tool tip.
 ***************************************************************************/
-CCGT::CCGT(PGCB pgcb, ACR acr, PSTN pstn) : CCGT_PAR(pgcb)
+CCGT::CCGT(PGCB pgcb, AbstractColor acr, PSTN pstn) : CCGT_PAR(pgcb)
 {
     AssertBaseThis(0);
     _acr = acr;
@@ -1179,7 +1179,7 @@ CCGT::CCGT(PGCB pgcb, ACR acr, PSTN pstn) : CCGT_PAR(pgcb)
 /***************************************************************************
     Set the color for the tool tip.
 ***************************************************************************/
-void CCGT::SetAcr(ACR acr, PSTN pstn)
+void CCGT::SetAcr(AbstractColor acr, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(&acr, 0);
@@ -1205,7 +1205,7 @@ void CCGT::Draw(PGNV pgnv, RC *prcClip)
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     RC rc;
-    ACR acr;
+    AbstractColor acr;
 
     GetRc(&rc, cooLocal);
     pgnv->SetPenSize(1, 1);

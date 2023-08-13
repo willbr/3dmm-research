@@ -17,25 +17,25 @@ HCLT GPT::_hcltDef;
 bool GPT::_fForcePalOnSys;
 
 #ifdef SYMC
-ACR kacrBlack(0, 0, 0);
-ACR kacrDkGray(0x3F, 0x3F, 0x3F);
-ACR kacrGray(0x7F, 0x7F, 0x7F);
-ACR kacrLtGray(0xBF, 0xBF, 0xBF);
-ACR kacrWhite(kbMax, kbMax, kbMax);
-ACR kacrRed(kbMax, 0, 0);
-ACR kacrGreen(0, kbMax, 0);
-ACR kacrBlue(0, 0, kbMax);
-ACR kacrYellow(kbMax, kbMax, 0);
-ACR kacrCyan(0, kbMax, kbMax);
-ACR kacrMagenta(kbMax, 0, kbMax);
-ACR kacrClear(fTrue, fTrue);
-ACR kacrInvert(fFalse, fFalse);
+AbstractColor kacrBlack(0, 0, 0);
+AbstractColor kacrDkGray(0x3F, 0x3F, 0x3F);
+AbstractColor kacrGray(0x7F, 0x7F, 0x7F);
+AbstractColor kacrLtGray(0xBF, 0xBF, 0xBF);
+AbstractColor kacrWhite(kbMax, kbMax, kbMax);
+AbstractColor kacrRed(kbMax, 0, 0);
+AbstractColor kacrGreen(0, kbMax, 0);
+AbstractColor kacrBlue(0, 0, kbMax);
+AbstractColor kacrYellow(kbMax, kbMax, 0);
+AbstractColor kacrCyan(0, kbMax, kbMax);
+AbstractColor kacrMagenta(kbMax, 0, kbMax);
+AbstractColor kacrClear(fTrue, fTrue);
+AbstractColor kacrInvert(fFalse, fFalse);
 #endif // SYMC
 
 /***************************************************************************
     Set the color as the current foreground color.
 ***************************************************************************/
-void ACR::_SetFore(void)
+void AbstractColor::_SetFore(void)
 {
     AssertThis(facrRgb | facrIndex);
     SCR scr;
@@ -58,7 +58,7 @@ void ACR::_SetFore(void)
 /***************************************************************************
     Set the color as the current background color.
 ***************************************************************************/
-void ACR::_SetBack(void)
+void AbstractColor::_SetBack(void)
 {
     AssertThis(facrRgb | facrIndex);
     SCR scr;
@@ -604,7 +604,7 @@ void GPT::_DrawLine(PTS *prgpts)
 ***************************************************************************/
 void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
 {
-    ACR acrFore = pgdd->acrFore;
+    AbstractColor acrFore = pgdd->acrFore;
 
     Set(pgdd->prcsClip);
     if (pgdd->grfgdd & fgddFrame)
@@ -613,7 +613,7 @@ void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
     {
         // pattern fill
         APT apt = pgdd->apt;
-        ACR acrBack = pgdd->acrBack;
+        AbstractColor acrBack = pgdd->acrBack;
 
         // check for a solid pattern
         if (apt.FSolidFore() || acrFore == acrBack)
@@ -726,7 +726,7 @@ void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, DSF *pdsf)
     AssertVarMem(pgdd);
     AssertPo(pdsf, 0);
 
-    ACR acrFore, acrBack;
+    AbstractColor acrFore, acrBack;
     RCS rcs;
     RCS *prcs = pvNil;
 

@@ -87,7 +87,7 @@ APP vapp;
 CLOK vclok(10000);
 RND vrnd;
 
-ACR _rgacr[] = {kacrBlack,   kacrBlue,   kacrGreen, kacrCyan,  kacrRed,
+AbstractColor _rgacr[] = {kacrBlack,   kacrBlue,   kacrGreen, kacrCyan,  kacrRed,
                 kacrMagenta, kacrYellow, kacrWhite, kacrClear, kacrInvert};
 achar *_rgszColors[] = {PszLit("bla"), PszLit("blu"), PszLit("gre"), PszLit("cya"), PszLit("red"),
                         PszLit("mag"), PszLit("yel"), PszLit("whi"), PszLit("cle"), PszLit("inv")};
@@ -160,15 +160,15 @@ class GPRC : public GPRC_PAR
     MARKMEM
 
   private:
-    ACR _acrFore;
-    ACR _acrBack;
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
     APT _apt;
     bool _fLit;
     bool _fTrackMouse;
     POGN _pogn;
 
   public:
-    GPRC(PGCB pgcb, APT *papt, ACR acrFore, ACR acrBack, bool fTrackMouse);
+    GPRC(PGCB pgcb, APT *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
     ~GPRC(void);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
@@ -185,10 +185,10 @@ class GFRC : public GFRC_PAR
   private:
     bool _fOval;
     bool _fFrame;
-    ACR _acr;
+    AbstractColor _acr;
 
   public:
-    GFRC(PGCB pgcb, ACR acr, bool fOval);
+    GFRC(PGCB pgcb, AbstractColor acr, bool fOval);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -200,7 +200,7 @@ RTCLASS(GFRC)
 /***************************************************************************
     Constructor for patterned rectangle.
 ***************************************************************************/
-GPRC::GPRC(PGCB pgcb, APT *papt, ACR acrFore, ACR acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
+GPRC::GPRC(PGCB pgcb, APT *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
 {
     _apt = *papt;
     _acrFore = acrFore;
@@ -359,7 +359,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Constructor for filled rectangle.
 ***************************************************************************/
-GFRC::GFRC(PGCB pgcb, ACR acr, bool fOval) : GraphicsObject(pgcb)
+GFRC::GFRC(PGCB pgcb, AbstractColor acr, bool fOval) : GraphicsObject(pgcb)
 {
     _acr = acr;
     _fOval = fOval;
@@ -751,7 +751,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
             rc.xpRight = rc.xpLeft + dxp;
             rc.ypBottom = rc.ypTop + dyp;
             pgnv->ClipRc(&rc);
-            pgnv->FrameRc(&rc, ACR(byte(3 * irc)));
+            pgnv->FrameRc(&rc, AbstractColor(byte(3 * irc)));
             itnm = irc % CvFromRgv(_rgtnmHorz);
             chH = _rgtnmHorz[itnm].ch;
             tah = _rgtnmHorz[itnm].lw;
@@ -952,8 +952,8 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
     ts = TsCurrent();
     for (iact = 0; iact < 100; iact++)
     {
-        ACR acrFore = _rgacr[iact % 10];
-        ACR acrBack = _rgacr[(iact / 10) % 10];
+        AbstractColor acrFore = _rgacr[iact % 10];
+        AbstractColor acrBack = _rgacr[(iact / 10) % 10];
 
         switch (_cact % 3)
         {
@@ -1501,9 +1501,9 @@ DOCPIC *DOCPIC::PdocpicNew(void)
             {
                 rc.Set(i, j, i + 1, j + 1);
                 if ((i + j) & 1)
-                    pgnv->FillRc(&rc, ACR(byte(i * 16 + j)));
+                    pgnv->FillRc(&rc, AbstractColor(byte(i * 16 + j)));
                 else
-                    pgnv->FillOval(&rc, ACR(byte(i * 16 + j)));
+                    pgnv->FillOval(&rc, AbstractColor(byte(i * 16 + j)));
             }
         }
         ReleasePpo(&pgnv);
@@ -1597,9 +1597,9 @@ void DDPIC::Draw(PGNV pgnv, RC *prcClip)
         {
             rc.Set(i, j, i + 1, j + 1);
             if ((i + j) & 1)
-                pgnv->FillRc(&rc, ACR(byte(i * 16 + j)));
+                pgnv->FillRc(&rc, AbstractColor(byte(i * 16 + j)));
             else
-                pgnv->FillOval(&rc, ACR(byte(i * 16 + j)));
+                pgnv->FillOval(&rc, AbstractColor(byte(i * 16 + j)));
         }
     }
 }
@@ -1694,12 +1694,12 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     long i;
     RC rc(0, 0, 256, 256);
     RC rcT;
-    ACR acr;
+    AbstractColor acr;
     CLR clr;
     PGL pglclr;
     static long _cact = 0;
     PT pt(0, 0);
-    ACR acr63(63), acr127(127), acr191(191);
+    AbstractColor acr63(63), acr127(127), acr191(191);
 
     if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
         return pvNil;
@@ -2049,9 +2049,9 @@ PTAN TAN::PtanNew(void)
 
     rc.Set(0, 0, 100, 100);
     gcb.Set(100, ptan, fgobNil, kginMark, &rc);
-    NewObj GFRC(&gcb, ACR(0x80), fFalse);
+    NewObj GFRC(&gcb, AbstractColor(0x80), fFalse);
     gcb._hid = 101;
-    NewObj GFRC(&gcb, ACR(0x35), fFalse);
+    NewObj GFRC(&gcb, AbstractColor(0x35), fFalse);
     vclok.FSetAlarm(ptan->_dtim, ptan);
     return ptan;
 }

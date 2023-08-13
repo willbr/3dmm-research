@@ -134,7 +134,7 @@ class APPB : public APPB_PAR
     long _lwGft;   // parameter for transition
     ulong _dtsGft; // how much time to give the transition
     PGL _pglclr;   // palette to transition to
-    ACR _acr;      // intermediate color to transition to
+    AbstractColor _acr;      // intermediate color to transition to
 
     PGL _pglprop; // the properties
 
@@ -253,7 +253,7 @@ class APPB : public APPB_PAR
     virtual bool FGetMarkedRc(HWND hwnd, RC *prc);
     virtual void UpdateMarked(void);
     virtual void InvalMarked(HWND hwnd);
-    virtual void SetGft(long gft, long lwGft, ulong dts = kdtsSecond, PGL pglclr = pvNil, ACR acr = kacrClear);
+    virtual void SetGft(long gft, long lwGft, ulong dts = kdtsSecond, PGL pglclr = pvNil, AbstractColor acr = kacrClear);
 
     // default fonts
     virtual long OnnDefVariable(void);

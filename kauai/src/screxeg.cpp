@@ -676,7 +676,7 @@ bool SCEG::_FExecOp(long op)
         lw4 = _LwPop();
         if (!_fError)
         {
-            ACR acr;
+            AbstractColor acr;
             PGL pglclr = _PglclrGet((ChunkNumber)lw4);
             acr.SetFromLw(lw3);
             vpappb->SetGft(lw1, lw2, LuMulDiv(dtim, kdtsSecond, kdtimSecond), pglclr, acr);

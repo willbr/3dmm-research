@@ -204,7 +204,7 @@ class TUNC : public TUNC_PAR
 
   protected:
     long _itbox;
-    ACR _acr;
+    AbstractColor _acr;
     TUNC(void)
     {
     }
@@ -217,7 +217,7 @@ class TUNC : public TUNC_PAR
     {
         _itbox = itbox;
     }
-    void SetAcrBack(ACR acr)
+    void SetAcrBack(AbstractColor acr)
     {
         _acr = acr;
     }
@@ -253,7 +253,7 @@ PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
     PTBXB ptbxb;
     PTBXG ptbxg;
     RC rcRel, rcAbs;
-    ACR acr;
+    AbstractColor acr;
 
     //
     // Create the border
@@ -2489,7 +2489,7 @@ bool TBOX::FDup(PTBOX *pptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetAcrBack(ACR acr)
+bool TBOX::FSetAcrBack(AbstractColor acr)
 {
     AssertThis(0);
 
@@ -2530,7 +2530,7 @@ bool TBOX::FSetAcrBack(ACR acr)
  *  fTrue if possible, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetAcrText(ACR acr)
+bool TBOX::FSetAcrText(AbstractColor acr)
 {
     AssertThis(0);
 
@@ -3576,7 +3576,7 @@ bool TUNC::FDo(PDocumentBase pdocb)
     AssertPo(pdocb, 0);
 
     PTBOX ptbox;
-    ACR acr;
+    AbstractColor acr;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {

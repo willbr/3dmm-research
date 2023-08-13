@@ -695,7 +695,7 @@ void TXTB::InvalAllDdg(long cp, long ccpIns, long ccpDel, ulong grfdoc)
 /***************************************************************************
     Set the background color of the document.
 ***************************************************************************/
-void TXTB::SetAcrBack(ACR acr, ulong grfdoc)
+void TXTB::SetAcrBack(AbstractColor acr, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(&acr, 0);

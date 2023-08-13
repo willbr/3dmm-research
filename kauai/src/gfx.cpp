@@ -28,29 +28,29 @@ const long kdtsMaxTrans = 30 * kdtsSecond;
 long vcactRealize;
 
 /***************************************************************************
-    Set the ACR from the lw.  The lw should have been returned by a call
-    to ACR::LwGet().
+    Set the AbstractColor from the lw.  The lw should have been returned by a call
+    to AbstractColor::LwGet().
 ***************************************************************************/
-void ACR::SetFromLw(long lw)
+void AbstractColor::SetFromLw(long lw)
 {
     _lu = (ulong)lw;
     AssertThis(0);
 }
 
 /***************************************************************************
-    Get an lw from the ACR.  The lw can then be stored on file, reread
-    and passed to ACR::SetFromLw.  Valid non-nil colors always return
+    Get an lw from the AbstractColor.  The lw can then be stored on file, reread
+    and passed to AbstractColor::SetFromLw.  Valid non-nil colors always return
     non-zero, so zero can be used as a nil value.
 ***************************************************************************/
-long ACR::LwGet(void) const
+long AbstractColor::LwGet(void) const
 {
     return (long)_lu;
 }
 
 /***************************************************************************
-    Get a clr from the ACR.  Asserts that the acr is an rgb color.
+    Get a clr from the AbstractColor.  Asserts that the acr is an rgb color.
 ***************************************************************************/
-void ACR::GetClr(CLR *pclr)
+void AbstractColor::GetClr(CLR *pclr)
 {
     AssertThis(facrRgb);
     AssertVarMem(pclr);
@@ -65,26 +65,26 @@ void ACR::GetClr(CLR *pclr)
 /***************************************************************************
     Assert that the acr is a valid color.
 ***************************************************************************/
-void ACR::AssertValid(ulong grfacr)
+void AbstractColor::AssertValid(ulong grfacr)
 {
     switch (B3Lw(_lu))
     {
     case kbNilAcr:
-        Assert(grfacr == facrNil, "unexpected nil ACR");
+        Assert(grfacr == facrNil, "unexpected nil AbstractColor");
         break;
     case kbRgbAcr:
-        Assert(grfacr == facrNil || (grfacr & facrRgb), "unexpected RGB ACR");
+        Assert(grfacr == facrNil || (grfacr & facrRgb), "unexpected RGB AbstractColor");
         break;
     case kbIndexAcr:
-        Assert(B2Lw(_lu) == 0 && B1Lw(_lu) == 0, "bad Index ACR");
-        Assert(grfacr == facrNil || (grfacr & facrIndex), "unexpected Index ACR");
+        Assert(B2Lw(_lu) == 0 && B1Lw(_lu) == 0, "bad Index AbstractColor");
+        Assert(grfacr == facrNil || (grfacr & facrIndex), "unexpected Index AbstractColor");
         break;
     case kbSpecialAcr:
         Assert(_lu == kluAcrClear || _lu == kluAcrInvert, "unknown acr");
-        Assert(grfacr == facrNil, "unexpected Special ACR");
+        Assert(grfacr == facrNil, "unexpected Special AbstractColor");
         break;
     default:
-        BugVar("invalid ACR", &_lu);
+        BugVar("invalid AbstractColor", &_lu);
         break;
     }
 }
@@ -223,7 +223,7 @@ void GNV::MarkMem(void)
 /***************************************************************************
     Fill a rectangle with a two color pattern.
 ***************************************************************************/
-void GNV::FillRcApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FillRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -248,7 +248,7 @@ void GNV::FillRcApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
 /***************************************************************************
     Fill a rectangle with a color.
 ***************************************************************************/
-void GNV::FillRc(RC *prc, ACR acr)
+void GNV::FillRc(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -268,7 +268,7 @@ void GNV::FillRc(RC *prc, ACR acr)
 /***************************************************************************
     Frame a rectangle with a two color pattern.
 ***************************************************************************/
-void GNV::FrameRcApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FrameRcApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -293,7 +293,7 @@ void GNV::FrameRcApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
 /***************************************************************************
     Frame a rectangle with a color.
 ***************************************************************************/
-void GNV::FrameRc(RC *prc, ACR acr)
+void GNV::FrameRc(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -314,7 +314,7 @@ void GNV::FrameRc(RC *prc, ACR acr)
     For hilighting text.  On mac, interchanges the system hilite color and
     the background color.  On Win, just inverts.
 ***************************************************************************/
-void GNV::HiliteRc(RC *prc, ACR acrBack)
+void GNV::HiliteRc(RC *prc, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -330,7 +330,7 @@ void GNV::HiliteRc(RC *prc, ACR acrBack)
 /***************************************************************************
     Fill an oval with a two color pattern.
 ***************************************************************************/
-void GNV::FillOvalApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FillOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -355,7 +355,7 @@ void GNV::FillOvalApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
 /***************************************************************************
     Fill an oval with a color.
 ***************************************************************************/
-void GNV::FillOval(RC *prc, ACR acr)
+void GNV::FillOval(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -375,7 +375,7 @@ void GNV::FillOval(RC *prc, ACR acr)
 /***************************************************************************
     Frame an oval with a two color pattern.
 ***************************************************************************/
-void GNV::FrameOvalApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FrameOvalApt(RC *prc, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -400,7 +400,7 @@ void GNV::FrameOvalApt(RC *prc, APT *papt, ACR acrFore, ACR acrBack)
 /***************************************************************************
     Frame an oval with a color.
 ***************************************************************************/
-void GNV::FrameOval(RC *prc, ACR acr)
+void GNV::FrameOval(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -420,7 +420,7 @@ void GNV::FrameOval(RC *prc, ACR acr)
 /***************************************************************************
     Draw a line with a pattern.  Sets the pen position to (xp2, yp2).
 ***************************************************************************/
-void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(papt);
@@ -447,7 +447,7 @@ void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, APT *papt, ACR acrFore
 /***************************************************************************
     Draw a line in a solid color.  Sets the pen position to (xp2, yp2).
 ***************************************************************************/
-void GNV::Line(long xp1, long yp1, long xp2, long yp2, ACR acr)
+void GNV::Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(&acr, 0);
@@ -469,7 +469,7 @@ void GNV::Line(long xp1, long yp1, long xp2, long yp2, ACR acr)
 /***************************************************************************
     Fill a polygon with a pattern.
 ***************************************************************************/
-void GNV::FillOgnApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FillOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -497,7 +497,7 @@ void GNV::FillOgnApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack)
 /***************************************************************************
     Fill a polygon with a color.
 ***************************************************************************/
-void GNV::FillOgn(POGN pogn, ACR acr)
+void GNV::FillOgn(POGN pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -522,7 +522,7 @@ void GNV::FillOgn(POGN pogn, ACR acr)
     NOTE: Using kacrInvert produces slightly different results on the Mac.
     (Mac only does alternate winding).
 ***************************************************************************/
-void GNV::FrameOgnApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FrameOgnApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -554,7 +554,7 @@ void GNV::FrameOgnApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack)
     Frame a polygon with a color.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FrameOgn(POGN pogn, ACR acr)
+void GNV::FrameOgn(POGN pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -581,7 +581,7 @@ void GNV::FrameOgn(POGN pogn, ACR acr)
     Frame a poly-line with a pattern.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FramePolyLineApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack)
+void GNV::FramePolyLineApt(POGN pogn, APT *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -613,7 +613,7 @@ void GNV::FramePolyLineApt(POGN pogn, APT *papt, ACR acrFore, ACR acrBack)
     Frame a poly-line with a color.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FramePolyLine(POGN pogn, ACR acr)
+void GNV::FramePolyLine(POGN pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -1064,7 +1064,7 @@ void GNV::GetDsf(DSF *pdsf)
 /******************************************************************************
     Draw some text.
 ******************************************************************************/
-void GNV::DrawRgch(achar *prgch, long cch, long xp, long yp, ACR acrFore, ACR acrBack)
+void GNV::DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1086,7 +1086,7 @@ void GNV::DrawRgch(achar *prgch, long cch, long xp, long yp, ACR acrFore, ACR ac
 /***************************************************************************
     Draw the given string.
 ***************************************************************************/
-void GNV::DrawStn(PSTN pstn, long xp, long yp, ACR acrFore, ACR acrBack)
+void GNV::DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1254,7 +1254,7 @@ bool GNV::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
     size.  gfd indicates which direction the wipe is.  If pglclr is not
     nil and acrFill is clear, the palette transition is gradual.
 ***************************************************************************/
-void GNV::Wipe(long gfd, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1342,7 +1342,7 @@ void GNV::Wipe(long gfd, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulon
     Slide the source gnv onto this one.  The source and destination
     rectangles must be the same size.
 ***************************************************************************/
-void GNV::Slide(long gfd, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1503,7 +1503,7 @@ inline long _LwNextDissolve(long lw)
     and destination rectangles must be the same size.  If pgnvSrc is nil,
     just dissolve into the solid color.  Each portion is done in dts time.
 ***************************************************************************/
-void GNV::Dissolve(long crcWidth, long crcHeight, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+void GNV::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
                    PGL pglclr)
 {
     AssertThis(0);
@@ -1783,7 +1783,7 @@ void GNV::Dissolve(long crcWidth, long crcHeight, ACR acrFill, PGNV pgnvSrc, RC 
     the maximum number of palette interpolations to do.  It doesn't make
     sense for this to be bigger than 256.  If it's zero, we'll use 256.
 ***************************************************************************/
-void GNV::Fade(long cactMax, ACR acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
 {
     AssertThis(0);
     AssertIn(cactMax, 0, 257);
@@ -1849,7 +1849,7 @@ void GNV::Fade(long cactMax, ACR acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, 
     intermediate color of acrFill (if not clear).  xp, yp are the focus
     point of the iris (in destination coordinates).
 ***************************************************************************/
-void GNV::Iris(long gfd, long xp, long yp, ACR acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);

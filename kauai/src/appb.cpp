@@ -1187,7 +1187,7 @@ void APPB::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT
     If pglclr is not nil, this AddRef's it and holds onto it until after
     the transition is done.
 ***************************************************************************/
-void APPB::SetGft(long gft, long lwGft, ulong dts, PGL pglclr, ACR acr)
+void APPB::SetGft(long gft, long lwGft, ulong dts, PGL pglclr, AbstractColor acr)
 {
     AssertThis(0);
     AssertNilOrPo(pglclr, 0);
