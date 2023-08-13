@@ -17,7 +17,7 @@ RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
 RTCLASS(RichTextDocument)
 RTCLASS(TextDocumentGraphicsObject)
-RTCLASS(TXLG)
+RTCLASS(LineTextGraphicsDocument)
 RTCLASS(TXRG)
 RTCLASS(RichTextUndo)
 
@@ -909,7 +909,7 @@ PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PBSF pbsf, short 
 }
 
 /***************************************************************************
-    Create a new TXLG to display the PlainTextDocument.
+    Create a new LineTextGraphicsDocument to display the PlainTextDocument.
 ***************************************************************************/
 PDocumentDisplayGraphicsObject PlainTextDocument::PddgNew(PGCB pgcb)
 {
@@ -917,7 +917,7 @@ PDocumentDisplayGraphicsObject PlainTextDocument::PddgNew(PGCB pgcb)
     long onn = vpappb->OnnDefFixed();
     long dypFont = vpappb->DypTextDef();
 
-    return TXLG::PtxlgNew(this, pgcb, onn, fontNil, dypFont, 4);
+    return LineTextGraphicsDocument::PtxlgNew(this, pgcb, onn, fontNil, dypFont, 4);
 }
 
 /***************************************************************************

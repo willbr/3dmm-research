@@ -2507,7 +2507,7 @@ void TextDocumentGraphicsObject::GetNaturalSize(long *pdxp, long *pdyp)
 /***************************************************************************
     Constructor for the plain line text document display gob.
 ***************************************************************************/
-TXLG::TXLG(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab) : TXLG_PAR(ptxtb, pgcb)
+LineTextGraphicsDocument::LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab) : LineTextGraphicsDocument_PAR(ptxtb, pgcb)
 {
     RC rc;
     achar ch = kchSpace;
@@ -2525,11 +2525,11 @@ TXLG::TXLG(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypF
 /***************************************************************************
     Static method to create a new plain line text doc display gob.
 ***************************************************************************/
-PTXLG TXLG::PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+PLineTextGraphicsDocument LineTextGraphicsDocument::PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
 {
-    PTXLG ptxlg;
+    PLineTextGraphicsDocument ptxlg;
 
-    if (pvNil == (ptxlg = NewObj TXLG(ptxtb, pgcb, onn, grfont, dypFont, cchTab)))
+    if (pvNil == (ptxlg = NewObj LineTextGraphicsDocument(ptxtb, pgcb, onn, grfont, dypFont, cchTab)))
         return pvNil;
     if (!ptxlg->_FInit())
     {
@@ -2541,10 +2541,10 @@ PTXLG TXLG::PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont,
 }
 
 /***************************************************************************
-    Get the width of the logical "page".  For a TXLG, this is some big
+    Get the width of the logical "page".  For a LineTextGraphicsDocument, this is some big
     value, so we do no word wrap.
 ***************************************************************************/
-long TXLG::_DxpDoc(void)
+long LineTextGraphicsDocument::_DxpDoc(void)
 {
     return kswMax;
 }
@@ -2552,7 +2552,7 @@ long TXLG::_DxpDoc(void)
 /***************************************************************************
     Set the tab width.
 ***************************************************************************/
-void TXLG::SetDxpTab(long dxp)
+void LineTextGraphicsDocument::SetDxpTab(long dxp)
 {
     AssertThis(0);
     long cch;
@@ -2568,16 +2568,16 @@ void TXLG::SetDxpTab(long dxp)
 /***************************************************************************
     Set the document width.  Does nothing.
 ***************************************************************************/
-void TXLG::SetDxpDoc(long dxp)
+void LineTextGraphicsDocument::SetDxpDoc(long dxp)
 {
     AssertThis(0);
 }
 
 /***************************************************************************
     Get the character properties for display.  These are the same for all
-    characters in the TXLG.
+    characters in the LineTextGraphicsDocument.
 ***************************************************************************/
-void TXLG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
+void LineTextGraphicsDocument::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 {
     AssertIn(cp, 0, _ptxtb->CpMac());
     AssertVarMem(pchp);
@@ -2598,9 +2598,9 @@ void TXLG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 
 /***************************************************************************
     Get the paragraph properties for disply.  These are constant for all
-    characters in the TXLG.
+    characters in the LineTextGraphicsDocument.
 ***************************************************************************/
-void TXLG::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
+void LineTextGraphicsDocument::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 {
     AssertIn(cp, 0, _ptxtb->CpMac());
     AssertVarMem(ppap);
@@ -2620,7 +2620,7 @@ void TXLG::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 /***************************************************************************
     Copy the selection.
 ***************************************************************************/
-bool TXLG::_FCopySel(PDocumentBase *ppdocb)
+bool LineTextGraphicsDocument::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -2653,7 +2653,7 @@ bool TXLG::_FCopySel(PDocumentBase *ppdocb)
 /***************************************************************************
     Delete the selection.
 ***************************************************************************/
-void TXLG::_ClearSel(void)
+void LineTextGraphicsDocument::_ClearSel(void)
 {
     AssertThis(0);
 
@@ -2664,7 +2664,7 @@ void TXLG::_ClearSel(void)
 /***************************************************************************
     Paste the selection.
 ***************************************************************************/
-bool TXLG::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
+bool LineTextGraphicsDocument::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);

@@ -529,10 +529,10 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
 /***************************************************************************
     Line text document display gob
 ***************************************************************************/
-typedef class TXLG *PTXLG;
-#define TXLG_PAR TextDocumentGraphicsObject
-#define kclsTXLG 'TXLG'
-class TXLG : public TXLG_PAR
+typedef class LineTextGraphicsDocument *PLineTextGraphicsDocument;
+#define LineTextGraphicsDocument_PAR TextDocumentGraphicsObject
+#define kclsLineTextGraphicsDocument 'TXLG'
+class LineTextGraphicsDocument : public LineTextGraphicsDocument_PAR
 {
     RTCLASS_DEC
 
@@ -544,7 +544,7 @@ class TXLG : public TXLG_PAR
     long _dxpChar;
     long _cchTab;
 
-    TXLG(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual long _DxpDoc(void);
     virtual void _FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
@@ -556,7 +556,7 @@ class TXLG : public TXLG_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PTXLG PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    static PLineTextGraphicsDocument PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual void SetDxpTab(long dxp);
     virtual void SetDxpDoc(long dxp);

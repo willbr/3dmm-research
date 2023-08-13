@@ -728,7 +728,7 @@ class CHTXD : public CHTXD_PAR
     Text display gob for the chunky editor.
 ***************************************************************************/
 typedef class CHTDD *PCHTDD;
-#define CHTDD_PAR TXLG
+#define CHTDD_PAR LineTextGraphicsDocument
 #define kclsCHTDD 'chtd'
 class CHTDD : public CHTDD_PAR
 {
