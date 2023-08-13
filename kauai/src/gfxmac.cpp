@@ -107,7 +107,7 @@ void GPT::SetActiveColors(PGL pglclr, ulong grfpal)
     long cclr, iclr, iv;
     HPAL hpal, hpalOld;
     SCR scr;
-    CLR clr;
+    Color clr;
     HCLT hclt;
     HWND hwnd;
 

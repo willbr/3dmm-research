@@ -5501,7 +5501,7 @@ void Movie::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
     if (pvNil != pglclrSystem && pvNil != pglclrBkgd)
     {
         Assert(pglclrBkgd->IvMac() + iclrMin <= pglclrSystem->IvMac(), "Background palette too large");
-        CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(CLR), pglclrBkgd->IvMac()));
+        CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(Color), pglclrBkgd->IvMac()));
     }
 
     switch (_trans)

@@ -50,7 +50,7 @@ long AbstractColor::LwGet(void) const
 /***************************************************************************
     Get a clr from the AbstractColor.  Asserts that the acr is an rgb color.
 ***************************************************************************/
-void AbstractColor::GetClr(CLR *pclr)
+void AbstractColor::GetClr(Color *pclr)
 {
     AssertThis(facrRgb);
     AssertVarMem(pclr);
@@ -1168,7 +1168,7 @@ bool GNV::_FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, lon
 
     // get the current palette and set up the temporary transitionary palette
     if (0 != cbitPixel && _pgpt->CbitPixel() != cbitPixel || pvNil == (*ppglclrOld = GPT::PglclrGetPalette()) ||
-        0 == (cclr = LwMin((*ppglclrOld)->IvMac(), cclr)) || pvNil == (*ppglclrTrans = GL::PglNew(size(CLR), cclr)))
+        0 == (cclr = LwMin((*ppglclrOld)->IvMac(), cclr)) || pvNil == (*ppglclrTrans = GL::PglNew(size(Color), cclr)))
     {
         ReleasePpo(ppglclrOld);
         if (pvNil != pglclr)
@@ -1186,7 +1186,7 @@ bool GNV::_FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, lon
     and animate the palette to pglclrTrans.  If either source palette is nil,
     *pclrSub is used in place of the nil palette.  acrSub must be an RGB color.
 ***************************************************************************/
-void GNV::_PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PGL pglclrTrans, CLR *pclrSub)
+void GNV::_PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PGL pglclrTrans, Color *pclrSub)
 {
     AssertNilOrPo(pglclrOld, 0);
     AssertNilOrPo(pglclrNew, 0);
@@ -1195,8 +1195,8 @@ void GNV::_PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PG
     AssertNilOrVarMem(pclrSub);
 
     long iclr;
-    CLR clrOld, clrNew;
-    CLR clrSub;
+    Color clrOld, clrNew;
+    Color clrSub;
 
     iclr = pglclrTrans->IvMac();
     if (pvNil != pglclrOld)
@@ -1795,7 +1795,7 @@ void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC
 
     ulong tsStart;
     long cact, cactOld;
-    CLR clr;
+    Color clr;
     PGL pglclrOld = pvNil;
     PGL pglclrTrans = pvNil;
 

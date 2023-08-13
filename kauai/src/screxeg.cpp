@@ -1226,7 +1226,7 @@ bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         goto LFail;
     *pcb = pblck->Cb();
 
-    if (pvNil == (pglclr = GL::PglRead(pblck)) || pglclr->CbEntry() != size(CLR))
+    if (pvNil == (pglclr = GL::PglRead(pblck)) || pglclr->CbEntry() != size(Color))
         goto LFail;
 
     if (pvNil == (pcabo = NewObj CABO(pglclr)))

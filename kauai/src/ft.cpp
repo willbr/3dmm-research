@@ -1462,11 +1462,11 @@ DOCPIC *DOCPIC::PdocpicNew(void)
     PPIC ppic;
     DOCPIC *pdocpic;
     long i, j;
-    CLR clr;
+    Color clr;
     PGL pglclr;
     RC rc(0, 0, 16, 16);
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
+    if (pvNil == (pglclr = GL::PglNew(size(Color), 256)))
         return pvNil;
     for (i = 0; i < 256; i++)
     {
@@ -1695,13 +1695,13 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     RC rc(0, 0, 256, 256);
     RC rcT;
     AbstractColor acr;
-    CLR clr;
+    Color clr;
     PGL pglclr;
     static long _cact = 0;
     PT pt(0, 0);
     AbstractColor acr63(63), acr127(127), acr191(191);
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
+    if (pvNil == (pglclr = GL::PglNew(size(Color), 256)))
         return pvNil;
     for (i = 0; i < 256; i++)
     {
@@ -1789,7 +1789,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
         pgpt = pvNil;
     }
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
+    if (pvNil == (pglclr = GL::PglNew(size(Color), 256)))
         goto LFail;
     for (i = 0; i < 128; i++)
     {

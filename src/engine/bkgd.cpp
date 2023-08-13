@@ -340,7 +340,7 @@ bool BKGD::FGetPalette(PGL *ppglclr, long *piclrMin)
     *piclrMin = _bIndexBase;
     if (pvNil == _pglclr) // no custom palette
     {
-        *ppglclr = GL::PglNew(size(CLR)); // "palette" with 0 entries
+        *ppglclr = GL::PglNew(size(Color)); // "palette" with 0 entries
     }
     else
     {

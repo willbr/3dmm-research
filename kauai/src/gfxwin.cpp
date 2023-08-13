@@ -19,7 +19,7 @@ const SCR kscrWhite = PALETTERGB(0xFF, 0xFF, 0xFF);
 HPAL GPT::_hpal = hNil;
 HPAL GPT::_hpalIdentity = hNil;
 long GPT::_cclrPal = 0;
-CLR *GPT::_prgclr = pvNil;
+Color *GPT::_prgclr = pvNil;
 long GPT::_cactPalCur = 0;
 long GPT::_cactFlush = 1;
 bool GPT::_fPalettized = fFalse;
@@ -117,13 +117,13 @@ static PALETTEENTRY _rgpe[20] = {
 void GPT::SetActiveColors(PGL pglclr, ulong grfpal)
 {
     AssertNilOrPo(pglclr, 0);
-    Assert(pvNil == pglclr || pglclr->CbEntry() == size(CLR), "wrong CbEntry");
+    Assert(pvNil == pglclr || pglclr->CbEntry() == size(Color), "wrong CbEntry");
     byte rgb[size(LOGPALETTE) + 256 * size(PALETTEENTRY)];
     LOGPALETTE *ppal = (LOGPALETTE *)rgb;
     PALETTEENTRY pe;
     long ipe, ipeLim;
     long cclr;
-    CLR clr;
+    Color clr;
     byte rgbT[256 / 8];
 
     if (pvNil == _prgclr)
@@ -133,7 +133,7 @@ void GPT::SetActiveColors(PGL pglclr, ulong grfpal)
             Bug("Setting palette before vwig.hdcApp is set");
             return;
         }
-        if (!FAllocPv((void **)&_prgclr, LwMul(256, size(CLR)), fmemNil, mprNormal))
+        if (!FAllocPv((void **)&_prgclr, LwMul(256, size(Color)), fmemNil, mprNormal))
         {
             PushErc(ercGfxCantSetPalette);
             return;
@@ -285,11 +285,11 @@ PGL GPT::PglclrGetPalette(void)
 {
     PGL pglclr;
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), _cclrPal)))
+    if (pvNil == (pglclr = GL::PglNew(size(Color), _cclrPal)))
         return pvNil;
 
     AssertDo(pglclr->FSetIvMac(_cclrPal), 0);
-    CopyPb(_prgclr, pglclr->QvGet(0), LwMul(size(CLR), _cclrPal));
+    CopyPb(_prgclr, pglclr->QvGet(0), LwMul(size(Color), _cclrPal));
     return pglclr;
 }
 
@@ -460,7 +460,7 @@ SCR GPT::_Scr(AbstractColor acr)
 {
     SCR scr;
     long iclr;
-    CLR clr;
+    Color clr;
 
     if (!_fMapIndices && _fPalettized)
         return acr._Scr();

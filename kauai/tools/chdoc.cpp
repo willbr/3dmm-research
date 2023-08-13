@@ -2752,7 +2752,7 @@ bool DCD::FCmdSetColorTable(PCMD pcmd)
     if (!_pcfl->FFind(cki.ctg, cki.cno, &blck))
         return fFalse;
 
-    if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(CLR))
+    if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
         GPT::SetActiveColors(pglclr, fpalIdentity);
 
     ReleasePpo(&pglclr);

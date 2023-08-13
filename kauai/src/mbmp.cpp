@@ -611,11 +611,11 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PGL *ppglclr, long *pdxp, long *p
             goto LFail;
         }
 
-        if (pvNil == (*ppglclr = GL::PglNew(size(CLR), 256)))
+        if (pvNil == (*ppglclr = GL::PglNew(size(Color), 256)))
             goto LFail;
 
         AssertDo((*ppglclr)->FSetIvMac(256), 0);
-        fRet = pfil->FReadRgbSeq((*ppglclr)->PvLock(0), LwMul(size(CLR), 256), &fpCur);
+        fRet = pfil->FReadRgbSeq((*ppglclr)->PvLock(0), LwMul(size(Color), 256), &fpCur);
         (*ppglclr)->Unlock();
         if (!fRet)
             goto LFail;
@@ -829,7 +829,7 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PGL pglclr, long dxp, long dyp, bo
         goto LFail;
 
     /* Write the palette */
-    if (!pfil->FWriteRgbSeq(pglclr->PvLock(0), LwMul(size(CLR), 256), &fpCur))
+    if (!pfil->FWriteRgbSeq(pglclr->PvLock(0), LwMul(size(Color), 256), &fpCur))
     {
         pglclr->Unlock();
         goto LFail;

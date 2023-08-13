@@ -123,7 +123,7 @@ typedef RGBColor SCR;
 #endif //! MAC
 
 // NOTE: this matches the Windows RGBQUAD structure
-struct CLR
+struct Color
 {
     byte bBlue;
     byte bGreen;
@@ -173,11 +173,11 @@ class AbstractColor
     {
         _lu = 0;
     }
-    AbstractColor(CLR clr)
+    AbstractColor(Color clr)
     {
         _lu = LwFromBytes(kbRgbAcr, clr.bRed, clr.bGreen, clr.bBlue);
     }
-    void Set(CLR clr)
+    void Set(Color clr)
     {
         _lu = LwFromBytes(kbRgbAcr, clr.bRed, clr.bGreen, clr.bBlue);
     }
@@ -212,7 +212,7 @@ class AbstractColor
 
     void SetFromLw(long lw);
     long LwGet(void) const;
-    void GetClr(CLR *pclr);
+    void GetClr(Color *pclr);
 
     bool operator==(const AbstractColor &acr) const
     {
@@ -443,7 +443,7 @@ class GNV : public GNV_PAR
 
     // transition related methods
     bool _FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, long cbitPixel = 0);
-    void _PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PGL pglclrTrans, CLR *pclrSub = pvNil);
+    void _PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PGL pglclrTrans, Color *pclrSub = pvNil);
     bool _FEnsureTempGnv(PGNV *ppgnv, RC *prc);
 
   public:
@@ -590,7 +590,7 @@ class GPT : public GPT_PAR
 #endif
     static HPAL _hpal;
     static HPAL _hpalIdentity;
-    static CLR *_prgclr;
+    static Color *_prgclr;
     static long _cclrPal;
     static long _cactPalCur;
     static long _cactFlush;

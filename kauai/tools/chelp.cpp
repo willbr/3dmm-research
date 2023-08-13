@@ -433,7 +433,7 @@ bool APP::FLoadResFile(PFilename pfni)
     {
         PGL pglclr;
 
-        if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(CLR))
+        if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
         {
             GPT::SetActiveColors(pglclr, fpalIdentity);
         }

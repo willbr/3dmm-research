@@ -183,7 +183,7 @@ PTMAP TMAP::PtmapReadNative(Filename *pfni, PGL pglclr)
     long iclrBest, igl;
     long iprgb;
     long dist, min;
-    CLR clr, clrSrc;
+    Color clr, clrSrc;
     PGL pglclrSrc;
     PGL pglCache;
 
