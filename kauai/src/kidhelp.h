@@ -179,21 +179,21 @@ class Balloon : public Balloon_PAR
 /***************************************************************************
     Help balloon button.
 ***************************************************************************/
-typedef class HBTN *PHBTN;
-#define HBTN_PAR KidspaceGraphicObject
-#define kclsHBTN 'HBTN'
-class HBTN : public HBTN_PAR
+typedef class BalloonButton *PBalloonButton;
+#define BalloonButton_PAR KidspaceGraphicObject
+#define kclsBalloonButton 'HBTN'
+class BalloonButton : public BalloonButton_PAR
 {
     RTCLASS_DEC
 
   protected:
-    HBTN(GraphicsObjectBlock *pgcb);
+    BalloonButton(GraphicsObjectBlock *pgcb);
 
     byte _bGroup;
     ChunkNumber _cnoTopic;
 
   public:
-    static PHBTN PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca, byte bGroup, ChunkNumber cnoTopic,
+    static PBalloonButton PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca, byte bGroup, ChunkNumber cnoTopic,
                           long xpLeft, long ypBottom);
 
     virtual bool FPtIn(long xp, long yp);

@@ -23,7 +23,7 @@ END_CMD_MAP_NIL()
 RTCLASS(TextDocument)
 RTCLASS(TopicGraphicsObject)
 RTCLASS(Balloon)
-RTCLASS(HBTN)
+RTCLASS(BalloonButton)
 
 const achar kchHelpString = '~';
 
@@ -782,7 +782,7 @@ bool TopicGraphicsObject::_FInit(void)
             {
                 hid = CMH::HidUnique();
             }
-            if (pvNil == HBTN::PhbtnNew(_pwoks, this, hid, cno, prca, bGroup, cnoTopic, xp, ypBase + chp.dypOffset))
+            if (pvNil == BalloonButton::PhbtnNew(_pwoks, this, hid, cno, prca, bGroup, cnoTopic, xp, ypBase + chp.dypOffset))
             {
                 return fFalse;
             }
@@ -1244,14 +1244,14 @@ void Balloon::_SetGorp(PGORP pgorp, long dxp, long dyp)
 /***************************************************************************
     Constructor for a help balloon button.
 ***************************************************************************/
-HBTN::HBTN(GraphicsObjectBlock *pgcb) : HBTN_PAR(pgcb)
+BalloonButton::BalloonButton(GraphicsObjectBlock *pgcb) : BalloonButton_PAR(pgcb)
 {
 }
 
 /***************************************************************************
     Create a new help balloon button
 ***************************************************************************/
-PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca, byte bGroup, ChunkNumber cnoTopic, long xpLeft,
+PBalloonButton BalloonButton::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca, byte bGroup, ChunkNumber cnoTopic, long xpLeft,
                      long ypBottom)
 {
     AssertPo(pwoks, 0);
@@ -1259,7 +1259,7 @@ PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, 
     Assert(hid != hidNil, "nil ID");
     AssertPo(prca, 0);
     GraphicsObjectBlock gcb;
-    PHBTN phbtn;
+    PBalloonButton phbtn;
     RC rcAbs;
 
     if (pvNil != pwoks->PcmhFromHid(hid))
@@ -1269,7 +1269,7 @@ PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, 
     }
 
     gcb.Set(hid, pgobPar, fgobNil, kginMark);
-    if (pvNil == (phbtn = NewObj HBTN(&gcb)))
+    if (pvNil == (phbtn = NewObj BalloonButton(&gcb)))
         return pvNil;
 
     phbtn->_bGroup = bGroup;
@@ -1296,7 +1296,7 @@ PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, 
 /***************************************************************************
     Test whether the given point is in this button or its related text.
 ***************************************************************************/
-bool HBTN::FPtIn(long xp, long yp)
+bool BalloonButton::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     PTopicGraphicsObject ptxhg;
@@ -1304,7 +1304,7 @@ bool HBTN::FPtIn(long xp, long yp)
     byte bGroup;
     ChunkNumber cnoTopic;
 
-    if (HBTN_PAR::FPtIn(xp, yp))
+    if (BalloonButton_PAR::FPtIn(xp, yp))
         return fTrue;
 
     if (_bGroup == 0 || !PgobPar()->FIs(kclsTopicGraphicsObject))
@@ -1321,7 +1321,7 @@ bool HBTN::FPtIn(long xp, long yp)
 /***************************************************************************
     The button has been clicked on.  Tell the TopicGraphicsObject to do its thing.
 ***************************************************************************/
-bool HBTN::FCmdClicked(PCMD_MOUSE pcmd)
+bool BalloonButton::FCmdClicked(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
