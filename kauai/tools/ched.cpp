@@ -9,6 +9,8 @@
 #include "ched.h"
 ASSERTNAME
 
+namespace ChunkEditor {
+
 BEGIN_CMD_MAP(APP, ApplicationBase)
 ON_CID_GEN(cidNew, &APP::FCmdOpen, pvNil)
 ON_CID_GEN(cidOpen, &APP::FCmdOpen, pvNil)
@@ -238,3 +240,5 @@ bool APP::FCmdOpen(PCMD pcmd)
 
     return fTrue;
 }
+
+} // end of namespace ChunkEditor
