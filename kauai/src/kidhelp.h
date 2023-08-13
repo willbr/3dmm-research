@@ -126,15 +126,15 @@ class TXHG : public TXHG_PAR
     CNO _cnoTrack;
     long _hidBase;
     ulong _grfcust;
-    PWOKS _pwoks;
+    PWorldOfKidspace _pwoks;
 
-    TXHG(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb);
+    TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb);
     virtual bool _FInit(void);
     virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cnoTopic = cnoNil,
                              long *plwRet = pvNil);
 
   public:
-    static PTXHG PtxhgNew(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb);
+    static PTXHG PtxhgNew(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb);
 
     PTXHD Ptxhd(void)
     {
@@ -164,12 +164,12 @@ class HBAL : public HBAL_PAR
 
     HBAL(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual bool _FInit(PWOKS pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca);
     virtual bool _FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
 
   public:
-    static PHBAL PhbalCreate(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
-    static PHBAL PhbalNew(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
+    static PHBAL PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
+    static PHBAL PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
 
     virtual bool FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
 };
@@ -191,7 +191,7 @@ class HBTN : public HBTN_PAR
     CNO _cnoTopic;
 
   public:
-    static PHBTN PhbtnNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic,
+    static PHBTN PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic,
                           long xpLeft, long ypBottom);
 
     virtual bool FPtIn(long xp, long yp);

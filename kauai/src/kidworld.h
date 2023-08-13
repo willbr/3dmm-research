@@ -106,10 +106,10 @@ class GKDS : public GKDS_PAR
 /***************************************************************************
     World of Kidspace class.
 ***************************************************************************/
-typedef class WOKS *PWOKS;
-#define WOKS_PAR GraphicsObject
-#define kclsWOKS 'WOKS'
-class WOKS : public WOKS_PAR
+typedef class WorldOfKidspace *PWorldOfKidspace;
+#define WorldOfKidspace_PAR GraphicsObject
+#define kclsWorldOfKidspace 'WOKS'
+class WorldOfKidspace : public WorldOfKidspace_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -126,8 +126,8 @@ class WOKS : public WOKS_PAR
     CLOK _clokReset;
 
   public:
-    WOKS(GraphicsObjectBlock *pgcb, PSTRG pstrg = pvNil);
-    ~WOKS(void);
+    WorldOfKidspace(GraphicsObjectBlock *pgcb, PSTRG pstrg = pvNil);
+    ~WorldOfKidspace(void);
 
     PSTRG Pstrg(void)
     {

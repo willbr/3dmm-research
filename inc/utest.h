@@ -16,7 +16,7 @@
     KidWorld for the App class
 ****************************************/
 typedef class KWA *PKWA;
-#define KWA_PAR WOKS
+#define KWA_PAR WorldOfKidspace
 #define kclsKWA 'KWA'
 class KWA : public KWA_PAR
 {
@@ -29,7 +29,7 @@ class KWA : public KWA_PAR
     bool _fAskForCD;
 
   public:
-    KWA(GraphicsObjectBlock *pgcb) : WOKS(pgcb)
+    KWA(GraphicsObjectBlock *pgcb) : WorldOfKidspace(pgcb)
     {
         _fAskForCD = fTrue;
     }

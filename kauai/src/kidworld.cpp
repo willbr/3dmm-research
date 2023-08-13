@@ -16,7 +16,7 @@ ASSERTNAME
 
 RTCLASS(GOKD)
 RTCLASS(GKDS)
-RTCLASS(WOKS)
+RTCLASS(WorldOfKidspace)
 
 /***************************************************************************
     Static method to read a GKDS from the CRF. This is a CRF object reader.
@@ -187,8 +187,8 @@ void GKDS::GetLop(long hidPar, LOP *plop)
 /***************************************************************************
     Constructor for a World of Kidspace GraphicsObject.
 ***************************************************************************/
-WOKS::WOKS(GraphicsObjectBlock *pgcb, PSTRG pstrg)
-    : WOKS_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
+WorldOfKidspace::WorldOfKidspace(GraphicsObjectBlock *pgcb, PSTRG pstrg)
+    : WorldOfKidspace_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
       _clokGen(CMH::HidUnique()), _clokReset(CMH::HidUnique(), fclokReset)
 {
     AssertThis(0);
@@ -208,28 +208,28 @@ WOKS::WOKS(GraphicsObjectBlock *pgcb, PSTRG pstrg)
 /***************************************************************************
     Destructor for a kidspace world.
 ***************************************************************************/
-WOKS::~WOKS(void)
+WorldOfKidspace::~WorldOfKidspace(void)
 {
     ReleasePpo(&_pstrg);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a WOKS.
+    Assert the validity of a WorldOfKidspace.
 ***************************************************************************/
-void WOKS::AssertValid(ulong grf)
+void WorldOfKidspace::AssertValid(ulong grf)
 {
-    WOKS_PAR::AssertValid(0);
+    WorldOfKidspace_PAR::AssertValid(0);
     AssertPo(&_strg, 0);
 }
 
 /***************************************************************************
-    Mark memory for the WOKS.
+    Mark memory for the WorldOfKidspace.
 ***************************************************************************/
-void WOKS::MarkMem(void)
+void WorldOfKidspace::MarkMem(void)
 {
     AssertValid(0);
-    WOKS_PAR::MarkMem();
+    WorldOfKidspace_PAR::MarkMem();
     MarkMemObj(&_strg);
 }
 #endif // DEBUG
@@ -237,7 +237,7 @@ void WOKS::MarkMem(void)
 /***************************************************************************
     Return whether the GraphicsObject is in this kidspace world.
 ***************************************************************************/
-bool WOKS::FGobIn(PGraphicsObject pgob)
+bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -254,7 +254,7 @@ bool WOKS::FGobIn(PGraphicsObject pgob)
 /***************************************************************************
     Get a GOKD from the given chunk.
 ***************************************************************************/
-PGOKD WOKS::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
+PGOKD WorldOfKidspace::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -265,7 +265,7 @@ PGOKD WOKS::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
 /***************************************************************************
     Create a new gob in this kidspace world.
 ***************************************************************************/
-PGOK WOKS::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
+PGOK WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -301,7 +301,7 @@ PGOK WOKS::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
 /***************************************************************************
     Create a new script interpreter for this kidspace world.
 ***************************************************************************/
-PSCEG WOKS::PscegNew(PRCA prca, PGraphicsObject pgob)
+PSCEG WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -313,7 +313,7 @@ PSCEG WOKS::PscegNew(PRCA prca, PGraphicsObject pgob)
 /***************************************************************************
     Create a new help balloon.
 ***************************************************************************/
-PHBAL WOKS::PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PHBAL WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -335,7 +335,7 @@ PHBAL WOKS::PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP pht
 /***************************************************************************
     Get the command handler for this hid.
 ***************************************************************************/
-PCMH WOKS::PcmhFromHid(long hid)
+PCMH WorldOfKidspace::PcmhFromHid(long hid)
 {
     AssertThis(0);
     PCMH pcmh;
@@ -357,7 +357,7 @@ PCMH WOKS::PcmhFromHid(long hid)
 /***************************************************************************
     Get the clock having the given hid.
 ***************************************************************************/
-PCLOK WOKS::PclokFromHid(long hid)
+PCLOK WorldOfKidspace::PclokFromHid(long hid)
 {
     AssertThis(0);
 
@@ -373,7 +373,7 @@ PCLOK WOKS::PclokFromHid(long hid)
     Get the parent gob of the given gob. This is here so a kidspace world
     can limit what scripts can get to.
 ***************************************************************************/
-PGraphicsObject WOKS::PgobParGob(PGraphicsObject pgob)
+PGraphicsObject WorldOfKidspace::PgobParGob(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -387,7 +387,7 @@ PGraphicsObject WOKS::PgobParGob(PGraphicsObject pgob)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool WOKS::FFindFile(PSTN pstnSrc, PFilename pfni)
+bool WorldOfKidspace::FFindFile(PSTN pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -399,7 +399,7 @@ bool WOKS::FFindFile(PSTN pstnSrc, PFilename pfni)
 /***************************************************************************
     Put up an alert (and don't return until it is dismissed).
 ***************************************************************************/
-tribool WOKS::TGiveAlert(PSTN pstn, long bk, long cok)
+tribool WorldOfKidspace::TGiveAlert(PSTN pstn, long bk, long cok)
 {
     AssertThis(0);
 
@@ -409,12 +409,12 @@ tribool WOKS::TGiveAlert(PSTN pstn, long bk, long cok)
 /***************************************************************************
     Put up an alert (and don't return until it is dismissed).
 ***************************************************************************/
-void WOKS::Print(PSTN pstn)
+void WorldOfKidspace::Print(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    // REVIEW shonk: implement WOKS::Print better
+    // REVIEW shonk: implement WorldOfKidspace::Print better
 #ifdef WIN
     OutputDebugString(pstn->Psz());
     OutputDebugString(PszLit("\n"));
@@ -425,7 +425,7 @@ void WOKS::Print(PSTN pstn)
     Return the current cursor state. This takes the frame cursor state from
     vpappb and the rest from this kidspace world.
 ***************************************************************************/
-ulong WOKS::GrfcustCur(bool fAsynch)
+ulong WorldOfKidspace::GrfcustCur(bool fAsynch)
 {
     AssertThis(0);
 
@@ -436,7 +436,7 @@ ulong WOKS::GrfcustCur(bool fAsynch)
     Modify the current cursor state. This sets the frame values in vpappb
     and the rest in this kidspace world.
 ***************************************************************************/
-void WOKS::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
+void WorldOfKidspace::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
 {
     AssertThis(0);
 
@@ -451,7 +451,7 @@ void WOKS::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
     Adjust the given grfcust (take the Frame bits from it and combine with
     our other bits).
 ***************************************************************************/
-ulong WOKS::GrfcustAdjust(ulong grfcust)
+ulong WorldOfKidspace::GrfcustAdjust(ulong grfcust)
 {
     AssertThis(0);
 
@@ -463,14 +463,14 @@ ulong WOKS::GrfcustAdjust(ulong grfcust)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool WOKS::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
+bool WorldOfKidspace::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);
     AssertVarMem(plwRet);
 
     GraphicsObjectBlock gcb;
-    PWOKS pwoksModal;
+    PWorldOfKidspace pwoksModal;
     GTE gte;
     PGraphicsObject pgob;
     ulong grfgte;
@@ -490,7 +490,7 @@ bool WOKS::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
         gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
         gcb._rcRel.Set(0, 0, krelOne, krelOne);
 
-        if (pvNil != (pwoksModal = NewObj WOKS(&gcb, _pstrg)))
+        if (pvNil != (pwoksModal = NewObj WorldOfKidspace(&gcb, _pstrg)))
         {
             vpsndm->PauseAll();
             vpcex->SetModalGob(pwoksModal);

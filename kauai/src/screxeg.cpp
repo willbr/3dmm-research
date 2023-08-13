@@ -24,7 +24,7 @@ static STN _stn;
     Constructor for a GraphicsObject based script interpreter. We don't just keep
     the pgob in case the GraphicsObject goes away while the script is running.
 ***************************************************************************/
-SCEG::SCEG(PWOKS pwoks, PRCA prca, PGraphicsObject pgob) : SCEG_PAR(prca, pwoks->Pstrg())
+SCEG::SCEG(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob) : SCEG_PAR(prca, pwoks->Pstrg())
 {
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);
@@ -107,7 +107,7 @@ PGL *SCEG::_PpglrtvmThis(void)
 }
 
 /***************************************************************************
-    Return the address of the variable table for the WOKS associated with
+    Return the address of the variable table for the WorldOfKidspace associated with
     this script interpreter.
 ***************************************************************************/
 PGL *SCEG::_PpglrtvmGlobal(void)
@@ -173,7 +173,7 @@ bool SCEG::_FExecOp(long op)
             GobMayDie();
             if (pgob == _pwoks)
             {
-                Debug(_WarnSz(PszLit("Can't Destroy WOKS - destroying all its children")));
+                Debug(_WarnSz(PszLit("Can't Destroy WorldOfKidspace - destroying all its children")));
                 PGraphicsObject pgobT;
 
                 while (pvNil != (pgobT = pgob->PgobFirstChild()))

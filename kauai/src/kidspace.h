@@ -306,7 +306,7 @@ class GOK : public GOK_PAR
     long _dxpPref; // preferred size (if non-zero)
     long _dypPref;
 
-    PWOKS _pwoks; // the kidspace world that this GOK belongs to
+    PWorldOfKidspace _pwoks; // the kidspace world that this GOK belongs to
     PRCA _prca;   // Chunky resource chain
     PCRF _pcrf;   // Chunky resource file
 
@@ -354,8 +354,8 @@ class GOK : public GOK_PAR
 
     static PGraphicsObject _PgobBefore(PGraphicsObject pgobPar, long zp);
 
-    virtual bool _FInit(PWOKS pwoks, PGOKD pgokd, PRCA prca);
-    virtual bool _FInit(PWOKS pwoks, CNO cno, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PGOKD pgokd, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, CNO cno, PRCA prca);
 
     virtual bool _FAdjustGms(struct GMSE *pmpgmsgmse);
     virtual bool _FSetGmsCore(long gms, ulong grfact, bool *pfStable);
@@ -378,9 +378,9 @@ class GOK : public GOK_PAR
     void _DeferSnd(bool fDefer);
 
   public:
-    static PGOK PgokNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca);
+    static PGOK PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca);
 
-    PWOKS Pwoks(void)
+    PWorldOfKidspace Pwoks(void)
     {
         return _pwoks;
     }

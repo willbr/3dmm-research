@@ -2570,7 +2570,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     AssertVarMem(pcmd);
 
     GraphicsObjectBlock gcb;
-    PWOKS pwoksModal;
+    PWorldOfKidspace pwoksModal;
     GTE gte;
     PGraphicsObject pgob;
     ulong grfgte;
@@ -2631,7 +2631,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
 
         _pcex = vpcex;
 
-        if (pvNil != (pwoksModal = NewObj WOKS(&gcb, Pkwa()->Pstrg())))
+        if (pvNil != (pwoksModal = NewObj WorldOfKidspace(&gcb, Pkwa()->Pstrg())))
         {
             vpcex->SetModalGob(pwoksModal);
             FModalLoop(&lwRet); // If we cannot enter modal mode, then we just won't suspend.

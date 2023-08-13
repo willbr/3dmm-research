@@ -691,7 +691,7 @@ class DCMBMP : public DCMBMP_PAR
     Main Kidspace world for testing a script.
 ***************************************************************************/
 typedef class TSCG *PTSCG;
-#define TSCG_PAR WOKS
+#define TSCG_PAR WorldOfKidspace
 #define kclsTSCG 'TSCG'
 class TSCG : public TSCG_PAR
 {

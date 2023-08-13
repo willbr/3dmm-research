@@ -20,7 +20,7 @@
 #include "kiddef.h"
 
 // forward declarations
-typedef class WOKS *PWOKS;
+typedef class WorldOfKidspace *PWorldOfKidspace;
 typedef class SCEG *PSCEG;
 typedef class GOK *PGOK;
 typedef class HBAL *PHBAL;

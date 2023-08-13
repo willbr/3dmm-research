@@ -34,7 +34,7 @@ const long kcmhlGok = -10000;
     Create a new kidspace gob as described in the GOKD with given cno
     in the given RCA.
 ***************************************************************************/
-PGOK GOK::PgokNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca)
+PGOK GOK::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca)
 {
     AssertPo(pgobPar, 0);
     AssertPo(pgokd, 0);
@@ -131,7 +131,7 @@ GOK::~GOK(void)
 /***************************************************************************
     Initialize this GOK given the cno for the gokd.
 ***************************************************************************/
-bool GOK::_FInit(PWOKS pwoks, CNO cno, PRCA prca)
+bool GOK::_FInit(PWorldOfKidspace pwoks, CNO cno, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -151,7 +151,7 @@ bool GOK::_FInit(PWOKS pwoks, CNO cno, PRCA prca)
 /***************************************************************************
     Initialize this GOK.
 ***************************************************************************/
-bool GOK::_FInit(PWOKS pwoks, PGOKD pgokd, PRCA prca)
+bool GOK::_FInit(PWorldOfKidspace pwoks, PGOKD pgokd, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -701,7 +701,7 @@ bool GOK::_FAdvanceFrame(void)
     AssertThis(0);
 
     bool fExists, fRet, fPaused;
-    PWOKS pwoks = _pwoks;
+    PWorldOfKidspace pwoks = _pwoks;
     ulong dtim = 0;
     PSCEG psceg = _pscegAnim;
     long grid = Grid();
@@ -1414,7 +1414,7 @@ bool GOK::FRunScriptCno(CNO cno, long *prglw, long clw, long *plwReturn, tribool
     {
         AssertPo(pscpt, 0);
         long grid = Grid();
-        PWOKS pwoks = _pwoks;
+        PWorldOfKidspace pwoks = _pwoks;
         PSCEG psceg = _pwoks->PscegNew(_prca, this);
 
         // be careful not to use GOK variables here in case the GOK is

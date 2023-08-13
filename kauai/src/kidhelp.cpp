@@ -655,7 +655,7 @@ void TXHD::SetHtop(PHTOP phtop)
 /***************************************************************************
     Constructor for a TXHG.
 ***************************************************************************/
-TXHG::TXHG(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb) : TXRG(ptxhd, pgcb)
+TXHG::TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb) : TXRG(ptxhd, pgcb)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -666,7 +666,7 @@ TXHG::TXHG(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb) : TXRG(ptxhd, pgcb)
 /***************************************************************************
     Create a new help topic display gob.
 ***************************************************************************/
-PTXHG TXHG::PtxhgNew(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb)
+PTXHG TXHG::PtxhgNew(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb)
 {
     PTXHG ptxhg;
 
@@ -926,7 +926,7 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cn
         AssertPo(pscpt, 0);
         AssertPo(psceg, 0);
 
-        PWOKS pwoks = _pwoks;
+        PWorldOfKidspace pwoks = _pwoks;
         long grid = Grid();
         long rglw[5];
 
@@ -992,7 +992,7 @@ void TXHG::SetCursor(ulong grfcust)
 /***************************************************************************
     Create a new help topic balloon based on the given topic number.
 ***************************************************************************/
-PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1021,7 +1021,7 @@ PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cno
     Static method to create a new help balloon based on the given help
     topic document and htop.
 ***************************************************************************/
-PHBAL HBAL::PhbalNew(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop)
+PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1116,7 +1116,7 @@ HBAL::HBAL(GraphicsObjectBlock *pgcb) : HBAL_PAR(pgcb)
 /***************************************************************************
     Initialize the help balloon.
 ***************************************************************************/
-bool HBAL::_FInit(PWOKS pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca)
+bool HBAL::_FInit(PWorldOfKidspace pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
@@ -1249,7 +1249,7 @@ HBTN::HBTN(GraphicsObjectBlock *pgcb) : HBTN_PAR(pgcb)
 /***************************************************************************
     Create a new help balloon button
 ***************************************************************************/
-PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic, long xpLeft,
+PHBTN HBTN::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic, long xpLeft,
                      long ypBottom)
 {
     AssertPo(pwoks, 0);

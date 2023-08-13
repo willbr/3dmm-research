@@ -34,7 +34,7 @@ class SCEG : public SCEG_PAR
     PGraphicsObject _pgob;
     long _hid;    // the handler id of the initialization gob
     long _grid;   // the unique gob run-time id of the initialization gob
-    PWOKS _pwoks; // the kidspace world this script belongs to
+    PWorldOfKidspace _pwoks; // the kidspace world this script belongs to
 
     virtual PGraphicsObject _PgobThis(void);
     virtual PGraphicsObject _PgobFromHid(long hid);
@@ -54,7 +54,7 @@ class SCEG : public SCEG_PAR
     bool _FLaunch(long stid);
 
   public:
-    SCEG(PWOKS pwoks, PRCA prca, PGraphicsObject pgob);
+    SCEG(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob);
 
     void GobMayDie(void)
     {
