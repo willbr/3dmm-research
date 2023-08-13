@@ -278,7 +278,7 @@ class S2B : public S2B_PAR
     /* Used by script interpreter and chunk output code */
     PS2BLX _ps2blx; // used to process script file
     CHSE _chse;     // used to dump chunk text to output file
-    CTG _ctgPar;    // CTG and CNO of current parent
+    ChunkTag _ctgPar;    // ChunkTag and CNO of current parent
     CNO _cnoPar;
     CNO _cnoCur;  // Current chunk number
     STN _stnT;    // tmp buf for S2B to use
@@ -331,7 +331,7 @@ class S2B : public S2B_PAR
     bool _FDoTtBackgroundS2B(void);
     bool _FDoTtCostume(void);
     bool _FReadCmdline(char *szResult, bool *pfGotTok, const SCRP rgscrp[], ...);
-    void _DumpHeader(CTG ctg, CNO cno, PSTN pstnName, bool fPack);
+    void _DumpHeader(ChunkTag ctg, CNO cno, PSTN pstnName, bool fPack);
 
     /* TMPL-specific stuff */
     bool _FInitGlpiCost(bool fForceCost);

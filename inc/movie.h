@@ -611,7 +611,7 @@ class MVIE : public MVIE_PAR
     CHID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
     CHID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
-    bool _FIsChild(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FIsChild(PCFL pcfl, ChunkTag ctg, CNO cno);
     bool _FSetPfilSave(PFilename pfni);
 
   public:

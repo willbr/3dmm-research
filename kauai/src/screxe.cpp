@@ -999,7 +999,7 @@ void SCEB::_LenStr(long stid)
 /***************************************************************************
     CRF reader function to read a string registry string table.
 ***************************************************************************/
-bool _FReadStringReg(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool _FReadStringReg(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1332,7 +1332,7 @@ bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw)
 /***************************************************************************
     A chunky resource reader to read a script.
 ***************************************************************************/
-bool SCPT::FReadScript(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool SCPT::FReadScript(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1349,7 +1349,7 @@ bool SCPT::FReadScript(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, 
 /***************************************************************************
     Static method to read a script.
 ***************************************************************************/
-PSCPT SCPT::PscptRead(PCFL pcfl, CTG ctg, CNO cno)
+PSCPT SCPT::PscptRead(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertPo(pcfl, 0);
     short bo;
@@ -1401,7 +1401,7 @@ SCPT::~SCPT(void)
 /***************************************************************************
     Save the script to the given chunky file.
 ***************************************************************************/
-bool SCPT::FSaveToChunk(PCFL pcfl, CTG ctg, CNO cno, bool fPack)
+bool SCPT::FSaveToChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fPack)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

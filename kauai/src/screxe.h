@@ -54,11 +54,11 @@ class SCPT : public SCPT_PAR
     friend class SCCB;
 
   public:
-    static bool FReadScript(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PSCPT PscptRead(PCFL pcfl, CTG ctg, CNO cno);
+    static bool FReadScript(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static PSCPT PscptRead(PCFL pcfl, ChunkTag ctg, CNO cno);
     ~SCPT(void);
 
-    bool FSaveToChunk(PCFL pcfl, CTG ctg, CNO cno, bool fPack = fFalse);
+    bool FSaveToChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fPack = fFalse);
 };
 
 /***************************************************************************

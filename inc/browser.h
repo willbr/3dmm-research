@@ -77,7 +77,7 @@ struct TFC
     union {
         struct
         {
-            CTG ctg;
+            ChunkTag ctg;
             CNO cno;
         };
         struct
@@ -87,7 +87,7 @@ struct TFC
         };
         struct
         {
-            CTG ctg;
+            ChunkTag ctg;
             CHID chid;
         };
     };
@@ -279,7 +279,7 @@ struct THD
         {
             long lwFill1;
             long lwFill2;
-            CTG ctg;
+            ChunkTag ctg;
             CHID chid; // CHID of CD content
         };
     };
@@ -302,9 +302,9 @@ class BCL : public BCL_PAR
     MARKMEM
 
   protected:
-    CTG _ctgRoot;
+    ChunkTag _ctgRoot;
     CNO _cnoRoot;
-    CTG _ctgContent;
+    ChunkTag _ctgContent;
     bool _fDescend;
     PGL _pglthd;
 
@@ -318,7 +318,7 @@ class BCL : public BCL_PAR
         ReleasePpo(&_pglthd);
     }
 
-    bool _FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd);
+    bool _FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd);
     bool _FAddGokdToThd(PCFL pcfl, long sid, CKI *pcki);
     bool _FAddFileToThd(PCFL pcfl, long sid);
     bool _FBuildThd(PCRM pcrm);
@@ -326,7 +326,7 @@ class BCL : public BCL_PAR
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
 
   public:
-    static PBCL PbclNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBCL PbclNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
 
     PGL Pglthd(void)
     {
@@ -366,13 +366,13 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGST pgst, PGL pglthd);
-    bool _FSetNameGst(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
+    bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, CNO cno);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
 
   public:
-    static PBCLS PbclsNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
+    static PBCLS PbclsNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
     PGST Pgst(void)
@@ -419,13 +419,13 @@ class BRWL : public BRWL_PAR
     BWS _bws;         // Selection type flag
     bool _fSinglePar; // Single parent search
     CKI _ckiRoot;     // Grandparent cno=cnoNil => global search
-    CTG _ctgContent;  // Parent
+    ChunkTag _ctgContent;  // Parent
 
   protected:
     // BRWL List
-    bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, CKI ckiRoot, CTG ctgContent);
-    bool _FCreateBuildThd(CKI ckiRoot, CTG ctgContent, bool fBuildGl = fTrue);
-    virtual bool _FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl);
+    bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, CKI ckiRoot, ChunkTag ctgContent);
+    bool _FCreateBuildThd(CKI ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
+    virtual bool _FGetContent(PCRM pcrm, CKI *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         AssertThis(0);
@@ -455,7 +455,7 @@ class BRWL : public BRWL_PAR
     ~BRWL(void);
 
     static PBRWL PbrwlNew(PRCA prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
+    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
@@ -518,7 +518,7 @@ class BRWN : public BRWN_PAR
     RTCLASS_DEC
 
   protected:
-    virtual bool _FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl);
+    virtual bool _FGetContent(PCRM pcrm, CKI *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         return _pglthd->IvMac();
@@ -534,7 +534,7 @@ class BRWN : public BRWN_PAR
     {
     }
     ~BRWN(void){};
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
+    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
     virtual bool FCmdOk(PCMD pcmd);
@@ -766,7 +766,7 @@ class BRWR : public BRWR_PAR
     MARKMEM
 
   protected:
-    CTG _ctg;
+    ChunkTag _ctg;
     PCRM _pcrm; // Chunky resource manager
     bool _fApplyingSel;
 
@@ -794,7 +794,7 @@ class BRWR : public BRWR_PAR
     static PBRWR PbrwrNew(PRCA prca, long kid);
     void Init(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
-    bool FInit(PCMD pcmd, CTG ctg, long ithumDisplay, PStudio pstdio);
+    bool FInit(PCMD pcmd, ChunkTag ctg, long ithumDisplay, PStudio pstdio);
     bool FUpdate(long arid, PStudio pstdio);
     bool FApplyingSel(void)
     {

@@ -24,7 +24,7 @@
 #include "tdfmake.h"
 ASSERTNAME
 
-const CTG kctgTdfMake = 'TDFM';
+const ChunkTag kctgTdfMake = 'TDFM';
 
 bool FMakeTdf(PFilename pfniSrc, PCFL pcflDst);
 

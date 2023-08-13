@@ -48,7 +48,7 @@ void PIC::GetRc(RC *prc)
     Add the picture to the chunky file. The OS specific representation
     will be a child of the chunk and have the given chid value.
 ***************************************************************************/
-bool PIC::FAddToCfl(PCFL pcfl, CTG ctg, CNO *pcno, CHID chid)
+bool PIC::FAddToCfl(PCFL pcfl, ChunkTag ctg, CNO *pcno, CHID chid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -74,7 +74,7 @@ bool PIC::FAddToCfl(PCFL pcfl, CTG ctg, CNO *pcno, CHID chid)
     OS specific representation will be a child of the chunk and have the
     given chid value.
 ***************************************************************************/
-bool PIC::FPutInCfl(PCFL pcfl, CTG ctg, CNO cno, CHID chid)
+bool PIC::FPutInCfl(PCFL pcfl, ChunkTag ctg, CNO cno, CHID chid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -125,7 +125,7 @@ void PIC::AssertValid(ulong grf)
 /***************************************************************************
     A PFNRPO to read PIC 0 from a GRAF chunk.
 ***************************************************************************/
-bool FReadMainPic(PCFL pcfl, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool FReadMainPic(PCFL pcfl, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     PPIC ppic;
 

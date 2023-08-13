@@ -53,7 +53,7 @@ class MODL : public MODL_PAR
 
   public:
     static PMODL PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
-    static bool FReadModl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadModl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     static PMODL PmodlReadFromDat(Filename *pfni);
     static PMODL PmodlFromBmdl(PBMDL pbmdl);
     ~MODL(void);
@@ -62,7 +62,7 @@ class MODL : public MODL_PAR
         return _pbmdl;
     }
     void AdjustTdfCharacter(void);
-    bool FWrite(PCFL pcfl, CTG ctg, CNO cno);
+    bool FWrite(PCFL pcfl, ChunkTag ctg, CNO cno);
 
     BRS Dxr(void)
     {

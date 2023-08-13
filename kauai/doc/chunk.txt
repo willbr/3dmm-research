@@ -17,7 +17,7 @@
 		An auto class to enumerate over a subgraph of a chunky file.
 		It is illegal to assign a cge to another cge.
 
-	typedef ulong CTG;
+	typedef ulong ChunkTag;
 		A chunk type.  These should all be registered in ctg.h.
 
 	typedef ulong CNO;
@@ -133,7 +133,7 @@ REVIEW shonk: assert and check for cycles.
 		Decrements the open count.  If the cfl is not marked and the
 		open count becomes zero, the cfl is closed.
 
-	bool CFL::FSave(CTG ctgCreator, Filename *pfni = pNil);
+	bool CFL::FSave(ChunkTag ctgCreator, Filename *pfni = pNil);
 		Saves the chunky file.  Passing pNil (or the current fni of the CFL)
 		for pfni does a normal save.  Passing any other fni does a save as
 		(the original file still exists).  Note:  if you do a save as, but
@@ -154,74 +154,74 @@ REVIEW shonk: assert and check for cycles.
 	void CFL::GetFni(Filename *pfni);
 		Get the file name.
 
-	bool CFL::FFind(CTG ctg, CNO cno, FLO *pflo);
+	bool CFL::FFind(ChunkTag ctg, CNO cno, FLO *pflo);
 		Look for the chunk and fill in *pflo with the location of its data.
 
-	HQ CFL::HqGet(CTG ctg, CNO cno);
+	HQ CFL::HqGet(ChunkTag ctg, CNO cno);
 		Read the chunk into an hq.  Returns hqNil if there is no such
 		chunk or on memory failure.
 
-	bool CFL::FAdd(long cb, CTG ctg, CNO *pcno, FLO *pflo);
+	bool CFL::FAdd(long cb, ChunkTag ctg, CNO *pcno, FLO *pflo);
 		Adds a chunk to the file.  Fills in *pcno with the cno for the
 		chunk and fills in *pflo with the space on file allocated for
 		the chunk.
 
-	bool CFL::FAddPv(void *pv, long cb, CTG ctg, CNO *pcno);
-	bool CFL::FAddHq(HQ hq, CTG ctg, CNO *pcno);
+	bool CFL::FAddPv(void *pv, long cb, ChunkTag ctg, CNO *pcno);
+	bool CFL::FAddHq(HQ hq, ChunkTag ctg, CNO *pcno);
 		Adds a chunk to the file and writes the data from the pv or hq into
 		it.  Fills in *pcno with the cno for the chunk.  pv can only be nil
 		if cb is zero.
 
-	bool CFL::FAddChild(CTG ctgPar, CNO cnoPar, CHID chid,
-			long cb, CTG ctg, CNO *pcno, FLO *pflo);
-	bool CFL::FAddChildPv(CTG ctgPar, CNO cnoPar, CHID chid,
-			void *pv, long cb, CTG ctg, CNO *pcno);
-	bool CFL::FAddChildHq(CTG ctgPar, CNO cnoPar, CHID chid,
-			HQ hq, CTG ctg, CNO *pcno);
+	bool CFL::FAddChild(ChunkTag ctgPar, CNO cnoPar, CHID chid,
+			long cb, ChunkTag ctg, CNO *pcno, FLO *pflo);
+	bool CFL::FAddChildPv(ChunkTag ctgPar, CNO cnoPar, CHID chid,
+			void *pv, long cb, ChunkTag ctg, CNO *pcno);
+	bool CFL::FAddChildHq(ChunkTag ctgPar, CNO cnoPar, CHID chid,
+			HQ hq, ChunkTag ctg, CNO *pcno);
 		These atomize the adding of a chunk and adopting the new chunk by
 		(ctgPar, cnoPar).
 
-	bool CFL::FPut(long cb, CTG ctg, CNO cno, FLO *pflo);
+	bool CFL::FPut(long cb, ChunkTag ctg, CNO cno, FLO *pflo);
 		Replaces (or creates) the indicated chunk.  Use this with caution.
 		You may be nuking an existing chunk by calling this.  Preserves
 		any existing children of the node.
 
-	bool CFL::FPutPv(void *pv, long cb, CTG ctg, CNO cno);
-	bool CFL::FPutHq(HQ hq, CTG ctg, CNO cno);
+	bool CFL::FPutPv(void *pv, long cb, ChunkTag ctg, CNO cno);
+	bool CFL::FPutHq(HQ hq, ChunkTag ctg, CNO cno);
 		Replaces (or creates) the indicated chunk with the data in pv or hq.
 		Use this with caution.  You may be nuking an existing chunk by
 		calling this.  Preserves any existing children of the node.  pv can
 		only be nil if cb is zero.
 
-	bool CFL::FCopy(CTG ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst);
+	bool CFL::FCopy(ChunkTag ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst);
 		Copies a chunk from one file to another.  If the chunk has already
 		been copied, the actual data is not copied again, but the child
 		sub-graph is verified (new descendents will be copied) and names
 		of the chunks in the graph are verified.
 
-	void CFL::Delete(CTG ctg, CNO cno);
+	void CFL::Delete(ChunkTag ctg, CNO cno);
 		Deletes a chunk.  It is illegal to call this on a child chunk.
 		It should only be called on top level chunks.  This deletes
 		(or decrements reference counts of) descendents of the chunk.
 
-	bool CFL::FAdoptChild(CTG ctgPar, CNO cnoPar,
-			CTG ctgChild, CNO cnoChild, CHID chid = 0);
+	bool CFL::FAdoptChild(ChunkTag ctgPar, CNO cnoPar,
+			ChunkTag ctgChild, CNO cnoChild, CHID chid = 0);
 		Makes (ctgChild, cnoChild) a child of (ctgPar, cnoPar) with the
 		given chid value.  If it already is a child with this chid value,
 		this does nothing.  Note that a chunk may be a child of another
 		chunk multiple times (with different chid values).
 
-	void DeleteChild(CTG ctgPar, CNO cnoPar,
-			CTG ctgChild, CNO cnoChild, CHID chid);
+	void DeleteChild(ChunkTag ctgPar, CNO cnoPar,
+			ChunkTag ctgChild, CNO cnoChild, CHID chid);
 		Deletes (ctgChild, cnoChild, chid) as a child of (ctgPar, cnoPar).
 		If the child is no longer a child of any chunks, it is deleted from
 		the cfl.  This deletes (or decrements reference counts of)
 		descendents of the child.
 
-	bool CFL::FSetName(CTG ctg, CNO cno, char *pstz);
+	bool CFL::FSetName(ChunkTag ctg, CNO cno, char *pstz);
 		Sets the name of the chunk.  If pstz is pNil, makes the name empty.
 
-	bool CFL::FGetName(CTG ctg, CNO cno, char *pstz);
+	bool CFL::FGetName(ChunkTag ctg, CNO cno, char *pstz);
 		Gets the name of the chunk.  Returns fFalse iff the name is empty.
 
 	long CFL::Ccki(void);
@@ -230,25 +230,25 @@ REVIEW shonk: assert and check for cycles.
 	bool CFL::FGetCki(long icki, CKI *pcki);
 		Gets a cki for the icki'th chunk.  Returns false if icki is too big.
 
-	long CFL::CckiCtg(CTG ctg);
+	long CFL::CckiCtg(ChunkTag ctg);
 		Returns the number of chunks of type ctg in the file.
 
-	bool CFL::FGetCkiCtg(CTG ctg, long icki, CKI *pcki);
+	bool CFL::FGetCkiCtg(ChunkTag ctg, long icki, CKI *pcki);
 		Gets a cki for the icki'th chunk of type ctg.  Returns false if icki
 		is too big.
 
-	long CFL::Ckid(CTG ctgPar, CNO cnoPar);
+	long CFL::Ckid(ChunkTag ctgPar, CNO cnoPar);
 		Returns the number of children of the given chunk.
 
-	bool CFL::FGetKid(CTG ctgPar, CNO cnoPar, long ikid, KID *pkid);
+	bool CFL::FGetKid(ChunkTag ctgPar, CNO cnoPar, long ikid, KID *pkid);
 		Gets a kid for the ikid'th child of (ctgPar, cnoPar).
 		Returns false if ikid is too big.
 
-	bool CFL::FGetKidChid(CTG ctgPar, CNO cnoPar, CHID chid, KID *pkid);
+	bool CFL::FGetKidChid(ChunkTag ctgPar, CNO cnoPar, CHID chid, KID *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid.
 
-	bool CFL::FGetKidChidCtg(CTG ctgPar, CNO cnoPar,
-			CHID chid, CTG ctg, KID *pkid);
+	bool CFL::FGetKidChidCtg(ChunkTag ctgPar, CNO cnoPar,
+			CHID chid, ChunkTag ctg, KID *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid
 		and ctg.
 
@@ -257,7 +257,7 @@ REVIEW shonk: assert and check for cycles.
 	CGE methods
 ****************************************/
 
-	void CGE::Init(PCFL pcfl, CTG ctg, CNO cno);
+	void CGE::Init(PCFL pcfl, ChunkTag ctg, CNO cno);
 		This initializes an enumeration and must be called before
 		GrfcgeNextKid is called.  The enumeration is over the given
 		node and all of its descendents.

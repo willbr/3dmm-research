@@ -117,7 +117,7 @@ bool BKGD::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     A PFNRPO to read a BKGD from a file
 ***************************************************************************/
-bool BKGD::FReadBkgd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool BKGD::FReadBkgd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -150,7 +150,7 @@ bool BKGD::FReadBkgd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
     them on yet because we don't have a BWLD to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
+bool BKGD::_FInit(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -247,7 +247,7 @@ LFail:
     Return the number of camera views in this scene.  CAM chunks need to be
     contiguous CHIDs starting at CHID 0.
 ***************************************************************************/
-long BKGD::_Ccam(PCFL pcfl, CTG ctg, CNO cno)
+long BKGD::_Ccam(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);

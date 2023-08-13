@@ -44,7 +44,7 @@ class MP : public MP_PAR
 
   public:
     static PMP PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
-                      CKI ckiRoot, CTG ctg, PCMH pcmh, long cid, bool fMoveTop);
+                      CKI ckiRoot, ChunkTag ctg, PCMH pcmh, long cid, bool fMoveTop);
 
     virtual bool FCmdSelIdle(PCMD pcmd);
 };

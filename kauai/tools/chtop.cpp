@@ -1733,7 +1733,7 @@ PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno)
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool HETD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
+bool HETD::_FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
@@ -2228,7 +2228,7 @@ enum
 /***************************************************************************
     Insert a picture into the help text document.
 ***************************************************************************/
-bool HETG::FInsertPicture(PCRF pcrf, CTG ctg, CNO cno)
+bool HETG::FInsertPicture(PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2328,7 +2328,7 @@ bool _FDlgFormatButton(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Insert a button into the help text document.
 ***************************************************************************/
-bool HETG::FInsertButton(PCRF pcrf, CTG ctg, CNO cno)
+bool HETG::FInsertButton(PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2723,7 +2723,7 @@ bool HETG::FEnableHetgCmd(PCMD pcmd, ulong *pgrfeds)
             break;
         if (cp == cpT && cb >= size(CKI))
         {
-            switch (*(CTG *)pv)
+            switch (*(ChunkTag *)pv)
             {
             case kctgMbmp:
                 if (pcmd->cid == cidFormatPicture)
@@ -2915,7 +2915,7 @@ bool HETG::FCmdFormatEdit(PCMD pcmd)
     if (!Phetd()->FFetchObject(cp, &cpT, &pv, &cb))
         return fTrue;
 
-    if (cp != cpT || cb != size(ecos) || *(CTG *)pv != kctgEditControl)
+    if (cp != cpT || cb != size(ecos) || *(ChunkTag *)pv != kctgEditControl)
     {
         FreePpv(&pv);
         return fFalse;

@@ -50,8 +50,8 @@ BEGIN_CMD_MAP(TSCG, GraphicsObject)
 ON_CID_GEN(cidClose, &GraphicsObject::FCmdCloseWnd, pvNil)
 END_CMD_MAP_NIL()
 
-bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg);
-void _PutCtgStn(PDLG pdlg, long idit, CTG ctg);
+bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg);
+void _PutCtgStn(PDLG pdlg, long idit, ChunkTag ctg);
 
 RTCLASS(DOC)
 RTCLASS(DOCE)
@@ -90,7 +90,7 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    CTG ctg;
+    ChunkTag ctg;
     long lw;
     bool fEmpty;
     ADCD *padcd = (ADCD *)pv;
@@ -108,7 +108,7 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
         }
         if (!_FGetCtg(pdlg, kiditCtgInfo, &ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkTag is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
@@ -122,7 +122,7 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
         if (!fEmpty && (!padcd->fCkiValid || ctg != padcd->cki.ctg || lw != (long)padcd->cki.cno) &&
             padcd->pcfl->FFind(ctg, lw))
         {
-            tribool tRet = vpappb->TGiveAlertSz(PszLit("A chunk with this CTG & CNO")
+            tribool tRet = vpappb->TGiveAlertSz(PszLit("A chunk with this ChunkTag & CNO")
                                                     PszLit(" already exists. Replace the existing chunk?"),
                                                 bkYesNoCancel, cokQuestion);
 
@@ -278,7 +278,7 @@ void DOC::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for chunk editing doc.
 ***************************************************************************/
-DOCE::DOCE(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno) : DOCB(pdocb)
+DOCE::DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno) : DOCB(pdocb)
 {
     _pcfl = pcfl;
     _ctg = ctg;
@@ -307,7 +307,7 @@ bool DOCE::_FInit(void)
 /***************************************************************************
     Static method to look for a DOCE for the given chunk.
 ***************************************************************************/
-PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno)
+PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     PDOCE pdoce;
 
@@ -367,7 +367,7 @@ void DOCE::GetName(PSTN pstn)
 bool DOCE::FSave(long cid)
 {
     AssertThis(0);
-    CTG ctg;
+    ChunkTag ctg;
     CNO cno;
     bool fCreated = fFalse;
     PDLG pdlg = pvNil;
@@ -445,7 +445,7 @@ LCancel:
 /***************************************************************************
     Save the chunk data to a chunk.
 ***************************************************************************/
-bool DOCE::_FSaveToChunk(CTG ctg, CNO cno, bool fRedirect)
+bool DOCE::_FSaveToChunk(ChunkTag ctg, CNO cno, bool fRedirect)
 {
     AssertThis(0);
     CNO cnoT;
@@ -798,7 +798,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
     rc.ypTop = 0;
     rc.ypBottom = _dypHeader - _dypBorder;
     pgnv->FillRc(&rc, kacrWhite);
-    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (CHID)   CTG     CNO     Name   Lines: %d"), _sel.LnLim());
+    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (CHID)   ChunkTag     CNO     Name   Lines: %d"), _sel.LnLim());
     pgnv->DrawStn(&stn, xp, 0);
     rc = *prcClip;
     rc.ypTop = _dypHeader - _dypBorder;
@@ -1324,7 +1324,7 @@ bool DCD::FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Put up the dialog and add the chunk.
 ***************************************************************************/
-bool DCD::_FAddChunk(CTG ctgDef, CKI *pcki, bool *pfCreated)
+bool DCD::_FAddChunk(ChunkTag ctgDef, CKI *pcki, bool *pfCreated)
 {
     AssertVarMem(pcki);
     AssertVarMem(pfCreated);
@@ -1546,7 +1546,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
     long xp, yp;
     bool fMask = pcmd->cid != cidAddMbmpChunk;
     PBACO pbaco = pvNil;
-    CTG ctg;
+    ChunkTag ctg;
     PDLG pdlg = pvNil;
 
     // save and clear the sel
@@ -1709,7 +1709,7 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
         // check the chunk
         if (!_FGetCtg(pdlg, kiditCtgInfo, &cki.ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkTag is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
@@ -1722,7 +1722,7 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
         cki.cno = lw;
         if (pclan->pcfl->FFind(cki.ctg, cki.cno) && (cki.ctg != pclan->cki.ctg || cki.cno != pclan->cki.cno))
         {
-            vpappb->TGiveAlertSz(PszLit("That CTG/CNO pair already exists"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("That ChunkTag/CNO pair already exists"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
@@ -1896,7 +1896,7 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
         }
         chid = lw;
 
-        // check the new chid to make sure that the CTG/CNO/new CHID does not
+        // check the new chid to make sure that the ChunkTag/CNO/new CHID does not
         // already exist
         if (pclan->pcfl->FGetIkid(pclan->cki.ctg, pclan->cki.cno, pclan->kid.cki.ctg, pclan->kid.cki.cno, chid,
                                   &ikid) &&
@@ -2039,7 +2039,7 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
         // check the parent
         if (!_FGetCtg(pdlg, kiditCtgParAdopt, &cki.ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("Parent CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Parent ChunkTag is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgParAdopt);
             return fFalse;
         }
@@ -2060,7 +2060,7 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
         // check the child
         if (!_FGetCtg(pdlg, kiditCtgChdAdopt, &kid.cki.ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("Child CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Child ChunkTag is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgChdAdopt);
             return fFalse;
         }
@@ -2258,7 +2258,7 @@ void DCD::_EditCki(CKI *pcki, long cid)
     AssertVarMem(pcki);
     PDOCE pdoce;
     long cls;
-    CTG ctg;
+    ChunkTag ctg;
 
     // check for a doce already open on the chunk.
     if (pvNil != (pdoce = DOCE::PdoceFromChunk(_pdocb, _pcfl, pcki->ctg, pcki->cno)))
@@ -2571,7 +2571,7 @@ bool DCD::FCmdPack(PCMD pcmd)
 /***************************************************************************
     Run a script. Make the crf cache cbCache large.
 ***************************************************************************/
-bool DCD::FTestScript(CTG ctg, CNO cno, long cbCache)
+bool DCD::FTestScript(ChunkTag ctg, CNO cno, long cbCache)
 {
     AssertThis(0);
     AssertIn(cbCache, 0, kcbMax);
@@ -2782,7 +2782,7 @@ bool DCD::FCmdFilterChunk(PCMD pcmd)
     ulong grfsel;
     CKI cki;
     KID kid;
-    CTG ctg;
+    ChunkTag ctg;
     long ictg;
     achar *prgch;
     achar chQuote, *psz;
@@ -2911,7 +2911,7 @@ void DCD::MarkMem(void)
     Parses the stn as a ctg. Pads with spaces. Fails if pstn is longer
     than 4 characters or empty.
 ***************************************************************************/
-bool FGetCtgFromStn(CTG *pctg, PSTN pstn)
+bool FGetCtgFromStn(ChunkTag *pctg, PSTN pstn)
 {
     achar rgch[4];
 
@@ -2932,11 +2932,11 @@ bool FGetCtgFromStn(CTG *pctg, PSTN pstn)
 }
 
 /***************************************************************************
-    Get the indicated edit item from the dialog and convert it to a CTG.
+    Get the indicated edit item from the dialog and convert it to a ChunkTag.
     Pads with spaces. Fails if the text in the edit item is longer
     than 4 characters or empty.
 ***************************************************************************/
-bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg)
+bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pctg);
@@ -2949,7 +2949,7 @@ bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg)
 /***************************************************************************
     Put the ctg into the indicated edit item.
 ***************************************************************************/
-void _PutCtgStn(PDLG pdlg, long idit, CTG ctg)
+void _PutCtgStn(PDLG pdlg, long idit, ChunkTag ctg)
 {
     AssertPo(pdlg, 0);
     STN stn;
@@ -3309,7 +3309,7 @@ void SEL::HideList(bool fHide)
 /***************************************************************************
     Get the ictg'th ctg that we're filtering on.
 ***************************************************************************/
-bool SEL::FGetCtgFilter(long ictg, CTG *pctg)
+bool SEL::FGetCtgFilter(long ictg, ChunkTag *pctg)
 {
     AssertThis(0);
     AssertVarMem(pctg);
@@ -3337,11 +3337,11 @@ void SEL::FreeFilterList(void)
 /***************************************************************************
     Add an element to the filter list.
 ***************************************************************************/
-bool SEL::FAddCtgFilter(CTG ctg)
+bool SEL::FAddCtgFilter(ChunkTag ctg)
 {
     AssertThis(0);
 
-    if (pvNil == _pglctg && pvNil == (_pglctg = GL::PglNew(size(CTG), 1)))
+    if (pvNil == _pglctg && pvNil == (_pglctg = GL::PglNew(size(ChunkTag), 1)))
         return fFalse;
     if (!_pglctg->FAdd(&ctg))
         return fFalse;
@@ -3352,15 +3352,15 @@ bool SEL::FAddCtgFilter(CTG ctg)
 /***************************************************************************
     Return true iff (ctg, cno) passes our filtering criteria.
 ***************************************************************************/
-bool SEL::_FFilter(CTG ctg, CNO cno)
+bool SEL::_FFilter(ChunkTag ctg, CNO cno)
 {
     long cctg;
-    CTG *qctg;
+    ChunkTag *qctg;
 
     if (pvNil == _pglctg || 0 == (cctg = _pglctg->IvMac()))
         return fTrue;
 
-    for (qctg = (CTG *)_pglctg->QvGet(0); cctg-- > 0; qctg++)
+    for (qctg = (ChunkTag *)_pglctg->QvGet(0); cctg-- > 0; qctg++)
     {
         if (*qctg == ctg)
             return !_fHideList;

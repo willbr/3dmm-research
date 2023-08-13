@@ -72,7 +72,7 @@ void TXHD::MarkMem(void)
     Static method to read a help text document from the given (pcfl, ctg, cno)
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
+PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
@@ -91,7 +91,7 @@ PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, 
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool TXHD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
+bool TXHD::_FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
@@ -182,7 +182,7 @@ LFail:
 ***************************************************************************/
 bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
-    CTG ctg;
+    ChunkTag ctg;
     CNO cno;
     long cb;
     long rglw[2];
@@ -206,15 +206,15 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
         break;
 
     case sprmObject:
-        if (cb < size(CTG))
+        if (cb < size(ChunkTag))
             return fFalse;
-        _pagcact->GetRgb(icact, 0, size(CTG), &ctg);
+        _pagcact->GetRgb(icact, 0, size(ChunkTag), &ctg);
         if (bo == kboOther)
         {
             SwapBytesRglw(&ctg, 1);
-            _pagcact->PutRgb(icact, 0, size(CTG), &ctg);
+            _pagcact->PutRgb(icact, 0, size(ChunkTag), &ctg);
         }
-        cb -= size(CTG);
+        cb -= size(ChunkTag);
 
         switch (ctg)
         {
@@ -232,9 +232,9 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
 
             if (bo == kboOther)
             {
-                _pagcact->GetRgb(icact, size(CTG), clw * size(long), rglw);
+                _pagcact->GetRgb(icact, size(ChunkTag), clw * size(long), rglw);
                 SwapBytesRglw(rglw, clw);
-                _pagcact->PutRgb(icact, size(CTG), clw * size(long), rglw);
+                _pagcact->PutRgb(icact, size(ChunkTag), clw * size(long), rglw);
             }
             break;
 
@@ -311,12 +311,12 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
     if (sprmObject != sprm)
         return fFalse;
 
-    Assert(size(CTG) == size(long), 0);
+    Assert(size(ChunkTag) == size(long), 0);
     cb = _pagcact->Cb(icact);
     if (cb < size(rglw))
         return fFalse;
     _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((CTG)rglw[0])
+    switch ((ChunkTag)rglw[0])
     {
     case kctgMbmp:
         pmbmp = (PMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MBMP::FReadMbmp);
@@ -379,7 +379,7 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
     if (cb < size(rglw))
         return fFalse;
     _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((CTG)rglw[0])
+    switch ((ChunkTag)rglw[0])
     {
     case kctgMbmp:
         pmbmp = (PMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MBMP::FReadMbmp);
@@ -732,10 +732,10 @@ bool TXHG::_FInit(void)
         if (pvNil == pv)
             continue;
 
-        if (cb < size(CTG))
+        if (cb < size(ChunkTag))
             goto LContinue;
 
-        switch (*(CTG *)pv)
+        switch (*(ChunkTag *)pv)
         {
         case kctgEditControl:
             if (cb < size(ECOS))

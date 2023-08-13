@@ -530,7 +530,7 @@ void STN::GetSzs(PSZS pszs)
     %d signed decimal (long)
     %u unsigned decimal (long)
     %x hex
-    %f long as a 4 character value: 'xxxx' (ala FileType and CTG values)
+    %f long as a 4 character value: 'xxxx' (ala FileType and ChunkTag values)
     %% a percent sign
 
     Supports the following options, in this order:

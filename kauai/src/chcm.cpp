@@ -394,7 +394,7 @@ bool CHCM::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
 /***************************************************************************
     Parse a chunk header from the source file.
 ***************************************************************************/
-void CHCM::_ParseChunkHeader(CTG *pctg, CNO *pcno)
+void CHCM::_ParseChunkHeader(ChunkTag *pctg, CNO *pcno)
 {
     AssertThis(0);
     AssertVarMem(pctg);
@@ -491,10 +491,10 @@ void CHCM::_AppendNumber(long lwValue)
 /***************************************************************************
     Parse a child statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyChild(CTG ctg, CNO cno)
+void CHCM::_ParseBodyChild(ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
-    CTG ctgChild;
+    ChunkTag ctgChild;
     CNO cnoChild;
     CHID chid;
     PHP rgphp[3];
@@ -535,10 +535,10 @@ void CHCM::_ParseBodyChild(CTG ctg, CNO cno)
 /***************************************************************************
     Parse a parent statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyParent(CTG ctg, CNO cno)
+void CHCM::_ParseBodyParent(ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
-    CTG ctgParent;
+    ChunkTag ctgParent;
     CNO cnoParent;
     CHID chid;
     PHP rgphp[3];
@@ -659,7 +659,7 @@ void CHCM::_ParseBodyFile(void)
     Otherwise, get the block on the CFL. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
-bool CHCM::_FPrepWrite(bool fPack, long cb, CTG ctg, CNO cno, PBLCK pblck)
+bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, CNO cno, PBLCK pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -677,7 +677,7 @@ bool CHCM::_FPrepWrite(bool fPack, long cb, CTG ctg, CNO cno, PBLCK pblck)
 /***************************************************************************
     Balances a call to _FPrepWrite.
 ***************************************************************************/
-bool CHCM::_FEndWrite(bool fPack, CTG ctg, CNO cno, PBLCK pblck)
+bool CHCM::_FEndWrite(bool fPack, ChunkTag ctg, CNO cno, PBLCK pblck)
 {
     AssertThis(0);
     AssertPo(pblck, fblckUnpacked);
@@ -696,7 +696,7 @@ bool CHCM::_FEndWrite(bool fPack, CTG ctg, CNO cno, PBLCK pblck)
 /***************************************************************************
     Parse a metafile import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyMeta(bool fPack, CTG ctg, CNO cno)
+void CHCM::_ParseBodyMeta(bool fPack, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     Filename fni;
@@ -737,7 +737,7 @@ void CHCM::_ParseBodyMeta(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a bitmap import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno)
+void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     Filename fni;
@@ -790,7 +790,7 @@ void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a palette import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyPalette(bool fPack, CTG ctg, CNO cno)
+void CHCM::_ParseBodyPalette(bool fPack, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     Filename fni;
@@ -831,7 +831,7 @@ void CHCM::_ParseBodyPalette(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a midi import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyMidi(bool fPack, CTG ctg, CNO cno)
+void CHCM::_ParseBodyMidi(bool fPack, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     Filename fni;
@@ -872,7 +872,7 @@ void CHCM::_ParseBodyMidi(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a cursor import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyCursor(bool fPack, CTG ctg, CNO cno)
+void CHCM::_ParseBodyCursor(bool fPack, ChunkTag ctg, CNO cno)
 {
     // These are for parsing a Windows cursor file
     struct CURDIR
@@ -1159,7 +1159,7 @@ bool CHCM::_FParseData(PTOK ptok)
 /***************************************************************************
     Parse a list structure from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
+void CHCM::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1290,7 +1290,7 @@ LFail:
 /***************************************************************************
     Parse a group structure from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
+void CHCM::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1447,7 +1447,7 @@ LFail:
 /***************************************************************************
     Parse a string table from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
+void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1593,7 +1593,7 @@ LFail:
 /***************************************************************************
     Parse a script from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyScript(bool fPack, bool fInfix, CTG ctg, CNO cno)
+void CHCM::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     SCCG sccg;
@@ -1654,7 +1654,7 @@ void CHCM::_ParseBodyPackedFile(bool *pfPacked)
 /***************************************************************************
     Start a sub file.
 ***************************************************************************/
-void CHCM::_StartSubFile(bool fPack, CTG ctg, CNO cno)
+void CHCM::_StartSubFile(bool fPack, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     CSFC csfc;
@@ -1800,7 +1800,7 @@ void CHCM::_ParsePackFmt(void)
 /***************************************************************************
     Parse the chunk body from the source file.
 ***************************************************************************/
-void CHCM::_ParseChunkBody(CTG ctg, CNO cno)
+void CHCM::_ParseChunkBody(ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1938,7 +1938,7 @@ void CHCM::_ParseChunkBody(CTG ctg, CNO cno)
 void CHCM::_ParseAdopt(void)
 {
     AssertThis(0);
-    CTG ctgParent, ctgChild;
+    ChunkTag ctgParent, ctgChild;
     CNO cnoParent, cnoChild;
     CHID chid;
     PHP rgphp[5];
@@ -2022,7 +2022,7 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pms
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
     TOK tok;
-    CTG ctg;
+    ChunkTag ctg;
     CNO cno;
     PCFL pcfl;
     bool fReportBadTok;
@@ -2489,7 +2489,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     AssertThis(0);
     AssertPo(pcflSrc, 0);
     long icki, ikid, ckid;
-    CTG ctg;
+    ChunkTag ctg;
     CKI cki;
     KID kid;
     DataBlock blck;

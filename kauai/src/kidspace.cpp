@@ -526,7 +526,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     AssertIn(gms, gmsNil, kgmsLim);
     AssertVarMem(pfStable);
     CHID chid;
-    CTG ctg;
+    ChunkTag ctg;
 
     // set the gms
     _gmsCur = gms;
@@ -584,7 +584,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, bool *pfSet)
+bool KidspaceGraphicObject::_FSetRep(CHID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, bool *pfSet)
 {
     AssertThis(0);
     long ikid;
@@ -1456,7 +1456,7 @@ bool KidspaceGraphicObject::FChangeState(long sno)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, ulong dtim)
+bool KidspaceGraphicObject::FSetRep(CHID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, ulong dtim)
 {
     AssertThis(0);
 
@@ -1533,10 +1533,10 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGORP KidspaceGraphicObject::_PgorpNew(PCRF pcrf, CTG ctg, CNO cno)
+PGORP KidspaceGraphicObject::_PgorpNew(PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
-    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
+    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
     PFNGORP pfngorp;
 
     switch (ctg)
@@ -1713,7 +1713,7 @@ long KidspaceGraphicObject::NfrCur(void)
     Play a sound and attach the sound to this KidspaceGraphicObject so that when the KidspaceGraphicObject
     goes away, the sound will be killed.
 ***************************************************************************/
-long KidspaceGraphicObject::SiiPlaySound(CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long KidspaceGraphicObject::SiiPlaySound(ChunkTag ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
 
@@ -1758,7 +1758,7 @@ void KidspaceGraphicObject::_DeferSnd(bool fDefer)
     sound, so that when the KidspaceGraphicObject goes away and the mouse state changes,
     the sound will be killed.
 ***************************************************************************/
-long KidspaceGraphicObject::SiiPlayMouseSound(CTG ctg, CNO cno)
+long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
 
@@ -1971,7 +1971,7 @@ const ByteOrderMask kbomGokfl = 0x5FFF0000;
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2076,7 +2076,7 @@ void GORF::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2213,7 +2213,7 @@ void GORB::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2613,7 +2613,7 @@ void GORT::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2635,7 +2635,7 @@ PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno)
 /***************************************************************************
     Initialize the GORV - load the movie indicated byt (pcrf, ctg, cno).
 ***************************************************************************/
-bool GORV::_FInit(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno)
+bool GORV::_FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);

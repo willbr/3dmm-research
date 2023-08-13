@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     The GG of TAGFs is maintained in sorted order.  It is sorted by sid,
-    then by	CTG, then by CNO.
+    then by	ChunkTag, then by CNO.
 
 ***************************************************************************/
 #include "soc.h"
@@ -38,7 +38,7 @@ struct TAGF
 struct CC
 {
     CHID chid;
-    CTG ctg;
+    ChunkTag ctg;
 };
 
 /***************************************************************************
@@ -123,7 +123,7 @@ bool TAGL::_FFindTag(PTAG ptag, long *pitag)
     TAGF *qtagf;
     long itagfMin, itagfLim, itagf;
     long sid = ptag->sid;
-    CTG ctg = ptag->ctg;
+    ChunkTag ctg = ptag->ctg;
     CNO cno = ptag->cno;
 
     if (_pggtagf->IvMac() == 0)
@@ -196,7 +196,7 @@ bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
 /***************************************************************************
     Insert a TAG child into the TAGL
 ***************************************************************************/
-bool TAGL::FInsertChild(PTAG ptag, CHID chid, CTG ctg)
+bool TAGL::FInsertChild(PTAG ptag, CHID chid, ChunkTag ctg)
 {
     AssertThis(0);
     AssertVarMem(ptag);

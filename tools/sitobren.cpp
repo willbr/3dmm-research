@@ -635,13 +635,13 @@ S2B::~S2B(void)
         that need names in the final product.
 
     Arguments:
-        CTG ctg       -- the CTG of the chunk; used in the #ifdef
+        ChunkTag ctg       -- the ChunkTag of the chunk; used in the #ifdef
         CNO cno       -- the remainder of the arguments are just passed
         PSTN pstnName    directly to the CHSE DumpHeader()
         bool fPack
 
 ************************************************************ PETED ***********/
-void S2B::_DumpHeader(CTG ctg, CNO cno, PSTN pstnName, bool fPack)
+void S2B::_DumpHeader(ChunkTag ctg, CNO cno, PSTN pstnName, bool fPack)
 {
     if (_fPreprocess)
     {
@@ -677,7 +677,7 @@ void S2B::_DumpHeader(CTG ctg, CNO cno, PSTN pstnName, bool fPack)
             return;
         }
 
-        printf("Warning: CTG w/out any alphanumerics; preprocessor directives"
+        printf("Warning: ChunkTag w/out any alphanumerics; preprocessor directives"
                " skipped for that chunk\n");
     }
 
@@ -1312,7 +1312,7 @@ bool S2B::_FDoTtBackgroundS2B(void)
 {
     bool fGotTok, fSuccess = fFalse;
     long cLite = 2, cCam = 9, iPalBase = 151, cPal = 95;
-    CTG ctgSav;
+    ChunkTag ctgSav;
     CNO cnoBkgd, cnoSav;
     STN stnBkgd;
     BKGDF bkgdf;

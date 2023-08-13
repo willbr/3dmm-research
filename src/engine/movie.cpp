@@ -1409,13 +1409,13 @@ void MVIE::_MoveChids(CHID chid, bool fDown)
 
     Arguments:
         PCFL pcfl  --  the file on which to check
-        CTG ctg    --  these are self-explanatory
+        ChunkTag ctg    --  these are self-explanatory
         CNO cno
 
     Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the MVIE
 
 ************************************************************ PETED ***********/
-bool MVIE::_FIsChild(PCFL pcfl, CTG ctg, CNO cno)
+bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;

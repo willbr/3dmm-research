@@ -95,7 +95,7 @@ void CHSE::MarkMem(void)
 /***************************************************************************
     Dumps chunk header.
 ***************************************************************************/
-void CHSE::DumpHeader(CTG ctg, CNO cno, PSTN pstnName, bool fPack)
+void CHSE::DumpHeader(ChunkTag ctg, CNO cno, PSTN pstnName, bool fPack)
 {
     AssertThis(fchseDump);
     AssertNilOrPo(pstnName, 0);
@@ -159,7 +159,7 @@ void CHSE::DumpRgb(void *prgb, long cb, long cactTab)
 /***************************************************************************
     Dump a parent directive
 ***************************************************************************/
-void CHSE::DumpParentCmd(CTG ctgPar, CNO cnoPar, CHID chid)
+void CHSE::DumpParentCmd(ChunkTag ctgPar, CNO cnoPar, CHID chid)
 {
     AssertThis(fchseDump);
 

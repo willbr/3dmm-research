@@ -129,14 +129,14 @@ class BKGD : public BKGD_PAR
     BRS _zrCam;
 
   protected:
-    bool _FInit(PCFL pcfl, CTG ctg, CNO cno);
-    long _Ccam(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PCFL pcfl, ChunkTag ctg, CNO cno);
+    long _Ccam(PCFL pcfl, ChunkTag ctg, CNO cno);
     void _SetupLights(PGL pgllite);
 
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadBkgd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     ~BKGD(void);
     void GetName(PSTN pstn);
 

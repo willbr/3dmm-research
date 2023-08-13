@@ -109,7 +109,7 @@ class MSND : public MSND_PAR
 
   protected:
     // these are inherent to the msnd
-    CTG _ctgSnd;       // CTG of the WAV or MIDI chunk
+    ChunkTag _ctgSnd;       // ChunkTag of the WAV or MIDI chunk
     CNO _cnoSnd;       // CNO of the WAV or MIDI chunk
     PRCA _prca;        // file that the WAV/MIDI lives in
     long _sty;         // MIDI, speech, or sfx
@@ -119,11 +119,11 @@ class MSND : public MSND_PAR
     bool _fInvalid;    // Invalid flag
 
   protected:
-    bool _FInit(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PCFL pcfl, ChunkTag ctg, CNO cno);
 
   public:
-    static bool FReadMsnd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static bool FGetMsndInfo(PCFL pcfl, CTG ctg, CNO cno, bool *pfInvalid = pvNil, long *psty = pvNil,
+    static bool FReadMsnd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FGetMsndInfo(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
     static bool FCopyMidi(PFIL pfilSrc, PCFL pcflDest, CNO *pcno, PSTN pstn = pvNil);
     static bool FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, CNO *pcno);

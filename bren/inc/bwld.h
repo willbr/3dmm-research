@@ -61,9 +61,9 @@ class BWLD : public BWLD_PAR
     BRS _dzpClosestClicked;      // Distance of the closest clicked actor
     // Keep reference to last background in case we switch to/from halfmode:
     PCRF _pcrf;
-    CTG _ctgRGB;
+    ChunkTag _ctgRGB;
     CNO _cnoRGB;
-    CTG _ctgZ;
+    ChunkTag _ctgZ;
     CNO _cnoZ;
 
   protected:
@@ -92,7 +92,7 @@ class BWLD : public BWLD_PAR
     void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 
     // Background stuff
-    bool FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ);
+    bool FSetBackground(PCRF pcrf, ChunkTag ctgRGB, CNO cnoRGB, ChunkTag ctgZ, CNO cnoZ);
     void SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov);
     void GetCamera(BMAT34 *pbmat34, BRS *pzrHither = pvNil, BRS *pzrYon = pvNil, BRA *paFov = pvNil);
 

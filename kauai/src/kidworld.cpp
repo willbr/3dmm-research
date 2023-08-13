@@ -21,7 +21,7 @@ RTCLASS(WorldOfKidspace)
 /***************************************************************************
     Static method to read a GKDS from the CRF. This is a CRF object reader.
 ***************************************************************************/
-bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool GKDS::FReadGkds(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     PGKDS pgkds;
     GOKDF gokdf;
@@ -254,7 +254,7 @@ bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 /***************************************************************************
     Get a GOKD from the given chunk.
 ***************************************************************************/
-PGOKD WorldOfKidspace::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
+PGOKD WorldOfKidspace::PgokdFetch(ChunkTag ctg, CNO cno, PRCA prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);

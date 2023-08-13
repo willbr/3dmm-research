@@ -886,7 +886,7 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
+bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, CTG ctgContent)
+bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, ChunkTag ctgContent)
 {
     AssertThis(0);
 
@@ -1042,7 +1042,7 @@ bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, CTG ctgCo
  * away.
  *
  ****************************************************/
-bool BRWL::_FCreateBuildThd(CKI ckiRoot, CTG ctgContent, bool fBuildGl)
+bool BRWL::_FCreateBuildThd(CKI ckiRoot, ChunkTag ctgContent, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1082,7 +1082,7 @@ LFail:
  * BRWL _FGetContent : Enum files & build the THD
  *
  ****************************************************/
-bool BRWL::_FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl)
+bool BRWL::_FGetContent(PCRM pcrm, CKI *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1408,7 +1408,7 @@ void BRWL::_ReleaseThumFrame(long ifrm)
  * BCL class routines
  *
  ****************************************************/
-PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd, bool fOnlineOnly)
+PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd, bool fOnlineOnly)
 {
     PBCL pbcl;
 
@@ -1422,7 +1422,7 @@ PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd, bool fOn
     return pbcl;
 }
 
-bool BCLS::_FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGST pgst, PGL pglthd)
+bool BCLS::_FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
@@ -1443,7 +1443,7 @@ LFail:
     return fFalse;
 }
 
-bool BCL::_FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd)
+bool BCL::_FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd)
 {
     AssertNilOrPo(pcrm, 0);
     Assert(pckiRoot->ctg != ctgNil, "Bad CKI");
@@ -1472,7 +1472,7 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
+PBCLS BCLS::PbclsNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
 {
     PBCLS pbcls;
 
@@ -1724,7 +1724,7 @@ LFail:
  * Save the name of the Par chunk in the Gst
  *
  ****************************************************/
-bool BCLS::_FSetNameGst(PCFL pcfl, CTG ctg, CNO cno)
+bool BCLS::_FSetNameGst(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1840,7 +1840,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
  * -> BRWL Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PStudio pstdio,
+bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1862,7 +1862,7 @@ bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoo
  * Build the thd
  *
  ****************************************************/
-bool BRWN::_FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl)
+bool BRWN::_FGetContent(PCRM pcrm, CKI *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -2995,7 +2995,7 @@ PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
  * Initialize a BRoWser Roll Call object
  *
  ****************************************************/
-bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PStudio pstdio)
+bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pstdio)
 {
     AssertThis(0);
 

@@ -323,7 +323,7 @@ inline void SqueezePb(void *pvSrc, void *pvDst, long cbSrc)
     Load bitmaps from the given chunks into _pgptBackground and
     _pzbmpBackground.
 ***************************************************************************/
-bool BWLD::FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ)
+bool BWLD::FSetBackground(PCRF pcrf, ChunkTag ctgRGB, CNO cnoRGB, ChunkTag ctgZ, CNO cnoZ)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);

@@ -46,7 +46,7 @@ const WORD knBlockAlign = 1;
     A PFNRPO to read a MSND from a file
 
 ***************************************************************************/
-bool MSND::FReadMsnd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -79,7 +79,7 @@ bool MSND::FReadMsnd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
     Retrieve information contained in the msnd chunk
 
 ***************************************************************************/
-bool MSND::FGetMsndInfo(PCFL pcfl, CTG ctg, CNO cno, bool *pfInvalid, long *psty, long *pvlm)
+bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfInvalid, long *psty, long *pvlm)
 {
     AssertPo(pcfl, 0);
 
@@ -109,7 +109,7 @@ bool MSND::FGetMsndInfo(PCFL pcfl, CTG ctg, CNO cno, bool *pfInvalid, long *psty
     Init a MSND from the given chunk of the given CFL
 
 ***************************************************************************/
-bool MSND::_FInit(PCFL pcfl, CTG ctg, CNO cno)
+bool MSND::_FInit(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -671,7 +671,7 @@ void MSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fA
     long sii{};
 
     static long _siiLastMidi;
-    static CTG _ctgLastMidi;
+    static ChunkTag _ctgLastMidi;
     static CNO _cnoLastMidi;
 
     if (_fInvalid)

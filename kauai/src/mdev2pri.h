@@ -67,7 +67,7 @@ class MDWS : public MDWS_PAR
     bool _FInit(PMIDS pmids);
 
   public:
-    static bool FReadMdws(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMdws(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     static PMDWS PmdwsRead(PBLCK pblck);
 
     ~MDWS(void);
@@ -107,7 +107,7 @@ class MSQUE : public MSQUE_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(PMSMIX pmsmix);
-    virtual PBACO _PbacoFetch(PRCA prca, CTG ctg, CNO cno);
+    virtual PBACO _PbacoFetch(PRCA prca, ChunkTag ctg, CNO cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);

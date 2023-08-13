@@ -162,7 +162,7 @@ BEGIN
     EDITTEXT        3,55,10,40,12,ES_AUTOHSCROLL
     EDITTEXT        4,55,30,40,12,ES_AUTOHSCROLL
     EDITTEXT        5,55,50,106,12,ES_AUTOHSCROLL
-    RTEXT           "CTG:",10,15,10,30,8
+    RTEXT           "ChunkTag:",10,15,10,30,8
     RTEXT           "CNO:",11,15,30,30,8
     RTEXT           "Name:",12,18,52,28,8
 END
@@ -179,9 +179,9 @@ BEGIN
     EDITTEXT        5,80,55,40,12,ES_AUTOHSCROLL
     EDITTEXT        6,80,75,40,12,ES_AUTOHSCROLL
     EDITTEXT        7,80,95,40,12,ES_AUTOHSCROLL
-    RTEXT           "Parent CTG:",100,15,10,55,8
+    RTEXT           "Parent ChunkTag:",100,15,10,55,8
     RTEXT           "Parent CNO:",101,15,30,55,8
-    RTEXT           "Child CTG:",102,15,55,55,8
+    RTEXT           "Child ChunkTag:",102,15,55,55,8
     RTEXT           "Child CNO:",dlidAdoptChunk,15,75,55,8
     RTEXT           "CHID:",104,15,95,55,8
 END

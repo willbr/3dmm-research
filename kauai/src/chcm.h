@@ -184,7 +184,7 @@ class CHCM : public CHCM_PAR
     struct CSFC
     {
         PCFL pcfl;
-        CTG ctg;
+        ChunkTag ctg;
         CNO cno;
         bool fPack;
     };
@@ -216,34 +216,34 @@ class CHCM : public CHCM_PAR
     bool _FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp);
     bool _FGetCleanTok(TOK *ptok, bool fEofOk = fFalse);
     void _SkipPastTok(long tt);
-    void _ParseChunkHeader(CTG *pctg, CNO *pcno);
+    void _ParseChunkHeader(ChunkTag *pctg, CNO *pcno);
     void _AppendString(PSTN pstnValue);
     void _AppendNumber(long lwValue);
-    void _ParseBodyChild(CTG ctg, CNO cno);
-    void _ParseBodyParent(CTG ctg, CNO cno);
+    void _ParseBodyChild(ChunkTag ctg, CNO cno);
+    void _ParseBodyParent(ChunkTag ctg, CNO cno);
     void _ParseBodyAlign(void);
     void _ParseBodyFile(void);
 
-    void _StartSubFile(bool fPack, CTG ctg, CNO cno);
+    void _StartSubFile(bool fPack, ChunkTag ctg, CNO cno);
     void _EndSubFile(void);
 
-    void _ParseBodyMeta(bool fPack, CTG ctg, CNO cno);
-    void _ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno);
-    void _ParseBodyPalette(bool fPack, CTG ctg, CNO cno);
-    void _ParseBodyMidi(bool fPack, CTG ctg, CNO cno);
-    void _ParseBodyCursor(bool fPack, CTG ctg, CNO cno);
+    void _ParseBodyMeta(bool fPack, ChunkTag ctg, CNO cno);
+    void _ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, CNO cno);
+    void _ParseBodyPalette(bool fPack, ChunkTag ctg, CNO cno);
+    void _ParseBodyMidi(bool fPack, ChunkTag ctg, CNO cno);
+    void _ParseBodyCursor(bool fPack, ChunkTag ctg, CNO cno);
     bool _FParseData(PTOK ptok);
-    void _ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno);
-    void _ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno);
-    void _ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno);
-    void _ParseBodyScript(bool fPack, bool fInfix, CTG ctg, CNO cno);
+    void _ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, CNO cno);
+    void _ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, CNO cno);
+    void _ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, CNO cno);
+    void _ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, CNO cno);
     void _ParseBodyPackedFile(bool *pfPacked);
-    void _ParseChunkBody(CTG ctg, CNO cno);
+    void _ParseChunkBody(ChunkTag ctg, CNO cno);
     void _ParseAdopt(void);
     void _ParsePackFmt(void);
 
-    bool _FPrepWrite(bool fPack, long cb, CTG ctg, CNO cno, PBLCK pblck);
-    bool _FEndWrite(bool fPack, CTG ctg, CNO cno, PBLCK pblck);
+    bool _FPrepWrite(bool fPack, long cb, ChunkTag ctg, CNO cno, PBLCK pblck);
+    bool _FEndWrite(bool fPack, ChunkTag ctg, CNO cno, PBLCK pblck);
 
   public:
     CHCM(void);

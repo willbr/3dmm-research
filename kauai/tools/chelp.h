@@ -88,17 +88,17 @@ class LID : public LID_PAR
     };
 
     PCRM _pcrm;   // where to look for the chunks
-    CTG _ctg;     // what ctg to look for
+    ChunkTag _ctg;     // what ctg to look for
     CHID _chid;   // what chid value the MBMP should be at (if _ctg is not MBMP)
     PGL _pglcach; // list of the chunks that we found
 
     LID(void);
     ~LID(void);
 
-    bool _FInit(PCRM pcrm, CTG ctg, CHID chid);
+    bool _FInit(PCRM pcrm, ChunkTag ctg, CHID chid);
 
   public:
-    static PLID PlidNew(PCRM pcrm, CTG ctg, CHID chid = 0);
+    static PLID PlidNew(PCRM pcrm, ChunkTag ctg, CHID chid = 0);
 
     bool FRefresh(void);
     long Ccki(void);
@@ -374,7 +374,7 @@ class HETD : public HETD_PAR
     HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno);
     ~HETD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText);
+    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText);
 
   public:
     static PHETD PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno);
@@ -438,8 +438,8 @@ class HETG : public HETG_PAR
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FInsertPicture(PCRF pcrf, CTG ctg, CNO cno);
-    virtual bool FInsertButton(PCRF pcrf, CTG ctg, CNO cno);
+    virtual bool FInsertPicture(PCRF pcrf, ChunkTag ctg, CNO cno);
+    virtual bool FInsertButton(PCRF pcrf, ChunkTag ctg, CNO cno);
 
     virtual bool FCmdGroupText(PCMD pcmd);
     virtual bool FCmdFormatPicture(PCMD pcmd);

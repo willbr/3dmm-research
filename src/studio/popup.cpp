@@ -25,7 +25,7 @@ END_CMD_MAP_NIL()
     Create a new popup menu
 ***************************************************************************/
 PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
-               CKI ckiRoot, CTG ctg, PCMH pcmh, long cid, bool fMoveTop)
+               CKI ckiRoot, ChunkTag ctg, PCMH pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);

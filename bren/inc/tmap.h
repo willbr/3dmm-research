@@ -8,8 +8,8 @@
 #ifndef TMAP_H
 #define TMAP_H
 
-const CTG kctgTmap = 'TMAP';
-const CTG kctgTxxf = 'TXXF';
+const ChunkTag kctgTmap = 'TMAP';
+const ChunkTag kctgTxxf = 'TXXF';
 
 // tmap on file
 struct TMAPF
@@ -73,11 +73,11 @@ class TMAP : public TMAP_PAR
     //	take just a PBLCK.  Should this be necessary for PtmapRead in the future,
     //	it's a simple matter of extracting the code in PtmapRead that is needed,
     //	like I did for FWrite.
-    static PTMAP PtmapRead(PCFL pcfl, CTG ctg, CNO cno);
-    bool FWrite(PCFL pcfl, CTG ctg, CNO *pcno);
+    static PTMAP PtmapRead(PCFL pcfl, ChunkTag ctg, CNO cno);
+    bool FWrite(PCFL pcfl, ChunkTag ctg, CNO *pcno);
 
     //	a chunky resource reader for a TMAP
-    static bool FReadTmap(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmap(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TMAP
     static PTMAP PtmapNewFromBpmp(BPMP *pbpmp);

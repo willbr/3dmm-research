@@ -48,7 +48,7 @@ LFail:
 /***************************************************************************
     A PFNRPO to read a MODL from a file
 ***************************************************************************/
-bool MODL::FReadModl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MODL::FReadModl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -256,7 +256,7 @@ MODL::~MODL(void)
 /***************************************************************************
     Writes a MODL to a chunk
 ***************************************************************************/
-bool MODL::FWrite(PCFL pcfl, CTG ctg, CNO cno)
+bool MODL::FWrite(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

@@ -64,12 +64,12 @@ class MTRL : public MTRL_PAR
     {
         _pbmtl = pvNil;
     } // can't instantiate directly; must use FReadMtrl
-    bool _FInit(PCRF pcrf, CTG ctg, CNO cno);
+    bool _FInit(PCRF pcrf, ChunkTag ctg, CNO cno);
 
   public:
-    static bool FSetShadeTable(PCFL pcfl, CTG ctg, CNO cno);
+    static bool FSetShadeTable(PCFL pcfl, ChunkTag ctg, CNO cno);
     static PMTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
-    static bool FReadMtrl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadMtrl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     static PMTRL PmtrlNewFromPix(PFilename pfni);
     static PMTRL PmtrlNewFromBmp(PFilename pfni, PGL pglclr = pvNil);
     static PMTRL PmtrlFromBmtl(PBMTL pbmtl);
@@ -79,7 +79,7 @@ class MTRL : public MTRL_PAR
     {
         return _pbmtl;
     }
-    bool FWrite(PCFL pcfl, CTG ctg, CNO *pcno);
+    bool FWrite(PCFL pcfl, ChunkTag ctg, CNO *pcno);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG
@@ -106,15 +106,15 @@ class CMTL : public CMTL_PAR
     long _ibset;      // body part set that this CMTL should be applied to
 
   protected:
-    bool _FInit(PCRF pcrf, CTG ctg, CNO cno);
+    bool _FInit(PCRF pcrf, ChunkTag ctg, CNO cno);
     CMTL(void)
     {
     } // can't instantiate directly; must use PcmtlRead
 
   public:
     static PCMTL PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl);
-    static bool FReadCmtl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static bool FHasModels(PCFL pcfl, CTG ctg, CNO cno);
+    static bool FReadCmtl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FHasModels(PCFL pcfl, ChunkTag ctg, CNO cno);
     static bool FEqualModels(PCFL pcfl, CNO cno1, CNO cno2);
     ~CMTL(void);
     PBMTL Pbmtl(long ibmtl);

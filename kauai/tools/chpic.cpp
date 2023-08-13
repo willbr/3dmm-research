@@ -15,7 +15,7 @@ RTCLASS(DCPIC)
 /***************************************************************************
     Constructor for picture document.
 ***************************************************************************/
-DOCPIC::DOCPIC(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCPIC::DOCPIC(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _ppic = pvNil;
 }
@@ -31,7 +31,7 @@ DOCPIC::~DOCPIC(void)
 /***************************************************************************
     Static method to create a new picture document.
 ***************************************************************************/
-PDOCPIC DOCPIC::PdocpicNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno)
+PDOCPIC DOCPIC::PdocpicNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     DOCPIC *pdocpic;
 

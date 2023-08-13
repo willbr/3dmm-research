@@ -102,11 +102,11 @@ class ACTN : public ACTN_PAR
     ACTN(void)
     {
     } // can't instantiate directly; must use FReadActn
-    bool _FInit(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PCFL pcfl, ChunkTag ctg, CNO cno);
 
   public:
     static PACTN PactnNew(PGG pggcel, PGL pglbmat34, ulong grfactn);
-    static bool FReadActn(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadActn(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     ~ACTN(void);
 
     ulong Grfactn(void)
@@ -164,16 +164,16 @@ class TMPL : public TMPL_PAR
     TMPL(void)
     {
     } // can't instantiate directly; must use FReadTmpl
-    bool _FReadTmplf(PCFL pcfl, CTG ctg, CNO cno);
-    virtual bool _FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl);
+    bool _FReadTmplf(PCFL pcfl, ChunkTag ctg, CNO cno);
+    virtual bool _FInit(PCFL pcfl, ChunkTag ctgTmpl, CNO cnoTmpl);
     virtual PACTN _PactnFetch(long anid);
     virtual PMODL _PmodlFetch(CHID chidModl);
-    bool _FWriteTmplf(PCFL pcfl, CTG ctg, CNO *pcno);
+    bool _FWriteTmplf(PCFL pcfl, ChunkTag ctg, CNO *pcno);
 
   public:
-    static bool FReadTmpl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadTmpl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     ~TMPL(void);
-    static PGL PgltagFetch(PCFL pcfl, CTG ctg, CNO cno, bool *pfError);
+    static PGL PgltagFetch(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfError);
 
     // TMPL / BODY stuff
     void GetName(PSTN pstn); // default name of actor or text of the TDT

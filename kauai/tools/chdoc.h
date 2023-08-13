@@ -29,7 +29,7 @@ typedef class DCST *PDCST;
 typedef class DCPIC *PDCPIC;
 typedef class DCMBMP *PDCMBMP;
 
-bool FGetCtgFromStn(CTG *pctg, PSTN pstn);
+bool FGetCtgFromStn(ChunkTag *pctg, PSTN pstn);
 
 #define lnNil (-1L)
 
@@ -85,19 +85,19 @@ class DOCE : public DOCE_PAR
 
   protected:
     PCFL _pcfl; // which chunk is being edited
-    CTG _ctg;
+    ChunkTag _ctg;
     CNO _cno;
 
-    DOCE(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
     bool _FInit(void);
 
-    virtual bool _FSaveToChunk(CTG ctg, CNO cno, bool fRedirect);
+    virtual bool _FSaveToChunk(ChunkTag ctg, CNO cno, bool fRedirect);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect) = 0;
     virtual long _CbOnFile(void) = 0;
     virtual bool _FRead(PBLCK pblck) = 0;
 
   public:
-    static PDOCE PdoceFromChunk(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    static PDOCE PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
     static void CloseDeletedDoce(PDOCB pdocb);
 
     virtual void GetName(PSTN pstn);
@@ -118,13 +118,13 @@ class DOCH : public DOCH_PAR
   protected:
     BSF _bsf; // the byte stream
 
-    DOCH(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCH PdochNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    static PDOCH PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
     virtual PDDG PddgNew(PGCB pgcb);
 };
 
@@ -145,14 +145,14 @@ class DOCG : public DOCG_PAR
     short _bo;
     short _osk;
 
-    DOCG(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno, long cls);
+    DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno, long cls);
     ~DOCG(void);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCG PdocgNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno, long cls);
+    static PDOCG PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno, long cls);
     virtual PDDG PddgNew(PGCB pgcb);
 
     PDOCI PdociFromItem(long iv, long dln);
@@ -221,7 +221,7 @@ class DOCPIC : public DOCPIC_PAR
   protected:
     PPIC _ppic;
 
-    DOCPIC(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    DOCPIC(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
     ~DOCPIC(void);
 
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
@@ -229,7 +229,7 @@ class DOCPIC : public DOCPIC_PAR
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCPIC PdocpicNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    static PDOCPIC PdocpicNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PPIC Ppic(void)
@@ -252,7 +252,7 @@ class DOCMBMP : public DOCMBMP_PAR
   protected:
     PMBMP _pmbmp;
 
-    DOCMBMP(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
     ~DOCMBMP(void);
 
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
@@ -260,7 +260,7 @@ class DOCMBMP : public DOCMBMP_PAR
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCMBMP PdocmbmpNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno);
+    static PDOCMBMP PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PMBMP Pmbmp(void)
@@ -341,7 +341,7 @@ class SEL : public SEL_PAR
     bool _fHideKids : 1; // whether to hide the kids
 
     void _SetNil(void);
-    bool _FFilter(CTG ctg, CNO cno);
+    bool _FFilter(ChunkTag ctg, CNO cno);
 
   public:
     SEL(PCFL pcfl);
@@ -386,9 +386,9 @@ class SEL : public SEL_PAR
         return _fHideList;
     }
     void HideList(bool fHide);
-    bool FGetCtgFilter(long ictg, CTG *pctg);
+    bool FGetCtgFilter(long ictg, ChunkTag *pctg);
     void FreeFilterList(void);
-    bool FAddCtgFilter(CTG ctg);
+    bool FAddCtgFilter(ChunkTag ctg);
 };
 
 /***************************************************************************
@@ -416,7 +416,7 @@ class DCD : public DCD_PAR
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
-    bool _FAddChunk(CTG ctgDef, CKI *pcki, bool *pfCreated);
+    bool _FAddChunk(ChunkTag ctgDef, CKI *pcki, bool *pfCreated);
     bool _FEditChunkInfo(CKI *pckiOld);
     bool _FChangeChid(CKI *pcki, KID *pkid);
 
@@ -459,9 +459,9 @@ class DCD : public DCD_PAR
     virtual bool FCmdCloneChunk(PCMD pcmd);
     virtual bool FCmdReopen(PCMD pcmd);
 
-    bool FTestScript(CTG ctg, CNO cno, long cbCache = 0x00300000L);
-    bool FPlayMidi(CTG ctg, CNO cno);
-    bool FPlayWave(CTG ctg, CNO cno);
+    bool FTestScript(ChunkTag ctg, CNO cno, long cbCache = 0x00300000L);
+    bool FPlayMidi(ChunkTag ctg, CNO cno);
+    bool FPlayWave(ChunkTag ctg, CNO cno);
 };
 
 /***************************************************************************

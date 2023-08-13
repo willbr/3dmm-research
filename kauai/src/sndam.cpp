@@ -262,7 +262,7 @@ CAMS::~CAMS(void)
 /***************************************************************************
     Static BACO reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CAMS::FReadCams(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool CAMS::FReadCams(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -523,7 +523,7 @@ void AMQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as a CAMS.
 ***************************************************************************/
-PBACO AMQUE::_PbacoFetch(PRCA prca, CTG ctg, CNO cno)
+PBACO AMQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, CNO cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

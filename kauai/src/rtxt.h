@@ -296,8 +296,8 @@ class TXRD : public TXRD_PAR
 
     TXRD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXRD(void);
-    bool _FInit(PFilename pfni = pvNil, CTG ctg = kctgRichText);
-    virtual bool _FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText);
+    bool _FInit(PFilename pfni = pvNil, ChunkTag ctg = kctgRichText);
+    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
 
     ulong _SpcpFromSprmCp(byte sprm, long cp)
@@ -339,7 +339,7 @@ class TXRD : public TXRD_PAR
 
   public:
     static PTXRD PtxrdNew(PFilename pfni = pvNil);
-    static PTXRD PtxrdReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText = fTrue);
+    static PTXRD PtxrdReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText = fTrue);
 
     virtual PDDG PddgNew(PGCB pgcb);
 

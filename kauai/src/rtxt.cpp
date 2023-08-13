@@ -1062,7 +1062,7 @@ PTXRD TXRD::PtxrdNew(PFilename pfni)
 /***************************************************************************
     Initialize the rich text document.
 ***************************************************************************/
-bool TXRD::_FInit(PFilename pfni, CTG ctg)
+bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
 {
     AssertBaseThis(0);
     AssertNilOrPo(pfni, 0);
@@ -1108,7 +1108,7 @@ bool TXRD::_FInit(PFilename pfni, CTG ctg)
 /***************************************************************************
     Static method to read a rich text document from a chunk.
 ***************************************************************************/
-PTXRD TXRD::PtxrdReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
+PTXRD TXRD::PtxrdReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     PTXRD ptxrd;
@@ -1124,7 +1124,7 @@ PTXRD TXRD::PtxrdReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool TXRD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText)
+bool TXRD::_FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;

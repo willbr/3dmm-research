@@ -70,7 +70,7 @@ class GORF : public GORF_PAR
     long _dyp;
 
   public:
-    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -91,14 +91,14 @@ class GORB : public GORB_PAR
 
   protected:
     PCRF _pcrf;
-    CTG _ctg;
+    ChunkTag _ctg;
     CNO _cno;
     bool _fStream;
 
     ~GORB(void);
 
   public:
-    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -143,7 +143,7 @@ class GORT : public GORT_PAR
     };
 
     PCRF _pcrf;
-    CTG _ctg;
+    ChunkTag _ctg;
     CNO _cno;
     short _rgdxp[idzpLimGort];
     short _rgdyp[idzpLimGort];
@@ -164,7 +164,7 @@ class GORT : public GORT_PAR
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
-    static PGORT PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORT PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -196,10 +196,10 @@ class GORV : public GORV_PAR
 
     ~GORV(void);
 
-    virtual bool _FInit(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
+    virtual bool _FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
 
   public:
-    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, CTG ctg, CNO cno);
+    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -362,12 +362,12 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool _FSetGms(long gms, ulong grfact);
 
     virtual bool _FEnterState(long sno);
-    virtual bool _FSetRep(CHID chid, ulong grfgok = fgokKillAnim, CTG ctg = ctgNil, long dxp = 0, long dyp = 0,
+    virtual bool _FSetRep(CHID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
                           bool *pfSet = pvNil);
     virtual bool _FAdvanceFrame(void);
 
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual PGORP _PgorpNew(PCRF pcrf, CTG ctg, CNO cno);
+    virtual PGORP _PgorpNew(PCRF pcrf, ChunkTag ctg, CNO cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
     bool _FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilter);
@@ -421,7 +421,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool FRunScriptCno(CNO cno, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                                tribool *ptSuccess = pvNil);
     virtual bool FChangeState(long sno);
-    virtual bool FSetRep(CHID chid, ulong grfgok = fgokKillAnim, CTG ctg = ctgNil, long dxp = 0, long dyp = 0,
+    virtual bool FSetRep(CHID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
                          ulong dtim = 0);
 
     virtual bool FPlay(void);
@@ -431,8 +431,8 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual long NfrMac(void);
     virtual long NfrCur(void);
 
-    virtual long SiiPlaySound(CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
-    virtual long SiiPlayMouseSound(CTG ctg, CNO cno);
+    virtual long SiiPlaySound(ChunkTag ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
+    virtual long SiiPlayMouseSound(ChunkTag ctg, CNO cno);
 
     virtual void Suspend(void);
     virtual void Resume(void);

@@ -31,7 +31,7 @@ PTMAP MTRL::_ptmapShadeTable = pvNil; // shade table for all MTRLs
     Call this function to assign the global shade table.  It is read from
     the given chunk.
 ***************************************************************************/
-bool MTRL::FSetShadeTable(PCFL pcfl, CTG ctg, CNO cno)
+bool MTRL::FSetShadeTable(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertPo(pcfl, 0);
 
@@ -89,7 +89,7 @@ PMTRL MTRL::PmtrlNew(long iclrBase, long cclr)
 /***************************************************************************
     A PFNRPO to read MTRL objects.
 ***************************************************************************/
-bool MTRL::FReadMtrl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MTRL::FReadMtrl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -117,7 +117,7 @@ bool MTRL::FReadMtrl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 /***************************************************************************
     Read the given MTRL chunk from file
 ***************************************************************************/
-bool MTRL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
+bool MTRL::_FInit(PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
@@ -331,7 +331,7 @@ PTMAP MTRL::Ptmap(void)
 /***************************************************************************
     Write a MTRL to a chunky file
 ***************************************************************************/
-bool MTRL::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
+bool MTRL::FWrite(PCFL pcfl, ChunkTag ctg, CNO *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -439,7 +439,7 @@ void MTRL::MarkShadeTable(void)
 /***************************************************************************
     Static function to see if the given chunk has MODL children
 ***************************************************************************/
-bool CMTL::FHasModels(PCFL pcfl, CTG ctg, CNO cno)
+bool CMTL::FHasModels(PCFL pcfl, ChunkTag ctg, CNO cno)
 {
     AssertPo(pcfl, 0);
 
@@ -512,7 +512,7 @@ PCMTL CMTL::PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl)
 /***************************************************************************
     A PFNRPO to read CMTL objects.
 ***************************************************************************/
-bool CMTL::FReadCmtl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool CMTL::FReadCmtl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -541,7 +541,7 @@ bool CMTL::FReadCmtl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 /***************************************************************************
     Read a CMTL from file
 ***************************************************************************/
-bool CMTL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
+bool CMTL::_FInit(PCRF pcrf, ChunkTag ctg, CNO cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);

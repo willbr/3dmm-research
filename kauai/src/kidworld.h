@@ -95,7 +95,7 @@ class GKDS : public GKDS_PAR
 
   public:
     // An object reader for a GOKD.
-    static bool FReadGkds(PCRF pcrf, CTG ctg, CNO cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGkds(PCRF pcrf, ChunkTag ctg, CNO cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
     ~GKDS(void);
 
     virtual long Gokk(void);
@@ -135,7 +135,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     }
 
     virtual bool FGobIn(PGraphicsObject pgob);
-    virtual PGOKD PgokdFetch(CTG ctg, CNO cno, PRCA prca);
+    virtual PGOKD PgokdFetch(ChunkTag ctg, CNO cno, PRCA prca);
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca);
     virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
     virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);

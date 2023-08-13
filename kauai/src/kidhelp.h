@@ -43,7 +43,7 @@ struct HTOPF
 // edit control object
 struct ECOS
 {
-    CTG ctg;  // kctgEditControl
+    ChunkTag ctg;  // kctgEditControl
     long dxp; // width
 };
 
@@ -79,13 +79,13 @@ class TXHD : public TXHD_PAR
     TXHD(PRCA prca, PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXHD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
+    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
     virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
     virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg = pvNil,
+    static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, CNO cno, PSTRG pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
     virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
