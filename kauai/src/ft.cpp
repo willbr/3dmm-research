@@ -23,12 +23,12 @@ void CheckForLostMem(BASE *po);
 void TestUtil(void);
 long _LwSqrt(long lw);
 
-#define APP_PAR ApplicationBase
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+#define FrameTesterApp_PAR ApplicationBase
+#define kclsFrameTesterApp 'APP'
+class FrameTesterApp : public FrameTesterApp_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(FrameTesterApp)
 
   protected:
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
@@ -56,34 +56,34 @@ class APP : public APP_PAR
     bool FEnableMacro(PCMD pcmd, ulong *pgrfeds);
 };
 
-BEGIN_CMD_MAP(APP, ApplicationBase)
-ON_CID_GEN(cidTestSuite, &APP::FCmdTestSuite, pvNil)
-ON_CID_GEN(cidNewTestWnd, &APP::FCmdNewTestWnd, pvNil)
-ON_CID_GEN(cidTextTestWnd, &APP::FCmdTextTestWnd, pvNil)
-ON_CID_GEN(cidTimeFrameRc, &APP::FCmdTimeTestRc, pvNil)
-ON_CID_GEN(cidTestPerspective, &APP::FCmdTestPerspective, pvNil)
-ON_CID_GEN(cidTestPictures, &APP::FCmdTestPictures, pvNil)
-ON_CID_GEN(cidTestMbmps, &APP::FCmdTestMbmps, pvNil)
-ON_CID_GEN(cidTestFastUpdate, &APP::FCmdFastUpdate, pvNil)
-ON_CID_GEN(cidTestTextEdit, &APP::FCmdTextEdit, pvNil)
-ON_CID_GEN(cidStartRecording, &APP::FCmdMacro, &APP::FEnableMacro)
-ON_CID_GEN(cidStartPlaying, &APP::FCmdMacro, &APP::FEnableMacro)
+BEGIN_CMD_MAP(FrameTesterApp, ApplicationBase)
+ON_CID_GEN(cidTestSuite, &FrameTesterApp::FCmdTestSuite, pvNil)
+ON_CID_GEN(cidNewTestWnd, &FrameTesterApp::FCmdNewTestWnd, pvNil)
+ON_CID_GEN(cidTextTestWnd, &FrameTesterApp::FCmdTextTestWnd, pvNil)
+ON_CID_GEN(cidTimeFrameRc, &FrameTesterApp::FCmdTimeTestRc, pvNil)
+ON_CID_GEN(cidTestPerspective, &FrameTesterApp::FCmdTestPerspective, pvNil)
+ON_CID_GEN(cidTestPictures, &FrameTesterApp::FCmdTestPictures, pvNil)
+ON_CID_GEN(cidTestMbmps, &FrameTesterApp::FCmdTestMbmps, pvNil)
+ON_CID_GEN(cidTestFastUpdate, &FrameTesterApp::FCmdFastUpdate, pvNil)
+ON_CID_GEN(cidTestTextEdit, &FrameTesterApp::FCmdTextEdit, pvNil)
+ON_CID_GEN(cidStartRecording, &FrameTesterApp::FCmdMacro, &FrameTesterApp::FEnableMacro)
+ON_CID_GEN(cidStartPlaying, &FrameTesterApp::FCmdMacro, &FrameTesterApp::FEnableMacro)
 #ifdef WIN
-ON_CID_GEN(cidTestFni, &APP::FCmdTestFni, pvNil)
+ON_CID_GEN(cidTestFni, &FrameTesterApp::FCmdTestFni, pvNil)
 #endif // WIN
 #ifdef MAC
-ON_CID_GEN(cidSetColor, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetGrayScale, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth1, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth2, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth4, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth8, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth16, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth32, &APP::FCmdSetScreen, APP::FEnableScreen)
+ON_CID_GEN(cidSetColor, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetGrayScale, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth1, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth2, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth4, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth8, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth16, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth32, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
 #endif // MAC
 END_CMD_MAP_NIL()
 
-APP vapp;
+FrameTesterApp vapp;
 CLOK vclok(10000);
 RND vrnd;
 
@@ -93,7 +93,7 @@ achar *_rgszColors[] = {PszLit("bla"), PszLit("blu"), PszLit("gre"), PszLit("cya
                         PszLit("mag"), PszLit("yel"), PszLit("whi"), PszLit("cle"), PszLit("inv")};
 const long _cacr = size(_rgacr) / size(_rgacr[0]);
 
-RTCLASS(APP)
+RTCLASS(FrameTesterApp)
 
 /***************************************************************************
     Main for a frame app.
@@ -106,7 +106,7 @@ void FrameMain(void)
 /***************************************************************************
     Get the name for the frame tester app.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void FrameTesterApp::GetStnAppName(PSTN pstn)
 {
     *pstn = PszLit("Frame Tester");
 }
@@ -114,9 +114,9 @@ void APP::GetStnAppName(PSTN pstn)
 /***************************************************************************
     Initialize the app.
 ***************************************************************************/
-bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool FrameTesterApp::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
-    if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
+    if (!FrameTesterApp_PAR::_FInit(grfapp, grfgob, ginDef))
         return fFalse;
     vclok.Start(0);
     return fTrue;
@@ -145,7 +145,7 @@ void CheckForLostMem(BASE *po)
 /***************************************************************************
     Test the util code.
 ***************************************************************************/
-bool APP::FCmdTestSuite(PCMD pcmd)
+bool FrameTesterApp::FCmdTestSuite(PCMD pcmd)
 {
     TestUtil();
     return fTrue;
@@ -834,7 +834,7 @@ class DOC : public DocumentBase
 /******************************************************************************
     Test the gob code
 ******************************************************************************/
-bool APP::FCmdNewTestWnd(PCMD pcmd)
+bool FrameTesterApp::FCmdNewTestWnd(PCMD pcmd)
 {
     long idit;
     long lw;
@@ -889,7 +889,7 @@ LFail:
 /******************************************************************************
     Test the gob code
 ******************************************************************************/
-bool APP::FCmdTextTestWnd(PCMD pcmd)
+bool FrameTesterApp::FCmdTextTestWnd(PCMD pcmd)
 {
     TTW::PttwNew();
     return fTrue;
@@ -898,7 +898,7 @@ bool APP::FCmdTextTestWnd(PCMD pcmd)
 /******************************************************************************
     Test rectangle framing speed.
 ******************************************************************************/
-bool APP::FCmdTimeTestRc(PCMD pcmd)
+bool FrameTesterApp::FCmdTimeTestRc(PCMD pcmd)
 {
     RTW::PrtwNew();
     return fTrue;
@@ -1038,7 +1038,7 @@ long _LwSqrt(long lw)
 /***************************************************************************
     Command function to handle macro recording and playback.
 ***************************************************************************/
-bool APP::FCmdMacro(PCMD pcmd)
+bool FrameTesterApp::FCmdMacro(PCMD pcmd)
 {
     Filename fni;
     PChunkyFile pcfl;
@@ -1078,7 +1078,7 @@ bool APP::FCmdMacro(PCMD pcmd)
 /***************************************************************************
     Handles enabling of macro recording and playback commands.
 ***************************************************************************/
-bool APP::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
+bool FrameTesterApp::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
 {
     if (vpcex->FRecording() || vpcex->FPlaying())
         *pgrfeds = fedsDisable;
@@ -1091,7 +1091,7 @@ bool APP::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
 /******************************************************************************
     Test windows fni code to build an fni from a path
 ******************************************************************************/
-bool APP::FCmdTestFni(PCMD pcmd)
+bool FrameTesterApp::FCmdTestFni(PCMD pcmd)
 {
     long idit;
     STN stn, stnT;
@@ -1375,7 +1375,7 @@ void DDP::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Create a new perspective doc and window.
 ***************************************************************************/
-bool APP::FCmdTestPerspective(PCMD pcmd)
+bool FrameTesterApp::FCmdTestPerspective(PCMD pcmd)
 {
     DOCP *pdocp;
 
@@ -1607,7 +1607,7 @@ void DDPIC::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Create a new picture doc and window.
 ***************************************************************************/
-bool APP::FCmdTestPictures(PCMD pcmd)
+bool FrameTesterApp::FCmdTestPictures(PCMD pcmd)
 {
     DOCPIC *pdocpic;
 
@@ -1873,7 +1873,7 @@ void DDGPT::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Create a new mbmp and window.
 ***************************************************************************/
-bool APP::FCmdTestMbmps(PCMD pcmd)
+bool FrameTesterApp::FCmdTestMbmps(PCMD pcmd)
 {
     DOCGPT *pdocgpt;
 
@@ -1889,7 +1889,7 @@ bool APP::FCmdTestMbmps(PCMD pcmd)
 /***************************************************************************
     Set the main screen as indicated.
 ***************************************************************************/
-bool APP::FCmdSetScreen(PCMD pcmd)
+bool FrameTesterApp::FCmdSetScreen(PCMD pcmd)
 {
     bool tColor = tMaybe;
     long cbit = 0;
@@ -1931,7 +1931,7 @@ bool APP::FCmdSetScreen(PCMD pcmd)
 /***************************************************************************
     Set the menu stuff for the screen resolutions.
 ***************************************************************************/
-bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
+bool FrameTesterApp::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
 {
     long cbitPixel;
     bool fColor;
@@ -2011,7 +2011,7 @@ long TAN::_cact = 0;
 /***************************************************************************
     Create a new picture doc and window.
 ***************************************************************************/
-bool APP::FCmdFastUpdate(PCMD pcmd)
+bool FrameTesterApp::FCmdFastUpdate(PCMD pcmd)
 {
     TAN::PtanNew();
     return fTrue;
@@ -2121,7 +2121,7 @@ class TED : public TED_PAR
 /***************************************************************************
     Create a new window containing a bunch of edit controls.
 ***************************************************************************/
-bool APP::FCmdTextEdit(PCMD pcmd)
+bool FrameTesterApp::FCmdTextEdit(PCMD pcmd)
 {
     TED::PtedNew();
     return fTrue;
