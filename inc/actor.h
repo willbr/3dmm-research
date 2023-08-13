@@ -152,13 +152,13 @@ namespace ActorEvent {
 
 // Actor EVents are stored in a GG (general group)
 // Fixed part of the GG:
-struct AEV
+struct Base
 {
     long aet;  // Actor Event Type
     long nfrm; // Absolute frame number (* Only valid < current event)
     RouteLocation rtel; // RouTE Location for this event
 };             // Additional event parameters (in the GG)
-typedef AEV *PAEV;
+typedef Base *PBase;
 
 //
 //	Actor level Event Types which live in a GG.
@@ -310,7 +310,7 @@ struct XFRM
 //
 struct SMM
 {
-    AEV aev; // event for the sound
+    Base aev; // event for the sound
     AEVSND aevsnd;
 };
 
@@ -464,7 +464,7 @@ class Actor : public Actor_PAR
     bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
     static void _SwapBytesPggaev(PGG pggaev);
     bool _FOpenTags(PChunkyResourceFile pcrf);
-    static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, ActorEvent::PAEV *pqaev = pvNil);
+    static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
     void _CloseTags(void);
 
   public:

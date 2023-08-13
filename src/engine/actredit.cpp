@@ -36,7 +36,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 
     long iaev;
     long iaevLast;
-    AEV aev;
+    Base aev;
     AEVACTN aevactn;
     AEVSND aevsnd;
     RouteDistancePoint rpt;
@@ -577,7 +577,7 @@ bool Actor::FPasteRte(PActor pactr)
     AssertThis(0);
     AssertVarMem(pactr);
 
-    AEV aev;
+    Base aev;
     RouteDistancePoint rpt;
     RouteDistancePoint rptCur;
     RoutePoint dxyz;
@@ -735,7 +735,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
 {
     AssertThis(0);
 
-    AEV aev;
+    Base aev;
     RouteDistancePoint rpt;
     AEVADD aevadd;
     AEVSND aevsnd;
@@ -1258,7 +1258,7 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     AssertThis(0);
     PActor pactrDup;
     long iaevCurSav;
-    AEV *paev;
+    Base *paev;
 
     if (!FDup(&pactrDup))
     {
@@ -1276,7 +1276,7 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     // frame be	later than _nfrmFirst.
     if (_iaevAddCur >= 0 && !fDeleteAll)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
         if (_nfrmCur == paev->nfrm)
         {
             if (!_FDeleteEntireSubrte())

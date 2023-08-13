@@ -72,7 +72,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     AEVSND aevsnd;
     long ccel;
     long iaev;
-    AEV *paev;
+    Base *paev;
     long sqn;
     long cbVar;
 
@@ -130,7 +130,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
     {
         AEVSND aevsndT;
-        paev = (AEV *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (aetAdd == paev->aet)
             break;
         if (aetSnd != paev->aet)
@@ -298,10 +298,10 @@ bool Actor::_FInsertSmm(long iaev)
     long ismm;
     SMM smm;
     SMM *psmm;
-    AEV *paev;
+    Base *paev;
     AEVSND *paevsnd;
 
-    paev = (AEV *)_pggaev->QvFixedGet(iaev);
+    paev = (Base *)_pggaev->QvFixedGet(iaev);
     paevsnd = (AEVSND *)_pggaev->QvGet(iaev);
 
     smm.aev = *paev;
@@ -335,14 +335,14 @@ bool Actor::_FRemoveAevMm(long anid)
     AssertThis(0);
 
     long iaev;
-    AEV *paev;
+    Base *paev;
     AEVSND aevsnd;
     AEVACTN aevactn;
 
     // Remove motion match sounds from the previous action
     for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (aetAdd == paev->aet)
             break;
         if (aetActn == paev->aet)
@@ -432,7 +432,7 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     long ccel;
     long iaev;
     long ismm;
-    AEV aev;
+    Base aev;
     SMM smm;
     long nfrmMM = ivNil;
 
@@ -531,7 +531,7 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, b
     AEVSND aevsnd;
     long ccel;
     long celn;
-    AEV aev;
+    Base aev;
     long iaev;
     long ismm;
     SMM smm;
@@ -627,7 +627,7 @@ bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
     long ismm;
     long ccel;
     long celn;
-    AEV aev;
+    Base aev;
     SMM smm;
     long nfrmMM = ivNil; // For motion match, this may be an earlier frame
 
@@ -705,7 +705,7 @@ bool Actor::FSoundInFrm(void)
 
     for (long iaev = _iaevFrmMin; iaev < _iaevCur; iaev++)
     {
-        AEV aev;
+        Base aev;
 
         _pggaev->GetFixed(iaev, &aev);
         if (aev.aet == aetSnd)
@@ -722,13 +722,13 @@ bool Actor::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
     long iaev;
-    AEV *paev;
+    Base *paev;
     AEVSND aevsnd;
     bool fSuccess = fTrue;
 
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (paev->aet != aetSnd)
             continue;
         _pggaev->Get(iaev, &aevsnd);

@@ -55,7 +55,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     DataBlock blck;
     ChildChunkIdentification kid;
     long iaev;
-    AEV *paev;
+    Base *paev;
     AEVSND aevsnd;
     long nfrmFirst;
     long nfrmLast;
@@ -123,7 +123,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     // Adopt actor sounds into the scene
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
     {
-        paev = (AEV *)(_pggaev->QvFixedGet(iaev));
+        paev = (Base *)(_pggaev->QvFixedGet(iaev));
         if (aetSnd != paev->aet)
             continue;
         _pggaev->Get(iaev, &aevsnd);
@@ -370,7 +370,7 @@ void Actor::_SwapBytesPggaev(PGG pggaev)
     for (iaev = 0; iaev < pggaev->IvMac(); iaev++)
     {
         SwapBytesBom(pggaev->QvFixedGet(iaev), kbomAev);
-        switch (((AEV *)pggaev->QvFixedGet(iaev))->aet)
+        switch (((Base *)pggaev->QvFixedGet(iaev))->aet)
         {
         case aetCost:
             SwapBytesBom(pggaev->QvGet(iaev), kbomAevcost);
@@ -581,15 +581,15 @@ LFail:
     If the iaev'th event of pggaev has a tag, sets *pptag to point to it.
     WARNING: unless you locked pggaev, *pptag is a qtag!
 ***************************************************************************/
-bool Actor::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev)
+bool Actor::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PBase *pqaev)
 {
     AssertPo(pggaev, 0);
     AssertIn(iaev, 0, pggaev->IvMac());
     AssertVarMem(pptag);
     AssertNilOrVarMem(pqaev);
 
-    AEV *qaev;
-    qaev = (AEV *)pggaev->QvFixedGet(iaev);
+    Base *qaev;
+    qaev = (Base *)pggaev->QvFixedGet(iaev);
     if (pqaev != pvNil)
         *pqaev = qaev;
 
