@@ -133,7 +133,7 @@ struct StringOpcodeMap
 };
 
 // structure to map a string to an opcode and argument information (in-fix)
-struct AROP
+struct StringOpcodeArgumentMap
 {
     long op;
     PSZ psz;
@@ -239,7 +239,7 @@ class CompilerBase : public CompilerBase_PAR
     void _EmitCode(long ietnTop, ulong grfscc, long *pclwArg);
     void _EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack);
     virtual bool _FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
-    bool _FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+    bool _FGetArop(PSTN pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                    bool *pfVoid);
     void _PushLabelRequestIetn(long ietn);
     void _AddLabelIetn(long ietn);

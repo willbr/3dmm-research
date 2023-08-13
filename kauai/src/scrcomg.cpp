@@ -141,7 +141,7 @@ StringOpcodeMap _rgszopSccg[] = {
     {opNil, pvNil},
 };
 
-AROP _rgaropSccg[] = {
+StringOpcodeArgumentMap _rgaropSccg[] = {
     {kopCreateChildGob, PszLit("CreateChildGob"), 3, 0, 0, fFalse},
     {kopCreateChildThis, PszLit("CreateChildThis"), 2, 0, 0, fFalse},
     {kopDestroyGob, PszLit("DestroyGob"), 1, 0, 0, fTrue},

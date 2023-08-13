@@ -169,7 +169,7 @@ StringOpcodeMap _rgszop[] = {
 };
 
 // name to op look up table for in-fix compilation
-AROP _rgarop[] = {
+StringOpcodeArgumentMap _rgarop[] = {
     {kopAbs, PszLit("Abs"), 1, 0, 0, fFalse},
     {kopRnd, PszLit("Rnd"), 1, 0, 0, fFalse},
     {kopMulDiv, PszLit("MulDiv"), 3, 0, 0, fFalse},
@@ -2238,7 +2238,7 @@ void CompilerBase::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
     Find the string in the given rgarop and get the associated parameter
     and return type information.
 ***************************************************************************/
-bool CompilerBase::_FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+bool CompilerBase::_FGetArop(PSTN pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                      bool *pfVoid)
 {
     AssertThis(0);
@@ -2249,7 +2249,7 @@ bool CompilerBase::_FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixe
     AssertVarMem(pclwVar);
     AssertVarMem(pcactMinVar);
     AssertVarMem(pfVoid);
-    AROP *parop;
+    StringOpcodeArgumentMap *parop;
 
     for (parop = prgarop; parop->psz != pvNil; parop++)
     {
