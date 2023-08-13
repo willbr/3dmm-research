@@ -81,7 +81,7 @@ const ByteOrderMask kbomCam = BomField(
 /****************************************
     Background Default Sound
 ****************************************/
-struct BDS
+struct BackgroundDefaultSound
 {
     short bo;
     short osk;
@@ -123,7 +123,7 @@ class Background : public Background_PAR
     BRS _xrPlace;
     BRS _yrPlace;
     BRS _zrPlace;
-    BDS _bds;   // background default sound
+    BackgroundDefaultSound _bds;   // background default sound
     BRS _xrCam; // camera position in worldspace
     BRS _yrCam;
     BRS _zrCam;

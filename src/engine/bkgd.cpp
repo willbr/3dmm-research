@@ -182,13 +182,13 @@ bool Background::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     {
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || !blck.FUnpackData())
             goto LFail;
-        if (blck.Cb() != size(BDS))
+        if (blck.Cb() != size(BackgroundDefaultSound))
             goto LFail;
-        if (!blck.FReadRgb(&_bds, size(BDS), 0))
+        if (!blck.FReadRgb(&_bds, size(BackgroundDefaultSound), 0))
             goto LFail;
         if (kboCur != _bds.bo)
             SwapBytesBom(&_bds, kbomBds);
-        Assert(kboCur == _bds.bo, "bad BDS");
+        Assert(kboCur == _bds.bo, "bad BackgroundDefaultSound");
     }
     else
     {
