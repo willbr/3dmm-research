@@ -199,7 +199,7 @@ class CCGT : public CCGT_PAR
 };
 
 /***************************************************************************
-    Help editor doc - consists of a CFL containing (possibly) multiple
+    Help editor doc - consists of a ChunkyFile containing (possibly) multiple
     topics.
 ***************************************************************************/
 typedef class HEDO *PHEDO;

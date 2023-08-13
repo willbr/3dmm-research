@@ -409,7 +409,7 @@ bool APP::FLoadResFile(PFilename pfni)
     if (pvNil == _pcrm && pvNil == (_pcrm = CRM::PcrmNew(1)))
         return fFalse;
 
-    if (pvNil == (pcfl = CFL::PcflOpen(pfni, fcflNil)))
+    if (pvNil == (pcfl = ChunkyFile::PcflOpen(pfni, fcflNil)))
     {
         vpappb->TGiveAlertSz(PszLit("Can't open that file"), bkOk, cokStop);
         return fFalse;

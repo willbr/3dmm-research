@@ -53,7 +53,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
                     goto LUsage;
                 }
 
-                if (pvNil == (pcflMerge = CFL::PcflCreateTemp()))
+                if (pvNil == (pcflMerge = ChunkyFile::PcflCreateTemp()))
                     goto LFail;
                 break;
 
@@ -70,7 +70,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
                 fprintf(stderr, "Error: Bad file name: %s\n\n", *prgpszs);
                 goto LUsage;
             }
-            if (pvNil == (pcflMerge = CFL::PcflOpen(&fniSrc, fcflNil)))
+            if (pvNil == (pcflMerge = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
             {
                 fprintf(stderr, "Error: Couldn't open %s\n\n", *prgpszs);
                 goto LUsage;
@@ -93,7 +93,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
             }
 
             // merge fniSrc into pcflMerge
-            if (pvNil == (pcflSrc = CFL::PcflOpen(&fniSrc, fcflNil)))
+            if (pvNil == (pcflSrc = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
             {
                 fprintf(stderr, "Error: Couldn't open %s\n\n", *prgpszs);
                 goto LUsage;

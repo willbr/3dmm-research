@@ -157,7 +157,7 @@ void BACO::SetCrep(long crep)
 }
 
 /***************************************************************************
-    Constructor for CRF.  Increments the open count on the CFL.
+    Constructor for CRF.  Increments the open count on the ChunkyFile.
 ***************************************************************************/
 CRF::CRF(PCFL pcfl, long cbMax)
 {
@@ -171,7 +171,7 @@ CRF::CRF(PCFL pcfl, long cbMax)
 }
 
 /***************************************************************************
-    Destructor for the CRF.  Decrements the open count on the CFL and frees
+    Destructor for the CRF.  Decrements the open count on the ChunkyFile and frees
     all the cached data.
 ***************************************************************************/
 CRF::~CRF(void)

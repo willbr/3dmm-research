@@ -1093,7 +1093,7 @@ bool APP::_FOpenResourceFile(void)
             return fFalse;
         }
     }
-    _pcfl = CFL::PcflOpen(&fni, fcflNil);
+    _pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
     if (pvNil == _pcfl)
         return fFalse;
     return fTrue;
@@ -1875,14 +1875,14 @@ bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
             Pkwa()->SetCDPrompt(fAskForCDSav);
             if (fFoundFile)
             {
-                pcfl = CFL::PcflOpen(&fni, fcflNil);
+                pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
             }
             else
             {
 #endif                                         // DEBUG
                 stn.FAppendSz(PszLit(".chk")); // REVIEW *****
                 if (Pkwa()->FFindFile(&stn, &fni))
-                    pcfl = CFL::PcflOpen(&fni, fcflNil);
+                    pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
 #ifdef DEBUG
             }
         }
@@ -4002,7 +4002,7 @@ bool APP::FCmdIdle(PCMD pcmd)
     APP_PAR::FCmdIdle(pcmd);
 
     /* Check all open chunky files for errors */
-    for (pcfl = CFL::PcflFirst(); pcfl != pvNil; pcfl = (PCFL)pcfl->PbllNext())
+    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = (PCFL)pcfl->PbllNext())
     {
         if (pcfl->ElError() != elNil)
         {

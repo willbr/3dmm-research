@@ -173,7 +173,7 @@ PDOC DOC::PdocNew(Filename *pfni)
     PDOC pdoc;
 
     if (pvNil == pfni)
-        pcfl = CFL::PcflCreateTemp();
+        pcfl = ChunkyFile::PcflCreateTemp();
     else
     {
         AssertPo(pfni, ffniFile);
@@ -181,7 +181,7 @@ PDOC DOC::PdocNew(Filename *pfni)
         // make sure no other docs are based on this pcfl.
         if (pvNil != DOCB::PdocbFromFni(pfni))
             return pvNil;
-        pcfl = CFL::PcflOpen(pfni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     }
 
     if (pvNil == pcfl)
@@ -500,7 +500,7 @@ void DOCE::AssertValid(ulong grf)
 {
     DOCE_PAR::AssertValid(0);
     AssertPo(_pcfl, 0);
-    Assert(_pcfl->FFind(_ctg, _cno), "chunk not in CFL");
+    Assert(_pcfl->FFind(_ctg, _cno), "chunk not in ChunkyFile");
 }
 #endif // DEBUG
 
@@ -3227,7 +3227,7 @@ bool SEL::FSetCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid, 
     Adjust the sel after an edit to the doc. Assume icki and ikid are wrong
     (except as indicators of invalid cki and kid fields), and assume ln
     is wrong. If fExact is false and the current (cki, kid) is no longer
-    in the CFL or our filtering on it, we select the item immediately before
+    in the ChunkyFile or our filtering on it, we select the item immediately before
     where this one would be.
 ***************************************************************************/
 void SEL::Adjust(bool fExact)

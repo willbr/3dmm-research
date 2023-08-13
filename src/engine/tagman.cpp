@@ -501,7 +501,7 @@ PCRM TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
         goto LFail;
     while (fne.FNextFni(&fni))
     {
-        pcfl = CFL::PcflOpen(&fni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
         if (pvNil == pcfl)
             goto LFail;
         if (!pcrmSource->FAddCfl(pcfl, _cbCache))

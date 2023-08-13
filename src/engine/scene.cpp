@@ -6992,7 +6992,7 @@ bool SUNC::FSave(PSCEN pscen)
     PCFL pcfl;
     bool fRet;
 
-    pcfl = CFL::PcflCreateTemp();
+    pcfl = ChunkyFile::PcflCreateTemp();
     if (pcfl == pvNil)
     {
         return (fFalse);

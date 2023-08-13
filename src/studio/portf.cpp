@@ -1255,7 +1255,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
             if (pdiPortfolio->grfPrevType & fpfPortPrevMovie)
             {
                 // Preview it as a movie if we can.
-                if ((pcfl = CFL::PcflOpen(&fni, fcflNil)) != pvNil)
+                if ((pcfl = ChunkyFile::PcflOpen(&fni, fcflNil)) != pvNil)
                 {
                     ChunkIdentification ckiMovie;
                     ChildChunkIdentification kidScene, kidThumb;

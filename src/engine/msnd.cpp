@@ -106,7 +106,7 @@ bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvali
 
 /***************************************************************************
 
-    Init a MSND from the given chunk of the given CFL
+    Init a MSND from the given chunk of the given ChunkyFile
 
 ***************************************************************************/
 bool MSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)

@@ -145,7 +145,7 @@ bool BKGD::FReadBkgd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBAC
 }
 
 /***************************************************************************
-    Read a BKGD from the given chunk of the given CFL.
+    Read a BKGD from the given chunk of the given ChunkyFile.
     Note: Although we read the data for the lights here, we don't turn
     them on yet because we don't have a BWLD to add them to.  The lights
     are	turned on with the first FSetCamera() call.

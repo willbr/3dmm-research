@@ -170,7 +170,7 @@ bool TXHD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ul
     AssertThis(0);
 
 LFail:
-    // Release our hold on the CFL
+    // Release our hold on the ChunkyFile
     ReleasePpo(&pcfl);
 
     return fRet;

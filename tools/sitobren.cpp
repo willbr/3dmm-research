@@ -515,7 +515,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
 {
     short bo;
     Filename fni;
-    CFL *pcfl;
+    ChunkyFile *pcfl;
     DataBlock blck;
     STN stnPal;
 
@@ -553,7 +553,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
     AssertDo(fni.FBuildFromPath(&stnPal), "Couldn't build .chk path?");
     AssertDo(fni.FChangeFtg(kftgContent), "Couldn't change FileType?");
     fni.GetLeaf(&stnPal);
-    if (fni.FSearchInPath(&stnPal) && (pcfl = CFL::PcflOpen(&fni, fcflNil)) != pvNil)
+    if (fni.FSearchInPath(&stnPal) && (pcfl = ChunkyFile::PcflOpen(&fni, fcflNil)) != pvNil)
     {
         if (pcfl->FFind(kctgColorTable, 0, &blck))
         {

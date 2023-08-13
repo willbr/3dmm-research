@@ -656,7 +656,7 @@ void CHCM::_ParseBodyFile(void)
 
 /***************************************************************************
     Start a write operation. If fPack is true, allocate a temporary block.
-    Otherwise, get the block on the CFL. The caller should write its data
+    Otherwise, get the block on the ChunkyFile. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
 bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck)
@@ -1670,7 +1670,7 @@ void CHCM::_StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno)
     if (!_pglcsfc->FPush(&csfc))
         goto LFail;
 
-    if (pvNil == (_pcfl = CFL::PcflCreateTemp()))
+    if (pvNil == (_pcfl = ChunkyFile::PcflCreateTemp()))
     {
         _pglcsfc->FPop();
         _pcfl = csfc.pcfl;
@@ -2033,7 +2033,7 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pms
         return pvNil;
     }
 
-    if (pvNil == (_pcfl = CFL::PcflCreate(pfniDst, fcflWriteEnable)))
+    if (pvNil == (_pcfl = ChunkyFile::PcflCreate(pfniDst, fcflWriteEnable)))
     {
         pmsnk->ReportLine(PszLit("Couldn't create destination file"));
         ReleasePpo(&_pchlx);

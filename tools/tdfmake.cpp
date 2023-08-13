@@ -59,7 +59,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
         goto LFail;
     }
     fniDst.GetStnPath(&stnDst);
-    pcflDst = CFL::PcflCreate(&fniDst, fcflWriteEnable);
+    pcflDst = ChunkyFile::PcflCreate(&fniDst, fcflWriteEnable);
     if (pvNil == pcflDst)
     {
         fprintf(stderr, "Couldn't create destination chunky file %s\n\n", stnDst.Psz());

@@ -1072,7 +1072,7 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
         PCFL pcfl;
         ChunkIdentification cki;
 
-        if (pvNil == (pcfl = CFL::PcflOpen(pfni, fcflNil)))
+        if (pvNil == (pcfl = ChunkyFile::PcflOpen(pfni, fcflNil)))
         {
             PushErc(ercRtxdReadFailed);
             return fFalse;
@@ -1322,7 +1322,7 @@ bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
         pfni = &fni;
     }
 
-    if (pvNil == (pcfl = CFL::PcflCreateTemp(pfni)))
+    if (pvNil == (pcfl = ChunkyFile::PcflCreateTemp(pfni)))
         goto LFail;
 
     if (!FSaveToChunk(pcfl, &cki, fSetFni) || !pcfl->FSave(kctgFramework, pvNil))

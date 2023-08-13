@@ -1517,7 +1517,7 @@ bool BCL::_FBuildThd(PCRM pcrm)
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        pcfl = CFL::PcflOpen(&fniThd, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fniThd, fcflNil);
         if (pvNil == pcfl)
         {
             // Error reported elsewhere
@@ -2242,7 +2242,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     default:
         // Import <user> sounds from a movie
         // Verify version numbers before accepting this file
-        pcfl = CFL::PcflOpen(&fni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
 
         if (pvNil == pcfl)
             goto LEnd;
@@ -2768,7 +2768,7 @@ bool BRWI::FInit(PCMD pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
 
     // Fill the lists with sounds from the portfolio movie
     vapp.GetPortfolioDoc(&fni);
-    pcfl = CFL::PcflOpen(&fni, fcflNil);
+    pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
     if (pvNil == pcfl)
         goto LFail; // Error already reported
     _pcrf = CRF::PcrfNew(pcfl, 0);
@@ -3024,7 +3024,7 @@ bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pst
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        pcfl = CFL::PcflOpen(&fniThd, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fniThd, fcflNil);
         if (pvNil == pcfl)
         {
             goto LFail; // Error already reported

@@ -337,7 +337,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, ChunkNumber cno)
     //
     // Get file to read from
     //
-    pcfl = CFL::PcflOpen(pfni, fcflNil);
+    pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     if (pcfl == pvNil)
     {
         goto LFail;
@@ -551,7 +551,7 @@ void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
 
         if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
         {
-            Bug("CFL returned bogus Ckid()");
+            Bug("ChunkyFile returned bogus Ckid()");
             break;
         }
 
@@ -1426,7 +1426,7 @@ bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     {
         if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
         {
-            Bug("CFL returned bogus ckid");
+            Bug("ChunkyFile returned bogus ckid");
             break;
         }
 
@@ -1468,7 +1468,7 @@ bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
     {
         if (!pcfl->FGetKid(kctgScen, cnoScen, ikid, &kid))
         {
-            Bug("CFL returned bogus ckid");
+            Bug("ChunkyFile returned bogus ckid");
             break;
         }
 
@@ -2391,13 +2391,13 @@ bool MVIE::_FMakeCrfValid(void)
         return (fFalse);
     }
 
-    pcfl = CFL::PcflCreate(&fni, fcflTemp);
+    pcfl = ChunkyFile::PcflCreate(&fni, fcflTemp);
     if (pcfl == pvNil)
     {
         return (fFalse);
     }
 
-    Assert(pcfl->FTemp(), "Bad CFL");
+    Assert(pcfl->FTemp(), "Bad ChunkyFile");
 
     //
     // Note (by *****): CRF *must* have 0 cache size, because of

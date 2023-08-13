@@ -553,7 +553,7 @@ class MVIE : public MVIE_PAR
   protected:
     long _aridLim; // Highest actor id in use.
 
-    PCRF _pcrfAutoSave; // CRF/CFL of auto save file.
+    PCRF _pcrfAutoSave; // CRF/ChunkyFile of auto save file.
     PFIL _pfilSave;     // User's document
 
     ChunkNumber _cno; // ChunkNumber of movie in current file.

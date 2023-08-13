@@ -28,7 +28,7 @@ void MarkUtilMem(void)
     MarkMemObj(&vcodmUtil);
     MarkMemObj(vpcodmUtil);
 
-    for (pcfl = CFL::PcflFirst(); pcfl != pvNil; pcfl = pcfl->PcflNext())
+    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = pcfl->PcflNext())
         MarkMemObj(pcfl);
 
     for (pfil = FIL::PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())

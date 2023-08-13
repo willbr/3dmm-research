@@ -105,7 +105,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         MSFIL msfilDump;
         CHDC chdc;
 
-        if (pvNil == (pcfl = CFL::PcflOpen(&fniSrc, fcflNil)))
+        if (pvNil == (pcfl = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
         {
             fprintf(stderr, "Couldn't open source file as a chunky file\n\n");
             goto LUsage;

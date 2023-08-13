@@ -9,8 +9,8 @@
 	Types
 ****************************************/
 
-	class CFL;
-	typedef class CFL *PCFL;
+	class ChunkyFile;
+	typedef class ChunkyFile *PCFL;
 		A chunky file.
 
 	class CGE;
@@ -74,7 +74,7 @@ then adding chunks to the file invalidates the file until it is saved
 (the index is trashed on disk until it is saved).  Closing a chunky file
 does _not_ automatically save it.
 
-The chunks in a CFL form an acyclic directed graph.  Ie, a chunk can own
+The chunks in a ChunkyFile form an acyclic directed graph.  Ie, a chunk can own
 other ("child") chunks.  Child chunks may be owned by more than one chunk
 and may themselves own chunks.  It is illegal to create a cycle, where a
 chunk is a direct or indirect descendent of itself.
@@ -83,18 +83,18 @@ REVIEW shonk: assert and check for cycles.
 
 
 /****************************************
-	CFL static methods
+	ChunkyFile static methods
 ****************************************/
 
-	PCFL CFL::PcflFirst(void);
+	PCFL ChunkyFile::PcflFirst(void);
 		Chunky files form a linked list.  This returns the first chunky file
 		in the linked list.
 
-	PCFL CFL::PcflFromFni(Filename *pfni);
+	PCFL ChunkyFile::PcflFromFni(Filename *pfni);
 		If the file indicated by *pfni is open as a chunky file, this returns
-		a pointer to the CFL.  Otherwise it returns pNil.
+		a pointer to the ChunkyFile.  Otherwise it returns pNil.
 
-	PCFL CFL::PcflOpen(Filename *pfni, ulong grfcfl);
+	PCFL ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl);
 		Attempts to open the indicated file as a chunky file.  grfcfl may
 		include fcflWriteEnable, fcflAddToExtra, fcflMark.  fcflTemp is
 		illegal.  If the file is already open as a chunky file, this ensures
@@ -103,108 +103,108 @@ REVIEW shonk: assert and check for cycles.
 		fcflMark causes the cfl to be marked (but not the underlying fil).
 		Returns pNil on failure.
 
-	PCFL CFL::PcflCreate(Filename *pfni, ulong grfcfl);
+	PCFL ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl);
 		Creates and opens the indicated file as a chunk file (asserts that it
 		isn't already open) and sets the open count to 1.  Assumes
 		fcflWriteEnable.  fcflMark is legal.  Use fcflTemp to create a temp
 		chunky file, which will be automatically deleted when it is closed.
 		Returns pNil on failure.
 
-	void CFL::ClearMarks(void);
+	void ChunkyFile::ClearMarks(void);
 		Clears the mark flag on all chunky files.  See discussion under
 		concepts.
 
-	void CFL::CloseUnmarked(void);
+	void ChunkyFile::CloseUnmarked(void);
 		Closes all chunky files that are not marked and have zero open count.
 		See discussion under concepts.
 
 
 /****************************************
-	CFL methods
+	ChunkyFile methods
 ****************************************/
 
-	PCFL CFL::Next(void);
+	PCFL ChunkyFile::Next(void);
 		Returns the next chunky file (in the linked list).
 
-	void CFL::Open(void);
+	void ChunkyFile::Open(void);
 		Increment the open count, nothing more.
 
-	void CFL::Close(void);
+	void ChunkyFile::Close(void);
 		Decrements the open count.  If the cfl is not marked and the
 		open count becomes zero, the cfl is closed.
 
-	bool CFL::FSave(ChunkTag ctgCreator, Filename *pfni = pNil);
-		Saves the chunky file.  Passing pNil (or the current fni of the CFL)
+	bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni = pNil);
+		Saves the chunky file.  Passing pNil (or the current fni of the ChunkyFile)
 		for pfni does a normal save.  Passing any other fni does a save as
 		(the original file still exists).  Note:  if you do a save as, but
 		added chunks to the file and had it open for writing, the original
 		file may be corrupt.  Adding chunks to a file opened for writing
 		corrupts the file until it is saved.
 
-	void CFL::Mark(void);
+	void ChunkyFile::Mark(void);
 		Set the mark flag.
 
-	void CFL::SetTemp(bool f);
+	void ChunkyFile::SetTemp(bool f);
 		Set whether the chunky file is a temp file.  Temp files are
 		automatically deleted when they are closed.
 
-	bool CFL::FTemp(void);
+	bool ChunkyFile::FTemp(void);
 		Return whether the chunky file is a temp file.
 
-	void CFL::GetFni(Filename *pfni);
+	void ChunkyFile::GetFni(Filename *pfni);
 		Get the file name.
 
-	bool CFL::FFind(ChunkTag ctg, ChunkNumber cno, FLO *pflo);
+	bool ChunkyFile::FFind(ChunkTag ctg, ChunkNumber cno, FLO *pflo);
 		Look for the chunk and fill in *pflo with the location of its data.
 
-	HQ CFL::HqGet(ChunkTag ctg, ChunkNumber cno);
+	HQ ChunkyFile::HqGet(ChunkTag ctg, ChunkNumber cno);
 		Read the chunk into an hq.  Returns hqNil if there is no such
 		chunk or on memory failure.
 
-	bool CFL::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, FLO *pflo);
+	bool ChunkyFile::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, FLO *pflo);
 		Adds a chunk to the file.  Fills in *pcno with the cno for the
 		chunk and fills in *pflo with the space on file allocated for
 		the chunk.
 
-	bool CFL::FAddPv(void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
-	bool CFL::FAddHq(HQ hq, ChunkTag ctg, ChunkNumber *pcno);
+	bool ChunkyFile::FAddPv(void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
+	bool ChunkyFile::FAddHq(HQ hq, ChunkTag ctg, ChunkNumber *pcno);
 		Adds a chunk to the file and writes the data from the pv or hq into
 		it.  Fills in *pcno with the cno for the chunk.  pv can only be nil
 		if cb is zero.
 
-	bool CFL::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+	bool ChunkyFile::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			long cb, ChunkTag ctg, ChunkNumber *pcno, FLO *pflo);
-	bool CFL::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+	bool ChunkyFile::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
-	bool CFL::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+	bool ChunkyFile::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			HQ hq, ChunkTag ctg, ChunkNumber *pcno);
 		These atomize the adding of a chunk and adopting the new chunk by
 		(ctgPar, cnoPar).
 
-	bool CFL::FPut(long cb, ChunkTag ctg, ChunkNumber cno, FLO *pflo);
+	bool ChunkyFile::FPut(long cb, ChunkTag ctg, ChunkNumber cno, FLO *pflo);
 		Replaces (or creates) the indicated chunk.  Use this with caution.
 		You may be nuking an existing chunk by calling this.  Preserves
 		any existing children of the node.
 
-	bool CFL::FPutPv(void *pv, long cb, ChunkTag ctg, ChunkNumber cno);
-	bool CFL::FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno);
+	bool ChunkyFile::FPutPv(void *pv, long cb, ChunkTag ctg, ChunkNumber cno);
+	bool ChunkyFile::FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno);
 		Replaces (or creates) the indicated chunk with the data in pv or hq.
 		Use this with caution.  You may be nuking an existing chunk by
 		calling this.  Preserves any existing children of the node.  pv can
 		only be nil if cb is zero.
 
-	bool CFL::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+	bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
 		Copies a chunk from one file to another.  If the chunk has already
 		been copied, the actual data is not copied again, but the child
 		sub-graph is verified (new descendents will be copied) and names
 		of the chunks in the graph are verified.
 
-	void CFL::Delete(ChunkTag ctg, ChunkNumber cno);
+	void ChunkyFile::Delete(ChunkTag ctg, ChunkNumber cno);
 		Deletes a chunk.  It is illegal to call this on a child chunk.
 		It should only be called on top level chunks.  This deletes
 		(or decrements reference counts of) descendents of the chunk.
 
-	bool CFL::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar,
+	bool ChunkyFile::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar,
 			ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0);
 		Makes (ctgChild, cnoChild) a child of (ctgPar, cnoPar) with the
 		given chid value.  If it already is a child with this chid value,
@@ -218,36 +218,36 @@ REVIEW shonk: assert and check for cycles.
 		the cfl.  This deletes (or decrements reference counts of)
 		descendents of the child.
 
-	bool CFL::FSetName(ChunkTag ctg, ChunkNumber cno, char *pstz);
+	bool ChunkyFile::FSetName(ChunkTag ctg, ChunkNumber cno, char *pstz);
 		Sets the name of the chunk.  If pstz is pNil, makes the name empty.
 
-	bool CFL::FGetName(ChunkTag ctg, ChunkNumber cno, char *pstz);
+	bool ChunkyFile::FGetName(ChunkTag ctg, ChunkNumber cno, char *pstz);
 		Gets the name of the chunk.  Returns fFalse iff the name is empty.
 
-	long CFL::Ccki(void);
+	long ChunkyFile::Ccki(void);
 		Returns the number of chunks in the file.
 
-	bool CFL::FGetCki(long icki, ChunkIdentification *pcki);
+	bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki);
 		Gets a cki for the icki'th chunk.  Returns false if icki is too big.
 
-	long CFL::CckiCtg(ChunkTag ctg);
+	long ChunkyFile::CckiCtg(ChunkTag ctg);
 		Returns the number of chunks of type ctg in the file.
 
-	bool CFL::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki);
+	bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki);
 		Gets a cki for the icki'th chunk of type ctg.  Returns false if icki
 		is too big.
 
-	long CFL::Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
+	long ChunkyFile::Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
 		Returns the number of children of the given chunk.
 
-	bool CFL::FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, ChildChunkIdentification *pkid);
+	bool ChunkyFile::FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, ChildChunkIdentification *pkid);
 		Gets a kid for the ikid'th child of (ctgPar, cnoPar).
 		Returns false if ikid is too big.
 
-	bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid);
+	bool ChunkyFile::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid.
 
-	bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar,
+	bool ChunkyFile::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar,
 			ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid
 		and ctg.

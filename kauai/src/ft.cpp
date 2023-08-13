@@ -1053,7 +1053,7 @@ bool APP::FCmdMacro(PCMD pcmd)
         {
             return fTrue;
         }
-        if ((pcfl = CFL::PcflCreate(&fni, fcflTemp)) == pvNil)
+        if ((pcfl = ChunkyFile::PcflCreate(&fni, fcflTemp)) == pvNil)
             return fTrue;
         vpcex->Record(pcfl);
         ReleasePpo(&pcfl);
@@ -1066,7 +1066,7 @@ bool APP::FCmdMacro(PCMD pcmd)
         }
 
         AssertDo(fni.TExists() == tYes, 0);
-        if ((pcfl = CFL::PcflOpen(&fni, fcflNil)) == pvNil)
+        if ((pcfl = ChunkyFile::PcflOpen(&fni, fcflNil)) == pvNil)
             return fTrue;
         vpcex->Play(pcfl, 0);
         ReleasePpo(&pcfl);
@@ -1537,7 +1537,7 @@ bool DOCPIC::FSaveToFni(Filename *pfni, bool fSetFni)
     bool fT;
     ChunkNumber cno;
 
-    if (pvNil == (pcfl = CFL::PcflCreate(pfni, fcflNil)))
+    if (pvNil == (pcfl = ChunkyFile::PcflCreate(pfni, fcflNil)))
         return fFalse;
     fT = _ppic->FAddToCfl(pcfl, kctgGraphic, &cno) && pcfl->FSave('FT  ');
     ReleasePpo(&pcfl);

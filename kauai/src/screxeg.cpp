@@ -1119,7 +1119,7 @@ void SCEG::_DoAlert(long op)
 #ifdef CHUNK_STATS
     case kopPrintStat:
     case kopPrintStrStat:
-        CFL::DumpStn(&stn1);
+        ChunkyFile::DumpStn(&stn1);
         break;
 #endif // CHUNK_STATS
 

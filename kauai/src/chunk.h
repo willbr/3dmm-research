@@ -64,13 +64,13 @@ const ByteOrderMask kbomKid = 0xFC000000;
 /***************************************************************************
     Chunky file class.
 ***************************************************************************/
-typedef class CFL *PCFL;
-#define CFL_PAR BLL
-#define kclsCFL 'CFL'
-class CFL : public CFL_PAR
+typedef class ChunkyFile *PCFL;
+#define ChunkyFile_PAR BLL
+#define kclsChunkyFile 'CFL'
+class ChunkyFile : public ChunkyFile_PAR
 {
     RTCLASS_DEC
-    BLL_DEC(CFL, PcflNext)
+    BLL_DEC(ChunkyFile, PcflNext)
     ASSERT
     MARKMEM
 
@@ -116,8 +116,8 @@ class CFL : public CFL_PAR
 
   private:
     // private methods
-    CFL(void);
-    ~CFL(void);
+    ChunkyFile(void);
+    ~ChunkyFile(void);
 
     static ulong _GrffilFromGrfcfl(ulong grfcfl);
 

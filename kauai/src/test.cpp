@@ -470,9 +470,9 @@ void TestCfl(void)
                             "Junk",
                             PszLit("All files\0*.*\0"), NULL))
     {
-        AssertDo((pcfl = CFL::PcflCreate(&fni, fcflNil)) != pvNil, 0);
+        AssertDo((pcfl = ChunkyFile::PcflCreate(&fni, fcflNil)) != pvNil, 0);
         AssertDo(fniDst.FGetTemp(), 0);
-        AssertDo((pcflDst = CFL::PcflCreate(&fniDst, fcflNil)) != pvNil, 0);
+        AssertDo((pcflDst = ChunkyFile::PcflCreate(&fniDst, fcflNil)) != pvNil, 0);
 
         for (rel = 0; rel < relLim; rel++)
         {
@@ -560,7 +560,7 @@ void TestCfl(void)
     while (FGetFniOpenMacro(&fni, pvNil, 0, PszLit("All files\0*.*\0"), NULL))
     {
         AssertDo(fni.TExists() == tYes, 0);
-        pcfl = CFL::PcflOpen(&fni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
         if (pcfl == pvNil)
             continue;
         AssertPo(pcfl, 0);
@@ -576,9 +576,9 @@ void TestCfl(void)
         ReleasePpo(&pcfl);
     }
 
-    CFL::CloseUnmarked();
-    CFL::ClearMarks();
-    CFL::CloseUnmarked();
+    ChunkyFile::CloseUnmarked();
+    ChunkyFile::ClearMarks();
+    ChunkyFile::CloseUnmarked();
 }
 
 /******************************************************************************
@@ -637,7 +637,7 @@ void TestCrf(void)
     HQ hq;
     PGHQ pghq;
 
-    if (!fni.FGetTemp() || pvNil == (pcfl = CFL::PcflCreate(&fni, fcflWriteEnable | fcflTemp)))
+    if (!fni.FGetTemp() || pvNil == (pcfl = ChunkyFile::PcflCreate(&fni, fcflWriteEnable | fcflTemp)))
     {
         Bug("creating chunky file failed");
         return;

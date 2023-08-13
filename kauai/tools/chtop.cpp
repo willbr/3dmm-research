@@ -89,7 +89,7 @@ PHEDO HEDO::PhedoNew(Filename *pfni, PRCA prca)
     PHEDO phedo;
 
     if (pvNil == pfni)
-        pcfl = CFL::PcflCreateTemp();
+        pcfl = ChunkyFile::PcflCreateTemp();
     else
     {
         AssertPo(pfni, ffniFile);
@@ -97,7 +97,7 @@ PHEDO HEDO::PhedoNew(Filename *pfni, PRCA prca)
         // make sure no other docs are based on this pcfl.
         if (pvNil != DOCB::PdocbFromFni(pfni))
             return pvNil;
-        pcfl = CFL::PcflOpen(pfni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     }
 
     if (pvNil == pcfl)
@@ -1702,7 +1702,7 @@ PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno)
     AssertNilOrPo(pdocb, 0);
     AssertPo(prca, 0);
     AssertNilOrPo(pcfl, 0);
-    Assert(pcfl != pvNil || cnoNil == cno, "non-nil cno with nil CFL");
+    Assert(pcfl != pvNil || cnoNil == cno, "non-nil cno with nil ChunkyFile");
     PHETD phetd;
 
     if (pvNil == (phetd = NewObj HETD(pdocb, prca, pcfl, cno)))
