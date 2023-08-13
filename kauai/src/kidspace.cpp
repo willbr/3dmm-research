@@ -34,7 +34,7 @@ const long kcmhlGok = -10000;
     Create a new kidspace gob as described in the GOKD with given cno
     in the given RCA.
 ***************************************************************************/
-PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
+PGOK GOK::PgokNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca)
 {
     AssertPo(pgobPar, 0);
     AssertPo(pgokd, 0);
@@ -71,10 +71,10 @@ PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
     Static method to find the GraphicsObject that should be before a new GOK with
     this zp.
 ***************************************************************************/
-PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
+PGraphicsObject GOK::_PgobBefore(PGraphicsObject pgobPar, long zp)
 {
     AssertPo(pgobPar, 0);
-    PGOB pgobBefore, pgobT;
+    PGraphicsObject pgobBefore, pgobT;
 
     // find the place in the GraphicsObject tree to put the GOK.
     for (pgobBefore = pvNil, pgobT = pgobPar->PgobFirstChild(); pgobT != pvNil; pgobT = pgobT->PgobNextSib())
@@ -1148,7 +1148,7 @@ void GOK::SetCursor(ulong grfcust)
 {
     AssertThis(0);
     PGOK pgok;
-    PGOB pgob;
+    PGraphicsObject pgob;
     CUME cume;
 
     for (pgok = this; !pgok->_pgokd->FGetCume(grfcust, _sno, &cume) || cume.cnoCurs == cnoNil; grfcust |= fcustChildGok)
@@ -1222,7 +1222,7 @@ bool GOK::FCmdTrackMouse(PCMD_MOUSE pcmd)
     Put up a tool tip if this GOK has one. Return true if tool tips are
     still active.
 ***************************************************************************/
-bool GOK::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
+bool GOK::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse)
 {
     AssertThis(0);
     AssertVarMem(ppgobCurTip);
@@ -1343,7 +1343,7 @@ void GOK::GetRcContent(RC *prc)
 void GOK::SetZPlane(long zp)
 {
     AssertThis(0);
-    PGOB pgobBefore;
+    PGraphicsObject pgobBefore;
 
     if (_zp == zp)
         return;
@@ -1478,7 +1478,7 @@ bool GOK::FCmdClicked(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     PGOK pgok;
-    PGOB pgob;
+    PGraphicsObject pgob;
     long rglw[3];
     long lw;
     tribool tRet;

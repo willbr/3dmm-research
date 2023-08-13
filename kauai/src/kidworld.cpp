@@ -237,7 +237,7 @@ void WOKS::MarkMem(void)
 /***************************************************************************
     Return whether the GraphicsObject is in this kidspace world.
 ***************************************************************************/
-bool WOKS::FGobIn(PGOB pgob)
+bool WOKS::FGobIn(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -265,7 +265,7 @@ PGOKD WOKS::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
 /***************************************************************************
     Create a new gob in this kidspace world.
 ***************************************************************************/
-PGOK WOKS::PgokNew(PGOB pgobPar, long hid, CNO cnoGokd, PRCA prca)
+PGOK WOKS::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -301,7 +301,7 @@ PGOK WOKS::PgokNew(PGOB pgobPar, long hid, CNO cnoGokd, PRCA prca)
 /***************************************************************************
     Create a new script interpreter for this kidspace world.
 ***************************************************************************/
-PSCEG WOKS::PscegNew(PRCA prca, PGOB pgob)
+PSCEG WOKS::PscegNew(PRCA prca, PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -313,7 +313,7 @@ PSCEG WOKS::PscegNew(PRCA prca, PGOB pgob)
 /***************************************************************************
     Create a new help balloon.
 ***************************************************************************/
-PHBAL WOKS::PhbalNew(PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PHBAL WOKS::PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -373,7 +373,7 @@ PCLOK WOKS::PclokFromHid(long hid)
     Get the parent gob of the given gob. This is here so a kidspace world
     can limit what scripts can get to.
 ***************************************************************************/
-PGOB WOKS::PgobParGob(PGOB pgob)
+PGraphicsObject WOKS::PgobParGob(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -472,7 +472,7 @@ bool WOKS::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
     GraphicsObjectBlock gcb;
     PWOKS pwoksModal;
     GTE gte;
-    PGOB pgob;
+    PGraphicsObject pgob;
     ulong grfgte;
     bool fRet = fFalse;
 

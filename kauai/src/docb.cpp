@@ -1034,7 +1034,7 @@ void DDG::Activate(bool fActive)
         if (pvNil != (pdmd = Pdmd()))
         {
             // bring our parent chain to the front
-            PGOB pgob;
+            PGraphicsObject pgob;
 
             for (pgob = this; pgob != pdmd; pgob = pgob->PgobPar())
                 pgob->BringToFront();
@@ -1266,7 +1266,7 @@ void DDG::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
 void DDG::_SetScrollValues(void)
 {
     PSCB pscb;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     pgob = PgobPar();
     if (pgob->FIs(kclsDSG))
@@ -1365,7 +1365,7 @@ PDMD DMD::PdmdNew(PDOCB pdocb)
 ***************************************************************************/
 PDMD DMD::PdmdTop(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == (pgob = GraphicsObject::PgobMdiActive()))
         return pvNil;
@@ -1393,7 +1393,7 @@ void DMD::ActivateNext(PDDG pddg)
     AssertThis(fobjAssertFull);
     GTE gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (_fFreeing)
         return;

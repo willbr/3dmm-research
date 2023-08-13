@@ -134,13 +134,13 @@ class WOKS : public WOKS_PAR
         return _pstrg;
     }
 
-    virtual bool FGobIn(PGOB pgob);
+    virtual bool FGobIn(PGraphicsObject pgob);
     virtual PGOKD PgokdFetch(CTG ctg, CNO cno, PRCA prca);
-    virtual PGOK PgokNew(PGOB pgobPar, long hid, CNO cno, PRCA prca);
-    virtual PSCEG PscegNew(PRCA prca, PGOB pgob);
-    virtual PHBAL PhbalNew(PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
+    virtual PGOK PgokNew(PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca);
+    virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
+    virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
     virtual PCMH PcmhFromHid(long hid);
-    virtual PGOB PgobParGob(PGOB pgob);
+    virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);
     virtual bool FFindFile(PSTN pstnSrc, PFilename pfni);
     virtual tribool TGiveAlert(PSTN pstn, long bk, long cok);
     virtual void Print(PSTN pstn);

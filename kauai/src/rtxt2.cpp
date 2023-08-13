@@ -2438,7 +2438,7 @@ void TXTG::ShowRuler(bool fShow)
     dyp = _DypTrul();
     if (fShow)
     {
-        PGOB pgob;
+        PGraphicsObject pgob;
         GraphicsObjectBlock gcb;
 
         pgob = PgobPar();

@@ -158,7 +158,7 @@ class WSB : public WSB_PAR
 #endif // MAC
 
   public:
-    static PWSB PwsbNew(PGOB pgob, ulong grfgob);
+    static PWSB PwsbNew(PGraphicsObject pgob, ulong grfgob);
 
 #ifdef MAC
     virtual void Draw(PGNV pgnv, RC *prcClip);

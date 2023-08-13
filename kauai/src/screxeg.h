@@ -31,13 +31,13 @@ class SCEG : public SCEG_PAR
     // CAUTION: _pgob may be nil (even if the gob still exists)! Always access
     // thru _PgobThis.  When something is done that may cause the gob to be
     // freed (such as calling another script), set this to nil.
-    PGOB _pgob;
+    PGraphicsObject _pgob;
     long _hid;    // the handler id of the initialization gob
     long _grid;   // the unique gob run-time id of the initialization gob
     PWOKS _pwoks; // the kidspace world this script belongs to
 
-    virtual PGOB _PgobThis(void);
-    virtual PGOB _PgobFromHid(long hid);
+    virtual PGraphicsObject _PgobThis(void);
+    virtual PGraphicsObject _PgobFromHid(long hid);
 
     virtual bool _FExecOp(long op);
     virtual PGL *_PpglrtvmThis(void);
@@ -54,7 +54,7 @@ class SCEG : public SCEG_PAR
     bool _FLaunch(long stid);
 
   public:
-    SCEG(PWOKS pwoks, PRCA prca, PGOB pgob);
+    SCEG(PWOKS pwoks, PRCA prca, PGraphicsObject pgob);
 
     void GobMayDie(void)
     {

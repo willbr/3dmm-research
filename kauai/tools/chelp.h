@@ -51,7 +51,7 @@ class APP : public APP_PAR
     PLID _plidButton;
 
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
 
   public:
     virtual void GetStnAppName(PSTN pstn);
@@ -169,7 +169,7 @@ class CCG : public CCG_PAR
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
 
-    virtual bool FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse);
+    virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
 };
 
 /***************************************************************************

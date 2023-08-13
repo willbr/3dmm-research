@@ -146,7 +146,7 @@ bool APPB::_FGetNextEvt(EVT *pevt)
     of the mouse relative to pgob. Also ensure that GrfcustCur() will
     return the correct mouse state.
 ***************************************************************************/
-void APPB::TrackMouse(PGOB pgob, PT *ppt)
+void APPB::TrackMouse(PGraphicsObject pgob, PT *ppt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -273,7 +273,7 @@ void APPB::_MouseDownEvt(EVT *pevt)
 
     short in;
     HWND hwnd;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     in = FindWindow(pevt->where, (WindowPtr *)&hwnd);
     switch (in)

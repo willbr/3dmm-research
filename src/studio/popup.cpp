@@ -78,7 +78,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long
 
     if (cthum <= cfrm)
     {
-        PGOB pgob;
+        PGraphicsObject pgob;
         long dypFrm;
         long dypTop;
         RC rc;
@@ -272,7 +272,7 @@ LFail:
 /***************************************************************************
     Set the font of the TGOB to the font listed in the menu item
 ***************************************************************************/
-bool MPFNT::_FSetThumFrame(long istn, PGOB pgobPar)
+bool MPFNT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
     if (MPFNT_PAR::_FSetThumFrame(istn, pgobPar))
     {
@@ -310,7 +310,7 @@ void MPFNT::_ApplySelection(long ithumSelect, long sid)
 ***************************************************************************/
 void MPFNT::_AdjustRc(long cthum, long cfrm)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
     long dypFrm;
     long dypTop;
     RC rc;

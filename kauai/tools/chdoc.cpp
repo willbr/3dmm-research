@@ -956,7 +956,7 @@ void DCD::_ShowSel(void)
 void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
     PDCD pdcd, pdcdNew;
     PT pt, ptT;
     bool fDown;

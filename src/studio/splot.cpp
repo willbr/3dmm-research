@@ -33,7 +33,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
 {
     PSPLOT psplot = pvNil;
     PGL pglclr = pvNil;
-    PGOB pgobPar;
+    PGraphicsObject pgobPar;
     RC rcRel;
     GraphicsObjectBlock gcb;
     CLOK clok(CMH::HidUnique());
@@ -95,7 +95,7 @@ bool SPLOT::FCmdInit(PCMD pcmd)
     Assert(_pmvie == pvNil, "Already Inited the Splot Machine");
 
     PMCC pmcc = pvNil;
-    PGOB pgobParent;
+    PGraphicsObject pgobParent;
     RC rcRel;
     GraphicsObjectBlock gcb;
 

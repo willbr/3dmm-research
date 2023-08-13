@@ -13,7 +13,7 @@
 #include "frame.h"
 ASSERTNAME
 
-PGOB GraphicsObject::_pgobScreen;
+PGraphicsObject GraphicsObject::_pgobScreen;
 
 /***************************************************************************
     Create the screen gob.  If fgobEnsureHwnd is set, ensures that the
@@ -21,7 +21,7 @@ PGOB GraphicsObject::_pgobScreen;
 ***************************************************************************/
 bool GraphicsObject::FInitScreen(ulong grfgob, long ginDef)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
     GraphicsObjectBlock gcb(khidScreen, pvNil);
 
     switch (ginDef)
@@ -67,14 +67,14 @@ bool GraphicsObject::FAttachHwnd(HWND hwnd)
 /***************************************************************************
     Find the GraphicsObject associated with the given hwnd (if there is one).
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromHwnd(HWND hwnd)
+PGraphicsObject GraphicsObject::PgobFromHwnd(HWND hwnd)
 {
     // NOTE: we used to use SetProp and GetProp for this, but profiling
     // indicated that GetProp is very slow.
     Assert(hwnd != hNil, "nil hwnd");
     GTE gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(_pgobScreen, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -167,7 +167,7 @@ void GraphicsObject::GetPtMouse(PT *ppt, bool *pfDown)
     {
         PTS pts;
         long xp, yp;
-        PGOB pgob;
+        PGraphicsObject pgob;
 
         xp = yp = 0;
         for (pgob = this; pgob != pvNil && pgob->_hwnd == hNil; pgob = pgob->_pgobPar)

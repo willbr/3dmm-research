@@ -203,7 +203,7 @@ class APP : public APP_PAR
         return fTrue;
     } // no menubar
     virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
     virtual void _CleanUp(void);
     virtual void _Activate(bool fActive);
     virtual bool _FGetNextEvt(PEVT pevt);

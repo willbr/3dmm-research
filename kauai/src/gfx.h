@@ -448,11 +448,11 @@ class GNV : public GNV_PAR
 
   public:
     GNV(PGPT pgpt);
-    GNV(PGOB pgob);
-    GNV(PGOB pgob, PGPT pgpt);
+    GNV(PGraphicsObject pgob);
+    GNV(PGraphicsObject pgob, PGPT pgpt);
     ~GNV(void);
 
-    void SetGobRc(PGOB pgob);
+    void SetGobRc(PGraphicsObject pgob);
     PGPT Pgpt(void)
     {
         return _pgpt;

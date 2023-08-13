@@ -13,7 +13,7 @@
 #include "frame.h"
 ASSERTNAME
 
-PGOB GraphicsObject::_pgobScreen;
+PGraphicsObject GraphicsObject::_pgobScreen;
 
 #define kswKindGob 0x526F
 
@@ -23,7 +23,7 @@ PGOB GraphicsObject::_pgobScreen;
 ***************************************************************************/
 bool GraphicsObject::FInitScreen(ulong grfgob, long ginDef)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     switch (ginDef)
     {
@@ -75,14 +75,14 @@ bool GraphicsObject::FAttachHwnd(HWND hwnd)
 /***************************************************************************
     Find the GraphicsObject associated with the given hwnd (if there is one).
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromHwnd(HWND hwnd)
+PGraphicsObject GraphicsObject::PgobFromHwnd(HWND hwnd)
 {
     Assert(hwnd != hNil, "nil hwnd");
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (hwnd->windowKind != kswKindGob && hwnd->windowKind != dialogKind)
         return pvNil;
-    pgob = (PGOB)hwnd->refCon;
+    pgob = (PGraphicsObject)hwnd->refCon;
     AssertNilOrPo(pgob, 0);
     return pgob;
 }
@@ -169,7 +169,7 @@ void GraphicsObject::GetPtMouse(PT *ppt, bool *pfDown)
     {
         PTS pts;
         long xp, yp;
-        PGOB pgob;
+        PGraphicsObject pgob;
         PPRT pprtSav, pprt;
 
         xp = yp = 0;
@@ -255,7 +255,7 @@ void GraphicsObject::MakeHwndActive(HWND hwnd)
     Assert(hwnd != hNil, "nil hwnd");
     GTE gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(_pgobScreen, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))

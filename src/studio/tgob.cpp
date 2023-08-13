@@ -137,7 +137,7 @@ PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
 {
     RC rcRel;
     RC rcAbs;
-    PGOB pgob;
+    PGraphicsObject pgob;
     STN stn;
     GraphicsObjectBlock gcb;
     long onn;

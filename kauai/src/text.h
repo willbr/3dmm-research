@@ -34,10 +34,10 @@ class EDPAR
     EDPAR(void)
     {
     }
-    EDPAR(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+    EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
           long tah = tahLeft, long tav = tavTop, ACR acrFore = kacrBlack, ACR acrBack = kacrWhite, long cmhl = 0);
 
-    void Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+    void Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
              long tah = tahLeft, long tav = tavTop, ACR acrFore = kacrBlack, ACR acrBack = kacrWhite, long cmhl = 0);
     void SetFont(long onn, ulong grfont, long dypFont, long tah = tahLeft, long tav = tavTop, ACR acrFore = kacrBlack,
                  ACR acrBack = kacrWhite);

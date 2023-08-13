@@ -168,7 +168,7 @@ Studio::~Studio(void)
     ReleasePpo(&_pglclr);
     ReleaseBrcn();
 
-    PGOB pgobStudio = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
+    PGraphicsObject pgobStudio = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
     ReleasePpo(&pgobStudio);
 }
 

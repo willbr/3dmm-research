@@ -637,7 +637,7 @@ void BWLD::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyl
     Mark the region that has been rendered (and needs to be copied to the
     screen)
 ***************************************************************************/
-void BWLD::MarkRenderedRegn(PGOB pgob, long dxp, long dyp)
+void BWLD::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgob, 0);

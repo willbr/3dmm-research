@@ -66,7 +66,7 @@ class MPFNT : public MPFNT_PAR
     void _AdjustRc(long cthum, long cfrm);
 
     virtual void _ApplySelection(long ithumSelect, long sid);
-    virtual bool _FSetThumFrame(long istn, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
     MPFNT(PGCB pgcb) : MPFNT_PAR(pgcb)
     {
     }

@@ -123,7 +123,7 @@ GNV::GNV(GPT *pgpt)
 /***************************************************************************
     Constructor for Graphics environment based on a pgob.
 ***************************************************************************/
-GNV::GNV(PGOB pgob)
+GNV::GNV(PGraphicsObject pgob)
 {
     AssertPo(pgob, 0);
 
@@ -135,7 +135,7 @@ GNV::GNV(PGOB pgob)
 /***************************************************************************
     Constructor for Graphics environment based on both a port and a pgob.
 ***************************************************************************/
-GNV::GNV(PGOB pgob, PGPT pgpt)
+GNV::GNV(PGraphicsObject pgob, PGPT pgpt)
 {
     AssertPo(pgpt, 0);
     AssertPo(pgob, 0);
@@ -182,7 +182,7 @@ void GNV::_Init(PGPT pgpt)
 /***************************************************************************
     Set the mapping and vis according to the gob.
 ***************************************************************************/
-void GNV::SetGobRc(PGOB pgob)
+void GNV::SetGobRc(PGraphicsObject pgob)
 {
     RC rc;
 

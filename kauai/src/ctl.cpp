@@ -569,7 +569,7 @@ LEndScroll:
 /***************************************************************************
     Static method to create a window size box.
 ***************************************************************************/
-PWSB WSB::PwsbNew(PGOB pgob, ulong grfgob)
+PWSB WSB::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 {
     RC rcRel, rcAbs;
     PWSB pwsb;

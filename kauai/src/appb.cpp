@@ -362,7 +362,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
     AssertVarMem(pcmd);
 
     static long _cactIdle = 0;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (_fQuit)
         return fFalse;
@@ -443,7 +443,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
 void APPB::_TakeDownToolTip(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(khidToolTip)))
     {
@@ -463,7 +463,7 @@ void APPB::_TakeDownToolTip(void)
 void APPB::_EnsureToolTip(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == _pgobMouse)
         return;
@@ -725,7 +725,7 @@ void APPB::TopOfLoop(void)
         // events while in an assert
         _fRefresh = fFalse;
         GTE gte;
-        PGOB pgob;
+        PGraphicsObject pgob;
         ulong grfgte;
 
         gte.Init(GraphicsObject::PgobScreen(), fgteNil);
@@ -754,7 +754,7 @@ void APPB::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     Assert(hNil != hwnd, "nil hwnd in UpdateHwnd");
     AssertVarMem(prc);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     PGPT pgpt = pvNil;
 
     if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
@@ -850,7 +850,7 @@ void APPB::BuryCmh(PCMH pcmh)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::MarkRc(RC *prc, PGOB pgobCoo)
+void APPB::MarkRc(RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -862,7 +862,7 @@ void APPB::MarkRc(RC *prc, PGOB pgobCoo)
 /***************************************************************************
     Mark a region dirty.
 ***************************************************************************/
-void APPB::MarkRegn(PREGN pregn, PGOB pgobCoo)
+void APPB::MarkRegn(PREGN pregn, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -876,7 +876,7 @@ void APPB::MarkRegn(PREGN pregn, PGOB pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
+void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -963,7 +963,7 @@ LDone:
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::UnmarkRc(RC *prc, PGOB pgobCoo)
+void APPB::UnmarkRc(RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -975,7 +975,7 @@ void APPB::UnmarkRc(RC *prc, PGOB pgobCoo)
 /***************************************************************************
     Mark a region clean.
 ***************************************************************************/
-void APPB::UnmarkRegn(PREGN pregn, PGOB pgobCoo)
+void APPB::UnmarkRegn(PREGN pregn, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -989,7 +989,7 @@ void APPB::UnmarkRegn(PREGN pregn, PGOB pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::_UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
+void APPB::_UnmarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertNilOrPo(pregn, 0);
     AssertNilOrVarMem(prc);
@@ -1125,7 +1125,7 @@ void APPB::UpdateMarked(void)
     AssertThis(0);
 
     MKRGN mkrgn;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == _pglmkrgn)
         return;
@@ -1141,7 +1141,7 @@ void APPB::UpdateMarked(void)
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APPB::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void APPB::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -1715,7 +1715,7 @@ void APPB::AssertValid(ulong grf)
 void APPB::MarkMem(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     APPB_PAR::MarkMem();
     MarkMemObj(vpcex);

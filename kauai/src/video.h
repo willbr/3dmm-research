@@ -33,7 +33,7 @@ class GVID : public GVID_PAR
     }
 
   public:
-    static PGVID PgvidNew(PFilename pfni, PGOB pgobBase, bool fHwndBased = fFalse, long hid = hidNil);
+    static PGVID PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased = fFalse, long hid = hidNil);
 
     virtual long NfrMac(void) = 0;
     virtual long NfrCur(void) = 0;
@@ -67,7 +67,7 @@ class GVDS : public GVDS_PAR
     long _dxp;
     long _dyp;
 
-    PGOB _pgobBase;
+    PGraphicsObject _pgobBase;
     RC _rcPlay;
     ulong _tsPlay;
 
@@ -84,10 +84,10 @@ class GVDS : public GVDS_PAR
     GVDS(long hid);
     ~GVDS(void);
 
-    virtual bool _FInit(PFilename pfni, PGOB pgobBase);
+    virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
 
   public:
-    static PGVDS PgvdsNew(PFilename pfni, PGOB pgobBase, long hid = hidNil);
+    static PGVDS PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);
@@ -123,7 +123,7 @@ class GVDW : public GVDW_PAR
     RC _rc;
     RC _rcPlay;
     long _nfrMac;
-    PGOB _pgobBase;
+    PGraphicsObject _pgobBase;
     long _cactPal;
 
     bool _fDeviceOpen : 1;
@@ -133,11 +133,11 @@ class GVDW : public GVDW_PAR
     GVDW(long hid);
     ~GVDW(void);
 
-    virtual bool _FInit(PFilename pfni, PGOB pgobBase);
+    virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
     virtual void _SetRc(void);
 
   public:
-    static PGVDW PgvdwNew(PFilename pfni, PGOB pgobBase, long hid = hidNil);
+    static PGVDW PgvdwNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);

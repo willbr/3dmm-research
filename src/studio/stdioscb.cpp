@@ -55,7 +55,7 @@ PSSCB SSCB::PsscbNew(PMVIE pmvie)
     AssertNilOrPo(pmvie, 0);
 
     PSSCB psscb;
-    PGOB pgob;
+    PGraphicsObject pgob;
     STN stn;
     GraphicsObjectBlock gcb;
     RC rcRel, rcAbs;
@@ -420,7 +420,7 @@ long SSCB::_CxScrollbar(long kidScrollbar, long kidThumb)
     AssertThis(0);
 
     long cxThumb, cxScrollbar;
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rc;
 
     // rightmost pos we can slide the thumb tab is the pos where it has
@@ -459,7 +459,7 @@ void SSCB::Update(void)
 
     PSCEN pscen;
     STN stn;
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rc;
     long xp, dxp;
     long cxScrollbar;

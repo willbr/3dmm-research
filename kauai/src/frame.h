@@ -35,7 +35,7 @@ class SNDM; // sound manager
 typedef class GPT *PGPT;
 typedef class GNV *PGNV;
 typedef class CMH *PCMH;
-typedef class GraphicsObject *PGOB;
+typedef class GraphicsObject *PGraphicsObject;
 typedef class MenuBar *PMenuBar;
 typedef class DOCB *PDOCB;
 typedef class DMD *PDMD;

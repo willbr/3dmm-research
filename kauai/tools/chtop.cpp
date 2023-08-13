@@ -1869,7 +1869,7 @@ PDMD HETD::PdmdNew(void)
 {
     AssertThis(0);
     PDMD pdmd;
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rcRel, rcAbs;
     long dxpLig, ypT;
     GraphicsObjectBlock gcb;

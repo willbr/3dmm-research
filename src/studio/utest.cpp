@@ -2572,7 +2572,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     GraphicsObjectBlock gcb;
     PWOKS pwoksModal;
     GTE gte;
-    PGOB pgob;
+    PGraphicsObject pgob;
     ulong grfgte;
     long lwRet;
     CMD_MOUSE cmd;
@@ -2685,7 +2685,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
     AssertVarMem(prcDst);
 
     PMVIE pmvie = _Pmvie(); // Get the current movie, if any
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rcDst, rcSrc, rcWorkspace;
 
     if (pmvie == pvNil || pmvie->Trans() == transNil)
@@ -2779,7 +2779,7 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
     Filename fniUserDoc;
     CHID chidProject;
     long kidBuilding;
-    PGOB pgob;
+    PGraphicsObject pgob;
     PGOK pgokBackground;
 
     kidBuilding = pcmd->rglw[0];
@@ -4161,7 +4161,7 @@ bool APP::_FGetNextEvt(PEVT pevt)
 /***************************************************************************
     Override default _FastUpdate to optionally skip offscreen buffer
 ***************************************************************************/
-void APP::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void APP::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
 {
     AssertBaseThis(0);
 

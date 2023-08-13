@@ -113,7 +113,7 @@ class APPB : public APPB_PAR
 
     long _xpMouse; // location of mouse on last reported mouse move
     long _ypMouse;
-    PGOB _pgobMouse;     // gob mouse was last over
+    PGraphicsObject _pgobMouse;     // gob mouse was last over
     ulong _grfcustMouse; // cursor state on last mouse move
 
     // for determining the multiplicity of a click
@@ -123,7 +123,7 @@ class APPB : public APPB_PAR
     // for tool tips
     ulong _tsMouseEnter;     // when the mouse entered _pgobMouse
     ulong _dtsToolTip;       // time lag for tool tip
-    PGOB _pgobToolTipTarget; // if there is a tool tip up, it's for this gob
+    PGraphicsObject _pgobToolTipTarget; // if there is a tool tip up, it's for this gob
 
     PCURS _pcurs;     // current cursor
     PCURS _pcursWait; // cursor to use for long operations
@@ -171,10 +171,10 @@ class APPB : public APPB_PAR
 #endif
 
     // fast updating
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
     virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
-    void _MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo);
-    void _UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo);
+    void _MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo);
+    void _UnmarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo);
 
     // to borrow the common offscreen GPT
     virtual PGPT _PgptEnsure(RC *prc);
@@ -235,7 +235,7 @@ class APPB : public APPB_PAR
 
     // Look for mouse events and get the mouse location
     // GrfcustCur() is synchronized with this
-    void TrackMouse(PGOB pgob, PT *ppt);
+    void TrackMouse(PGraphicsObject pgob, PT *ppt);
 
     // app name
     virtual void GetStnAppName(PSTN pstn);
@@ -246,10 +246,10 @@ class APPB : public APPB_PAR
 
     // drawing
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
-    virtual void MarkRc(RC *prc, PGOB pgobCoo);
-    virtual void MarkRegn(PREGN pregn, PGOB pgobCoo);
-    virtual void UnmarkRc(RC *prc, PGOB pgobCoo);
-    virtual void UnmarkRegn(PREGN pregn, PGOB pgobCoo);
+    virtual void MarkRc(RC *prc, PGraphicsObject pgobCoo);
+    virtual void MarkRegn(PREGN pregn, PGraphicsObject pgobCoo);
+    virtual void UnmarkRc(RC *prc, PGraphicsObject pgobCoo);
+    virtual void UnmarkRegn(PREGN pregn, PGraphicsObject pgobCoo);
     virtual bool FGetMarkedRc(HWND hwnd, RC *prc);
     virtual void UpdateMarked(void);
     virtual void InvalMarked(HWND hwnd);

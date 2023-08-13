@@ -144,7 +144,7 @@ bool BRWD::_FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidGlass)
 {
     AssertVarMem(pgcb);
 
-    PGOB pgobPar;
+    PGraphicsObject pgobPar;
     RC rcRel;
 
     pgobPar = vapp.Pkwa()->PgobFromHid(kidPar);
@@ -157,7 +157,7 @@ bool BRWD::_FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidGlass)
 #ifdef DEBUG
     Assert(pgobPar->FIs(kclsGOK), "Parent isn't a GOK");
     {
-        PGOB pgob = vapp.Pkwa()->PgobFromHid(kidGlass);
+        PGraphicsObject pgob = vapp.Pkwa()->PgobFromHid(kidGlass);
 
         Assert(pgob == pvNil, "GOK already exists with given ID");
     }
@@ -346,7 +346,7 @@ long BRWD::_CfrmCalc(void)
 {
     AssertThis(0);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     long ifrm;
 
     for (ifrm = 0;; ifrm++)
@@ -414,7 +414,7 @@ bool BRWD::FDraw(void)
 {
     AssertThis(0);
 
-    PGOB pgobPar;
+    PGraphicsObject pgobPar;
     GraphicsObjectBlock gcb;
     long ithum;
     long ifrm;
@@ -501,10 +501,10 @@ long BRWD::_KidThumFromIfrm(long ifrm)
  * Compute the pgob of the parent for frame ifrm
  *
  ****************************************************/
-PGOB BRWD::_PgobFromIfrm(long ifrm)
+PGraphicsObject BRWD::_PgobFromIfrm(long ifrm)
 {
     AssertBaseThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
     pgob = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrm);
     if (pvNil == pgob)
         return pvNil;
@@ -520,7 +520,7 @@ void BRWD::_SetScrollState(void)
 {
     AssertThis(0);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     long st = (_Cthum() <= _cfrm) ? kstBrowserInvisible : kstBrowserEnabled;
 
     pgob = vapp.Pkwa()->PgobFromHid(_kidControlFirst);
@@ -709,7 +709,7 @@ bool BRWD::_FHiliteFrm(long ifrmSelect)
 {
     AssertThis(0);
     AssertIn(ifrmSelect, 0, _cfrm);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     // Hilite currently selected frame
     AssertIn(ifrmSelect, 0, _cfrmPageCur);
@@ -734,7 +734,7 @@ bool BRWD::_FHiliteFrm(long ifrmSelect)
 void BRWD::_UnhiliteCurFrm(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
     long ifrmSelectOld = _ithumSelect - _ithumPageFirst;
 
     // Unhilite currently selected frame
@@ -1358,7 +1358,7 @@ long BRWL::_IthumFromThum(long thumSelect, long sidSelect)
  * Advance the gob (thumbnail) index
  *
  ****************************************************/
-bool BRWL::_FSetThumFrame(long ithd, PGOB pgobPar)
+bool BRWL::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertPo(pgobPar, 0);
@@ -1377,9 +1377,9 @@ bool BRWL::_FSetThumFrame(long ithd, PGOB pgobPar)
     if (pvNil == pgok)
         return fFalse;
 
-    ((PGOB)pgok)->GetPos(&rcAbs, &rcRel);
+    ((PGraphicsObject)pgok)->GetPos(&rcAbs, &rcRel);
     rcAbs.Offset(_dxpFrmOffset, _dypFrmOffset);
-    ((PGOB)pgok)->SetPos(&rcAbs, &rcRel);
+    ((PGraphicsObject)pgok)->SetPos(&rcAbs, &rcRel);
 
     return fTrue;
 }
@@ -1393,7 +1393,7 @@ bool BRWL::_FSetThumFrame(long ithd, PGOB pgobPar)
 void BRWL::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     // Release previous gob associated with the current frame
     pgob = _PgobFromIfrm(ifrm);
@@ -1908,7 +1908,7 @@ void BRWN::_ReleaseThumFrame(long ifrm)
     AssertIn(ifrm, 0, _cfrm);
 
     STN stn;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     pgob = _PgobFromIfrm(ifrm);
     if (pvNil != pgob)
@@ -1926,7 +1926,7 @@ void BRWN::_ReleaseThumFrame(long ifrm)
  * current frame
  *
  ****************************************************/
-bool BRWN::_FSetThumFrame(long ithd, PGOB pgobPar)
+bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(ithd, 0, _pglthd->IvMac());
@@ -2490,7 +2490,7 @@ bool BRWT::FInit(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, b
  * current frame
  *
  ****************************************************/
-bool BRWT::_FSetThumFrame(long istn, PGOB pgobPar)
+bool BRWT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(istn, 0, _pgst->IvMac());
@@ -3253,7 +3253,7 @@ long BRWR::_IthumFromArid(long aridSelect)
  * Advance the gob (thumbnail) index
  *
  ****************************************************/
-bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
+bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(ithum, 0, _pstdio->Pmvie()->CmactrMac());
@@ -3289,7 +3289,7 @@ bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
             return fFalse;
 
         // Note: The graphic is not the correct size
-        ((PGOB)pgok)->GetPos(&rcAbs, &rcRel);
+        ((PGraphicsObject)pgok)->GetPos(&rcAbs, &rcRel);
         pgobPar->GetPos(&rcAbsPar, pvNil);
         dxp = (rcAbs.Dxp() - rcAbsPar.Dxp()) / 2;
         dyp = (rcAbs.Dyp() - rcAbsPar.Dyp()) / 2;
@@ -3297,7 +3297,7 @@ bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
         rcAbs.ypTop += (_dypFrmOffset - dyp);
         rcAbs.xpRight += (dxp - _dxpFrmOffset);
         rcAbs.ypBottom += (dyp - _dypFrmOffset);
-        ((PGOB)pgok)->SetPos(&rcAbs, &rcRel);
+        ((PGraphicsObject)pgok)->SetPos(&rcAbs, &rcRel);
     }
     else
     {
@@ -3349,7 +3349,7 @@ void BRWR::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     // Release previous gob associated with the current frame
     pgob = _PgobFromIfrm(ifrm);

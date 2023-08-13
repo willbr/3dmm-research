@@ -146,7 +146,7 @@ class BRWD : public BRWD_PAR
         AssertThis(0);
         return 0;
     }
-    virtual bool _FSetThumFrame(long ithum, PGOB pgobPar)
+    virtual bool _FSetThumFrame(long ithum, PGraphicsObject pgobPar)
     {
         AssertThis(0);
         return fFalse;
@@ -181,7 +181,7 @@ class BRWD : public BRWD_PAR
     {
         return FPure(ithum == _ithumOverride);
     }
-    PGOB _PgobFromIfrm(long ifrm);
+    PGraphicsObject _PgobFromIfrm(long ifrm);
     long _KidThumFromIfrm(long ifrm);
     void _UnhiliteCurFrm(void);
     bool _FHiliteFrm(long ifrmSelect);
@@ -431,7 +431,7 @@ class BRWL : public BRWL_PAR
         AssertThis(0);
         return _pglthd->IvMac();
     }
-    virtual bool _FSetThumFrame(long ithd, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long ithd, PGraphicsObject pgobPar);
     virtual bool _FUpdateLists()
     {
         return fTrue;
@@ -483,7 +483,7 @@ class BRWT : public BRWT_PAR
         AssertThis(0);
         return _pgst->IvMac();
     }
-    virtual bool _FSetThumFrame(long istn, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
     virtual void _ReleaseThumFrame(long ifrm)
     {
     } // No gob to release
@@ -523,7 +523,7 @@ class BRWN : public BRWN_PAR
     {
         return _pglthd->IvMac();
     }
-    virtual bool _FSetThumFrame(long ithd, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long ithd, PGraphicsObject pgobPar);
     virtual void _ReleaseThumFrame(long ifrm);
 
   public:
@@ -772,7 +772,7 @@ class BRWR : public BRWR_PAR
 
   protected:
     virtual long _Cthum(void);
-    virtual bool _FSetThumFrame(long istn, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
     virtual void _ReleaseThumFrame(long ifrm);
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual void _ProcessSelection(void);

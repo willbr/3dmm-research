@@ -106,7 +106,7 @@ class GOMP : public GOMP_PAR
         ReleasePpo(&_pmbmp);
     }
 
-    static PGOMP PgompNew(PGOB pgobPar, long hid);
+    static PGOMP PgompNew(PGraphicsObject pgobPar, long hid);
     static PGOMP PgompFromHidScr(long hid);
     bool FSetMbmp(PMBMP pmbmp);
 

@@ -502,7 +502,7 @@ RTCLASS(DWN)
 DWN *DWN::PdwnNew(void)
 {
     DWN *pdwn;
-    PGOB pgob;
+    PGraphicsObject pgob;
     STN stn;
 
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
@@ -600,7 +600,7 @@ bool DWN::FCmdScroll(PCMD pcmd)
 {
     long hid, val, dval;
     PSCB pscb;
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rc;
 
     hid = pcmd->rglw[0];
@@ -2066,7 +2066,7 @@ bool TAN::FCmdAlarm(PCMD pcmd)
 
     RC rcPar, rc;
     RC rcT;
-    PGOB pgob;
+    PGraphicsObject pgob;
     long cact;
 
     GetRc(&rcPar, cooLocal);

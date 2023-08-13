@@ -85,7 +85,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
     PMCC pmcc;
     Filename fni;
     PMVIE pmvie = pvNil;
-    PGOB pgob;
+    PGraphicsObject pgob;
     GraphicsObjectBlock gcb;
 
     pmcc = NewObj MCC(kdxpWorkspace, kdypWorkspace, kcbStudioCache);

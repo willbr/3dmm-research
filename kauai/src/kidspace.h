@@ -352,7 +352,7 @@ class GOK : public GOK_PAR
     GOK(GraphicsObjectBlock *pgcb);
     ~GOK(void);
 
-    static PGOB _PgobBefore(PGOB pgobPar, long zp);
+    static PGraphicsObject _PgobBefore(PGraphicsObject pgobPar, long zp);
 
     virtual bool _FInit(PWOKS pwoks, PGOKD pgokd, PRCA prca);
     virtual bool _FInit(PWOKS pwoks, CNO cno, PRCA prca);
@@ -378,7 +378,7 @@ class GOK : public GOK_PAR
     void _DeferSnd(bool fDefer);
 
   public:
-    static PGOK PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca);
+    static PGOK PgokNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca);
 
     PWOKS Pwoks(void)
     {
@@ -413,7 +413,7 @@ class GOK : public GOK_PAR
     virtual bool FCmdAll(PCMD pcmd);
     virtual bool FFilterCidHid(long cid, long hid, CHID chidScript);
 
-    virtual bool FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse);
+    virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
     virtual long LwState(void);
 
     virtual bool FRunScript(CHID chid, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,

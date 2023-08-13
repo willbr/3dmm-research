@@ -168,8 +168,8 @@ class HBAL : public HBAL_PAR
     virtual bool _FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
 
   public:
-    static PHBAL PhbalCreate(PWOKS pwoks, PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
-    static PHBAL PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
+    static PHBAL PhbalCreate(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
+    static PHBAL PhbalNew(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
 
     virtual bool FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
 };
@@ -191,7 +191,7 @@ class HBTN : public HBTN_PAR
     CNO _cnoTopic;
 
   public:
-    static PHBTN PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic,
+    static PHBTN PhbtnNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic,
                           long xpLeft, long ypBottom);
 
     virtual bool FPtIn(long xp, long yp);

@@ -55,7 +55,7 @@ class Dialog : public Dialog_PAR
     RTCLASS_DEC
 
   private:
-    PGOB _pgob;
+    PGraphicsObject _pgob;
     long _rid;
     PFNDLG _pfn;
     void *_pv;

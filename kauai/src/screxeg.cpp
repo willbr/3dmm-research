@@ -24,7 +24,7 @@ static STN _stn;
     Constructor for a GraphicsObject based script interpreter. We don't just keep
     the pgob in case the GraphicsObject goes away while the script is running.
 ***************************************************************************/
-SCEG::SCEG(PWOKS pwoks, PRCA prca, PGOB pgob) : SCEG_PAR(prca, pwoks->Pstrg())
+SCEG::SCEG(PWOKS pwoks, PRCA prca, PGraphicsObject pgob) : SCEG_PAR(prca, pwoks->Pstrg())
 {
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);
@@ -64,7 +64,7 @@ bool SCEG::FResume(long *plwReturn, bool *pfPaused)
 /***************************************************************************
     Return the gob that corresponds to this script interpreter.
 ***************************************************************************/
-PGOB SCEG::_PgobThis(void)
+PGraphicsObject SCEG::_PgobThis(void)
 {
     AssertThis(0);
 
@@ -83,7 +83,7 @@ PGOB SCEG::_PgobThis(void)
     Return the gob that is accessible to this script interpreter and has
     the given hid.
 ***************************************************************************/
-PGOB SCEG::_PgobFromHid(long hid)
+PGraphicsObject SCEG::_PgobFromHid(long hid)
 {
     AssertThis(0);
 
@@ -99,7 +99,7 @@ PGOB SCEG::_PgobFromHid(long hid)
 ***************************************************************************/
 PGL *SCEG::_PpglrtvmThis(void)
 {
-    PGOB pgob = _PgobThis();
+    PGraphicsObject pgob = _PgobThis();
 
     if (pvNil == pgob)
         return pvNil;
@@ -122,7 +122,7 @@ PGL *SCEG::_PpglrtvmGlobal(void)
 ***************************************************************************/
 PGL *SCEG::_PpglrtvmRemote(long lw)
 {
-    PGOB pgob = _PgobFromHid(lw);
+    PGraphicsObject pgob = _PgobFromHid(lw);
 
     if (pvNil == pgob)
         return pvNil;
@@ -152,7 +152,7 @@ short SCEG::_SwMin(void)
 bool SCEG::_FExecOp(long op)
 {
     CMD cmd;
-    PGOB pgob;
+    PGraphicsObject pgob;
     PCLOK pclok;
     long hid;
     long dtim;
@@ -174,7 +174,7 @@ bool SCEG::_FExecOp(long op)
             if (pgob == _pwoks)
             {
                 Debug(_WarnSz(PszLit("Can't Destroy WOKS - destroying all its children")));
-                PGOB pgobT;
+                PGraphicsObject pgobT;
 
                 while (pvNil != (pgobT = pgob->PgobFirstChild()))
                     ReleasePpo(&pgobT);
@@ -824,7 +824,7 @@ bool SCEG::_FExecOp(long op)
     case kopDestroyChildrenThis:
         if (!_fError && pvNil != (pgob = _PgobFromHid(hid)))
         {
-            PGOB pgobT;
+            PGraphicsObject pgobT;
 
             GobMayDie();
             while (pvNil != (pgobT = pgob->PgobFirstChild()))
@@ -978,7 +978,7 @@ bool SCEG::_FExecOp(long op)
         lw2 = _LwPop();
         if (!_fError)
         {
-            PGOB pgobPar = _PgobFromHid(lw2);
+            PGraphicsObject pgobPar = _PgobFromHid(lw2);
 
             if (pvNil == pgobPar || pvNil == (pgob = _PgobFromHid(lw1)))
                 _Push(0);

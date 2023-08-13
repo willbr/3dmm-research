@@ -25,7 +25,7 @@ const long kdxpInsetSled = 2;
 /***************************************************************************
     Constructor for edit control parameter block.
 ***************************************************************************/
-EDPAR::EDPAR(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+EDPAR::EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
              long tah, long tav, ACR acrFore, ACR acrBack, long cmhl)
     : _gcb(hid, pgob, grfgob, gin, prcAbs, prcRel)
 {
@@ -42,7 +42,7 @@ EDPAR::EDPAR(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel
 /***************************************************************************
     Set the data in the EDPAR.
 ***************************************************************************/
-void EDPAR::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
+void EDPAR::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
                 long dypFont, long tah, long tav, ACR acrFore, ACR acrBack, long cmhl)
 {
     _gcb.Set(hid, pgob, grfgob, gin, prcAbs, prcRel);

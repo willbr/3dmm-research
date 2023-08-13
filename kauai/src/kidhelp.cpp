@@ -971,7 +971,7 @@ bool TXHG::FCmdMouseMove(PCMD_MOUSE pcmd)
 void TXHG::SetCursor(ulong grfcust)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = this;;)
     {
@@ -992,7 +992,7 @@ void TXHG::SetCursor(ulong grfcust)
 /***************************************************************************
     Create a new help topic balloon based on the given topic number.
 ***************************************************************************/
-PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1021,7 +1021,7 @@ PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTO
     Static method to create a new help balloon based on the given help
     topic document and htop.
 ***************************************************************************/
-PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop)
+PHBAL HBAL::PhbalNew(PWOKS pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1156,7 +1156,7 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
     AssertVarMem(phtop);
     AssertPo(prca, 0);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     GraphicsObjectBlock gcb;
     PT pt, ptReg;
     STN stn;
@@ -1249,7 +1249,7 @@ HBTN::HBTN(GraphicsObjectBlock *pgcb) : HBTN_PAR(pgcb)
 /***************************************************************************
     Create a new help balloon button
 ***************************************************************************/
-PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic, long xpLeft,
+PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic, long xpLeft,
                      long ypBottom)
 {
     AssertPo(pwoks, 0);

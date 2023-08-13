@@ -245,7 +245,7 @@ class CEX : public CEX_PAR
     // dispatching
     CMD _cmdCur;     // command being dispatched
     long _icmheNext; // next command handler to dispatch to
-    PGOB _pgobTrack; // the gob that is tracking the mouse
+    PGraphicsObject _pgobTrack; // the gob that is tracking the mouse
 #ifdef WIN
     HWND _hwndCapture; // the hwnd that we captured the mouse with
 #endif                 // WIN
@@ -256,7 +256,7 @@ class CEX : public CEX_PAR
     bool _fDispatching; // whether we're currently in FDispatchNextCmd
 
     // Modal filtering
-    PGOB _pgobModal;
+    PGraphicsObject _pgobModal;
 
 #ifdef DEBUG
     long _ccmdMax; // running max
@@ -319,12 +319,12 @@ class CEX : public CEX_PAR
                                long lw3 = 0);
 
     // mouse tracking
-    virtual void TrackMouse(PGOB pgob);
+    virtual void TrackMouse(PGraphicsObject pgob);
     virtual void EndMouseTracking(void);
-    virtual PGOB PgobTracking(void);
+    virtual PGraphicsObject PgobTracking(void);
 
     virtual void Suspend(bool fSuspend = fTrue);
-    virtual void SetModalGob(PGOB pgob);
+    virtual void SetModalGob(PGraphicsObject pgob);
 };
 
 #endif //! CMD_H

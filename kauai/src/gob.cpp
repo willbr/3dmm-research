@@ -33,7 +33,7 @@ long GraphicsObject::_gridLast;
 /***************************************************************************
     Fill in the elements of the GraphicsObjectBlock.
 ***************************************************************************/
-void GraphicsObjectBlock::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel)
+void GraphicsObjectBlock::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel)
 {
     Assert(hidNil != hid, "bad hid");
     AssertNilOrPo(pgob, 0);
@@ -131,7 +131,7 @@ GraphicsObject::GraphicsObject(long hid) : CMH(hid)
 void GraphicsObject::Release(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (--_cactRef > 0)
         return;
@@ -155,7 +155,7 @@ void GraphicsObject::Release(void)
 GraphicsObject::~GraphicsObject(void)
 {
     AssertThis(0);
-    PGOB *ppgob;
+    PGraphicsObject *ppgob;
 
     // remove it from the sibling list
     Assert(pvNil == _pgobChd, "gob still has children");
@@ -184,7 +184,7 @@ GraphicsObject::~GraphicsObject(void)
 ***************************************************************************/
 void GraphicsObject::ActivateHwnd(HWND hwnd, bool fActive)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == (pgob = PgobFromHwnd(hwnd)))
         return;
@@ -218,11 +218,11 @@ void GraphicsObject::BringToFront(void)
     the equivalent of a BringToFront.  Asserts that pgobBehind and this
     gob have the same parent.  Does no invalidation.
 ***************************************************************************/
-void GraphicsObject::SendBehind(PGOB pgobBehind)
+void GraphicsObject::SendBehind(PGraphicsObject pgobBehind)
 {
     AssertThis(0);
     AssertNilOrPo(pgobBehind, 0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil != pgobBehind && pgobBehind->_pgobPar != _pgobPar)
     {
@@ -274,7 +274,7 @@ void GraphicsObject::InvalRc(RC *prc, long gin)
     AssertNilOrVarMem(prc);
     PT dpt;
     RC rc;
-    PGOB pgob;
+    PGraphicsObject pgob;
     RCS rcs;
 
     if (kginDefault == gin)
@@ -335,7 +335,7 @@ void GraphicsObject::ValidRc(RC *prc, long gin)
     AssertThis(0);
     RC rc;
     PT dpt;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (kginDefault == gin)
     {
@@ -386,7 +386,7 @@ bool GraphicsObject::FGetRcInval(RC *prc, long gin)
     AssertThis(0);
     AssertVarMem(prc);
     RC rc;
-    PGOB pgob;
+    PGraphicsObject pgob;
     PT dpt(0, 0);
 
     prc->Zero();
@@ -456,7 +456,7 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
     AssertNilOrVarMem(prcBad2);
     RC rc, rcBad1, rcBad2, rcInval, rcT;
     PT dpt(0, 0);
-    PGOB pgob, pgobT;
+    PGraphicsObject pgob, pgobT;
     GTE gte;
     ulong grfgte, grfgteIn;
     bool fFound;
@@ -676,7 +676,7 @@ void GraphicsObject::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
     GNV gnv(pgpt);
     GTE gte;
     ulong grfgte, grfgteIn;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteBackToFront);
     grfgteIn = fgteNil;
@@ -781,7 +781,7 @@ void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob)
     GNV gnv(pgpt);
     GTE gte;
     ulong grfgte, grfgteIn;
-    PGOB pgob;
+    PGraphicsObject pgob;
     PREGN pregnClip;
     PREGN pregnClipGob = pvNil;
 
@@ -998,7 +998,7 @@ HWND GraphicsObject::_HwndGetRc(RC *prc)
 HWND GraphicsObject::HwndContainer(void)
 {
     AssertThis(0);
-    PGOB pgob = this;
+    PGraphicsObject pgob = this;
 
     while (pvNil != pgob)
     {
@@ -1050,7 +1050,7 @@ void GraphicsObject::MapRc(RC *prc, long cooSrc, long cooDst)
 ***************************************************************************/
 HWND GraphicsObject::_HwndGetDptFromCoo(PT *pdpt, long coo)
 {
-    PGOB pgob, pgobT;
+    PGraphicsObject pgob, pgobT;
     HWND hwnd = hNil;
 
     switch (coo)
@@ -1122,12 +1122,12 @@ void GraphicsObject::GetMinMax(RC *prcMinMax)
     coordinates).  If the mouse isn't over a GraphicsObject, this returns pvNil and
     sets *pptLocal to the passed in (xp, yp).
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
+PGraphicsObject GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
 {
     AssertNilOrVarMem(pptLocal);
     HWND hwnd;
     PTS pts;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
 #ifdef MAC
     PPRT pprt;
@@ -1173,7 +1173,7 @@ PGOB GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
     This is recursive, so a GraphicsObject can build it's own world and hit testing
     method.
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromPt(long xp, long yp, PT *pptLocal)
+PGraphicsObject GraphicsObject::PgobFromPt(long xp, long yp, PT *pptLocal)
 {
     AssertThis(0);
 
@@ -1184,7 +1184,7 @@ PGOB GraphicsObject::PgobFromPt(long xp, long yp, PT *pptLocal)
     {
         // the point is in our bounding rectangle, so give the children
         // a whack at it
-        PGOB pgob, pgobT;
+        PGraphicsObject pgob, pgobT;
 
         for (pgob = _pgobChd; pvNil != pgob; pgob = pgob->_pgobSib)
         {
@@ -1277,7 +1277,7 @@ void GraphicsObject::MouseDown(long xp, long yp, long cact, ulong grfcust)
 ***************************************************************************/
 void GraphicsObject::_SetRcCur(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
     GTE gte;
     ulong grfgte;
     RC rc, rcVis;
@@ -1343,9 +1343,9 @@ void GraphicsObject::_SetRcCur(void)
 /***************************************************************************
     Return the previous sibling for the gob.
 ***************************************************************************/
-PGOB GraphicsObject::PgobPrevSib(void)
+PGraphicsObject GraphicsObject::PgobPrevSib(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     pgob = _pgobPar == pvNil ? _pgobScreen : _pgobPar->_pgobChd;
     if (pgob == this)
@@ -1366,9 +1366,9 @@ PGOB GraphicsObject::PgobPrevSib(void)
 /***************************************************************************
     Return the last child of the gob.
 ***************************************************************************/
-PGOB GraphicsObject::PgobLastChild(void)
+PGraphicsObject GraphicsObject::PgobLastChild(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if ((pgob = _pgobChd) == pvNil)
         return pvNil;
@@ -1403,7 +1403,7 @@ bool GraphicsObject::FCreateAndAttachMdi(PSTN pstnTitle)
 /***************************************************************************
     Static method: find the currently active MDI gob.
 ***************************************************************************/
-PGOB GraphicsObject::PgobMdiActive(void)
+PGraphicsObject GraphicsObject::PgobMdiActive(void)
 {
     HWND hwnd;
 
@@ -1416,7 +1416,7 @@ PGOB GraphicsObject::PgobMdiActive(void)
     Static method: find the first gob of the given class in the screen's gob
     tree.
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromClsScr(long cls)
+PGraphicsObject GraphicsObject::PgobFromClsScr(long cls)
 {
     if (pvNil == _pgobScreen)
         return pvNil;
@@ -1426,12 +1426,12 @@ PGOB GraphicsObject::PgobFromClsScr(long cls)
 /***************************************************************************
     Find a gob in this gob's subtree that is of the given class.
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromCls(long cls)
+PGraphicsObject GraphicsObject::PgobFromCls(long cls)
 {
     AssertThis(0);
     GTE gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -1445,10 +1445,10 @@ PGOB GraphicsObject::PgobFromCls(long cls)
 /***************************************************************************
     Find a direct child of this gob of the given class.
 ***************************************************************************/
-PGOB GraphicsObject::PgobChildFromCls(long cls)
+PGraphicsObject GraphicsObject::PgobChildFromCls(long cls)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobChd; pvNil != pgob; pgob = pgob->_pgobSib)
     {
@@ -1461,10 +1461,10 @@ PGOB GraphicsObject::PgobChildFromCls(long cls)
 /***************************************************************************
     Find a gob of the given class in the parent chain of this gob.
 ***************************************************************************/
-PGOB GraphicsObject::PgobParFromCls(long cls)
+PGraphicsObject GraphicsObject::PgobParFromCls(long cls)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobPar; pvNil != pgob; pgob = pgob->_pgobPar)
     {
@@ -1478,7 +1478,7 @@ PGOB GraphicsObject::PgobParFromCls(long cls)
     Static method: find the first gob with the given hid in the screen's gob
     tree.
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromHidScr(long hid)
+PGraphicsObject GraphicsObject::PgobFromHidScr(long hid)
 {
     Assert(hid != hidNil, "nil hid");
     if (pvNil == _pgobScreen)
@@ -1490,12 +1490,12 @@ PGOB GraphicsObject::PgobFromHidScr(long hid)
 /***************************************************************************
     Find a gob in this gobs subtree having the given hid.
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromHid(long hid)
+PGraphicsObject GraphicsObject::PgobFromHid(long hid)
 {
     AssertThis(0);
     GTE gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -1509,10 +1509,10 @@ PGOB GraphicsObject::PgobFromHid(long hid)
 /***************************************************************************
     Find a direct child of this gob having the given hid.
 ***************************************************************************/
-PGOB GraphicsObject::PgobChildFromHid(long hid)
+PGraphicsObject GraphicsObject::PgobChildFromHid(long hid)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobChd; pvNil != pgob; pgob = pgob->_pgobSib)
     {
@@ -1525,10 +1525,10 @@ PGOB GraphicsObject::PgobChildFromHid(long hid)
 /***************************************************************************
     Find a gob with the given hid in the parent chain of this gob.
 ***************************************************************************/
-PGOB GraphicsObject::PgobParFromHid(long hid)
+PGraphicsObject GraphicsObject::PgobParFromHid(long hid)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobPar; pvNil != pgob; pgob = pgob->_pgobPar)
     {
@@ -1541,12 +1541,12 @@ PGOB GraphicsObject::PgobParFromHid(long hid)
 /***************************************************************************
     Find a gob in this gobs subtree having the given gob run-time id.
 ***************************************************************************/
-PGOB GraphicsObject::PgobFromGrid(long grid)
+PGraphicsObject GraphicsObject::PgobFromGrid(long grid)
 {
     AssertThis(0);
     GTE gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -1783,7 +1783,7 @@ PGL *GraphicsObject::Ppglrtvm(void)
 /***************************************************************************
     Put up a tool tip if this GraphicsObject has one.
 ***************************************************************************/
-bool GraphicsObject::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
+bool GraphicsObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse)
 {
     AssertThis(0);
     AssertVarMem(ppgobCurTip);
@@ -1835,7 +1835,7 @@ void GraphicsObject::MarkMem(void)
 void GraphicsObject::MarkGobTree(void)
 {
     GTE gte;
-    PGOB pgob;
+    PGraphicsObject pgob;
     ulong grfgte;
 
     gte.Init(this, fgteNil);
@@ -1858,7 +1858,7 @@ GTE::GTE(void)
 /***************************************************************************
     Initialize a GraphicsObject tree enumerator.
 ***************************************************************************/
-void GTE::Init(PGOB pgob, ulong grfgte)
+void GTE::Init(PGraphicsObject pgob, ulong grfgte)
 {
     _pgobRoot = pgob;
     _pgobCur = pvNil;
@@ -1870,9 +1870,9 @@ void GTE::Init(PGOB pgob, ulong grfgte)
     Goes to the next node in the sub tree being enumerated.  Returns false
     iff the enumeration is done.
 ***************************************************************************/
-bool GTE::FNextGob(PGOB *ppgob, ulong *pgrfgteOut, ulong grfgte)
+bool GTE::FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgte)
 {
-    PGOB pgobT;
+    PGraphicsObject pgobT;
 
     *pgrfgteOut = fgteNil;
     switch (_es)

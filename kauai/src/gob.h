@@ -91,7 +91,7 @@ enum
 struct GraphicsObjectBlock
 {
     long _hid;
-    PGOB _pgob;
+    PGraphicsObject _pgob;
     ulong _grfgob;
     long _gin;
     RC _rcAbs;
@@ -100,11 +100,11 @@ struct GraphicsObjectBlock
     GraphicsObjectBlock(void)
     {
     }
-    GraphicsObjectBlock(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil, RC *prcRel = pvNil)
+    GraphicsObjectBlock(long hid, PGraphicsObject pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil, RC *prcRel = pvNil)
     {
         Set(hid, pgob, grfgob, gin, prcAbs, prcRel);
     }
-    void Set(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil,
+    void Set(long hid, PGraphicsObject pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil,
              RC *prcRel = pvNil);
 };
 typedef GraphicsObjectBlock *PGCB;
@@ -124,7 +124,7 @@ class GraphicsObject : public GraphicsObject_PAR
     friend class GTE;
 
   private:
-    static PGOB _pgobScreen;
+    static PGraphicsObject _pgobScreen;
 
     HWND _hwnd;   // the OS window (may be nil)
     PGPT _pgpt;   // the graphics port (may be shared with _pgobPar)
@@ -136,9 +136,9 @@ class GraphicsObject : public GraphicsObject_PAR
     RC _rcRel; // gob in its parent.
 
     // tree management
-    PGOB _pgobPar;
-    PGOB _pgobChd;
-    PGOB _pgobSib;
+    PGraphicsObject _pgobPar;
+    PGraphicsObject _pgobChd;
+    PGraphicsObject _pgobSib;
 
     // variables
     PGL _pglrtvm;
@@ -172,18 +172,18 @@ class GraphicsObject : public GraphicsObject_PAR
   public:
     static bool FInitScreen(ulong grfgob, long ginDef);
     static void ShutDown(void);
-    static PGOB PgobScreen(void)
+    static PGraphicsObject PgobScreen(void)
     {
         return _pgobScreen;
     }
-    static PGOB PgobFromHwnd(HWND hwnd);
-    static PGOB PgobFromClsScr(long cls);
-    static PGOB PgobFromHidScr(long hid);
+    static PGraphicsObject PgobFromHwnd(HWND hwnd);
+    static PGraphicsObject PgobFromClsScr(long cls);
+    static PGraphicsObject PgobFromHidScr(long hid);
     static void MakeHwndActive(HWND hwnd);
     static void ActivateHwnd(HWND hwnd, bool fActive);
     static HWND HwndMdiActive(void);
-    static PGOB PgobMdiActive(void);
-    static PGOB PgobFromPtGlobal(long xp, long yp, PT *pptLocal = pvNil);
+    static PGraphicsObject PgobMdiActive(void);
+    static PGraphicsObject PgobFromPtGlobal(long xp, long yp, PT *pptLocal = pvNil);
     static long GinDefault(void)
     {
         return _ginDefGob;
@@ -211,29 +211,29 @@ class GraphicsObject : public GraphicsObject_PAR
     }
 
     // tree management
-    PGOB PgobPar(void)
+    PGraphicsObject PgobPar(void)
     {
         return _pgobPar;
     }
-    PGOB PgobFirstChild(void)
+    PGraphicsObject PgobFirstChild(void)
     {
         return _pgobChd;
     }
-    PGOB PgobLastChild(void);
-    PGOB PgobNextSib(void)
+    PGraphicsObject PgobLastChild(void);
+    PGraphicsObject PgobNextSib(void)
     {
         return _pgobSib;
     }
-    PGOB PgobPrevSib(void);
-    PGOB PgobFromCls(long cls);
-    PGOB PgobChildFromCls(long cls);
-    PGOB PgobParFromCls(long cls);
-    PGOB PgobFromHid(long hid);
-    PGOB PgobChildFromHid(long hid);
-    PGOB PgobParFromHid(long hid);
-    PGOB PgobFromGrid(long grid);
+    PGraphicsObject PgobPrevSib(void);
+    PGraphicsObject PgobFromCls(long cls);
+    PGraphicsObject PgobChildFromCls(long cls);
+    PGraphicsObject PgobParFromCls(long cls);
+    PGraphicsObject PgobFromHid(long hid);
+    PGraphicsObject PgobChildFromHid(long hid);
+    PGraphicsObject PgobParFromHid(long hid);
+    PGraphicsObject PgobFromGrid(long grid);
     void BringToFront(void);
-    void SendBehind(PGOB pgobBefore);
+    void SendBehind(PGraphicsObject pgobBefore);
 
     // rectangle management
     void SetPos(RC *prcAbs, RC *prcRel = pvNil);
@@ -265,7 +265,7 @@ class GraphicsObject : public GraphicsObject_PAR
 
     // mouse handling and hit testing
     void GetPtMouse(PT *ppt, bool *pfDown);
-    virtual PGOB PgobFromPt(long xp, long yp, PT *pptLocal = pvNil);
+    virtual PGraphicsObject PgobFromPt(long xp, long yp, PT *pptLocal = pvNil);
     virtual bool FPtIn(long xp, long yp);
     virtual bool FPtInBounds(long xp, long yp);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -305,7 +305,7 @@ class GraphicsObject : public GraphicsObject_PAR
     virtual bool FCmdActivateSel(PCMD pcmd);
 
     // tool tips
-    virtual bool FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse);
+    virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
 
     // gob state (for automated testing)
     virtual long LwState(void);
@@ -350,13 +350,13 @@ class GTE : public GTE_PAR
 
     long _es;
     bool _fBackWards; // which way to walk sibling lists
-    PGOB _pgobRoot;
-    PGOB _pgobCur;
+    PGraphicsObject _pgobRoot;
+    PGraphicsObject _pgobCur;
 
   public:
     GTE(void);
-    void Init(PGOB pgob, ulong grfgte);
-    bool FNextGob(PGOB *ppgob, ulong *pgrfgteOut, ulong grfgteIn);
+    void Init(PGraphicsObject pgob, ulong grfgte);
+    bool FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgteIn);
 };
 
 #endif //! GOB_H

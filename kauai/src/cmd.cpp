@@ -590,12 +590,12 @@ LStop:
 bool CEX::_FCmhOk(PCMH pcmh)
 {
     AssertNilOrPo(pcmh, 0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGraphicsObject))
         return fTrue;
 
-    for (pgob = (PGOB)pcmh; pgob != _pgobModal; pgob = pgob->PgobPar())
+    for (pgob = (PGraphicsObject)pcmh; pgob != _pgobModal; pgob = pgob->PgobPar())
     {
         if (pvNil == pgob)
             return fFalse;
@@ -1171,7 +1171,7 @@ bool CEX::FGetNextKey(PCMD pcmd)
 /***************************************************************************
     The given GraphicsObject wants to track the mouse.
 ***************************************************************************/
-void CEX::TrackMouse(PGOB pgob)
+void CEX::TrackMouse(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -1205,7 +1205,7 @@ void CEX::EndMouseTracking(void)
 /***************************************************************************
     Return the gob that is tracking the mouse.
 ***************************************************************************/
-PGOB CEX::PgobTracking(void)
+PGraphicsObject CEX::PgobTracking(void)
 {
     AssertThis(0);
     return _pgobTrack;
@@ -1234,7 +1234,7 @@ void CEX::Suspend(bool fSuspend)
 /***************************************************************************
     Set the modal GraphicsObject.
 ***************************************************************************/
-void CEX::SetModalGob(PGOB pgob)
+void CEX::SetModalGob(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgob, 0);

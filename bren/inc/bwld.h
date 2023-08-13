@@ -89,7 +89,7 @@ class BWLD : public BWLD_PAR
     {
         _fWorldChanged = fTrue;
     }
-    void MarkRenderedRegn(PGOB pgob, long dxp, long dyp);
+    void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 
     // Background stuff
     bool FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ);

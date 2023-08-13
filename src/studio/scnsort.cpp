@@ -81,7 +81,7 @@ SCRT::SCRT(PGCB pgcb) : SCRT_PAR(pgcb)
 
 SCRT::~SCRT(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     /* We might get released on Quit without exiting the Scene Sorter. */
     if (_cmvi.pglscend != pvNil || _cmvi.pglmvied != pvNil)
@@ -118,7 +118,7 @@ PSCRT SCRT::PscrtNew(long hid, PMVIE pmvie, PStudio pstdio, PRCA prca)
     AssertPo(pstdio, 0);
 
     PSCRT pscrt = pvNil;
-    PGOB pgobPar;
+    PGraphicsObject pgobPar;
     RC rcRel;
     GraphicsObjectBlock gcb;
 
@@ -216,7 +216,7 @@ bool SCRT::FCmdInit(PCMD pcmd)
     while ((pgokFrame = (PGOK)vpapp->Pkwa()->PgobFromHid(kidCur)) != pvNil)
     {
         PGOMP pgomp;
-        PGOB pgobThumb;
+        PGraphicsObject pgobThumb;
 
         Assert(pgokFrame->FIs(kclsGOK), "Frame GraphicsObject isn't a GOK");
 
@@ -808,13 +808,13 @@ GOMP::GOMP(PGCB pgcb) : GraphicsObject(pgcb)
 
     Arguments:
         PMBMP pmbmp  -- the MBMP to draw as this GOMP
-        PGOB pgobPar -- the parent of this GOMP
+        PGraphicsObject pgobPar -- the parent of this GOMP
         long hid     -- the hid (kid) of this GOMP
 
     Returns: pointer to the GOMP if it succeeds, pvNil otherwise
 
 ************************************************************ PETED ***********/
-PGOMP GOMP::PgompNew(PGOB pgobPar, long hid)
+PGOMP GOMP::PgompNew(PGraphicsObject pgobPar, long hid)
 {
     AssertPo(pgobPar, 0);
 

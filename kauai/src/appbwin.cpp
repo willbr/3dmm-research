@@ -152,7 +152,7 @@ bool APPB::_FGetNextEvt(PEVT pevt)
     of the mouse relative to pgob. Also ensure that GrfcustCur() will
     return the correct mouse state.
 ***************************************************************************/
-void APPB::TrackMouse(PGOB pgob, PT *ppt)
+void APPB::TrackMouse(PGraphicsObject pgob, PT *ppt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -361,7 +361,7 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
     AssertThis(0);
     AssertVarMem(plwRet);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rc;
     PT pt;
     long xp, yp;
@@ -607,7 +607,7 @@ bool APPB::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwR
     AssertThis(0);
     AssertVarMem(plwRet);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     long lwT;
 
     *plwRet = 0;
@@ -643,7 +643,7 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
     AssertThis(0);
     AssertVarMem(plwRet);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     PT pt;
     PSCB pscb;
     RC rc;

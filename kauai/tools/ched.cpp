@@ -150,7 +150,7 @@ void APP::GetStnAppName(PSTN pstn)
 void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
@@ -165,7 +165,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APP::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void APP::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
