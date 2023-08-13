@@ -18,7 +18,7 @@
                         +-> GGB -+-> GG
                         |        +-> AG
                         |
-                        +-> GSTB-+-> StringTable
+                        +-> VirtualStringTable-+-> StringTable
                                  +-> AllocatedStringTable
 
 ***************************************************************************/

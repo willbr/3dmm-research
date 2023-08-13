@@ -635,10 +635,10 @@ class DCST : public DCST_PAR
     RTCLASS_DEC
 
   protected:
-    DCST(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb);
+    DCST(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb);
 
   public:
-    static PDCST PdcstNew(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb);
+    static PDCST PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCMD pcmd);

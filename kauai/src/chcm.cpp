@@ -1460,7 +1460,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
     STN stn;
     DataBlock blck;
     bool fFree;
-    PGSTB pgstb = pvNil;
+    PVirtualStringTable pgstb = pvNil;
     PGL pglivFree = pvNil;
     void *pvExtra = pvNil;
 
@@ -1480,7 +1480,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
         return;
     }
 
-    pgstb = fAst ? (PGSTB)AllocatedStringTable::PastNew(cbExtra) : (PGSTB)StringTable::PgstNew(cbExtra);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastNew(cbExtra) : (PVirtualStringTable)StringTable::PgstNew(cbExtra);
     if (pvNil == pgstb || cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
     {
         _Error(ertOom);
@@ -2698,13 +2698,13 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
 
-    PGSTB pgstb;
+    PVirtualStringTable pgstb;
     short bo, osk;
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
     bool fRet;
 
-    pgstb = fAst ? (PGSTB)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PGSTB)StringTable::PgstRead(pblck, &bo, &osk);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable::PgstRead(pblck, &bo, &osk);
     if (pvNil == pgstb)
         return fFalse;
 

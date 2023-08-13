@@ -144,10 +144,10 @@ namespace Group {
    typedef class GG *PGG;
    typedef class AG *PAG;
 
-   class GSTB;
+   class VirtualStringTable;
    class StringTable;
    class AllocatedStringTable;
-   typedef class GSTB *PGSTB;
+   typedef class VirtualStringTable *PVirtualStringTable;
    typedef class StringTable *PStringTable;
    typedef class AllocatedStringTable *PAllocatedStringTable;
 }

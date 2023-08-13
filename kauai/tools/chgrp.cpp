@@ -250,7 +250,7 @@ PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
         break;
     case kclsStringTable:
     case kclsAllocatedStringTable:
-        pddg = DCST::PdcstNew(this, (PGSTB)_pgrpb, _cls, pgcb);
+        pddg = DCST::PdcstNew(this, (PVirtualStringTable)_pgrpb, _cls, pgcb);
         break;
     default:
         BugVar("bad cls value", &_cls);
@@ -1105,14 +1105,14 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
     Constructor for the DCST class.  This class displays (and allows
     editing of) a StringTable or AllocatedStringTable.
 ***************************************************************************/
-DCST::DCST(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
+DCST::DCST(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCST for the StringTable or AllocatedStringTable.
 ***************************************************************************/
-PDCST DCST::PdcstNew(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb)
+PDCST DCST::PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb)
 {
     AssertVar(cls == kclsStringTable || cls == kclsAllocatedStringTable, "bad cls", &cls);
     PDCST pdcst;
@@ -1139,7 +1139,7 @@ void DCST::Draw(PGNV pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PGSTB pgstb;
+    PVirtualStringTable pgstb;
     STN stn;
     STN stnT;
     byte rgb[1024];
@@ -1157,7 +1157,7 @@ void DCST::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->SetOnn(_onn);
 
-    pgstb = (PGSTB)_pgrpb;
+    pgstb = (PVirtualStringTable)_pgrpb;
     if (size(rgb) < (cbExtra = pgstb->CbExtra()))
     {
         if (FAllocHq(&hqExtra, cbExtra, fmemNil, mprNormal))
@@ -1253,13 +1253,13 @@ bool DCST::FCmdAddItem(PCMD pcmd)
     AssertVarMem(pcmd);
     long ivNew;
     bool fT;
-    PGSTB pgstb;
+    PVirtualStringTable pgstb;
     HQ hq;
     long cb;
     STN stn;
 
     stn.SetNil();
-    pgstb = (PGSTB)_pgrpb;
+    pgstb = (PVirtualStringTable)_pgrpb;
     fT = fFalse;
     switch (pcmd->cid)
     {
@@ -1454,12 +1454,12 @@ bool DOCI::_FWrite(long iv)
         if (_dln == 0)
         {
             cb = LwMin(cb, kcchMaxStz);
-            fRet = ((PGSTB)_pgrpb)->FPutRgch(iv, (achar *)pv, cb / size(achar));
+            fRet = ((PVirtualStringTable)_pgrpb)->FPutRgch(iv, (achar *)pv, cb / size(achar));
         }
         else
         {
-            Assert(cb == ((PGSTB)_pgrpb)->CbExtra(), "bad cb in StringTable/AllocatedStringTable");
-            ((PGSTB)_pgrpb)->PutExtra(iv, pv);
+            Assert(cb == ((PVirtualStringTable)_pgrpb)->CbExtra(), "bad cb in StringTable/AllocatedStringTable");
+            ((PVirtualStringTable)_pgrpb)->PutExtra(iv, pv);
         }
         break;
     default:
@@ -1505,12 +1505,12 @@ HQ DOCI::_HqRead(void)
     case kclsAllocatedStringTable:
         if (_dln == 0)
         {
-            ((PGSTB)_pgrpb)->GetStn(_iv, &stn);
+            ((PVirtualStringTable)_pgrpb)->GetStn(_iv, &stn);
             cb = stn.Cch() * size(achar);
             _fFixed = fFalse;
         }
         else
-            cb = ((PGSTB)_pgrpb)->CbExtra();
+            cb = ((PVirtualStringTable)_pgrpb)->CbExtra();
         break;
     default:
         BugVar("bad cls value", &_cls);
@@ -1539,7 +1539,7 @@ HQ DOCI::_HqRead(void)
         if (_dln == 0)
             CopyPb(stn.Prgch(), pv, stn.Cch() * size(achar));
         else
-            ((PGSTB)_pgrpb)->GetExtra(_iv, pv);
+            ((PVirtualStringTable)_pgrpb)->GetExtra(_iv, pv);
         break;
     }
     UnlockHq(hq);

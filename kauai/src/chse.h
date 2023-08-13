@@ -65,7 +65,7 @@ class SourceEmitter : public SourceEmitter_PAR
     void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
     void DumpList(PGLB pglb);
     void DumpGroup(PGGB pggb);
-    bool FDumpStringTable(PGSTB pgstb);
+    bool FDumpStringTable(PVirtualStringTable pgstb);
     void DumpBlck(PDataBlock pblck);
     bool FDumpScript(PScript pscpt, PCompilerBase psccb);
 

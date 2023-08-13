@@ -21,7 +21,7 @@
                         +-> GGB -+-> GG
                         |        +-> AG
                         |
-                        +-> GSTB-+-> StringTable
+                        +-> VirtualStringTable-+-> StringTable
                                  +-> AllocatedStringTable
 
 ***************************************************************************/
@@ -387,12 +387,12 @@ enum
 const long kcchMaxGst = kcchMaxStn;
 
 /****************************************
-    GSTB is a virtual class supporting
+    VirtualStringTable is a virtual class supporting
     StringTable and AllocatedStringTable.
 ****************************************/
-#define GSTB_PAR GRPB
-#define kclsGSTB 'GSTB'
-class GSTB : public GSTB_PAR
+#define VirtualStringTable_PAR GRPB
+#define kclsVirtualStringTable 'GSTB'
+class VirtualStringTable : public VirtualStringTable_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -403,7 +403,7 @@ class GSTB : public GSTB_PAR
     long _cbstFree; // this is cvNil for non-allocated GSTBs
 
   protected:
-    GSTB(long cbExtra, ulong grfgst);
+    VirtualStringTable(long cbExtra, ulong grfgst);
 
     long _Bst(long ibst)
     {
@@ -421,7 +421,7 @@ class GSTB : public GSTB_PAR
     bool _FTranslateGrst(short osk);
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
-    bool _FDup(PGSTB pgstbDst);
+    bool _FDup(PVirtualStringTable pgstbDst);
 
   public:
     // methods required by parent class
@@ -459,7 +459,7 @@ class GSTB : public GSTB_PAR
 /****************************************
     String table
 ****************************************/
-#define StringTable_PAR GSTB
+#define StringTable_PAR VirtualStringTable
 #define kclsStringTable 'GST'
 class StringTable : public StringTable_PAR
 {
@@ -467,7 +467,7 @@ class StringTable : public StringTable_PAR
     ASSERT
 
   protected:
-    StringTable(long cbExtra) : GSTB(cbExtra, fgstNil)
+    StringTable(long cbExtra) : VirtualStringTable(cbExtra, fgstNil)
     {
     }
 
@@ -494,7 +494,7 @@ class StringTable : public StringTable_PAR
 /****************************************
     Allocated string table
 ****************************************/
-#define AllocatedStringTable_PAR GSTB
+#define AllocatedStringTable_PAR VirtualStringTable
 #define kclsAllocatedStringTable 'AST'
 class AllocatedStringTable : public AllocatedStringTable_PAR
 {
@@ -502,7 +502,7 @@ class AllocatedStringTable : public AllocatedStringTable_PAR
     ASSERT
 
   protected:
-    AllocatedStringTable(long cbExtra) : GSTB(cbExtra, fgstAllowFree)
+    AllocatedStringTable(long cbExtra) : VirtualStringTable(cbExtra, fgstAllowFree)
     {
     }
 

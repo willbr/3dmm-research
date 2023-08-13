@@ -390,7 +390,7 @@ void SourceEmitter::DumpGroup(PGGB pggb)
     Dumps a StringTable or AllocatedStringTable, including the StringTable or AllocatedStringTable directive. pggb is the StringTable or
     AllocatedStringTable to dump.
 ******************************************************************************/
-bool SourceEmitter::FDumpStringTable(PGSTB pgstb)
+bool SourceEmitter::FDumpStringTable(PVirtualStringTable pgstb)
 {
     AssertThis(fchseDump);
     AssertPo(pgstb, 0);
