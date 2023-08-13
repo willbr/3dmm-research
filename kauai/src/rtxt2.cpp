@@ -41,7 +41,7 @@ class CHR
   private:
     CHP _chp;
     PAP _pap;
-    PTXTB _ptxtb;
+    PTextDocumentBase _ptxtb;
     PGNV _pgnv;
     bool _fMustAdvance : 1;
     bool _fBreak : 1;
@@ -67,7 +67,7 @@ class CHR
     void _DoTab(void);
 
   public:
-    void Init(CHP *pchp, PAP *ppap, PTXTB ptxtb, PGNV pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
+    void Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGNV pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
               long xpBreak);
 
     void GetNextRun(bool fMustAdvance = fFalse);
@@ -130,7 +130,7 @@ void CHR::AssertValid(ulong grf)
 /***************************************************************************
     Initialize the CHR.
 ***************************************************************************/
-void CHR::Init(CHP *pchp, PAP *ppap, PTXTB ptxtb, PGNV pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
+void CHR::Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGNV pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
                long xpBreak)
 {
     AssertVarMem(pchp);
@@ -487,7 +487,7 @@ void CHR::_DoTab(void)
 /***************************************************************************
     Constructor for the text document display GraphicsObject.
 ***************************************************************************/
-TXTG::TXTG(PTXTB ptxtb, PGCB pgcb) : TXTG_PAR(ptxtb, pgcb)
+TXTG::TXTG(PTextDocumentBase ptxtb, PGCB pgcb) : TXTG_PAR(ptxtb, pgcb)
 {
     AssertBaseThis(0);
     _ptxtb = ptxtb;
@@ -2414,7 +2414,7 @@ void TXTG::SetDxpTab(long dxp)
 }
 
 /***************************************************************************
-    Set the document width.  Default calls SetDxpDef on the TXTB.
+    Set the document width.  Default calls SetDxpDef on the TextDocumentBase.
 ***************************************************************************/
 void TXTG::SetDxpDoc(long dxp)
 {
@@ -2507,7 +2507,7 @@ void TXTG::GetNaturalSize(long *pdxp, long *pdyp)
 /***************************************************************************
     Constructor for the plain line text document display gob.
 ***************************************************************************/
-TXLG::TXLG(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab) : TXLG_PAR(ptxtb, pgcb)
+TXLG::TXLG(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab) : TXLG_PAR(ptxtb, pgcb)
 {
     RC rc;
     achar ch = kchSpace;
@@ -2525,7 +2525,7 @@ TXLG::TXLG(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cc
 /***************************************************************************
     Static method to create a new plain line text doc display gob.
 ***************************************************************************/
-PTXLG TXLG::PtxlgNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+PTXLG TXLG::PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
 {
     PTXLG ptxlg;
 
@@ -2624,7 +2624,7 @@ bool TXLG::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
-    PTXPD ptxpd;
+    PPlainTextDocument ptxpd;
 
     if (_cpAnchor == _cpOther)
         return fFalse;
@@ -2632,7 +2632,7 @@ bool TXLG::_FCopySel(PDocumentBase *ppdocb)
     if (pvNil == ppdocb)
         return fTrue;
 
-    if (pvNil != (ptxpd = TXPD::PtxpdNew(pvNil)))
+    if (pvNil != (ptxpd = PlainTextDocument::PtxpdNew(pvNil)))
     {
         long cpMin = LwMin(_cpAnchor, _cpOther);
         long cpLim = LwMax(_cpAnchor, _cpOther);
@@ -2670,15 +2670,15 @@ bool TXLG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     AssertPo(pclip, 0);
     long cp1, cp2;
     long ccp;
-    PTXTB ptxtb;
+    PTextDocumentBase ptxtb;
 
-    if (cid != cidPaste || !pclip->FGetFormat(kclsTXTB))
+    if (cid != cidPaste || !pclip->FGetFormat(kclsTextDocumentBase))
         return fFalse;
 
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXTB, (PDocumentBase *)&ptxtb))
+    if (!pclip->FGetFormat(kclsTextDocumentBase, (PDocumentBase *)&ptxtb))
         return fFalse;
 
     AssertPo(ptxtb, 0);
@@ -2941,16 +2941,16 @@ bool TXRG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     AssertThis(0);
     long cp1, cp2;
     long ccp;
-    PTXTB ptxtb;
+    PTextDocumentBase ptxtb;
     bool fRet;
 
-    if (cid != cidPaste || !pclip->FGetFormat(kclsTXTB))
+    if (cid != cidPaste || !pclip->FGetFormat(kclsTextDocumentBase))
         return fFalse;
 
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXRD, (PDocumentBase *)&ptxtb) && !pclip->FGetFormat(kclsTXTB, (PDocumentBase *)&ptxtb))
+    if (!pclip->FGetFormat(kclsTXRD, (PDocumentBase *)&ptxtb) && !pclip->FGetFormat(kclsTextDocumentBase, (PDocumentBase *)&ptxtb))
     {
         return fFalse;
     }

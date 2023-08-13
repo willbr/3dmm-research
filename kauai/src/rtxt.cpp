@@ -13,8 +13,8 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(TXTB)
-RTCLASS(TXPD)
+RTCLASS(TextDocumentBase)
+RTCLASS(PlainTextDocument)
 RTCLASS(TXRD)
 RTCLASS(TXTG)
 RTCLASS(TXLG)
@@ -42,13 +42,13 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Assert the validity of the rich text doc.
 ***************************************************************************/
-void TXTB::AssertValid(ulong grfobj)
+void TextDocumentBase::AssertValid(ulong grfobj)
 {
     achar ch;
     long ibMac;
     long cpMac;
 
-    TXTB_PAR::AssertValid(grfobj);
+    TextDocumentBase_PAR::AssertValid(grfobj);
     AssertPo(_pbsf, 0);
     ibMac = _pbsf->IbMac();
     cpMac = ibMac / size(achar);
@@ -66,12 +66,12 @@ void TXTB::AssertValid(ulong grfobj)
 }
 
 /***************************************************************************
-    Mark memory for the TXTB.
+    Mark memory for the TextDocumentBase.
 ***************************************************************************/
-void TXTB::MarkMem(void)
+void TextDocumentBase::MarkMem(void)
 {
     AssertThis(fobjAssertFull);
-    TXTB_PAR::MarkMem();
+    TextDocumentBase_PAR::MarkMem();
     MarkMemObj(_pbsf);
 }
 #endif // DEBUG
@@ -79,7 +79,7 @@ void TXTB::MarkMem(void)
 /***************************************************************************
     Constructor for the base text document class
 ***************************************************************************/
-TXTB::TXTB(PDocumentBase pdocb, ulong grfdoc) : TXTB_PAR(pdocb, grfdoc)
+TextDocumentBase::TextDocumentBase(PDocumentBase pdocb, ulong grfdoc) : TextDocumentBase_PAR(pdocb, grfdoc)
 {
     _acrBack = kacrWhite;
     _dxpDef = kdxpDocDef;
@@ -88,7 +88,7 @@ TXTB::TXTB(PDocumentBase pdocb, ulong grfdoc) : TXTB_PAR(pdocb, grfdoc)
 /***************************************************************************
     Destructor for the base text document class
 ***************************************************************************/
-TXTB::~TXTB(void)
+TextDocumentBase::~TextDocumentBase(void)
 {
     ReleasePpo(&_pbsf);
     ReleasePpo(&_pfil);
@@ -97,7 +97,7 @@ TXTB::~TXTB(void)
 /***************************************************************************
     Initializer for the base text document class.
 ***************************************************************************/
-bool TXTB::_FInit(PFilename pfni, PBSF pbsf, short osk)
+bool TextDocumentBase::_FInit(PFilename pfni, PBSF pbsf, short osk)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -138,7 +138,7 @@ bool TXTB::_FInit(PFilename pfni, PBSF pbsf, short osk)
 /***************************************************************************
     Load the document from its file
 ***************************************************************************/
-bool TXTB::_FLoad(short osk)
+bool TextDocumentBase::_FLoad(short osk)
 {
     // initialize the BSF to just point to the file
     FLO flo;
@@ -161,7 +161,7 @@ bool TXTB::_FLoad(short osk)
 /***************************************************************************
     Return the length of the text in the text document.
 ***************************************************************************/
-long TXTB::CpMac(void)
+long TextDocumentBase::CpMac(void)
 {
     // Note: we don't do an AssertThis(0) here for debug performance
     AssertThisMem();
@@ -174,7 +174,7 @@ long TXTB::CpMac(void)
 /***************************************************************************
     Suspend undo. This increments a count.
 ***************************************************************************/
-void TXTB::SuspendUndo(void)
+void TextDocumentBase::SuspendUndo(void)
 {
     AssertThis(0);
     _cactSuspendUndo++;
@@ -183,7 +183,7 @@ void TXTB::SuspendUndo(void)
 /***************************************************************************
     Resume undo. This decrements a count.
 ***************************************************************************/
-void TXTB::ResumeUndo(void)
+void TextDocumentBase::ResumeUndo(void)
 {
     AssertThis(0);
     Assert(_cactSuspendUndo > 0, "bad _cactSuspendUndo");
@@ -192,9 +192,9 @@ void TXTB::ResumeUndo(void)
 
 /***************************************************************************
     Set up undo for an action. If this succeeds, you must call either
-    CancelUndo or CommitUndo. Default TXTB doesn't create an undo record.
+    CancelUndo or CommitUndo. Default TextDocumentBase doesn't create an undo record.
 ***************************************************************************/
-bool TXTB::FSetUndo(long cp1, long cp2, long ccpIns)
+bool TextDocumentBase::FSetUndo(long cp1, long cp2, long ccpIns)
 {
     AssertThis(0);
     AssertIn(cp1, 0, CpMac() + 1);
@@ -208,7 +208,7 @@ bool TXTB::FSetUndo(long cp1, long cp2, long ccpIns)
 /***************************************************************************
     Cancel undo.
 ***************************************************************************/
-void TXTB::CancelUndo(void)
+void TextDocumentBase::CancelUndo(void)
 {
     ResumeUndo();
 }
@@ -216,7 +216,7 @@ void TXTB::CancelUndo(void)
 /***************************************************************************
     Commit the setup undo.
 ***************************************************************************/
-void TXTB::CommitUndo(void)
+void TextDocumentBase::CommitUndo(void)
 {
     ResumeUndo();
 }
@@ -226,7 +226,7 @@ void TXTB::CommitUndo(void)
     whether the new undo record can be combined with the previous one
     (during typing etc).
 ***************************************************************************/
-void TXTB::BumpCombineUndo(void)
+void TextDocumentBase::BumpCombineUndo(void)
 {
     AssertThis(0);
     if (_cactSuspendUndo <= 0)
@@ -238,7 +238,7 @@ void TXTB::BumpCombineUndo(void)
     lower case. The pcpLim parameter is in case we support regular
     expressions in the future.
 ***************************************************************************/
-bool TXTB::FFind(achar *prgch, long cch, long cpMin, long *pcpMin, long *pcpLim, bool fCaseSensitive)
+bool TextDocumentBase::FFind(achar *prgch, long cch, long cpMin, long *pcpMin, long *pcpLim, bool fCaseSensitive)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cch, 1, kcbMax);
@@ -315,9 +315,9 @@ bool TXTB::FFind(achar *prgch, long cch, long cpMin, long *pcpMin, long *pcpLim,
 }
 
 /***************************************************************************
-    Turn the selection of this TXTB's active DocumentDisplayGraphicsObject off.
+    Turn the selection of this TextDocumentBase's active DocumentDisplayGraphicsObject off.
 ***************************************************************************/
-void TXTB::HideSel(void)
+void TextDocumentBase::HideSel(void)
 {
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
@@ -327,9 +327,9 @@ void TXTB::HideSel(void)
 }
 
 /***************************************************************************
-    Set the selection of this TXTB's active DocumentDisplayGraphicsObject to the given range.
+    Set the selection of this TextDocumentBase's active DocumentDisplayGraphicsObject to the given range.
 ***************************************************************************/
-void TXTB::SetSel(long cpAnchor, long cpOther, long gin)
+void TextDocumentBase::SetSel(long cpAnchor, long cpOther, long gin)
 {
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
@@ -339,10 +339,10 @@ void TXTB::SetSel(long cpAnchor, long cpOther, long gin)
 }
 
 /***************************************************************************
-    Make sure the selection of this TXTB's acttive DocumentDisplayGraphicsObject is visible (at least
+    Make sure the selection of this TextDocumentBase's acttive DocumentDisplayGraphicsObject is visible (at least
     the _cpOther end of it).
 ***************************************************************************/
-void TXTB::ShowSel(void)
+void TextDocumentBase::ShowSel(void)
 {
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
@@ -354,7 +354,7 @@ void TXTB::ShowSel(void)
 /***************************************************************************
     Fetch a character of the stream through the cache.
 ***************************************************************************/
-void TXTB::_CacheRange(long cpMin, long cpLim)
+void TextDocumentBase::_CacheRange(long cpMin, long cpLim)
 {
     AssertThis(0);
     AssertIn(cpMin, 0, CpMac() + 1);
@@ -419,7 +419,7 @@ void TXTB::_CacheRange(long cpMin, long cpLim)
 /***************************************************************************
     Characters have changed, so fix the cache.
 ***************************************************************************/
-void TXTB::_InvalCache(long cp, long ccpIns, long ccpDel)
+void TextDocumentBase::_InvalCache(long cp, long ccpIns, long ccpDel)
 {
     long dcpFront, dcpBack;
 
@@ -458,7 +458,7 @@ void TXTB::_InvalCache(long cp, long ccpIns, long ccpDel)
 /***************************************************************************
     Fetch a character of the stream through the cache.
 ***************************************************************************/
-achar TXTB::_ChFetch(long cp)
+achar TextDocumentBase::_ChFetch(long cp)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
@@ -475,7 +475,7 @@ achar TXTB::_ChFetch(long cp)
 /***************************************************************************
     Fetch some characters from the text document.
 ***************************************************************************/
-void TXTB::FetchRgch(long cp, long ccp, achar *prgch)
+void TextDocumentBase::FetchRgch(long cp, long ccp, achar *prgch)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
@@ -497,7 +497,7 @@ void TXTB::FetchRgch(long cp, long ccp, achar *prgch)
 /***************************************************************************
     Returns non-zero iff cp is the beginning of a paragraph.
 ***************************************************************************/
-bool TXTB::FMinPara(long cp)
+bool TextDocumentBase::FMinPara(long cp)
 {
     AssertThis(0);
     ulong grfch;
@@ -531,7 +531,7 @@ bool TXTB::FMinPara(long cp)
     returns 0. If cp >= CpMac(), returns the beginning of the last
     paragraph.
 ***************************************************************************/
-long TXTB::CpMinPara(long cp)
+long TextDocumentBase::CpMinPara(long cp)
 {
     AssertThis(0);
     ulong grfch;
@@ -570,7 +570,7 @@ long TXTB::CpMinPara(long cp)
     Find the end of the paragraph that cp is in. If cp < 0, returns 0.
     If cp >= CpMac(), returns CpMac().
 ***************************************************************************/
-long TXTB::CpLimPara(long cp)
+long TextDocumentBase::CpLimPara(long cp)
 {
     AssertThis(0);
     ulong grfch;
@@ -607,7 +607,7 @@ long TXTB::CpLimPara(long cp)
     Return cp of the previous character, skipping line feed characters. If
     fWord is true, skip to the beginning of a word.
 ***************************************************************************/
-long TXTB::CpPrev(long cp, bool fWord)
+long TextDocumentBase::CpPrev(long cp, bool fWord)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
@@ -636,7 +636,7 @@ long TXTB::CpPrev(long cp, bool fWord)
     Return cp of the next character, skipping line feed characters. If
     fWord is true, skip to the beginning of the next word.
 ***************************************************************************/
-long TXTB::CpNext(long cp, bool fWord)
+long TextDocumentBase::CpNext(long cp, bool fWord)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
@@ -668,7 +668,7 @@ long TXTB::CpNext(long cp, bool fWord)
     Invalidate all DDGs on this text doc. Also dirties the document.
     Should be called by any code that edits the document.
 ***************************************************************************/
-void TXTB::InvalAllDdg(long cp, long ccpIns, long ccpDel, ulong grfdoc)
+void TextDocumentBase::InvalAllDdg(long cp, long ccpIns, long ccpDel, ulong grfdoc)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac() + 1);
@@ -695,7 +695,7 @@ void TXTB::InvalAllDdg(long cp, long ccpIns, long ccpDel, ulong grfdoc)
 /***************************************************************************
     Set the background color of the document.
 ***************************************************************************/
-void TXTB::SetAcrBack(AbstractColor acr, ulong grfdoc)
+void TextDocumentBase::SetAcrBack(AbstractColor acr, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(&acr, 0);
@@ -713,7 +713,7 @@ void TXTB::SetAcrBack(AbstractColor acr, ulong grfdoc)
 /***************************************************************************
     Set the default width of the document.
 ***************************************************************************/
-void TXTB::SetDxpDef(long dxp)
+void TextDocumentBase::SetDxpDef(long dxp)
 {
     AssertThis(0);
     AssertIn(dxp, 1, kcbMax);
@@ -733,7 +733,7 @@ void TXTB::SetDxpDef(long dxp)
     Replace cp to cp + ccpDel with ccpIns characters from prgch. If ccpIns
     is zero, prgch can be nil. The last character should never be replaced.
 ***************************************************************************/
-bool TXTB::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc)
+bool TextDocumentBase::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ccpIns, 0, kcbMax);
@@ -754,7 +754,7 @@ bool TXTB::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong gr
 /***************************************************************************
     Replace cp to cp + ccpDel with the characters in the given FLO.
 ***************************************************************************/
-bool TXTB::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
+bool TextDocumentBase::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pflo, 0);
@@ -781,7 +781,7 @@ bool TXTB::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, u
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc.
 ***************************************************************************/
-bool TXTB::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool TextDocumentBase::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -805,7 +805,7 @@ bool TXTB::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long c
     Replace cp to cpDst + ccpDel with ccpSrc characters from ptxtbSrc starting
     at cpSrc.
 ***************************************************************************/
-bool TXTB::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool TextDocumentBase::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertPo(ptxtbSrc, 0);
     AssertIn(cpSrc, 0, ptxtbSrc->CpMac() + 1);
@@ -818,7 +818,7 @@ bool TXTB::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, lon
     Get the bounds of an object - since plain text doesn't have objects,
     just return false.
 ***************************************************************************/
-bool TXTB::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
+bool TextDocumentBase::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -834,7 +834,7 @@ bool TXTB::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
     Draw an object - since plain text doesn't have objects, just return
     false.
 ***************************************************************************/
-bool TXTB::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool TextDocumentBase::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -850,7 +850,7 @@ bool TXTB::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *pr
     Get the current Filename for the doc. Return false if the doc is not
     currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool TXTB::FGetFni(Filename *pfni)
+bool TextDocumentBase::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -865,7 +865,7 @@ bool TXTB::FGetFni(Filename *pfni)
 /***************************************************************************
     Export the text.
 ***************************************************************************/
-void TXTB::ExportFormats(PCLIP pclip)
+void TextDocumentBase::ExportFormats(PCLIP pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
@@ -887,21 +887,21 @@ void TXTB::ExportFormats(PCLIP pclip)
 /***************************************************************************
     Constructor for plain text doc.
 ***************************************************************************/
-TXPD::TXPD(PDocumentBase pdocb, ulong grfdoc) : TXPD_PAR(pdocb, grfdoc)
+PlainTextDocument::PlainTextDocument(PDocumentBase pdocb, ulong grfdoc) : PlainTextDocument_PAR(pdocb, grfdoc)
 {
 }
 
 /***************************************************************************
     Static method to create a new plain text document.
 ***************************************************************************/
-PTXPD TXPD::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
+PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
     AssertNilOrPo(pdocb, 0);
-    PTXPD ptxpd;
+    PPlainTextDocument ptxpd;
 
-    if (pvNil != (ptxpd = NewObj TXPD(pdocb, grfdoc)) && !ptxpd->_FInit(pfni, pbsf, osk))
+    if (pvNil != (ptxpd = NewObj PlainTextDocument(pdocb, grfdoc)) && !ptxpd->_FInit(pfni, pbsf, osk))
     {
         ReleasePpo(&ptxpd);
     }
@@ -909,9 +909,9 @@ PTXPD TXPD::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, 
 }
 
 /***************************************************************************
-    Create a new TXLG to display the TXPD.
+    Create a new TXLG to display the PlainTextDocument.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject TXPD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject PlainTextDocument::PddgNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
     long onn = vpappb->OnnDefFixed();
@@ -927,7 +927,7 @@ PDocumentDisplayGraphicsObject TXPD::PddgNew(PGCB pgcb)
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool TXPD::FSaveToFni(Filename *pfni, bool fSetFni)
+bool PlainTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
@@ -2746,7 +2746,7 @@ bool TXRD::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long c
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(ptxtbSrc, 0);
@@ -2756,7 +2756,7 @@ bool TXRD::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, lon
     AssertIn(ccpDel, 0, CpMac() - cpDst);
 
     // NOTE: this cast to PTXRD is just a rude hack to get around
-    // an oddity of C++. TXRD cannot access _pbsf in a TXTB, only in a TXRD.
+    // an oddity of C++. TXRD cannot access _pbsf in a TextDocumentBase, only in a TXRD.
     // ptxtbSrc is probably not a TXRD, but the cast still works.
     return FReplaceBsf(((PTXRD)ptxtbSrc)->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, grfdoc);
 }
@@ -2765,7 +2765,7 @@ bool TXRD::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, lon
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
+bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
                         ulong grfdoc)
 {
     AssertThis(0);
@@ -2778,7 +2778,7 @@ bool TXRD::FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, lon
     AssertNilOrVarMem(ppap);
 
     // NOTE: this cast to PTXRD is just a rude hack to get around
-    // an oddity of C++. TXRD cannot access _pbsf in a TXTB, only in a TXRD.
+    // an oddity of C++. TXRD cannot access _pbsf in a TextDocumentBase, only in a TXRD.
     // ptxtbSrc is probably not a TXRD, but the cast still works.
     return _FReplaceCore(pvNil, pvNil, fFalse, ((PTXRD)ptxtbSrc)->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, pchp, ppap,
                          grfdoc);

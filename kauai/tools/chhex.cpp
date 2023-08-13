@@ -1038,7 +1038,7 @@ bool DCH::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (cidPaste != cid)
         return fFalse;
 
-    if (!pclip->FGetFormat(kclsDHEX) && !pclip->FGetFormat(kclsTXTB))
+    if (!pclip->FGetFormat(kclsDHEX) && !pclip->FGetFormat(kclsTextDocumentBase))
         return fFalse;
 
     if (!fDoIt)
@@ -1052,9 +1052,9 @@ bool DCH::_FPaste(PCLIP pclip, bool fDoIt, long cid)
             return fFalse;
         }
     }
-    else if (pclip->FGetFormat(kclsTXTB, &pdocb))
+    else if (pclip->FGetFormat(kclsTextDocumentBase, &pdocb))
     {
-        if (pvNil == (pbsf = ((PTXTB)pdocb)->Pbsf()) || 0 >= (cb = pbsf->IbMac() - size(achar)))
+        if (pvNil == (pbsf = ((PTextDocumentBase)pdocb)->Pbsf()) || 0 >= (cb = pbsf->IbMac() - size(achar)))
         {
             ReleasePpo(&pdocb);
             return fFalse;

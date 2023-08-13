@@ -710,7 +710,7 @@ class TSCG : public TSCG_PAR
     Text doc for the chunky editor.
 ***************************************************************************/
 typedef class CHTXD *PCHTXD;
-#define CHTXD_PAR TXPD
+#define CHTXD_PAR PlainTextDocument
 #define kclsCHTXD 'chtx'
 class CHTXD : public CHTXD_PAR
 {
@@ -735,10 +735,10 @@ class CHTDD : public CHTDD_PAR
     CMD_MAP_DEC(CHTDD)
 
   protected:
-    CHTDD(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    CHTDD(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
   public:
-    static PCHTDD PchtddNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    static PCHTDD PchtddNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual bool FCmdCompileChunky(PCMD pcmd);
     virtual bool FCmdCompileScript(PCMD pcmd);

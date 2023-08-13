@@ -1497,7 +1497,7 @@ bool APPB::FImportClip(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool
     case kclfmText:
         AssertNilOrPo(*ppdocb, 0);
 
-        if (pvNil == *ppdocb || !(*ppdocb)->FIs(kclsTXTB))
+        if (pvNil == *ppdocb || !(*ppdocb)->FIs(kclsTextDocumentBase))
         {
             ReleasePpo(ppdocb);
             if (pvNil == (*ppdocb = TXRD::PtxrdNew()))
@@ -1515,10 +1515,10 @@ bool APPB::FImportClip(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool
             *pfDelay = fFalse;
         }
 
-        ((PTXTB)(*ppdocb))->SuspendUndo();
-        cpMac = ((PTXTB)(*ppdocb))->CpMac();
-        ((PTXTB)(*ppdocb))->FReplaceRgch(pv, cb / size(achar), 0, cpMac - 1);
-        ((PTXTB)(*ppdocb))->ResumeUndo();
+        ((PTextDocumentBase)(*ppdocb))->SuspendUndo();
+        cpMac = ((PTextDocumentBase)(*ppdocb))->CpMac();
+        ((PTextDocumentBase)(*ppdocb))->FReplaceRgch(pv, cb / size(achar), 0, cpMac - 1);
+        ((PTextDocumentBase)(*ppdocb))->ResumeUndo();
         return fTrue;
     }
 }

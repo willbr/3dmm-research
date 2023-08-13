@@ -52,7 +52,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Constructor.
 ***************************************************************************/
-CHTDD::CHTDD(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+CHTDD::CHTDD(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
     : CHTDD_PAR(ptxtb, pgcb, onn, grfont, dypFont, cchTab)
 {
     _fMark = fFalse;
@@ -61,7 +61,7 @@ CHTDD::CHTDD(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long 
 /***************************************************************************
     Create a new one.
 ***************************************************************************/
-PCHTDD CHTDD::PchtddNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+PCHTDD CHTDD::PchtddNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
 {
     PCHTDD pchtdd;
 
