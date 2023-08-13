@@ -1737,7 +1737,7 @@ bool HETD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!HETD_PAR::_FReadChunk(pcfl, ctg, cno, pvNil, fCopyText ? ftxhdCopyText : ftxhdNil))
     {

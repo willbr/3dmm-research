@@ -773,7 +773,7 @@ bool TAGM::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PT
 
     PCRM pcrmSource;
     PCRF pcrfSource;
-    KID kid;
+    ChildChunkIdentification kid;
 
     TrashVar(ptagChild);
 
@@ -846,7 +846,7 @@ bool TAGM::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
         // Cache the chunk specified by the tag, and all its child
         // chunks.
         CGE cge;
-        KID kid;
+        ChildChunkIdentification kid;
         ulong grfcgeIn = 0;
         ulong grfcgeOut;
 

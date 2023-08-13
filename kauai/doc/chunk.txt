@@ -36,7 +36,7 @@
 		parent).  These are preserved when chunks are copied to other
 		files (while cno's may not be).
 
-	struct KID;
+	struct ChildChunkIdentification;
 		A struct consisting of a ChunkIdentification and a ChildChunkID.  Identifies a child chunk.
 
 	ulong grfcfl;
@@ -240,15 +240,15 @@ REVIEW shonk: assert and check for cycles.
 	long CFL::Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
 		Returns the number of children of the given chunk.
 
-	bool CFL::FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, KID *pkid);
+	bool CFL::FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, ChildChunkIdentification *pkid);
 		Gets a kid for the ikid'th child of (ctgPar, cnoPar).
 		Returns false if ikid is too big.
 
-	bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, KID *pkid);
+	bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid.
 
 	bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar,
-			ChildChunkID chid, ChunkTag ctg, KID *pkid);
+			ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid
 		and ctg.
 
@@ -262,7 +262,7 @@ REVIEW shonk: assert and check for cycles.
 		GrfcgeNextKid is called.  The enumeration is over the given
 		node and all of its descendents.
 
-	bool CGE::FNextKid(KID *pkid, ChunkIdentification *pckiPar,
+	bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar,
 			ulong *pgrfcgeOut, ulong grfcgeIn);
 		Fetches the next node in the graph enumeration.  Returns fFalse
 		iff the enumeration is done (there are no more nodes).  Generally,

@@ -125,7 +125,7 @@ bool MTRL::_FInit(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
     PCFL pcfl = pcrf->Pcfl();
     DataBlock blck;
     MTRLF mtrlf;
-    KID kid;
+    ChildChunkIdentification kid;
     MTRL *pmtrlThis = this; // to get MTRL from BMTL
     PTMAP ptmap = pvNil;
 
@@ -443,7 +443,7 @@ bool CMTL::FHasModels(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
 
     return pcfl->FGetKidChidCtg(ctg, cno, 0, kctgBmdl, &kid);
 }
@@ -457,8 +457,8 @@ bool CMTL::FEqualModels(PCFL pcfl, ChunkNumber cno1, ChunkNumber cno2)
     AssertPo(pcfl, 0);
 
     ChildChunkID chid = 0;
-    KID kid1;
-    KID kid2;
+    ChildChunkIdentification kid1;
+    ChildChunkIdentification kid2;
 
     while (pcfl->FGetKidChidCtg(kctgCmtl, cno1, chid, kctgBmdl, &kid1))
     {
@@ -548,7 +548,7 @@ bool CMTL::_FInit(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 
     long ikid;
     long imtrl;
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     PCFL pcfl = pcrf->Pcfl();
     CMTLF cmtlf;

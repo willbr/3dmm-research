@@ -1258,7 +1258,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
                 if ((pcfl = CFL::PcflOpen(&fni, fcflNil)) != pvNil)
                 {
                     ChunkIdentification ckiMovie;
-                    KID kidScene, kidThumb;
+                    ChildChunkIdentification kidScene, kidThumb;
                     DataBlock blck;
 
                     // Get the movie chunk from the open file.

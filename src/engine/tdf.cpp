@@ -163,8 +163,8 @@ bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, ChunkIdentification *pckiTdf
     AssertNilOrVarMem(pckiTdf);
 
     ChunkIdentification ckiTdf;
-    KID kid;
-    KID kid2;
+    ChildChunkIdentification kid;
+    ChildChunkIdentification kid2;
     TDFF tdff;
     BRS *prgdxr = pvNil;
     BRS *prgdyr = pvNil;
@@ -257,7 +257,7 @@ PMODL TDF::PmodlFetch(ChildChunkID chid)
 {
     AssertThis(0);
 
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!Pcrf()->Pcfl()->FGetKidChid(Ctg(), Cno(), chid, &kid))
     {

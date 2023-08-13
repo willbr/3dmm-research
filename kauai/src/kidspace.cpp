@@ -588,7 +588,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag c
 {
     AssertThis(0);
     long ikid;
-    KID kid;
+    ChildChunkIdentification kid;
     PGORP pgorp;
     bool fSet = fFalse;
     bool fKillAnim = FPure(grfgok & fgokKillAnim);
@@ -1022,7 +1022,7 @@ bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidS
     AssertThis(0);
     CMFLT cmflt;
     long icmflt;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (chidNil == chidScript ||
         !_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
@@ -1381,7 +1381,7 @@ bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, long *prglw, long clw,
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
     {
@@ -1784,7 +1784,7 @@ long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTag ctg, ChunkNumber cno)
 void KidspaceGraphicObject::_PlayMouseSound(ChildChunkID chid)
 {
     AssertThis(0);
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (pvNil == vpsndm)
         return;
@@ -2222,7 +2222,7 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, Chunk
     PCFL pcfl;
     DataBlock blck;
     PGORT pgort;
-    KID kid;
+    ChildChunkIdentification kid;
 
     pcfl = pcrf->Pcfl();
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(GOTIL) || !blck.FRead(&gotil))

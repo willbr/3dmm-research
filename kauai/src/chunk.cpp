@@ -174,7 +174,7 @@ struct CRPBG
 
     long BvRgch(void)
     {
-        return LwMul(ckid, size(KID));
+        return LwMul(ckid, size(ChildChunkIdentification));
     }
     long CbRgch(long cbVar)
     {
@@ -224,7 +224,7 @@ struct CRPSM
 
     long BvRgch(void)
     {
-        return LwMul(ckid, size(KID));
+        return LwMul(ckid, size(ChildChunkIdentification));
     }
     long CbRgch(long cbVar)
     {
@@ -278,7 +278,7 @@ const ByteOrderMask kbomCrp = kbomCrpsm;
 
 #endif //! CHUNK_BIG_INDEX
 
-#define _BvKid(ikid) LwMul(ikid, size(KID))
+#define _BvKid(ikid) LwMul(ikid, size(ChildChunkIdentification))
 
 const long rtiNil = 0; // no rti assigned
 long CFL::_rtiLast = rtiNil;
@@ -593,7 +593,7 @@ bool CFL::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP fpDst,
     CGE cge;
     ECDF ecdf;
     FLO floSrc, floDst;
-    KID kid;
+    ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
     ulong grfcge;
 
@@ -991,7 +991,7 @@ void CFL::AssertValid(ulong grfcfl)
     long cbTotExtra = 0;
     ChunkIdentification ckiOld;
     ChunkIdentification ckiNew;
-    KID kid, kidOld;
+    ChildChunkIdentification kid, kidOld;
     bool fFirstKid;
     long icrp, icrpT;
     long ccrpRefTot = 0;
@@ -1081,7 +1081,7 @@ void CFL::AssertValid(ulong grfcfl)
         fFirstKid = fTrue;
         for (ikid = 0; ikid < crp.ckid; ikid++)
         {
-            _pggcrp->GetRgb(icrp, _BvKid(ikid), size(KID), &kid);
+            _pggcrp->GetRgb(icrp, _BvKid(ikid), size(ChildChunkIdentification), &kid);
             AssertVar(_FFindCtgCno(kid.cki.ctg, kid.cki.cno, &icrpT), "child doesn't exist", &kid.cki);
             Assert(kid.cki.ctg != ckiOld.ctg || kid.cki.cno != ckiOld.cno, "chunk is child of itself!");
 
@@ -1187,7 +1187,7 @@ tribool CFL::_TValidIndex(void)
     CRP *qcrp;
     CGE cge;
     ulong grfcge, grfcgeIn;
-    KID kid;
+    ChildChunkIdentification kid;
     long cbVar;
     long ccrpRefTot;
     long ckidTot;
@@ -1197,7 +1197,7 @@ tribool CFL::_TValidIndex(void)
     for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
     {
         qcrp = (CRP *)_pggcrp->QvFixedGet(icrp, &cbVar);
-        if (!FIn(qcrp->ckid, 0, cbVar / size(KID) + 1))
+        if (!FIn(qcrp->ckid, 0, cbVar / size(ChildChunkIdentification) + 1))
             return tNo;
         if (!FIn(qcrp->ccrpRef, 0, kckidMax + 1))
             return tNo;
@@ -1391,7 +1391,7 @@ bool CFL::_FReadIndex(void)
         return fFalse;
 
     // Clean the index
-    AssertBomRglw(kbomKid, size(KID));
+    AssertBomRglw(kbomKid, size(ChildChunkIdentification));
     _pggcrp->Lock();
 
     if (cbFixed == size(CRPBG))
@@ -1415,13 +1415,13 @@ bool CFL::_FReadIndex(void)
                 goto LBadFile;
             if (bomNil != bom)
                 SwapBytesBom(pcrpbg, bom);
-            if (!FIn(pcrpbg->ckid, 0, cbVar / size(KID) + 1) || (cbRgch = pcrpbg->CbRgch(cbVar)) > kcbMaxDataStn)
+            if (!FIn(pcrpbg->ckid, 0, cbVar / size(ChildChunkIdentification) + 1) || (cbRgch = pcrpbg->CbRgch(cbVar)) > kcbMaxDataStn)
             {
                 goto LBadFile;
             }
             if (bomNil != bom && pcrpbg->ckid > 0)
             {
-                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpbg->ckid * (size(KID) / size(long)));
+                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpbg->ckid * (size(ChildChunkIdentification) / size(long)));
             }
             pcrpbg->rti = rtiNil;
 
@@ -1497,13 +1497,13 @@ bool CFL::_FReadIndex(void)
                 goto LBadFile;
             if (bomNil != bom)
                 SwapBytesBom(pcrpsm, bom);
-            if (!FIn(pcrpsm->ckid, 0, cbVar / size(KID) + 1) || (cbRgch = pcrpsm->CbRgch(cbVar)) > kcbMaxDataStn)
+            if (!FIn(pcrpsm->ckid, 0, cbVar / size(ChildChunkIdentification) + 1) || (cbRgch = pcrpsm->CbRgch(cbVar)) > kcbMaxDataStn)
             {
                 goto LBadFile;
             }
             if (pcrpsm->ckid > 0 && bomNil != bom)
             {
-                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpsm->ckid * (size(KID) / size(long)));
+                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpsm->ckid * (size(ChildChunkIdentification) / size(long)));
             }
 
             pcrpsm->ClearGrfcrp(fcrpOnExtra);
@@ -2735,8 +2735,8 @@ void CFL::SwapChildren(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkNumb
     // Swap the child lists.
     qcrp1 = (CRP *)_pggcrp->QvFixedGet(icrp1);
     qcrp2 = (CRP *)_pggcrp->QvFixedGet(icrp2);
-    cb1 = LwMul(qcrp1->ckid, size(KID));
-    cb2 = LwMul(qcrp2->ckid, size(KID));
+    cb1 = LwMul(qcrp1->ckid, size(ChildChunkIdentification));
+    cb2 = LwMul(qcrp2->ckid, size(ChildChunkIdentification));
     SwapVars(&qcrp1->ckid, &qcrp2->ckid);
 
     // These FMoveRgb calls won't fail, because no padding is necessary for
@@ -2788,14 +2788,14 @@ void CFL::Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumber cnoNe
         // chunk has some parents
         CRP crp;
         long icrp, ikid, ikidNew;
-        KID *qkid, *qrgkid;
+        ChildChunkIdentification *qkid, *qrgkid;
 
         // In debug, increment ccrpRef so we'll traverse the entire
         // index.  In ship, we'll stop once we changed ccrpRef KIDs.
         Debug(ccrpRef++;) for (icrp = _pggcrp->IvMac(); icrp-- > 0 && ccrpRef > 0;)
         {
             _pggcrp->GetFixed(icrp, &crp);
-            qkid = (KID *)_pggcrp->QvGet(icrp);
+            qkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp);
             for (ikid = 0; ikid < crp.ckid;)
             {
                 if (qkid->cki.ctg != ctg || qkid->cki.cno != cno)
@@ -2809,11 +2809,11 @@ void CFL::Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumber cnoNe
                 AssertDo(!_FFindChild(icrp, ctgNew, cnoNew, qkid->chid, &ikidNew), "already a child");
 
                 // refresh the qkid and qrgkid pointers
-                qkid = (qrgkid = (KID *)_pggcrp->QvGet(icrp)) + ikid;
+                qkid = (qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp)) + ikid;
                 qkid->cki.ctg = ctgNew;
                 qkid->cki.cno = cnoNew;
 
-                MoveElement(qrgkid, size(KID), ikid, ikidNew);
+                MoveElement(qrgkid, size(ChildChunkIdentification), ikid, ikidNew);
                 ccrpRef--;
             }
         }
@@ -2839,7 +2839,7 @@ void CFL::Delete(ChunkTag ctg, ChunkNumber cno)
     long icrp;
     CGE cge;
     ulong grfcgeIn, grfcge;
-    KID kid;
+    ChildChunkIdentification kid;
     CRP *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2877,7 +2877,7 @@ void CFL::Delete(ChunkTag ctg, ChunkNumber cno)
                 // memory failure - adjust the ref counts of this chunk's
                 // children, but don't try to delete them
                 long ikid, icrpChild;
-                KID kid;
+                ChildChunkIdentification kid;
 
                 qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
                 for (ikid = qcrp->ckid; ikid-- != 0;)
@@ -2965,7 +2965,7 @@ tribool CFL::TIsDescendent(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgSub, Chunk
 {
     AssertThis(0);
     CGE cge;
-    KID kid;
+    ChildChunkIdentification kid;
     ulong grfcge;
 
     if (CckiRef(ctgSub, cnoSub) == 0)
@@ -3006,7 +3006,7 @@ void CFL::DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, Ch
     // remove the reference
     qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
     qcrp->ckid--;
-    _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(KID));
+    _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification));
 
     // now decrement the ref count and nuke it if the ref count is zero
     if (_FDecRefCount(icrpChild))
@@ -3317,7 +3317,7 @@ bool CFL::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber c
     AssertIn(icrpPar, 0, _pggcrp->IvMac());
     long icrp;
     CRP *qcrp;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!_FFindCtgCno(ctgChild, cnoChild, &icrp))
     {
@@ -3335,7 +3335,7 @@ bool CFL::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber c
     kid.cki.ctg = ctgChild;
     kid.cki.cno = cnoChild;
     kid.chid = chid;
-    if (!_pggcrp->FInsertRgb(icrpPar, _BvKid(ikid), size(KID), &kid))
+    if (!_pggcrp->FInsertRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification), &kid))
     {
         AssertThis(0);
         return fFalse;
@@ -3351,7 +3351,7 @@ bool CFL::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber c
         qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
         qcrp->ckid--;
     LOverFlow:
-        _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(KID));
+        _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification));
         AssertThis(0);
         return fFalse;
     }
@@ -3372,7 +3372,7 @@ void CFL::ChangeChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, Chu
 {
     AssertThis(0);
     long icrp, ikidOld, ikidNew;
-    KID *qkid, *qrgkid;
+    ChildChunkIdentification *qkid, *qrgkid;
 
     if (chidOld == chidNew)
         return;
@@ -3389,10 +3389,10 @@ void CFL::ChangeChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, Chu
         return;
     }
 
-    qkid = (qrgkid = (KID *)_pggcrp->QvGet(icrp)) + ikidOld;
+    qkid = (qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp)) + ikidOld;
     qkid->chid = chidNew;
 
-    MoveElement(qrgkid, size(KID), ikidOld, ikidNew);
+    MoveElement(qrgkid, size(ChildChunkIdentification), ikidOld, ikidNew);
 
     AssertThis(0);
 }
@@ -3539,7 +3539,7 @@ long CFL::Ckid(ChunkTag ctg, ChunkNumber cno)
     If ikid is less than number of children of the given chunk,
     fill *pkid and return true.  Otherwise, return false.
 ***************************************************************************/
-bool CFL::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, KID *pkid)
+bool CFL::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
@@ -3560,7 +3560,7 @@ bool CFL::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, KID *pkid)
         TrashVar(pkid);
         return fFalse;
     }
-    _pggcrp->GetRgb(icrp, _BvKid(ikid), size(KID), pkid);
+    _pggcrp->GetRgb(icrp, _BvKid(ikid), size(ChildChunkIdentification), pkid);
     Assert(_FFindCtgCno(pkid->cki.ctg, pkid->cki.cno, &icrp), "child not there");
     Assert(pkid->cki.ctg != ctg || pkid->cki.cno != cno, "chunk is child of itself!");
     return fTrue;
@@ -3571,7 +3571,7 @@ bool CFL::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, KID *pkid)
     is found, fill in *pkid and return true; else return false.  Kid's are
     sorted by (chid, ctg, cno).
 ***************************************************************************/
-bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, KID *pkid)
+bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
@@ -3583,7 +3583,7 @@ bool CFL::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, KI
     If one is found, fill in *pkid and return true; else return false.
     Kid's are sorted by (chid, ctg, cno).
 ***************************************************************************/
-bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, KID *pkid)
+bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
@@ -3602,13 +3602,13 @@ bool CFL::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
     Find the first child with the given chid and with ctg >= the given ctg.
     Returns true iff there is such a child and fills in the *pkid.
 ***************************************************************************/
-bool CFL::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, KID *pkid)
+bool CFL::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertVarMem(pkid);
     long ikidMin, ikidLim, ikid;
     CRP *qcrp;
-    KID *qrgkid, *qkid;
+    ChildChunkIdentification *qrgkid, *qkid;
     long ckid, icrp;
 
     if (!_FFindCtgCno(ctgPar, cnoPar, &icrp))
@@ -3624,7 +3624,7 @@ bool CFL::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, 
         goto LFail;
     }
 
-    qrgkid = (KID *)_pggcrp->QvGet(icrp);
+    qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrp);
     for (ikidMin = 0, ikidLim = ckid; ikidMin < ikidLim;)
     {
         ikid = (ikidMin + ikidLim) / 2;
@@ -3688,7 +3688,7 @@ bool CFL::_FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChild, Chi
 
     long ikidMin, ikidLim, ikid, ckid;
     CRP *qcrp;
-    KID *qrgkid, *qkid;
+    ChildChunkIdentification *qrgkid, *qkid;
 
     qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
     if ((ckid = qcrp->ckid) <= 0)
@@ -3698,7 +3698,7 @@ bool CFL::_FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChild, Chi
         return fFalse;
     }
 
-    qrgkid = (KID *)_pggcrp->QvGet(icrpPar);
+    qrgkid = (ChildChunkIdentification *)_pggcrp->QvGet(icrpPar);
     for (ikidMin = 0, ikidLim = ckid; ikidMin < ikidLim;)
     {
         ikid = (ikidMin + ikidLim) / 2;
@@ -3819,7 +3819,7 @@ bool CFL::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber 
     long icrpSrc, icrpDst;
     long rtiSrc;
     CGE cge;
-    KID kid;
+    ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
     DataBlock blckSrc;
     ulong grfcge, grfcgeIn;
@@ -3983,7 +3983,7 @@ bool CFL::_FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNu
     long ckidSrc;
     ChunkNumber cnoMin, cnoDst;
     CGE cgeSrc, cgeDst;
-    KID kidSrc, kidDst;
+    ChildChunkIdentification kidSrc, kidDst;
     ChunkIdentification ckiParSrc, ckiParDst;
     ulong grfcgeSrc, grfcgeDst;
     bool fKidSrc, fKidDst;
@@ -4349,7 +4349,7 @@ void CGE::Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
         fcgeRoot:  *pkid is valid (except the chid value); *pckiPar is
             invalid; the node is the root of the enumeration
 ***************************************************************************/
-bool CGE::FNextKid(KID *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
+bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
 {
     AssertThis(0);
     AssertVarMem(pkid);

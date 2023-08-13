@@ -54,7 +54,7 @@ struct ChunkIdentification
 const ByteOrderMask kbomCki = 0xF0000000;
 
 // child chunk identification
-struct KID
+struct ChildChunkIdentification
 {
     ChunkIdentification cki;
     ChildChunkID chid;
@@ -139,7 +139,7 @@ class CFL : public CFL_PAR
     bool _FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid, long *pikid);
     bool _FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner);
     void _ReadFreeMap(void);
-    bool _FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, KID *pkid);
+    bool _FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
     bool _FSetName(long icrp, PSTN pstn);
     bool _FGetName(long icrp, PSTN pstn);
     void _GetFlo(long icrp, PFLO pflo);
@@ -248,9 +248,9 @@ class CFL : public CFL_PAR
 
     // enumerating child chunks
     long Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
-    bool FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, KID *pkid);
-    bool FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, KID *pkid);
-    bool FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, KID *pkid);
+    bool FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, ChildChunkIdentification *pkid);
+    bool FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid);
+    bool FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
     bool FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid, long *pikid);
 
     // Serialized chunk forests
@@ -294,7 +294,7 @@ class CGE : public CGE_PAR
     // data enumeration push state
     struct DPS
     {
-        KID kid;
+        ChildChunkIdentification kid;
         long ikid;
     };
 
@@ -317,7 +317,7 @@ class CGE : public CGE_PAR
     ~CGE(void);
 
     void Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    bool FNextKid(KID *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
+    bool FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
 };
 
 #ifdef CHUNK_STATS

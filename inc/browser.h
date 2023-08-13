@@ -323,7 +323,7 @@ class BCL : public BCL_PAR
     bool _FAddFileToThd(PCFL pcfl, long sid);
     bool _FBuildThd(PCRM pcrm);
 
-    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
+    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
     static PBCL PbclNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
@@ -369,7 +369,7 @@ class BCLS : public BCLS_PAR
     bool _FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
     bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
-    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
+    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
     static PBCLS PbclsNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,

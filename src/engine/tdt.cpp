@@ -91,7 +91,7 @@ PGL TDT::PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
     AssertVarMem(pfError);
 
     PGL pgltag;
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     TDTF tdtf;
 
@@ -168,7 +168,7 @@ bool TDT::_FInit(PCFL pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     TDTF tdtf;
 

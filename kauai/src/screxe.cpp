@@ -1353,7 +1353,7 @@ PSCPT SCPT::PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
     short bo;
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     PSCPT pscpt = pvNil;
     PGL pgllw = pvNil;

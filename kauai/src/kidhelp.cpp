@@ -96,7 +96,7 @@ bool TXHD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ul
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
     DataBlock blck;
-    KID kid;
+    ChildChunkIdentification kid;
     HTOPF htopf;
     long stid, lw;
     long cp, cpMac, cpMin;
@@ -305,7 +305,7 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
     long cb;
     PMBMP pmbmp;
     PCRF pcrf;
-    KID kid;
+    ChildChunkIdentification kid;
     long rglw[2];
 
     if (sprmObject != sprm)
@@ -368,7 +368,7 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
     RC rc;
     PMBMP pmbmp;
     PCRF pcrf;
-    KID kid;
+    ChildChunkIdentification kid;
     long rglw[2];
     bool fDrawMbmp = fTrue;
 

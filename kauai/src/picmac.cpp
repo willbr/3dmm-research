@@ -39,7 +39,7 @@ PIC::~PIC(void)
 PPIC PIC::PpicFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
 {
     AssertPo(pcfl, 0);
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
 
     if (!pcfl->FFind(ctg, cno))

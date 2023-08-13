@@ -157,7 +157,7 @@ bool BKGD::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 
     DataBlock blck;
     BKGDF bkgdf;
-    KID kid;
+    ChildChunkIdentification kid;
     PGL pgllite = pvNil;
     short bo;
 
@@ -252,7 +252,7 @@ long BKGD::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     long ccam;
 
     for (ccam = 0; pcfl->FGetKidChidCtg(ctg, cno, ccam, kctgCam, &kid); ccam++)
@@ -422,9 +422,9 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
     AssertIn(icam, 0, Ccam());
 
     long capos;
-    KID kidCam;
-    KID kidRGB;
-    KID kidZ;
+    ChildChunkIdentification kidCam;
+    ChildChunkIdentification kidRGB;
+    ChildChunkIdentification kidZ;
     DataBlock blck;
     CAM cam;
     PCFL pcfl = Pcrf()->Pcfl();

@@ -1130,7 +1130,7 @@ bool TXRD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
     DataBlock blck;
     FLO floText;
     PFIL pfilT;
-    KID kid;
+    ChildChunkIdentification kid;
     long icact;
     long cact;
     RDOP rdop;

@@ -259,7 +259,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, ChunkNumber cno)
 
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
     PMVIE pmvie;
-    KID kid;
+    ChildChunkIdentification kid;
     ChildChunkID chid;
     TAGL *ptagl;
     PCFL pcfl = pvNil;
@@ -462,7 +462,7 @@ bool MVIE::FReadRollCall(PCRF pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim
     short bo;
     long imactr, imactrMac;
     PCFL pcfl = pcrf->Pcfl();
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     MACTR mactr;
 
@@ -546,8 +546,8 @@ void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
     ikid = pcfl->Ckid(kctgMvie, _cno);
     while (ikid--)
     {
-        KID kid;
-        KID kidT;
+        ChildChunkIdentification kid;
+        ChildChunkIdentification kidT;
 
         if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
         {
@@ -724,7 +724,7 @@ PTAGL MVIE::_PtaglFetch(void)
     Assert(_pcrfAutoSave != pvNil, "need pcrfAutosave");
 
     PTAGL ptagl;
-    KID kid;
+    ChildChunkIdentification kid;
     ChildChunkID chid;
 
     ptagl = TAGL::PtaglNew();
@@ -1213,7 +1213,7 @@ bool MVIE::FSwitchScen(long iscen)
     Assert((iscen == ivNil) || (_pcrfAutoSave != pvNil), "Invalid save file");
 
     PSCEN pscen;
-    KID kid;
+    ChildChunkIdentification kid;
     long iscenOld;
     bool fRet = fTrue;
 
@@ -1372,7 +1372,7 @@ void MVIE::_MoveChids(ChildChunkID chid, bool fDown)
     AssertThis(0);
 
     PCFL pcfl = _pcrfAutoSave->Pcfl();
-    KID kid;
+    ChildChunkIdentification kid;
     ChildChunkID chidTmp;
 
     if (fDown)
@@ -1419,7 +1419,7 @@ bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     ckid = pcfl->Ckid(kctgMvie, _cno);
     for (ikid = 0; ikid < ckid; ikid++)
@@ -1461,7 +1461,7 @@ bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
 
     ChildChunkID chidMvie;
     long ckid, ikid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     ckid = pcfl->Ckid(kctgScen, cnoScen);
     for (ikid = 0; ikid < ckid; ikid++)
@@ -1513,8 +1513,8 @@ bool MVIE::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PCR
     AssertVarMem(ptag);
     AssertNilOrVarMem(pcrf);
 
-    KID kidScen;
-    KID kid;
+    ChildChunkIdentification kidScen;
+    ChildChunkIdentification kid;
     TAG tagNew = *ptag;
     PCFL pcfl;
 
@@ -1565,8 +1565,8 @@ bool MVIE::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
     AssertThis(0);
     AssertVarMem(pchid);
 
-    KID kidScen;
-    KID kid;
+    ChildChunkIdentification kidScen;
+    ChildChunkIdentification kid;
     long ckid;
     long ikid;
     PCFL pcfl = _pcrfAutoSave->Pcfl();
@@ -1617,7 +1617,7 @@ bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN ps
     PCFL pcfl;
     Filename fniSrc;
     ChildChunkID chid;
-    KID kidScen;
+    ChildChunkIdentification kidScen;
 
     pcfl = _pcrfAutoSave->Pcfl();
 
@@ -1680,7 +1680,7 @@ bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcno
     AssertVarMem(pcnoDest);
 
     PCFL pcflDest;
-    KID kidScen;
+    ChildChunkIdentification kidScen;
     ChildChunkID chid;
     Filename fni;
 
@@ -1724,8 +1724,8 @@ ChildChunkID MVIE::_ChidScenNewSnd(void)
     PCFL pcfl = _pcrfAutoSave->Pcfl();
     long ckid;
     long chid;
-    KID kidScen;
-    KID kid;
+    ChildChunkIdentification kidScen;
+    ChildChunkIdentification kid;
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
         return fFalse;
@@ -1756,7 +1756,7 @@ ChildChunkID MVIE::_ChidMvieNewSnd(void)
     PCFL pcfl = _pcrfAutoSave->Pcfl();
     long ckid;
     long chid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     ckid = pcfl->Ckid(kctgMvie, _cno);
     for (chid = 0; chid < ckid; chid++)
@@ -1785,7 +1785,7 @@ bool MVIE::FVerifyVersion(PCFL pcfl, ChunkNumber *pcno)
     AssertBaseThis(0); // MVIE hasn't been loaded yet
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     ChunkNumber cnoMvie;
     MFP mfp;
     DataBlock blck;
@@ -1842,7 +1842,7 @@ bool MVIE::FRemScenCore(long iscen)
     AssertIn(iscen, 0, Cscen());
     Assert(_pcrfAutoSave != pvNil, "Bad working file.");
 
-    KID kid;
+    ChildChunkIdentification kid;
     PCFL pcfl;
     PSCEN pscen;
     long iscenOld;
@@ -1957,7 +1957,7 @@ bool MVIE::FRemScen(long iscen)
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
 
-    KID kid;
+    ChildChunkIdentification kid;
     PMUNS pmuns;
     PSCEN pscen;
 
@@ -2326,7 +2326,7 @@ bool MVIE::_FUseTempFile(void)
     AssertThis(0);
 
     PCFL pcfl;
-    KID kid;
+    ChildChunkIdentification kid;
     Filename fni;
 
     pcfl = _pcrfAutoSave->Pcfl();
@@ -2451,7 +2451,7 @@ bool MVIE::FAutoSave(PFilename pfni, bool fCleanRollCall)
     ChunkNumber cnoScen;
     ChunkNumber cnoSource;
     MFP mfp;
-    KID kidScen, kidGstRollCall, kidGstSource;
+    ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
     PCFL pcfl;
     PGST pgstSource = pvNil;
 
@@ -4671,7 +4671,7 @@ bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     for (iscen = 0; iscen < iscenMac; iscen++, (*piscendIns)++)
     {
         bool fSuccess;
-        KID kid;
+        ChildChunkIdentification kid;
 
         /* Get ChunkNumber */
         AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Not enough scene chunks for movie");
@@ -4802,7 +4802,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
         /* Was this scene imported? */
         if (scend.imvied > 0)
         {
-            KID kid;
+            ChildChunkIdentification kid;
 
             if (!pcfl->FGetKidChidCtg(kctgMvie, mvied.cno, scend.chid, kctgScen, &kid))
             {
@@ -4906,7 +4906,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
 #ifdef DEBUG
     {
         long ckid = pcfl->Ckid(kctgMvie, _cno);
-        KID kid;
+        ChildChunkIdentification kid;
         ChildChunkID chidLast = chidNil;
 
         for (long ikid = 0; ikid < ckid; ikid++)
@@ -4995,7 +4995,7 @@ bool MVIE::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
         ulong grfcge, grfcgeIn = fcgeNil;
         PGL pglcno;
         ChunkIdentification ckiParLast = {ctgNil, cnoNil}, ckiPar;
-        KID kid;
+        ChildChunkIdentification kid;
         CGE cge;
 
         if ((pglcno = GL::PglNew(size(ChunkNumber))) == pvNil)
@@ -5712,7 +5712,7 @@ bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
     for (icki = 0; icki < ccki; icki++)
     {
         ChunkIdentification cki;
-        KID kid;
+        ChildChunkIdentification kid;
 
         AssertDo(pcfl->FGetCkiCtg(kctgMsnd, icki, &cki), "Should never fail");
         Assert(_FIsChild(pcfl, cki.ctg, cki.cno), "Not a child of MVIE chunk");

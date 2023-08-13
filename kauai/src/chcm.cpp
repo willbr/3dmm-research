@@ -2491,7 +2491,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     long icki, ikid, ckid;
     ChunkTag ctg;
     ChunkIdentification cki;
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
 
     _pcfl = pcflSrc;

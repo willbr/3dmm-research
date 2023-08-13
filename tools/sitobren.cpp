@@ -560,7 +560,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
             _pglclr = GL::PglRead(&blck, &bo);
             if (_pglclr != pvNil && bo == kboCur)
             {
-                KID kidGlcg;
+                ChildChunkIdentification kidGlcg;
 
                 if (pcfl->FGetKidChidCtg(kctgColorTable, 0, 0, kctgGlcg, &kidGlcg) &&
                     pcfl->FFind(kidGlcg.cki.ctg, kidGlcg.cki.cno, &blck))
@@ -3018,7 +3018,7 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
                 if (pbmhr->fAccessory)
                 {
                     PBMDB pbmdb;
-                    KID kidBmdl;
+                    ChildChunkIdentification kidBmdl;
 
                     _ApplyBmdlXF(pbmhr);
                     if (!_FChidFromModlf(pbmhr, pvNil, &pbmdb))
@@ -3794,7 +3794,7 @@ void S2B::_FlushTmplKids(void)
                 if (pbmdb->pglkidCmtl != pvNil)
                 {
                     long icno, icnoMac = pbmdb->pglkidCmtl->IvMac();
-                    KID kidBmdl;
+                    ChildChunkIdentification kidBmdl;
 
                     for (icno = 0; icno < icnoMac; icno++)
                     {
@@ -4070,11 +4070,11 @@ bool S2B::_FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb)
     return fTrue;
 }
 
-bool S2B::_FAddBmdlParent(PBMDB pbmdb, KID *pkid)
+bool S2B::_FAddBmdlParent(PBMDB pbmdb, ChildChunkIdentification *pkid)
 {
     AssertVarMem(pkid);
 
-    if (pbmdb->pglkidCmtl == pvNil && (pbmdb->pglkidCmtl = GL::PglNew(size(KID))) == pvNil)
+    if (pbmdb->pglkidCmtl == pvNil && (pbmdb->pglkidCmtl = GL::PglNew(size(ChildChunkIdentification))) == pvNil)
     {
         goto LFail;
     }

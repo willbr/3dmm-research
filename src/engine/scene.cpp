@@ -3764,7 +3764,7 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, ChunkNumber cno)
 
     PSCEN pscen = pvNil;
     DataBlock blck;
-    KID kid;
+    ChildChunkIdentification kid;
     long isevFrm = 0;
     long isevStart = 0;
     SEV sev;
@@ -4234,7 +4234,7 @@ bool SCEN::FWrite(PCRF pcrf, ChunkNumber *pcno)
             bool fSuccess = fFalse;
             PSSE psse;
             long itag;
-            KID kid;
+            ChildChunkIdentification kid;
 
             psse = SSE::PsseDupFromGg(_pggsevFrm, isevFrm);
             if (pvNil == psse)
@@ -5064,7 +5064,7 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl)
     AssertPo(ptagl, 0);
 
     DataBlock blck;
-    KID kid;
+    ChildChunkIdentification kid;
     long isev;
     PSEV qsev;
     short bo;

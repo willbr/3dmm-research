@@ -1886,7 +1886,7 @@ PTBOX TBOX::PtboxRead(PCRF pcrf, ChunkNumber cno, PSCEN pscen)
     PTBOX ptbox;
     DataBlock blck;
     TBOXH tboxh;
-    KID kid;
+    ChildChunkIdentification kid;
     PCFL pcfl = pcrf->Pcfl();
 
     //

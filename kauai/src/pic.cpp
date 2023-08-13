@@ -80,7 +80,7 @@ bool PIC::FPutInCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
     AssertPo(pcfl, 0);
     bool fDelOnFail;
     long ikid;
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     ChunkNumber cnoKid;
     long cb;

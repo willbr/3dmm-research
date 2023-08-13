@@ -612,7 +612,7 @@ bool LID::FRefresh(void)
     PCFL pcfl;
     ChunkIdentification cki;
     long ivMin, ivLim, iv;
-    KID kid;
+    ChildChunkIdentification kid;
     long ipddg;
     PDDG pddg;
     bool fRet = fFalse;

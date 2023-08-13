@@ -120,12 +120,12 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
     long cch;
     long lw;
     PGL pglkid;
-    KID kid;
+    ChildChunkIdentification kid;
     bool fFoundSpace = fFalse;  // 0x20
     bool fFoundSpace2 = fFalse; // 0xa0
     long cmodl = 0;
 
-    pglkid = GL::PglNew(size(KID));
+    pglkid = GL::PglNew(size(ChildChunkIdentification));
     if (pglkid == pvNil)
         goto LFail;
     pcrf = CRF::PcrfNew(pcflDst, 0);

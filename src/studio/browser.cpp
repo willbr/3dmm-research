@@ -1570,7 +1570,7 @@ bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
     long ickiRoot;
     long cckiRoot;
     ChunkIdentification ckiRoot;
-    KID kidPar;
+    ChildChunkIdentification kidPar;
     long ikidPar;
     long ckidPar;
 
@@ -1630,7 +1630,7 @@ bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
 
 bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki)
 {
-    KID kid;
+    ChildChunkIdentification kid;
 
     kid.cki = *pcki;
     kid.chid = chidNil;
@@ -1644,14 +1644,14 @@ bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki)
  *  cnoPar is read from the ckiPar chunk
  *
  ****************************************************/
-bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
+bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pkid);
 
     ChunkIdentification cki = pkid->cki;
-    KID kid;
+    ChildChunkIdentification kid;
     THD thd;
     DataBlock blck;
     TFC tfc;
@@ -1702,7 +1702,7 @@ LFail:
     return fFalse;
 }
 
-bool BCLS::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
+bool BCLS::_FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -3006,7 +3006,7 @@ bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pst
     long icki;
     ChunkIdentification cki;
     TFC tfc;
-    KID kid;
+    ChildChunkIdentification kid;
     FNET fnet;
     Filename fniThd;
 

@@ -333,7 +333,7 @@ class SEL : public SEL_PAR
     long _icki;
     long _ikid;
     ChunkIdentification _cki;
-    KID _kid;
+    ChildChunkIdentification _kid;
     long _ln;
     long _lnLim;         // this is lnNil if we haven't yet calculated the lim
     PGL _pglctg;         // the ctgs to filter on
@@ -363,12 +363,12 @@ class SEL : public SEL_PAR
     {
         return _ln;
     }
-    ulong GrfselGetCkiKid(ChunkIdentification *pcki, KID *pkid);
+    ulong GrfselGetCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
 
     bool FSetLn(long ln);
     bool FAdvance(void);
     bool FRetreat(void);
-    bool FSetCkiKid(ChunkIdentification *pcki, KID *pkid = pvNil, bool fExact = fTrue);
+    bool FSetCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid = pvNil, bool fExact = fTrue);
     long LnLim(void);
     void InvalLim(void)
     {
@@ -411,19 +411,19 @@ class DCD : public DCD_PAR
     DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb);
     void _DrawSel(PGNV pgnv);
     void _HiliteLn(long ln);
-    void _SetSel(long ln, ChunkIdentification *pcki = pvNil, KID *pkid = pvNil);
+    void _SetSel(long ln, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
     void _ShowSel(void);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
     bool _FAddChunk(ChunkTag ctgDef, ChunkIdentification *pcki, bool *pfCreated);
     bool _FEditChunkInfo(ChunkIdentification *pckiOld);
-    bool _FChangeChid(ChunkIdentification *pcki, KID *pkid);
+    bool _FChangeChid(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
 
-    bool _FDoAdoptChunkDlg(ChunkIdentification *pcki, KID *pkid);
+    bool _FDoAdoptChunkDlg(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
     void _EditCki(ChunkIdentification *pcki, long cid);
 
-    void _InvalCkiKid(ChunkIdentification *pcki = pvNil, KID *pkid = pvNil);
+    void _InvalCkiKid(ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
 
     // clipboard support
     virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
@@ -432,7 +432,7 @@ class DCD : public DCD_PAR
 
   public:
     static PDCD PdcdNew(PDOCB pdocb, PCFL pcfl, PGCB pgcb);
-    static void InvalAllDcd(PDOCB pdocb, PCFL pcfl, ChunkIdentification *pcki = pvNil, KID *pkid = pvNil);
+    static void InvalAllDcd(PDOCB pdocb, PCFL pcfl, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);

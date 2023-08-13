@@ -144,7 +144,7 @@ bool ACTN::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     DataBlock blck;
     ACTNF actnf;
     short bo;
@@ -318,7 +318,7 @@ bool TMPL::FReadTmpl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBAC
     AssertVarMem(pcb);
 
     TMPL *ptmpl;
-    KID kid;
+    ChildChunkIdentification kid;
 
     *pcb = pblck->Cb(fTrue); // estimate TMPL size (not a good estimate)
     if (pvNil == ppbaco)
@@ -418,7 +418,7 @@ bool TMPL::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     short bo;
     DataBlock blck;
     long ibact;
@@ -572,7 +572,7 @@ PGL TMPL::PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
 
-    KID kid;
+    ChildChunkIdentification kid;
 
     *pfError = fFalse;
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
@@ -610,7 +610,7 @@ bool TMPL::FGetActnName(long anid, PSTN pstn)
     AssertIn(anid, 0, _cactn);
     AssertPo(pstn, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), anid, kctgActn, &kid))
         return fFalse;
@@ -625,7 +625,7 @@ PACTN TMPL::_PactnFetch(long anid)
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
 
-    KID kid;
+    ChildChunkIdentification kid;
     ACTN *pactn;
     ChildChunkID chidActn = anid;
 
@@ -645,7 +645,7 @@ PMODL TMPL::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     MODL *pmodl;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), chidModl, kctgBmdl, &kid))
@@ -909,7 +909,7 @@ bool TMPL::FBsetIsAccessory(long ibset)
     AssertIn(ibset, 0, _cbset);
 
     long cmid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (pvNil == Pcrf())
         return fFalse; // probably a TDT
@@ -981,8 +981,8 @@ bool TMPL::FSameAccCmids(long cmid1, long cmid2)
 {
     AssertThis(0);
 
-    KID kid1;
-    KID kid2;
+    ChildChunkIdentification kid1;
+    ChildChunkIdentification kid2;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid1, kctgCmtl, &kid1) ||
         !Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid2, kctgCmtl, &kid2))
@@ -1001,7 +1001,7 @@ PCMTL TMPL::PcmtlFetch(long cmid)
     AssertIn(cmid, 0, _ccmid);
 
     PCMTL pcmtl;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid, kctgCmtl, &kid))
     {

@@ -13,8 +13,8 @@
 #include "chelpexp.h"
 ASSERTNAME
 
-static bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar);
-static bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
 static void _AppendHelpStnLw(PSTN pstn, PGST pgst, long istn, long lw);
 
 /***************************************************************************
@@ -30,7 +30,7 @@ bool FExportHelpText(PCFL pcfl, PMSNK pmsnk)
     PGST pgst;
     long icki;
     ChunkIdentification cki, ckiPar;
-    KID kid;
+    ChildChunkIdentification kid;
     CGE cge;
     ulong grfcge;
     HTOPF htopf;
@@ -179,7 +179,7 @@ LFail:
 /***************************************************************************
     Dump a chunk as text to the given chse.
 ***************************************************************************/
-bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar)
+bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);
@@ -245,7 +245,7 @@ bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pc
 /***************************************************************************
     Write the property AG.  This requires special processing
 ***************************************************************************/
-bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar)
+bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);

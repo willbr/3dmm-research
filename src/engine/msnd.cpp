@@ -116,7 +116,7 @@ bool MSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 
     DataBlock blck;
     MSNDF msndf;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         goto LFail;
@@ -563,7 +563,7 @@ bool MSND::FInvalidate(void)
 {
     AssertThis(0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     MSNDF msndf;
 
     // Invalidate the msnd on file

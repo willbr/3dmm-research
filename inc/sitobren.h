@@ -349,7 +349,7 @@ class S2B : public S2B_PAR
     bool _FBmdlToModlf(PBMDL pbmdl, PMODLF *ppmodlf, long *pcb);
     bool _FSetCps(PBMHR pbmhr, CPS *pcps);
     bool _FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb = pvNil);
-    bool _FAddBmdlParent(PBMDB pbmdb, KID *pkid);
+    bool _FAddBmdlParent(PBMDB pbmdb, ChildChunkIdentification *pkid);
     bool _FInsertPhshdb(PHSHDB phshdb, PGL pglphshdb);
     bool _FIphshdbFromLuHash(uint luHash, long *piphshdb, PGL pglphshdb);
     PBMDB _PbmdbFindModlf(MODLF *pmodlf, long cbModlf, uint *pluHashList);

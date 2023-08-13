@@ -51,7 +51,7 @@ bool ACTR::FWrite(PCFL pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     ChunkNumber cnoGgae;
     ChunkNumber cnoTmpl;
     DataBlock blck;
-    KID kid;
+    ChildChunkIdentification kid;
     long iaev;
     AEV *paev;
     AEVSND aevsnd;
@@ -159,7 +159,7 @@ PACTR ACTR::PactrRead(PCRF pcrf, ChunkNumber cnoActr)
     AssertPo(pcrf, 0);
 
     ACTR *pactr;
-    KID kid;
+    ChildChunkIdentification kid;
     PCFL pcfl = pcrf->Pcfl();
 
     pactr = NewObj ACTR;
@@ -269,7 +269,7 @@ bool ACTR::_FReadActor(PCFL pcfl, ChunkNumber cno)
     {
         // Actor is a TDT.  Tag might be wrong if this actor was imported,
         // so look for child TMPL.
-        KID kid;
+        ChildChunkIdentification kid;
 
         if (!pcfl->FGetKidChidCtg(kctgActr, cno, 0, kctgTmpl, &kid))
         {
@@ -490,7 +490,7 @@ PGL ACTR::PgltagFetch(PCFL pcfl, ChunkNumber cno, bool *pfError)
     PGL pgltag;
     PGG pggaev = pvNil;
     long iaev;
-    KID kid;
+    ChildChunkIdentification kid;
 
     pgltag = GL::PglNew(size(TAG), 0);
     if (pvNil == pgltag)

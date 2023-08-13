@@ -549,7 +549,7 @@ bool CEX::_FReadCmd(PCMD pcmd)
     if (cmdf.chidGg != 0)
     {
         DataBlock blck;
-        KID kid;
+        ChildChunkIdentification kid;
         short bo, osk;
 
         Assert(cmdf.cact <= 1, 0);
