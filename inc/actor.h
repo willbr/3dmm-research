@@ -189,7 +189,7 @@ const ByteOrderMask kbomAev = 0xff000000;
 //
 //	Variable part of the Actor EVent GG:
 //
-struct AEVPULL // Squash/stretch
+struct Stretch // Squash/stretch
 {
     BRS rScaleX;
     BRS rScaleY;
@@ -253,7 +253,7 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 #define kcbVarCost (size(AEVCOST))
 #define kcbVarRot (size(BMAT34))
 #define kcbVarSize (size(BRS))
-#define kcbVarPull (size(AEVPULL))
+#define kcbVarPull (size(Stretch))
 #define kcbVarSnd (size(AEVSND))
 #define kcbVarFreeze (size(long))
 #define kcbVarMove (size(RoutePoint))
@@ -295,7 +295,7 @@ enum
 struct XFRM
 {
     BMAT34 bmat34Fwd; // Rotation	fwd	: path rotation post applied to this
-    AEVPULL aevpull;  // Stretching (pulling) constants
+    Stretch aevpull;  // Stretching (pulling) constants
     BRS rScaleStep;   // Uniform scaling to be applied to step size
     BMAT34 bmat34Cur; // <<Path independent>> Single frame & static segment rotation
     BRA xaPath;       // Path portion of the current frame's rotation
