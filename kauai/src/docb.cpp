@@ -35,7 +35,7 @@ END_CMD_MAP_NIL()
 RTCLASS(DocumentBase)
 RTCLASS(DTE)
 RTCLASS(DocumentDisplayGraphicsObject)
-RTCLASS(DMD)
+RTCLASS(DocumentMDIWindow)
 RTCLASS(DMW)
 RTCLASS(DSG)
 RTCLASS(DSSP)
@@ -119,12 +119,12 @@ void DocumentBase::Release(void)
 void DocumentBase::CloseAllDdg(void)
 {
     PDocumentDisplayGraphicsObject pddg;
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
 
     if (pvNil != _pglpddg)
     {
         // the pddg's are removed from _hplpddg in RemoveDdg
-        // Note that freeing one DMD may end up nuking more than
+        // Note that freeing one DocumentMDIWindow may end up nuking more than
         // one DocumentDisplayGraphicsObject.
         // REVIEW shonk: this assumes that no one else has a
         // reference count open on one of these DMDs or DDGs.
@@ -240,19 +240,19 @@ tribool DocumentBase::_TQuerySave(bool fForce)
 }
 
 /***************************************************************************
-    If the document is dirty, and this is the only DMD displaying the doc,
+    If the document is dirty, and this is the only DocumentMDIWindow displaying the doc,
     ask the user if they want to save changes (and save if they do).
     Return false if the user cancels the operation or the save fails.
 ***************************************************************************/
-bool DocumentBase::FQueryCloseDmd(PDMD pdmd)
+bool DocumentBase::FQueryCloseDmd(PDocumentMDIWindow pdmd)
 {
     PDocumentDisplayGraphicsObject pddg;
-    PDMD pdmdT;
+    PDocumentMDIWindow pdmdT;
     long ipddg;
 
     if (pvNil == _pglpddg || _pglpddg->IvMac() == 0)
     {
-        Bug("why are there no DDGs for this doc if there's a DMD?");
+        Bug("why are there no DDGs for this doc if there's a DocumentMDIWindow?");
         return fTrue;
     }
 
@@ -486,25 +486,25 @@ PDocumentDisplayGraphicsObject DocumentBase::PddgActive(void)
 /***************************************************************************
     Create a new mdi window for this document.
 ***************************************************************************/
-PDMD DocumentBase::PdmdNew(void)
+PDocumentMDIWindow DocumentBase::PdmdNew(void)
 {
     AssertThis(fobjAssertFull);
-    return DMD::PdmdNew(this);
+    return DocumentMDIWindow::PdmdNew(this);
 }
 
 /***************************************************************************
-    If this DocumentBase has a DMD, make it the activate hwnd.
+    If this DocumentBase has a DocumentMDIWindow, make it the activate hwnd.
 ***************************************************************************/
 void DocumentBase::ActivateDmd(void)
 {
     AssertThis(fobjAssertFull);
     long ipddg;
     PDocumentDisplayGraphicsObject pddg;
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
 
     for (ipddg = 0; pvNil != (pddg = PddgGet(ipddg)); ipddg++)
     {
-        pdmd = (PDMD)pddg->PgobParFromCls(kclsDMD);
+        pdmd = (PDocumentMDIWindow)pddg->PgobParFromCls(kclsDocumentMDIWindow);
         if (pvNil != pdmd)
         {
             GraphicsObject::MakeHwndActive(pdmd->HwndContainer());
@@ -573,7 +573,7 @@ void DocumentBase::UpdateName(void)
     long ipddg;
     PDocumentDisplayGraphicsObject pddg;
     PDocumentBase pdocb;
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
 
     dte.Init(this);
     while (dte.FNextDoc(&pdocb, &grfdte, fdteNil))
@@ -976,7 +976,7 @@ DocumentDisplayGraphicsObject::DocumentDisplayGraphicsObject(PDocumentBase pdocb
 DocumentDisplayGraphicsObject::~DocumentDisplayGraphicsObject(void)
 {
     AssertBasePo(_pdocb, 0);
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
 
     _pdocb->RemoveDdg(this);
     if (_fActive && pvNil != (pdmd = Pdmd()))
@@ -999,12 +999,12 @@ bool DocumentDisplayGraphicsObject::_FInit(void)
 }
 
 /***************************************************************************
-    If this DocumentDisplayGraphicsObject is contained in a DMD, return the DMD.  Otherwise, return
+    If this DocumentDisplayGraphicsObject is contained in a DocumentMDIWindow, return the DocumentMDIWindow.  Otherwise, return
     pvNil.
 ***************************************************************************/
-PDMD DocumentDisplayGraphicsObject::Pdmd(void)
+PDocumentMDIWindow DocumentDisplayGraphicsObject::Pdmd(void)
 {
-    return (PDMD)GraphicsObject::PgobParFromCls(kclsDMD);
+    return (PDocumentMDIWindow)GraphicsObject::PgobParFromCls(kclsDocumentMDIWindow);
 }
 
 /***************************************************************************
@@ -1015,7 +1015,7 @@ void DocumentDisplayGraphicsObject::Activate(bool fActive)
 {
     AssertThis(fobjAssertFull);
     PDocumentDisplayGraphicsObject pddg;
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
 
     if (FPure(fActive) == FPure(_fActive))
         return;
@@ -1328,15 +1328,15 @@ void DocumentDisplayGraphicsObject::MarkMem(void)
     Static method: create a new Document MDI window.  Put a size box in
     it and add a DMW.
 ***************************************************************************/
-PDMD DMD::PdmdNew(PDocumentBase pdocb)
+PDocumentMDIWindow DocumentMDIWindow::PdmdNew(PDocumentBase pdocb)
 {
     AssertPo(pdocb, 0);
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
     STN stn;
     RC rcRel, rcAbs;
 
     GraphicsObjectBlock gcb(khidDmd, GraphicsObject::PgobScreen());
-    if (pvNil == (pdmd = NewObj DMD(pdocb, &gcb)))
+    if (pvNil == (pdmd = NewObj DocumentMDIWindow(pdocb, &gcb)))
         return pvNil;
     pdocb->GetName(&stn);
     if (!pdmd->FCreateAndAttachMdi(&stn))
@@ -1361,25 +1361,25 @@ PDMD DMD::PdmdNew(PDocumentBase pdocb)
 }
 
 /***************************************************************************
-    Static method: returns the currently active DMD (if there is one).
+    Static method: returns the currently active DocumentMDIWindow (if there is one).
 ***************************************************************************/
-PDMD DMD::PdmdTop(void)
+PDocumentMDIWindow DocumentMDIWindow::PdmdTop(void)
 {
     PGraphicsObject pgob;
 
     if (pvNil == (pgob = GraphicsObject::PgobMdiActive()))
         return pvNil;
     AssertPo(pgob, 0);
-    if (!pgob->FIs(kclsDMD))
+    if (!pgob->FIs(kclsDocumentMDIWindow))
         return pvNil;
-    AssertPo((PDMD)pgob, 0);
-    return (PDMD)pgob;
+    AssertPo((PDocumentMDIWindow)pgob, 0);
+    return (PDocumentMDIWindow)pgob;
 }
 
 /***************************************************************************
     Constructor for document mdi window.
 ***************************************************************************/
-DMD::DMD(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DocumentMDIWindow::DocumentMDIWindow(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1388,7 +1388,7 @@ DMD::DMD(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 /***************************************************************************
     Activate the next DocumentDisplayGraphicsObject (after the given one).
 ***************************************************************************/
-void DMD::ActivateNext(PDocumentDisplayGraphicsObject pddg)
+void DocumentMDIWindow::ActivateNext(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
     GTE gte;
@@ -1412,7 +1412,7 @@ void DMD::ActivateNext(PDocumentDisplayGraphicsObject pddg)
 /***************************************************************************
     Handle activation/deactivation of the hwnd.
 ***************************************************************************/
-void DMD::_ActivateHwnd(bool fActive)
+void DocumentMDIWindow::_ActivateHwnd(bool fActive)
 {
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
@@ -1425,7 +1425,7 @@ void DMD::_ActivateHwnd(bool fActive)
 /***************************************************************************
     Handles cidCloseWnd.
 ***************************************************************************/
-bool DMD::FCmdCloseWnd(PCMD pcmd)
+bool DocumentMDIWindow::FCmdCloseWnd(PCMD pcmd)
 {
     // ask the user about saving the doc
     if (!_pdocb->FQueryCloseDmd(this))

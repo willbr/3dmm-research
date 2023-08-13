@@ -1436,7 +1436,7 @@ bool HEDG::FCmdCheckSpelling(PCMD pcmd)
 
 #ifdef SPELL
     ChunkNumber cno;
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
     long cactT;
     PHETD phetd, phetdT;
     PHETG phetg;
@@ -1865,10 +1865,10 @@ bool HETD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedir
 /***************************************************************************
     Create a new Document MDI window for this help topic.
 ***************************************************************************/
-PDMD HETD::PdmdNew(void)
+PDocumentMDIWindow HETD::PdmdNew(void)
 {
     AssertThis(0);
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
     PGraphicsObject pgob;
     RC rcRel, rcAbs;
     long dxpLig, ypT;
@@ -2992,7 +2992,7 @@ bool HETG::FCmdNextTopic(PCMD pcmd)
     if (phetdThis->Cno() == cnoNil || phetdThis->FDirty())
         phetdThis = pvNil;
 
-    // open a DMD onto the topic
+    // open a DocumentMDIWindow onto the topic
     if (phetd->Cddg() == 0)
     {
         // need to open a window onto the doc.

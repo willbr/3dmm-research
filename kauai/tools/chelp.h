@@ -381,7 +381,7 @@ class HETD : public HETD_PAR
     static PHETD PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno);
     static void CloseDeletedHetd(PDocumentBase pdocb);
 
-    virtual PDMD PdmdNew(void);
+    virtual PDocumentMDIWindow PdmdNew(void);
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     virtual void GetName(PSTN pstn);
     virtual bool FSave(long cid);

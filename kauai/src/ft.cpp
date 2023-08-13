@@ -866,7 +866,7 @@ bool APP::FCmdNewTestWnd(PCMD pcmd)
             goto LFail;
         break;
 
-    case 2: // new DMD
+    case 2: // new DocumentMDIWindow
         PDocumentBase pdocb;
 
         if (pvNil == (pdocb = NewObj DOC()))

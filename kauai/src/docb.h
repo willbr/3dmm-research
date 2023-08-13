@@ -110,7 +110,7 @@ class DocumentBase : public DocumentBase_PAR
     virtual void Release(void);
 
     // high level call to create a new MDI window based on the doc.
-    virtual PDMD PdmdNew(void);
+    virtual PDocumentMDIWindow PdmdNew(void);
     void ActivateDmd(void);
 
     // low level calls - generally not for public consumption
@@ -135,7 +135,7 @@ class DocumentBase : public DocumentBase_PAR
     virtual void UpdateName(void);
     virtual void GetName(PSTN pstn);
     virtual bool FQueryClose(ulong grfdoc);
-    virtual bool FQueryCloseDmd(PDMD pdmd);
+    virtual bool FQueryCloseDmd(PDocumentMDIWindow pdmd);
     virtual bool FSave(long cid = cidSave);
 
     virtual bool FGetFni(Filename *pfni);
@@ -255,7 +255,7 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     {
         return _pdocb;
     }
-    PDMD Pdmd(void);
+    PDocumentMDIWindow Pdmd(void);
 
     // activation
     virtual void Activate(bool fActive);
@@ -280,21 +280,21 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     Document mdi window - this communicates with the docb to coordinate
     closing and querying the user about saving
 ***************************************************************************/
-#define DMD_PAR GraphicsObject
-#define kclsDMD 'DMD'
-class DMD : public DMD_PAR
+#define DocumentMDIWindow_PAR GraphicsObject
+#define kclsDocumentMDIWindow 'DMD'
+class DocumentMDIWindow : public DocumentMDIWindow_PAR
 {
     RTCLASS_DEC
 
   protected:
     PDocumentBase _pdocb;
 
-    DMD(PDocumentBase pdocb, PGCB pgcb);
+    DocumentMDIWindow(PDocumentBase pdocb, PGCB pgcb);
     virtual void _ActivateHwnd(bool fActive);
 
   public:
-    static PDMD PdmdNew(PDocumentBase pdocb);
-    static PDMD PdmdTop(void);
+    static PDocumentMDIWindow PdmdNew(PDocumentBase pdocb);
+    static PDocumentMDIWindow PdmdTop(void);
 
     PDocumentBase Pdocb(void)
     {

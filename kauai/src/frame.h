@@ -26,7 +26,7 @@ class CMH;  // command handler
 class GraphicsObject;  // graphic object
 class MenuBar;  // menu bar
 class DocumentBase; // base document
-class DMD;  // document mdi window
+class DocumentMDIWindow;  // document mdi window
 class DMW;  // main document window
 class DSG;  // document scroll gob
 class DocumentDisplayGraphicsObject;  // document display gob
@@ -38,7 +38,7 @@ typedef class CMH *PCMH;
 typedef class GraphicsObject *PGraphicsObject;
 typedef class MenuBar *PMenuBar;
 typedef class DocumentBase *PDocumentBase;
-typedef class DMD *PDMD;
+typedef class DocumentMDIWindow *PDocumentMDIWindow;
 typedef class DMW *PDMW;
 typedef class DSG *PDSG;
 typedef class DocumentDisplayGraphicsObject *PDocumentDisplayGraphicsObject;

@@ -786,7 +786,7 @@ class Movie : public Movie_PAR
     bool FGetFni(Filename *pfni);                  // For saving to a file
     bool FSave(long cid);                     // For saving to a file, (calls FGetFni and FSaveToFni)
     bool FSaveToFni(Filename *pfni, bool fSetFni); // For doing a Save As or Save
-    PDMD PdmdNew(void);                       // Do not use!
+    PDocumentMDIWindow PdmdNew(void);                       // Do not use!
     bool FGetFniSave(Filename *pfni);              // For saving via the portfolio.
 
     //

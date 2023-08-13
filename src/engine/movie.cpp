@@ -3012,7 +3012,7 @@ PDocumentDisplayGraphicsObject Movie::PddgNew(PGCB pgcb)
  *  pvNil
  *
  ****************************************************/
-PDMD Movie::PdmdNew(void)
+PDocumentMDIWindow Movie::PdmdNew(void)
 {
     Bug("Movie does not support DMDs, use multiple DDGs.");
     return (pvNil);

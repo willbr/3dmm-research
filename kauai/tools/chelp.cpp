@@ -224,7 +224,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
         return;
 
     // for text windows, do offscreen updating
-    if (pgob->FIs(kclsDMD) && ((PDMD)pgob)->Pdocb()->FIs(kclsRichTextDocument))
+    if (pgob->FIs(kclsDocumentMDIWindow) && ((PDocumentMDIWindow)pgob)->Pdocb()->FIs(kclsRichTextDocument))
         grfapp |= fappOffscreen;
 
     APP_PAR::UpdateHwnd(hwnd, prc, grfapp);
@@ -238,7 +238,7 @@ void APP::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT 
     AssertThis(0);
 
     // for text windows, do offscreen updating
-    if (pgob->FIs(kclsDMD) && ((PDMD)pgob)->Pdocb()->FIs(kclsRichTextDocument))
+    if (pgob->FIs(kclsDocumentMDIWindow) && ((PDocumentMDIWindow)pgob)->Pdocb()->FIs(kclsRichTextDocument))
         grfapp |= fappOffscreen;
 
     APP_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);

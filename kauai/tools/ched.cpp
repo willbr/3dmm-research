@@ -41,7 +41,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     Filename fni;
     STN stn;
     bool fQuote, fScript, fSkip;
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
     PDocumentDisplayGraphicsObject pddg;
     PDocumentBase pdocb;
     long lw;
@@ -96,7 +96,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
             if (!stn.FGetLw(&lw))
                 continue;
 
-            if (pvNil == (pdmd = DMD::PdmdTop()))
+            if (pvNil == (pdmd = DocumentMDIWindow::PdmdTop()))
                 continue;
             if (pvNil == (pddg = pdmd->Pdocb()->PddgActive()) || !pddg->FIs(kclsDCD))
             {
