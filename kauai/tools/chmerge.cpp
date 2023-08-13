@@ -21,7 +21,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     schar chs;
     STN stn;
     Filename fniSrc, fniT;
-    CKI cki;
+    ChunkID cki;
     long icki;
     ChunkNumber cnoDst;
     PCFL pcflSrc;

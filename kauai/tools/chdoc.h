@@ -332,7 +332,7 @@ class SEL : public SEL_PAR
     PCFL _pcfl;
     long _icki;
     long _ikid;
-    CKI _cki;
+    ChunkID _cki;
     KID _kid;
     long _ln;
     long _lnLim;         // this is lnNil if we haven't yet calculated the lim
@@ -363,12 +363,12 @@ class SEL : public SEL_PAR
     {
         return _ln;
     }
-    ulong GrfselGetCkiKid(CKI *pcki, KID *pkid);
+    ulong GrfselGetCkiKid(ChunkID *pcki, KID *pkid);
 
     bool FSetLn(long ln);
     bool FAdvance(void);
     bool FRetreat(void);
-    bool FSetCkiKid(CKI *pcki, KID *pkid = pvNil, bool fExact = fTrue);
+    bool FSetCkiKid(ChunkID *pcki, KID *pkid = pvNil, bool fExact = fTrue);
     long LnLim(void);
     void InvalLim(void)
     {
@@ -411,19 +411,19 @@ class DCD : public DCD_PAR
     DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb);
     void _DrawSel(PGNV pgnv);
     void _HiliteLn(long ln);
-    void _SetSel(long ln, CKI *pcki = pvNil, KID *pkid = pvNil);
+    void _SetSel(long ln, ChunkID *pcki = pvNil, KID *pkid = pvNil);
     void _ShowSel(void);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
-    bool _FAddChunk(ChunkTag ctgDef, CKI *pcki, bool *pfCreated);
-    bool _FEditChunkInfo(CKI *pckiOld);
-    bool _FChangeChid(CKI *pcki, KID *pkid);
+    bool _FAddChunk(ChunkTag ctgDef, ChunkID *pcki, bool *pfCreated);
+    bool _FEditChunkInfo(ChunkID *pckiOld);
+    bool _FChangeChid(ChunkID *pcki, KID *pkid);
 
-    bool _FDoAdoptChunkDlg(CKI *pcki, KID *pkid);
-    void _EditCki(CKI *pcki, long cid);
+    bool _FDoAdoptChunkDlg(ChunkID *pcki, KID *pkid);
+    void _EditCki(ChunkID *pcki, long cid);
 
-    void _InvalCkiKid(CKI *pcki = pvNil, KID *pkid = pvNil);
+    void _InvalCkiKid(ChunkID *pcki = pvNil, KID *pkid = pvNil);
 
     // clipboard support
     virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
@@ -432,7 +432,7 @@ class DCD : public DCD_PAR
 
   public:
     static PDCD PdcdNew(PDOCB pdocb, PCFL pcfl, PGCB pgcb);
-    static void InvalAllDcd(PDOCB pdocb, PCFL pcfl, CKI *pcki = pvNil, KID *pkid = pvNil);
+    static void InvalAllDcd(PDOCB pdocb, PCFL pcfl, ChunkID *pcki = pvNil, KID *pkid = pvNil);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);

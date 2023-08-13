@@ -102,7 +102,7 @@ class LID : public LID_PAR
 
     bool FRefresh(void);
     long Ccki(void);
-    void GetCki(long icki, CKI *pcki, PCRF *ppcrf = pvNil);
+    void GetCki(long icki, ChunkID *pcki, PCRF *ppcrf = pvNil);
     PMBMP PmbmpGet(long icki);
 };
 
@@ -386,7 +386,7 @@ class HETD : public HETD_PAR
     virtual void GetName(PSTN pstn);
     virtual bool FSave(long cid);
 
-    virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PCFL pcfl, ChunkID *pcki, bool fRedirectText = fFalse);
 
     void EditHtop(void);
     bool FDoFind(long cpMin, long *pcpMin, long *pcpLim);

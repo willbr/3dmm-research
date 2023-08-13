@@ -1257,7 +1257,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
                 // Preview it as a movie if we can.
                 if ((pcfl = CFL::PcflOpen(&fni, fcflNil)) != pvNil)
                 {
-                    CKI ckiMovie;
+                    ChunkID ckiMovie;
                     KID kidScene, kidThumb;
                     DataBlock blck;
 

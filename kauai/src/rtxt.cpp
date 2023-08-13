@@ -1070,7 +1070,7 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
     if (pvNil != pfni)
     {
         PCFL pcfl;
-        CKI cki;
+        ChunkID cki;
 
         if (pvNil == (pcfl = CFL::PcflOpen(pfni, fcflNil)))
         {
@@ -1308,7 +1308,7 @@ bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
     AssertNilOrPo(pfni, ffniFile);
     Filename fni;
     PCFL pcfl;
-    CKI cki;
+    ChunkID cki;
 
     if (pvNil == pfni)
     {
@@ -1353,7 +1353,7 @@ bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
     Save a rich text document to the given chunky file. Fill in *pcki with
     where we put the root chunk.
 ***************************************************************************/
-bool TXRD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
+bool TXRD::FSaveToChunk(PCFL pcfl, ChunkID *pcki, bool fRedirectText)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pcfl, 0);

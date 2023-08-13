@@ -152,7 +152,7 @@ enum
 const long kcbMaxCrpbg = klwMax;
 struct CRPBG
 {
-    CKI cki;      // chunk id
+    ChunkID cki;      // chunk id
     FP fp;        // location on file
     long cb;      // size of data on file
     long ckid;    // number of owned chunks
@@ -216,7 +216,7 @@ const long kcbitGrfcrp = 8;
 const ulong kgrfcrpAll = (1 << kcbitGrfcrp) - 1;
 struct CRPSM
 {
-    CKI cki;          // chunk id
+    ChunkID cki;          // chunk id
     FP fp;            // location on file
     ulong luGrfcrpCb; // low byte is the grfcrp, high 3 bytes is cb
     ushort ckid;      // number of owned chunks
@@ -594,7 +594,7 @@ bool CFL::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP fpDst,
     ECDF ecdf;
     FLO floSrc, floDst;
     KID kid;
-    CKI ckiPar;
+    ChunkID ckiPar;
     ulong grfcge;
 
     if (pvNil != pcb)
@@ -989,8 +989,8 @@ void CFL::AssertValid(ulong grfcfl)
     bool fFirstCrp;
     long cbTot = 0;
     long cbTotExtra = 0;
-    CKI ckiOld;
-    CKI ckiNew;
+    ChunkID ckiOld;
+    ChunkID ckiNew;
     KID kid, kidOld;
     bool fFirstKid;
     long icrp, icrpT;
@@ -2267,7 +2267,7 @@ bool CFL::_FFindCtgCno(ChunkTag ctg, ChunkNumber cno, long *picrp)
     AssertPo(_pggcrp, 0);
 
     long ccrp, icrpMin, icrpLim, icrp;
-    CKI cki;
+    ChunkID cki;
 
     if ((ccrp = _pggcrp->IvMac()) == 0)
     {
@@ -3042,7 +3042,7 @@ void CFL::_DeleteCore(long icrp)
 {
     AssertBaseThis(0);
     CRP *qcrp;
-    CKI cki;
+    ChunkID cki;
 
     qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
     cki = qcrp->cki;
@@ -3410,7 +3410,7 @@ long CFL::Ccki(void)
     Finds the icki'th chunk.  If there is such a chunk (icki isn't too big),
     fills in *pcki and *pckid and returns true.  Otherwise, returns fFalse.
 ***************************************************************************/
-bool CFL::FGetCki(long icki, CKI *pcki, long *pckid, PBLCK pblck)
+bool CFL::FGetCki(long icki, ChunkID *pcki, long *pckid, PBLCK pblck)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -3477,7 +3477,7 @@ long CFL::CckiCtg(ChunkTag ctg)
     Finds the icki'th chunk of type ctg.  If there is such a chunk,
     fills in *pcki and returns true.  Otherwise, returns fFalse.
 ***************************************************************************/
-bool CFL::FGetCkiCtg(ChunkTag ctg, long icki, CKI *pcki, long *pckid, PBLCK pblck)
+bool CFL::FGetCkiCtg(ChunkTag ctg, long icki, ChunkID *pcki, long *pckid, PBLCK pblck)
 {
     AssertThis(0);
     AssertIn(icki, 0, kcbMax);
@@ -3820,7 +3820,7 @@ bool CFL::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber 
     long rtiSrc;
     CGE cge;
     KID kid;
-    CKI ckiPar;
+    ChunkID ckiPar;
     DataBlock blckSrc;
     ulong grfcge, grfcgeIn;
     CNOM cnom, cnomPar;
@@ -3984,7 +3984,7 @@ bool CFL::_FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNu
     ChunkNumber cnoMin, cnoDst;
     CGE cgeSrc, cgeDst;
     KID kidSrc, kidDst;
-    CKI ckiParSrc, ckiParDst;
+    ChunkID ckiParSrc, ckiParDst;
     ulong grfcgeSrc, grfcgeDst;
     bool fKidSrc, fKidDst;
 
@@ -4349,7 +4349,7 @@ void CGE::Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
         fcgeRoot:  *pkid is valid (except the chid value); *pckiPar is
             invalid; the node is the root of the enumeration
 ***************************************************************************/
-bool CGE::FNextKid(KID *pkid, CKI *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
+bool CGE::FNextKid(KID *pkid, ChunkID *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
 {
     AssertThis(0);
     AssertVarMem(pkid);

@@ -27,7 +27,7 @@ struct HTOP
     ChunkNumber cnoScript;
     long dxp;
     long dyp;
-    CKI ckiSnd;
+    ChunkID ckiSnd;
 };
 typedef HTOP *PHTOP;
 const ByteOrderMask kbomHtop = 0xFFF00000;
@@ -88,7 +88,7 @@ class TXHD : public TXHD_PAR
     static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
-    virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PCFL pcfl, ChunkID *pcki, bool fRedirectText = fFalse);
 
     bool FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                         ulong grfdoc = fdocUpdate);

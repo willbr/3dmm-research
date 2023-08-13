@@ -26,7 +26,7 @@
 		cno, but this is generally not a good thing to do as doing so will
 		overwrite any existing chunk with that cno.
 
-	struct CKI;
+	struct ChunkID;
 		A struct consisting of a ctg and cno.  Identifies a chunk within
 		a chunky file.
 
@@ -37,7 +37,7 @@
 		files (while cno's may not be).
 
 	struct KID;
-		A struct consisting of a CKI and a ChildChunkID.  Identifies a child chunk.
+		A struct consisting of a ChunkID and a ChildChunkID.  Identifies a child chunk.
 
 	ulong grfcfl;
 		A group of flags indicating chunky file options.
@@ -227,13 +227,13 @@ REVIEW shonk: assert and check for cycles.
 	long CFL::Ccki(void);
 		Returns the number of chunks in the file.
 
-	bool CFL::FGetCki(long icki, CKI *pcki);
+	bool CFL::FGetCki(long icki, ChunkID *pcki);
 		Gets a cki for the icki'th chunk.  Returns false if icki is too big.
 
 	long CFL::CckiCtg(ChunkTag ctg);
 		Returns the number of chunks of type ctg in the file.
 
-	bool CFL::FGetCkiCtg(ChunkTag ctg, long icki, CKI *pcki);
+	bool CFL::FGetCkiCtg(ChunkTag ctg, long icki, ChunkID *pcki);
 		Gets a cki for the icki'th chunk of type ctg.  Returns false if icki
 		is too big.
 
@@ -262,7 +262,7 @@ REVIEW shonk: assert and check for cycles.
 		GrfcgeNextKid is called.  The enumeration is over the given
 		node and all of its descendents.
 
-	bool CGE::FNextKid(KID *pkid, CKI *pckiPar,
+	bool CGE::FNextKid(KID *pkid, ChunkID *pckiPar,
 			ulong *pgrfcgeOut, ulong grfcgeIn);
 		Fetches the next node in the graph enumeration.  Returns fFalse
 		iff the enumeration is done (there are no more nodes).  Generally,

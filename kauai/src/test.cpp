@@ -458,7 +458,7 @@ void TestCfl(void)
     short rel;
     long icki;
     ChunkNumber cno;
-    CKI cki;
+    ChunkID cki;
     EREL *perel, *perelPar;
     STN stn;
     achar rgch[kcchMaxSz];

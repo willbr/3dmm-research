@@ -2781,14 +2781,14 @@ bool MVIE::_FDoMtrlTmplGC(PCFL pcfl)
     TAG tag;
     long icki1 = 0;
     long icki2 = 0;
-    CKI cki;
+    ChunkID cki;
     PGL pglckiDoomed = pvNil;
 
     ptagl = _PtaglFetch(); // get all tags in user's document
     if (ptagl == pvNil)
         goto LEnd; // no work to do
 
-    pglckiDoomed = GL::PglNew(size(CKI), 0);
+    pglckiDoomed = GL::PglNew(size(ChunkID), 0);
     if (pvNil == pglckiDoomed)
         goto LFail;
 
@@ -2920,7 +2920,7 @@ bool MVIE::FSaveToFni(Filename *pfni, bool fSetFni)
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
 
-    CKI cki;
+    ChunkID cki;
     PCFL pcfl;
 
     if (_pcrfAutoSave == pvNil)
@@ -4994,7 +4994,7 @@ bool MVIE::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     {
         ulong grfcge, grfcgeIn = fcgeNil;
         PGL pglcno;
-        CKI ckiParLast = {ctgNil, cnoNil}, ckiPar;
+        ChunkID ckiParLast = {ctgNil, cnoNil}, ckiPar;
         KID kid;
         CGE cge;
 
@@ -5711,7 +5711,7 @@ bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
     ccki = pcfl->CckiCtg(kctgMsnd);
     for (icki = 0; icki < ccki; icki++)
     {
-        CKI cki;
+        ChunkID cki;
         KID kid;
 
         AssertDo(pcfl->FGetCkiCtg(kctgMsnd, icki, &cki), "Should never fail");

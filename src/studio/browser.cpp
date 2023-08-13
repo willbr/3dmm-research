@@ -886,7 +886,7 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkID ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, ChunkTag ctgContent)
+bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, ChunkID ckiRoot, ChunkTag ctgContent)
 {
     AssertThis(0);
 
@@ -1042,7 +1042,7 @@ bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, ChunkTag 
  * away.
  *
  ****************************************************/
-bool BRWL::_FCreateBuildThd(CKI ckiRoot, ChunkTag ctgContent, bool fBuildGl)
+bool BRWL::_FCreateBuildThd(ChunkID ckiRoot, ChunkTag ctgContent, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1082,7 +1082,7 @@ LFail:
  * BRWL _FGetContent : Enum files & build the THD
  *
  ****************************************************/
-bool BRWL::_FGetContent(PCRM pcrm, CKI *pcki, ChunkTag ctg, bool fBuildGl)
+bool BRWL::_FGetContent(PCRM pcrm, ChunkID *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1408,7 +1408,7 @@ void BRWL::_ReleaseThumFrame(long ifrm)
  * BCL class routines
  *
  ****************************************************/
-PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd, bool fOnlineOnly)
+PBCL BCL::PbclNew(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGL pglthd, bool fOnlineOnly)
 {
     PBCL pbcl;
 
@@ -1422,7 +1422,7 @@ PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd, boo
     return pbcl;
 }
 
-bool BCLS::_FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd)
+bool BCLS::_FInit(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
@@ -1443,10 +1443,10 @@ LFail:
     return fFalse;
 }
 
-bool BCL::_FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd)
+bool BCL::_FInit(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGL pglthd)
 {
     AssertNilOrPo(pcrm, 0);
-    Assert(pckiRoot->ctg != ctgNil, "Bad CKI");
+    Assert(pckiRoot->ctg != ctgNil, "Bad ChunkID");
     AssertNilOrPo(pglthd, 0);
 
     if (pglthd == pvNil)
@@ -1472,7 +1472,7 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
+PBCLS BCLS::PbclsNew(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
 {
     PBCLS pbcls;
 
@@ -1569,7 +1569,7 @@ bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
 
     long ickiRoot;
     long cckiRoot;
-    CKI ckiRoot;
+    ChunkID ckiRoot;
     KID kidPar;
     long ikidPar;
     long ckidPar;
@@ -1628,7 +1628,7 @@ bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
     return fTrue;
 }
 
-bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, CKI *pcki)
+bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChunkID *pcki)
 {
     KID kid;
 
@@ -1650,7 +1650,7 @@ bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
     AssertPo(pcfl, 0);
     AssertVarMem(pkid);
 
-    CKI cki = pkid->cki;
+    ChunkID cki = pkid->cki;
     KID kid;
     THD thd;
     DataBlock blck;
@@ -1840,7 +1840,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
  * -> BRWL Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkID ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1862,7 +1862,7 @@ bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoo
  * Build the thd
  *
  ****************************************************/
-bool BRWN::_FGetContent(PCRM pcrm, CKI *pcki, ChunkTag ctg, bool fBuildGl)
+bool BRWN::_FGetContent(PCRM pcrm, ChunkID *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -2043,7 +2043,7 @@ bool BRWM::_FUpdateLists(void)
     long ithdOld;
     long ccki;
     long icki;
-    CKI cki;
+    ChunkID cki;
     TAG tag;
     PMSND pmsnd = pvNil;
     PCFL pcfl = _pcrf->Pcfl();
@@ -2131,7 +2131,7 @@ bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
  * Extend the BRWL lists
  *
  ****************************************************/
-bool BRWM::_FAddThd(STN *pstn, CKI *pcki)
+bool BRWM::_FAddThd(STN *pstn, ChunkID *pcki)
 {
     AssertBaseThis(0);
     THD thd;
@@ -2214,7 +2214,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     long icki;
     long ccki;
     STN stn;
-    CKI cki;
+    ChunkID cki;
     CMD cmd;
 
     vapp.GetPortfolioDoc(&fni);
@@ -2744,7 +2744,7 @@ PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
  * Initialize the BRWI	 (Import Browser)
  *
  **************************************************************************/
-bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PStudio pstdio)
+bool BRWI::FInit(PCMD pcmd, ChunkID ckiRoot, PStudio pstdio)
 {
     AssertBaseThis(0);
 
@@ -3004,7 +3004,7 @@ bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pst
     DataBlock blck;
     long ccki;
     long icki;
-    CKI cki;
+    ChunkID cki;
     TFC tfc;
     KID kid;
     FNET fnet;

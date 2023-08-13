@@ -610,7 +610,7 @@ bool LID::FRefresh(void)
     CACH cach, cachT;
     PCRF pcrf;
     PCFL pcfl;
-    CKI cki;
+    ChunkID cki;
     long ivMin, ivLim, iv;
     KID kid;
     long ipddg;
@@ -676,9 +676,9 @@ long LID::Ccki(void)
 }
 
 /***************************************************************************
-    Get the CKI for the indicated item.
+    Get the ChunkID for the indicated item.
 ***************************************************************************/
-void LID::GetCki(long icki, CKI *pcki, PCRF *ppcrf)
+void LID::GetCki(long icki, ChunkID *pcki, PCRF *ppcrf)
 {
     AssertThis(0);
     AssertIn(icki, 0, _pglcach->IvMac());
@@ -917,7 +917,7 @@ void LIG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
     long icki;
-    CKI cki;
+    ChunkID cki;
     RC rc, rcT;
     PHETG phetg;
     PCRF pcrf;

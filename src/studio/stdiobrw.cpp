@@ -78,7 +78,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
     bool fSuccess = fFalse;
     PBRCN pbrcn = pvNil; // Browser context carryover
     PBRWD pbrwd = pvNil;
-    CKI ckiRoot;
+    ChunkID ckiRoot;
     TAG tag;
     PTAG ptag;
     PMVU pmvu;

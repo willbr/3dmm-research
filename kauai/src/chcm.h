@@ -280,7 +280,7 @@ class CHDC : public CHDC_PAR
     CHSE _chse; // chunky source emitter
 
   protected:
-    bool _FDumpScript(CKI *pcki);
+    bool _FDumpScript(ChunkID *pcki);
     bool _FDumpList(PBLCK pblck, bool fAl);
     bool _FDumpGroup(PBLCK pblck, bool fAg);
     bool _FDumpStringTable(PBLCK pblck, bool fAst);

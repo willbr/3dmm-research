@@ -1698,7 +1698,7 @@ void CHCM::_EndSubFile(void)
     if (!FError())
     {
         long icki;
-        CKI cki;
+        ChunkID cki;
         long cbTot, cbT;
         FP fpDst;
         PFIL pfilDst = pvNil;
@@ -1805,7 +1805,7 @@ void CHCM::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     TOK tok;
     DataBlock blck;
-    CKI cki;
+    ChunkID cki;
     bool fFetch;
     bool fPack, fPrePacked;
 
@@ -1846,7 +1846,7 @@ void CHCM::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
             }
             cki.ctg = ctg;
             cki.cno = cno;
-            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = GL::PglNew(size(CKI))) || !_pglckiLoner->FPush(&cki))
+            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = GL::PglNew(size(ChunkID))) || !_pglckiLoner->FPush(&cki))
             {
                 _Error(ertOom);
             }
@@ -2107,7 +2107,7 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pms
 
     if (!FError() && pvNil != _pglckiLoner)
     {
-        CKI cki;
+        ChunkID cki;
         long icki;
 
         for (icki = _pglckiLoner->IvMac(); icki-- > 0;)
@@ -2490,7 +2490,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     AssertPo(pcflSrc, 0);
     long icki, ikid, ckid;
     ChunkTag ctg;
-    CKI cki;
+    ChunkID cki;
     KID kid;
     DataBlock blck;
 
@@ -2584,7 +2584,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 /***************************************************************************
     Disassemble the script and dump it.
 ***************************************************************************/
-bool CHDC::_FDumpScript(CKI *pcki)
+bool CHDC::_FDumpScript(ChunkID *pcki)
 {
     AssertThis(0);
     AssertVarMem(pcki);

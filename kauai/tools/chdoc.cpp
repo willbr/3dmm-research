@@ -78,7 +78,7 @@ struct ADCD
 {
     PCFL pcfl;
     bool fCkiValid;
-    CKI cki;
+    ChunkID cki;
 };
 
 bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv);
@@ -449,7 +449,7 @@ bool DOCE::_FSaveToChunk(ChunkTag ctg, ChunkNumber cno, bool fRedirect)
 {
     AssertThis(0);
     ChunkNumber cnoT;
-    CKI cki;
+    ChunkID cki;
     DataBlock blck;
     long cb = _CbOnFile();
 
@@ -702,7 +702,7 @@ void DCD::_Activate(bool fActive)
     *pcki and *pkid should be at or before the first line modified.
     pcki and pkid can be nil.
 ***************************************************************************/
-void DCD::InvalAllDcd(PDOCB pdocb, PCFL pcfl, CKI *pcki, KID *pkid)
+void DCD::InvalAllDcd(PDOCB pdocb, PCFL pcfl, ChunkID *pcki, KID *pkid)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);
@@ -731,7 +731,7 @@ void DCD::InvalAllDcd(PDOCB pdocb, PCFL pcfl, CKI *pcki, KID *pkid)
     Invalidate the display from (pcki, pkid) to the end of the display. If
     we're the active DCD, also redraw.
 ***************************************************************************/
-void DCD::_InvalCkiKid(CKI *pcki, KID *pkid)
+void DCD::_InvalCkiKid(ChunkID *pcki, KID *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -783,7 +783,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
     RC rc;
     long yp, xp;
     long ikid, cckiRef;
-    CKI cki;
+    ChunkID cki;
     KID kid;
     DataBlock blck;
     ulong grfsel;
@@ -895,7 +895,7 @@ void DCD::_DrawSel(PGNV pgnv)
 /***************************************************************************
     Set the selection to the given ln.
 ***************************************************************************/
-void DCD::_SetSel(long ln, CKI *pcki, KID *pkid)
+void DCD::_SetSel(long ln, ChunkID *pcki, KID *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -961,7 +961,7 @@ void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
     PT pt, ptT;
     bool fDown;
     long ln, lnNew;
-    CKI cki, ckiNew;
+    ChunkID cki, ckiNew;
     KID kid;
     ulong grfsel;
 
@@ -1100,7 +1100,7 @@ bool DCD::FCmdReopen(PCMD pcmd)
     AssertThis(0);
     AssertPo(pcmd, 0);
     PDOCB pdocb;
-    CKI cki;
+    ChunkID cki;
     KID kid;
     ulong grfsel;
     long lnOld;
@@ -1153,7 +1153,7 @@ bool DCD::FCmdKey(PCMD_KEY pcmd)
     long ln, lnLim, lnNew, cln;
     ulong grfsel;
     KID kid;
-    CKI cki;
+    ChunkID cki;
     RC rc;
 
     ln = _sel.Ln();
@@ -1269,7 +1269,7 @@ bool DCD::FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds)
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(pgrfeds);
-    CKI cki;
+    ChunkID cki;
 
     switch (pcmd->cid)
     {
@@ -1324,7 +1324,7 @@ bool DCD::FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Put up the dialog and add the chunk.
 ***************************************************************************/
-bool DCD::_FAddChunk(ChunkTag ctgDef, CKI *pcki, bool *pfCreated)
+bool DCD::_FAddChunk(ChunkTag ctgDef, ChunkID *pcki, bool *pfCreated)
 {
     AssertVarMem(pcki);
     AssertVarMem(pfCreated);
@@ -1395,7 +1395,7 @@ bool DCD::FCmdAddChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     long lnOld;
     bool fCreated;
 
@@ -1423,7 +1423,7 @@ bool DCD::FCmdAddPicChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     DataBlock blck;
     long cb;
     long lnOld;
@@ -1536,7 +1536,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     DataBlock blck;
     long lw;
     long lnOld;
@@ -1622,7 +1622,7 @@ bool DCD::FCmdAddFileChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     PFIL pfil;
     DataBlock blck;
     long lnOld;
@@ -1673,7 +1673,7 @@ bool DCD::FCmdAddFileChunk(PCMD pcmd)
 // child chunks and the chunky file.
 struct CLAN
 {
-    CKI cki;
+    ChunkID cki;
     KID kid;
     PCFL pcfl;
 };
@@ -1688,7 +1688,7 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    CKI cki;
+    ChunkID cki;
     long lw;
     bool fEmpty;
     CLAN *pclan = (CLAN *)pv;
@@ -1737,7 +1737,7 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
     Put up the dialog with initial values and edit the chunk. This function
     will update *pckiOld to contain the new ctg and cno values.
 ****************************************************************************/
-bool DCD::_FEditChunkInfo(CKI *pckiOld)
+bool DCD::_FEditChunkInfo(ChunkID *pckiOld)
 {
     AssertVarMem(pckiOld);
     long idit;
@@ -1745,7 +1745,7 @@ bool DCD::_FEditChunkInfo(CKI *pckiOld)
     PDLG pdlg;
     STN stn;
     CLAN clan;
-    CKI cki;
+    ChunkID cki;
 
     clan.pcfl = _pcfl;
     clan.cki = *pckiOld;
@@ -1792,7 +1792,7 @@ bool DCD::FCmdEditChunkInfo(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     long lnOld;
 
     // record, save, and clear the sel
@@ -1823,7 +1823,7 @@ bool DCD::FCmdDeleteChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         goto LCancel;
@@ -1917,7 +1917,7 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
     Put up the dialog with initial values and change the ChildChunkID. *pkid will be
     affected to reflect this change.
 ****************************************************************************/
-bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
+bool DCD::_FChangeChid(ChunkID *pcki, KID *pkid)
 {
     AssertVarMem(pcki);
     AssertVarMem(pkid);
@@ -1968,7 +1968,7 @@ bool DCD::FCmdChangeChid(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     KID kid;
     long lnOld;
 
@@ -2017,7 +2017,7 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
     long lw;
-    CKI cki;
+    ChunkID cki;
     KID kid;
     long ikid;
     bool fEmpty;
@@ -2117,13 +2117,13 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
     Put up and handle the adopt dialog with the given initial values
     (if not nil).
 ***************************************************************************/
-bool DCD::_FDoAdoptChunkDlg(CKI *pcki, KID *pkid)
+bool DCD::_FDoAdoptChunkDlg(ChunkID *pcki, KID *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
     AssertNilOrVarMem(pkid);
     long idit;
-    CKI cki;
+    ChunkID cki;
     KID kid;
     long lnOld;
     long lw1, lw2, lw3;
@@ -2197,8 +2197,8 @@ bool DCD::FCmdAdoptChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    CKI *pcki;
+    ChunkID cki;
+    ChunkID *pcki;
     PDLG pdlg = pvNil;
 
     if (fselCki & _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2219,7 +2219,7 @@ bool DCD::FCmdUnadoptChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     KID kid;
 
     if (!(_sel.GrfselGetCkiKid(&cki, &kid) & fselKid))
@@ -2240,7 +2240,7 @@ bool DCD::FCmdUnadoptChunk(PCMD pcmd)
 ***************************************************************************/
 bool DCD::FCmdEditChunk(PCMD pcmd)
 {
-    CKI cki;
+    ChunkID cki;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
@@ -2250,9 +2250,9 @@ bool DCD::FCmdEditChunk(PCMD pcmd)
 }
 
 /***************************************************************************
-    Opens a window onto the CKI's data.
+    Opens a window onto the ChunkID's data.
 ***************************************************************************/
-void DCD::_EditCki(CKI *pcki, long cid)
+void DCD::_EditCki(ChunkID *pcki, long cid)
 {
     AssertThis(0);
     AssertVarMem(pcki);
@@ -2411,7 +2411,7 @@ bool DCD::FCmdImportScript(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     SCCG sccg;
-    CKI cki;
+    ChunkID cki;
     long lnOld;
     Filename fni;
     bool fCreated;
@@ -2479,7 +2479,7 @@ bool DCD::FCmdTestScript(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     long cbCache;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2537,7 +2537,7 @@ bool DCD::FCmdPack(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     bool fPack;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2606,7 +2606,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
 ***************************************************************************/
 bool DCD::FCmdDisasmScript(PCMD pcmd)
 {
-    CKI cki;
+    ChunkID cki;
     PSCPT pscpt;
     SCCG sccg;
     Filename fni;
@@ -2638,7 +2638,7 @@ bool DCD::FCmdDisasmScript(PCMD pcmd)
 bool DCD::_FCopySel(PDOCB *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
-    CKI cki;
+    ChunkID cki;
     PDOC pdoc;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2690,7 +2690,7 @@ bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     PDOC pdoc;
     PCFL pcfl;
     long icki;
-    CKI cki, ckiSel;
+    ChunkID cki, ckiSel;
     bool fFailed = fFalse;
 
     if (!pclip->FGetFormat(kclsDOC))
@@ -2743,7 +2743,7 @@ bool DCD::FCmdSetColorTable(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkID cki;
     DataBlock blck;
     PGL pglclr;
 
@@ -2780,7 +2780,7 @@ bool DCD::FCmdFilterChunk(PCMD pcmd)
     STN stnT;
     PDLG pdlg;
     ulong grfsel;
-    CKI cki;
+    ChunkID cki;
     KID kid;
     ChunkTag ctg;
     long ictg;
@@ -2863,7 +2863,7 @@ bool DCD::FCmdCloneChunk(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki, ckiNew;
+    ChunkID cki, ckiNew;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         goto LFail;
@@ -3020,7 +3020,7 @@ void SEL::_SetNil(void)
     Get the cki and kid. Return which of the elements are valid. One or
     both of pcki, pkid may be nil.
 ***************************************************************************/
-ulong SEL::GrfselGetCkiKid(CKI *pcki, KID *pkid)
+ulong SEL::GrfselGetCkiKid(ChunkID *pcki, KID *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -3201,7 +3201,7 @@ bool SEL::FRetreat(void)
     fExact is false, this sets the sel to the last item at or before
     the given (pcki, pkid).
 ***************************************************************************/
-bool SEL::FSetCkiKid(CKI *pcki, KID *pkid, bool fExact)
+bool SEL::FSetCkiKid(ChunkID *pcki, KID *pkid, bool fExact)
 {
     AssertThis(0);
     AssertVarMem(pcki);

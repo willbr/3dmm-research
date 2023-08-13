@@ -1089,7 +1089,7 @@ bool Studio::FCmdNewSpletter(PCMD pcmd)
 
     STN stn;
     TAG tagTdf;
-    CKI cki;
+    ChunkID cki;
     PBCL pbcl;
     THD thd;
 
@@ -1173,7 +1173,7 @@ bool Studio::FCmdCreatePopup(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    CKI ckiRoot;
+    ChunkID ckiRoot;
     long cid, kid, thumSel = ivNil;
     ulong grfchp;
     BWS bws = kbwsCnoRoot;

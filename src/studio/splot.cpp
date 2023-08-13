@@ -148,7 +148,7 @@ bool SPLOT::FCmdSplot(PCMD pcmd)
     AssertThis(0);
 
     bool fDirty = fFalse;
-    CKI cki;
+    ChunkID cki;
     THD thd;
 
     vapp.BeginLongOp();
