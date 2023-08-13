@@ -13,7 +13,7 @@
     Basic collection classes:
         General List (GL), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
-        General String Table (StringTable), Allocated String Table (AST).
+        General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> GLB -+-> GL
                         |        +-> AL
@@ -22,7 +22,7 @@
                         |        +-> AG
                         |
                         +-> GSTB-+-> StringTable
-                                 +-> AST
+                                 +-> AllocatedStringTable
 
 ***************************************************************************/
 #ifndef GROUPS_H
@@ -388,7 +388,7 @@ const long kcchMaxGst = kcchMaxStn;
 
 /****************************************
     GSTB is a virtual class supporting
-    StringTable and AST.
+    StringTable and AllocatedStringTable.
 ****************************************/
 #define GSTB_PAR GRPB
 #define kclsGSTB 'GSTB'
@@ -494,26 +494,26 @@ class StringTable : public StringTable_PAR
 /****************************************
     Allocated string table
 ****************************************/
-#define AST_PAR GSTB
-#define kclsAST 'AST'
-class AST : public AST_PAR
+#define AllocatedStringTable_PAR GSTB
+#define kclsAllocatedStringTable 'AST'
+class AllocatedStringTable : public AllocatedStringTable_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    AST(long cbExtra) : GSTB(cbExtra, fgstAllowFree)
+    AllocatedStringTable(long cbExtra) : GSTB(cbExtra, fgstAllowFree)
     {
     }
 
   public:
     // static methods
-    static PAST PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PAST PastRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAST PastRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedStringTable PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PAllocatedStringTable PastRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedStringTable PastRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PAST PastDup(void);
+    PAllocatedStringTable PastDup(void);
 
     // methods required by parent class
     virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);

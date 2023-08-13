@@ -29,7 +29,7 @@ enum
     ttFile,              // file import command
     ttMeta,              // metafile import command
     ttBitmap,            // bitmap import command
-    ttFree,              // for AL, AG, AST - item is free
+    ttFree,              // for AL, AG, AllocatedStringTable - item is free
     ttItem,              // for GL, etc - start of data for new item
     ttVar,               // for GG and AG - variable sized data
     ttGl,                // GL command
@@ -37,7 +37,7 @@ enum
     ttGg,                // GG command
     ttAg,                // AG command
     ttGst,               // StringTable command
-    ttAst,               // AST command
+    ttAst,               // AllocatedStringTable command
     ttScript,            // infix script
     ttScriptP,           // postfix script
     ttModeStn,           // change mode to store strings as stn's

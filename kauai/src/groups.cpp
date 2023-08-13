@@ -10,7 +10,7 @@
     Basic collection classes:
         General List (GL), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
-        General String Table (StringTable), Allocated String Table (AST).
+        General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> GLB -+-> GL
                         |        +-> AL
@@ -19,7 +19,7 @@
                         |        +-> AG
                         |
                         +-> GSTB-+-> StringTable
-                                 +-> AST
+                                 +-> AllocatedStringTable
 
 ***************************************************************************/
 #include "util.h"

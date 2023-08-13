@@ -50,7 +50,7 @@ PSZ _mpertpsz[] = {
     PszLit("Syntax error"),                                   // ertSyntax
     PszLit("Invalid GG or AG declaration"),                   // ertGroupHead
     PszLit("Invalid size for fixed group data"),              // ertGroupEntrySize
-    PszLit("Invalid StringTable or AST declaration"),                 // ertGstHead
+    PszLit("Invalid StringTable or AllocatedStringTable declaration"),                 // ertGstHead
     PszLit("Invalid size for extra string table data"),       // ertGstEntrySize
     PszLit("Script compilation failed"),                      // ertScript
     PszLit("Invalid ADOPT declaration"),                      // ertAdoptHead
@@ -1480,7 +1480,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
         return;
     }
 
-    pgstb = fAst ? (PGSTB)AST::PastNew(cbExtra) : (PGSTB)StringTable::PgstNew(cbExtra);
+    pgstb = fAst ? (PGSTB)AllocatedStringTable::PastNew(cbExtra) : (PGSTB)StringTable::PgstNew(cbExtra);
     if (pvNil == pgstb || cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
     {
         _Error(ertOom);
@@ -2150,7 +2150,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
     PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("GL"),      ttGl,
     PszLit("AL"),        ttAl,        PszLit("GG"),         ttGg,         PszLit("AG"),      ttAg,
-    PszLit("StringTable"),       ttGst,       PszLit("AST"),        ttAst,        PszLit("MACBO"),   ttMacBo,
+    PszLit("StringTable"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
     PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
     PszLit("LONER"),     ttLoner,     PszLit("CURSOR"),     ttCursor,     PszLit("PALETTE"), ttPalette,
     PszLit("PREPACKED"), ttPrePacked, PszLit("PACK"),       ttPack,       PszLit("PACKFMT"), ttPackFmt,
@@ -2704,7 +2704,7 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
     bool fPacked = pblck->FPacked(&cfmt);
     bool fRet;
 
-    pgstb = fAst ? (PGSTB)AST::PastRead(pblck, &bo, &osk) : (PGSTB)StringTable::PgstRead(pblck, &bo, &osk);
+    pgstb = fAst ? (PGSTB)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PGSTB)StringTable::PgstRead(pblck, &bo, &osk);
     if (pvNil == pgstb)
         return fFalse;
 

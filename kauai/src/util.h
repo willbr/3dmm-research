@@ -146,10 +146,10 @@ namespace Group {
 
    class GSTB;
    class StringTable;
-   class AST;
+   class AllocatedStringTable;
    typedef class GSTB *PGSTB;
    typedef class StringTable *PStringTable;
-   typedef class AST *PAST;
+   typedef class AllocatedStringTable *PAllocatedStringTable;
 }
 
 namespace ScriptInterpreter{

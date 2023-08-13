@@ -2295,7 +2295,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
             cls = kclsStringTable;
             goto LDocg;
         case kctgAst:
-            cls = kclsAST;
+            cls = kclsAllocatedStringTable;
             goto LDocg;
         default:
             break;
@@ -2343,7 +2343,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         cls = kclsStringTable;
         goto LDocg;
     case cidEditAST:
-        cls = kclsAST;
+        cls = kclsAllocatedStringTable;
     LDocg:
         pdoce = DOCG::PdocgNew(_pdocb, _pcfl, pcki->ctg, pcki->cno, cls);
         break;

@@ -11,7 +11,7 @@ chdoc.h		dch - display chunk in hex - displays a FileByteStream
 chdoc.h		dcgb - display for group chunk
 chdoc.h		dcgl - display for GL or AL chunk
 chdoc.h		dcgg - display for GG or AG chunk
-chdoc.h		dcst - display for StringTable or AST chunk
+chdoc.h		dcst - display for StringTable or AllocatedStringTable chunk
 chdoc.h		dcpic - display for picture chunk
 chdoc.h		tscg - test script chunk gob
 docb.h		docb - base class for documents (doc)

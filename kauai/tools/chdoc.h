@@ -132,7 +132,7 @@ class DOCH : public DOCH_PAR
 };
 
 /***************************************************************************
-    Group editor document - for editing GL, AL, GG, AG, StringTable, and AST.
+    Group editor document - for editing GL, AL, GG, AG, StringTable, and AllocatedStringTable.
 ***************************************************************************/
 #define DOCG_PAR DOCE
 #define kclsDOCG 'DOCG'
@@ -626,7 +626,7 @@ class DCGG : public DCGG_PAR
 };
 
 /***************************************************************************
-    Display StringTable or AST chunk.
+    Display StringTable or AllocatedStringTable chunk.
 ***************************************************************************/
 #define DCST_PAR DCGB
 #define kclsDCST 'DCST'

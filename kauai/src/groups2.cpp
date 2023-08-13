@@ -10,7 +10,7 @@
     Basic collection classes (continued from groups.cpp):
         General List (GL), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
-        General String Table (StringTable), Allocated String Table (AST).
+        General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> GLB -+-> GL
                         |        +-> AL
@@ -19,7 +19,7 @@
                         |        +-> AG
                         |
                         +-> GSTB-+-> StringTable
-                                 +-> AST
+                                 +-> AllocatedStringTable
 
 ***************************************************************************/
 #include "util.h"
@@ -29,7 +29,7 @@ namespace Group {
 
 RTCLASS(GSTB)
 RTCLASS(StringTable)
-RTCLASS(AST)
+RTCLASS(AllocatedStringTable)
 
 /***************************************************************************
     Constructor for a base string table.
@@ -955,15 +955,15 @@ void StringTable::AssertValid(ulong grfobj)
     Allocate a new allocated string table and ensure that it has space for
     cstnInit strings, totalling cchInit characters.
 ***************************************************************************/
-PAST AST::PastNew(long cbExtra, long cstnInit, long cchInit)
+PAllocatedStringTable AllocatedStringTable::PastNew(long cbExtra, long cstnInit, long cchInit)
 {
     AssertIn(cbExtra, 0, kcbMax);
     Assert(cbExtra % size(long) == 0, "cbExtra not multiple of size(long)");
     AssertIn(cstnInit, 0, kcbMax);
     AssertIn(cchInit, 0, kcbMax);
-    PAST past;
+    PAllocatedStringTable past;
 
-    if ((past = NewObj AST(cbExtra)) == pvNil)
+    if ((past = NewObj AllocatedStringTable(cbExtra)) == pvNil)
         return pvNil;
     if ((cstnInit > 0 || cchInit > 0) && !past->FEnsureSpace(cstnInit, cchInit, fgrpNil))
     {
@@ -977,15 +977,15 @@ PAST AST::PastNew(long cbExtra, long cstnInit, long cchInit)
 /***************************************************************************
     Read an allocated string table from a block and return it.
 ***************************************************************************/
-PAST AST::PastRead(PDataBlock pblck, short *pbo, short *posk)
+PAllocatedStringTable AllocatedStringTable::PastRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PAST past;
+    PAllocatedStringTable past;
 
-    if ((past = NewObj AST(0)) == pvNil)
+    if ((past = NewObj AllocatedStringTable(0)) == pvNil)
         goto LFail;
     if (!past->_FRead(pblck, pbo, posk))
     {
@@ -1002,19 +1002,19 @@ PAST AST::PastRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read an allocated string table from file and return it.
 ***************************************************************************/
-PAST AST::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedStringTable AllocatedStringTable::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck;
     return PastRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Duplicate this AST.
+    Duplicate this AllocatedStringTable.
 ***************************************************************************/
-PAST AST::PastDup(void)
+PAllocatedStringTable AllocatedStringTable::PastDup(void)
 {
     AssertThis(0);
-    PAST past;
+    PAllocatedStringTable past;
 
     if (pvNil == (past = PastNew(_cbEntry - size(long))))
         return pvNil;
@@ -1029,7 +1029,7 @@ PAST AST::PastDup(void)
 /***************************************************************************
     Append a string to the allocated string table.
 ***************************************************************************/
-bool AST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
+bool AllocatedStringTable::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cch, 0, kcchMaxGst + 1);
@@ -1091,7 +1091,7 @@ bool AST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
 /***************************************************************************
     Delete the string at location istn.
 ***************************************************************************/
-void AST::Delete(long istn)
+void AllocatedStringTable::Delete(long istn)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac);
@@ -1124,9 +1124,9 @@ void AST::Delete(long istn)
 /***************************************************************************
     Validate a string table.
 ***************************************************************************/
-void AST::AssertValid(ulong grfobj)
+void AllocatedStringTable::AssertValid(ulong grfobj)
 {
-    AST_PAR::AssertValid(grfobj);
+    AllocatedStringTable_PAR::AssertValid(grfobj);
     AssertIn(_cbstFree, 0, LwMax(1, _ivMac));
 }
 #endif // DEBUG

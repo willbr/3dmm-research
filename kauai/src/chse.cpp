@@ -387,8 +387,8 @@ void SourceEmitter::DumpGroup(PGGB pggb)
 }
 
 /******************************************************************************
-    Dumps a StringTable or AST, including the StringTable or AST directive. pggb is the StringTable or
-    AST to dump.
+    Dumps a StringTable or AllocatedStringTable, including the StringTable or AllocatedStringTable directive. pggb is the StringTable or
+    AllocatedStringTable to dump.
 ******************************************************************************/
 bool SourceEmitter::FDumpStringTable(PGSTB pgstb)
 {
@@ -400,11 +400,11 @@ bool SourceEmitter::FDumpStringTable(PGSTB pgstb)
     STN stn1;
     STN stn2;
     void *pvExtra = pvNil;
-    bool fAst = pgstb->FIs(kclsAST);
+    bool fAst = pgstb->FIs(kclsAllocatedStringTable);
 
-    Assert(fAst || pgstb->FIs(kclsStringTable), "neither a StringTable or AST!");
+    Assert(fAst || pgstb->FIs(kclsStringTable), "neither a StringTable or AllocatedStringTable!");
 
-    // have a valid StringTable or AST -- print it out in readable format
+    // have a valid StringTable or AllocatedStringTable -- print it out in readable format
     cbExtra = pgstb->CbExtra();
     AssertIn(cbExtra, 0, kcbMax);
     ivMac = pgstb->IvMac();
