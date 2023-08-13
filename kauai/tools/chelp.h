@@ -368,7 +368,7 @@ class HETD : public HETD_PAR
   protected:
     PCFL _pcfl; // which chunk is being edited
     ChunkNumber _cno;
-    PGST _pgst;   // string versions of stuff in HTOP
+    PStringTable _pgst;   // string versions of stuff in HTOP
     STN _stnDesc; // description
 
     HETD(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);

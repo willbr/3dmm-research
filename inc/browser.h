@@ -255,7 +255,7 @@ class BRCNL : public BRCNL_PAR
     long cthumCD;
     ChunkIdentification ckiRoot;
     PGL pglthd;
-    PGST pgst;
+    PStringTable pgst;
     PChunkyResourceManager pcrm;
 };
 
@@ -354,7 +354,7 @@ class BCLS : public BCLS_PAR
     MARKMEM
 
   protected:
-    PGST _pgst;
+    PStringTable _pgst;
 
   protected:
     BCLS(void)
@@ -366,16 +366,16 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PGL pglthd);
     bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
+    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PStringTable pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
-    PGST Pgst(void)
+    PStringTable Pgst(void)
     {
         return _pgst;
     }
@@ -413,7 +413,7 @@ class BRWL : public BRWL_PAR
     // Thumnail descriptor lists
     PChunkyResourceManager _pcrm;  // Chunky resource manager
     PGL _pglthd; // Thumbnail descriptor	gl
-    PGST _pgst;  // Chunk name
+    PStringTable _pgst;  // Chunk name
 
     // Browser Search (List) parameters
     BWS _bws;         // Selection type flag
@@ -475,7 +475,7 @@ class BRWT : public BRWT_PAR
     MARKMEM
 
   protected:
-    PGST _pgst;
+    PStringTable _pgst;
     bool _fEnableAccel;
 
     virtual long _Cthum(void)
@@ -499,7 +499,7 @@ class BRWT : public BRWT_PAR
     ~BRWT(void);
 
     static PBRWT PbrwtNew(PRCA prca, long kidPar, long kidBrwt);
-    void SetGst(PGST pgst);
+    void SetGst(PStringTable pgst);
     bool FInit(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
 };

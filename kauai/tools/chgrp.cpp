@@ -4,7 +4,7 @@
 /***************************************************************************
 
     Handles editing a chunk consisting of a group
-    (GL, AL, GG, AG, GST, AST)
+    (GL, AL, GG, AG, StringTable, AST)
 
 ***************************************************************************/
 #include "ched.h"
@@ -32,7 +32,7 @@ RTCLASS(DCST)
 /***************************************************************************
     Constructor for a group document.  cls indicates which group class
     the edited chunk belongs to.  cls should be one of GL, AL, GG, AG,
-    GST, AST.
+    StringTable, AST.
 ***************************************************************************/
 DOCG::DOCG(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
 {
@@ -146,7 +146,7 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAG:
             dlid = dlidGgbNew;
             break;
-        case kclsGST:
+        case kclsStringTable:
         case kclsAST:
             dlid = dlidGstbNew;
             break;
@@ -182,8 +182,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAG:
             _pgrpb = AG::PagNew(cb);
             break;
-        case kclsGST:
-            _pgrpb = GST::PgstNew(cb * size(long));
+        case kclsStringTable:
+            _pgrpb = StringTable::PgstNew(cb * size(long));
             break;
         case kclsAST:
             _pgrpb = AST::PastNew(cb * size(long));
@@ -214,8 +214,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAG:
             _pgrpb = AG::PagRead(pblck, &_bo, &_osk);
             break;
-        case kclsGST:
-            _pgrpb = GST::PgstRead(pblck, &_bo, &_osk);
+        case kclsStringTable:
+            _pgrpb = StringTable::PgstRead(pblck, &_bo, &_osk);
             break;
         case kclsAST:
             _pgrpb = AST::PastRead(pblck, &_bo, &_osk);
@@ -248,7 +248,7 @@ PDDG DOCG::PddgNew(PGCB pgcb)
     case kclsAG:
         pddg = DCGG::PdcggNew(this, (PGGB)_pgrpb, _cls, pgcb);
         break;
-    case kclsGST:
+    case kclsStringTable:
     case kclsAST:
         pddg = DCST::PdcstNew(this, (PGSTB)_pgrpb, _cls, pgcb);
         break;
@@ -293,7 +293,7 @@ void DOCG::AssertValid(ulong grf)
     case kclsAL:
     case kclsGG:
     case kclsAG:
-    case kclsGST:
+    case kclsStringTable:
     case kclsAST:
         break;
     default:
@@ -333,7 +333,7 @@ DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) 
         BugVar("bad cls value", &_cls);
     case kclsGL:
     case kclsGG:
-    case kclsGST:
+    case kclsStringTable:
 #endif // DEBUG
         _fAllocated = fFalse;
         break;
@@ -1103,18 +1103,18 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
 
 /***************************************************************************
     Constructor for the DCST class.  This class displays (and allows
-    editing of) a GST or AST.
+    editing of) a StringTable or AST.
 ***************************************************************************/
 DCST::DCST(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCST for the GST or AST.
+    Static method to create a new DCST for the StringTable or AST.
 ***************************************************************************/
 PDCST DCST::PdcstNew(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb)
 {
-    AssertVar(cls == kclsGST || cls == kclsAST, "bad cls", &cls);
+    AssertVar(cls == kclsStringTable || cls == kclsAST, "bad cls", &cls);
     PDCST pdcst;
 
     if (pvNil == (pdcst = NewObj DCST(pdocb, pgstb, cls, pgcb)))
@@ -1269,8 +1269,8 @@ bool DCST::FCmdAddItem(PCMD pcmd)
     case cidInsertItem:
         if (_fAllocated)
             break;
-        Assert(pgstb->FIs(kclsGST), "bad grpb");
-        fT = ((PGST)pgstb)->FInsertStn(ivNew = _ivCur, &stn, pvNil);
+        Assert(pgstb->FIs(kclsStringTable), "bad grpb");
+        fT = ((PStringTable)pgstb)->FInsertStn(ivNew = _ivCur, &stn, pvNil);
     }
     if (!fT)
         return fTrue;
@@ -1449,7 +1449,7 @@ bool DOCI::_FWrite(long iv)
             ((PGGB)_pgrpb)->PutFixed(iv, pv);
         }
         break;
-    case kclsGST:
+    case kclsStringTable:
     case kclsAST:
         if (_dln == 0)
         {
@@ -1458,7 +1458,7 @@ bool DOCI::_FWrite(long iv)
         }
         else
         {
-            Assert(cb == ((PGSTB)_pgrpb)->CbExtra(), "bad cb in GST/AST");
+            Assert(cb == ((PGSTB)_pgrpb)->CbExtra(), "bad cb in StringTable/AST");
             ((PGSTB)_pgrpb)->PutExtra(iv, pv);
         }
         break;
@@ -1501,7 +1501,7 @@ HQ DOCI::_HqRead(void)
         else
             cb = ((PGGB)_pgrpb)->CbFixed();
         break;
-    case kclsGST:
+    case kclsStringTable:
     case kclsAST:
         if (_dln == 0)
         {
@@ -1534,7 +1534,7 @@ HQ DOCI::_HqRead(void)
         else
             ((PGGB)_pgrpb)->GetFixed(_iv, pv);
         break;
-    case kclsGST:
+    case kclsStringTable:
     case kclsAST:
         if (_dln == 0)
             CopyPb(stn.Prgch(), pv, stn.Cch() * size(achar));

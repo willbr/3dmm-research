@@ -603,7 +603,7 @@ void SCCB::_PushString(PSTN pstn)
         return;
 
     AssertPo(_pscpt, 0);
-    if (pvNil == _pscpt->_pgstLiterals && pvNil == (_pscpt->_pgstLiterals = GST::PgstNew()) ||
+    if (pvNil == _pscpt->_pgstLiterals && pvNil == (_pscpt->_pgstLiterals = StringTable::PgstNew()) ||
         !_pscpt->_pgstLiterals->FAddStn(pstn, pvNil, &istn))
     {
         _ReportError(_pszOom);
@@ -713,7 +713,7 @@ void SCCB::_AddLabel(PSTN pstn)
     long lw;
     long istn;
 
-    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = GST::PgstNew(size(long), 5, 100)))
+    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = StringTable::PgstNew(size(long), 5, 100)))
     {
         _ReportError(_pszOom);
         return;
@@ -752,7 +752,7 @@ void SCCB::_PushLabelRequest(PSTN pstn)
     if (_fError)
         return;
 
-    if (pvNil == _pgstReq && pvNil == (_pgstReq = GST::PgstNew(size(long), 10, 200)))
+    if (pvNil == _pgstReq && pvNil == (_pgstReq = StringTable::PgstNew(size(long), 10, 200)))
     {
         _ReportError(_pszOom);
         return;
@@ -2283,7 +2283,7 @@ void SCCB::_AddNameRef(PSTN pstn, long *pistn)
     AssertPo(pstn, 0);
     AssertVarMem(pistn);
 
-    if (pvNil == _pgstNames && pvNil == (_pgstNames = GST::PgstNew(0, 5, 100)))
+    if (pvNil == _pgstNames && pvNil == (_pgstNames = StringTable::PgstNew(0, 5, 100)))
     {
         *pistn = 0;
         _ReportError(_pszOom);

@@ -135,7 +135,7 @@ typedef class GGB *PGGB;
 typedef class GG *PGG;
 typedef class AG *PAG;
 typedef class GSTB *PGSTB;
-typedef class GST *PGST;
+typedef class StringTable *PStringTable;
 typedef class AST *PAST;
 typedef class SCPT *PSCPT;
 typedef class DataBlock *PDataBlock;

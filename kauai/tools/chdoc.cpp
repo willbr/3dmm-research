@@ -2292,7 +2292,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         switch (ctg)
         {
         case kctgGst:
-            cls = kclsGST;
+            cls = kclsStringTable;
             goto LDocg;
         case kctgAst:
             cls = kclsAST;
@@ -2340,7 +2340,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         cls = kclsAG;
         goto LDocg;
     case cidEditGST:
-        cls = kclsGST;
+        cls = kclsStringTable;
         goto LDocg;
     case cidEditAST:
         cls = kclsAST;

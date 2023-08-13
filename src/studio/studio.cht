@@ -1175,7 +1175,7 @@ ENDCHUNK
 //
 CHUNK (kctgGst kcnoGstMisc "Miscellaneous strings")
 	LONG
-	GST(4)
+	StringTable(4)
 	ITEM "%d / %d" idsBrowserPage
 	ITEM "Comic Sans MS" idsSoundFont
 	ITEM "Comic Sans MS" idsActionFont

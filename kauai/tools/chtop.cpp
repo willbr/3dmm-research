@@ -1747,7 +1747,7 @@ bool HETD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGst, &kid))
     {
         // read the string table
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (_pgst = GST::PgstRead(&blck)) ||
+        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (_pgst = StringTable::PgstRead(&blck)) ||
             _pgst->IvMac() != 6 && (_pgst->IvMac() != 5 || !_pgst->FAddRgch(PszLit(""), 0)))
         {
             return fFalse;
@@ -1985,7 +1985,7 @@ void HETD::EditHtop(void)
         _pgst->GetStn(5, &stn);
         pdlg->FPutStn(kiditCnoSoundStnTopic, &stn);
     }
-    else if (pvNil == (_pgst = GST::PgstNew(0, 6, 0)))
+    else if (pvNil == (_pgst = StringTable::PgstNew(0, 6, 0)))
         return;
     else
     {

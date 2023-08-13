@@ -41,7 +41,7 @@ ENDCHUNK
 //
 CHUNK (kctgGst kcnoGstStudioFiles "Studio Filenames")
 	LONG
-	GST(4)
+	StringTable(4)
 	ITEM "studio"			1048576 // 1MB cache
 ENDCHUNK
 
@@ -51,7 +51,7 @@ ENDCHUNK
 //
 CHUNK (kctgGst kcnoGstBuildingFiles "Building Filenames")
 	LONG
-	GST(4)					 
+	StringTable(4)					 
 	ITEM "building"			1572864 	// 1.5MB cache
 	ITEM "bldghd"			1048576		// 1 MB cache
 ENDCHUNK
@@ -62,7 +62,7 @@ ENDCHUNK
 //
 CHUNK (kctgGst kcnoGstSharedFiles "Shared Filenames")
 	LONG
-	GST(4)
+	StringTable(4)
 	ITEM "shared"			524288 	// 512K cache
 	ITEM "sharecd"			98304 	// 96K cache
 	ITEM "help"				524288 	// 512K cache

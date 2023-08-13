@@ -82,7 +82,7 @@ class NTL : public NTL_PAR
 #ifdef WIN
     friend int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam);
 #endif // WIN
-    PGST _pgst;
+    PStringTable _pgst;
     long _onnSystem;
 
   public:

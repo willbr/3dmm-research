@@ -34,7 +34,7 @@ enum
     ttAl,                // AL command
     ttGg,                // GG command
     ttAg,                // AG command
-    ttGst,               // GST command
+    ttGst,               // StringTable command
     ttAst,               // AST command
     ttScript,            // infix script
     ttScriptP,           // postfix script
@@ -88,7 +88,7 @@ class CHLX : public CHLX_PAR
     NOCOPY(CHLX)
 
   protected:
-    PGST _pgstVariables;
+    PStringTable _pgstVariables;
 
     bool _FDoSet(PTOK ptok);
 

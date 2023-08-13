@@ -10,7 +10,7 @@
     Basic collection classes:
         General List (GL), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
-        General String Table (GST), Allocated String Table (AST).
+        General String Table (StringTable), Allocated String Table (AST).
 
         BASE ---> GRPB -+-> GLB -+-> GL
                         |        +-> AL
@@ -18,7 +18,7 @@
                         +-> GGB -+-> GG
                         |        +-> AG
                         |
-                        +-> GSTB-+-> GST
+                        +-> GSTB-+-> StringTable
                                  +-> AST
 
 ***************************************************************************/
@@ -1251,7 +1251,7 @@ bool GGB::FFree(long iv)
 /***************************************************************************
     Ensures that there is room to add at least cvAdd new entries with
     a total of cbAdd bytes (among the variable parts of the elements).
-    If there is more than enough room and fgrpShrink is passed, the GST
+    If there is more than enough room and fgrpShrink is passed, the StringTable
     will shrink.
 ***************************************************************************/
 bool GGB::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)

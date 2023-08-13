@@ -2,7 +2,7 @@
 
 	Collection classes:  General List (GL), Allocated List (AL),
 	General Group (GG),  Allocated Group (AG),
-	General String Table (GST), Allocated String Table (AST).
+	General String Table (StringTable), Allocated String Table (AST).
 
 ***************************************************************************/
 
@@ -37,8 +37,8 @@
 		deleted.  Entries can be free.  Call FFree to determine
 		if an entry is free.
 
-	class GST;
-	typedef class GST *PGST;
+	class StringTable;
+	typedef class StringTable *PStringTable;
 		A string table.  Can also store a fixed size piece of "extra"
 		data for each string.
 
@@ -65,14 +65,14 @@
 	PAL   AL::PalNew(long cb, long cvInit = 0);
 	PGG   GG::PggNew(long cvInit = 0, long cbInit = 0);
 	PAG   AG::PagNew(long cvInit = 0, long cbInit = 0);
-	PGST GST::PgstNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
+	PStringTable StringTable::PgstNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 	PAST AST::PastNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 		These are static methods (not invoked from an object) that
 		allocate a new object of the appropriate class.  For GL and
 		AL classes, cb is the size of the elements and cvInit is the
-		number of elements to reserve space for.  For GST and AST, cbExtra
+		number of elements to reserve space for.  For StringTable and AST, cbExtra
 		is the amount of extra data associated with each string.  For
-		GG, AG, GST and AST, cvInit/cstzInit are how many entries to make room
+		GG, AG, StringTable and AST, cvInit/cstzInit are how many entries to make room
 		for and cbInit/cchInit are the total number of bytes to allow for
 		these entries.  These values are as in FEnsureSpace.
 
@@ -80,7 +80,7 @@
 	PAL   AL::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PGG   GG::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAG   AG::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
-	PGST GST::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
+	PStringTable StringTable::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAST AST::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 		Static methods to read an object from disk.  pbo and posk may be
 		nil.  *pbo is set to the byte order of the object and *posk is
@@ -96,7 +96,7 @@
 			short bo = kboCur, short osk = koskCur);
 	bool  AG::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool GST::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
+	bool StringTable::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
 	bool AST::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
@@ -105,13 +105,13 @@
 		different from kboCur and koskCur, these will adjust the byte
 		order and/or osk before writing the data.  Obviously, client
 		managed data is not adjusted.  REVIEW shonk: should strings
-		in an GST/AST be handled automatically.
+		in an StringTable/AST be handled automatically.
 
 	long  GL::CbOnFile(void);
 	long  AL::CbOnFile(void);
 	long  GG::CbOnFile(void);
 	long  AG::CbOnFile(void);
-	long GST::CbOnFile(void);
+	long StringTable::CbOnFile(void);
 	long AST::CbOnFile(void);
 		Returns the amount of space required to write the object to
 		disk.
@@ -120,7 +120,7 @@
 	long  AL::IvMac(void);
 	long  GG::IvMac(void);
 	long  AG::IvMac(void);
-	long GST::IstzMac(void);
+	long StringTable::IstzMac(void);
 	long AST::IstzMac(void);
 		Returns the number of active items.  For AL, AG and AST, this
 		is the lim of legal indices, not the number of non-free
@@ -130,7 +130,7 @@
 	void  AL::Delete(long iv);
 	void  GG::Delete(long iv);
 	void  AG::Delete(long iv);
-	void GST::Delete(long istz);
+	void StringTable::Delete(long istz);
 	void AST::Delete(long istz);
 		Deletes the indicated element.  For AL, AG and AST, indices of
 		remaining items don't change (ie, a hole is created).  For the other
@@ -295,22 +295,22 @@
 	String Table specific methods
 ****************************************/
 
-	bool GST::FEnsureSpace(long cstzAdd, long cchAdd, short grfgrp);
+	bool StringTable::FEnsureSpace(long cstzAdd, long cchAdd, short grfgrp);
 	bool AST::FEnsureSpace(long cstzAdd, long cchAdd, short grfgrp);
 		Make sure there is room for at least cstzAdd additional strings,
 		using cchAdd bytes of space.  To close up the string table
 		use FEnsureSpace(0, 0, fgrpShrink).
 
-	bool GST::FInsertRgch(long istz, char *prgch, long cch, void *pvExtra);
-	bool GST::FInsertStz(long istz, char *pstz, void *pvExtra);
-	bool GST::FInsertSt(long istz, char *pst, void *pvExtra);
-	bool GST::FInsertSz(long istz, char *psz, void *pvExtra);
+	bool StringTable::FInsertRgch(long istz, char *prgch, long cch, void *pvExtra);
+	bool StringTable::FInsertStz(long istz, char *pstz, void *pvExtra);
+	bool StringTable::FInsertSt(long istz, char *pst, void *pvExtra);
+	bool StringTable::FInsertSz(long istz, char *psz, void *pvExtra);
 		Insert a new string at location istz.  pvExtra may be nil.
 
-	bool GST::FAddRgch(char *prgch, long cch, void *pvExtra, long *pistz);
-	bool GST::FAddStz(char *pstz, void *pvExtra, long *pistz);
-	bool GST::FAddSt(char *pst, void *pvExtra, long *pistz);
-	bool GST::FAddSz(char *psz, void *pvExtra, long *pistz);
+	bool StringTable::FAddRgch(char *prgch, long cch, void *pvExtra, long *pistz);
+	bool StringTable::FAddStz(char *pstz, void *pvExtra, long *pistz);
+	bool StringTable::FAddSt(char *pst, void *pvExtra, long *pistz);
+	bool StringTable::FAddSz(char *psz, void *pvExtra, long *pistz);
 	bool AST::FAddRgch(char *prgch, long cch, void *pvExtra, long *pistz);
 	bool AST::FAddStz(char *pstz, void *pvExtra, long *pistz);
 	bool AST::FAddSt(char *pst, void *pvExtra, long *pistz);
@@ -318,44 +318,44 @@
 		Append a string to the string table.  pistz may be nil.  If not,
 		*pistz is set the index of the new string.  pvExtra may be nil.
 
-	void GST::GetExtra(long istz, void *pv);
+	void StringTable::GetExtra(long istz, void *pv);
 	void AST::GetExtra(long istz, void *pv);
 		Fill pv with the extra data for the string.  Asserts that cbExtra
 		is > 0.
 
-	void GST::PutExtra(long istz, void *pv);
+	void StringTable::PutExtra(long istz, void *pv);
 	void AST::PutExtra(long istz, void *pv);
 		Set the extra data for the string.  Asserts that cbExtra is > 0.
 
-	void GST::GetStz(long istz, char *pstz);
-	void GST::GetSt(long istz, char *pst);
-	void GST::GetSz(long istz, char *psz);
+	void StringTable::GetStz(long istz, char *pstz);
+	void StringTable::GetSt(long istz, char *pst);
+	void StringTable::GetSz(long istz, char *psz);
 	void AST::GetStz(long istz, char *pstz);
 	void AST::GetSt(long istz, char *pst);
 	void AST::GetSz(long istz, char *psz);
 		Get the istz'th string.  pstz/pst/psz must point to a buffer at least
 		kcbMaxStz/kcbMaxSt/kcbMaxSz bytes long.
 
-	bool GST::FPutRgch(long istz, char *prgch, long cch);
-	bool GST::FPutStz(long istz, char *pstz);
-	bool GST::FPutSt(long istz, char *pst);
-	bool GST::FPutSz(long istz, char *psz);
+	bool StringTable::FPutRgch(long istz, char *prgch, long cch);
+	bool StringTable::FPutStz(long istz, char *pstz);
+	bool StringTable::FPutSt(long istz, char *pst);
+	bool StringTable::FPutSz(long istz, char *psz);
 	bool AST::FPutRgch(long istz, char *prgch, long cch);
 	bool AST::FPutStz(long istz, char *pstz);
 	bool AST::FPutSt(long istz, char *pst);
 	bool AST::FPutSz(long istz, char *psz);
 		Replace the istz'th string.
 
-	bool GST::FFindStz(char *pstz, long *pistz, ulong grfstb = fstbNil);
-	bool GST::FFindSt(char *pst, long *pistz, ulong grfstb = fstbNil);
-	bool GST::FFindSz(char *psz, long *pistz, ulong grfstb = fstbNil);
+	bool StringTable::FFindStz(char *pstz, long *pistz, ulong grfstb = fstbNil);
+	bool StringTable::FFindSt(char *pst, long *pistz, ulong grfstb = fstbNil);
+	bool StringTable::FFindSz(char *psz, long *pistz, ulong grfstb = fstbNil);
 	bool AST::FFindStz(char *pstz, long *pistz, ulong grfstb = fstbNil);
 	bool AST::FFindSt(char *pst, long *pistz, ulong grfstb = fstbNil);
 	bool AST::FFindSz(char *psz, long *pistz, ulong grfstb = fstbNil);
 		Finds the given string in the string table.  If fstbSorted is specified,
-		and this is an GST, a binary search is performed.  If the string is
+		and this is an StringTable, a binary search is performed.  If the string is
 		not found, false is returned.  If the string is not found and this is
-		an GST and fstbSorted was specified, *pistz will be filled with where
+		an StringTable and fstbSorted was specified, *pistz will be filled with where
 		the string should be inserted to maintain the sorting.  In other cases,
 		if the string is not found, *pistz is filled with IstzMac().
 

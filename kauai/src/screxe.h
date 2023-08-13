@@ -44,7 +44,7 @@ class SCPT : public SCPT_PAR
 
   protected:
     PGL _pgllw;
-    PGST _pgstLiterals;
+    PStringTable _pgstLiterals;
 
     SCPT(void)
     {
@@ -76,7 +76,7 @@ class STRG : public STRG_PAR
 
   protected:
     long _stidLast;
-    PGST _pgst;
+    PStringTable _pgst;
 
     bool _FFind(long stid, long *pistn);
     bool _FEnsureGst(void);
@@ -146,7 +146,7 @@ class SCEB : public SCEB_PAR
     void _LenStr(long stid);
 
     virtual void _AddParameters(long *prglw, long clw);
-    virtual void _AddStrings(PGST pgst);
+    virtual void _AddStrings(PStringTable pgst);
     virtual bool _FExecVarOp(long op, RTVN *prtvn);
     virtual bool _FExecOp(long op);
     virtual void _PushVar(PGL pglrtvm, RTVN *prtvn);

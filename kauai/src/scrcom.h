@@ -188,9 +188,9 @@ class SCCB : public SCCB_PAR
     PGL _pgletnTree;    // expression tree (in-fix only)
     PGL _pgletnStack;   // token stack for building expression tree (in-fix only)
     PGL _pglcstd;       // control structure stack (in-fix only)
-    PGST _pgstNames;    // encountered names (in-fix only)
-    PGST _pgstLabel;    // encountered labels, sorted, extra long is label value
-    PGST _pgstReq;      // label references, extra long is address of reference
+    PStringTable _pgstNames;    // encountered names (in-fix only)
+    PStringTable _pgstLabel;    // encountered labels, sorted, extra long is label value
+    PStringTable _pgstReq;      // label references, extra long is address of reference
     long _ilwOpLast;    // address of the last opcode
     long _lwLastLabel;  // for internal temporary labels
     bool _fError : 1;   // whether an error has occured during compiling

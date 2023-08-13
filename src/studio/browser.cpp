@@ -1422,13 +1422,13 @@ PBCL BCL::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, Ch
     return pbcl;
 }
 
-bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd)
+bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PGL pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
     if (pgst == pvNil)
     {
-        if ((pgst = GST::PgstNew()) == pvNil)
+        if ((pgst = StringTable::PgstNew()) == pvNil)
             goto LFail;
     }
     else
@@ -1472,7 +1472,7 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
+PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, PStringTable pgst, bool fOnlineOnly)
 {
     PBCLS pbcls;
 
@@ -1874,7 +1874,7 @@ bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
         return fTrue;
     }
 
-    if (pvNil == (_pgst = GST::PgstNew(0)))
+    if (pvNil == (_pgst = StringTable::PgstNew(0)))
         goto LFail;
 
     //
@@ -1889,7 +1889,7 @@ bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
     /* We passed the pglthd and pgst in, so no need to get them back before
         releasing the BCLS */
     Assert(_pglthd->CactRef() > 1, "GL of THDs will be lost!");
-    Assert(_pgst->CactRef() > 1, "GST will be lost!");
+    Assert(_pgst->CactRef() > 1, "StringTable will be lost!");
 
     fRet = fTrue;
 LFail:
@@ -2449,7 +2449,7 @@ PBRWT BRWT::PbrwtNew(PRCA prca, long kidPar, long kidGlass)
  * Set the Gst for BRWT text
  *
  ****************************************************/
-void BRWT::SetGst(PGST pgst)
+void BRWT::SetGst(PStringTable pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -2605,14 +2605,14 @@ bool BRWA::FBuildGst(PSCEN pscen)
     PTMPL ptmpl;
     long cactn;
     long iactn;
-    PGST pgst;
+    PStringTable pgst;
 
     Assert(pvNil != pscen && pvNil != pscen->PactrSelected(), "kidBrwsAction: Invalid actor");
 
     ptmpl = pscen->PactrSelected()->Ptmpl();
     Assert(pvNil != ptmpl, "Actor has no template");
 
-    if (pvNil == (pgst = GST::PgstNew(0)))
+    if (pvNil == (pgst = StringTable::PgstNew(0)))
         return fFalse;
 
     cactn = ptmpl->Cactn();
@@ -2760,7 +2760,7 @@ bool BRWI::FInit(PCMD pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
         return fFalse;
     _pglthd->SetMinGrow(kglthdGrow);
 
-    if (pvNil == (_pgst = GST::PgstNew(0)))
+    if (pvNil == (_pgst = StringTable::PgstNew(0)))
         return fFalse;
 
     _ckiRoot = ckiRoot;

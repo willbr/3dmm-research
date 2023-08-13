@@ -12,7 +12,7 @@
     Chunky files store distinct "chunks" of data. Each chunk is identified
     by a chunk tag (ChunkTag) and chunk number (ChunkNumber) pair. By convention, CTGs
     consist of 4 ASCII characters. CTGs that are shorter than 4 characters
-    should be padded with spaces (eg, 'GST '). The ChunkyFile class does not
+    should be padded with spaces (eg, 'StringTable '). The ChunkyFile class does not
     enforce these conventions, but many Kauai tools assume that CTGs
     consist of 4 printable characters.
 

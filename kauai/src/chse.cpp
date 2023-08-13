@@ -383,7 +383,7 @@ void CHSE::DumpGroup(PGGB pggb)
 }
 
 /******************************************************************************
-    Dumps a GST or AST, including the GST or AST directive. pggb is the GST or
+    Dumps a StringTable or AST, including the StringTable or AST directive. pggb is the StringTable or
     AST to dump.
 ******************************************************************************/
 bool CHSE::FDumpStringTable(PGSTB pgstb)
@@ -398,9 +398,9 @@ bool CHSE::FDumpStringTable(PGSTB pgstb)
     void *pvExtra = pvNil;
     bool fAst = pgstb->FIs(kclsAST);
 
-    Assert(fAst || pgstb->FIs(kclsGST), "neither a GST or AST!");
+    Assert(fAst || pgstb->FIs(kclsStringTable), "neither a StringTable or AST!");
 
-    // have a valid GST or AST -- print it out in readable format
+    // have a valid StringTable or AST -- print it out in readable format
     cbExtra = pgstb->CbExtra();
     AssertIn(cbExtra, 0, kcbMax);
     ivMac = pgstb->IvMac();

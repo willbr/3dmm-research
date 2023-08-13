@@ -206,7 +206,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
         pcrf = _pcrm->PcrfGet(icrf);
         if (pcrf->Pcfl()->FFind(kctgGst, kcnoGstMisc, &blck))
         {
-            _pgstMisc = GST::PgstRead(&blck);
+            _pgstMisc = StringTable::PgstRead(&blck);
             break;
         }
     }
@@ -1225,10 +1225,10 @@ bool Studio::FCmdCreatePopup(PCMD pcmd)
         MP::PmpNew(kidBackground, kid, _pcrm, pcmd, bws, thumSel, ksidInvalid, ckiRoot, ctgNil, this, cid, fFalse);
         break;
     case cidTextFont: {
-        PGST pgst;
+        PStringTable pgst;
         long onnCur, onnSystem = vntl.OnnSystem();
 
-        if ((pgst = GST::PgstNew(size(onnCur))) == pvNil)
+        if ((pgst = StringTable::PgstNew(size(onnCur))) == pvNil)
             break;
 
         for (onnCur = 0; onnCur < vntl.OnnMac(); onnCur++)

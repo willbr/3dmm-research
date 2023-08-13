@@ -7,7 +7,7 @@
 // REVIEW: hardcoded numerical constants
 CHUNK (kctgGst kcnoGstAction "TDT Action Names")
 	LONG
-	GST(4)
+	StringTable(4)
 	ITEM "At Rest"				0
 	ITEM "Flip Letters"			1
 	ITEM "Spin Letters"			2
@@ -31,7 +31,7 @@ ENDCHUNK
 //
 CHUNK (kctgGst kcnoGstApp "Misc. App global strings")
 	LONG
-	GST(4)
+	StringTable(4)
 	ITEM "Microsoft 3D Movie Maker" idsWindowTitle
 	ITEM "3D Movie Maker" idsProductLong
 	ITEM "3DMovie" idsProductShort

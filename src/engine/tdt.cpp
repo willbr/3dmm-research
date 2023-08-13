@@ -48,12 +48,12 @@ const ChildChunkID kchidTdt = 0; // ChildChunkID of TDT under TMPL chunk
 const BRS kdwrStepWalk = BR_SCALAR(1.0); // step size for walk action
 const BRS kdwrStep = BR_SCALAR(5.0);     // step size for all other actions
 
-PGST TDT::_pgstAction = pvNil;
+PStringTable TDT::_pgstAction = pvNil;
 
 /***************************************************************************
-    Set the GST of action names for TDTs
+    Set the StringTable of action names for TDTs
 ***************************************************************************/
-bool TDT::FSetActionNames(PGST pgstAction)
+bool TDT::FSetActionNames(PStringTable pgstAction)
 {
     AssertPo(pgstAction, 0);
     Assert(pvNil == _pgstAction, "you already set the action names");
@@ -1068,7 +1068,7 @@ void TDT::MarkMem(void)
 }
 
 /***************************************************************************
-    Mark memory used by the TDT action GST
+    Mark memory used by the TDT action StringTable
 ***************************************************************************/
 void TDT::MarkActionNames(void)
 {

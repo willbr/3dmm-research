@@ -129,7 +129,7 @@ class DOCH : public DOCH_PAR
 };
 
 /***************************************************************************
-    Group editor document - for editing GL, AL, GG, AG, GST, and AST.
+    Group editor document - for editing GL, AL, GG, AG, StringTable, and AST.
 ***************************************************************************/
 #define DOCG_PAR DOCE
 #define kclsDOCG 'DOCG'
@@ -623,7 +623,7 @@ class DCGG : public DCGG_PAR
 };
 
 /***************************************************************************
-    Display GST or AST chunk.
+    Display StringTable or AST chunk.
 ***************************************************************************/
 #define DCST_PAR DCGB
 #define kclsDCST 'DCST'

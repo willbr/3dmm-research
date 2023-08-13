@@ -30,7 +30,7 @@
     ("3DMOVIE").  We have to support short names because CD-ROMs currently
     do not allow long filenames.  So everywhere that we look for the
     source directory, we accept either the long or short name.
-    _pgstSource keeps track of these names.  Rather than have one GST for
+    _pgstSource keeps track of these names.  Rather than have one StringTable for
     short names and one for long names, each string in _pgstSource is the
     "merged name", which is the long name followed by a slash character
     (/) followed by the short name, e.g., "3D Movie Maker/3DMOVIE".  The
@@ -89,7 +89,7 @@ PTAGM TAGM::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache)
     if (pvNil == ptagm->_pglsfs)
         goto LFail;
 
-    ptagm->_pgstSource = GST::PgstNew(size(long)); // extra data is sid
+    ptagm->_pgstSource = StringTable::PgstNew(size(long)); // extra data is sid
     if (pvNil == ptagm->_pgstSource)
         goto LFail;
 
@@ -151,7 +151,7 @@ void TAGM::SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort)
 /***************************************************************************
     Return source title string table so it can be embedded in documents
 ***************************************************************************/
-PGST TAGM::PgstSource(void)
+PStringTable TAGM::PgstSource(void)
 {
     AssertThis(0);
     return _pgstSource;
@@ -188,7 +188,7 @@ bool TAGM::_FFindSid(long sid, long *pistn)
     Add source title string table entries to tag manager, if it doesn't
     already know them.
 ***************************************************************************/
-bool TAGM::FMergeGstSource(PGST pgst, short bo, short osk)
+bool TAGM::FMergeGstSource(PStringTable pgst, short bo, short osk)
 {
     AssertThis(0);
     AssertPo(pgst, 0);

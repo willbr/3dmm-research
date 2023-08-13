@@ -13,7 +13,7 @@
     Basic collection classes:
         General List (GL), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
-        General String Table (GST), Allocated String Table (AST).
+        General String Table (StringTable), Allocated String Table (AST).
 
         BASE ---> GRPB -+-> GLB -+-> GL
                         |        +-> AL
@@ -21,7 +21,7 @@
                         +-> GGB -+-> GG
                         |        +-> AG
                         |
-                        +-> GSTB-+-> GST
+                        +-> GSTB-+-> StringTable
                                  +-> AST
 
 ***************************************************************************/
@@ -386,7 +386,7 @@ const long kcchMaxGst = kcchMaxStn;
 
 /****************************************
     GSTB is a virtual class supporting
-    GST and AST.
+    StringTable and AST.
 ****************************************/
 #define GSTB_PAR GRPB
 #define kclsGSTB 'GSTB'
@@ -457,26 +457,26 @@ class GSTB : public GSTB_PAR
 /****************************************
     String table
 ****************************************/
-#define GST_PAR GSTB
-#define kclsGST 'GST'
-class GST : public GST_PAR
+#define StringTable_PAR GSTB
+#define kclsStringTable 'GST'
+class StringTable : public StringTable_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    GST(long cbExtra) : GSTB(cbExtra, fgstNil)
+    StringTable(long cbExtra) : GSTB(cbExtra, fgstNil)
     {
     }
 
   public:
     // static methods
-    static PGST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PGST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGST PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PStringTable PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PGST PgstDup(void);
+    PStringTable PgstDup(void);
 
     // methods required by parent class
     virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);

@@ -301,7 +301,7 @@ void SCEB::_AddParameters(long *prglw, long clw)
     Put the literal strings into the registry.  And assign the string id's
     to the internal string variables.
 ***************************************************************************/
-void SCEB::_AddStrings(PGST pgst)
+void SCEB::_AddStrings(PStringTable pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -1005,7 +1005,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PGST pgst;
+    PStringTable pgst;
     PCABO pcabo;
     short bo;
 
@@ -1017,7 +1017,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         return fFalse;
     *pcb = pblck->Cb();
 
-    if (pvNil == (pgst = GST::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(long))
+    if (pvNil == (pgst = StringTable::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(long))
     {
         goto LFail;
     }
@@ -1054,7 +1054,7 @@ void SCEB::_MergeStrings(ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
     PCABO pcabo;
-    PGST pgst;
+    PStringTable pgst;
     long istn, stid;
     STN stn;
     bool fFail;
@@ -1082,8 +1082,8 @@ void SCEB::_MergeStrings(ChunkNumber cno, RSC rsc)
         return;
     }
 
-    Assert(pcabo->po->FIs(kclsGST), 0);
-    pgst = (PGST)pcabo->po;
+    Assert(pcabo->po->FIs(kclsStringTable), 0);
+    pgst = (PStringTable)pcabo->po;
     Assert(pgst->CbExtra() == size(long), 0);
 
     fFail = fFalse;
@@ -1357,7 +1357,7 @@ PSCPT SCPT::PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     DataBlock blck;
     PSCPT pscpt = pvNil;
     PGL pgllw = pvNil;
-    PGST pgst = pvNil;
+    PStringTable pgst = pvNil;
 
     if (!pcfl->FFind(ctg, cno, &blck))
         goto LFail;
@@ -1368,7 +1368,7 @@ PSCPT SCPT::PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     }
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgScriptStrs, &kid))
     {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = GST::PgstRead(&blck)))
+        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = StringTable::PgstRead(&blck)))
         {
             goto LFail;
         }
@@ -1662,7 +1662,7 @@ bool STRG::_FFind(long stid, long *pistn)
 }
 
 /***************************************************************************
-    Make sure the GST exists.
+    Make sure the StringTable exists.
 ***************************************************************************/
 bool STRG::_FEnsureGst(void)
 {
@@ -1670,7 +1670,7 @@ bool STRG::_FEnsureGst(void)
 
     if (pvNil != _pgst)
         return fTrue;
-    _pgst = GST::PgstNew(size(long));
+    _pgst = StringTable::PgstNew(size(long));
     AssertThis(0);
 
     return pvNil != _pgst;
