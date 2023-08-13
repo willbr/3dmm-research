@@ -35,7 +35,7 @@
 #include "helpbook.h"
 #include "helptops.h"
 
-typedef class SMCC *PSMCC;
+typedef class StudioClientCallbacks *PSMCC;
 
 const long kcmhlStudio = 0x10000; // nice medium level for the Studio
 
@@ -207,9 +207,9 @@ class Studio : public Studio_PAR
     }
 };
 
-#define SMCC_PAR MCC
-#define kclsSMCC 'SMCC'
-class SMCC : public SMCC_PAR
+#define StudioClientCallbacks_PAR MCC
+#define kclsStudioClientCallbacks 'SMCC'
+class StudioClientCallbacks : public StudioClientCallbacks_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -221,11 +221,11 @@ class SMCC : public SMCC_PAR
     long _dypTextTbox;
 
   public:
-    ~SMCC(void)
+    ~StudioClientCallbacks(void)
     {
         ReleasePpo(&_psscb);
     }
-    SMCC(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio);
+    StudioClientCallbacks(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio);
 
     virtual long Dxp(void)
     {

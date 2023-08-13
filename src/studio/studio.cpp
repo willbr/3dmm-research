@@ -15,7 +15,7 @@
 
 ASSERTNAME
 RTCLASS(Studio)
-RTCLASS(SMCC)
+RTCLASS(StudioClientCallbacks)
 
 BEGIN_CMD_MAP(Studio, CMH)
 ON_CID_GEN(cidNew, &Studio::FCmdOpen, pvNil)
@@ -104,7 +104,7 @@ PStudio Studio::PstdioNew(long hid, PCRM pcrmStudio, PFilename pfniUserDoc, bool
     pstdio->_pcrm = pcrmStudio;
     pstdio->_pcrm->AddRef();
 
-    pstdio->_psmcc = NewObj SMCC(kdxpWorkspace, kdypWorkspace, kcbStudioCache, pvNil, pstdio);
+    pstdio->_psmcc = NewObj StudioClientCallbacks(kdxpWorkspace, kdypWorkspace, kcbStudioCache, pvNil, pstdio);
 
     if (pstdio->_psmcc == pvNil)
     {
@@ -2747,9 +2747,9 @@ void Studio::AssertValid(ulong grf)
 #endif // DEBUG
 
 /***************************************************************************
-    Constructor for SMCC.
+    Constructor for StudioClientCallbacks.
 ***************************************************************************/
-SMCC::SMCC(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio) : MCC(dxp, dyp, cbCache)
+StudioClientCallbacks::StudioClientCallbacks(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio) : MCC(dxp, dyp, cbCache)
 {
     AssertNilOrPo(psscb, 0);
     // Note: Would like to do an AssertPo here but can't
@@ -2768,7 +2768,7 @@ SMCC::SMCC(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio ps
  * Update RollCall
  *
  **************************************************************************/
-void SMCC::UpdateRollCall(void)
+void StudioClientCallbacks::UpdateRollCall(void)
 {
     AssertThis(0);
 
@@ -2805,7 +2805,7 @@ void SMCC::UpdateRollCall(void)
     DypTextDef
         Retrieve a default text size for a textbox in a movie.
 ************************************************************ PETED ***********/
-long SMCC::DypTboxDef(void)
+long StudioClientCallbacks::DypTboxDef(void)
 {
     if (_dypTextTbox == 0)
     {
@@ -2826,7 +2826,7 @@ long SMCC::DypTboxDef(void)
     Returns: fTrue if the user wants the sounds purged
 
 ************************************************************ PETED ***********/
-bool SMCC::FQueryPurgeSounds(void)
+bool StudioClientCallbacks::FQueryPurgeSounds(void)
 {
     AssertThis(0);
 
@@ -2838,21 +2838,21 @@ bool SMCC::FQueryPurgeSounds(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the SMCC
+    Assert the validity of the StudioClientCallbacks
 ***************************************************************************/
-void SMCC::AssertValid(ulong grf)
+void StudioClientCallbacks::AssertValid(ulong grf)
 {
-    SMCC_PAR::AssertValid(0);
+    StudioClientCallbacks_PAR::AssertValid(0);
     AssertPo(_psscb, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the SMCC
+    Mark memory used by the StudioClientCallbacks
 ***************************************************************************/
-void SMCC::MarkMem(void)
+void StudioClientCallbacks::MarkMem(void)
 {
     AssertThis(0);
-    SMCC_PAR::MarkMem();
+    StudioClientCallbacks_PAR::MarkMem();
     MarkMemObj(_psscb);
 }
 
