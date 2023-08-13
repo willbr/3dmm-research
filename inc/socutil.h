@@ -33,11 +33,11 @@ typedef class Studio *PStudio;
 // in Movie::FAddUndo().
 //
 //
-typedef class MUNB *PMUNB;
+typedef class MovieUndo *PMovieUndo;
 
-#define MUNB_PAR UNDB
-#define kclsMUNB 'MUNB'
-class MUNB : public MUNB_PAR
+#define MovieUndo_PAR UNDB
+#define kclsMovieUndo 'MUNB'
+class MovieUndo : public MovieUndo_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -47,7 +47,7 @@ class MUNB : public MUNB_PAR
     long _iscen;
     long _nfrm;
 
-    MUNB(void)
+    MovieUndo(void)
     {
     }
 
@@ -85,7 +85,7 @@ class MUNB : public MUNB_PAR
 //
 typedef class AUND *PAUND;
 
-#define AUND_PAR MUNB
+#define AUND_PAR MovieUndo
 #define kclsAUND 'AUND'
 class AUND : public AUND_PAR
 {

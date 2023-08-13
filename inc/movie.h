@@ -898,7 +898,7 @@ class Movie : public Movie_PAR
     // Overridden DocumentBase functions
     //
     PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);    // For creating a view on a movie.
-    bool FAddUndo(PMUNB pmunb); // Add an item to the undo list
+    bool FAddUndo(PMovieUndo pmunb); // Add an item to the undo list
     void ClearUndo(void);
 
     //

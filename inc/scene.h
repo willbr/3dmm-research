@@ -12,7 +12,7 @@
 
         Scene Actor Undo Object (SceneActorUndo)
 
-            BASE ---> UNDB ---> MUNB ---> SceneActorUndo
+            BASE ---> UNDB ---> MovieUndo ---> SceneActorUndo
 
 ***************************************************************************/
 
@@ -24,7 +24,7 @@
 //
 typedef class SceneActorUndo *PSceneActorUndo;
 
-#define SceneActorUndo_PAR MUNB
+#define SceneActorUndo_PAR MovieUndo
 
 // Undo types
 enum

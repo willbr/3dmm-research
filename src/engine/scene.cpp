@@ -17,27 +17,27 @@
 
         Scene Chop Undo Object (SUNC)
 
-            BASE ---> UNDB ---> MUNB ---> SUNC
+            BASE ---> UNDB ---> MovieUndo ---> SUNC
 
         Scene Background Undo Object (SUNK)
 
-            BASE ---> UNDB ---> MUNB ---> SUNK
+            BASE ---> UNDB ---> MovieUndo ---> SUNK
 
         Scene Pause Undo Object (SUNP)
 
-            BASE ---> UNDB ---> MUNB ---> SUNP
+            BASE ---> UNDB ---> MovieUndo ---> SUNP
 
         Scene Text box Undo Object (SUNX)
 
-            BASE ---> UNDB ---> MUNB ---> SUNX
+            BASE ---> UNDB ---> MovieUndo ---> SUNX
 
         Scene Sound Undo Object (SUNS)
 
-            BASE ---> UNDB ---> MUNB ---> SUNS
+            BASE ---> UNDB ---> MovieUndo ---> SUNS
 
         Scene Title Undo Object (SUNT)
 
-            BASE ---> UNDB ---> MUNB ---> SUNT
+            BASE ---> UNDB ---> MovieUndo ---> SUNT
 
 ***************************************************************************/
 
@@ -176,7 +176,7 @@ void ReleasePpsse(PSSE *ppsse);
 //
 typedef class SUNC *PSUNC;
 
-#define SUNC_PAR MUNB
+#define SUNC_PAR MovieUndo
 #define kclsSUNC 'SUNC'
 class SUNC : public SUNC_PAR
 {
@@ -206,7 +206,7 @@ class SUNC : public SUNC_PAR
 //
 typedef class SUNK *PSUNK;
 
-#define SUNK_PAR MUNB
+#define SUNK_PAR MovieUndo
 #define kclsSUNK 'SUNK'
 class SUNK : public SUNK_PAR
 {
@@ -248,7 +248,7 @@ class SUNK : public SUNK_PAR
 //
 typedef class SUNR *PSUNR;
 
-#define SUNR_PAR MUNB
+#define SUNR_PAR MovieUndo
 #define kclsSUNR 'SUNR'
 class SUNR : public SUNR_PAR
 {
@@ -280,7 +280,7 @@ class SUNR : public SUNR_PAR
 //
 typedef class SUNP *PSUNP;
 
-#define SUNP_PAR MUNB
+#define SUNP_PAR MovieUndo
 #define kclsSUNP 'SUNP'
 class SUNP : public SUNP_PAR
 {
@@ -322,7 +322,7 @@ class SUNP : public SUNP_PAR
 //
 typedef class SUNX *PSUNX;
 
-#define SUNX_PAR MUNB
+#define SUNX_PAR MovieUndo
 #define kclsSUNX 'SUNX'
 class SUNX : public SUNX_PAR
 {
@@ -374,7 +374,7 @@ class SUNX : public SUNX_PAR
 //
 typedef class SUNS *PSUNS;
 
-#define SUNS_PAR MUNB
+#define SUNS_PAR MovieUndo
 #define kclsSUNS 'SUNS'
 class SUNS : public SUNS_PAR
 {
@@ -418,7 +418,7 @@ class SUNS : public SUNS_PAR
 //
 typedef class SUNT *PSUNT;
 
-#define SUNT_PAR MUNB
+#define SUNT_PAR MovieUndo
 #define kclsSUNT 'SUNT'
 class SUNT : public SUNT_PAR
 {

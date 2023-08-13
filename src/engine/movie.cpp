@@ -17,7 +17,7 @@
 
         Movie Scene actions Undo Object (MUNS)
 
-            BASE ---> UNDB ---> MUNB ---> MUNS
+            BASE ---> UNDB ---> MovieUndo ---> MUNS
 
 
 Note: The client of the movie engine should always do all actions through
@@ -69,7 +69,7 @@ const long krSoonerScaleFactor = BR_SCALAR(0.05);
 //
 typedef class MUNS *PMUNS;
 
-#define MUNS_PAR MUNB
+#define MUNS_PAR MovieUndo
 
 enum MUNST
 {
@@ -129,7 +129,7 @@ class MUNS : public MUNS_PAR
 //
 
 RTCLASS(Movie)
-RTCLASS(MUNB)
+RTCLASS(MovieUndo)
 RTCLASS(MUNS)
 
 BEGIN_CMD_MAP(Movie, CMH)
@@ -3029,7 +3029,7 @@ PDMD Movie::PdmdNew(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Movie::FAddUndo(PMUNB pmunb)
+bool Movie::FAddUndo(PMovieUndo pmunb)
 {
     AssertThis(0);
 
@@ -8739,7 +8739,7 @@ void MUNS::AssertValid(ulong grf)
 #ifdef DEBUG
 /***************************************************************************
  *
- * Assert the validity of the MUNB.
+ * Assert the validity of the MovieUndo.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -8748,9 +8748,9 @@ void MUNS::AssertValid(ulong grf)
  *  None.
  *
  **************************************************************************/
-void MUNB::AssertValid(ulong grf)
+void MovieUndo::AssertValid(ulong grf)
 {
-    MUNB_PAR::AssertValid(fobjAllocated);
+    MovieUndo_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
 }
 #endif // DEBUG
