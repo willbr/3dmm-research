@@ -38,7 +38,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     long iaevLast;
     Base aev;
     Action aevactn;
-    AEVSND aevsnd;
+    Sound aevsnd;
     RouteDistancePoint rpt;
     RouteDistancePoint rptOld;
     RouteDistancePoint *prptSrc;
@@ -738,7 +738,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     Base aev;
     RouteDistancePoint rpt;
     Add aevadd;
-    AEVSND aevsnd;
+    Sound aevsnd;
     BRS xrCam = rZero;
     BRS yrCam = rZero;
     BRS zrCam = kzrDefault;

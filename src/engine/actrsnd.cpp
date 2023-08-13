@@ -69,7 +69,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     AssertIn(sty, 0, styLim);
 
     PMSND pmsnd = pvNil;
-    AEVSND aevsnd;
+    Sound aevsnd;
     long ccel;
     long iaev;
     Base *paev;
@@ -129,7 +129,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     sqn = MovieSoundMSND::SqnActr(sty, _arid);
     for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
     {
-        AEVSND aevsndT;
+        Sound aevsndT;
         paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (aetAdd == paev->aet)
             break;
@@ -171,7 +171,7 @@ bool Actor::_FEnqueueSnd(long iaev)
     AssertThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
 
-    AEVSND aevsnd;
+    Sound aevsnd;
     PMSND pmsnd = pvNil;
     long tool;
 
@@ -299,10 +299,10 @@ bool Actor::_FInsertSmm(long iaev)
     SMM smm;
     SMM *psmm;
     Base *paev;
-    AEVSND *paevsnd;
+    Sound *paevsnd;
 
     paev = (Base *)_pggaev->QvFixedGet(iaev);
-    paevsnd = (AEVSND *)_pggaev->QvGet(iaev);
+    paevsnd = (Sound *)_pggaev->QvGet(iaev);
 
     smm.aev = *paev;
     smm.aevsnd = *paevsnd;
@@ -336,7 +336,7 @@ bool Actor::_FRemoveAevMm(long anid)
 
     long iaev;
     Base *paev;
-    AEVSND aevsnd;
+    Sound aevsnd;
     Action aevactn;
 
     // Remove motion match sounds from the previous action
@@ -426,7 +426,7 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     AssertIn(sty, 0, styLim);
     AssertIn(vlm, 0, kvlmFull + 1);
 
-    AEVSND aevsnd;
+    Sound aevsnd;
     bool fActnThisFrame = fFalse;
     long celn;
     long ccel;
@@ -528,7 +528,7 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, b
     AssertVarMem(pfLoop);
 
     PGL pgltag = pvNil;
-    AEVSND aevsnd;
+    Sound aevsnd;
     long ccel;
     long celn;
     Base aev;
@@ -621,7 +621,7 @@ bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
     AssertThis(0);
     AssertIn(sty, 0, styLim);
 
-    AEVSND aevsnd;
+    Sound aevsnd;
     long iaevFirst;
     long iaev;
     long ismm;
@@ -723,7 +723,7 @@ bool Actor::FResolveAllSndTags(ChunkNumber cnoScen)
     AssertThis(0);
     long iaev;
     Base *paev;
-    AEVSND aevsnd;
+    Sound aevsnd;
     bool fSuccess = fTrue;
 
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)

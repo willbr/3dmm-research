@@ -738,7 +738,7 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
             {
                 // Motion match sounds must be entered in the smm
                 // whether this is the final frame or not
-                AEVSND aevsnd;
+                Sound aevsnd;
                 _pggaev->Get(iaev, &aevsnd);
                 if (aevsnd.celn != smmNil)
                 {
@@ -1348,8 +1348,8 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             break;
 
         case aetSnd:
-            AEVSND aevsnd;
-            AEVSND aevsndNew;
+            Sound aevsnd;
+            Sound aevsndNew;
             long ismm;
             SMM *psmm;
             // Check that the sound types match
@@ -5632,7 +5632,7 @@ void Actor::MarkMem(void)
     AssertThis(0);
     long iaev;
     Base *paev;
-    AEVSND *paevsnd;
+    Sound *paevsnd;
 
     Actor_PAR::MarkMem();
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
@@ -5640,7 +5640,7 @@ void Actor::MarkMem(void)
         paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (aetSnd == paev->aet)
         {
-            paevsnd = (AEVSND *)_pggaev->QvGet(iaev);
+            paevsnd = (Sound *)_pggaev->QvGet(iaev);
             if (paevsnd->tag.sid == ksidUseCrf)
                 paevsnd->tag.MarkMem();
         }

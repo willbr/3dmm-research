@@ -56,7 +56,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     ChildChunkIdentification kid;
     long iaev;
     Base *paev;
-    AEVSND aevsnd;
+    Sound aevsnd;
     long nfrmFirst;
     long nfrmLast;
 
@@ -603,7 +603,7 @@ bool Actor::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PBase *pqaev)
         }
         break;
     case aetSnd:
-        *pptag = &((AEVSND *)pggaev->QvGet(iaev))->tag;
+        *pptag = &((Sound *)pggaev->QvGet(iaev))->tag;
         return fTrue;
     case aetSize:
     case aetPull:

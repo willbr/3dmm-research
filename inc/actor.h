@@ -227,7 +227,7 @@ struct Costume
 };
 const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
 
-struct AEVSND
+struct Sound
 {
     tribool fLoop;    // loop count
     tribool fQueue;   // queued sound
@@ -254,7 +254,7 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 #define kcbVarRot (size(BMAT34))
 #define kcbVarSize (size(BRS))
 #define kcbVarPull (size(Stretch))
-#define kcbVarSnd (size(AEVSND))
+#define kcbVarSnd (size(Sound))
 #define kcbVarFreeze (size(long))
 #define kcbVarMove (size(RoutePoint))
 #define kcbVarTweak (size(RoutePoint))
@@ -311,7 +311,7 @@ struct XFRM
 struct SMM
 {
     Base aev; // event for the sound
-    AEVSND aevsnd;
+    Sound aevsnd;
 };
 
 } // end of namespace ActorEvent
