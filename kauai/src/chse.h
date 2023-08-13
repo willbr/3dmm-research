@@ -19,6 +19,7 @@
 namespace Chunky {
 
 using ScriptInterpreter::PScript;
+using ScriptCompiler::PSCCB;
 
 /***************************************************************************
     Chunky source emitter class

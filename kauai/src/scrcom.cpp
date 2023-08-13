@@ -96,6 +96,8 @@
 #include "util.h"
 ASSERTNAME
 
+namespace ScriptCompiler {
+
 RTCLASS(SCCB)
 
 // common error messages
@@ -2825,3 +2827,5 @@ void RTVN::GetStn(PSTN pstn)
         pstn->FAppendStn(&stn);
     }
 }
+
+} // end of namespace ScriptCompiler

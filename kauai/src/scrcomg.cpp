@@ -15,6 +15,8 @@
 #include "kidframe.h"
 ASSERTNAME
 
+namespace ScriptCompiler {
+
 RTCLASS(SCCG)
 
 SZOP _rgszopSccg[] = {
@@ -326,3 +328,5 @@ short SCCG::_SwMin(void)
 {
     return kswMinSccg;
 }
+
+} // end of namespace ScriptCompiler

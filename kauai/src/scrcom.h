@@ -16,6 +16,8 @@
 #ifndef SCRCOM_H
 #define SCRCOM_H
 
+namespace ScriptCompiler {
+
 using namespace ScriptInterpreter;
 
 /***************************************************************************
@@ -265,5 +267,7 @@ class SCCB : public SCCB_PAR
     virtual PScript PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
     virtual bool FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);
 };
+
+} // end of namespace ScriptCompiler
 
 #endif //! SCRCOM_H

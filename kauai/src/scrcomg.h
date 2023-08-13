@@ -16,6 +16,8 @@
 #ifndef SCRCOMG_H
 #define SCRCOMG_H
 
+namespace ScriptCompiler {
+
 // if you change this enum, bump the version numbers below
 enum
 {
@@ -165,5 +167,7 @@ class SCCG : public SCCG_PAR
     virtual bool _FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
     virtual bool _FGetStnFromOp(long op, PSTN pstn);
 };
+
+} // end of namespace ScriptCompiler
 
 #endif //! SCRCOMG_H

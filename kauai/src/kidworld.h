@@ -18,6 +18,7 @@
 #define KIDWORLD_H
 
 using namespace Help;
+using namespace ScriptCompiler;
 using GraphicalObjectRepresentation::PKidspaceGraphicObject;
 
 /***************************************************************************

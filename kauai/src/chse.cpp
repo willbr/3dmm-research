@@ -15,6 +15,8 @@ ASSERTNAME
 
 namespace Chunky {
 
+using ScriptCompiler::PSCCB;
+
 RTCLASS(SourceEmitter)
 
 /***************************************************************************

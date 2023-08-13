@@ -18,6 +18,8 @@
 
 namespace Help {
 
+using ScriptCompiler::PStringRegistry;
+
 /***************************************************************************
     Help topic construction information.
 ***************************************************************************/
