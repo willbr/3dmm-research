@@ -32,7 +32,7 @@ struct TextureMapFile
 const ulong kbomTmapf = 0x54555000;
 
 /* A TeXture XransForm on File */
-typedef struct _txxff
+typedef struct TextureTransformFile
 {
     short bo;  // byte order
     short osk; // OS kind
