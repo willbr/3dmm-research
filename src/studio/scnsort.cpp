@@ -488,7 +488,7 @@ bool SCRT::FCmdPortfolio(PCMD pcmd)
     AssertThis(0);
 
     Filename fni;
-    MCC mcc(2, 2, 0);
+    MovieClientCallbacks mcc(2, 2, 0);
     PMVIE pmvie = pvNil;
 
     if (!_pstdio->FGetFniMovieOpen(&fni))

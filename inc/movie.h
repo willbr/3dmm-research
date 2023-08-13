@@ -11,9 +11,9 @@
 
                 DDG  	--->	MVU
 
-        Callbacks to client (MCC)
+        Callbacks to client (MovieClientCallbacks)
 
-                BASE 	--->	MCC
+                BASE 	--->	MovieClientCallbacks
 
         A single movie (MVIE)
 
@@ -352,13 +352,13 @@ class MVU : public MVU_PAR
 //
 //
 
-#define MCC_PAR BASE
+#define MovieClientCallbacks_PAR BASE
 
-class MCC;
+class MovieClientCallbacks;
 
-typedef MCC *PMCC;
-#define kclsMCC 'MCC'
-class MCC : public MCC_PAR
+typedef MovieClientCallbacks *PMovieClientCallbacks;
+#define kclsMovieClientCallbacks 'MCC'
+class MovieClientCallbacks : public MovieClientCallbacks_PAR
 {
   protected:
     long _dxp;
@@ -366,7 +366,7 @@ class MCC : public MCC_PAR
     long _cbCache;
 
   public:
-    MCC(long dxp, long dyp, long cbCache)
+    MovieClientCallbacks(long dxp, long dyp, long cbCache)
     {
         _dxp = dxp;
         _dyp = dyp;
@@ -583,7 +583,7 @@ class MVIE : public MVIE_PAR
     ulong _tsStart; // Time last play started.
     long _cnfrm;    // Number of frames since last play started.
 
-    PMCC _pmcc; // Parameters and callbacks.
+    PMovieClientCallbacks _pmcc; // Parameters and callbacks.
 
     WIT _wit;     // Pausing type
     long _dts;    // Number of clock ticks to pause.
@@ -641,7 +641,7 @@ class MVIE : public MVIE_PAR
     //
     // Create and Destroy
     //
-    static PMVIE PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
+    static PMVIE PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
     static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim = pvNil);
@@ -660,13 +660,13 @@ class MVIE : public MVIE_PAR
     ~MVIE(void);
 
     //
-    // MCC maintenance
+    // MovieClientCallbacks maintenance
     //
-    PMCC Pmcc(void)
+    PMovieClientCallbacks Pmcc(void)
     {
         return _pmcc;
     } // Accessor for getting to client callbacks.
-    void SetMcc(PMCC pmcc)
+    void SetMcc(PMovieClientCallbacks pmcc)
     {
         ReleasePpo(&_pmcc);
         _pmcc = pmcc;

@@ -207,7 +207,7 @@ class Studio : public Studio_PAR
     }
 };
 
-#define StudioClientCallbacks_PAR MCC
+#define StudioClientCallbacks_PAR MovieClientCallbacks
 #define kclsStudioClientCallbacks 'SMCC'
 class StudioClientCallbacks : public StudioClientCallbacks_PAR
 {

@@ -2749,7 +2749,7 @@ void Studio::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for StudioClientCallbacks.
 ***************************************************************************/
-StudioClientCallbacks::StudioClientCallbacks(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio) : MCC(dxp, dyp, cbCache)
+StudioClientCallbacks::StudioClientCallbacks(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio) : MovieClientCallbacks(dxp, dyp, cbCache)
 {
     AssertNilOrPo(psscb, 0);
     // Note: Would like to do an AssertPo here but can't

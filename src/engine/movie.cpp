@@ -252,7 +252,7 @@ bool MVIE::_FSetPfilSave(PFilename pfni)
  *  pvNil if failure, else a pointer to the movie object.
  *
  ****************************************************/
-PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, ChunkNumber cno)
+PMVIE MVIE::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni, ChunkNumber cno)
 {
     AssertNilOrPo(pfni, 0);
     AssertPo(pmcc, 0);
@@ -5423,7 +5423,7 @@ void MVIE::GetName(PSTN pstnTitle)
 /******************************************************************************
     ResetTitle
         Resets the movie title to whatever it's normal default would be (either
-        from the filename or from the MCC string table).
+        from the filename or from the MovieClientCallbacks string table).
 ************************************************************ PETED ***********/
 void MVIE::ResetTitle(void)
 {

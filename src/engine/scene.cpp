@@ -2325,7 +2325,7 @@ void SCEN::SetSndVlmCore(long sty, long vlmNew)
     UpdateSndFrame
         Enumerates all scene events for the current frame, and asks all actors
         to enumerate all of their actor events for the current frame, looking
-        for a sound event.  Has the movie's MCC update the frame-sound state
+        for a sound event.  Has the movie's MovieClientCallbacks update the frame-sound state
         based on the results of the search.
 ************************************************************ PETED ***********/
 void SCEN::UpdateSndFrame(void)

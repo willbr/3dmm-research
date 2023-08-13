@@ -94,7 +94,7 @@ bool SPLOT::FCmdInit(PCMD pcmd)
     AssertThis(0);
     Assert(_pmvie == pvNil, "Already Inited the Splot Machine");
 
-    PMCC pmcc = pvNil;
+    PMovieClientCallbacks pmcc = pvNil;
     PGraphicsObject pgobParent;
     RC rcRel;
     GraphicsObjectBlock gcb;
@@ -105,7 +105,7 @@ bool SPLOT::FCmdInit(PCMD pcmd)
         goto LFail;
     }
 
-    pmcc = NewObj MCC(kdxpWorkspace, kdypWorkspace, kcbStudioCache);
+    pmcc = NewObj MovieClientCallbacks(kdxpWorkspace, kdypWorkspace, kcbStudioCache);
     if (pmcc == pvNil)
         goto LFail;
 

@@ -82,13 +82,13 @@ bool TATR::FCmdLoad(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMCC pmcc;
+    PMovieClientCallbacks pmcc;
     Filename fni;
     PMVIE pmvie = pvNil;
     PGraphicsObject pgob;
     GraphicsObjectBlock gcb;
 
-    pmcc = NewObj MCC(kdxpWorkspace, kdypWorkspace, kcbStudioCache);
+    pmcc = NewObj MovieClientCallbacks(kdxpWorkspace, kdypWorkspace, kcbStudioCache);
     if (pvNil == pmcc)
         goto LFail;
 
