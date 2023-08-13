@@ -2578,7 +2578,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
     STN stn;
     PTSCG ptscg;
     PScript pscpt = pvNil;
-    PSCEG psceg = pvNil;
+    PGraphicsObjectInterpreter psceg = pvNil;
     PChunkyResourceFile pcrf = pvNil;
 
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());

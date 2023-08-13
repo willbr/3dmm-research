@@ -22,8 +22,8 @@
 // forward declarations
 typedef class WorldOfKidspace *PWorldOfKidspace;
 namespace ScriptInterpreter {
-   class SCEG;
-   typedef class SCEG *PSCEG;
+   class GraphicsObjectInterpreter;
+   typedef class GraphicsObjectInterpreter *PGraphicsObjectInterpreter;
 }
 namespace GraphicalObjectRepresentation {
    class KidspaceGraphicObject;

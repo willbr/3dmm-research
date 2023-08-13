@@ -19,7 +19,7 @@ using GraphicalObjectRepresentation::fgokNil;
 using GraphicalObjectRepresentation::fgokKillAnim;
 using GraphicalObjectRepresentation::fgokNoAnim;
 
-RTCLASS(SCEG)
+RTCLASS(GraphicsObjectInterpreter)
 
 #ifdef DEBUG
 // these strings are for debug only error messages
@@ -30,7 +30,7 @@ static STN _stn;
     Constructor for a GraphicsObject based script interpreter. We don't just keep
     the pgob in case the GraphicsObject goes away while the script is running.
 ***************************************************************************/
-SCEG::SCEG(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob) : SCEG_PAR(prca, pwoks->Pstrg())
+GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob) : GraphicsObjectInterpreter_PAR(prca, pwoks->Pstrg())
 {
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);
@@ -46,11 +46,11 @@ SCEG::SCEG(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob) : SCEG_PAR(p
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SCEG.
+    Assert the validity of a GraphicsObjectInterpreter.
 ***************************************************************************/
-void SCEG::AssertValid(ulong grf)
+void GraphicsObjectInterpreter::AssertValid(ulong grf)
 {
-    SCEG_PAR::AssertValid(0);
+    GraphicsObjectInterpreter_PAR::AssertValid(0);
     Assert(hidNil != _hid, 0);
     AssertPo(_pwoks, 0);
     Assert(_prca != pvNil, 0);
@@ -61,16 +61,16 @@ void SCEG::AssertValid(ulong grf)
     The script is being resumed, so set _pgob to nil (don't know whether
     it exists).
 ***************************************************************************/
-bool SCEG::FResume(long *plwReturn, bool *pfPaused)
+bool GraphicsObjectInterpreter::FResume(long *plwReturn, bool *pfPaused)
 {
     GobMayDie();
-    return SCEG_PAR::FResume(plwReturn, pfPaused);
+    return GraphicsObjectInterpreter_PAR::FResume(plwReturn, pfPaused);
 }
 
 /***************************************************************************
     Return the gob that corresponds to this script interpreter.
 ***************************************************************************/
-PGraphicsObject SCEG::_PgobThis(void)
+PGraphicsObject GraphicsObjectInterpreter::_PgobThis(void)
 {
     AssertThis(0);
 
@@ -89,7 +89,7 @@ PGraphicsObject SCEG::_PgobThis(void)
     Return the gob that is accessible to this script interpreter and has
     the given hid.
 ***************************************************************************/
-PGraphicsObject SCEG::_PgobFromHid(long hid)
+PGraphicsObject GraphicsObjectInterpreter::_PgobFromHid(long hid)
 {
     AssertThis(0);
 
@@ -103,7 +103,7 @@ PGraphicsObject SCEG::_PgobFromHid(long hid)
     Return the address of the variable table for the GraphicsObject associated with
     this script interpreter.
 ***************************************************************************/
-PGL *SCEG::_PpglrtvmThis(void)
+PGL *GraphicsObjectInterpreter::_PpglrtvmThis(void)
 {
     PGraphicsObject pgob = _PgobThis();
 
@@ -116,7 +116,7 @@ PGL *SCEG::_PpglrtvmThis(void)
     Return the address of the variable table for the WorldOfKidspace associated with
     this script interpreter.
 ***************************************************************************/
-PGL *SCEG::_PpglrtvmGlobal(void)
+PGL *GraphicsObjectInterpreter::_PpglrtvmGlobal(void)
 {
     AssertThis(0);
 
@@ -126,7 +126,7 @@ PGL *SCEG::_PpglrtvmGlobal(void)
 /***************************************************************************
     Return the address of the variable table for the GraphicsObject with given hid.
 ***************************************************************************/
-PGL *SCEG::_PpglrtvmRemote(long lw)
+PGL *GraphicsObjectInterpreter::_PpglrtvmRemote(long lw)
 {
     PGraphicsObject pgob = _PgobFromHid(lw);
 
@@ -138,7 +138,7 @@ PGL *SCEG::_PpglrtvmRemote(long lw)
 /***************************************************************************
     Return the current version number of the script compiler.
 ***************************************************************************/
-short SCEG::_SwCur(void)
+short GraphicsObjectInterpreter::_SwCur(void)
 {
     return kswCurSccg;
 }
@@ -147,7 +147,7 @@ short SCEG::_SwCur(void)
     Return the min version number of the script compiler. Read can read
     scripts back to this version.
 ***************************************************************************/
-short SCEG::_SwMin(void)
+short GraphicsObjectInterpreter::_SwMin(void)
 {
     return kswMinSccg;
 }
@@ -155,7 +155,7 @@ short SCEG::_SwMin(void)
 /***************************************************************************
     Execute a script command.
 ***************************************************************************/
-bool SCEG::_FExecOp(long op)
+bool GraphicsObjectInterpreter::_FExecOp(long op)
 {
     CMD cmd;
     PGraphicsObject pgob;
@@ -1063,7 +1063,7 @@ bool SCEG::_FExecOp(long op)
         break;
 
     default:
-        return SCEG_PAR::_FExecOp(op);
+        return GraphicsObjectInterpreter_PAR::_FExecOp(op);
     }
 
     return !_fError;
@@ -1072,7 +1072,7 @@ bool SCEG::_FExecOp(long op)
 /***************************************************************************
     Put up an alert containing a list of numbers.
 ***************************************************************************/
-void SCEG::_DoAlert(long op)
+void GraphicsObjectInterpreter::_DoAlert(long op)
 {
     STN stn1;
     STN stn2;
@@ -1144,7 +1144,7 @@ void SCEG::_DoAlert(long op)
 /***************************************************************************
     Get or set the string in an edit control.
 ***************************************************************************/
-void SCEG::_DoEditControl(long hid, long stid, bool fGet)
+void GraphicsObjectInterpreter::_DoEditControl(long hid, long stid, bool fGet)
 {
     PEDCB pedcb;
     long cch;
@@ -1180,7 +1180,7 @@ void SCEG::_DoEditControl(long hid, long stid, bool fGet)
 /***************************************************************************
     Set the current color table.
 ***************************************************************************/
-void SCEG::_SetColorTable(ChunkNumber cno)
+void GraphicsObjectInterpreter::_SetColorTable(ChunkNumber cno)
 {
     PGL pglclr;
 
@@ -1194,7 +1194,7 @@ void SCEG::_SetColorTable(ChunkNumber cno)
 /***************************************************************************
     Read the indicated color table and return a reference to it.
 ***************************************************************************/
-PGL SCEG::_PglclrGet(ChunkNumber cno)
+PGL GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
 {
     PGenericCacheableObject pcabo;
     PGL pglclr;
@@ -1252,7 +1252,7 @@ bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     Launch an app with the given command line. Return true iff the launch
     was successful.
 ***************************************************************************/
-bool SCEG::_FLaunch(long stid)
+bool GraphicsObjectInterpreter::_FLaunch(long stid)
 {
     AssertThis(0);
     STN stn;
@@ -1279,7 +1279,7 @@ bool SCEG::_FLaunch(long stid)
 
     return CreateProcess(pvNil, stn.Psz(), pvNil, pvNil, fFalse, DETACHED_PROCESS, pvNil, pvNil, &sui, &pi);
 #else  //! WIN
-    RawRtn(); // REVIEW shonk: Mac: implement SCEG::_FLaunch
+    RawRtn(); // REVIEW shonk: Mac: implement GraphicsObjectInterpreter::_FLaunch
     return fFalse;
 #endif //! WIN
 }

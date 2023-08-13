@@ -140,7 +140,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual bool FGobIn(PGraphicsObject pgob);
     virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca);
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca);
-    virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
+    virtual PGraphicsObjectInterpreter PscegNew(PRCA prca, PGraphicsObject pgob);
     virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);
     virtual PCMH PcmhFromHid(long hid);
     virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);

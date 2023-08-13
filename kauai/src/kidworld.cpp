@@ -303,13 +303,13 @@ PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hi
 /***************************************************************************
     Create a new script interpreter for this kidspace world.
 ***************************************************************************/
-PSCEG WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject pgob)
+PGraphicsObjectInterpreter WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(prca, 0);
     AssertPo(pgob, 0);
 
-    return NewObj SCEG(this, prca, pgob);
+    return NewObj GraphicsObjectInterpreter(this, prca, pgob);
 }
 
 /***************************************************************************

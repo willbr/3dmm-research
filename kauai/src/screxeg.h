@@ -21,10 +21,10 @@ namespace ScriptInterpreter {
 /****************************************
     Gob based script interpreter
 ****************************************/
-typedef class SCEG *PSCEG;
-#define SCEG_PAR Interpreter
-#define kclsSCEG 'SCEG'
-class SCEG : public SCEG_PAR
+typedef class GraphicsObjectInterpreter *PGraphicsObjectInterpreter;
+#define GraphicsObjectInterpreter_PAR Interpreter
+#define kclsGraphicsObjectInterpreter 'SCEG'
+class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -56,7 +56,7 @@ class SCEG : public SCEG_PAR
     bool _FLaunch(long stid);
 
   public:
-    SCEG(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob);
+    GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob);
 
     void GobMayDie(void)
     {

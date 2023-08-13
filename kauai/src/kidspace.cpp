@@ -612,7 +612,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag c
         if (pcfl->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
         {
             PScript pscpt;
-            PSCEG psceg = pvNil;
+            PGraphicsObjectInterpreter psceg = pvNil;
 
             if (pvNil != (pscpt = (PScript)_pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Script::FReadScript)) &&
                 pvNil != (psceg = _pwoks->PscegNew(_prca, this)) && psceg->FAttachScript(pscpt))
@@ -705,7 +705,7 @@ bool KidspaceGraphicObject::_FAdvanceFrame(void)
     bool fExists, fRet, fPaused;
     PWorldOfKidspace pwoks = _pwoks;
     ulong dtim = 0;
-    PSCEG psceg = _pscegAnim;
+    PGraphicsObjectInterpreter psceg = _pscegAnim;
     long grid = Grid();
 
     if (pvNil == psceg)
@@ -1417,7 +1417,7 @@ bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, long *prglw, long clw
         AssertPo(pscpt, 0);
         long grid = Grid();
         PWorldOfKidspace pwoks = _pwoks;
-        PSCEG psceg = _pwoks->PscegNew(_prca, this);
+        PGraphicsObjectInterpreter psceg = _pwoks->PscegNew(_prca, this);
 
         // be careful not to use KidspaceGraphicObject variables here in case the KidspaceGraphicObject is
         // freed while the script is running.

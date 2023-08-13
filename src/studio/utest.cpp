@@ -1788,7 +1788,7 @@ bool APP::_FInitCrm(void)
     AssertPo(_pgstBuildingFiles, 0);
     AssertPo(_pgstStudioFiles, 0);
 
-    PSCEG psceg = pvNil;
+    PGraphicsObjectInterpreter psceg = pvNil;
     PScript pscpt = pvNil;
 
     _pcrmAll = ChunkyResourceManager::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
@@ -1921,7 +1921,7 @@ bool APP::_FInitBuilding(void)
     long cbCache;
     long iv;
     PChunkyResourceFile pcrfT;
-    PSCEG psceg = pvNil;
+    PGraphicsObjectInterpreter psceg = pvNil;
     PScript pscpt = pvNil;
 
     BeginLongOp();

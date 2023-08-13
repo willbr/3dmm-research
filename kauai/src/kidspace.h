@@ -330,7 +330,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     ChunkIdentification _ckiGorp;        // cki of the current gorp
 
     long _dtim;       // current time increment for animation
-    PSCEG _pscegAnim; // animation script
+    PGraphicsObjectInterpreter _pscegAnim; // animation script
     ChildChunkID _chidAnim;   // chid of current animation
 
     PKidspaceGraphicObjectDescriptor _pgokd;

@@ -23,7 +23,7 @@
     declaration) and needs FOO_PAR defined to be the class' parent class.
     kclsFOO should be 'FOO' if FOO is at most 4 characters long and should
     consist of a unique string of 4 lowercase characters if FOO is longer
-    than 4 characters. Eg, kclsSCEG is 'SCEG', but kclsSTUDIO is 'stdo'.
+    than 4 characters. Eg, kclsGraphicsObjectInterpreter is 'GraphicsObjectInterpreter', but kclsSTUDIO is 'stdo'.
 
     RTCLASS_DEC goes in the class definition.
     RTCLASS(FOO) goes in the .cpp file.

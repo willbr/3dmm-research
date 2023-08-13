@@ -189,7 +189,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
 
     PScript pscpt = pvNil;
     PStudioScrollbars psscb = pvNil;
-    PSCEG psceg = pvNil;
+    PGraphicsObjectInterpreter psceg = pvNil;
     STN stn;
     RC rcAbs, rcRel;
     DataBlock blck;

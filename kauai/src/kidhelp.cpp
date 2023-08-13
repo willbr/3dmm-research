@@ -909,7 +909,7 @@ bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, a
     AssertNilOrVarMem(plwRet);
 
     PScript pscpt;
-    PSCEG psceg;
+    PGraphicsObjectInterpreter psceg;
     Topic htop;
     bool fRet = fTrue;
     PTextDocument ptxhd = Ptxhd();
