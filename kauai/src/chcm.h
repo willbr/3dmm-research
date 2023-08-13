@@ -17,6 +17,8 @@
 #ifndef CHCM_H
 #define CHCM_H
 
+namespace Chunky {
+
 // token types
 enum
 {
@@ -298,4 +300,5 @@ class CHDC : public CHDC_PAR
     bool FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
 };
 
+} // end of namespace Chunky
 #endif // CHCM_H

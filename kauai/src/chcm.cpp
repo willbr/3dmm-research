@@ -12,6 +12,7 @@
 #include "kidframe.h" //because we need scrcomg
 ASSERTNAME
 
+namespace Chunky {
 RTCLASS(CHCM)
 RTCLASS(CHLX)
 RTCLASS(CHDC)
@@ -2742,3 +2743,5 @@ void CHDC::_WritePack(long cfmt)
         _chse.DumpSz(stn.Psz());
     }
 }
+
+} // end of namespace Chunky
