@@ -14,7 +14,7 @@
 #include "kidframe.h"
 ASSERTNAME
 
-RTCLASS(GOKD)
+RTCLASS(KidspaceGraphicObjectDescriptor)
 RTCLASS(GKDS)
 RTCLASS(WorldOfKidspace)
 
@@ -39,7 +39,7 @@ bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 
     if (*pcb < size(GOKDF) + size(LOP) || CbRoundToLong(*pcb) != *pcb)
     {
-        Bug("Bad GOKD");
+        Bug("Bad KidspaceGraphicObjectDescriptor");
         return fFalse;
     }
 
@@ -49,7 +49,7 @@ bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         SwapBytesBom(&gokdf, kbomGokdf);
     else if (gokdf.bo != kboCur)
     {
-        Bug("Bad GOKD 2");
+        Bug("Bad KidspaceGraphicObjectDescriptor 2");
         return fFalse;
     }
 
@@ -75,7 +75,7 @@ bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     {
         if (cb < size(LOP))
         {
-            Bug("Bad LOP list in GOKD");
+            Bug("Bad LOP list in KidspaceGraphicObjectDescriptor");
             ReleasePpo(&pgkds);
             return fFalse;
         }
@@ -86,7 +86,7 @@ bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     }
     if ((cb % size(CursorMapEntry)) != 0)
     {
-        Bug("Bad CursorMapEntry list in GOKD");
+        Bug("Bad CursorMapEntry list in KidspaceGraphicObjectDescriptor");
         ReleasePpo(&pgkds);
         return fFalse;
     }
@@ -252,14 +252,14 @@ bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 }
 
 /***************************************************************************
-    Get a GOKD from the given chunk.
+    Get a KidspaceGraphicObjectDescriptor from the given chunk.
 ***************************************************************************/
-PGOKD WorldOfKidspace::PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca)
+PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return (PGOKD)prca->PbacoFetch(ctg, cno, GKDS::FReadGkds);
+    return (PKidspaceGraphicObjectDescriptor)prca->PbacoFetch(ctg, cno, GKDS::FReadGkds);
 }
 
 /***************************************************************************
@@ -269,7 +269,7 @@ PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hi
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
-    PGOKD pgokd;
+    PKidspaceGraphicObjectDescriptor pgokd;
     PKidspaceGraphicObject pgok;
 
     if (pgobPar == pvNil)

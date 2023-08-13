@@ -41,15 +41,15 @@ struct CursorMapEntry
     ChunkNumber cnoTopic;    // tool tip topic
 };
 
-typedef class GOKD *PGOKD;
-#define GOKD_PAR BaseCacheableObject
-#define kclsGOKD 'GOKD'
-class GOKD : public GOKD_PAR
+typedef class KidspaceGraphicObjectDescriptor *PKidspaceGraphicObjectDescriptor;
+#define KidspaceGraphicObjectDescriptor_PAR BaseCacheableObject
+#define kclsKidspaceGraphicObjectDescriptor 'GOKD'
+class KidspaceGraphicObjectDescriptor : public KidspaceGraphicObjectDescriptor_PAR
 {
     RTCLASS_DEC
 
   protected:
-    GOKD(void)
+    KidspaceGraphicObjectDescriptor(void)
     {
     }
 
@@ -75,7 +75,7 @@ struct GOKDF
 const ByteOrderMask kbomGokdf = 0x0C000000;
 
 typedef class GKDS *PGKDS;
-#define GKDS_PAR GOKD
+#define GKDS_PAR KidspaceGraphicObjectDescriptor
 #define kclsGKDS 'GKDS'
 class GKDS : public GKDS_PAR
 {
@@ -94,7 +94,7 @@ class GKDS : public GKDS_PAR
     }
 
   public:
-    // An object reader for a GOKD.
+    // An object reader for a KidspaceGraphicObjectDescriptor.
     static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~GKDS(void);
 
@@ -135,7 +135,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     }
 
     virtual bool FGobIn(PGraphicsObject pgob);
-    virtual PGOKD PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca);
+    virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca);
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca);
     virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
     virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);

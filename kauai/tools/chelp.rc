@@ -255,7 +255,7 @@ BEGIN
     EDITTEXT        16,77,156,48,12,ES_AUTOHSCROLL
     EDITTEXT        17,165,156,102,12,ES_AUTOHSCROLL
     EDITTEXT        18,165,176,40,12,ES_AUTOHSCROLL
-    RTEXT           "Balloon (GOKD)#:",100,2,11,72,8
+    RTEXT           "Balloon (KidspaceGraphicObjectDescriptor)#:",100,2,11,72,8
     RTEXT           "Name:",101,128,11,35,8
     RTEXT           "Topic Name:",102,100,28,63,8
     RTEXT           "Gob ID #:",103,14,45,60,8

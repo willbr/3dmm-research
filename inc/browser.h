@@ -284,8 +284,8 @@ struct THD
         };
     };
 
-    ChunkNumber cno;       // GOKD cno
-    ChildChunkID chidThum; // GOKD's parent's ChildChunkID (relative to GOKD parent's parent)
+    ChunkNumber cno;       // KidspaceGraphicObjectDescriptor cno
+    ChildChunkID chidThum; // KidspaceGraphicObjectDescriptor's parent's ChildChunkID (relative to KidspaceGraphicObjectDescriptor parent's parent)
     long ithd;     // Original index for this THD, before sorting (used to
                    // retrieve proper STN for the BRWN-derived browsers)
 };

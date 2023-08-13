@@ -2111,7 +2111,7 @@ void Studio::NewActor(void)
 }
 
 /***************************************************************************
-    The RollCall needs a mapping from Tmpl ChunkNumber's to the GOKD thumb cno
+    The RollCall needs a mapping from Tmpl ChunkNumber's to the KidspaceGraphicObjectDescriptor thumb cno
 ***************************************************************************/
 bool Studio::FAddCmg(ChunkNumber cnoTmpl, ChunkNumber cnoGokd)
 {

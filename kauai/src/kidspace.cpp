@@ -31,10 +31,10 @@ END_CMD_MAP(&KidspaceGraphicObject::FCmdAll, pvNil, kgrfcmmAll)
 const long kcmhlGok = -10000;
 
 /***************************************************************************
-    Create a new kidspace gob as described in the GOKD with given cno
+    Create a new kidspace gob as described in the KidspaceGraphicObjectDescriptor with given cno
     in the given RCA.
 ***************************************************************************/
-PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca)
+PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca)
 {
     AssertPo(pgobPar, 0);
     AssertPo(pgokd, 0);
@@ -136,7 +136,7 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);
-    PGOKD pgokd;
+    PKidspaceGraphicObjectDescriptor pgokd;
     bool fRet;
 
     if (pvNil == (pgokd = pwoks->PgokdFetch(kctgGokd, cno, prca)))
@@ -151,7 +151,7 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA
 /***************************************************************************
     Initialize this KidspaceGraphicObject.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PGOKD pgokd, PRCA prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);

@@ -1066,7 +1066,7 @@ PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca,
 #ifdef REVIEW // shonk: this makes little sense and is bug-prone
         if (htop.cnoBalloon == phbal->_pgokd->Cno() && prca == phbal->_prca)
         {
-            // same hid, same GOKD, same prca, so just change the topic
+            // same hid, same KidspaceGraphicObjectDescriptor, same prca, so just change the topic
             if (!phbal->FSetTopic(ptxhd, &htop, prca))
                 return pvNil;
             return phbal;

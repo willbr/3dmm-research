@@ -142,7 +142,7 @@
 #error Can't define kgokkRectNoKids
 #endif
 
-// the following is the type used for GOKD's created with OBJECT() macros
+// the following is the type used for KidspaceGraphicObjectDescriptor's created with OBJECT() macros
 
 
 
@@ -195,7 +195,7 @@
 
 // ---------------------------------------------------------
 // The following are for defining standalone chunks  ie.
-// not dependent or adopted to the previous GOKD
+// not dependent or adopted to the previous KidspaceGraphicObjectDescriptor
 // ---------------------------------------------------------
 #define SCRIPTCHUNK( _szName,  _cno )   \
 	CHUNK( kctgScript,  _cno, __NAME(_szName ) ) \
@@ -283,7 +283,7 @@
     LONG kidNil _xp _yp _zp
 
 // ---------------------------------------------------------
-// the following is used in a GOKD to map the modifier keys
+// the following is used in a KidspaceGraphicObjectDescriptor to map the modifier keys
 // global state   button state to cursor  tooltip id  script
 // chid and/or command id (CID) to post.  Whew!
 // ---------------------------------------------------------
@@ -326,7 +326,7 @@
 // ---------------------------------------------------------
 // Macros for child representations (MBMPS  FILLS  etc)
 // everything preceded by "CHILD_" adopts itself to the
-// last declared GOKD.
+// last declared KidspaceGraphicObjectDescriptor.
 // ---------------------------------------------------------
 #define CHILD_SCRIPT( _szName,  _kchid )\
 	SET _dfscr++ \
@@ -459,7 +459,7 @@
 
 // ---------------------------------------------------------
 // The following Adopt the last chunk of type 'foo' to their
-// most recent GOKD using the appropriate ChildChunkID.
+// most recent KidspaceGraphicObjectDescriptor using the appropriate ChildChunkID.
 // ---------------------------------------------------------
 #define ADOPT_MASK( _cno,  _chid ) \
 	ADOPT( kctgGokd,  _curgok,  kctgMask,  _cno,  _chid )

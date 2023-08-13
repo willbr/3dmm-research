@@ -41,14 +41,14 @@
     the BRWD, BRWL or BRWT classes.
 
     If a browser is to be chunky file based, the BRWL class can be used.
-    It includes GOKD chunks which are grandchildren of _ckiRoot (cnoNil
+    It includes KidspaceGraphicObjectDescriptor chunks which are grandchildren of _ckiRoot (cnoNil
     implies wildcarding) and children of _ctgContent  - from .thd files
     entered in the registry of this product.
     The BRWL class allows the option of displaying either all the thumbnails
     of a particular ctg across registry specified directories (eg, scenes,
     actors)
         -or-
-    of filling frames from GOKD thumbnails which are children of a single
+    of filling frames from KidspaceGraphicObjectDescriptor thumbnails which are children of a single
     given chunk.
 
     Text class browsers (BRWT) create child TGOBs for each frame.
@@ -352,7 +352,7 @@ long BRWD::_CfrmCalc(void)
     for (ifrm = 0;; ifrm++)
     {
         //
-        // If there is no GOKD parent, there are no more thumbnail
+        // If there is no KidspaceGraphicObjectDescriptor parent, there are no more thumbnail
         // slots on this page
         //
         pgob = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrm);
@@ -911,7 +911,7 @@ bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdent
     {
         fBuildGl = fTrue;
 
-        // Cache the GOKD's by first creating a
+        // Cache the KidspaceGraphicObjectDescriptor's by first creating a
         // chunky resource manager
         Assert(pvNil == _pcrm, "Logic error releasing pcrm");
         _pcrm = ChunkyResourceManager::PcrmNew(ccrf);
@@ -1639,8 +1639,8 @@ bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
 
 /****************************************************
  *
- *  Add a single GOKD to the THD
- *	The GOKD is a child of ckiPar.
+ *  Add a single KidspaceGraphicObjectDescriptor to the THD
+ *	The KidspaceGraphicObjectDescriptor is a child of ckiPar.
  *  cnoPar is read from the ckiPar chunk
  *
  ****************************************************/
@@ -1688,7 +1688,7 @@ bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *p
         thd.cno = kid.cki.cno;
     else
     {
-        // If there are no GOKD children, enter the reference to the named
+        // If there are no KidspaceGraphicObjectDescriptor children, enter the reference to the named
         // parent chunk
         thd.cno = tfc.cno;
     }

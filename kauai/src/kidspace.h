@@ -331,7 +331,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     PSCEG _pscegAnim; // animation script
     ChildChunkID _chidAnim;   // chid of current animation
 
-    PGOKD _pgokd;
+    PKidspaceGraphicObjectDescriptor _pgokd;
 
     long _siiSound;     // sound to kill when we go away
     long _siiMouse;     // mouse tracking sound - kill it when we go away
@@ -354,7 +354,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     static PGraphicsObject _PgobBefore(PGraphicsObject pgobPar, long zp);
 
-    virtual bool _FInit(PWorldOfKidspace pwoks, PGOKD pgokd, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca);
     virtual bool _FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA prca);
 
     virtual bool _FAdjustGms(struct GMSE *pmpgmsgmse);
@@ -378,7 +378,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     void _DeferSnd(bool fDefer);
 
   public:
-    static PKidspaceGraphicObject PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PGOKD pgokd, PRCA prca);
+    static PKidspaceGraphicObject PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca);
 
     PWorldOfKidspace Pwoks(void)
     {
