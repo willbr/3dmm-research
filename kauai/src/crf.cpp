@@ -23,7 +23,7 @@ RTCLASS(GHQ)
 RTCLASS(RCA)
 RTCLASS(ChunkyResourceFile)
 RTCLASS(ChunkyResourceManager)
-RTCLASS(CABO)
+RTCLASS(GenericCacheableObject)
 
 /***************************************************************************
     Constructor for base cacheable object.
@@ -1046,20 +1046,20 @@ void GHQ::MarkMem(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CABO.
+    Assert the validity of a GenericCacheableObject.
 ***************************************************************************/
-void CABO::AssertValid(ulong grf)
+void GenericCacheableObject::AssertValid(ulong grf)
 {
-    CABO_PAR::AssertValid(grf);
+    GenericCacheableObject_PAR::AssertValid(grf);
     AssertNilOrPo(po, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the CABO.
+    Mark memory used by the GenericCacheableObject.
 ***************************************************************************/
-void CABO::MarkMem(void)
+void GenericCacheableObject::MarkMem(void)
 {
-    CABO_PAR::MarkMem();
+    GenericCacheableObject_PAR::MarkMem();
     MarkMemObj(po);
 }
 #endif // DEBUG

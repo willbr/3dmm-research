@@ -1006,7 +1006,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
     PStringTable pgst;
-    PCABO pcabo;
+    PGenericCacheableObject pcabo;
     short bo;
 
     *pcb = pblck->Cb(fTrue);
@@ -1034,7 +1034,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         }
     }
 
-    if (pvNil == (pcabo = NewObj CABO(pgst)))
+    if (pvNil == (pcabo = NewObj GenericCacheableObject(pgst)))
     {
     LFail:
         ReleasePpo(&pgst);
@@ -1053,7 +1053,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 void SCEB::_MergeStrings(ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
-    PCABO pcabo;
+    PGenericCacheableObject pcabo;
     PStringTable pgst;
     long istn, stid;
     STN stn;
@@ -1076,7 +1076,7 @@ void SCEB::_MergeStrings(ChunkNumber cno, RSC rsc)
         return;
     }
 
-    if (pvNil == (pcabo = (PCABO)_prca->PbacoFetch(kctgStringReg, cno, &_FReadStringReg, pvNil, rsc)))
+    if (pvNil == (pcabo = (PGenericCacheableObject)_prca->PbacoFetch(kctgStringReg, cno, &_FReadStringReg, pvNil, rsc)))
     {
         Debug(_WarnSz(PszLit("Reading string table failed (cno = 0x%x)"), cno));
         return;

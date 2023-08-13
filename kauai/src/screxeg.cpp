@@ -1190,13 +1190,13 @@ void SCEG::_SetColorTable(ChunkNumber cno)
 ***************************************************************************/
 PGL SCEG::_PglclrGet(ChunkNumber cno)
 {
-    PCABO pcabo;
+    PGenericCacheableObject pcabo;
     PGL pglclr;
 
     if (cnoNil == cno)
         return pvNil;
 
-    pcabo = (PCABO)_prca->PbacoFetch(kctgColorTable, cno, FReadColorTable);
+    pcabo = (PGenericCacheableObject)_prca->PbacoFetch(kctgColorTable, cno, FReadColorTable);
     if (pvNil == pcabo)
         return pvNil;
 
@@ -1211,11 +1211,11 @@ PGL SCEG::_PglclrGet(ChunkNumber cno)
 
 /***************************************************************************
     A chunky resource reader to read a color table. Wraps the color table in
-    a CABO.
+    a GenericCacheableObject.
 ***************************************************************************/
 bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
-    PCABO pcabo;
+    PGenericCacheableObject pcabo;
     PGL pglclr = pvNil;
 
     *pcb = pblck->Cb(fTrue);
@@ -1229,7 +1229,7 @@ bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     if (pvNil == (pglclr = GL::PglRead(pblck)) || pglclr->CbEntry() != size(Color))
         goto LFail;
 
-    if (pvNil == (pcabo = NewObj CABO(pglclr)))
+    if (pvNil == (pcabo = NewObj GenericCacheableObject(pglclr)))
     {
     LFail:
         ReleasePpo(&pglclr);

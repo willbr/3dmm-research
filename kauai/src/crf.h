@@ -238,10 +238,10 @@ class GHQ : public GHQ_PAR
 /***************************************************************************
     A BaseCacheableObject wrapper around a generic object.
 ***************************************************************************/
-#define CABO_PAR BaseCacheableObject
-typedef class CABO *PCABO;
-#define kclsCABO 'CABO'
-class CABO : public CABO_PAR
+#define GenericCacheableObject_PAR BaseCacheableObject
+typedef class GenericCacheableObject *PGenericCacheableObject;
+#define kclsGenericCacheableObject 'CABO'
+class GenericCacheableObject : public GenericCacheableObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -250,11 +250,11 @@ class CABO : public CABO_PAR
   public:
     BASE *po;
 
-    CABO(BASE *poT)
+    GenericCacheableObject(BASE *poT)
     {
         po = poT;
     }
-    ~CABO(void)
+    ~GenericCacheableObject(void)
     {
         ReleasePpo(&po);
     }
