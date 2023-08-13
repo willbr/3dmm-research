@@ -13,7 +13,7 @@
 ASSERTNAME
 
 namespace Chunky {
-RTCLASS(CHCM)
+RTCLASS(Compiler)
 RTCLASS(CHLX)
 RTCLASS(CHDC)
 
@@ -66,9 +66,9 @@ PSZ _mpertpsz[] = {
 };
 
 /***************************************************************************
-    Constructor for the CHCM class.
+    Constructor for the Compiler class.
 ***************************************************************************/
-CHCM::CHCM(void)
+Compiler::Compiler(void)
 {
     _pglcsfc = pvNil;
     _pcfl = pvNil;
@@ -80,9 +80,9 @@ CHCM::CHCM(void)
 }
 
 /***************************************************************************
-    Destructor for the CHCM class.
+    Destructor for the Compiler class.
 ***************************************************************************/
-CHCM::~CHCM(void)
+Compiler::~Compiler(void)
 {
     if (pvNil != _pglcsfc)
     {
@@ -102,11 +102,11 @@ CHCM::~CHCM(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert that the CHCM is a valid object.
+    Assert that the Compiler is a valid object.
 ***************************************************************************/
-void CHCM::AssertValid(ulong grf)
+void Compiler::AssertValid(ulong grf)
 {
-    CHCM_PAR::AssertValid(grf);
+    Compiler_PAR::AssertValid(grf);
     AssertNilOrPo(_pcfl, 0);
     AssertPo(&_bsf, 0);
     AssertNilOrPo(_pchlx, 0);
@@ -115,13 +115,13 @@ void CHCM::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the CHCM object.
+    Mark memory for the Compiler object.
 ***************************************************************************/
-void CHCM::MarkMem(void)
+void Compiler::MarkMem(void)
 {
     AssertThis(0);
 
-    CHCM_PAR::MarkMem();
+    Compiler_PAR::MarkMem();
     MarkMemObj(_pglcsfc);
     MarkMemObj(_pcfl);
     MarkMemObj(&_bsf);
@@ -134,7 +134,7 @@ void CHCM::MarkMem(void)
     Registers an error, prints error message with filename and line number.
     pszMessage may be nil.
 ***************************************************************************/
-void CHCM::_Error(long ert, PSZ pszMessage)
+void Compiler::_Error(long ert, PSZ pszMessage)
 {
     AssertThis(0);
     AssertIn(ert, ertNil, ertLim);
@@ -161,7 +161,7 @@ void CHCM::_Error(long ert, PSZ pszMessage)
 /***************************************************************************
     Checks that lw could be accepted under the current numerical mode.
 ***************************************************************************/
-void CHCM::_GetRgbFromLw(long lw, byte *prgb)
+void Compiler::_GetRgbFromLw(long lw, byte *prgb)
 {
     AssertThis(0);
     AssertPvCb(prgb, size(long));
@@ -195,7 +195,7 @@ void CHCM::_GetRgbFromLw(long lw, byte *prgb)
     Checks if data is already in the buffer (and issues an error) for a
     non-buffer command such as metafile import.
 ***************************************************************************/
-void CHCM::_ErrorOnData(PSZ pszPreceed)
+void Compiler::_ErrorOnData(PSZ pszPreceed)
 {
     AssertThis(0);
     AssertSz(pszPreceed);
@@ -214,7 +214,7 @@ void CHCM::_ErrorOnData(PSZ pszPreceed)
     Get a token, automatically handling mode change commands and negatives.
     Return true iff *ptok is valid, not whether an error occurred.
 ***************************************************************************/
-bool CHCM::_FGetCleanTok(TOK *ptok, bool fEofOk)
+bool Compiler::_FGetCleanTok(TOK *ptok, bool fEofOk)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -285,7 +285,7 @@ bool CHCM::_FGetCleanTok(TOK *ptok, bool fEofOk)
 /***************************************************************************
     Skip tokens until we encounter the given token type.
 ***************************************************************************/
-void CHCM::_SkipPastTok(long tt)
+void Compiler::_SkipPastTok(long tt)
 {
     AssertThis(0);
     TOK tok;
@@ -297,7 +297,7 @@ void CHCM::_SkipPastTok(long tt)
 /***************************************************************************
     Parse a parenthesized header from the source file.
 ***************************************************************************/
-bool CHCM::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
+bool Compiler::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
 {
     AssertThis(0);
     AssertIn(cphpMax, 1, kcbMax);
@@ -395,7 +395,7 @@ bool CHCM::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
 /***************************************************************************
     Parse a chunk header from the source file.
 ***************************************************************************/
-void CHCM::_ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno)
+void Compiler::_ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertVarMem(pctg);
@@ -439,7 +439,7 @@ void CHCM::_ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno)
 /***************************************************************************
     Append a string to the chunk data stream.
 ***************************************************************************/
-void CHCM::_AppendString(PSTN pstnValue)
+void Compiler::_AppendString(PSTN pstnValue)
 {
     AssertThis(0);
     AssertPo(pstnValue, 0);
@@ -479,7 +479,7 @@ void CHCM::_AppendString(PSTN pstnValue)
 /***************************************************************************
     Stores a numerical value in the chunk data stream.
 ***************************************************************************/
-void CHCM::_AppendNumber(long lwValue)
+void Compiler::_AppendNumber(long lwValue)
 {
     AssertThis(0);
     byte rgb[size(long)];
@@ -492,7 +492,7 @@ void CHCM::_AppendNumber(long lwValue)
 /***************************************************************************
     Parse a child statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyChild(ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyChild(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     ChunkTag ctgChild;
@@ -536,7 +536,7 @@ void CHCM::_ParseBodyChild(ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a parent statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyParent(ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyParent(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     ChunkTag ctgParent;
@@ -580,7 +580,7 @@ void CHCM::_ParseBodyParent(ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse an align statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyAlign(void)
+void Compiler::_ParseBodyAlign(void)
 {
     AssertThis(0);
     TOK tok;
@@ -628,7 +628,7 @@ void CHCM::_ParseBodyAlign(void)
 /***************************************************************************
     Parse a file statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyFile(void)
+void Compiler::_ParseBodyFile(void)
 {
     AssertThis(0);
     Filename fni;
@@ -660,7 +660,7 @@ void CHCM::_ParseBodyFile(void)
     Otherwise, get the block on the ChunkyFile. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
-bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
+bool Compiler::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -678,7 +678,7 @@ bool CHCM::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PData
 /***************************************************************************
     Balances a call to _FPrepWrite.
 ***************************************************************************/
-bool CHCM::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
+bool Compiler::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, fblckUnpacked);
@@ -697,7 +697,7 @@ bool CHCM::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblc
 /***************************************************************************
     Parse a metafile import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -738,7 +738,7 @@ void CHCM::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a bitmap import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -791,7 +791,7 @@ void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumber cn
 /***************************************************************************
     Parse a palette import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -832,7 +832,7 @@ void CHCM::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a midi import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -873,7 +873,7 @@ void CHCM::_ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a cursor import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
 {
     // These are for parsing a Windows cursor file
     struct CURDIR
@@ -1043,7 +1043,7 @@ LFail:
     with the first token and when _FParseData returns it contains the next
     token to be processed.  Returns false iff no tokens were consumed.
 ***************************************************************************/
-bool CHCM::_FParseData(PTOK ptok)
+bool Compiler::_FParseData(PTOK ptok)
 {
     enum
     {
@@ -1160,7 +1160,7 @@ bool CHCM::_FParseData(PTOK ptok)
 /***************************************************************************
     Parse a list structure from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1291,7 +1291,7 @@ LFail:
 /***************************************************************************
     Parse a group structure from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1448,7 +1448,7 @@ LFail:
 /***************************************************************************
     Parse a string table from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1594,7 +1594,7 @@ LFail:
 /***************************************************************************
     Parse a script from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     SCCG sccg;
@@ -1615,7 +1615,7 @@ void CHCM::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumber c
 /***************************************************************************
     Parse a script from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyPackedFile(bool *pfPacked)
+void Compiler::_ParseBodyPackedFile(bool *pfPacked)
 {
     AssertThis(0);
     long lw, lwSwapped;
@@ -1655,7 +1655,7 @@ void CHCM::_ParseBodyPackedFile(bool *pfPacked)
 /***************************************************************************
     Start a sub file.
 ***************************************************************************/
-void CHCM::_StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     CSFC csfc;
@@ -1683,7 +1683,7 @@ void CHCM::_StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     End a sub file.
 ***************************************************************************/
-void CHCM::_EndSubFile(void)
+void Compiler::_EndSubFile(void)
 {
     AssertThis(0);
     CSFC csfc;
@@ -1776,7 +1776,7 @@ void CHCM::_EndSubFile(void)
     Parse a PACKFMT command, which is used to specify the packing format
     to use.
 ***************************************************************************/
-void CHCM::_ParsePackFmt(void)
+void Compiler::_ParsePackFmt(void)
 {
     AssertThis(0);
     PHP rgphp[1];
@@ -1801,7 +1801,7 @@ void CHCM::_ParsePackFmt(void)
 /***************************************************************************
     Parse the chunk body from the source file.
 ***************************************************************************/
-void CHCM::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     TOK tok;
@@ -1936,7 +1936,7 @@ void CHCM::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse an adopt parenthesized header from the source file.
 ***************************************************************************/
-void CHCM::_ParseAdopt(void)
+void Compiler::_ParseAdopt(void)
 {
     AssertThis(0);
     ChunkTag ctgParent, ctgChild;
@@ -1984,7 +1984,7 @@ void CHCM::_ParseAdopt(void)
 /***************************************************************************
     Compile the given file.
 ***************************************************************************/
-PChunkyFile CHCM::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
+PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pfniSrc, ffniFile);
@@ -2015,7 +2015,7 @@ PChunkyFile CHCM::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
 /***************************************************************************
     Compile the given BSF, using initial file name given by pstnFile.
 ***************************************************************************/
-PChunkyFile CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
+PChunkyFile Compiler::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pbsfSrc, ffniFile);

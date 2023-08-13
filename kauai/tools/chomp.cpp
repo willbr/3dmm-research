@@ -87,7 +87,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     if (fCompile)
     {
-        CHCM chcm;
+        Compiler chcm;
 
         if (fniDst.Ftg() == ftgNil)
         {

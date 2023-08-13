@@ -318,7 +318,7 @@ PTMAP TMAP::PtmapNew(byte *prgbPixels, long dxp, long dyp)
 /******************************************************************************
     FWriteTmapChkFile
         Writes a stand-alone file with a TMAP chunk in it.  The file can
-        be later read in by the CHCM class with the FILE command.
+        be later read in by the Compiler class with the FILE command.
 
     Arguments:
         PFilename pfniDst   -- Filename indicating the name of the output file

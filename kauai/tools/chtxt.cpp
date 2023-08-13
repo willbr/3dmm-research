@@ -90,7 +90,7 @@ bool CHTDD::FCmdCompileChunky(PCMD pcmd)
     PChunkyFile pcfl;
     STN stnFile;
     MSFIL msfil;
-    CHCM chcm;
+    Compiler chcm;
     PDOC pdoc;
 
     if (!fni.FGetTemp())

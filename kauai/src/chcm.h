@@ -10,7 +10,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Header file for the CHCM class - the chunky compiler class, and
+    Header file for the Compiler class - the chunky compiler class, and
     CHLX - its lexer.
 
 ***************************************************************************/
@@ -171,15 +171,15 @@ enum
 /***************************************************************************
     Base chunky compiler class
 ***************************************************************************/
-typedef class CHCM *PCHCM;
-#define CHCM_PAR BASE
-#define kclsCHCM 'CHCM'
-class CHCM : public CHCM_PAR
+typedef class Compiler *PCompiler;
+#define Compiler_PAR BASE
+#define kclsCompiler 'CHCM'
+class Compiler : public Compiler_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CHCM)
+    NOCOPY(Compiler)
 
   protected:
     // Chunk sub file context
@@ -248,8 +248,8 @@ class CHCM : public CHCM_PAR
     bool _FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck);
 
   public:
-    CHCM(void);
-    ~CHCM(void);
+    Compiler(void);
+    ~Compiler(void);
 
     bool FError(void)
     {
