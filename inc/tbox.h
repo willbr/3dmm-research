@@ -25,7 +25,7 @@
 
         Clipboard object (TCLP)
 
-            DOCB ---> TCLP
+            DocumentBase ---> TCLP
 
 ***************************************************************************/
 
@@ -323,7 +323,7 @@ class TBOX : public TBOX_PAR
 //
 typedef class TCLP *PTCLP;
 
-#define TCLP_PAR DOCB
+#define TCLP_PAR DocumentBase
 #define kclsTCLP 'TCLP'
 class TCLP : public TCLP_PAR
 {

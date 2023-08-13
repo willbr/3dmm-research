@@ -71,7 +71,7 @@ extern APP vapp;
 /***************************************************************************
     List document
 ***************************************************************************/
-#define LID_PAR DOCB
+#define LID_PAR DocumentBase
 #define kclsLID 'LID'
 class LID : public LID_PAR
 {
@@ -203,7 +203,7 @@ class CCGT : public CCGT_PAR
     topics.
 ***************************************************************************/
 typedef class HEDO *PHEDO;
-#define HEDO_PAR DOCB
+#define HEDO_PAR DocumentBase
 #define kclsHEDO 'HEDO'
 class HEDO : public HEDO_PAR
 {
@@ -321,7 +321,7 @@ class HEDG : public HEDG_PAR
     virtual long _ScvMax(bool fVert);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
@@ -371,15 +371,15 @@ class HETD : public HETD_PAR
     PGST _pgst;   // string versions of stuff in HTOP
     STN _stnDesc; // description
 
-    HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
+    HETD(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
     ~HETD(void);
 
     virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
 
   public:
-    static PHETD PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
-    static PHETD PhetdFromChunk(PDOCB pdocb, ChunkNumber cno);
-    static void CloseDeletedHetd(PDOCB pdocb);
+    static PHETD PhetdNew(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
+    static PHETD PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno);
+    static void CloseDeletedHetd(PDocumentBase pdocb);
 
     virtual PDMD PdmdNew(void);
     virtual PDDG PddgNew(PGCB pgcb);
@@ -419,7 +419,7 @@ class HETG : public HETG_PAR
     HETG(PHETD phetd, PGCB pgcb);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
 
     // override these so we can put up our dialogs
     virtual bool _FGetOtherSize(long *pdypFont);

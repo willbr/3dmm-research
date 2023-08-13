@@ -17,7 +17,7 @@
 
         A single movie (Movie)
 
-                DOCB	--->	Movie
+                DocumentBase	--->	Movie
 
 ***************************************************************************/
 
@@ -181,14 +181,14 @@ class MVU : public MVU_PAR
     ulong _grfont;    // Font style for text
     long _lwLastTime; // State variable for the last time through.
 
-    MVU(PDOCB pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
+    MVU(PDocumentBase pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
     {
     }
 
     //
     // Clipboard support
     //
-    bool _FCopySel(PDOCB *ppdocb, bool fRteOnly);
+    bool _FCopySel(PDocumentBase *ppdocb, bool fRteOnly);
     void _ClearSel(void);
     bool _FPaste(PCLIP pclip);
 
@@ -541,7 +541,7 @@ const long kccamMax = 9;
 
 typedef class Movie *PMovie;
 
-#define Movie_PAR DOCB
+#define Movie_PAR DocumentBase
 #define kclsMovie 'MVIE'
 class Movie : public Movie_PAR
 {
@@ -781,7 +781,7 @@ class Movie : public Movie_PAR
     bool FIsIaridTdt(long iarid);      // 3d spletter
 
     //
-    // Overridden DOCB functions
+    // Overridden DocumentBase functions
     //
     bool FGetFni(Filename *pfni);                  // For saving to a file
     bool FSave(long cid);                     // For saving to a file, (calls FGetFni and FSaveToFni)
@@ -876,7 +876,7 @@ class Movie : public Movie_PAR
     bool FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf);
 
     //
-    // Marking (overridden DOCB methods)
+    // Marking (overridden DocumentBase methods)
     //
     virtual bool FDirty(void) // Has the movie changed since last saved?
     {
@@ -895,7 +895,7 @@ class Movie : public Movie_PAR
     void BuildActionMenu(void);                                     // Called when the selected actor has changed.
 
     //
-    // Overridden DOCB functions
+    // Overridden DocumentBase functions
     //
     PDDG PddgNew(PGCB pgcb);    // For creating a view on a movie.
     bool FAddUndo(PMUNB pmunb); // Add an item to the undo list

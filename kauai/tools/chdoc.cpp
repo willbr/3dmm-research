@@ -179,7 +179,7 @@ PDOC DOC::PdocNew(Filename *pfni)
         AssertPo(pfni, ffniFile);
 
         // make sure no other docs are based on this pcfl.
-        if (pvNil != DOCB::PdocbFromFni(pfni))
+        if (pvNil != DocumentBase::PdocbFromFni(pfni))
             return pvNil;
         pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     }
@@ -278,7 +278,7 @@ void DOC::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for chunk editing doc.
 ***************************************************************************/
-DOCE::DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCB(pdocb)
+DOCE::DOCE(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DocumentBase(pdocb)
 {
     _pcfl = pcfl;
     _ctg = ctg;
@@ -307,7 +307,7 @@ bool DOCE::_FInit(void)
 /***************************************************************************
     Static method to look for a DOCE for the given chunk.
 ***************************************************************************/
-PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PDOCE DOCE::PdoceFromChunk(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     PDOCE pdoce;
 
@@ -324,12 +324,12 @@ PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno
 }
 
 /***************************************************************************
-    Static method: For all DOCE children of the DOCB, checks if the chunk
+    Static method: For all DOCE children of the DocumentBase, checks if the chunk
     still exists and nukes the DOCE if not.
 ***************************************************************************/
-void DOCE::CloseDeletedDoce(PDOCB pdocb)
+void DOCE::CloseDeletedDoce(PDocumentBase pdocb)
 {
-    PDOCB pdocbNext;
+    PDocumentBase pdocbNext;
     PDOCE pdoce;
 
     for (pdocb = pdocb->PdocbChd(); pvNil != pdocb; pdocb = pdocbNext)
@@ -419,7 +419,7 @@ bool DOCE::FSave(long cid)
 
     if (_FSaveToChunk(ctg, cno, cid != cidSaveCopy))
     {
-        PDOCB pdocb;
+        PDocumentBase pdocb;
         PDDG pddg;
 
         if (pvNil != (pdocb = PdocbPar()) && pvNil != (pddg = pdocb->PddgGet(0)) && pddg->FIs(kclsDCD))
@@ -507,7 +507,7 @@ void DOCE::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for a DCLB.
 ***************************************************************************/
-DCLB::DCLB(PDOCB pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
+DCLB::DCLB(PDocumentBase pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
 {
     achar ch;
     RC rc;
@@ -655,7 +655,7 @@ void DCLB::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the DCD.
 ***************************************************************************/
-DCD::DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
+DCD::DCD(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
 {
     _pcfl = pcfl;
     _dypBorder = 1;
@@ -667,7 +667,7 @@ DCD::DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
 /***************************************************************************
     Static method to create a new DCD.
 ***************************************************************************/
-PDCD DCD::PdcdNew(PDOCB pdocb, PCFL pcfl, PGCB pgcb)
+PDCD DCD::PdcdNew(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb)
 {
     PDCD pdcd;
 
@@ -702,7 +702,7 @@ void DCD::_Activate(bool fActive)
     *pcki and *pkid should be at or before the first line modified.
     pcki and pkid can be nil.
 ***************************************************************************/
-void DCD::InvalAllDcd(PDOCB pdocb, PCFL pcfl, ChunkIdentification *pcki, ChildChunkIdentification *pkid)
+void DCD::InvalAllDcd(PDocumentBase pdocb, PCFL pcfl, ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);
@@ -1099,7 +1099,7 @@ bool DCD::FCmdReopen(PCMD pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     ChunkIdentification cki;
     ChildChunkIdentification kid;
     ulong grfsel;
@@ -1134,7 +1134,7 @@ bool DCD::FCmdReopen(PCMD pcmd)
         if (pdocb == _pdocb->PdocbChd())
         {
             //	REVIEW shonk: Release: is this the right thing to do?  What if
-            // someone else has a reference count to this child DOCB?
+            // someone else has a reference count to this child DocumentBase?
             Bug("why wasn't this child doc released?");
             ReleasePpo(&pdocb);
         }
@@ -2635,7 +2635,7 @@ bool DCD::FCmdDisasmScript(PCMD pcmd)
 /***************************************************************************
     Copy the selection to a new document.
 ***************************************************************************/
-bool DCD::_FCopySel(PDOCB *ppdocb)
+bool DCD::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
     ChunkIdentification cki;
@@ -2699,7 +2699,7 @@ bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsDOC, (PDOCB *)&pdoc))
+    if (!pclip->FGetFormat(kclsDOC, (PDocumentBase *)&pdoc))
         return fFalse;
 
     if (pvNil == (pcfl = pdoc->Pcfl()) || pcfl->Ccki() <= 0)

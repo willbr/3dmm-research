@@ -76,7 +76,7 @@ class TXHD : public TXHD_PAR
     HTOP _htop;         // our gob creation information
     bool _fHideButtons; // whether to draw buttons
 
-    TXHD(PRCA prca, PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    TXHD(PRCA prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXHD(void);
 
     virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);

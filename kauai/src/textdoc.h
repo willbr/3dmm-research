@@ -22,7 +22,7 @@
     Text document.  A doc wrapper for a BSF.
 ***************************************************************************/
 typedef class TXDC *PTXDC;
-#define TXDC_PAR DOCB
+#define TXDC_PAR DocumentBase
 #define kclsTXDC 'TXDC'
 class TXDC : public TXDC_PAR
 {
@@ -34,12 +34,12 @@ class TXDC : public TXDC_PAR
     PBSF _pbsf;
     PFIL _pfil;
 
-    TXDC(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    TXDC(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXDC(void);
     bool _FInit(PFilename pfni = pvNil, PBSF pbsf = pvNil);
 
   public:
-    static PTXDC PtxdcNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    static PTXDC PtxdcNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
     PBSF Pbsf(void)
     {
@@ -92,7 +92,7 @@ class TXDD : public TXDD_PAR
     long _ichMinCache;
     long _ichLimCache;
 
-    TXDD(PDOCB pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
+    TXDD(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
     ~TXDD(void);
     virtual bool _FInit(void);
     virtual void _NewRc(void);
@@ -134,12 +134,12 @@ class TXDD : public TXDD_PAR
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
   public:
-    static PTXDD PtxddNew(PDOCB pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
+    static PTXDD PtxddNew(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);

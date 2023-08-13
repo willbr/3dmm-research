@@ -116,8 +116,8 @@ class MUNS : public MUNS_PAR
         _tag = *ptag;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -3043,7 +3043,7 @@ bool Movie::FAddUndo(PMUNB pmunb)
         pmunb->SetNfrm(Pscen()->Nfrm());
     }
 
-    if (!DOCB::FAddUndo(pmunb))
+    if (!DocumentBase::FAddUndo(pmunb))
     {
         Pmcc()->SetUndo(undoDisabled);
         return (fFalse);
@@ -6517,7 +6517,7 @@ bool MVU::FCmdMouseMove(PCMD_MOUSE pcmd)
 
     PACTR pactr;
     long ibset;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     AssertPo(Pmvie(), 0);
     if (Pmvie()->Pscen() == pvNil)
@@ -6846,7 +6846,7 @@ void MVU::_MouseDown(CMD_MOUSE *pcmd)
     PAUND paund;
     PT pt;
     long ibset;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     SlowKeyboardRepeat();
 
@@ -7965,7 +7965,7 @@ bool MVU::FCmdClip(PCMD pcmd)
     AssertVarMem(pcmd);
 
     PTBOX ptbox;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     bool fOV = fFalse;
     CMD cmd;
 
@@ -8105,7 +8105,7 @@ bool MVU::FDoClip(long tool)
 {
     AssertThis(0);
 
-    PDOCB pdocb = pvNil;
+    PDocumentBase pdocb = pvNil;
 
     switch (tool)
     {
@@ -8137,7 +8137,7 @@ bool MVU::FDoClip(long tool)
         {
             PTCLP ptclp;
 
-            if (vpclip->FGetFormat(kclsTCLP, (PDOCB *)&ptclp))
+            if (vpclip->FGetFormat(kclsTCLP, (PDocumentBase *)&ptclp))
             {
                 AssertPo(ptclp, 0);
 
@@ -8225,7 +8225,7 @@ bool MVU::FCmdUndo(PCMD pcmd)
  *  fTrue if it was successful, else fFalse.
  *
  **************************************************************************/
-bool MVU::_FCopySel(PDOCB *ppdocb, bool fRteOnly)
+bool MVU::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
 {
     AssertThis(0);
 
@@ -8254,7 +8254,7 @@ bool MVU::_FCopySel(PDOCB *ppdocb, bool fRteOnly)
     paclp = ACLP::PaclpNew(pactr, fRteOnly, FPure(_grfcust & fcustShift));
     AssertNilOrPo(paclp, 0);
 
-    *ppdocb = (PDOCB)paclp;
+    *ppdocb = (PDocumentBase)paclp;
 
     return (paclp != pvNil);
 }
@@ -8348,7 +8348,7 @@ bool MVU::_FPaste(PCLIP pclip)
     PACTR pactr;
     bool fRet;
 
-    if (pclip->FGetFormat(kclsACLP, (PDOCB *)&paclp))
+    if (pclip->FGetFormat(kclsACLP, (PDocumentBase *)&paclp))
     {
         AssertPo(paclp, 0);
 
@@ -8380,7 +8380,7 @@ bool MVU::_FPaste(PCLIP pclip)
         return fRet;
     }
 
-    if (pclip->FGetFormat(kclsTCLP, (PDOCB *)&ptclp))
+    if (pclip->FGetFormat(kclsTCLP, (PDocumentBase *)&ptclp))
     {
         AssertPo(ptclp, 0);
 
@@ -8609,7 +8609,7 @@ MUNS::~MUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MUNS::FDo(PDOCB pdocb)
+bool MUNS::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -8664,7 +8664,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MUNS::FUndo(PDOCB pdocb)
+bool MUNS::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 

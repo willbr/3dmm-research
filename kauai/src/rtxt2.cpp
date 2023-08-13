@@ -2620,7 +2620,7 @@ void TXLG::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 /***************************************************************************
     Copy the selection.
 ***************************************************************************/
-bool TXLG::_FCopySel(PDOCB *ppdocb)
+bool TXLG::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -2678,7 +2678,7 @@ bool TXLG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXTB, (PDOCB *)&ptxtb))
+    if (!pclip->FGetFormat(kclsTXTB, (PDocumentBase *)&ptxtb))
         return fFalse;
 
     AssertPo(ptxtb, 0);
@@ -2895,7 +2895,7 @@ bool TXRG::FReplace(achar *prgch, long cch, long cp1, long cp2)
 /***************************************************************************
     Copy the selection.
 ***************************************************************************/
-bool TXRG::_FCopySel(PDOCB *ppdocb)
+bool TXRG::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
     PTXRD ptxrd;
@@ -2950,7 +2950,7 @@ bool TXRG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXRD, (PDOCB *)&ptxtb) && !pclip->FGetFormat(kclsTXTB, (PDOCB *)&ptxtb))
+    if (!pclip->FGetFormat(kclsTXRD, (PDocumentBase *)&ptxtb) && !pclip->FGetFormat(kclsTXTB, (PDocumentBase *)&ptxtb))
     {
         return fFalse;
     }

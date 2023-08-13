@@ -823,10 +823,10 @@ RTW *RTW::PrtwNew(void)
     return prtw;
 }
 
-class DOC : public DOCB
+class DOC : public DocumentBase
 {
   public:
-    DOC(void) : DOCB(pvNil, fdocNil)
+    DOC(void) : DocumentBase(pvNil, fdocNil)
     {
     }
 };
@@ -867,7 +867,7 @@ bool APP::FCmdNewTestWnd(PCMD pcmd)
         break;
 
     case 2: // new DMD
-        PDOCB pdocb;
+        PDocumentBase pdocb;
 
         if (pvNil == (pdocb = NewObj DOC()))
             goto LFail;
@@ -1163,7 +1163,7 @@ PTT WOP::PttUnmap(long xp, long yp, long yt)
 #endif // FUTURE
 
 // perspective doc
-class DOCP : public DOCB
+class DOCP : public DocumentBase
 {
   public:
     WOP _wop;
@@ -1388,7 +1388,7 @@ bool APP::FCmdTestPerspective(PCMD pcmd)
 }
 
 // picture document
-#define DOCPIC_PAR DOCB
+#define DOCPIC_PAR DocumentBase
 class DOCPIC : public DOCPIC_PAR
 {
     MARKMEM
@@ -1620,7 +1620,7 @@ bool APP::FCmdTestPictures(PCMD pcmd)
 }
 
 // GPT Document.
-#define DOCGPT_PAR DOCB
+#define DOCGPT_PAR DocumentBase
 class DOCGPT : public DOCGPT_PAR
 {
     MARKMEM

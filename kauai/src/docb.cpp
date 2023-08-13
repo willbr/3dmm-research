@@ -14,8 +14,8 @@
 ASSERTNAME
 
 #define dsnoNil 0
-long DOCB::_cactLast = 0;
-PDOCB DOCB::_pdocbFirst = pvNil;
+long DocumentBase::_cactLast = 0;
+PDocumentBase DocumentBase::_pdocbFirst = pvNil;
 
 BEGIN_CMD_MAP(DDG, GraphicsObject)
 ON_CID_GEN(cidClose, &DDG::FCmdCloseDoc, pvNil)
@@ -32,7 +32,7 @@ ON_CID_GEN(cidUndo, &DDG::FCmdUndo, &DDG::FEnableDdgCmd)
 ON_CID_GEN(cidRedo, &DDG::FCmdUndo, &DDG::FEnableDdgCmd)
 END_CMD_MAP_NIL()
 
-RTCLASS(DOCB)
+RTCLASS(DocumentBase)
 RTCLASS(DTE)
 RTCLASS(DDG)
 RTCLASS(DMD)
@@ -43,9 +43,9 @@ RTCLASS(DSSM)
 RTCLASS(UNDB)
 
 /***************************************************************************
-    Constructor for DOCB
+    Constructor for DocumentBase
 ***************************************************************************/
-DOCB::DOCB(PDOCB pdocb, ulong grfdoc) : CMH(khidDoc)
+DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CMH(khidDoc)
 {
     _pdocbChd = pvNil;
     if (pvNil == pdocb)
@@ -74,20 +74,20 @@ DOCB::DOCB(PDOCB pdocb, ulong grfdoc) : CMH(khidDoc)
 }
 
 /***************************************************************************
-    First calls Release on all direct child docb's of this DOCB.
+    First calls Release on all direct child docb's of this DocumentBase.
     Finally calls delete on itself.
 ***************************************************************************/
-void DOCB::Release(void)
+void DocumentBase::Release(void)
 {
     AssertThis(fobjAssertFull);
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PUNDB pundb;
 
     if (--_cactRef > 0)
         return;
 
-    Assert(Cddg() == 0, "why are there still DDG's open on this DOCB?");
-    Assert(!_fFreeing, "we're recursing into the DOCB::Release!");
+    Assert(Cddg() == 0, "why are there still DDG's open on this DocumentBase?");
+    Assert(!_fFreeing, "we're recursing into the DocumentBase::Release!");
     _fFreeing = fTrue;
 
     if (pvNil != _pglpundb)
@@ -104,7 +104,7 @@ void DOCB::Release(void)
         if (pdocb == _pdocbChd)
         {
             // REVIEW shonk: Release: is this the right thing to do?  What if
-            // someone else has a reference count to this child DOCB?
+            // someone else has a reference count to this child DocumentBase?
             Bug("why wasn't this child doc released?");
             ReleasePpo(&pdocb);
         }
@@ -114,9 +114,9 @@ void DOCB::Release(void)
 }
 
 /***************************************************************************
-    Close all DDGs on this DOCB.
+    Close all DDGs on this DocumentBase.
 ***************************************************************************/
-void DOCB::CloseAllDdg(void)
+void DocumentBase::CloseAllDdg(void)
 {
     PDDG pddg;
     PDMD pdmd;
@@ -144,10 +144,10 @@ void DOCB::CloseAllDdg(void)
 /***************************************************************************
     Destructor for the document class.
 ***************************************************************************/
-DOCB::~DOCB(void)
+DocumentBase::~DocumentBase(void)
 {
     AssertThis(fobjAssertFull);
-    PDOCB *ppdocb;
+    PDocumentBase *ppdocb;
 
     Assert(_fFreeing, "Release not called first!");
     Assert(pvNil == _pdocbChd, "docb still has children");
@@ -179,9 +179,9 @@ DOCB::~DOCB(void)
 /***************************************************************************
     Static method: calls FQueryClose on all open docs.
 ***************************************************************************/
-bool DOCB::FQueryCloseAll(ulong grfdoc)
+bool DocumentBase::FQueryCloseAll(ulong grfdoc)
 {
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     for (pdocb = _pdocbFirst; pvNil != pdocb; pdocb = pdocb->_pdocbSib)
     {
@@ -198,11 +198,11 @@ bool DOCB::FQueryCloseAll(ulong grfdoc)
     (assume yes) if fdocAssumeYes is set.  Doesn't assume doc is fni
     based (calls FSave() to perform the save).
 ***************************************************************************/
-bool DOCB::FQueryClose(ulong grfdoc)
+bool DocumentBase::FQueryClose(ulong grfdoc)
 {
     tribool tRet;
     DTE dte;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     ulong grfdte;
     bool fForce = FPure(grfdoc & fdocForceClose);
 
@@ -232,7 +232,7 @@ bool DOCB::FQueryClose(ulong grfdoc)
 /***************************************************************************
     Ask the user if they want to save the document before closing it.
 ***************************************************************************/
-tribool DOCB::_TQuerySave(bool fForce)
+tribool DocumentBase::_TQuerySave(bool fForce)
 {
     AssertThis(0);
 
@@ -244,7 +244,7 @@ tribool DOCB::_TQuerySave(bool fForce)
     ask the user if they want to save changes (and save if they do).
     Return false if the user cancels the operation or the save fails.
 ***************************************************************************/
-bool DOCB::FQueryCloseDmd(PDMD pdmd)
+bool DocumentBase::FQueryCloseDmd(PDMD pdmd)
 {
     PDDG pddg;
     PDMD pdmdT;
@@ -274,7 +274,7 @@ bool DOCB::FQueryCloseDmd(PDMD pdmd)
 /***************************************************************************
     Return whether this is an internal document.
 ***************************************************************************/
-bool DOCB::FInternal(void)
+bool DocumentBase::FInternal(void)
 {
     AssertThis(0);
     return _fInternal || vpclip->FDocIsClip(this);
@@ -283,7 +283,7 @@ bool DOCB::FInternal(void)
 /***************************************************************************
     Change this document's internal status.
 ***************************************************************************/
-void DOCB::SetInternal(bool fInternal)
+void DocumentBase::SetInternal(bool fInternal)
 {
     AssertThis(0);
     _fInternal = FPure(fInternal);
@@ -292,10 +292,10 @@ void DOCB::SetInternal(bool fInternal)
 /***************************************************************************
     Static method to return the DOC open on this fni (if there is one).
 ***************************************************************************/
-PDOCB DOCB::PdocbFromFni(Filename *pfni)
+PDocumentBase DocumentBase::PdocbFromFni(Filename *pfni)
 {
     AssertPo(pfni, 0);
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     Filename fni;
 
     for (pdocb = _pdocbFirst; pvNil != pdocb; pdocb = pdocb->_pdocbSib)
@@ -312,7 +312,7 @@ PDOCB DOCB::PdocbFromFni(Filename *pfni)
     Get the current Filename for the doc.  Return false if the doc is not
     currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool DOCB::FGetFni(Filename *pfni)
+bool DocumentBase::FGetFni(Filename *pfni)
 {
     return fFalse;
 }
@@ -320,7 +320,7 @@ bool DOCB::FGetFni(Filename *pfni)
 /***************************************************************************
     High level save.
 ***************************************************************************/
-bool DOCB::FSave(long cid)
+bool DocumentBase::FSave(long cid)
 {
     Filename fni;
 
@@ -358,7 +358,7 @@ bool DOCB::FSave(long cid)
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool DOCB::FSaveToFni(Filename *pfni, bool fSetFni)
+bool DocumentBase::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     return fFalse;
 }
@@ -367,7 +367,7 @@ bool DOCB::FSaveToFni(Filename *pfni, bool fSetFni)
     Ask the user what file they want to save to.  On Mac, assumes saving
     to a text file.
 ***************************************************************************/
-bool DOCB::FGetFniSave(Filename *pfni)
+bool DocumentBase::FGetFniSave(Filename *pfni)
 {
     return FGetFniSaveMacro(pfni, 'TEXT',
                             "\x9"
@@ -378,7 +378,7 @@ bool DOCB::FGetFniSave(Filename *pfni)
 /***************************************************************************
     Add the DDG to the list of DDGs displaying this document
 ***************************************************************************/
-bool DOCB::FAddDdg(PDDG pddg)
+bool DocumentBase::FAddDdg(PDDG pddg)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pddg, 0);
@@ -394,9 +394,9 @@ bool DOCB::FAddDdg(PDDG pddg)
 }
 
 /***************************************************************************
-    Find the position of the pddg in the DOCB's list.
+    Find the position of the pddg in the DocumentBase's list.
 ***************************************************************************/
-bool DOCB::_FFindDdg(PDDG pddg, long *pipddg)
+bool DocumentBase::_FFindDdg(PDDG pddg, long *pipddg)
 {
     AssertThis(0);
     AssertVarMem(pipddg);
@@ -425,7 +425,7 @@ LFail:
 /***************************************************************************
     Remove the pddg from the list of DDGs for this doc.
 ***************************************************************************/
-void DOCB::RemoveDdg(PDDG pddg)
+void DocumentBase::RemoveDdg(PDDG pddg)
 {
     AssertThis(fobjAssertFull);
     long ipddg;
@@ -436,9 +436,9 @@ void DOCB::RemoveDdg(PDDG pddg)
 }
 
 /***************************************************************************
-    Make this DDG the first one in the DOCB's list.
+    Make this DDG the first one in the DocumentBase's list.
 ***************************************************************************/
-void DOCB::MakeFirstDdg(PDDG pddg)
+void DocumentBase::MakeFirstDdg(PDDG pddg)
 {
     long ipddg;
 
@@ -456,7 +456,7 @@ void DOCB::MakeFirstDdg(PDDG pddg)
     Return the iddg'th DDG displaying this doc.  If iddg is too big,
     return pvNil.
 ***************************************************************************/
-PDDG DOCB::PddgGet(long iddg)
+PDDG DocumentBase::PddgGet(long iddg)
 {
     AssertThis(0);
     AssertIn(iddg, 0, klwMax);
@@ -472,7 +472,7 @@ PDDG DOCB::PddgGet(long iddg)
 /***************************************************************************
     If there is an active DDG for this doc, return it.
 ***************************************************************************/
-PDDG DOCB::PddgActive(void)
+PDDG DocumentBase::PddgActive(void)
 {
     AssertThis(0);
     PDDG pddg;
@@ -486,16 +486,16 @@ PDDG DOCB::PddgActive(void)
 /***************************************************************************
     Create a new mdi window for this document.
 ***************************************************************************/
-PDMD DOCB::PdmdNew(void)
+PDMD DocumentBase::PdmdNew(void)
 {
     AssertThis(fobjAssertFull);
     return DMD::PdmdNew(this);
 }
 
 /***************************************************************************
-    If this DOCB has a DMD, make it the activate hwnd.
+    If this DocumentBase has a DMD, make it the activate hwnd.
 ***************************************************************************/
-void DOCB::ActivateDmd(void)
+void DocumentBase::ActivateDmd(void)
 {
     AssertThis(fobjAssertFull);
     long ipddg;
@@ -516,7 +516,7 @@ void DOCB::ActivateDmd(void)
 /***************************************************************************
     Create a DMW for the document.
 ***************************************************************************/
-PDMW DOCB::PdmwNew(PGCB pgcb)
+PDMW DocumentBase::PdmwNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
     return DMW::PdmwNew(this, pgcb);
@@ -525,7 +525,7 @@ PDMW DOCB::PdmwNew(PGCB pgcb)
 /***************************************************************************
     Create a new DSG for the doc in the given DMW.
 ***************************************************************************/
-PDSG DOCB::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDSG DocumentBase::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     return DSG::PdsgNew(pdmw, pdsgSplit, grfdsg, rel);
@@ -534,7 +534,7 @@ PDSG DOCB::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
 /***************************************************************************
     Create a new DDG for the doc in the given DSG.
 ***************************************************************************/
-PDDG DOCB::PddgNew(PGCB pgcb)
+PDDG DocumentBase::PddgNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
     return DDG::PddgNew(this, pgcb);
@@ -543,7 +543,7 @@ PDDG DOCB::PddgNew(PGCB pgcb)
 /***************************************************************************
     Get the name of a default (untitled) document.
 ***************************************************************************/
-void DOCB::GetName(PSTN pstn)
+void DocumentBase::GetName(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -565,14 +565,14 @@ void DOCB::GetName(PSTN pstn)
 /***************************************************************************
     Makes sure all windows displaying this document have the correct title.
 ***************************************************************************/
-void DOCB::UpdateName(void)
+void DocumentBase::UpdateName(void)
 {
     DTE dte;
     ulong grfdte;
     STN stn;
     long ipddg;
     PDDG pddg;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PDMD pdmd;
 
     dte.Init(this);
@@ -592,7 +592,7 @@ void DOCB::UpdateName(void)
 /***************************************************************************
     Does a single Undo off the undo list.
 ***************************************************************************/
-bool DOCB::FUndo()
+bool DocumentBase::FUndo()
 {
     AssertThis(fobjAssertFull);
     PUNDB pundb;
@@ -610,7 +610,7 @@ bool DOCB::FUndo()
 /***************************************************************************
     Redoes a single undo off the undo list.
 ***************************************************************************/
-bool DOCB::FRedo()
+bool DocumentBase::FRedo()
 {
     AssertThis(fobjAssertFull);
     PUNDB pundb;
@@ -630,7 +630,7 @@ bool DOCB::FRedo()
     the ref count on the pundb if we keep a reference to it.  Assumes
     the action has already been done.
 ***************************************************************************/
-bool DOCB::FAddUndo(PUNDB pundb)
+bool DocumentBase::FAddUndo(PUNDB pundb)
 {
     AssertThis(fobjAssertFull);
     PUNDB pundbT;
@@ -669,7 +669,7 @@ bool DOCB::FAddUndo(PUNDB pundb)
 /***************************************************************************
     Delete all undo and redo records.
 ***************************************************************************/
-void DOCB::ClearUndo(void)
+void DocumentBase::ClearUndo(void)
 {
     PUNDB pundb;
 
@@ -684,7 +684,7 @@ void DOCB::ClearUndo(void)
 /***************************************************************************
     Delete all redo records.
 ***************************************************************************/
-void DOCB::ClearRedo(void)
+void DocumentBase::ClearRedo(void)
 {
     PUNDB pundb;
 
@@ -701,7 +701,7 @@ void DOCB::ClearRedo(void)
 /***************************************************************************
     Set the maximum allowable number of undoable operations.
 ***************************************************************************/
-void DOCB::SetCundbMax(long cundbMax)
+void DocumentBase::SetCundbMax(long cundbMax)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cundbMax, 0, kcbMax);
@@ -733,7 +733,7 @@ void DOCB::SetCundbMax(long cundbMax)
 /***************************************************************************
     Return the maximum number of undoable operations for this doc
 ***************************************************************************/
-long DOCB::CundbMax(void)
+long DocumentBase::CundbMax(void)
 {
     AssertThis(0);
     return _cundbMax;
@@ -742,7 +742,7 @@ long DOCB::CundbMax(void)
 /***************************************************************************
     Return the number of operations that can currently be undone.
 ***************************************************************************/
-long DOCB::CundbUndo(void)
+long DocumentBase::CundbUndo(void)
 {
     AssertThis(0);
     return _ipundbLimDone;
@@ -751,7 +751,7 @@ long DOCB::CundbUndo(void)
 /***************************************************************************
     Return the number of operations that can currently be redone.
 ***************************************************************************/
-long DOCB::CundbRedo(void)
+long DocumentBase::CundbRedo(void)
 {
     if (pvNil == _pglpundb)
         return 0;
@@ -761,7 +761,7 @@ long DOCB::CundbRedo(void)
 /***************************************************************************
     Export this docb as the external clipboard.
 ***************************************************************************/
-void DOCB::ExportFormats(PCLIP pclip)
+void DocumentBase::ExportFormats(PCLIP pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
@@ -770,7 +770,7 @@ void DOCB::ExportFormats(PCLIP pclip)
 /***************************************************************************
     See if this document can be coerced to the given format.
 ***************************************************************************/
-bool DOCB::FGetFormat(long cls, PDOCB *ppdocb)
+bool DocumentBase::FGetFormat(long cls, PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -782,16 +782,16 @@ bool DOCB::FGetFormat(long cls, PDOCB *ppdocb)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert validity of a DOCB
+    Assert validity of a DocumentBase
 ***************************************************************************/
-void DOCB::AssertValid(ulong grfdocb)
+void DocumentBase::AssertValid(ulong grfdocb)
 {
     long ipddg;
     PDDG pddg;
     long ipundb;
     PUNDB pundb;
 
-    DOCB_PAR::AssertValid(grfdocb & fobjAssertFull);
+    DocumentBase_PAR::AssertValid(grfdocb & fobjAssertFull);
     AssertNilOrPo(_pglpddg, 0);
 
     if (!(grfdocb & fobjAssertFull))
@@ -824,15 +824,15 @@ void DOCB::AssertValid(ulong grfdocb)
 }
 
 /***************************************************************************
-    Mark the memory used by the DOCB
+    Mark the memory used by the DocumentBase
 ***************************************************************************/
-void DOCB::MarkMem(void)
+void DocumentBase::MarkMem(void)
 {
     long ipundb;
     PUNDB pundb;
 
     AssertThis(fobjAssertFull);
-    DOCB_PAR::MarkMem();
+    DocumentBase_PAR::MarkMem();
     MarkMemObj(_pglpddg);
     if (pvNil != _pglpundb)
     {
@@ -858,7 +858,7 @@ DTE::DTE(void)
 /***************************************************************************
     Initialize a document tree enumerator.
 ***************************************************************************/
-void DTE::Init(PDOCB pdocb)
+void DTE::Init(PDocumentBase pdocb)
 {
     _pdocbRoot = pdocb;
     _pdocbCur = pvNil;
@@ -869,9 +869,9 @@ void DTE::Init(PDOCB pdocb)
     Goes to the next node in the sub tree being enumerated.  Returns false
     iff the enumeration is done.
 ***************************************************************************/
-bool DTE::FNextDoc(PDOCB *ppdocb, ulong *pgrfdteOut, ulong grfdte)
+bool DTE::FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdte)
 {
-    PDOCB pdocbT;
+    PDocumentBase pdocbT;
 
     *pgrfdteOut = fdteNil;
     switch (_es)
@@ -939,7 +939,7 @@ bool DTE::FNextDoc(PDOCB *ppdocb, ulong *pgrfdteOut, ulong grfdte)
 /***************************************************************************
     Static method to create a new DDG.
 ***************************************************************************/
-PDDG DDG::PddgNew(PDOCB pdocb, PGCB pgcb)
+PDDG DDG::PddgNew(PDocumentBase pdocb, PGCB pgcb)
 {
     PDDG pddg;
 
@@ -958,9 +958,9 @@ PDDG DDG::PddgNew(PDOCB pdocb, PGCB pgcb)
 }
 
 /***************************************************************************
-    Constructor for a DDG.  AddRef's the DOCB.
+    Constructor for a DDG.  AddRef's the DocumentBase.
 ***************************************************************************/
-DDG::DDG(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DDG::DDG(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertBasePo(pdocb, 0);
     pdocb->AddRef();
@@ -970,8 +970,8 @@ DDG::DDG(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 }
 
 /***************************************************************************
-    Destructor for DDG - remove itself from the DOCB's list.  Releases
-    the DOCB.
+    Destructor for DDG - remove itself from the DocumentBase's list.  Releases
+    the DocumentBase.
 ***************************************************************************/
 DDG::~DDG(void)
 {
@@ -1112,7 +1112,7 @@ bool DDG::FCmdClip(PCMD pcmd)
 {
     AssertThis(fobjAssertFull);
     AssertVarMem(pcmd);
-    PDOCB pdocb = pvNil;
+    PDocumentBase pdocb = pvNil;
 
     switch (pcmd->cid)
     {
@@ -1147,7 +1147,7 @@ bool DDG::FCmdClip(PCMD pcmd)
     Default for copying a selection.  Just returns false so the Cut, Copy
     and Clear edit menu items are disabled.
 ***************************************************************************/
-bool DDG::_FCopySel(PDOCB *ppdocb)
+bool DDG::_FCopySel(PDocumentBase *ppdocb)
 {
     return fFalse;
 }
@@ -1328,7 +1328,7 @@ void DDG::MarkMem(void)
     Static method: create a new Document MDI window.  Put a size box in
     it and add a DMW.
 ***************************************************************************/
-PDMD DMD::PdmdNew(PDOCB pdocb)
+PDMD DMD::PdmdNew(PDocumentBase pdocb)
 {
     AssertPo(pdocb, 0);
     PDMD pdmd;
@@ -1379,7 +1379,7 @@ PDMD DMD::PdmdTop(void)
 /***************************************************************************
     Constructor for document mdi window.
 ***************************************************************************/
-DMD::DMD(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DMD::DMD(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1441,7 +1441,7 @@ bool DMD::FCmdCloseWnd(PCMD pcmd)
     Static method to create a new DMW (document window) based on the given
     document.
 ***************************************************************************/
-PDMW DMW::PdmwNew(PDOCB pdocb, PGCB pgcb)
+PDMW DMW::PdmwNew(PDocumentBase pdocb, PGCB pgcb)
 {
     PDMW pdmw;
 
@@ -1459,7 +1459,7 @@ PDMW DMW::PdmwNew(PDOCB pdocb, PGCB pgcb)
 /***************************************************************************
     Constructor for document window class
 ***************************************************************************/
-DMW::DMW(PDOCB pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DMW::DMW(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -2133,7 +2133,7 @@ bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
 {
     Assert(pvNil != pdsgSplit || Pdmw()->Cdsg() == 0, "must split an existing DSG");
     PDMW pdmw;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     _fCreating = fTrue;
 
@@ -2202,7 +2202,7 @@ void DSG::Split(ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     PDMW pdmw;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     Assert(_dsno != dsnoNil, "why are we splitting an unattached DSG?");
     pdmw = Pdmw();

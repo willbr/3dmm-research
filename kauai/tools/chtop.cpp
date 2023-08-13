@@ -95,7 +95,7 @@ PHEDO HEDO::PhedoNew(Filename *pfni, PRCA prca)
         AssertPo(pfni, ffniFile);
 
         // make sure no other docs are based on this pcfl.
-        if (pvNil != DOCB::PdocbFromFni(pfni))
+        if (pvNil != DocumentBase::PdocbFromFni(pfni))
             return pvNil;
         pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     }
@@ -320,7 +320,7 @@ PHETD HEDO::PhetdOpenNext(PHETD phetd)
     Assert(pvNil == phetd || phetd->PdocbPar() == this, "bad topic doc");
     long icki;
     ChunkIdentification cki;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     if (pvNil == phetd)
     {
@@ -383,7 +383,7 @@ PHETD HEDO::PhetdOpenPrev(PHETD phetd)
     Assert(pvNil == phetd || phetd->PdocbPar() == this, "bad topic doc");
     long icki;
     ChunkIdentification cki;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PHETD phetdNew;
 
     if (pvNil == phetd || (cki.cno = phetd->Cno()) == cnoNil)
@@ -948,7 +948,7 @@ void HEDG::_EditTopic(ChunkNumber cno)
 /***************************************************************************
     Copy the selection to a new document.
 ***************************************************************************/
-bool HEDG::_FCopySel(PDOCB *ppdocb)
+bool HEDG::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -1008,7 +1008,7 @@ bool HEDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsHEDO, (PDOCB *)&phedo))
+    if (!pclip->FGetFormat(kclsHEDO, (PDocumentBase *)&phedo))
         return fFalse;
 
     if (pvNil == (pcfl = phedo->Pcfl()) || pcfl->CckiCtg(kctgHelpTopic) <= 0)
@@ -1174,7 +1174,7 @@ bool HEDG::FCmdPrint(PCMD pcmd)
     const long kdzpBox = 2;
     long icki;
     ChunkIdentification cki;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PRINTDLG pd;
     DOCINFO di;
     STN stn, stnT;
@@ -1527,7 +1527,7 @@ bool HEDG::FCmdDump(PCMD pcmd)
     achar rgchEop[] = {kchReturn, kchLineFeed};
     long icki;
     ChunkIdentification cki;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     Filename fni;
     PFIL pfil;
     long cpMac;
@@ -1626,12 +1626,12 @@ void HEDG::AssertValid(ulong grf)
 #endif // DEBUG
 
 /***************************************************************************
-    Static method:  For all HETD children of the DOCB, checks if the chunk
+    Static method:  For all HETD children of the DocumentBase, checks if the chunk
     still exists and nukes the HETD if not.
 ***************************************************************************/
-void HETD::CloseDeletedHetd(PDOCB pdocb)
+void HETD::CloseDeletedHetd(PDocumentBase pdocb)
 {
-    PDOCB pdocbNext;
+    PDocumentBase pdocbNext;
     PHETD phetd;
 
     for (pdocb = pdocb->PdocbChd(); pvNil != pdocb; pdocb = pdocbNext)
@@ -1656,7 +1656,7 @@ void HETD::CloseDeletedHetd(PDOCB pdocb)
 /***************************************************************************
     Static method to look for a HETD for the given chunk.
 ***************************************************************************/
-PHETD HETD::PhetdFromChunk(PDOCB pdocb, ChunkNumber cno)
+PHETD HETD::PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno)
 {
     AssertPo(pdocb, 0);
     Assert(cnoNil != cno, 0);
@@ -1677,7 +1677,7 @@ PHETD HETD::PhetdFromChunk(PDOCB pdocb, ChunkNumber cno)
 /***************************************************************************
     Constructor for a help topic document.
 ***************************************************************************/
-HETD::HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno) : TXHD(prca, pdocb)
+HETD::HETD(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno) : TXHD(prca, pdocb)
 {
     AssertNilOrPo(pcfl, 0);
     _pcfl = pcfl;
@@ -1697,7 +1697,7 @@ HETD::~HETD(void)
     (pcfl, cno) and using the given prca as the source for pictures
     and buttons.
 ***************************************************************************/
-PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno)
+PHETD HETD::PhetdNew(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno)
 {
     AssertNilOrPo(pdocb, 0);
     AssertPo(prca, 0);
@@ -2475,7 +2475,7 @@ bool HETG::FCmdInsertEdit(PCMD pcmd)
 /***************************************************************************
     Copy the selection.
 ***************************************************************************/
-bool HETG::_FCopySel(PDOCB *ppdocb)
+bool HETG::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
     PHETD phetd;

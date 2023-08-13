@@ -87,7 +87,7 @@ const achar kchObject = 1;
 ***************************************************************************/
 const long kcchMaxTxtbCache = 512;
 typedef class TXTB *PTXTB;
-#define TXTB_PAR DOCB
+#define TXTB_PAR DocumentBase
 #define kclsTXTB 'TXTB'
 class TXTB : public TXTB_PAR
 {
@@ -107,7 +107,7 @@ class TXTB : public TXTB_PAR
     long _cactSuspendUndo; // > 0 means don't set up undo records.
     long _cactCombineUndo; // determines whether we can combine undo records.
 
-    TXTB(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    TXTB(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXTB(void);
     virtual bool _FInit(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur);
     virtual bool _FLoad(short osk = koskCur);
@@ -182,10 +182,10 @@ class TXPD : public TXPD_PAR
     RTCLASS_DEC
 
   protected:
-    TXPD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    TXPD(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
   public:
-    static PTXPD PtxpdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDOCB pdocb = pvNil,
+    static PTXPD PtxpdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                           ulong grfdoc = fdocNil);
 
     virtual PDDG PddgNew(PGCB pgcb);
@@ -294,7 +294,7 @@ class TXRD : public TXRD_PAR
     // current undo record
     PRTUN _prtun;
 
-    TXRD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    TXRD(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXRD(void);
     bool _FInit(PFilename pfni = pvNil, ChunkTag ctg = kctgRichText);
     virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
@@ -405,8 +405,8 @@ class RTUN : public RTUN_PAR
     static PRTUN PrtunNew(long cactCombine, PTXRD ptxrd, long cp1, long cp2, long ccpIns);
     ~RTUN(void);
 
-    virtual bool FUndo(PDOCB pdocb);
-    virtual bool FDo(PDOCB pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
 
     bool FCombine(PRTUN prtun);
 };
@@ -551,7 +551,7 @@ class TXLG : public TXLG_PAR
     virtual void _FetchPap(long cp, PPAP ppap, long *pcpMin = pvNil, long *pcpLim = pvNil);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
@@ -587,7 +587,7 @@ class TXRG : public TXRG_PAR
     virtual bool _FGetOtherSubSuper(long *pdypOffset);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 

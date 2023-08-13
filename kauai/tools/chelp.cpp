@@ -305,11 +305,11 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
     AssertThis(0);
     AssertNilOrPo(pfni, 0);
     bool fRet;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PHEDO phedo;
     PTXRD ptxrd;
 
-    if (pvNil != pfni && pvNil != (pdocb = DOCB::PdocbFromFni(pfni)))
+    if (pvNil != pfni && pvNil != (pdocb = DocumentBase::PdocbFromFni(pfni)))
     {
         pdocb->ActivateDmd();
         return fTrue;

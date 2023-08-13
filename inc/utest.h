@@ -221,7 +221,7 @@ class APP : public APP_PAR
     virtual void GetStnAppName(PSTN pstn);
     virtual long OnnDefVariable(void);
     virtual long DypTextDef(void);
-    virtual tribool TQuerySaveDoc(PDOCB pdocb, bool fForce);
+    virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);
     virtual void Quit(bool fForce);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
     virtual void Run(ulong grfapp, ulong grfgob, long ginDef);

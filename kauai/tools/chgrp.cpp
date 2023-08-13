@@ -34,7 +34,7 @@ RTCLASS(DCST)
     the edited chunk belongs to.  cls should be one of GL, AL, GG, AG,
     GST, AST.
 ***************************************************************************/
-DOCG::DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
+DOCG::DOCG(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pgrpb = pvNil;
     _cls = cls;
@@ -52,7 +52,7 @@ DOCG::~DOCG(void)
     Static method to create a new document based on a group in a chunk.
     Asserts that there are no other editing docs open on this chunk.
 ***************************************************************************/
-PDOCG DOCG::PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls)
+PDOCG DOCG::PdocgNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);
@@ -316,7 +316,7 @@ void DOCG::MarkMem(void)
 /***************************************************************************
     Constructor for a DCGB.
 ***************************************************************************/
-DCGB::DCGB(PDOCB pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(pdocb, pgcb)
 {
     AssertIn(clnItem, 1, 10);
     _dypBorder = 1;
@@ -349,7 +349,7 @@ DCGB::DCGB(PDOCB pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(p
     Static method to invalidate all DCGB's on this GRPB.  Also dirties the
     document.  Should be called by any code that edits the document.
 ***************************************************************************/
-void DCGB::InvalAllDcgb(PDOCB pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel)
+void DCGB::InvalAllDcgb(PDocumentBase pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel)
 {
     long ipddg;
     PDDG pddg;
@@ -764,14 +764,14 @@ void DCGB::MarkMem(void)
     Constructor for the DCGL class.  This class displays (and allows
     editing of) a GL or AL.
 ***************************************************************************/
-DCGL::DCGL(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
+DCGL::DCGL(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCGL for the GL or AL.
 ***************************************************************************/
-PDCGL DCGL::PdcglNew(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb)
+PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb)
 {
     AssertVar(cls == kclsGL || cls == kclsAL, "bad cls", &cls);
     PDCGL pdcgl;
@@ -921,14 +921,14 @@ bool DCGL::FCmdAddItem(PCMD pcmd)
     Constructor for the DCGG class.  This class displays (and allows
     editing of) a GG or AG.
 ***************************************************************************/
-DCGG::DCGG(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
+DCGG::DCGG(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCGG for the GG or AG.
 ***************************************************************************/
-PDCGG DCGG::PdcggNew(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb)
+PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb)
 {
     AssertVar(cls == kclsGG || cls == kclsAG, "bad cls", &cls);
     PDCGG pdcgg;
@@ -1105,14 +1105,14 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
     Constructor for the DCST class.  This class displays (and allows
     editing of) a GST or AST.
 ***************************************************************************/
-DCST::DCST(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
+DCST::DCST(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCST for the GST or AST.
 ***************************************************************************/
-PDCST DCST::PdcstNew(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb)
+PDCST DCST::PdcstNew(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb)
 {
     AssertVar(cls == kclsGST || cls == kclsAST, "bad cls", &cls);
     PDCST pdcst;
@@ -1295,7 +1295,7 @@ bool DCST::FCmdAddItem(PCMD pcmd)
     Constructor for DOCI.  DOCI holds an item in a GRPB contained in a
     chunky file.  Doesn't free the GRPB when the doc goes away.
 ***************************************************************************/
-DOCI::DOCI(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln) : DOCB(pdocb)
+DOCI::DOCI(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln) : DocumentBase(pdocb)
 {
     AssertPo(pgrpb, 0);
     AssertVar(pgrpb->FIs(cls), "wrong cls value", &cls);
@@ -1309,7 +1309,7 @@ DOCI::DOCI(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln) : DOCB(pdocb)
 /***************************************************************************
     Static member to create a new DOCI.
 ***************************************************************************/
-PDOCI DOCI::PdociNew(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln)
+PDOCI DOCI::PdociNew(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln)
 {
     AssertPo(pgrpb, 0);
     AssertPo(pdocb, 0);
@@ -1373,7 +1373,7 @@ void DOCI::GetName(PSTN pstn)
 }
 
 /***************************************************************************
-    Handle saving.  This is a virtual member of DOCB.
+    Handle saving.  This is a virtual member of DocumentBase.
 ***************************************************************************/
 bool DOCI::FSave(long cid)
 {

@@ -79,7 +79,7 @@ void TXTB::MarkMem(void)
 /***************************************************************************
     Constructor for the base text document class
 ***************************************************************************/
-TXTB::TXTB(PDOCB pdocb, ulong grfdoc) : TXTB_PAR(pdocb, grfdoc)
+TXTB::TXTB(PDocumentBase pdocb, ulong grfdoc) : TXTB_PAR(pdocb, grfdoc)
 {
     _acrBack = kacrWhite;
     _dxpDef = kdxpDocDef;
@@ -887,14 +887,14 @@ void TXTB::ExportFormats(PCLIP pclip)
 /***************************************************************************
     Constructor for plain text doc.
 ***************************************************************************/
-TXPD::TXPD(PDOCB pdocb, ulong grfdoc) : TXPD_PAR(pdocb, grfdoc)
+TXPD::TXPD(PDocumentBase pdocb, ulong grfdoc) : TXPD_PAR(pdocb, grfdoc)
 {
 }
 
 /***************************************************************************
     Static method to create a new plain text document.
 ***************************************************************************/
-PTXPD TXPD::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDOCB pdocb, ulong grfdoc)
+PTXPD TXPD::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -992,7 +992,7 @@ bool TXPD::FSaveToFni(Filename *pfni, bool fSetFni)
 /***************************************************************************
     Constructor for a rich text document.
 ***************************************************************************/
-TXRD::TXRD(PDOCB pdocb, ulong grfdoc) : TXRD_PAR(pdocb, grfdoc)
+TXRD::TXRD(PDocumentBase pdocb, ulong grfdoc) : TXRD_PAR(pdocb, grfdoc)
 {
 }
 
@@ -3237,7 +3237,7 @@ RTUN::~RTUN(void)
 /***************************************************************************
     Undo this rich text undo object on the given document.
 ***************************************************************************/
-bool RTUN::FUndo(PDOCB pdocb)
+bool RTUN::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3301,7 +3301,7 @@ bool RTUN::FUndo(PDOCB pdocb)
 /***************************************************************************
     Redo this rich text undo object on the given document.
 ***************************************************************************/
-bool RTUN::FDo(PDOCB pdocb)
+bool RTUN::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return FUndo(pdocb);

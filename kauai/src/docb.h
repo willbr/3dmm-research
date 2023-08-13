@@ -34,8 +34,8 @@ class UNDB : public UNDB_PAR
 
   public:
     // General undo funtionality
-    virtual bool FUndo(PDOCB pdocb) = 0;
-    virtual bool FDo(PDOCB pdocb) = 0;
+    virtual bool FUndo(PDocumentBase pdocb) = 0;
+    virtual bool FDo(PDocumentBase pdocb) = 0;
 };
 
 /***************************************************************************
@@ -52,9 +52,9 @@ enum
     fdocInval = 16, // invalidate associated DDGs
 };
 
-#define DOCB_PAR CMH
-#define kclsDOCB 'DOCB'
-class DOCB : public DOCB_PAR
+#define DocumentBase_PAR CMH
+#define kclsDocumentBase 'DOCB'
+class DocumentBase : public DocumentBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -64,11 +64,11 @@ class DOCB : public DOCB_PAR
 
   protected:
     static long _cactLast;
-    static PDOCB _pdocbFirst;
+    static PDocumentBase _pdocbFirst;
 
-    PDOCB _pdocbPar;
-    PDOCB _pdocbSib;
-    PDOCB _pdocbChd;
+    PDocumentBase _pdocbPar;
+    PDocumentBase _pdocbSib;
+    PDocumentBase _pdocbChd;
 
     long _cactUntitled; // 0 if titled
     bool _fDirty : 1;
@@ -83,26 +83,26 @@ class DOCB : public DOCB_PAR
     bool _FFindDdg(PDDG pddg, long *pipddg);
     virtual tribool _TQuerySave(bool fForce);
 
-    DOCB(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~DOCB(void);
+    DocumentBase(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~DocumentBase(void);
 
   public:
     static bool FQueryCloseAll(ulong grfdoc);
-    static PDOCB PdocbFromFni(Filename *pfni);
+    static PDocumentBase PdocbFromFni(Filename *pfni);
 
-    static PDOCB PdocbFirst(void)
+    static PDocumentBase PdocbFirst(void)
     {
         return _pdocbFirst;
     }
-    PDOCB PdocbPar(void)
+    PDocumentBase PdocbPar(void)
     {
         return _pdocbPar;
     }
-    PDOCB PdocbSib(void)
+    PDocumentBase PdocbSib(void)
     {
         return _pdocbSib;
     }
-    PDOCB PdocbChd(void)
+    PDocumentBase PdocbChd(void)
     {
         return _pdocbChd;
     }
@@ -166,7 +166,7 @@ class DOCB : public DOCB_PAR
     void SetInternal(bool fInternal = fTrue);
 
     virtual void ExportFormats(PCLIP pclip);
-    virtual bool FGetFormat(long cls, PDOCB *ppdocb = pvNil);
+    virtual bool FGetFormat(long cls, PDocumentBase *ppdocb = pvNil);
 };
 
 /***************************************************************************
@@ -202,13 +202,13 @@ class DTE : public DTE_PAR
     };
 
     long _es;
-    PDOCB _pdocbRoot;
-    PDOCB _pdocbCur;
+    PDocumentBase _pdocbRoot;
+    PDocumentBase _pdocbCur;
 
   public:
     DTE(void);
-    void Init(PDOCB pdocb);
-    bool FNextDoc(PDOCB *ppdocb, ulong *pgrfdteOut, ulong grfdteIn = fdteNil);
+    void Init(PDocumentBase pdocb);
+    bool FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdteIn = fdteNil);
 };
 
 /***************************************************************************
@@ -225,12 +225,12 @@ class DDG : public DDG_PAR
     MARKMEM
 
   protected:
-    PDOCB _pdocb;
+    PDocumentBase _pdocb;
     bool _fActive;
     long _scvVert; // scroll values
     long _scvHorz;
 
-    DDG(PDOCB pdocb, PGCB pgcb);
+    DDG(PDocumentBase pdocb, PGCB pgcb);
     ~DDG(void);
 
     virtual bool _FInit(void);
@@ -244,14 +244,14 @@ class DDG : public DDG_PAR
     virtual void _ScrollDxpDyp(long dxp, long dyp);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
   public:
-    static PDDG PddgNew(PDOCB pdocb, PGCB pgcb);
+    static PDDG PddgNew(PDocumentBase pdocb, PGCB pgcb);
 
-    PDOCB Pdocb(void)
+    PDocumentBase Pdocb(void)
     {
         return _pdocb;
     }
@@ -287,16 +287,16 @@ class DMD : public DMD_PAR
     RTCLASS_DEC
 
   protected:
-    PDOCB _pdocb;
+    PDocumentBase _pdocb;
 
-    DMD(PDOCB pdocb, PGCB pgcb);
+    DMD(PDocumentBase pdocb, PGCB pgcb);
     virtual void _ActivateHwnd(bool fActive);
 
   public:
-    static PDMD PdmdNew(PDOCB pdocb);
+    static PDMD PdmdNew(PDocumentBase pdocb);
     static PDMD PdmdTop(void);
 
-    PDOCB Pdocb(void)
+    PDocumentBase Pdocb(void)
     {
         return _pdocb;
     }
@@ -332,9 +332,9 @@ class DMW : public DMW_PAR
     };
     PAL _paldsed; // the tree of DSEDs
     long _idsedRoot;
-    PDOCB _pdocb;
+    PDocumentBase _pdocb;
 
-    DMW(PDOCB pdocb, PGCB pgcb);
+    DMW(PDocumentBase pdocb, PGCB pgcb);
 
     virtual bool _FInit(void);
     virtual void _NewRc(void);
@@ -350,9 +350,9 @@ class DMW : public DMW_PAR
     void _SplitRcRel(long idsed, RC *prcLeft, RC *prcRight);
 
   public:
-    static PDMW PdmwNew(PDOCB pdocb, PGCB pgcb);
+    static PDMW PdmwNew(PDocumentBase pdocb, PGCB pgcb);
 
-    PDOCB Pdocb(void)
+    PDocumentBase Pdocb(void)
     {
         return _pdocb;
     }

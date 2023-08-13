@@ -16,7 +16,7 @@ ASSERTNAME
     hex editor (DCH).  Used for the clipboard.
 ***************************************************************************/
 typedef class DHEX *PDHEX;
-#define DHEX_PAR DOCB
+#define DHEX_PAR DocumentBase
 #define kclsDHEX 'DHEX'
 class DHEX : public DHEX_PAR
 {
@@ -27,7 +27,7 @@ class DHEX : public DHEX_PAR
   protected:
     BSF _bsf;
 
-    DHEX(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil) : DHEX_PAR(pdocb, grfdoc)
+    DHEX(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil) : DHEX_PAR(pdocb, grfdoc)
     {
     }
 
@@ -92,7 +92,7 @@ void DHEX::MarkMem(void)
 /***************************************************************************
     Constructor for the DCH.
 ***************************************************************************/
-DCH::DCH(PDOCB pdocb, PBSF pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCH::DCH(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, pgcb)
 {
     _pbsf = pbsf;
     _cbLine = kcbMaxLineDch;
@@ -103,7 +103,7 @@ DCH::DCH(PDOCB pdocb, PBSF pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, pgcb)
 /***************************************************************************
     Static method to create a new DCH.
 ***************************************************************************/
-PDCH DCH::PdchNew(PDOCB pdocb, PBSF pbsf, bool fFixed, PGCB pgcb)
+PDCH DCH::PdchNew(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb)
 {
     PDCH pdch;
 
@@ -992,7 +992,7 @@ long DCH::_ScvMax(bool fVert)
 /***************************************************************************
     Copy the selection.
 ***************************************************************************/
-bool DCH::_FCopySel(PDOCB *ppdocb)
+bool DCH::_FCopySel(PDocumentBase *ppdocb)
 {
     PDHEX pdhex;
     long ib1, ib2;
@@ -1032,7 +1032,7 @@ bool DCH::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     AssertThis(0);
     AssertPo(pclip, 0);
     long ib1, ib2, cb;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PBSF pbsf;
 
     if (cidPaste != cid)
@@ -1114,7 +1114,7 @@ void DCH::MarkMem(void)
 /***************************************************************************
     Constructor for a chunk hex editing doc.
 ***************************************************************************/
-DOCH::DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCH::DOCH(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
 }
 
@@ -1122,7 +1122,7 @@ DOCH::DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, 
     Creates a new hex editing doc based on the given chunk.  Asserts that
     there are no open editing docs based on the chunk.
 ***************************************************************************/
-PDOCH DOCH::PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PDOCH DOCH::PdochNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);

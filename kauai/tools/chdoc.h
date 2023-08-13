@@ -45,7 +45,7 @@ bool FGetCtgFromStn(ChunkTag *pctg, PSTN pstn);
 /***************************************************************************
     chunky file doc
 ***************************************************************************/
-#define DOC_PAR DOCB
+#define DOC_PAR DocumentBase
 #define kclsDOC 'DOC'
 class DOC : public DOC_PAR
 {
@@ -76,7 +76,7 @@ class DOC : public DOC_PAR
     Chunky file. An instance of this class is a child doc of a DOC. Many
     document classes below are all derived from this.
 ***************************************************************************/
-#define DOCE_PAR DOCB
+#define DOCE_PAR DocumentBase
 #define kclsDOCE 'DOCE'
 class DOCE : public DOCE_PAR
 {
@@ -88,7 +88,7 @@ class DOCE : public DOCE_PAR
     ChunkTag _ctg;
     ChunkNumber _cno;
 
-    DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCE(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     bool _FInit(void);
 
     virtual bool _FSaveToChunk(ChunkTag ctg, ChunkNumber cno, bool fRedirect);
@@ -97,8 +97,8 @@ class DOCE : public DOCE_PAR
     virtual bool _FRead(PBLCK pblck) = 0;
 
   public:
-    static PDOCE PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    static void CloseDeletedDoce(PDOCB pdocb);
+    static PDOCE PdoceFromChunk(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static void CloseDeletedDoce(PDocumentBase pdocb);
 
     virtual void GetName(PSTN pstn);
     virtual bool FSave(long cid);
@@ -118,13 +118,13 @@ class DOCH : public DOCH_PAR
   protected:
     BSF _bsf; // the byte stream
 
-    DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCH(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCH PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCH PdochNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual PDDG PddgNew(PGCB pgcb);
 };
 
@@ -145,14 +145,14 @@ class DOCG : public DOCG_PAR
     short _bo;
     short _osk;
 
-    DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
+    DOCG(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     ~DOCG(void);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCG PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
+    static PDOCG PdocgNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     virtual PDDG PddgNew(PGCB pgcb);
 
     PDOCI PdociFromItem(long iv, long dln);
@@ -167,7 +167,7 @@ class DOCG : public DOCG_PAR
     Item hex editor document - for editing an item in a GRPB. An instance
     of this class is normally a child doc of a DOCG (but doesn't have to be).
 ***************************************************************************/
-#define DOCI_PAR DOCB
+#define DOCI_PAR DocumentBase
 #define kclsDOCI 'DOCI'
 class DOCI : public DOCI_PAR
 {
@@ -183,7 +183,7 @@ class DOCI : public DOCI_PAR
     bool _fFixed; // indicates if the data is fixed length
     BSF _bsf;     // the byte stream we're editing
 
-    DOCI(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln);
+    DOCI(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln);
     bool _FInit(void);
 
     virtual bool _FSaveToItem(long iv, bool fRedirect);
@@ -191,7 +191,7 @@ class DOCI : public DOCI_PAR
     virtual HQ _HqRead();
 
   public:
-    static PDOCI PdociNew(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln);
+    static PDOCI PdociNew(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln);
     virtual PDDG PddgNew(PGCB pgcb);
 
     long Iv(void)
@@ -221,7 +221,7 @@ class DOCPIC : public DOCPIC_PAR
   protected:
     PPIC _ppic;
 
-    DOCPIC(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCPIC(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCPIC(void);
 
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
@@ -229,7 +229,7 @@ class DOCPIC : public DOCPIC_PAR
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCPIC PdocpicNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCPIC PdocpicNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PPIC Ppic(void)
@@ -252,7 +252,7 @@ class DOCMBMP : public DOCMBMP_PAR
   protected:
     PMBMP _pmbmp;
 
-    DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCMBMP(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCMBMP(void);
 
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
@@ -260,7 +260,7 @@ class DOCMBMP : public DOCMBMP_PAR
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCMBMP PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCMBMP PdocmbmpNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PMBMP Pmbmp(void)
@@ -292,7 +292,7 @@ class DCLB : public DCLB_PAR
     long _dypLine;   // height of one line
     long _dxpChar;   // width of a character
 
-    DCLB(PDOCB pdocb, PGCB pgcb);
+    DCLB(PDocumentBase pdocb, PGCB pgcb);
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
     virtual void GetMinMax(RC *prcMinMax);
@@ -408,7 +408,7 @@ class DCD : public DCD_PAR
     PCFL _pcfl;      // the chunky file
     SEL _sel;        // the current selection
 
-    DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb);
+    DCD(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb);
     void _DrawSel(PGNV pgnv);
     void _HiliteLn(long ln);
     void _SetSel(long ln, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
@@ -426,13 +426,13 @@ class DCD : public DCD_PAR
     void _InvalCkiKid(ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
   public:
-    static PDCD PdcdNew(PDOCB pdocb, PCFL pcfl, PGCB pgcb);
-    static void InvalAllDcd(PDOCB pdocb, PCFL pcfl, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
+    static PDCD PdcdNew(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb);
+    static void InvalAllDcd(PDocumentBase pdocb, PCFL pcfl, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -490,7 +490,7 @@ class DCH : public DCH_PAR
     bool _fHexSel : 1;   // hex area active
     bool _fFixed : 1;    // indicates if the data is fixed length
 
-    DCH(PDOCB pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);
+    DCH(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
@@ -516,12 +516,12 @@ class DCH : public DCH_PAR
     void _DrawHeader(PGNV pgnv);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
   public:
-    static PDCH PdchNew(PDOCB pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);
+    static PDCH PdchNew(PDocumentBase pdocb, PBSF pbsf, bool fFixed, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -550,7 +550,7 @@ class DCGB : public DCGB_PAR
     long _cls;        // the class of the group
     bool _fAllocated; // whether the class is allocated or general
 
-    DCGB(PDOCB pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb);
+    DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
@@ -574,7 +574,7 @@ class DCGB : public DCGB_PAR
     void _DeleteIv(long iv);
 
   public:
-    static void InvalAllDcgb(PDOCB pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel);
+    static void InvalAllDcgb(PDocumentBase pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel);
     virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 
@@ -594,10 +594,10 @@ class DCGL : public DCGL_PAR
     RTCLASS_DEC
 
   protected:
-    DCGL(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb);
+    DCGL(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb);
 
   public:
-    static PDCGL PdcglNew(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb);
+    static PDCGL PdcglNew(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCMD pcmd);
@@ -613,10 +613,10 @@ class DCGG : public DCGG_PAR
     RTCLASS_DEC
 
   protected:
-    DCGG(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb);
+    DCGG(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb);
 
   public:
-    static PDCGG PdcggNew(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb);
+    static PDCGG PdcggNew(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCMD pcmd);
@@ -632,10 +632,10 @@ class DCST : public DCST_PAR
     RTCLASS_DEC
 
   protected:
-    DCST(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb);
+    DCST(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb);
 
   public:
-    static PDCST PdcstNew(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb);
+    static PDCST PdcstNew(PDocumentBase pdocb, PGSTB pgstb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCMD pcmd);
@@ -655,11 +655,11 @@ class DCPIC : public DCPIC_PAR
   protected:
     PPIC _ppic;
 
-    DCPIC(PDOCB pdocb, PPIC ppic, PGCB pgcb);
+    DCPIC(PDocumentBase pdocb, PPIC ppic, PGCB pgcb);
     virtual void GetMinMax(RC *prcMinMax);
 
   public:
-    static PDCPIC PdcpicNew(PDOCB pdocb, PPIC ppic, PGCB pgcb);
+    static PDCPIC PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
 };
@@ -678,11 +678,11 @@ class DCMBMP : public DCMBMP_PAR
   protected:
     PMBMP _pmbmp;
 
-    DCMBMP(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb);
+    DCMBMP(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb);
     virtual void GetMinMax(RC *prcMinMax);
 
   public:
-    static PDCMBMP PdcmbmpNew(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb);
+    static PDCMBMP PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
 };
@@ -715,10 +715,10 @@ typedef class CHTXD *PCHTXD;
 class CHTXD : public CHTXD_PAR
 {
   protected:
-    CHTXD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    CHTXD(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
   public:
-    static PCHTXD PchtxdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDOCB pdocb = pvNil,
+    static PCHTXD PchtxdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                             ulong grfdoc = fdocNil);
 
     virtual PDDG PddgNew(PGCB pgcb);

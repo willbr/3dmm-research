@@ -3131,7 +3131,7 @@ long APP::DypTextDef(void)
 /***************************************************************************
     Ask the user if they want to save changes to the given doc.
 ***************************************************************************/
-tribool APP::TQuerySaveDoc(PDOCB pdocb, bool fForce)
+tribool APP::TQuerySaveDoc(PDocumentBase pdocb, bool fForce)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3181,7 +3181,7 @@ void APP::Quit(bool fForce)
     {
         // Force quit, don't ask the user if they want to quit.  But
         // do ask if they want to save their documents.
-        DOCB::FQueryCloseAll(fdocForceClose);
+        DocumentBase::FQueryCloseAll(fdocForceClose);
         _fQuit = fTrue;
 
         return;

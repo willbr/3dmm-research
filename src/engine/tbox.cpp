@@ -64,8 +64,8 @@ class TUNT : public TUNT_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 RTCLASS(TUNT)
@@ -103,8 +103,8 @@ class TUNS : public TUNS_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 RTCLASS(TUNS)
@@ -148,8 +148,8 @@ class TUNH : public TUNH_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 RTCLASS(TUNH)
@@ -183,8 +183,8 @@ class TUND : public TUND_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 RTCLASS(TUND)
@@ -222,8 +222,8 @@ class TUNC : public TUNC_PAR
         _acr = acr;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 RTCLASS(TUNC)
@@ -1403,7 +1403,7 @@ bool TBXG::FCmdClip(PCMD pcmd)
     AssertVarMem(pcmd);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PMVU pmvu;
 
     pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
@@ -1608,7 +1608,7 @@ bool TBXG::_FDoClip(long tool)
 
     case toolPasteObject:
 
-        if (vpclip->FGetFormat(kclsTCLP, (PDOCB *)&ptclp))
+        if (vpclip->FGetFormat(kclsTCLP, (PDocumentBase *)&ptclp))
         {
             AssertPo(ptclp, 0);
             bool fRet;
@@ -3001,7 +3001,7 @@ TUNT::~TUNT(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNT::FDo(PDOCB pdocb)
+bool TUNT::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3051,7 +3051,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNT::FUndo(PDOCB pdocb)
+bool TUNT::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3123,7 +3123,7 @@ TUNS::~TUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNS::FDo(PDOCB pdocb)
+bool TUNS::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3178,7 +3178,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNS::FUndo(PDOCB pdocb)
+bool TUNS::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3251,7 +3251,7 @@ TUNH::~TUNH(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNH::FDo(PDOCB pdocb)
+bool TUNH::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3321,7 +3321,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNH::FUndo(PDOCB pdocb)
+bool TUNH::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3421,7 +3421,7 @@ TUND::~TUND(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUND::FDo(PDOCB pdocb)
+bool TUND::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3467,7 +3467,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUND::FUndo(PDOCB pdocb)
+bool TUND::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3570,7 +3570,7 @@ TUNC::~TUNC(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNC::FDo(PDOCB pdocb)
+bool TUNC::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3620,7 +3620,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNC::FUndo(PDOCB pdocb)
+bool TUNC::FUndo(PDocumentBase pdocb)
 {
     return (FDo(pdocb));
 }

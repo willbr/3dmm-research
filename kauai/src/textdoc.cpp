@@ -21,7 +21,7 @@ RTCLASS(TXDD)
 /***************************************************************************
     Constructor for a text document.
 ***************************************************************************/
-TXDC::TXDC(PDOCB pdocb, ulong grfdoc) : DOCB(pdocb, grfdoc)
+TXDC::TXDC(PDocumentBase pdocb, ulong grfdoc) : DocumentBase(pdocb, grfdoc)
 {
     _pbsf = pvNil;
     _pfil = pvNil;
@@ -39,7 +39,7 @@ TXDC::~TXDC(void)
 /***************************************************************************
     Create a new document based on the given text file and or text stream.
 ***************************************************************************/
-PTXDC TXDC::PtxdcNew(PFilename pfni, PBSF pbsf, PDOCB pdocb, ulong grfdoc)
+PTXDC TXDC::PtxdcNew(PFilename pfni, PBSF pbsf, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -198,7 +198,7 @@ void TXDC::MarkMem(void)
 /***************************************************************************
     Constructor for a text document display gob.
 ***************************************************************************/
-TXDD::TXDD(PDOCB pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont) : DDG(pdocb, pgcb)
+TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont) : DDG(pdocb, pgcb)
 {
     AssertPo(pbsf, 0);
     Assert(vntl.FValidOnn(onn), "bad onn");
@@ -231,7 +231,7 @@ TXDD::~TXDD(void)
 /***************************************************************************
     Create a new TXDD.
 ***************************************************************************/
-PTXDD TXDD::PtxddNew(PDOCB pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont)
+PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont)
 {
     PTXDD ptxdd;
 
@@ -1713,7 +1713,7 @@ void TXDD::_InvalIch(long ich, long cchIns, long cchDel)
     true.  If ppdocb == pvNil just return whether the selection is
     non-empty.
 ***************************************************************************/
-bool TXDD::_FCopySel(PDOCB *ppdocb)
+bool TXDD::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
     PTXDC ptxdc;
@@ -1762,7 +1762,7 @@ bool TXDD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXDC, (PDOCB *)&ptxdc))
+    if (!pclip->FGetFormat(kclsTXDC, (PDocumentBase *)&ptxdc))
         return fFalse;
 
     AssertPo(ptxdc, 0);

@@ -1406,7 +1406,7 @@ AUND::~AUND(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool AUND::FDo(PDOCB pdocb)
+bool AUND::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -1440,7 +1440,7 @@ bool AUND::FDo(PDOCB pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool AUND::FUndo(PDOCB pdocb)
+bool AUND::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);

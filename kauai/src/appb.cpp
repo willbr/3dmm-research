@@ -75,7 +75,7 @@ void APPB::Quit(bool fForce)
 {
     AssertThis(0);
 
-    if (_fQuit || DOCB::FQueryCloseAll(fForce ? fdocForceClose : fdocNil) || fForce)
+    if (_fQuit || DocumentBase::FQueryCloseAll(fForce ? fdocForceClose : fdocNil) || fForce)
     {
         _fQuit = fTrue;
     }
@@ -1467,7 +1467,7 @@ bool APPB::FGetProp(long prid, long *plw)
     pfDelay is nil, importing cannot be delayed.  If *ppdocb is not nil,
     import into *ppdocb if we can.
 ***************************************************************************/
-bool APPB::FImportClip(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDelay)
+bool APPB::FImportClip(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool *pfDelay)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -1669,7 +1669,7 @@ void APPB::BadModalCmd(PCMD pcmd)
 /***************************************************************************
     Ask the user if they want to save changes to the given doc.
 ***************************************************************************/
-tribool APPB::TQuerySaveDoc(PDOCB pdocb, bool fForce)
+tribool APPB::TQuerySaveDoc(PDocumentBase pdocb, bool fForce)
 {
     AssertThis(0);
     STN stn;

@@ -677,7 +677,7 @@ class ACTR : public ACTR_PAR
 // Actor document for clipping
 //
 typedef class ACLP *PACLP;
-#define ACLP_PAR DOCB
+#define ACLP_PAR DocumentBase
 #define kclsACLP 'ACLP'
 class ACLP : public ACLP_PAR
 {

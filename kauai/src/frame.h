@@ -25,7 +25,7 @@ class GNV;  // graphics environment
 class CMH;  // command handler
 class GraphicsObject;  // graphic object
 class MenuBar;  // menu bar
-class DOCB; // base document
+class DocumentBase; // base document
 class DMD;  // document mdi window
 class DMW;  // main document window
 class DSG;  // document scroll gob
@@ -37,7 +37,7 @@ typedef class GNV *PGNV;
 typedef class CMH *PCMH;
 typedef class GraphicsObject *PGraphicsObject;
 typedef class MenuBar *PMenuBar;
-typedef class DOCB *PDOCB;
+typedef class DocumentBase *PDocumentBase;
 typedef class DMD *PDMD;
 typedef class DMW *PDMW;
 typedef class DSG *PDSG;

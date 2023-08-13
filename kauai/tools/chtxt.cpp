@@ -12,14 +12,14 @@ ASSERTNAME
 /***************************************************************************
     Constructor for a chunky text doc.
 ***************************************************************************/
-CHTXD::CHTXD(PDOCB pdocb, ulong grfdoc) : CHTXD_PAR(pdocb, grfdoc)
+CHTXD::CHTXD(PDocumentBase pdocb, ulong grfdoc) : CHTXD_PAR(pdocb, grfdoc)
 {
 }
 
 /***************************************************************************
     Create a new chunky text doc.
 ***************************************************************************/
-PCHTXD CHTXD::PchtxdNew(PFilename pfni, PBSF pbsf, short osk, PDOCB pdocb, ulong grfdoc)
+PCHTXD CHTXD::PchtxdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -173,7 +173,7 @@ bool CHTDD::FCmdCompileScript(PCMD pcmd)
 ***************************************************************************/
 void OpenSinkDoc(PMSFIL pmsfil)
 {
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     PFIL pfil;
     Filename fni;
     bool fTemp;
@@ -187,7 +187,7 @@ void OpenSinkDoc(PMSFIL pmsfil)
     }
     pfil->GetFni(&fni);
     fTemp = pfil->FTemp();
-    pdocb = (PDOCB)CHTXD::PchtxdNew(&fni);
+    pdocb = (PDocumentBase)CHTXD::PchtxdNew(&fni);
     pfil->SetTemp(fTemp);
     ReleasePpo(&pfil);
     if (pvNil != pdocb)

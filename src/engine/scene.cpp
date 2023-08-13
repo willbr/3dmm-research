@@ -197,8 +197,8 @@ class SUNC : public SUNC_PAR
 
     bool FSave(PSCEN pscen);
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -239,8 +239,8 @@ class SUNK : public SUNK_PAR
         _fSetBkgd = fSetBkgd;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -271,8 +271,8 @@ class SUNR : public SUNR_PAR
         _trans = trans;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -313,8 +313,8 @@ class SUNP : public SUNP_PAR
         _fAdd = fAdd;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -365,8 +365,8 @@ class SUNX : public SUNX_PAR
         _fAdd = fAdd;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -409,8 +409,8 @@ class SUNS : public SUNS_PAR
         _sty = sty;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -442,8 +442,8 @@ class SUNT : public SUNT_PAR
         _stn = *pstn;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 RTCLASS(SCEN)
@@ -5874,7 +5874,7 @@ SUNT::~SUNT(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNT::FDo(PDOCB pdocb)
+bool SUNT::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -5907,7 +5907,7 @@ bool SUNT::FDo(PDOCB pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNT::FUndo(PDOCB pdocb)
+bool SUNT::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -5980,7 +5980,7 @@ SUNS::~SUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNS::FDo(PDOCB pdocb)
+bool SUNS::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -6073,7 +6073,7 @@ bool SUNS::FDo(PDOCB pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNS::FUndo(PDOCB pdocb)
+bool SUNS::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -6156,7 +6156,7 @@ SUNA::~SUNA(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNA::FDo(PDOCB pdocb)
+bool SUNA::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6240,7 +6240,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNA::FUndo(PDOCB pdocb)
+bool SUNA::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6382,7 +6382,7 @@ SUNX::~SUNX(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNX::FDo(PDOCB pdocb)
+bool SUNX::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6474,7 +6474,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNX::FUndo(PDOCB pdocb)
+bool SUNX::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6620,7 +6620,7 @@ SUNR::~SUNR(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNR::FDo(PDOCB pdocb)
+bool SUNR::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6661,7 +6661,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNR::FUndo(PDOCB pdocb)
+bool SUNR::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -6732,7 +6732,7 @@ SUNP::~SUNP(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNP::FDo(PDOCB pdocb)
+bool SUNP::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6775,7 +6775,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNP::FUndo(PDOCB pdocb)
+bool SUNP::FUndo(PDocumentBase pdocb)
 {
     return (FDo(pdocb));
 }
@@ -6845,7 +6845,7 @@ SUNK::~SUNK(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNK::FDo(PDOCB pdocb)
+bool SUNK::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6915,7 +6915,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNK::FUndo(PDOCB pdocb)
+bool SUNK::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -7024,7 +7024,7 @@ bool SUNC::FSave(PSCEN pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FDo(PDOCB pdocb)
+bool SUNC::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -7111,7 +7111,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FUndo(PDOCB pdocb)
+bool SUNC::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));

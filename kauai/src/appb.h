@@ -295,7 +295,7 @@ class APPB : public APPB_PAR
     virtual bool FGetProp(long prid, long *plw);
 
     // clipboard importing - normally only called by the clipboard object
-    virtual bool FImportClip(long clfm, void *pv = pvNil, long cb = 0, PDOCB *ppdocb = pvNil, bool *pfDelay = pvNil);
+    virtual bool FImportClip(long clfm, void *pv = pvNil, long cb = 0, PDocumentBase *ppdocb = pvNil, bool *pfDelay = pvNil);
 
     // reset tooltip tracking.
     virtual void ResetToolTip(void);
@@ -313,7 +313,7 @@ class APPB : public APPB_PAR
     virtual void BadModalCmd(PCMD pcmd);
 
     // Query save changes for a document
-    virtual tribool TQuerySaveDoc(PDOCB pdocb, bool fForce);
+    virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);
 
     // flush user generated events from the system event queue.
     virtual void FlushUserEvents(ulong grfevt = kgrfevtAll);

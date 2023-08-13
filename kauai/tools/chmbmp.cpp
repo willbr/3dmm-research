@@ -15,7 +15,7 @@ RTCLASS(DCMBMP)
 /****************************************************************************
     Constructor for a MBMP document.
 ****************************************************************************/
-DOCMBMP::DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCMBMP::DOCMBMP(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pmbmp = pvNil;
 }
@@ -31,7 +31,7 @@ DOCMBMP::~DOCMBMP(void)
 /****************************************************************************
     Static method to create a new MBMP document.
 ****************************************************************************/
-PDOCMBMP DOCMBMP::PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     PDOCMBMP pdocmbmp;
 
@@ -109,7 +109,7 @@ void DOCMBMP::MarkMem(void)
 /*****************************************************************************
     Constructor for a pic display gob.
 *****************************************************************************/
-DCMBMP::DCMBMP(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb) : DDG(pdocb, pgcb)
+DCMBMP::DCMBMP(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb) : DDG(pdocb, pgcb)
 {
     _pmbmp = pmbmp;
 }
@@ -125,7 +125,7 @@ void DCMBMP::GetMinMax(RC *prcMinMax)
 /*****************************************************************************
     Static method to create a new DCMBMP.
 *****************************************************************************/
-PDCMBMP DCMBMP::PdcmbmpNew(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb)
+PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb)
 {
     PDCMBMP pdcmbmp;
 

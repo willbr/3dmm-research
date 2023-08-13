@@ -15,7 +15,7 @@ RTCLASS(DCPIC)
 /***************************************************************************
     Constructor for picture document.
 ***************************************************************************/
-DOCPIC::DOCPIC(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCPIC::DOCPIC(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _ppic = pvNil;
 }
@@ -31,7 +31,7 @@ DOCPIC::~DOCPIC(void)
 /***************************************************************************
     Static method to create a new picture document.
 ***************************************************************************/
-PDOCPIC DOCPIC::PdocpicNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PDOCPIC DOCPIC::PdocpicNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     DOCPIC *pdocpic;
 
@@ -109,7 +109,7 @@ void DOCPIC::MarkMem(void)
 /***************************************************************************
     Constructor for a pic display gob.
 ***************************************************************************/
-DCPIC::DCPIC(PDOCB pdocb, PPIC ppic, PGCB pgcb) : DDG(pdocb, pgcb)
+DCPIC::DCPIC(PDocumentBase pdocb, PPIC ppic, PGCB pgcb) : DDG(pdocb, pgcb)
 {
     _ppic = ppic;
 }
@@ -125,7 +125,7 @@ void DCPIC::GetMinMax(RC *prcMinMax)
 /***************************************************************************
     Static method to create a new DCPIC.
 ***************************************************************************/
-PDCPIC DCPIC::PdcpicNew(PDOCB pdocb, PPIC ppic, PGCB pgcb)
+PDCPIC DCPIC::PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGCB pgcb)
 {
     PDCPIC pdcpic;
 

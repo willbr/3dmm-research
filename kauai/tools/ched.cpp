@@ -43,7 +43,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     bool fQuote, fScript, fSkip;
     PDMD pdmd;
     PDDG pddg;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     long lw;
     PSZ psz = vwig.pszCmdLine;
 
@@ -109,12 +109,12 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         if (!fni.FBuildFromPath(&stn) || fni.Ftg() == kftgDir)
             continue;
 
-        if (pvNil != (pdocb = DOCB::PdocbFromFni(&fni)))
+        if (pvNil != (pdocb = DocumentBase::PdocbFromFni(&fni)))
         {
             pdocb->ActivateDmd();
             continue;
         }
-        if (pvNil == (pdocb = (PDOCB)DOC::PdocNew(&fni)))
+        if (pvNil == (pdocb = (PDocumentBase)DOC::PdocNew(&fni)))
             continue;
         pdocb->PdmdNew();
         ReleasePpo(&pdocb);
@@ -186,7 +186,7 @@ bool APP::FCmdOpen(PCMD pcmd)
 {
     Filename fni;
     Filename *pfni;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     pfni = pvNil;
     switch (pcmd->cid)
@@ -202,14 +202,14 @@ bool APP::FCmdOpen(PCMD pcmd)
             return fTrue;
         }
         pfni = &fni;
-        if (pvNil != (pdocb = DOCB::PdocbFromFni(&fni)))
+        if (pvNil != (pdocb = DocumentBase::PdocbFromFni(&fni)))
         {
             pdocb->ActivateDmd();
             return fTrue;
         }
         // fall through
     case cidNew:
-        pdocb = (PDOCB)DOC::PdocNew(pfni);
+        pdocb = (PDocumentBase)DOC::PdocNew(pfni);
         break;
 
     case cidOpenText:
@@ -219,14 +219,14 @@ bool APP::FCmdOpen(PCMD pcmd)
             return fTrue;
         }
         pfni = &fni;
-        if (pvNil != (pdocb = DOCB::PdocbFromFni(&fni)))
+        if (pvNil != (pdocb = DocumentBase::PdocbFromFni(&fni)))
         {
             pdocb->ActivateDmd();
             return fTrue;
         }
         // fall through
     case cidNewText:
-        pdocb = (PDOCB)CHTXD::PchtxdNew(pfni, pvNil, oskNil);
+        pdocb = (PDocumentBase)CHTXD::PchtxdNew(pfni, pvNil, oskNil);
         break;
     }
 

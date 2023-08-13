@@ -32,7 +32,7 @@ CLIP::CLIP(void)
     is nil this returns true if the clipboard is empty and false if it's
     not empty.
 ***************************************************************************/
-bool CLIP::FDocIsClip(PDOCB pdocb)
+bool CLIP::FDocIsClip(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertNilOrPo(pdocb, 0);
@@ -64,7 +64,7 @@ void CLIP::Show(void)
 /***************************************************************************
     Make the given document the clipboard document.
 ***************************************************************************/
-void CLIP::Set(PDOCB pdocb, bool fExport)
+void CLIP::Set(PDocumentBase pdocb, bool fExport)
 {
     AssertThis(0);
     AssertNilOrPo(pdocb, 0);
@@ -108,7 +108,7 @@ void CLIP::Set(PDOCB pdocb, bool fExport)
 /***************************************************************************
     See if the clipboard supports this format and if so, get it.
 ***************************************************************************/
-bool CLIP::FGetFormat(long cls, PDOCB *ppdocb)
+bool CLIP::FGetFormat(long cls, PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -164,7 +164,7 @@ void CLIP::_EnsureDoc(void)
 
 #ifdef WIN
     HN hn;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     bool fDelay;
     long clfm;
 
@@ -215,7 +215,7 @@ void CLIP::_ImportCur(void)
 #ifdef WIN
     HN hn;
     bool fRet;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     if (GetClipboardOwner() == vwig.hwndApp || !OpenClipboard(vwig.hwndApp))
         return;
@@ -244,7 +244,7 @@ void CLIP::_ImportCur(void)
 /***************************************************************************
     Import a particular format.
 ***************************************************************************/
-bool CLIP::_FImportFormat(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDelay)
+bool CLIP::_FImportFormat(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool *pfDelay)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);

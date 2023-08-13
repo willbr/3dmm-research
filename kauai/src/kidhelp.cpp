@@ -28,7 +28,7 @@ const achar kchHelpString = '~';
 /***************************************************************************
     Constructor for a help text document.
 ***************************************************************************/
-TXHD::TXHD(PRCA prca, PDOCB pdocb, ulong grfdoc) : TXHD_PAR(pdocb, grfdoc)
+TXHD::TXHD(PRCA prca, PDocumentBase pdocb, ulong grfdoc) : TXHD_PAR(pdocb, grfdoc)
 {
     AssertPo(prca, 0);
     _prca = prca;
