@@ -28,7 +28,7 @@ struct ACTF // Actor chunk on file
 {
     short bo;        // Byte order
     short osk;       // OS kind
-    XYZ dxyzFullRte; // Translation of the route
+    RoutePoint dxyzFullRte; // Translation of the route
     long arid;       // Unique id assigned to this actor.
     long nfrmFirst;  // First frame in this actor's stage life
     long nfrmLast;   // Last frame in this actor's stage life

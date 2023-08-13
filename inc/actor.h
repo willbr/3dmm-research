@@ -21,25 +21,25 @@
 #define ACTOR_H
 
 //
-//	XYZ : A point in x,y,z along an actor's RouTE.
+//	RoutePoint : A point in x,y,z along an actor's RouTE.
 //
-struct XYZ
+struct RoutePoint
 {
     BRS dxr;
     BRS dyr;
     BRS dzr;
 
-    bool operator==(XYZ &xyz)
+    bool operator==(RoutePoint &xyz)
     {
         return ((dxr == xyz.dxr) && (dyr == xyz.dyr) && (dzr == xyz.dzr));
     }
-    bool operator!=(XYZ &xyz)
+    bool operator!=(RoutePoint &xyz)
     {
         return ((dxr != xyz.dxr) || (dyr != xyz.dyr) || (dzr != xyz.dzr));
     }
 };
 
-typedef XYZ *PXYZ;
+typedef RoutePoint *PRoutePoint;
 
 const ByteOrderMask kbomXyz = 0xfc000000;
 
@@ -49,7 +49,7 @@ const ByteOrderMask kbomXyz = 0xfc000000;
 //
 struct RPT
 {
-    XYZ xyz;
+    RoutePoint xyz;
     BRS dwr; // Distance from this node to the next node on the route
 };
 const ByteOrderMask kbomRpt = 0xff000000;
@@ -170,9 +170,9 @@ enum AET
     aetPull,   // Transform Actor Pull : aevpull
     aetSize,   // Transform Actor size uniformly : BRS
     aetSnd,    // Play a sound : aevsnd
-    aetMove,   // Translate the path at this point : XYZ
+    aetMove,   // Translate the path at this point : RoutePoint
     aetFreeze, // Freeze (or Un) Actor : long
-    aetTweak,  // Path tweak : XYZ
+    aetTweak,  // Path tweak : RoutePoint
     aetStep,   // Force step size (eg, float, wait) : BRS
     aetRem,    // Remove an actor from the stage : nil
     aetRotH,   // Single frame rotation : BMAT34
@@ -252,8 +252,8 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 #define kcbVarPull (size(AEVPULL))
 #define kcbVarSnd (size(AEVSND))
 #define kcbVarFreeze (size(long))
-#define kcbVarMove (size(XYZ))
-#define kcbVarTweak (size(XYZ))
+#define kcbVarMove (size(RoutePoint))
+#define kcbVarTweak (size(RoutePoint))
 #define kcbVarStep (size(BRS))
 #define kcbVarZero (0)
 
@@ -340,14 +340,14 @@ class Actor : public Actor_PAR
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
     TAG _tagSnd;      // Sound (played on entrance)
     SCEN *_pscen;     // Underlying scene
-    XYZ _dxyzFullRte; // Origin of the route
+    RoutePoint _dxyzFullRte; // Origin of the route
     long _nfrmFirst;  // klwMax -or- First frame : Set	when event created
     long _arid;       // Unique id assigned to this actor.
     ulong _grfactn;   // Cached current grfactn
 
     // Frame Dependent State Information
-    XYZ _dxyzRte;            //_dxyzFullRte + _dxyzSubRte : Set when Add processed
-    XYZ _dxyzSubRte;         // Subpath translation : Set when Add processed
+    RoutePoint _dxyzRte;            //_dxyzFullRte + _dxyzSubRte : Set when Add processed
+    RoutePoint _dxyzSubRte;         // Subpath translation : Set when Add processed
     bool _fOnStage : 1;      // Versus Brender hidden.  Set by Add, Rem only
     bool _fFrozen : 1;       // Path offset > 0 but not moving
     bool _fLifeDirty : 1;    // Set if _nfrmLast requires recomputation
@@ -364,7 +364,7 @@ class Actor : public Actor_PAR
     long _iaevActnCur;       // Event defining current action
     long _iaevAddCur;        // Most recent add (useful for Compose)
     RTEL _rtelCur;           // Current location on route	(excludes tweak info)
-    XYZ _xyzCur;             // Last point displayed (may be tweak modified)
+    RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
     XFRM _xfrm;              // Current transformation
     PGL _pglsmm;             // Current action motion match sounds
 
@@ -376,7 +376,7 @@ class Actor : public Actor_PAR
     bool _fPathInserted : 1; // More path inserted
     bool _fTimeFrozen : 1;   // Is the actor frozen wrt time?
     long _dnfrmGap;          // Frames between subroutes
-    XYZ _dxyzRaw;            // Raw mouse movement from previous frame
+    RoutePoint _dxyzRaw;            // Raw mouse movement from previous frame
 
     //
     //	Protected functions
@@ -433,18 +433,18 @@ class Actor : public Actor_PAR
     void _AdjustAevForRteDel(long irptAdjust, long iaevMin);
     bool _FInsertStop(void);
     void _CalcRteOrient(BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil, ulong *pgrfbra = pvNil);
-    void _ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
+    void _ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
                           ulong *grfbra = pvNil);
     void _SaveCurPathOrien(void);
     void _LoadAddOrien(AEVADD *paevadd, bool fNoReset = fFalse);
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
-    void _UpdateXyzTan(XYZ *pxyz, long irptTan, long rw);
+    void _UpdateXyzTan(RoutePoint *pxyz, long irptTan, long rw);
 
     void _AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
-    void _GetXyzFromRtel(RTEL *prtel, PXYZ pxyz);
-    void _GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS dwrOffset, PXYZ pxyz);
-    void _PositionBody(PXYZ pxyz);
-    void _MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34);
+    void _GetXyzFromRtel(RTEL *prtel, PRoutePoint pxyz);
+    void _GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS dwrOffset, PRoutePoint pxyz);
+    void _PositionBody(PRoutePoint pxyz);
+    void _MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34);
     void _TruncateSubRte(long irptDelLim);
     bool _FComputeLifetime(long *pnfrmLast = pvNil);
     bool _FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast = pvNil);
@@ -626,7 +626,7 @@ class Actor : public Actor_PAR
     bool FSetStep(BRS dwrStep);
     bool FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd);
     bool FNormalizeCore(ulong grfnorm);
-    void SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz = pvNil);
+    void SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz = pvNil);
     bool FScale(BRS rScaleStep);
     bool FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ);
     void DeleteFwdCore(bool fDeleteAll, bool *pfAlive = pvNil, long iaevCur = ivNil);

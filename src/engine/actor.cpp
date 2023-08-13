@@ -471,8 +471,8 @@ bool Actor::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
 
     long ifrm;
     RTEL rtelT;
-    XYZ xyzOld = _xyzCur;
-    XYZ xyzT;
+    RoutePoint xyzOld = _xyzCur;
+    RoutePoint xyzT;
     long dnfrm = _nfrmCur - nfrm;
 
 #ifdef DEBUG
@@ -648,7 +648,7 @@ bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFr
     long iaev;
     long iaevAdd;
     bool fEndRoute;
-    XYZ xyzOld = _xyzCur;
+    RoutePoint xyzOld = _xyzCur;
     bool fFreezeThisCel = _fFrozen;
     bool fEndSubEvents = fFalse;
     bool fSuccess = fTrue;
@@ -1154,7 +1154,7 @@ bool Actor::_FDoAevCore(long iaev)
         break;
 
     case aetMove:
-        XYZ dxyz;
+        RoutePoint dxyz;
         _pggaev->Get(iaev, &dxyz);
         _dxyzSubRte.dxr = BrsAdd(dxyz.dxr, _dxyzSubRte.dxr);
         _dxyzSubRte.dyr = BrsAdd(dxyz.dyr, _dxyzSubRte.dyr);
@@ -1213,9 +1213,9 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
         // any existing same frame translaton to be added
         // to the state	variables twice.
         // Instead, adjust state var translation here.
-        _dxyzSubRte.dxr = BrsAdd(((XYZ *)pvVar)->dxr, _dxyzSubRte.dxr);
-        _dxyzSubRte.dyr = BrsAdd(((XYZ *)pvVar)->dyr, _dxyzSubRte.dyr);
-        _dxyzSubRte.dzr = BrsAdd(((XYZ *)pvVar)->dzr, _dxyzSubRte.dzr);
+        _dxyzSubRte.dxr = BrsAdd(((RoutePoint *)pvVar)->dxr, _dxyzSubRte.dxr);
+        _dxyzSubRte.dyr = BrsAdd(((RoutePoint *)pvVar)->dyr, _dxyzSubRte.dyr);
+        _dxyzSubRte.dzr = BrsAdd(((RoutePoint *)pvVar)->dzr, _dxyzSubRte.dzr);
     }
     else if (!_FDoAevCore(iaevNew))
         return fFalse;
@@ -1310,8 +1310,8 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             break;
 
         case aetMove: // Move is accumulation of previous moves
-            XYZ dxyz;
-            XYZ dxyzNew;
+            RoutePoint dxyz;
+            RoutePoint dxyzNew;
             _pggaev->Get(iaev, &dxyz);
             _pggaev->Get(iaevNew, &dxyzNew);
             // Note: Merging moves should not alter state variables!
@@ -2274,7 +2274,7 @@ bool Actor::_FUnfreeze(void)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
-void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz)
+void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz)
 {
     AssertThis(0);
     AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
@@ -2681,7 +2681,7 @@ bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 {
     AssertThis(0);
 
-    XYZ xyz;
+    RoutePoint xyz;
 
     if (!_pggaev->FEnsureSpace(1, kcbVarTweak, fgrpNil))
         return fFalse;
@@ -2745,7 +2745,7 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     long iaev;
     bool fMoved;
     ulong grfbra;
-    XYZ dxyz;
+    RoutePoint dxyz;
     BRS yrCurOld;
     BRA xa;
     BRA ya;
@@ -3560,7 +3560,7 @@ LDone:
     Convert a route location (rtel) to an xyz point (in *pxyz)
 
 ***************************************************************************/
-void Actor::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
+void Actor::_GetXyzFromRtel(RTEL *prtel, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
@@ -3592,7 +3592,7 @@ void Actor::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
     Store in *pxyz
 
 ***************************************************************************/
-void Actor::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz)
+void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFract, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyzFirst);
@@ -3619,11 +3619,11 @@ void Actor::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz
     Post-impose a rotation looking forward along the route
 
 ***************************************************************************/
-void Actor::_PositionBody(XYZ *pxyz)
+void Actor::_PositionBody(RoutePoint *pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyz);
-    XYZ xyz;
+    RoutePoint xyz;
     BMAT34 bmat34; // Final orientation matrix
 
     _MatrixRotUpdate(pxyz, &bmat34);
@@ -3640,7 +3640,7 @@ void Actor::_PositionBody(XYZ *pxyz)
     _xfrm.bmat34Cur must be kept current
 
 ***************************************************************************/
-void Actor::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
+void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyz);
@@ -3746,7 +3746,7 @@ void Actor::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong 
 
     long irptPrev;
     long irptAdd;
-    XYZ xyz;
+    RoutePoint xyz;
     AEV aev;
     RPT rpt;
 
@@ -3807,7 +3807,7 @@ void Actor::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong 
     Optimized for movie PLAYing
 
 ***************************************************************************/
-void Actor::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
+void Actor::_UpdateXyzTan(RoutePoint *pxyz, long irpt, long rw)
 {
     AssertBaseThis(0);
 
@@ -3871,7 +3871,7 @@ void Actor::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
     which can be done using additional arguments.
 
 ***************************************************************************/
-void Actor::_ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
+void Actor::_ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pbmat34);
@@ -4425,8 +4425,8 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     AssertVarMem(pfStepRte);
 
     RPT rptCur;
-    XYZ xyzMouse;
-    XYZ dxyzT;
+    RoutePoint xyzMouse;
+    RoutePoint dxyzT;
     BRS dwrCur;
     RPT rptNew;
     BRS rFractMoved;
@@ -5386,7 +5386,7 @@ void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertNilOrVarMem(pyr);
     AssertNilOrVarMem(pzr);
 
-    XYZ xyz;
+    RoutePoint xyz;
 
     _GetXyzFromRtel(&_rtelCur, &xyz);
 

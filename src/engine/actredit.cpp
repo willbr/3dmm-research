@@ -577,7 +577,7 @@ bool Actor::FPasteRte(PActor pactr)
     AEV aev;
     RPT rpt;
     RPT rptCur;
-    XYZ dxyz;
+    RoutePoint dxyz;
     long iaev;
     long irpt;
 #ifdef STATIC
