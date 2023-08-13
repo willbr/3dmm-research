@@ -737,7 +737,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
 
     Base aev;
     RouteDistancePoint rpt;
-    AEVADD aevadd;
+    Add aevadd;
     AEVSND aevsnd;
     BRS xrCam = rZero;
     BRS yrCam = rZero;

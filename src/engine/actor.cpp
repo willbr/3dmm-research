@@ -904,7 +904,7 @@ bool Actor::_FIsAddNow(long iaev)
             return fFalse;
     }
 
-    Assert(_pggaev->Cb(iaev) == size(AEVADD), "Corrupt event list");
+    Assert(_pggaev->Cb(iaev) == size(Add), "Corrupt event list");
     paev = (Base *)_pggaev->QvFixedGet(iaev);
 
     if (paev->nfrm <= _nfrmCur)
@@ -1036,7 +1036,7 @@ bool Actor::_FDoAevCore(long iaev)
         break;
 
     case aetAdd:
-        AEVADD aevadd;
+        Add aevadd;
         RouteDistancePoint rpt;
         // Save old costume in case of error
         if (!cost.FGet(_pbody))
@@ -1678,7 +1678,7 @@ bool Actor::FAddOnStageCore(void)
     BRS yr;
     BRS zr;
     long cbVar;
-    AEVADD aevadd;
+    Add aevadd;
     bool fUpdateFrmRange = fFalse;
 
     cbVar = kcbVarAdd + kcbVarActn + kcbVarStep + kcbVarFreeze;
@@ -2281,7 +2281,7 @@ void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz
     AssertThis(0);
     AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
 
-    AEVADD aevadd;
+    Add aevadd;
 
     _pggaev->Get(_iaevAddCur, &aevadd);
 
@@ -2742,7 +2742,7 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     AssertThis(0);
     AssertNilOrVarMem(pfMoved);
 
-    AEVADD aevadd;
+    Add aevadd;
     Base *paev;
     long iaev;
     bool fMoved;
@@ -2933,7 +2933,7 @@ bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     Load starting point orientation into state variable _xfrm
 
 ***************************************************************************/
-void Actor::_LoadAddOrien(AEVADD *paevadd, bool fNoReset)
+void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
 {
     AssertThis(0);
 
@@ -3705,7 +3705,7 @@ void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
         {
             // Single point	subroute ->
             // Post apply single point orientation to event rotations
-            AEVADD aevadd;
+            Add aevadd;
             _pggaev->Get(_iaevAddCur, &aevadd);
             BrMatrix34PostRotateX(&bmat34TR, aevadd.xa);
             BrMatrix34PostRotateY(&bmat34TR, aevadd.ya);
@@ -5569,7 +5569,7 @@ void Actor::AssertValid(ulong grfobj)
             switch (aev.aet)
             {
             case aetAdd: {
-                AEVADD aevadd;
+                Add aevadd;
                 Assert(_pggaev->Cb(iaev) == kcbVarAdd, "Corrupt size in event list");
                 _pggaev->Get(iaev, &aevadd);
                 break;

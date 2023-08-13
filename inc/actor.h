@@ -200,7 +200,7 @@ const ByteOrderMask kbomAevpull = 0xfc000000;
 // Every subroute is normalized.  The normalization translation is
 // stored in the Add Event
 // ** nfrmPrev valid for nfrmSub <= _nfrmCur only (optimization)
-struct AEVADD
+struct Add
 {
     BRS dxr; // Translation in x for this subroute
     BRS dyr; // Translation in y for this subroute
@@ -248,7 +248,7 @@ const ByteOrderMask kbomAevtweak = kbomXyz;
 const ByteOrderMask kbomAevrot = kbomBmat34;
 
 // Separate ggaev variable portion sizes
-#define kcbVarAdd (size(AEVADD))
+#define kcbVarAdd (size(Add))
 #define kcbVarActn (size(AEVACTN))
 #define kcbVarCost (size(AEVCOST))
 #define kcbVarRot (size(BMAT34))
@@ -442,7 +442,7 @@ class Actor : public Actor_PAR
     void _ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
                           ulong *grfbra = pvNil);
     void _SaveCurPathOrien(void);
-    void _LoadAddOrien(ActorEvent::AEVADD *paevadd, bool fNoReset = fFalse);
+    void _LoadAddOrien(ActorEvent::Add *paevadd, bool fNoReset = fFalse);
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
     void _UpdateXyzTan(RoutePoint *pxyz, long irptTan, long rw);
 
