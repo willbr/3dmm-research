@@ -2062,7 +2062,7 @@ bool APP::_FDetermineIfSlowCPU(void)
     pgptWnd = GPT::PgptNewHwnd(vwig.hwndApp);
     if (pvNil == pgptWnd)
         goto LFail;
-    pgptOff = GPT::PgptNewOffscreen(&rc1, 8); // BWLD RGB buffer is 8-bit
+    pgptOff = GPT::PgptNewOffscreen(&rc1, 8); // World RGB buffer is 8-bit
     if (pvNil == pgptOff)
     {
         goto LFail;
@@ -3605,7 +3605,7 @@ void APP::_CleanUp(void)
     ReleasePpo(&_pgstSharedFiles);
     ReleasePpo(&_pgstApp);
     ReleasePpo(&_pkwa);
-    BWLD::CloseBRender();
+    World::CloseBRender();
     APP_PAR::_CleanUp();
     if (_fSwitchedResolution)
         _FSwitch640480(fFalse); // try to restore desktop

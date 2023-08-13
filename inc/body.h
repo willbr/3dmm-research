@@ -39,7 +39,7 @@ class BODY : public BODY_PAR
     PCMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
     long _cbactPart;     // count of model body parts in body
     long _cactHidden;    // for Show() / Hide()
-    PBWLD _pbwld;        // world that body lives in
+    PWorld _pbwld;        // world that body lives in
     RC _rcBounds;        // bounds of body after last render
     RC _rcBoundsLastVis; // bounds of body last time it was visible
     bool _fFound;        // is the actor found under the mouse?
@@ -84,7 +84,7 @@ class BODY : public BODY_PAR
   public:
     static PBODY PbodyNew(PGL pglibactPar, PGL pglibset);
     static PBODY PbodyFromBact(BACT *pbact, long *pibset = pvNil);
-    static PBODY PbodyClicked(long xp, long yp, PBWLD pbwld, long *pibset = pvNil);
+    static PBODY PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset = pvNil);
     ~BODY(void);
     PBODY PbodyDup(void);
     void Restore(PBODY pbodyDup);
@@ -92,7 +92,7 @@ class BODY : public BODY_PAR
                                     BRS dzpNear, BRS dzpFar, void *pv);
 
     bool FChangeShape(PGL pglibactPar, PGL pglibset);
-    void SetBwld(PBWLD pbwld)
+    void SetBwld(PWorld pbwld)
     {
         _pbwld = pbwld;
     }

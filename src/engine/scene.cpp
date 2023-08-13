@@ -1058,7 +1058,7 @@ bool Scene::FGotoFrm(long nfrm)
  * actors are unchanging before the next camera change.  If
  * there are, we hide the changing actors (so only the unchanging
  * ones are visible), then "take a snapshot" of the world with
- * the unchanging actors (via BWLD::Prerender()), and use the
+ * the unchanging actors (via World::Prerender()), and use the
  * snapshot as the background RGB and Z buffer until the next
  * camera view change.  We only prerender if the movie is
  * playing.
@@ -1185,7 +1185,7 @@ void Scene::_DoPrerenderingWork(bool fStartNow)
 /****************************************************
  *
  * 	Ends any current prerendering by restoring the background
- *  RGB and Z buffers of the BWLD, showing all previously
+ *  RGB and Z buffers of the World, showing all previously
  *  hidden actors, and marking all actors as not prerendered.
  *
  * Parameters:

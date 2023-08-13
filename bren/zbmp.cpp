@@ -198,7 +198,7 @@ void ZBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, 
 
 /***************************************************************************
     Draw the ZBMP into prgbPixels, squashing the clip region vertically by
-    two (for BWLD's "half mode")
+    two (for World's "half mode")
 ***************************************************************************/
 void ZBMP::DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip, PREGN pregnClip)
 {

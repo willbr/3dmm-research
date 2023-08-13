@@ -147,7 +147,7 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
 /***************************************************************************
     Read a Background from the given chunk of the given ChunkyFile.
     Note: Although we read the data for the lights here, we don't turn
-    them on yet because we don't have a BWLD to add them to.  The lights
+    them on yet because we don't have a World to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
 bool Background::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
@@ -370,7 +370,7 @@ void Background::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
 /***************************************************************************
     Turn on lights in pbwld
 ***************************************************************************/
-void Background::TurnOnLights(PBWLD pbwld)
+void Background::TurnOnLights(PWorld pbwld)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
@@ -415,7 +415,7 @@ void Background::TurnOffLights(void)
 /***************************************************************************
     Set the camera and associated bitmaps to icam
 ***************************************************************************/
-bool Background::FSetCamera(PBWLD pbwld, long icam)
+bool Background::FSetCamera(PWorld pbwld, long icam)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);

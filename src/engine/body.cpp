@@ -383,7 +383,7 @@ BODY *BODY::PbodyFromBact(BACT *pbact, long *pibset)
     Returns the BODY that is under the given point.  Also, if pibset is not
     nil, returns what body part set this point is in.
 ***************************************************************************/
-BODY *BODY::PbodyClicked(long xp, long yp, PBWLD pbwld, long *pibset)
+BODY *BODY::PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset)
 {
     AssertNilOrVarMem(pibset);
     AssertPo(pbwld, 0);
@@ -977,7 +977,7 @@ bool BODY::FPtInBody(long xp, long yp, long *pibset)
 }
 
 /***************************************************************************
-    BWLD is about to render the world, so clear out this BODY's _rcBounds
+    World is about to render the world, so clear out this BODY's _rcBounds
     (but save the last good bounds in _rcBoundsLastVis).  Also size the
     bounding box correctly.
 ***************************************************************************/
@@ -1103,7 +1103,7 @@ void BODY::GetBcbBounds(BCB *pbcb, bool fWorld)
 }
 
 /***************************************************************************
-    BWLD calls this function when each BACT is rendered.  It unions the
+    World calls this function when each BACT is rendered.  It unions the
     BACT bounds with the BODY's _rcBounds
 ***************************************************************************/
 void BODY::_BactRendered(PBACT pbact, RC *prc)

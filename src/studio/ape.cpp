@@ -113,11 +113,11 @@ bool APE::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca
         _pglgms->Put(ibset, &gms);
 
     GetRc(&rc, cooLocal);
-    _pbwld = BWLD::PbwldNew(rc.Dxp(), rc.Dyp());
+    _pbwld = World::PbwldNew(rc.Dxp(), rc.Dyp());
     if (pvNil == _pbwld)
         return fFalse;
 
-    // Add a light source to the BWLD
+    // Add a light source to the World
     _blit.type = BR_LIGHT_DIRECT;
     _blit.colour = BR_COLOUR_RGB(0xff, 0xff, 0xff);
     _blit.attenuation_c = rOne;

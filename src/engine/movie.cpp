@@ -301,7 +301,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Create the brender world
     //
-    pmvie->_pbwld = BWLD::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fFalse, fHalfMode);
+    pmvie->_pbwld = World::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fFalse, fHalfMode);
     if (pvNil == pmvie->_pbwld)
     {
         goto LFail;

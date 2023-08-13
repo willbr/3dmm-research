@@ -5,7 +5,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    To improve performance, BWLD can render into a reduced area, then
+    To improve performance, World can render into a reduced area, then
     enlarge the resulting image	at display time.  _fHalfX reduces the
     horizontal resolution by half, and _fHalfY reduces the vertical
     resolution by half.  Both modes can be used together to render 1/4 as
@@ -25,7 +25,7 @@ ASSERTNAME
 
 namespace BRender {
 
-RTCLASS(BWLD)
+RTCLASS(World)
 
 const long kcbitPixelRGB = 8; // RGB buffers are 8 bits deep
 const long kcbPixelRGB = 1;
@@ -33,21 +33,21 @@ const long kcbPixelRGB = 1;
 const long kcbitPixelZ = 16; // Z buffers are 16 bits deep
 const long kcbPixelZ = 2;
 
-bool BWLD::_fBRenderInited = fFalse;
+bool World::_fBRenderInited = fFalse;
 
 /***************************************************************************
     Allocate a new BRender world
 ***************************************************************************/
-PBWLD BWLD::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
+PWorld World::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
 {
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
     AssertIn(dyp, 1, ksuMax);
     Assert(dxp % 2 == 0, "dxp should be even");
     Assert(dyp % 2 == 0, "dyp should be even");
 
-    PBWLD pbwld;
+    PWorld pbwld;
 
-    pbwld = NewObj BWLD;
+    pbwld = NewObj World;
 
     if (pbwld == pvNil || !pbwld->_FInit(dxp, dyp, fHalfX, fHalfY))
     {
@@ -60,9 +60,9 @@ PBWLD BWLD::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
 }
 
 /***************************************************************************
-    Initialize the BWLD
+    Initialize the World
 ***************************************************************************/
-bool BWLD::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
+bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
 {
     AssertBaseThis(0);
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
@@ -113,7 +113,7 @@ bool BWLD::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
     and _fHalfY.  This function gets called by _FInit, and again every time
     FSetHalfMode is called.
 ***************************************************************************/
-bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
+bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
 {
     AssertBaseThis(0);
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
@@ -185,9 +185,9 @@ bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
 }
 
 /***************************************************************************
-    Destructor for BWLD
+    Destructor for World
 ***************************************************************************/
-BWLD::~BWLD(void)
+World::~World(void)
 {
     AssertBaseThis(0);
 
@@ -208,7 +208,7 @@ BWLD::~BWLD(void)
 /***************************************************************************
     Change reduced rendering mode
 ***************************************************************************/
-bool BWLD::FSetHalfMode(bool fHalfX, bool fHalfY)
+bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
 {
     AssertThis(0);
 
@@ -288,7 +288,7 @@ LFail:
     Completely close BRender, freeing all data structures that BRender
     knows about.  This invalidates all MODLs and MTRLs in existence.
 ***************************************************************************/
-void BWLD::CloseBRender(void)
+void World::CloseBRender(void)
 {
     if (_fBRenderInited)
     {
@@ -325,7 +325,7 @@ inline void SqueezePb(void *pvSrc, void *pvDst, long cbSrc)
     Load bitmaps from the given chunks into _pgptBackground and
     _pzbmpBackground.
 ***************************************************************************/
-bool BWLD::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumber cnoRGB, ChunkTag ctgZ, ChunkNumber cnoZ)
+bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumber cnoRGB, ChunkTag ctgZ, ChunkNumber cnoZ)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -426,7 +426,7 @@ bool BWLD::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumber
 /***************************************************************************
     Change the camera matrix
 ***************************************************************************/
-void BWLD::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
+void World::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -444,7 +444,7 @@ void BWLD::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
 /***************************************************************************
     Get the camera matrix
 ***************************************************************************/
-void BWLD::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
+void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -467,7 +467,7 @@ void BWLD::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
     buffers, since they're probably dirty from the last render.  Update
     some regions, and render everything.
 ***************************************************************************/
-void BWLD::Render(void)
+void World::Render(void)
 {
     AssertThis(0);
 
@@ -526,7 +526,7 @@ void BWLD::Render(void)
     "Prerender" the world.  That is, render the world, then copy it into
     the background buffers
 ***************************************************************************/
-void BWLD::Prerender(void)
+void World::Prerender(void)
 {
     AssertThis(0);
 
@@ -553,7 +553,7 @@ void BWLD::Prerender(void)
     "Un-Prerender" the world.  That is, restore the background bitmaps to
     the way they were before prerendering any actors
 ***************************************************************************/
-void BWLD::Unprerender(void)
+void World::Unprerender(void)
 {
     AssertThis(0);
 
@@ -566,7 +566,7 @@ void BWLD::Unprerender(void)
     Copy _pregnDirtyWorking from background Z and RGB buffers to working
     Z and RGB buffers.
 ***************************************************************************/
-void BWLD::_CleanWorkingBuffers(void)
+void World::_CleanWorkingBuffers(void)
 {
     AssertThis(0);
 
@@ -618,18 +618,18 @@ void BWLD::_CleanWorkingBuffers(void)
     Callback for when a BACT is rendered.  Need to union with dirty
     region.
 ***************************************************************************/
-void BWLD::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle, br_matrix4 *pbmat4ModelToScreen,
+void World::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle, br_matrix4 *pbmat4ModelToScreen,
                           br_int_32 bounds[4])
 {
     AssertVarMem(pbact);
 
     PBACT pbactT = pbact;
-    PBWLD pbwld;
+    PWorld pbwld;
     RC rc(bounds[0], bounds[1], bounds[2] + 1, bounds[3] + 1);
 
     while (pbactT->parent != pvNil)
         pbactT = pbactT->parent;
-    pbwld = (PBWLD)pbactT->identifier;
+    pbwld = (PWorld)pbactT->identifier;
     AssertPo(pbwld, 0);
     if (pvNil != pbwld->_pfnbactrend)
         pbwld->_pfnbactrend(pbact, &rc); // call client callback
@@ -639,7 +639,7 @@ void BWLD::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyl
     Mark the region that has been rendered (and needs to be copied to the
     screen)
 ***************************************************************************/
-void BWLD::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
+void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -651,11 +651,11 @@ void BWLD::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
 }
 
 /***************************************************************************
-    Draw the BWLD's working RGB buffer into pgnv.  The movie engine should
-    have called BWLD::MarkRenderedRegn before calling this, so only
+    Draw the World's working RGB buffer into pgnv.  The movie engine should
+    have called World::MarkRenderedRegn before calling this, so only
     _pregnDirtyScreen's bits will be copied.
 ***************************************************************************/
-void BWLD::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
+void World::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -671,7 +671,7 @@ void BWLD::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
 /***************************************************************************
     Add an actor to the world
 ***************************************************************************/
-void BWLD::AddActor(BACT *pbact)
+void World::AddActor(BACT *pbact)
 {
     AssertThis(0);
     AssertVarMem(pbact);
@@ -683,14 +683,14 @@ void BWLD::AddActor(BACT *pbact)
     Filter callback proc for FClickedActor().  Saves pbact if it's the
     closest one hit so far.
 ***************************************************************************/
-int BWLD::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir, BRS dzpNear,
+int World::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir, BRS dzpNear,
                    BRS dzpFar, void *pvData)
 {
     AssertVarMem(pbact);
     AssertVarMem(pbvec3RayPos);
     AssertVarMem(pbvec3RayDir);
 
-    PBWLD pbwld = (PBWLD)pvData;
+    PWorld pbwld = (PWorld)pvData;
     AssertPo(pbwld, 0);
 
     if (dzpNear < pbwld->_dzpClosestClicked)
@@ -705,7 +705,7 @@ int BWLD::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, B
 /***************************************************************************
     Call pfnCallback for each actor under the point (xp, yp)
 ***************************************************************************/
-void BWLD::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, long yp)
+void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, long yp)
 {
     AssertThis(0);
 
@@ -724,7 +724,7 @@ void BWLD::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, 
    If an actor is under (xp, yp), function returns fTrue and **pbact is the
    actor. If no actor is under (xp, yp), function returns fFalse.
 ***************************************************************************/
-bool BWLD::FClickedActor(long xp, long yp, BACT **ppbact)
+bool World::FClickedActor(long xp, long yp, BACT **ppbact)
 {
     AssertThis(0);
     AssertVarMem(ppbact);
@@ -732,7 +732,7 @@ bool BWLD::FClickedActor(long xp, long yp, BACT **ppbact)
     _pbactClosestClicked = pvNil;
     _dzpClosestClicked = BR_SCALAR_MAX;
 
-    IterateActorsInPt(BWLD::_FFilter, this, xp, yp);
+    IterateActorsInPt(World::_FFilter, this, xp, yp);
 
     if (pvNil != _pbactClosestClicked)
     {
@@ -747,11 +747,11 @@ bool BWLD::FClickedActor(long xp, long yp, BACT **ppbact)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the BWLD.
+    Assert the validity of the World.
 ***************************************************************************/
-void BWLD::AssertValid(ulong grf)
+void World::AssertValid(ulong grf)
 {
-    BWLD_PAR::AssertValid(fobjAllocated);
+    World_PAR::AssertValid(fobjAllocated);
     AssertPo(_pgptWorking, 0);
     AssertPo(_pgptBackground, 0);
     AssertPo(_pzbmpWorking, 0);
@@ -766,12 +766,12 @@ void BWLD::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the BWLD
+    Mark memory used by the World
 ***************************************************************************/
-void BWLD::MarkMem(void)
+void World::MarkMem(void)
 {
     AssertThis(0);
-    BWLD_PAR::MarkMem();
+    World_PAR::MarkMem();
     MarkMemObj(_pgptWorking);
     MarkMemObj(_pgptBackground);
     MarkMemObj(_pzbmpWorking);
@@ -792,7 +792,7 @@ void BWLD::MarkMem(void)
     Returns: fTrue if the file could be written successfully
 
 ************************************************************ PETED ***********/
-bool BWLD::FWriteBmp(PFilename pfni)
+bool World::FWriteBmp(PFilename pfni)
 {
     AssertPo(pfni, 0);
 

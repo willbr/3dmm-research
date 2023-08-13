@@ -442,7 +442,7 @@ LFail:
         pmvieOld->CloseAllDdg();
         ReleasePpo(&pmvieOld);
 
-        /* Turn lights back on, in new BWLD (they got turned off when releasing
+        /* Turn lights back on, in new World (they got turned off when releasing
             the old movie) */
         if (fResetLites)
             pbkgd->TurnOnLights(_pmvie->Pbwld());

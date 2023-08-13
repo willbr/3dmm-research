@@ -54,7 +54,7 @@ class APE : public APE_PAR
     CMD_MAP_DEC(APE)
 
   protected:
-    PBWLD _pbwld;       // BRender world to draw actor in
+    PWorld _pbwld;       // BRender world to draw actor in
     PTMPL _ptmpl;       // Template (or TDT) of the actor being previewed
     PBODY _pbody;       // Body of the actor being previewed
     APET _apet;         // Currently selected tool

@@ -140,7 +140,7 @@ class Background : public Background_PAR
     ~Background(void);
     void GetName(PSTN pstn);
 
-    void TurnOnLights(PBWLD pbwld);
+    void TurnOnLights(PWorld pbwld);
     void TurnOffLights(void);
     bool FLeaveLitesOn(void)
     {
@@ -159,7 +159,7 @@ class Background : public Background_PAR
     {
         return _icam;
     }                                        // currently selected camera
-    bool FSetCamera(PBWLD pbwld, long icam); // change camera to icam
+    bool FSetCamera(PWorld pbwld, long icam); // change camera to icam
 
     void GetMouseMatrix(BMAT34 *pbmat34);
     BRA BraRotYCamera(void)

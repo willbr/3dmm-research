@@ -5,7 +5,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BWLD
+    BASE ---> World
 
 ***************************************************************************/
 #ifndef BWLD_H
@@ -28,10 +28,10 @@ typedef FNGETRECT *PFNGETRECT;
 /****************************************
     The BRender world class
 ****************************************/
-typedef class BWLD *PBWLD;
-#define BWLD_PAR BASE
-#define kclsBWLD 'BWLD'
-class BWLD : public BWLD_PAR
+typedef class World *PWorld;
+#define World_PAR BASE
+#define kclsWorld 'BWLD'
+class World : public World_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -69,7 +69,7 @@ class BWLD : public BWLD_PAR
     ChunkNumber _cnoZ;
 
   protected:
-    BWLD(void)
+    World(void)
     {
     }
     bool _FInit(long dxp, long dyp, bool fHalfX, bool fHalfY);
@@ -82,8 +82,8 @@ class BWLD : public BWLD_PAR
 
   public:
     // Constructors and destructors
-    static PBWLD PbwldNew(long dxp, long dyp, bool fHalfX = fFalse, bool fhalfY = fFalse);
-    ~BWLD();
+    static PWorld PbwldNew(long dxp, long dyp, bool fHalfX = fFalse, bool fhalfY = fFalse);
+    ~World();
     static void CloseBRender(void);
 
     // Dirtying the BRender world and bitmap

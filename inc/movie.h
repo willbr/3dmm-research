@@ -577,7 +577,7 @@ class Movie : public Movie_PAR
     bool _fGCSndsOnClose : 1;    // Garbage collection of sounds on close
     bool _fReadOnly : 1;         // Is the original file read-only?
 
-    PBWLD _pbwld;   // The brender world for this movie
+    PWorld _pbwld;   // The brender world for this movie
     PMSQ _pmsq;     // Message Sound Queue
     CLOK _clok;     // Clock for playing the film
     ulong _tsStart; // Time last play started.
@@ -945,7 +945,7 @@ class Movie : public Movie_PAR
     //
     // Accessor for getting to the Brender world.
     //
-    PBWLD Pbwld(void)
+    PWorld Pbwld(void)
     {
         return _pbwld;
     }
