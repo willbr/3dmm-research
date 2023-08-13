@@ -10,7 +10,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Header file for the CHSE class - the chunky source emitter class.
+    Header file for the SourceEmitter class - the chunky source emitter class.
 
 ***************************************************************************/
 #ifndef CHSE_H
@@ -27,15 +27,15 @@ enum
 };
 #endif // DEBUG
 
-typedef class CHSE *PCHSE;
-#define CHSE_PAR BASE
-#define kclsCHSE 'CHSE'
-class CHSE : public CHSE_PAR
+typedef class SourceEmitter *PSourceEmitter;
+#define SourceEmitter_PAR BASE
+#define kclsSourceEmitter 'CHSE'
+class SourceEmitter : public SourceEmitter_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CHSE)
+    NOCOPY(SourceEmitter)
 
   protected:
     PMSNK _pmsnkDump;
@@ -47,8 +47,8 @@ class CHSE : public CHSE_PAR
     void _DumpBsf(long cactTab);
 
   public:
-    CHSE(void);
-    ~CHSE(void);
+    SourceEmitter(void);
+    ~SourceEmitter(void);
     void Init(PMSNK pmsnkDump, PMSNK pmsnkError = pvNil);
     void Uninit(void);
 

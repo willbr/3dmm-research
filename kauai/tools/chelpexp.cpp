@@ -13,8 +13,8 @@
 #include "chelpexp.h"
 ASSERTNAME
 
-static bool _FWriteHelpChunk(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
-static bool _FWriteHelpPropAg(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
 static void _AppendHelpStnLw(PSTN pstn, PStringTable pgst, long istn, long lw);
 
 /***************************************************************************
@@ -34,7 +34,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
     CGE cge;
     ulong grfcge;
     HTOPF htopf;
-    CHSE chse;
+    SourceEmitter chse;
     STN stn, stnT;
     bool fRet = fFalse;
 
@@ -179,7 +179,7 @@ LFail:
 /***************************************************************************
     Dump a chunk as text to the given chse.
 ***************************************************************************/
-bool _FWriteHelpChunk(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
+bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);
@@ -245,7 +245,7 @@ bool _FWriteHelpChunk(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *p
 /***************************************************************************
     Write the property AG.  This requires special processing
 ***************************************************************************/
-bool _FWriteHelpPropAg(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
+bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);

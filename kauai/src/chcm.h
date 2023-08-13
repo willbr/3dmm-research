@@ -279,7 +279,7 @@ class Decompiler : public Decompiler_PAR
     BSF _bsf;   // temporary buffer for the chunk data
     short _bo;  // current byte order and osk
     short _osk;
-    CHSE _chse; // chunky source emitter
+    SourceEmitter _chse; // chunky source emitter
 
   protected:
     bool _FDumpScript(ChunkIdentification *pcki);

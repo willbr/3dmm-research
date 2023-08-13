@@ -13,12 +13,12 @@
 #include "util.h"
 ASSERTNAME
 
-RTCLASS(CHSE)
+RTCLASS(SourceEmitter)
 
 /***************************************************************************
     Constructor for a chunky source emitter.
 ***************************************************************************/
-CHSE::CHSE(void)
+SourceEmitter::SourceEmitter(void)
 {
     AssertBaseThis(0);
     _pmsnkError = pvNil;
@@ -29,7 +29,7 @@ CHSE::CHSE(void)
 /***************************************************************************
     Destructor for a chunky source emitter.
 ***************************************************************************/
-CHSE::~CHSE(void)
+SourceEmitter::~SourceEmitter(void)
 {
     Uninit();
 }
@@ -37,7 +37,7 @@ CHSE::~CHSE(void)
 /***************************************************************************
     Initialize the chunky source emitter.
 ***************************************************************************/
-void CHSE::Init(PMSNK pmsnkDump, PMSNK pmsnkError)
+void SourceEmitter::Init(PMSNK pmsnkDump, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pmsnkDump, 0);
@@ -57,7 +57,7 @@ void CHSE::Init(PMSNK pmsnkDump, PMSNK pmsnkError)
 /***************************************************************************
     Clean up and return the chse to an inactive state.
 ***************************************************************************/
-void CHSE::Uninit(void)
+void SourceEmitter::Uninit(void)
 {
     AssertThis(0);
     ReleasePpo(&_pmsnkDump);
@@ -68,11 +68,11 @@ void CHSE::Uninit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CHSE.
+    Assert the validity of a SourceEmitter.
 ***************************************************************************/
-void CHSE::AssertValid(ulong grfchse)
+void SourceEmitter::AssertValid(ulong grfchse)
 {
-    CHSE_PAR::AssertValid(0);
+    SourceEmitter_PAR::AssertValid(0);
     AssertPo(&_bsf, 0);
     if (grfchse & fchseDump)
         AssertPo(_pmsnkDump, 0);
@@ -80,12 +80,12 @@ void CHSE::AssertValid(ulong grfchse)
 }
 
 /***************************************************************************
-    Mark memory for the CHSE.
+    Mark memory for the SourceEmitter.
 ***************************************************************************/
-void CHSE::MarkMem(void)
+void SourceEmitter::MarkMem(void)
 {
     AssertValid(0);
-    CHSE_PAR::MarkMem();
+    SourceEmitter_PAR::MarkMem();
     MarkMemObj(_pmsnkError);
     MarkMemObj(_pmsnkDump);
     MarkMemObj(&_bsf);
@@ -95,7 +95,7 @@ void CHSE::MarkMem(void)
 /***************************************************************************
     Dumps chunk header.
 ***************************************************************************/
-void CHSE::DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
+void SourceEmitter::DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
 {
     AssertThis(fchseDump);
     AssertNilOrPo(pstnName, 0);
@@ -121,7 +121,7 @@ void CHSE::DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
 /***************************************************************************
     Dump a raw data chunk
 ***************************************************************************/
-void CHSE::DumpBlck(PDataBlock pblck)
+void SourceEmitter::DumpBlck(PDataBlock pblck)
 {
     AssertThis(fchseDump);
     AssertPo(pblck, 0);
@@ -143,7 +143,7 @@ void CHSE::DumpBlck(PDataBlock pblck)
 /***************************************************************************
     Dump raw data from memory.
 ***************************************************************************/
-void CHSE::DumpRgb(void *prgb, long cb, long cactTab)
+void SourceEmitter::DumpRgb(void *prgb, long cb, long cactTab)
 {
     AssertThis(fchseDump);
     AssertIn(cb, 0, kcbMax);
@@ -159,7 +159,7 @@ void CHSE::DumpRgb(void *prgb, long cb, long cactTab)
 /***************************************************************************
     Dump a parent directive
 ***************************************************************************/
-void CHSE::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid)
+void SourceEmitter::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid)
 {
     AssertThis(fchseDump);
 
@@ -172,7 +172,7 @@ void CHSE::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid)
 /***************************************************************************
     Dump a bitmap directive
 ***************************************************************************/
-void CHSE::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile)
+void SourceEmitter::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile)
 {
     AssertThis(fchseDump);
     AssertPo(pstnFile, 0);
@@ -186,7 +186,7 @@ void CHSE::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile)
 /***************************************************************************
     Dump a file directive
 ***************************************************************************/
-void CHSE::DumpFileCmd(PSTN pstnFile, bool fPacked)
+void SourceEmitter::DumpFileCmd(PSTN pstnFile, bool fPacked)
 {
     AssertThis(fchseDump);
     AssertPo(pstnFile, 0);
@@ -203,7 +203,7 @@ void CHSE::DumpFileCmd(PSTN pstnFile, bool fPacked)
 /***************************************************************************
     Dump an adopt directive
 ***************************************************************************/
-void CHSE::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
+void SourceEmitter::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertThis(fchseDump);
     AssertVarMem(pcki);
@@ -219,7 +219,7 @@ void CHSE::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pki
 /***************************************************************************
     Dump the data in the _bsf
 ***************************************************************************/
-void CHSE::_DumpBsf(long cactTab)
+void SourceEmitter::_DumpBsf(long cactTab)
 {
     AssertThis(fchseDump);
     AssertIn(cactTab, 0, kcchMaxStn + 1);
@@ -279,7 +279,7 @@ void CHSE::_DumpBsf(long cactTab)
     Disassembles a script (pscpt) using the given script compiler (psccb)
     and dumps the result (including a "SCRIPTPF" directive).
 ******************************************************************************/
-bool CHSE::FDumpScript(PSCPT pscpt, PSCCB psccb)
+bool SourceEmitter::FDumpScript(PSCPT pscpt, PSCCB psccb)
 {
     AssertThis(fchseDump);
     AssertPo(pscpt, 0);
@@ -298,7 +298,7 @@ bool CHSE::FDumpScript(PSCPT pscpt, PSCCB psccb)
     Dumps a GL or AL, including the GL or AL directive. pglb is the GL or AL
     to dump.
 ******************************************************************************/
-void CHSE::DumpList(PGLB pglb)
+void SourceEmitter::DumpList(PGLB pglb)
 {
     AssertThis(fchseDump);
     AssertPo(pglb, 0);
@@ -337,7 +337,7 @@ void CHSE::DumpList(PGLB pglb)
     Dumps a GG or AG, including the GG or AG directive. pggb is the GG or AG
     to dump.
 ******************************************************************************/
-void CHSE::DumpGroup(PGGB pggb)
+void SourceEmitter::DumpGroup(PGGB pggb)
 {
     AssertThis(fchseDump);
     AssertPo(pggb, 0);
@@ -386,7 +386,7 @@ void CHSE::DumpGroup(PGGB pggb)
     Dumps a StringTable or AST, including the StringTable or AST directive. pggb is the StringTable or
     AST to dump.
 ******************************************************************************/
-bool CHSE::FDumpStringTable(PGSTB pgstb)
+bool SourceEmitter::FDumpStringTable(PGSTB pgstb)
 {
     AssertThis(fchseDump);
     AssertPo(pgstb, 0);

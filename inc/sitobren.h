@@ -277,7 +277,7 @@ class S2B : public S2B_PAR
   protected:
     /* Used by script interpreter and chunk output code */
     PS2BLX _ps2blx; // used to process script file
-    CHSE _chse;     // used to dump chunk text to output file
+    SourceEmitter _chse;     // used to dump chunk text to output file
     ChunkTag _ctgPar;    // ChunkTag and ChunkNumber of current parent
     ChunkNumber _cnoPar;
     ChunkNumber _cnoCur;  // Current chunk number

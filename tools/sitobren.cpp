@@ -637,7 +637,7 @@ S2B::~S2B(void)
     Arguments:
         ChunkTag ctg       -- the ChunkTag of the chunk; used in the #ifdef
         ChunkNumber cno       -- the remainder of the arguments are just passed
-        PSTN pstnName    directly to the CHSE DumpHeader()
+        PSTN pstnName    directly to the SourceEmitter DumpHeader()
         bool fPack
 
 ************************************************************ PETED ***********/
