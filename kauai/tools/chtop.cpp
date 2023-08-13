@@ -85,7 +85,7 @@ PHEDO HEDO::PhedoNew(Filename *pfni, PRCA prca)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertPo(prca, 0);
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PHEDO phedo;
 
     if (pvNil == pfni)
@@ -435,7 +435,7 @@ void HEDO::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for TSEL class.
 ***************************************************************************/
-TSEL::TSEL(PCFL pcfl)
+TSEL::TSEL(PChunkyFile pcfl)
 {
     AssertPo(pcfl, 0);
     _pcfl = pcfl;
@@ -520,7 +520,7 @@ void TSEL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the HEDG.
 ***************************************************************************/
-HEDG::HEDG(PHEDO phedo, PCFL pcfl, PGCB pgcb) : DDG(phedo, pgcb), _tsel(pcfl)
+HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb) : DDG(phedo, pgcb), _tsel(pcfl)
 {
     AssertPo(pcfl, 0);
     RC rc;
@@ -541,7 +541,7 @@ HEDG::HEDG(PHEDO phedo, PCFL pcfl, PGCB pgcb) : DDG(phedo, pgcb), _tsel(pcfl)
 /***************************************************************************
     Static method to create a new HEDG.
 ***************************************************************************/
-PHEDG HEDG::PhedgNew(PHEDO phedo, PCFL pcfl, PGCB pgcb)
+PHEDG HEDG::PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb)
 {
     PHEDG phedg;
 
@@ -996,7 +996,7 @@ bool HEDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     AssertThis(0);
     AssertPo(pclip, 0);
     PHEDO phedo;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     long icki;
     ChunkIdentification cki;
     ChunkNumber cnoSel;
@@ -1677,7 +1677,7 @@ PHETD HETD::PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno)
 /***************************************************************************
     Constructor for a help topic document.
 ***************************************************************************/
-HETD::HETD(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno) : TXHD(prca, pdocb)
+HETD::HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno) : TXHD(prca, pdocb)
 {
     AssertNilOrPo(pcfl, 0);
     _pcfl = pcfl;
@@ -1697,7 +1697,7 @@ HETD::~HETD(void)
     (pcfl, cno) and using the given prca as the source for pictures
     and buttons.
 ***************************************************************************/
-PHETD HETD::PhetdNew(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno)
+PHETD HETD::PhetdNew(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertNilOrPo(pdocb, 0);
     AssertPo(prca, 0);
@@ -1733,7 +1733,7 @@ PHETD HETD::PhetdNew(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno)
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool HETD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
+bool HETD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
@@ -1837,7 +1837,7 @@ bool HETD::FSave(long cid)
     Save a help topic to the given chunky file.  Fill in *pcki with where
     we put the root chunk.
 ***************************************************************************/
-bool HETD::FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText)
+bool HETD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

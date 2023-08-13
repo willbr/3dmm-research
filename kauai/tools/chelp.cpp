@@ -401,7 +401,7 @@ bool APP::FLoadResFile(PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);
-    PCFL pcfl;
+    PChunkyFile pcfl;
     long ipcrf;
     PChunkyResourceFile pcrf;
     DataBlock blck;
@@ -609,7 +609,7 @@ bool LID::FRefresh(void)
     long ipcrf, icki;
     CACH cach, cachT;
     PChunkyResourceFile pcrf;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ChunkIdentification cki;
     long ivMin, ivLim, iv;
     ChildChunkIdentification kid;

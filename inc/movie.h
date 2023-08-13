@@ -605,13 +605,13 @@ class Movie : public Movie_PAR
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
     void _MoveChids(ChildChunkID chid, bool fDown);       // Move the chids of scenes in the movie.
-    bool _FDoGarbageCollection(PCFL pcfl);        // Remove unused chunks from movie.
+    bool _FDoGarbageCollection(PChunkyFile pcfl);        // Remove unused chunks from movie.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
-    bool _FDoMtrlTmplGC(PCFL pcfl);               // Material and template garbage collection
+    bool _FDoMtrlTmplGC(PChunkyFile pcfl);               // Material and template garbage collection
     ChildChunkID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
     ChildChunkID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
-    bool _FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FIsChild(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     bool _FSetPfilSave(PFilename pfni);
 
   public:
@@ -728,7 +728,7 @@ class Movie : public Movie_PAR
     bool _FInsertScend(PGL pglscend, long iscend, PSCEND pscend);
     // Insert an imported scene
     void _DeleteScend(PGL pglscend, long iscend);   // Delete an imported scene
-    bool _FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
+    bool _FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
 
     bool FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm = vlmNil,
                      long sty = styNil);                                                              // Adds a sound
@@ -743,9 +743,9 @@ class Movie : public Movie_PAR
         return TAGM::FSaveTag(ptag, _pcrfAutoSave, fTrue);
     }
     bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
-    bool FVerifyVersion(PCFL pcfl, ChunkNumber *pcno = pvNil);
+    bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
-    bool FCopyMsndFromPcfl(PCFL pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
+    bool FCopyMsndFromPcfl(PChunkyFile pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
     bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PChunkyResourceFile pcrf = pvNil);
     bool FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid);
     void SetDocClosing(bool fClose)

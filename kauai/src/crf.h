@@ -132,20 +132,20 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
         long cb;          // size of data
     };
 
-    PCFL _pcfl;
+    PChunkyFile _pcfl;
     PGL _pglcre; // sorted by (cki, pfnrpo)
     long _cbMax;
     long _cbCur;
     long _cactRelease;
 
-    ChunkyResourceFile(PCFL pcfl, long cbMax);
+    ChunkyResourceFile(PChunkyFile pcfl, long cbMax);
     bool _FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre);
     bool _FFindBaco(PBaseCacheableObject pbaco, long *picre);
     bool _FPurgeCb(long cbPurge, long crepLast);
 
   public:
     ~ChunkyResourceFile(void);
-    static PChunkyResourceFile PcrfNew(PCFL pcfl, long cbMax);
+    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, long cbMax);
 
     virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
     virtual PBaseCacheableObject PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
@@ -159,7 +159,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     }
     void SetCbMax(long cbMax);
 
-    PCFL Pcfl(void)
+    PChunkyFile Pcfl(void)
     {
         return _pcfl;
     }
@@ -198,7 +198,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
-    bool FAddCfl(PCFL pcfl, long cbMax, long *piv = pvNil);
+    bool FAddCfl(PChunkyFile pcfl, long cbMax, long *piv = pvNil);
     long Ccrf(void)
     {
         AssertThis(0);

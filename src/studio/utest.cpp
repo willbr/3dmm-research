@@ -1852,7 +1852,7 @@ bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PGL pg
     STN stn;
     long istn;
     long cbCache;
-    PCFL pcfl = pvNil;
+    PChunkyFile pcfl = pvNil;
     long icfl;
 
     for (istn = 0; istn < pgstFiles->IvMac(); istn++)
@@ -3997,12 +3997,12 @@ bool APP::FCmdIdle(PCMD pcmd)
     AssertVarMem(pcmd);
 
     bool fFileError = fFalse;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     APP_PAR::FCmdIdle(pcmd);
 
     /* Check all open chunky files for errors */
-    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = (PCFL)pcfl->PbllNext())
+    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = (PChunkyFile)pcfl->PbllNext())
     {
         if (pcfl->ElError() != elNil)
         {

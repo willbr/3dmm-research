@@ -55,10 +55,10 @@ class SCPT : public SCPT_PAR
 
   public:
     static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PSCPT PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PSCPT PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     ~SCPT(void);
 
-    bool FSaveToChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack = fFalse);
+    bool FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack = fFalse);
 };
 
 /***************************************************************************

@@ -490,7 +490,7 @@ PChunkyResourceManager TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
     PChunkyResourceManager pcrmSource = pvNil;
     FNE fne;
     FileType ftgChk = kftgContent;
-    PCFL pcfl = pvNil;
+    PChunkyFile pcfl = pvNil;
 
     pcrmSource = ChunkyResourceManager::PcrmNew(0);
     if (pvNil == pcrmSource)
@@ -820,7 +820,7 @@ bool TAGM::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
     PChunkyResourceManager pcrmSource;
     PChunkyResourceFile pcrfSource;
     bool fSourceIsOnHD;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if (ksidUseCrf == ptag->sid)
         return fTrue;
@@ -975,7 +975,7 @@ void TAGM::ClearCache(long sid, ulong grftagm)
     calling FOpenTag().  If you FOpenTag() a tag, you must CloseTag() it
     when you're done with it.
 ***************************************************************************/
-bool TAGM::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PCFL pcflSrc)
+bool TAGM::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc)
 {
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");

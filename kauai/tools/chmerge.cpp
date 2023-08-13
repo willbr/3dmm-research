@@ -24,9 +24,9 @@ int __cdecl main(int cpszs, char *prgpszs[])
     ChunkIdentification cki;
     long icki;
     ChunkNumber cnoDst;
-    PCFL pcflSrc;
+    PChunkyFile pcflSrc;
     bool fPreOrder = fFalse;
-    PCFL pcflMerge = pvNil;
+    PChunkyFile pcflMerge = pvNil;
 
 #ifdef UNICODE
     fprintf(stderr,

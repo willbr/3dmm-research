@@ -79,16 +79,16 @@ class TXHD : public TXHD_PAR
     TXHD(PRCA prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXHD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
     virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
     virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil,
+    static PTXHD PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
-    virtual bool FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
     bool FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                         ulong grfdoc = fdocUpdate);

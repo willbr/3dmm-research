@@ -26,7 +26,7 @@ ASSERTNAME
 
 const ChunkTag kctgTdfMake = 'TDFM';
 
-bool FMakeTdf(PFilename pfniSrc, PCFL pcflDst);
+bool FMakeTdf(PFilename pfniSrc, PChunkyFile pcflDst);
 
 /***************************************************************************
     Main routine.  Returns non-zero	if there's an error.
@@ -37,7 +37,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     STN stnSrc;
     Filename fniSrcDir;
     Filename fniDst;
-    PCFL pcflDst;
+    PChunkyFile pcflDst;
     long ifniSrc;
 
     fprintf(stderr, "\nMicrosoft (R) TDF Maker\n");
@@ -101,7 +101,7 @@ LFail:
     Writes a TDF chunk and child BMDL chunks based on all DAT files in
     pfniSrcDir to the destination file pcflDst.
 ***************************************************************************/
-bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
+bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
 {
     AssertPo(pfniSrcDir, ffniDir);
     AssertPo(pcflDst, 0);

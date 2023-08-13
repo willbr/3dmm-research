@@ -73,8 +73,8 @@ class TMAP : public TMAP_PAR
     //	take just a PDataBlock.  Should this be necessary for PtmapRead in the future,
     //	it's a simple matter of extracting the code in PtmapRead that is needed,
     //	like I did for FWrite.
-    static PTMAP PtmapRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    static PTMAP PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TMAP
     static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);

@@ -64,7 +64,7 @@ const ByteOrderMask kbomKid = 0xFC000000;
 /***************************************************************************
     Chunky file class.
 ***************************************************************************/
-typedef class ChunkyFile *PCFL;
+typedef class ChunkyFile *PChunkyFile;
 #define ChunkyFile_PAR BLL
 #define kclsChunkyFile 'CFL'
 class ChunkyFile : public ChunkyFile_PAR
@@ -112,7 +112,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
     // static member variables
     static long _rtiLast;
-    static PCFL _pcflFirst;
+    static PChunkyFile _pcflFirst;
 
   private:
     // private methods
@@ -131,8 +131,8 @@ class ChunkyFile : public ChunkyFile_PAR
     void _FreeFpCb(bool fOnExtra, FP fp, long cb);
     bool _FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataBlock pblck);
     bool _FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv);
-    bool _FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst, bool fClone);
-    bool _FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+    bool _FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone);
+    bool _FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
     bool _FFindCtgRti(ChunkTag ctg, long rti, ChunkNumber cnoMin, ChunkNumber *pcnoDst);
     bool _FDecRefCount(long icrp);
     void _DeleteCore(long icrp);
@@ -151,14 +151,14 @@ class ChunkyFile : public ChunkyFile_PAR
 
   public:
     // static methods
-    static PCFL PcflFirst(void)
+    static PChunkyFile PcflFirst(void)
     {
         return _pcflFirst;
     }
-    static PCFL PcflOpen(Filename *pfni, ulong grfcfl);
-    static PCFL PcflCreate(Filename *pfni, ulong grfcfl);
-    static PCFL PcflCreateTemp(Filename *pfni = pvNil);
-    static PCFL PcflFromFni(Filename *pfni);
+    static PChunkyFile PcflOpen(Filename *pfni, ulong grfcfl);
+    static PChunkyFile PcflCreate(Filename *pfni, ulong grfcfl);
+    static PChunkyFile PcflCreateTemp(Filename *pfni = pvNil);
+    static PChunkyFile PcflFromFni(Filename *pfni);
 
     static void ClearMarks(void);
     static void CloseUnmarked(void);
@@ -212,8 +212,8 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FPutPv(void *pv, long cb, ChunkTag ctg, ChunkNumber cno);
     bool FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno);
     bool FPutBlck(PDataBlock pblck, ChunkTag ctg, ChunkNumber cno);
-    bool FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
-    bool FClone(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+    bool FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
+    bool FClone(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
     void SwapData(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkNumber cno2);
     void SwapChildren(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkNumber cno2);
     void Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumber cnoNew);
@@ -255,10 +255,10 @@ class ChunkyFile : public ChunkyFile_PAR
 
     // Serialized chunk forests
     bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP fpDst, long *pcb);
-    static PCFL PcflReadForestFromFlo(PFLO pflo, bool fCopyData);
+    static PChunkyFile PcflReadForestFromFlo(PFLO pflo, bool fCopyData);
     bool FForest(ChunkTag ctg, ChunkNumber cno);
     void SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest = fTrue);
-    PCFL PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData);
+    PChunkyFile PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData);
 
     // writing
     bool FSave(ChunkTag ctgCreator, Filename *pfni = pvNil);
@@ -308,7 +308,7 @@ class CGE : public CGE_PAR
     };
 
     long _es;    // current state
-    PCFL _pcfl;  // the chunky file
+    PChunkyFile _pcfl;  // the chunky file
     PGL _pgldps; // our stack of DPSs
     DPS _dps;    // the current DPS
 
@@ -316,7 +316,7 @@ class CGE : public CGE_PAR
     CGE(void);
     ~CGE(void);
 
-    void Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    void Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     bool FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
 };
 

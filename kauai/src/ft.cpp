@@ -1041,7 +1041,7 @@ long _LwSqrt(long lw)
 bool APP::FCmdMacro(PCMD pcmd)
 {
     Filename fni;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     // make sure we're not already recording or playing a macro.
     if (vpcex->FRecording() || vpcex->FPlaying())
@@ -1533,7 +1533,7 @@ PDDG DOCPIC::PddgNew(PGCB pgcb)
 ***************************************************************************/
 bool DOCPIC::FSaveToFni(Filename *pfni, bool fSetFni)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fT;
     ChunkNumber cno;
 

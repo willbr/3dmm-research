@@ -262,7 +262,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     ChildChunkIdentification kid;
     ChildChunkID chid;
     TAGL *ptagl;
-    PCFL pcfl = pvNil;
+    PChunkyFile pcfl = pvNil;
     DataBlock blck;
     short bo;
     short osk;
@@ -443,7 +443,7 @@ LFail:
         highest arid found.
 
     Arguments:
-        PCFL pcfl       -- the file the movie is on
+        PChunkyFile pcfl       -- the file the movie is on
         PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's ACTR tags
         ChunkNumber cno         -- the cno of the movie
         PStringTable *ppgst     -- the PStringTable to fill in
@@ -461,7 +461,7 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTabl
 
     short bo;
     long imactr, imactrMac;
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
     ChildChunkIdentification kid;
     DataBlock blck;
     MACTR mactr;
@@ -538,7 +538,7 @@ void Movie::_DoSndGarbageCollection(bool fPurgeAll)
     if (pvNil == _pcrfAutoSave)
         return;
 
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     if (pvNil == pcfl)
         return;
 
@@ -1371,7 +1371,7 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
 
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     ChildChunkIdentification kid;
     ChildChunkID chidTmp;
 
@@ -1408,14 +1408,14 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
         given (ctg, cno) chunk is an actual child of the Movie chunk.
 
     Arguments:
-        PCFL pcfl  --  the file on which to check
+        PChunkyFile pcfl  --  the file on which to check
         ChunkTag ctg    --  these are self-explanatory
         ChunkNumber cno
 
     Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the Movie
 
 ************************************************************ PETED ***********/
-bool Movie::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;
@@ -1454,7 +1454,7 @@ bool Movie::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
  * success or failure
  *
  ****************************************************/
-bool Movie::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
+bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1516,7 +1516,7 @@ bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PC
     ChildChunkIdentification kidScen;
     ChildChunkIdentification kid;
     TAG tagNew = *ptag;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if (pvNil == pcrf)
         pcrf = _pcrfAutoSave;
@@ -1569,7 +1569,7 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
     ChildChunkIdentification kid;
     long ckid;
     long ikid;
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
         return fFalse;
@@ -1614,7 +1614,7 @@ bool Movie::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN p
     AssertNilOrPo(pstn, 0);
     Assert(_pcrfAutoSave != pvNil, "Bad working file.");
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     Filename fniSrc;
     ChildChunkID chid;
     ChildChunkIdentification kidScen;
@@ -1673,13 +1673,13 @@ LFail:
  *	*pcnoDest
  *
  ****************************************************/
-bool Movie::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
+bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
     AssertBaseThis(0);
     AssertPo(pcflSrc, 0);
     AssertVarMem(pcnoDest);
 
-    PCFL pcflDest;
+    PChunkyFile pcflDest;
     ChildChunkIdentification kidScen;
     ChildChunkID chid;
     Filename fni;
@@ -1721,7 +1721,7 @@ bool Movie::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcn
 ChildChunkID Movie::_ChidScenNewSnd(void)
 {
     AssertBaseThis(0);
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     long ckid;
     long chid;
     ChildChunkIdentification kidScen;
@@ -1753,7 +1753,7 @@ ChildChunkID Movie::_ChidScenNewSnd(void)
 ChildChunkID Movie::_ChidMvieNewSnd(void)
 {
     AssertBaseThis(0);
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     long ckid;
     long chid;
     ChildChunkIdentification kid;
@@ -1780,7 +1780,7 @@ ChildChunkID Movie::_ChidMvieNewSnd(void)
  *  *pcno updated
  *
  ****************************************************/
-bool Movie::FVerifyVersion(PCFL pcfl, ChunkNumber *pcno)
+bool Movie::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
 {
     AssertBaseThis(0); // Movie hasn't been loaded yet
     AssertPo(pcfl, 0);
@@ -1843,7 +1843,7 @@ bool Movie::FRemScenCore(long iscen)
     Assert(_pcrfAutoSave != pvNil, "Bad working file.");
 
     ChildChunkIdentification kid;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PSCEN pscen;
     long iscenOld;
 
@@ -2033,7 +2033,7 @@ bool Movie::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
     AssertVarMem(ptag);
 
     PChunkyResourceFile pcrf;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ChunkNumber cno;
 
     if (!FEnsureAutosave(&pcrf))
@@ -2115,7 +2115,7 @@ bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
     AssertIn(tdts, 0, tdtsLim);
     AssertVarMem(ptagTdf);
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ChunkNumber cno;
     PTDT ptdt;
     TAG tagTdt;
@@ -2192,7 +2192,7 @@ bool Movie::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     bool fNonSpaceFound;
     PTDT ptdtNew;
     TAG tagTdtNew;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ChunkNumber cno;
     PACTR pactrDup;
 
@@ -2325,7 +2325,7 @@ bool Movie::_FUseTempFile(void)
 {
     AssertThis(0);
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ChildChunkIdentification kid;
     Filename fni;
 
@@ -2375,7 +2375,7 @@ bool Movie::_FMakeCrfValid(void)
 {
     AssertThis(0);
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     Filename fni;
 
     if (_pcrfAutoSave != pvNil)
@@ -2452,7 +2452,7 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     ChunkNumber cnoSource;
     MFP mfp;
     ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PStringTable pgstSource = pvNil;
 
     if (_pcrfAutoSave == pvNil)
@@ -2744,7 +2744,7 @@ LFail0:
  *  fTrue on success, fFalse on failure
  *
  ****************************************************/
-bool Movie::_FDoGarbageCollection(PCFL pcfl)
+bool Movie::_FDoGarbageCollection(PChunkyFile pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2771,7 +2771,7 @@ bool Movie::_FDoGarbageCollection(PCFL pcfl)
  *  fTrue on success, fFalse on failure
  *
  ****************************************************/
-bool Movie::_FDoMtrlTmplGC(PCFL pcfl)
+bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2921,7 +2921,7 @@ bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
     AssertNilOrPo(pfni, ffniFile);
 
     ChunkIdentification cki;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if (_pcrfAutoSave == pvNil)
     {
@@ -3728,7 +3728,7 @@ bool Movie::FInsScenCore(long iscen, SCEN *pscen)
     Assert(pscen->Pmvie() == this, "Cannot insert a scene from another movie");
 
     ChunkNumber cnoScen;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     //
     // Make sure we have a file to switch to
@@ -4634,7 +4634,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     long iscen = 0, iscenMac = Cscen(), imvied;
     SCEND scend;
     MVIED mvied;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     scend.imvied = ivNil;
 
@@ -4757,7 +4757,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
     long imvied, imviedMac = pcmvi->pglmvied->IvMac();
     long aridMin = 0;
     ChildChunkID chidScen = 0;
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     PChunkyResourceFile pcrf = _pcrfAutoSave;
     PGL pglmviedNew;
 
@@ -4965,7 +4965,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     AssertThis(0);
 
     long imactr, imactrMac, icnoMac = 0;
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     PStringTable pgstmactr = pvNil;
 
     /* Update the roll call StringTable */
@@ -5699,7 +5699,7 @@ bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 
     bool fUnused = fFalse;
     long icki, ccki;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if (pfHaveValid != pvNil)
         *pfHaveValid = fFalse;

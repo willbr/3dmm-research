@@ -1069,7 +1069,7 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
 
     if (pvNil != pfni)
     {
-        PCFL pcfl;
+        PChunkyFile pcfl;
         ChunkIdentification cki;
 
         if (pvNil == (pcfl = ChunkyFile::PcflOpen(pfni, fcflNil)))
@@ -1108,7 +1108,7 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
 /***************************************************************************
     Static method to read a rich text document from a chunk.
 ***************************************************************************/
-PTXRD TXRD::PtxrdReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
+PTXRD TXRD::PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     PTXRD ptxrd;
@@ -1124,7 +1124,7 @@ PTXRD TXRD::PtxrdReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyT
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool TXRD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
+bool TXRD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
@@ -1307,7 +1307,7 @@ bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
     Filename fni;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ChunkIdentification cki;
 
     if (pvNil == pfni)
@@ -1353,7 +1353,7 @@ bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
     Save a rich text document to the given chunky file. Fill in *pcki with
     where we put the root chunk.
 ***************************************************************************/
-bool TXRD::FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText)
+bool TXRD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pcfl, 0);

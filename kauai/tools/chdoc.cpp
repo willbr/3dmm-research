@@ -76,7 +76,7 @@ enum
 // add chunk data
 struct ADCD
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fCkiValid;
     ChunkIdentification cki;
 };
@@ -169,7 +169,7 @@ DOC::~DOC(void)
 ***************************************************************************/
 PDOC DOC::PdocNew(Filename *pfni)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PDOC pdoc;
 
     if (pvNil == pfni)
@@ -278,7 +278,7 @@ void DOC::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for chunk editing doc.
 ***************************************************************************/
-DOCE::DOCE(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DocumentBase(pdocb)
+DOCE::DOCE(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno) : DocumentBase(pdocb)
 {
     _pcfl = pcfl;
     _ctg = ctg;
@@ -307,7 +307,7 @@ bool DOCE::_FInit(void)
 /***************************************************************************
     Static method to look for a DOCE for the given chunk.
 ***************************************************************************/
-PDOCE DOCE::PdoceFromChunk(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PDOCE DOCE::PdoceFromChunk(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     PDOCE pdoce;
 
@@ -655,7 +655,7 @@ void DCLB::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the DCD.
 ***************************************************************************/
-DCD::DCD(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
+DCD::DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
 {
     _pcfl = pcfl;
     _dypBorder = 1;
@@ -667,7 +667,7 @@ DCD::DCD(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pc
 /***************************************************************************
     Static method to create a new DCD.
 ***************************************************************************/
-PDCD DCD::PdcdNew(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb)
+PDCD DCD::PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb)
 {
     PDCD pdcd;
 
@@ -702,7 +702,7 @@ void DCD::_Activate(bool fActive)
     *pcki and *pkid should be at or before the first line modified.
     pcki and pkid can be nil.
 ***************************************************************************/
-void DCD::InvalAllDcd(PDocumentBase pdocb, PCFL pcfl, ChunkIdentification *pcki, ChildChunkIdentification *pkid)
+void DCD::InvalAllDcd(PDocumentBase pdocb, PChunkyFile pcfl, ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);
@@ -1675,7 +1675,7 @@ struct CLAN
 {
     ChunkIdentification cki;
     ChildChunkIdentification kid;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 };
 
 bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv);
@@ -2021,7 +2021,7 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
     ChildChunkIdentification kid;
     long ikid;
     bool fEmpty;
-    PCFL pcfl = (PCFL)pv;
+    PChunkyFile pcfl = (PChunkyFile)pv;
 
     AssertPo(pcfl, 0);
     switch (*pidit)
@@ -2688,7 +2688,7 @@ bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     AssertThis(0);
     AssertPo(pclip, 0);
     PDOC pdoc;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     long icki;
     ChunkIdentification cki, ckiSel;
     bool fFailed = fFalse;
@@ -2961,7 +2961,7 @@ void _PutCtgStn(PDLG pdlg, long idit, ChunkTag ctg)
 /***************************************************************************
     Constructor for SEL class.
 ***************************************************************************/
-SEL::SEL(PCFL pcfl)
+SEL::SEL(PChunkyFile pcfl)
 {
     AssertPo(pcfl, 0);
     _pcfl = pcfl;

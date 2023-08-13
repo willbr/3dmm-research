@@ -79,7 +79,7 @@ bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumb
     Retrieve information contained in the msnd chunk
 
 ***************************************************************************/
-bool MovieSoundMSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
+bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
 {
     AssertPo(pcfl, 0);
 
@@ -109,7 +109,7 @@ bool MovieSoundMSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool
     Init a MovieSoundMSND from the given chunk of the given ChunkyFile
 
 ***************************************************************************/
-bool MovieSoundMSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -158,7 +158,7 @@ LFail:
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pcflDest, 0);
     AssertPo(pmids, 0);
@@ -202,7 +202,7 @@ LFail:
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, STN *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
@@ -254,7 +254,7 @@ LFail:
     The *pcno is returned
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn)
+bool MovieSoundMSND::FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PSTN pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
@@ -294,7 +294,7 @@ LFail:
     Copy the wave file to a chunk in the current movie
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn)
+bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PSTN pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertPo(pcflDest, 0);

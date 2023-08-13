@@ -41,7 +41,7 @@ const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
     If this function returns false, it is the client's responsibility to
     delete the actor chunks.
 ***************************************************************************/
-bool ACTR::FWrite(PCFL pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
+bool ACTR::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -160,7 +160,7 @@ PACTR ACTR::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
 
     ACTR *pactr;
     ChildChunkIdentification kid;
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     pactr = NewObj ACTR;
     if (pvNil == pactr)
@@ -246,7 +246,7 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
 /***************************************************************************
     Read the ACTR chunk
 ***************************************************************************/
-bool ACTR::_FReadActor(PCFL pcfl, ChunkNumber cno)
+bool ACTR::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -288,14 +288,14 @@ bool ACTR::_FReadActor(PCFL pcfl, ChunkNumber cno)
         arid for the actor on file.
 
     Arguments:
-        PCFL pcfl   -- the file the actor's on
+        PChunkyFile pcfl   -- the file the actor's on
         ChunkNumber cno     -- the ChunkNumber of the actor
         long darid  -- the change of the arid
 
     Returns: fTrue if everything went well, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool ACTR::FAdjustAridOnFile(PCFL pcfl, ChunkNumber cno, long darid)
+bool ACTR::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
 {
     AssertPo(pcfl, 0);
     Assert(darid != 0, "Why call this with darid == 0?");
@@ -314,7 +314,7 @@ bool ACTR::FAdjustAridOnFile(PCFL pcfl, ChunkNumber cno, long darid)
 /***************************************************************************
     Read the PATH (_pglrpt) chunk
 ***************************************************************************/
-bool ACTR::_FReadRoute(PCFL pcfl, ChunkNumber cno)
+bool ACTR::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -338,7 +338,7 @@ bool ACTR::_FReadRoute(PCFL pcfl, ChunkNumber cno)
 /***************************************************************************
     Read the GGAE (_pggaev) chunk
 ***************************************************************************/
-bool ACTR::_FReadEvents(PCFL pcfl, ChunkNumber cno)
+bool ACTR::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -478,7 +478,7 @@ void ACTR::_CloseTags(void)
 /***************************************************************************
     Get all the tags that the actor uses
 ***************************************************************************/
-PGL ACTR::PgltagFetch(PCFL pcfl, ChunkNumber cno, bool *pfError)
+PGL ACTR::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);

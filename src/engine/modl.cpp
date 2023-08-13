@@ -256,7 +256,7 @@ MODL::~MODL(void)
 /***************************************************************************
     Writes a MODL to a chunk
 ***************************************************************************/
-bool MODL::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool MODL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

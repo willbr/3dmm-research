@@ -183,7 +183,7 @@ class CHCM : public CHCM_PAR
     // Chunk sub file context
     struct CSFC
     {
-        PCFL pcfl;
+        PChunkyFile pcfl;
         ChunkTag ctg;
         ChunkNumber cno;
         bool fPack;
@@ -191,7 +191,7 @@ class CHCM : public CHCM_PAR
 
     PGL _pglcsfc; // the stack of CSFCs for sub files
 
-    PCFL _pcfl;       // current sub file
+    PChunkyFile _pcfl;       // current sub file
     PGL _pglckiLoner; // the chunks that must be loners
 
     BSF _bsf;     // temporary buffer for the chunk data
@@ -254,8 +254,8 @@ class CHCM : public CHCM_PAR
         return _cactError > 0;
     }
 
-    PCFL PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk);
-    PCFL PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk);
+    PChunkyFile PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk);
+    PChunkyFile PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk);
 };
 
 /***************************************************************************
@@ -273,7 +273,7 @@ class CHDC : public CHDC_PAR
 
   protected:
     long _ert;  // error type
-    PCFL _pcfl; // the chunky file to read from
+    PChunkyFile _pcfl; // the chunky file to read from
     BSF _bsf;   // temporary buffer for the chunk data
     short _bo;  // current byte order and osk
     short _osk;
@@ -295,7 +295,7 @@ class CHDC : public CHDC_PAR
         return ertNil != _ert;
     }
 
-    bool FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
+    bool FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
 };
 
 #endif // CHCM_H

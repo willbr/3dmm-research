@@ -67,7 +67,7 @@ class MTRL : public MTRL_PAR
     bool _FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
   public:
-    static bool FSetShadeTable(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static bool FSetShadeTable(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     static PMTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
     static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PMTRL PmtrlNewFromPix(PFilename pfni);
@@ -79,7 +79,7 @@ class MTRL : public MTRL_PAR
     {
         return _pbmtl;
     }
-    bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG
@@ -114,8 +114,8 @@ class CMTL : public CMTL_PAR
   public:
     static PCMTL PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl);
     static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static bool FHasModels(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    static bool FEqualModels(PCFL pcfl, ChunkNumber cno1, ChunkNumber cno2);
+    static bool FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
     ~CMTL(void);
     PBMTL Pbmtl(long ibmtl);
     PMODL Pmodl(long imodl);

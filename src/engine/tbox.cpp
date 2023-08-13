@@ -1887,7 +1887,7 @@ PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PSCEN pscen)
     DataBlock blck;
     TBOXH tboxh;
     ChildChunkIdentification kid;
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     //
     // Find the chunk and read in the header.
@@ -1951,7 +1951,7 @@ PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PSCEN pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FWrite(PCFL pcfl, ChunkNumber cno)
+bool TBOX::FWrite(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

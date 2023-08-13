@@ -453,7 +453,7 @@ void TestCfl(void)
     };
 
     Filename fni, fniDst;
-    PCFL pcfl, pcflDst;
+    PChunkyFile pcfl, pcflDst;
     DataBlock blck;
     short rel;
     long icki;
@@ -632,7 +632,7 @@ void TestCrf(void)
     ChunkTag ctg = 'JUNK';
     ChunkNumber cno;
     PGHQ rgpghq[cnoLim];
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PChunkyResourceFile pcrf;
     HQ hq;
     PGHQ pghq;

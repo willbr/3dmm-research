@@ -319,11 +319,11 @@ class BCL : public BCL_PAR
     }
 
     bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd);
-    bool _FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki);
-    bool _FAddFileToThd(PCFL pcfl, long sid);
+    bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki);
+    bool _FAddFileToThd(PChunkyFile pcfl, long sid);
     bool _FBuildThd(PChunkyResourceManager pcrm);
 
-    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
+    virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
     static PBCL PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
@@ -367,9 +367,9 @@ class BCLS : public BCLS_PAR
     }
 
     bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PGL pglthd);
-    bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
-    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid);
+    virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
     static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PStringTable pgst = pvNil,

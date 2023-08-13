@@ -260,7 +260,7 @@ void ZBMP::DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypR
 /***************************************************************************
     Write the ZBMP
 ***************************************************************************/
-bool ZBMP::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool ZBMP::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

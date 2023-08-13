@@ -1506,7 +1506,7 @@ bool BCL::_FBuildThd(PChunkyResourceManager pcrm)
     AssertNilOrPo(pcrm, 0);
 
     bool fRet = fTrue;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     long sid;
     FNET fnet;
     Filename fniThd;
@@ -1562,7 +1562,7 @@ bool BCL::_FBuildThd(PChunkyResourceManager pcrm)
  *	A value of cnoNil => wild card search
  *
  ****************************************************/
-bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
+bool BCL::_FAddFileToThd(PChunkyFile pcfl, long sid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1628,7 +1628,7 @@ bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
     return fTrue;
 }
 
-bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki)
+bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
 {
     ChildChunkIdentification kid;
 
@@ -1644,7 +1644,7 @@ bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki)
  *  cnoPar is read from the ckiPar chunk
  *
  ****************************************************/
-bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid)
+bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1702,7 +1702,7 @@ LFail:
     return fFalse;
 }
 
-bool BCLS::_FAddGokdToThd(PCFL pcfl, long sid, ChildChunkIdentification *pkid)
+bool BCLS::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1724,7 +1724,7 @@ LFail:
  * Save the name of the Par chunk in the Gst
  *
  ****************************************************/
-bool BCLS::_FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool BCLS::_FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2046,7 +2046,7 @@ bool BRWM::_FUpdateLists(void)
     ChunkIdentification cki;
     TAG tag;
     PMSND pmsnd = pvNil;
-    PCFL pcfl = _pcrf->Pcfl();
+    PChunkyFile pcfl = _pcrf->Pcfl();
 
     // Enum through current movie for user sounds
     // For each	one, extend the lists to include the new sound
@@ -2210,7 +2210,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     Filename fni;
     long kidBrws;
     PFIL pfil = pvNil; // Wave or midi file
-    PCFL pcfl = pvNil; // Movie file
+    PChunkyFile pcfl = pvNil; // Movie file
     long icki;
     long ccki;
     STN stn;
@@ -2748,7 +2748,7 @@ bool BRWI::FInit(PCMD pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
 {
     AssertBaseThis(0);
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     Filename fni;
     STN stn;
 
@@ -3000,7 +3000,7 @@ bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pst
     AssertThis(0);
 
     long ccrf = 1;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     DataBlock blck;
     long ccki;
     long icki;

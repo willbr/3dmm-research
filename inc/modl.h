@@ -62,7 +62,7 @@ class MODL : public MODL_PAR
         return _pbmdl;
     }
     void AdjustTdfCharacter(void);
-    bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     BRS Dxr(void)
     {

@@ -36,7 +36,7 @@ PIC::~PIC(void)
     Read a picture from a chunky file.  This routine only reads or converts
     OS specific representations with the given chid value.
 ***************************************************************************/
-PPIC PIC::PpicFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
+PPIC PIC::PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
 {
     AssertPo(pcfl, 0);
     ChildChunkIdentification kid;

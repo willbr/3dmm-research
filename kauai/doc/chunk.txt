@@ -10,7 +10,7 @@
 ****************************************/
 
 	class ChunkyFile;
-	typedef class ChunkyFile *PCFL;
+	typedef class ChunkyFile *PChunkyFile;
 		A chunky file.
 
 	class CGE;
@@ -86,15 +86,15 @@ REVIEW shonk: assert and check for cycles.
 	ChunkyFile static methods
 ****************************************/
 
-	PCFL ChunkyFile::PcflFirst(void);
+	PChunkyFile ChunkyFile::PcflFirst(void);
 		Chunky files form a linked list.  This returns the first chunky file
 		in the linked list.
 
-	PCFL ChunkyFile::PcflFromFni(Filename *pfni);
+	PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni);
 		If the file indicated by *pfni is open as a chunky file, this returns
 		a pointer to the ChunkyFile.  Otherwise it returns pNil.
 
-	PCFL ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl);
+	PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl);
 		Attempts to open the indicated file as a chunky file.  grfcfl may
 		include fcflWriteEnable, fcflAddToExtra, fcflMark.  fcflTemp is
 		illegal.  If the file is already open as a chunky file, this ensures
@@ -103,7 +103,7 @@ REVIEW shonk: assert and check for cycles.
 		fcflMark causes the cfl to be marked (but not the underlying fil).
 		Returns pNil on failure.
 
-	PCFL ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl);
+	PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl);
 		Creates and opens the indicated file as a chunk file (asserts that it
 		isn't already open) and sets the open count to 1.  Assumes
 		fcflWriteEnable.  fcflMark is legal.  Use fcflTemp to create a temp
@@ -123,7 +123,7 @@ REVIEW shonk: assert and check for cycles.
 	ChunkyFile methods
 ****************************************/
 
-	PCFL ChunkyFile::Next(void);
+	PChunkyFile ChunkyFile::Next(void);
 		Returns the next chunky file (in the linked list).
 
 	void ChunkyFile::Open(void);
@@ -193,7 +193,7 @@ REVIEW shonk: assert and check for cycles.
 		calling this.  Preserves any existing children of the node.  pv can
 		only be nil if cb is zero.
 
-	bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+	bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
 		Copies a chunk from one file to another.  If the chunk has already
 		been copied, the actual data is not copied again, but the child
 		sub-graph is verified (new descendents will be copied) and names
@@ -257,7 +257,7 @@ REVIEW shonk: assert and check for cycles.
 	CGE methods
 ****************************************/
 
-	void CGE::Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+	void CGE::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 		This initializes an enumeration and must be called before
 		GrfcgeNextKid is called.  The enumeration is over the given
 		node and all of its descendents.

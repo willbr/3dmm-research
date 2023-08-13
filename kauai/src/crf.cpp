@@ -159,7 +159,7 @@ void BaseCacheableObject::SetCrep(long crep)
 /***************************************************************************
     Constructor for ChunkyResourceFile.  Increments the open count on the ChunkyFile.
 ***************************************************************************/
-ChunkyResourceFile::ChunkyResourceFile(PCFL pcfl, long cbMax)
+ChunkyResourceFile::ChunkyResourceFile(PChunkyFile pcfl, long cbMax)
 {
     AssertBaseThis(fobjAllocated);
     AssertPo(pcfl, 0);
@@ -199,7 +199,7 @@ ChunkyResourceFile::~ChunkyResourceFile(void)
 /***************************************************************************
     Static method to create a new chunky resource file cache.
 ***************************************************************************/
-PChunkyResourceFile ChunkyResourceFile::PcrfNew(PCFL pcfl, long cbMax)
+PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile pcfl, long cbMax)
 {
     AssertPo(pcfl, 0);
     AssertIn(cbMax, 0, kcbMax);
@@ -917,7 +917,7 @@ PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTag ctg, ChunkNumb
     Add a chunky file to the list of chunky resource files, by
     creating the chunky resource file object and adding it to the GL
 ***************************************************************************/
-bool ChunkyResourceManager::FAddCfl(PCFL pcfl, long cbMax, long *piv)
+bool ChunkyResourceManager::FAddCfl(PChunkyFile pcfl, long cbMax, long *piv)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

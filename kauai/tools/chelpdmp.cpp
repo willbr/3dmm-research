@@ -26,7 +26,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fni;
     PFIL pfil = pvNil;
     PMSNK pmsnk = pvNil;
-    PCFL pcflSrc = pvNil;
+    PChunkyFile pcflSrc = pvNil;
 
 #ifdef UNICODE
     fprintf(stderr,

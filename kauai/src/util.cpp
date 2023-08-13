@@ -19,7 +19,7 @@ ASSERTNAME
 ***************************************************************************/
 void MarkUtilMem(void)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PFIL pfil;
 
     MarkMemObj(&vsflUtil);

@@ -276,7 +276,7 @@ class TXRD : public TXRD_PAR
     };
 #define kbomRdop 0x5FC00000
 
-    PCFL _pcfl;
+    PChunkyFile _pcfl;
     PGL _pglmpe;
     PAG _pagcact; // for sprm's that have more than a long's worth of data
 
@@ -297,7 +297,7 @@ class TXRD : public TXRD_PAR
     TXRD(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXRD(void);
     bool _FInit(PFilename pfni = pvNil, ChunkTag ctg = kctgRichText);
-    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
 
     ulong _SpcpFromSprmCp(byte sprm, long cp)
@@ -339,7 +339,7 @@ class TXRD : public TXRD_PAR
 
   public:
     static PTXRD PtxrdNew(PFilename pfni = pvNil);
-    static PTXRD PtxrdReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
+    static PTXRD PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
 
     virtual PDDG PddgNew(PGCB pgcb);
 
@@ -376,7 +376,7 @@ class TXRD : public TXRD_PAR
     virtual bool FGetFni(Filename *pfni);
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
-    virtual bool FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
     virtual bool FSetUndo(long cp1, long cp2, long ccpIns);
     virtual void CancelUndo(void);

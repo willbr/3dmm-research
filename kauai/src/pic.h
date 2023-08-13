@@ -50,7 +50,7 @@ class PIC : public PIC_PAR
   public:
     ~PIC(void);
 
-    static PPIC PpicFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
+    static PPIC PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
     static PPIC PpicRead(PDataBlock pblck);
     static PPIC PpicReadNative(Filename *pfni);
     static PPIC PpicNew(HPIC hpic, RC *prc);
@@ -60,13 +60,13 @@ class PIC : public PIC_PAR
     {
         return _hpic;
     }
-    bool FAddToCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChunkID chid = 0);
-    bool FPutInCfl(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
+    bool FAddToCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChunkID chid = 0);
+    bool FPutInCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
     virtual long CbOnFile(void);
     virtual bool FWrite(PDataBlock pblck);
 };
 
 // a chunky resource reader to read picture 0 from a GRAF chunk
-bool FReadMainPic(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+bool FReadMainPic(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
 #endif //! PIC_H

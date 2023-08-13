@@ -112,7 +112,7 @@ class TAGM : public TAGM_PAR
     bool _FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists);
     PChunkyResourceManager _PcrmSourceNew(long sid, PFilename pfniInfo);
     PChunkyResourceManager _PcrmSourceGet(long sid, bool fDontHitCD = fFalse);
-    PCFL _PcflFindTag(PTAG ptag);
+    PChunkyFile _PcflFindTag(PTAG ptag);
 
   public:
     static PTAGM PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache);
@@ -134,7 +134,7 @@ class TAGM : public TAGM_PAR
                     ulong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 
     // For ksidUseCrf tags:
-    static bool FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PCFL pcflSrc = pvNil);
+    static bool FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc = pvNil);
     static bool FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect);
     static void DupTag(PTAG ptag); // call this when you're copying a tag
     static void CloseTag(PTAG ptag);

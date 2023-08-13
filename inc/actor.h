@@ -452,10 +452,10 @@ class ACTR : public ACTR_PAR
     void _RestoreFromUndo(PACTR pactrRestore);
     bool _FDupCopy(PACTR pactrSrc, PACTR pactrDest);
 
-    bool _FWriteTmpl(PCFL pcfl, ChunkNumber cno);
-    bool _FReadActor(PCFL pcfl, ChunkNumber cno);
-    bool _FReadRoute(PCFL pcfl, ChunkNumber cno);
-    bool _FReadEvents(PCFL pcfl, ChunkNumber cno);
+    bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
+    bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
+    bool _FReadRoute(PChunkyFile pcfl, ChunkNumber cno);
+    bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
     static void _SwapBytesPggaev(PGG pggaev);
     bool _FOpenTags(PChunkyResourceFile pcrf);
     static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev = pvNil);
@@ -483,9 +483,9 @@ class ACTR : public ACTR_PAR
 
     // ActrSave Routines
     static PACTR PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
-    bool FWrite(PCFL pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
-    static PGL PgltagFetch(PCFL pcfl, ChunkNumber cno, bool *pfError);
-    static bool FAdjustAridOnFile(PCFL pcfl, ChunkNumber cno, long darid);
+    bool FWrite(PChunkyFile pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
+    static PGL PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError);
+    static bool FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid);
 
     // Visibility
     void Hilite(void);

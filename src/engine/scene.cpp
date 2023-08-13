@@ -3774,7 +3774,7 @@ SCEN *SCEN::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     PTBOX ptbox;
     ChildChunkID chid;
     SCENH scenh;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     pcfl = pcrf->Pcfl();
 
@@ -4195,7 +4195,7 @@ bool SCEN::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     long isevStart = -1;
     long cb;
     DataBlock blck;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     chidActr = chidTbox = 0;
 
@@ -5058,7 +5058,7 @@ void SCEN::SetMvie(PMovie pmvie)
  *  fFalse if an error occurred, else fTrue
  *
  ****************************************************/
-bool SCEN::FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl)
+bool SCEN::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
@@ -5771,7 +5771,7 @@ bool SCEN::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans
 {
     DataBlock blck;
     SCENH scenh;
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     TrashVar(ptrans);
 
@@ -5806,7 +5806,7 @@ bool SCEN::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS tran
 {
     DataBlock blck;
     SCENH scenh;
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     if (!pcfl->FFind(kctgScen, cno, &blck))
         goto LFail;
@@ -6989,7 +6989,7 @@ SUNC::~SUNC(void)
  ****************************************************/
 bool SUNC::FSave(PSCEN pscen)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fRet;
 
     pcfl = ChunkyFile::PcflCreateTemp();

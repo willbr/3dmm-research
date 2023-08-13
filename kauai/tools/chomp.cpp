@@ -17,7 +17,7 @@ ASSERTNAME
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     Filename fniSrc, fniDst;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     STN stn;
     char *pszs;
     MSSIO mssioError(stderr);

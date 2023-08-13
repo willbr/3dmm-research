@@ -39,7 +39,7 @@ bool TMAP::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 /***************************************************************************
     Read a TMAP from a chunk
 ***************************************************************************/
-PTMAP TMAP::PtmapRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PTMAP TMAP::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     TMAPF tmapf;
     DataBlock blck;
@@ -118,7 +118,7 @@ TMAP::~TMAP(void)
 /***************************************************************************
     Write a TMAP to a chunk
 ***************************************************************************/
-bool TMAP::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool TMAP::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     DataBlock blck;

@@ -53,7 +53,7 @@ class DOC : public DOC_PAR
     ASSERT
 
   protected:
-    PCFL _pcfl; // the chunky file
+    PChunkyFile _pcfl; // the chunky file
 
     DOC(void);
     ~DOC(void);
@@ -61,7 +61,7 @@ class DOC : public DOC_PAR
   public:
     static PDOC PdocNew(Filename *pfni);
 
-    PCFL Pcfl(void)
+    PChunkyFile Pcfl(void)
     {
         return _pcfl;
     }
@@ -84,11 +84,11 @@ class DOCE : public DOCE_PAR
     ASSERT
 
   protected:
-    PCFL _pcfl; // which chunk is being edited
+    PChunkyFile _pcfl; // which chunk is being edited
     ChunkTag _ctg;
     ChunkNumber _cno;
 
-    DOCE(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCE(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     bool _FInit(void);
 
     virtual bool _FSaveToChunk(ChunkTag ctg, ChunkNumber cno, bool fRedirect);
@@ -97,7 +97,7 @@ class DOCE : public DOCE_PAR
     virtual bool _FRead(PDataBlock pblck) = 0;
 
   public:
-    static PDOCE PdoceFromChunk(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCE PdoceFromChunk(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     static void CloseDeletedDoce(PDocumentBase pdocb);
 
     virtual void GetName(PSTN pstn);
@@ -118,13 +118,13 @@ class DOCH : public DOCH_PAR
   protected:
     BSF _bsf; // the byte stream
 
-    DOCH(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCH(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PDataBlock pblck);
 
   public:
-    static PDOCH PdochNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCH PdochNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual PDDG PddgNew(PGCB pgcb);
 };
 
@@ -145,14 +145,14 @@ class DOCG : public DOCG_PAR
     short _bo;
     short _osk;
 
-    DOCG(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
+    DOCG(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     ~DOCG(void);
     virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PDataBlock pblck);
 
   public:
-    static PDOCG PdocgNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
+    static PDOCG PdocgNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     virtual PDDG PddgNew(PGCB pgcb);
 
     PDOCI PdociFromItem(long iv, long dln);
@@ -221,7 +221,7 @@ class DOCPIC : public DOCPIC_PAR
   protected:
     PPIC _ppic;
 
-    DOCPIC(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCPIC(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCPIC(void);
 
     virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
@@ -229,7 +229,7 @@ class DOCPIC : public DOCPIC_PAR
     virtual bool _FRead(PDataBlock pblck);
 
   public:
-    static PDOCPIC PdocpicNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCPIC PdocpicNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PPIC Ppic(void)
@@ -252,7 +252,7 @@ class DOCMBMP : public DOCMBMP_PAR
   protected:
     PMBMP _pmbmp;
 
-    DOCMBMP(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCMBMP(void);
 
     virtual bool _FWrite(PDataBlock pblck, bool fRedirect);
@@ -260,7 +260,7 @@ class DOCMBMP : public DOCMBMP_PAR
     virtual bool _FRead(PDataBlock pblck);
 
   public:
-    static PDOCMBMP PdocmbmpNew(PDocumentBase pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PDOCMBMP PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PMBMP Pmbmp(void)
@@ -329,7 +329,7 @@ class SEL : public SEL_PAR
     MARKMEM
 
   protected:
-    PCFL _pcfl;
+    PChunkyFile _pcfl;
     long _icki;
     long _ikid;
     ChunkIdentification _cki;
@@ -344,7 +344,7 @@ class SEL : public SEL_PAR
     bool _FFilter(ChunkTag ctg, ChunkNumber cno);
 
   public:
-    SEL(PCFL pcfl);
+    SEL(PChunkyFile pcfl);
     SEL(SEL &selT);
     ~SEL(void);
     SEL &operator=(SEL &selT);
@@ -405,10 +405,10 @@ class DCD : public DCD_PAR
 
   protected:
     long _dypBorder; // height of border (included in _dypLine)
-    PCFL _pcfl;      // the chunky file
+    PChunkyFile _pcfl;      // the chunky file
     SEL _sel;        // the current selection
 
-    DCD(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb);
+    DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb);
     void _DrawSel(PGNV pgnv);
     void _HiliteLn(long ln);
     void _SetSel(long ln, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
@@ -431,8 +431,8 @@ class DCD : public DCD_PAR
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
   public:
-    static PDCD PdcdNew(PDocumentBase pdocb, PCFL pcfl, PGCB pgcb);
-    static void InvalAllDcd(PDocumentBase pdocb, PCFL pcfl, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
+    static PDCD PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb);
+    static void InvalAllDcd(PDocumentBase pdocb, PChunkyFile pcfl, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);

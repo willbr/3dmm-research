@@ -1983,7 +1983,7 @@ void CHCM::_ParseAdopt(void)
 /***************************************************************************
     Compile the given file.
 ***************************************************************************/
-PCFL CHCM::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
+PChunkyFile CHCM::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pfniSrc, ffniFile);
@@ -2014,7 +2014,7 @@ PCFL CHCM::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
 /***************************************************************************
     Compile the given BSF, using initial file name given by pstnFile.
 ***************************************************************************/
-PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
+PChunkyFile CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pbsfSrc, ffniFile);
@@ -2024,7 +2024,7 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pms
     TOK tok;
     ChunkTag ctg;
     ChunkNumber cno;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fReportBadTok;
 
     if (pvNil == (_pchlx = NewObj CHLX(pbsfSrc, pstnFile)))
@@ -2484,7 +2484,7 @@ void CHDC::MarkMem(void)
 /***************************************************************************
     Decompile a chunky file.
 ***************************************************************************/
-bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
+bool CHDC::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pcflSrc, 0);

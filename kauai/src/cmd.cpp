@@ -292,7 +292,7 @@ bool CEX::_FInit(long ccmdInit, long ccmhInit)
 /***************************************************************************
     Start recording a macro to the given chunky file.
 ***************************************************************************/
-void CEX::Record(PCFL pcfl)
+void CEX::Record(PChunkyFile pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -461,7 +461,7 @@ void CEX::RecordCmd(PCMD pcmd)
     Play back the command stream starting in the given pcfl with the given
     cno.
 ***************************************************************************/
-void CEX::Play(PCFL pcfl, ChunkNumber cno)
+void CEX::Play(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

@@ -140,7 +140,7 @@ bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 /***************************************************************************
     Read an ACTN from a chunk
 ***************************************************************************/
-bool ACTN::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool ACTN::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -352,7 +352,7 @@ bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 /***************************************************************************
     Read a TMPL from a chunk
 ***************************************************************************/
-bool TMPL::_FReadTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
 
@@ -385,7 +385,7 @@ bool TMPL::_FReadTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for TDTs.
 ***************************************************************************/
-bool TMPL::_FWriteTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -414,7 +414,7 @@ bool TMPL::_FWriteTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
 /***************************************************************************
     Read a TMPL from a chunk
 ***************************************************************************/
-bool TMPL::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool TMPL::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -567,7 +567,7 @@ TMPL::~TMPL(void)
     return value of pvNil does not mean an error occurred, but simply that
     this TMPL has no embedded tags.
 ***************************************************************************/
-PGL TMPL::PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
+PGL TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);

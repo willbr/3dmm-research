@@ -13,8 +13,8 @@
 #include "chelpexp.h"
 ASSERTNAME
 
-static bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
-static bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpChunk(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpPropAg(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
 static void _AppendHelpStnLw(PSTN pstn, PStringTable pgst, long istn, long lw);
 
 /***************************************************************************
@@ -22,7 +22,7 @@ static void _AppendHelpStnLw(PSTN pstn, PStringTable pgst, long istn, long lw);
     by chomp.
     REVIEW shonk: this code is a major hack and very fragile.
 ***************************************************************************/
-bool FExportHelpText(PCFL pcfl, PMSNK pmsnk)
+bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
 {
     AssertPo(pcfl, 0);
 
@@ -179,7 +179,7 @@ LFail:
 /***************************************************************************
     Dump a chunk as text to the given chse.
 ***************************************************************************/
-bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
+bool _FWriteHelpChunk(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);
@@ -245,7 +245,7 @@ bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, Ch
 /***************************************************************************
     Write the property AG.  This requires special processing
 ***************************************************************************/
-bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
+bool _FWriteHelpPropAg(PChunkyFile pcfl, PCHSE pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);

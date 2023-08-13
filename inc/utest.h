@@ -90,7 +90,7 @@ class APP : public APP_PAR
   protected:
     bool _fDontReportInitFailure; // init failure was already reported
     bool _fOnscreenDrawing;
-    PCFL _pcfl;                   // resource file for app
+    PChunkyFile _pcfl;                   // resource file for app
     PStudio _pstdio;               // Current studio
     PTATR _ptatr;                 // Current theater
     PChunkyResourceManager _pcrmAll;                // The app ChunkyResourceManager -- all crfs are loaded into this.

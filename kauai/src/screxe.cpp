@@ -1349,7 +1349,7 @@ bool SCPT::FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, 
 /***************************************************************************
     Static method to read a script.
 ***************************************************************************/
-PSCPT SCPT::PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+PSCPT SCPT::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
     short bo;
@@ -1401,7 +1401,7 @@ SCPT::~SCPT(void)
 /***************************************************************************
     Save the script to the given chunky file.
 ***************************************************************************/
-bool SCPT::FSaveToChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack)
+bool SCPT::FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

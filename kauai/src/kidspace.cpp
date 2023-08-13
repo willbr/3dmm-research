@@ -592,7 +592,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag c
     PGORP pgorp;
     bool fSet = fFalse;
     bool fKillAnim = FPure(grfgok & fgokKillAnim);
-    PCFL pcfl = _pcrf->Pcfl();
+    PChunkyFile pcfl = _pcrf->Pcfl();
 
     if (chidNil == chid)
         goto LAdjust;
@@ -1977,7 +1977,7 @@ PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
     AssertPo(pcrf, 0);
 
     GOKFL gokfl;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     DataBlock blck;
     PGORF pgorf;
 
@@ -2219,7 +2219,7 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
     AssertPo(pcrf, 0);
 
     GOTIL gotil;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     DataBlock blck;
     PGORT pgort;
     ChildChunkIdentification kid;
@@ -2640,7 +2640,7 @@ bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTa
     AssertPo(pgok, 0);
     AssertBaseThis(0);
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     DataBlock blck;
     STN stn;
     Filename fni;

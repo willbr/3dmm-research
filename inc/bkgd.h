@@ -129,8 +129,8 @@ class Background : public Background_PAR
     BRS _zrCam;
 
   protected:
-    bool _FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    long _Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    long _Ccam(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     void _SetupLights(PGL pgllite);
 
   public:

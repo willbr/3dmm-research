@@ -282,7 +282,7 @@ const ByteOrderMask kbomCrp = kbomCrpsm;
 
 const long rtiNil = 0; // no rti assigned
 long ChunkyFile::_rtiLast = rtiNil;
-PCFL ChunkyFile::_pcflFirst;
+PChunkyFile ChunkyFile::_pcflFirst;
 
 #ifdef CHUNK_STATS
 bool vfDumpChunkRequests = fTrue;
@@ -352,10 +352,10 @@ ChunkyFile::~ChunkyFile(void)
     Static method: open an existing file as a chunky file.  Increments the
     open count.
 ***************************************************************************/
-PCFL ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl)
+PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl)
 {
     AssertPo(pfni, ffniFile);
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ulong grffil;
 
     Assert(!(grfcfl & fcflTemp), "can't open a file as temp");
@@ -471,10 +471,10 @@ ulong ChunkyFile::_GrffilFromGrfcfl(ulong grfcfl)
 /***************************************************************************
     Static method: create a new file.  Increments the open count.
 ***************************************************************************/
-PCFL ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
+PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
 {
     AssertPo(pfni, ffniFile);
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ulong grffil;
 
     grfcfl |= fcflWriteEnable;
@@ -509,7 +509,7 @@ PCFL ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
     *pfni and with the same ftg.  If pfni is nil, the file is created in
     the standard place with a temp ftg.
 ***************************************************************************/
-PCFL ChunkyFile::PcflCreateTemp(Filename *pfni)
+PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
     Filename fni;
@@ -534,11 +534,11 @@ PCFL ChunkyFile::PcflCreateTemp(Filename *pfni)
     Static method: if we have the chunky file indicated by fni open, returns
     the pcfl, otherwise returns pvNil.  Doesn't affect the open count.
 ***************************************************************************/
-PCFL ChunkyFile::PcflFromFni(Filename *pfni)
+PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     PFIL pfil;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if ((pfil = FIL::PfilFromFni(pfni)) == pvNil)
         return pvNil;
@@ -653,7 +653,7 @@ bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP
     is false, we construct the ChunkyFile to use pointers to the data in the FLO.
     Otherwise, we copy the data to a new file.
 ***************************************************************************/
-PCFL ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
+PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
 {
     AssertVarMem(pflo);
     AssertPo(pflo->pfil, 0);
@@ -666,7 +666,7 @@ PCFL ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
         long ckid;
     };
 
-    PCFL pcfl;
+    PChunkyFile pcfl;
     ECDF ecdf;
     ECSD ecsdT, ecsdCur;
     FP fpSrc, fpLimSrc;
@@ -840,7 +840,7 @@ void ChunkyFile::SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest)
     Read the chunk's data as an embedded forest and construct a ChunkyFile around
     the data.
 ***************************************************************************/
-PCFL ChunkyFile::PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData)
+PChunkyFile ChunkyFile::PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData)
 {
     AssertThis(0);
     FLO flo;
@@ -865,7 +865,7 @@ PCFL ChunkyFile::PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData)
 ***************************************************************************/
 void ChunkyFile::ClearMarks(void)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     for (pcfl = _pcflFirst; pcfl != pvNil; pcfl = pcfl->PcflNext())
     {
@@ -880,7 +880,7 @@ void ChunkyFile::ClearMarks(void)
 ***************************************************************************/
 void ChunkyFile::CloseUnmarked(void)
 {
-    PCFL pcfl, pcflNext;
+    PChunkyFile pcfl, pcflNext;
 
     for (pcfl = _pcflFirst; pcfl != pvNil; pcfl = pcflNext)
     {
@@ -1803,7 +1803,7 @@ bool ChunkyFile::FSaveACopy(ChunkTag ctgCreator, Filename *pfni)
 {
     AssertThis(fcflFull | fcflGraph);
     AssertPo(pfni, ffniFile);
-    PCFL pcflDst;
+    PChunkyFile pcflDst;
     long icrp, ccrp;
     CRP *pcrp;
     CRP crp;
@@ -3810,7 +3810,7 @@ bool _FAddCnom(PGL *ppglcnom, CNOM *pcnom)
     as the cno in the source file. If fClone is set, no chunk sharing will
     occur. Otherwise, this does intelligent chunk sharing.
 ***************************************************************************/
-bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst, bool fClone)
+bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone)
 {
     AssertThis(fcflFull);
     AssertPo(pcflDst, fcflFull);
@@ -3973,7 +3973,7 @@ LFail:
     of nodes and arcs of the two subgraphs and the rti's of corresponding
     nodes are equal.
 ***************************************************************************/
-bool ChunkyFile::_FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst)
+bool ChunkyFile::_FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst)
 {
     AssertBaseThis(0);
     AssertPo(pcflDst, 0);
@@ -4112,7 +4112,7 @@ bool ChunkyFile::_FFindCtgRti(ChunkTag ctg, long rti, ChunkNumber cnoMin, ChunkN
     loner. If possible, the cno in the destination file will be the same
     as the cno in the source file. This does intelligent chunk sharing.
 ***************************************************************************/
-bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst)
+bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst)
 {
     return _FCopy(ctgSrc, cnoSrc, pcflDst, pcnoDst, fFalse);
 }
@@ -4125,7 +4125,7 @@ bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkN
     cno in the destination file will be the same as the cno in the
     source file.
 ***************************************************************************/
-bool ChunkyFile::FClone(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst)
+bool ChunkyFile::FClone(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst)
 {
     return _FCopy(ctgSrc, cnoSrc, pcflDst, pcnoDst, fTrue);
 }
@@ -4313,7 +4313,7 @@ void CGE::MarkMem(void)
 /***************************************************************************
     Start a new enumeration.
 ***************************************************************************/
-void CGE::Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+void CGE::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

@@ -119,16 +119,16 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     bool _fInvalid;    // Invalid flag
 
   protected:
-    bool _FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
   public:
     static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static bool FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
+    static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
-    static bool FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn = pvNil);
-    static bool FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno);
-    static bool FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
-    static bool FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno);
+    static bool FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PSTN pstn = pvNil);
+    static bool FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno);
+    static bool FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
+    static bool FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, STN *pstnName, ChunkNumber *pcno);
     ~MovieSoundMSND(void);
 
     static long SqnActr(long sty, long objID);

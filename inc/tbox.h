@@ -232,7 +232,7 @@ class TBOX : public TBOX_PAR
         return TBXG::PtbxgNew(this, pgcb);
     }
     static PTBOX PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PSCEN pscen);
-    bool FWrite(PCFL pcfl, ChunkNumber cno);
+    bool FWrite(PChunkyFile pcfl, ChunkNumber cno);
     bool FDup(PTBOX *pptbox);
 
     //

@@ -198,7 +198,7 @@ class SCEN : public SCEN_PAR
     //
     // Tag collection
     //
-    static bool FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl);
+    static bool FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl);
 
     //
     // Frame functions

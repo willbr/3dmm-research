@@ -87,7 +87,7 @@ PCHTDD CHTDD::PchtddNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dyp
 bool CHTDD::FCmdCompileChunky(PCMD pcmd)
 {
     Filename fni;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     STN stnFile;
     MSFIL msfil;
     CHCM chcm;

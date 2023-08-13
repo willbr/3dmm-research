@@ -1211,7 +1211,7 @@ void RepaintPortfolio(HWND hwndCustom)
 void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
 {
     STN stn;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PMBMP pmbmp;
     Filename fni;
     SZ szFile;

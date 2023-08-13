@@ -31,7 +31,7 @@ PTMAP MTRL::_ptmapShadeTable = pvNil; // shade table for all MTRLs
     Call this function to assign the global shade table.  It is read from
     the given chunk.
 ***************************************************************************/
-bool MTRL::FSetShadeTable(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool MTRL::FSetShadeTable(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -122,7 +122,7 @@ bool MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
 
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
     DataBlock blck;
     MTRLF mtrlf;
     ChildChunkIdentification kid;
@@ -331,7 +331,7 @@ PTMAP MTRL::Ptmap(void)
 /***************************************************************************
     Write a MTRL to a chunky file
 ***************************************************************************/
-bool MTRL::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool MTRL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -439,7 +439,7 @@ void MTRL::MarkShadeTable(void)
 /***************************************************************************
     Static function to see if the given chunk has MODL children
 ***************************************************************************/
-bool CMTL::FHasModels(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool CMTL::FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -452,7 +452,7 @@ bool CMTL::FHasModels(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     Static function to see if the two given CMTLs have the same child
     MODLs
 ***************************************************************************/
-bool CMTL::FEqualModels(PCFL pcfl, ChunkNumber cno1, ChunkNumber cno2)
+bool CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2)
 {
     AssertPo(pcfl, 0);
 
@@ -550,7 +550,7 @@ bool CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
     long imtrl;
     ChildChunkIdentification kid;
     DataBlock blck;
-    PCFL pcfl = pcrf->Pcfl();
+    PChunkyFile pcfl = pcrf->Pcfl();
     CMTLF cmtlf;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())

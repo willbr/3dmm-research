@@ -211,7 +211,7 @@ class HEDO : public HEDO_PAR
     ASSERT
 
   protected:
-    PCFL _pcfl; // the chunky file
+    PChunkyFile _pcfl; // the chunky file
     PRCA _prca; // the resources
 
     HEDO(void);
@@ -220,7 +220,7 @@ class HEDO : public HEDO_PAR
   public:
     static PHEDO PhedoNew(Filename *pfni, PRCA prca);
 
-    PCFL Pcfl(void)
+    PChunkyFile Pcfl(void)
     {
         return _pcfl;
     }
@@ -252,14 +252,14 @@ class TSEL : public TSEL_PAR
     ASSERT
 
   protected:
-    PCFL _pcfl;
+    PChunkyFile _pcfl;
     long _icki;
     ChunkNumber _cno;
 
     void _SetNil(void);
 
   public:
-    TSEL(PCFL pcfl);
+    TSEL(PChunkyFile pcfl);
 
     void Adjust(void);
 
@@ -294,10 +294,10 @@ class HEDG : public HEDG_PAR
     long _dypLine;   // height of one line
     long _dxpChar;   // width of a character
     long _dypBorder; // height of border (included in _dypLine)
-    PCFL _pcfl;      // the chunky file
+    PChunkyFile _pcfl;      // the chunky file
     TSEL _tsel;      // the selection
 
-    HEDG(PHEDO phedo, PCFL pcfl, PGCB pgcb);
+    HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb);
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
 
@@ -330,7 +330,7 @@ class HEDG : public HEDG_PAR
 #endif // WIN
 
   public:
-    static PHEDG PhedgNew(PHEDO phedo, PCFL pcfl, PGCB pgcb);
+    static PHEDG PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -366,18 +366,18 @@ class HETD : public HETD_PAR
     MARKMEM
 
   protected:
-    PCFL _pcfl; // which chunk is being edited
+    PChunkyFile _pcfl; // which chunk is being edited
     ChunkNumber _cno;
     PStringTable _pgst;   // string versions of stuff in HTOP
     STN _stnDesc; // description
 
-    HETD(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
+    HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno);
     ~HETD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
 
   public:
-    static PHETD PhetdNew(PDocumentBase pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
+    static PHETD PhetdNew(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno);
     static PHETD PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno);
     static void CloseDeletedHetd(PDocumentBase pdocb);
 
@@ -386,7 +386,7 @@ class HETD : public HETD_PAR
     virtual void GetName(PSTN pstn);
     virtual bool FSave(long cid);
 
-    virtual bool FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
     void EditHtop(void);
     bool FDoFind(long cpMin, long *pcpMin, long *pcpLim);

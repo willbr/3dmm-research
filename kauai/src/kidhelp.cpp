@@ -72,7 +72,7 @@ void TXHD::MarkMem(void)
     Static method to read a help text document from the given (pcfl, ctg, cno)
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
+PTXHD TXHD::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
@@ -91,7 +91,7 @@ PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, 
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool TXHD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
+bool TXHD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
@@ -254,7 +254,7 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
     Save a help topic to the given chunky file.  Fill in *pcki with where
     we put the root chunk.
 ***************************************************************************/
-bool TXHD::FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText)
+bool TXHD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

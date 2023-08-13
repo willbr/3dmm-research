@@ -150,7 +150,7 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
     them on yet because we don't have a BWLD to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool Background::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Background::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -247,7 +247,7 @@ LFail:
     Return the number of camera views in this scene.  CameraPosition chunks need to be
     contiguous CHIDs starting at ChildChunkID 0.
 ***************************************************************************/
-long Background::_Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
+long Background::_Ccam(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -427,7 +427,7 @@ bool Background::FSetCamera(PBWLD pbwld, long icam)
     ChildChunkIdentification kidZ;
     DataBlock blck;
     CameraPosition cam;
-    PCFL pcfl = Pcrf()->Pcfl();
+    PChunkyFile pcfl = Pcrf()->Pcfl();
     BREUL breul;
 
     TurnOnLights(pbwld);
