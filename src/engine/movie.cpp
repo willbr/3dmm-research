@@ -4464,18 +4464,20 @@ bool Movie::FCmdRender(PCMD pcmd)
 
         if (Iscen() == (Cscen() - 1))
         {
-            // since this is the last scene/last frame, we want to
-            // fade out music, by setting _vlmOrg we turn off rendering and fade out
-            // music until VlmCur is 0, at which point we go into stop state.
+            // disable volume fade
 
-            if (!vpsndm->FPlayingAll()) // there are no sounds playing
-                SetFStopPlaying(fTrue); // there is nothing to fade
-            else
-            {
-                _vlmOrg = vpsndm->VlmCur(); // get the current volume
-                if ((0 == _vlmOrg))         // if there is volume to fade with
-                    SetFStopPlaying(fTrue); // there is nothing to fade
-            }
+            // // since this is the last scene/last frame, we want to
+            // // fade out music, by setting _vlmOrg we turn off rendering and fade out
+            // // music until VlmCur is 0, at which point we go into stop state.
+
+            // if (!vpsndm->FPlayingAll()) // there are no sounds playing
+            //     SetFStopPlaying(fTrue); // there is nothing to fade
+            // else
+            // {
+            //     _vlmOrg = vpsndm->VlmCur(); // get the current volume
+            //     if ((0 == _vlmOrg))         // if there is volume to fade with
+            //         SetFStopPlaying(fTrue); // there is nothing to fade
+            // }
             return (fTrue);
         }
 
