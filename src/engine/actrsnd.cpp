@@ -337,7 +337,7 @@ bool Actor::_FRemoveAevMm(long anid)
     long iaev;
     Base *paev;
     AEVSND aevsnd;
-    AEVACTN aevactn;
+    Action aevactn;
 
     // Remove motion match sounds from the previous action
     for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)

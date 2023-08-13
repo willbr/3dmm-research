@@ -37,7 +37,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     long iaev;
     long iaevLast;
     Base aev;
-    AEVACTN aevactn;
+    Action aevactn;
     AEVSND aevsnd;
     RouteDistancePoint rpt;
     RouteDistancePoint rptOld;

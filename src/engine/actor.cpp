@@ -1005,7 +1005,7 @@ bool Actor::_FDoAevCore(long iaev)
     switch (aev.aet)
     {
     case aetActn:
-        AEVACTN aevactn;
+        Action aevactn;
         ulong grfactn;
 
         _pggaev->Get(iaev, &aevactn);
@@ -1453,7 +1453,7 @@ bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 
     bool fStatic;
     bool fNewAction = fFalse;
-    AEVACTN aevactn;
+    Action aevactn;
     long anidPrev = _anidCur;
     long iaevMin;
 
@@ -3211,7 +3211,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
 
         if (aetActn == aev.aet)
         {
-            AEVACTN aevactn;
+            Action aevactn;
             _pggaev->Get(iaev, &aevactn);
 
             if (!(grfaet & faetActn))
@@ -4135,7 +4135,7 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
                 break;
 
             case aetActn:
-                AEVACTN aevactn;
+                Action aevactn;
 
                 _pggaev->Get(iaev, &aevactn);
                 anid = aevactn.anid;
@@ -5140,7 +5140,7 @@ void Actor::DeleteBackCore(bool *pfAlive)
             break;
 
         case aetActn:
-            AEVACTN aevactn;
+            Action aevactn;
             _pggaev->Get(iaev, &aevactn);
             aevactn.celn = _celnCur;
             _pggaev->Put(iaev, &aevactn);
@@ -5575,7 +5575,7 @@ void Actor::AssertValid(ulong grfobj)
                 break;
             }
             case aetActn: {
-                AEVACTN aevactn;
+                Action aevactn;
                 _pggaev->Get(iaev, &aevactn);
                 Assert(_pggaev->Cb(iaev) == kcbVarActn, "Corrupt size in event list");
                 break;

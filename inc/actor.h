@@ -211,7 +211,7 @@ struct Add
 };
 const ByteOrderMask kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
 
-struct AEVACTN
+struct Action
 {
     long anid;
     long celn; // starting cel of action
@@ -249,7 +249,7 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 
 // Separate ggaev variable portion sizes
 #define kcbVarAdd (size(Add))
-#define kcbVarActn (size(AEVACTN))
+#define kcbVarActn (size(Action))
 #define kcbVarCost (size(AEVCOST))
 #define kcbVarRot (size(BMAT34))
 #define kcbVarSize (size(BRS))
