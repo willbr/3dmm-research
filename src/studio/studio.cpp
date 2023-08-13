@@ -365,7 +365,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
     AssertNilOrPo(pfni, 0);
 
     bool fRet = fFalse;
-    PMVU pmvu;
+    PMovieView pmvu;
     PMovie pmvie = pvNil, pmvieOld = pvNil;
     PBackground pbkgd = pvNil;
 
@@ -377,7 +377,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
     {
         PSCEN pscen;
 
-        pmvu = (PMVU)_pmvie->PddgActive();
+        pmvu = (PMovieView)_pmvie->PddgActive();
         AssertPo(pmvu, 0);
 
         if (!pmvu->FCloseDoc(fFalse, fTrue))
@@ -472,7 +472,7 @@ bool Studio::FSetMovie(PMovie pmvie)
     AssertPo(pmvie, 0);
 
     bool fRet = fFalse;
-    PMVU pmvu = pvNil;
+    PMovieView pmvu = pvNil;
     RC rcRel, rcAbs;
     PKidspaceGraphicObject pgok;
     GraphicsObjectBlock gcb;
@@ -500,7 +500,7 @@ bool Studio::FSetMovie(PMovie pmvie)
     // Create the view
     //
     gcb.Set(khidDdg, pgok, fgobNil, kginDefault, &rcAbs, &rcRel);
-    pmvu = (PMVU)_pmvie->PddgNew(&gcb);
+    pmvu = (PMovieView)_pmvie->PddgNew(&gcb);
     if (pmvu == pvNil)
         goto LFail;
     AssertPo(pmvu, 0);
@@ -562,13 +562,13 @@ bool Studio::FCmdXYAxis(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     BRS rgr[3][3] = {{rOne, rZero, rZero}, {rZero, rOne, rZero}, {rZero, rZero, -rOne}};
 
     if (pvNil != _pmvie)
     {
         AssertPo(_pmvie, 0);
-        pmvu = (PMVU)_pmvie->PddgActive();
+        pmvu = (PMovieView)_pmvie->PddgActive();
         pmvu->SetAxis(rgr);
 
         if ((pmvu->Tool() != toolCompose) && (pmvu->Tool() != toolRecordSameAction) && (pmvu->Tool() != toolAction) &&
@@ -596,13 +596,13 @@ bool Studio::FCmdXYAxis(PCMD pcmd)
 bool Studio::FCmdXZAxis(PCMD pcmd)
 {
     AssertThis(0);
-    PMVU pmvu;
+    PMovieView pmvu;
     BRS rgr[3][3] = {{rOne, rZero, rZero}, {rZero, rZero, rOne}, {rZero, -rOne, rZero}};
 
     if (pvNil != _pmvie)
     {
         AssertPo(_pmvie, 0);
-        pmvu = (PMVU)_pmvie->PddgActive();
+        pmvu = (PMovieView)_pmvie->PddgActive();
         pmvu->SetAxis(rgr);
 
         if ((pmvu->Tool() != toolCompose) && (pmvu->Tool() != toolRecordSameAction) && (pmvu->Tool() != toolAction) &&
@@ -632,12 +632,12 @@ bool Studio::FCmdSetTool(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     if (pvNil != _pmvie)
     {
         AssertPo(_pmvie, 0);
-        pmvu = (PMVU)_pmvie->PddgActive();
+        pmvu = (PMovieView)_pmvie->PddgActive();
 
         switch (pcmd->rglw[0])
         {
@@ -880,7 +880,7 @@ bool Studio::FCmdRespectGround(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu = (PMVU)_pmvie->PddgGet(0);
+    PMovieView pmvu = (PMovieView)_pmvie->PddgGet(0);
     AssertPo(pmvu, 0);
     pmvu->SetFRespectGround(pcmd->rglw[0]);
 
@@ -1025,10 +1025,10 @@ bool Studio::FCmdSooner(PCMD pcmd)
 
     if (!Pmvie()->FSoonerLaterActr(Pmvie()->Pscen()->Nfrm() - 1))
     {
-        PMVU pmvu;
+        PMovieView pmvu;
         PKidspaceGraphicObject pgok;
 
-        pmvu = (PMVU)Pmvie()->PddgActive();
+        pmvu = (PMovieView)Pmvie()->PddgActive();
         pmvu->SetTool(toolCompose);
 
         pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
@@ -1057,10 +1057,10 @@ bool Studio::FCmdLater(PCMD pcmd)
 
     if (!Pmvie()->FSoonerLaterActr(Pmvie()->Pscen()->Nfrm() + 1))
     {
-        PMVU pmvu;
+        PMovieView pmvu;
         PKidspaceGraphicObject pgok;
 
-        pmvu = (PMVU)Pmvie()->PddgActive();
+        pmvu = (PMovieView)Pmvie()->PddgActive();
         pmvu->SetTool(toolCompose);
 
         pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsSoonerButton);
@@ -1279,7 +1279,7 @@ bool Studio::FCmdTextSetBkgdColor(PCMD pcmd)
 
     byte iscr = (byte)pcmd->rglw[0];
     AbstractColor acr(iscr);
-    PMVU pmvu = (PMVU)_pmvie->PddgActive();
+    PMovieView pmvu = (PMovieView)_pmvie->PddgActive();
 
     if (iscr == 0)
         acr.SetToClear();
@@ -1309,7 +1309,7 @@ bool Studio::FCmdTextSetColor(PCMD pcmd)
 
     byte iscr = (byte)pcmd->rglw[0];
     AbstractColor acr(iscr);
-    PMVU pmvu = (PMVU)_pmvie->PddgActive();
+    PMovieView pmvu = (PMovieView)_pmvie->PddgActive();
 
     if (iscr == 0)
         acr.SetToClear();
@@ -1335,7 +1335,7 @@ bool Studio::FCmdTextSetSize(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu = _pmvie->PmvuCur();
+    PMovieView pmvu = _pmvie->PmvuCur();
 
     _pmvie->SetDypFontTextCur(pcmd->rglw[0]);
     pmvu->SetTool(toolTboxSize);
@@ -1362,7 +1362,7 @@ bool Studio::FCmdTextSetStyle(PCMD pcmd)
     AssertVarMem(pcmd);
 
     ulong grfont;
-    PMVU pmvu = _pmvie->PmvuCur();
+    PMovieView pmvu = _pmvie->PmvuCur();
 
     grfont = pmvu->GrfontStyleTextCur();
     grfont &= ~((ulong)pcmd->rglw[0]);
@@ -1390,7 +1390,7 @@ bool Studio::FCmdTextSetFont(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu = _pmvie->PmvuCur();
+    PMovieView pmvu = _pmvie->PmvuCur();
 
     _pmvie->SetOnnTextCur(pcmd->rglw[0]);
     pmvu->SetTool(toolTboxFont);
@@ -2050,9 +2050,9 @@ void Studio::NewActor(void)
     AssertThis(0);
 
     PKidspaceGraphicObject pgok;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)_pmvie->PddgGet(0);
+    pmvu = (PMovieView)_pmvie->PddgGet(0);
     AssertPo(pmvu, 0);
 
     pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorsXY);
@@ -2215,11 +2215,11 @@ bool Studio::FShutdown(bool fClearCache)
     AssertThis(0);
 
     bool fRet = fTrue;
-    PMVU pmvu;
+    PMovieView pmvu;
 
     if (_pmvie != pvNil)
     {
-        pmvu = (PMVU)_pmvie->PddgActive();
+        pmvu = (PMovieView)_pmvie->PddgActive();
         AssertPo(pmvu, 0);
 
         fRet = pmvu->FCloseDoc(fFalse);

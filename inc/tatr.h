@@ -36,7 +36,7 @@ class TATR : public TATR_PAR
     CMD_MAP_DEC(TATR)
 
   protected:
-    long _kidParent; // ID of gob parent of MVU
+    long _kidParent; // ID of gob parent of MovieView
     PMovie _pmvie;    // Currently loaded movie
 
   protected:

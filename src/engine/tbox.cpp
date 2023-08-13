@@ -437,13 +437,13 @@ bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PT pt;
     RC rc, rcOld;
     RC rcBound(0, 0, _ptbox->Pscen()->Pmvie()->Pmcc()->Dxp(), _ptbox->Pscen()->Pmvie()->Pmcc()->Dyp());
     static long itbox = ivNil;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     pt.xp = pcmd->xp;
@@ -676,9 +676,9 @@ bool TBXB::FCmdMouseMove(PCMD_MOUSE pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -856,9 +856,9 @@ bool TBXB::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -890,10 +890,10 @@ void TBXB::AttachToMouse(void)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PT pt;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     _fTrackingMouse = fTrue;
@@ -1086,11 +1086,11 @@ void TBXG::Activate(bool fActive)
  **************************************************************************/
 void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
 {
-    PMVU pmvu;
+    PMovieView pmvu;
     PTBOX ptbox = (PTBOX)_pdocb;
     AssertPo(ptbox, 0);
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     if (((pmvu->Tool() == toolTboxPaintText) || (pmvu->Tool() == toolTboxFont) || (pmvu->Tool() == toolTboxSize) ||
@@ -1121,9 +1121,9 @@ bool TBXG::FCmdMouseMove(PCMD_MOUSE pcmd)
     AssertVarMem(pcmd);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -1177,13 +1177,13 @@ bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
     AssertVarMem(pcmd);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
     CHP chpNew, chpDiff;
 
     chpNew.Clear();
     chpDiff.Clear();
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -1304,11 +1304,11 @@ bool TBXG::FPtIn(long xp, long yp)
     AssertThis(0);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
 
     AssertPo(ptbox, 0);
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -1404,9 +1404,9 @@ bool TBXG::FCmdClip(PCMD pcmd)
 
     PTBOX ptbox = (PTBOX)_pdocb;
     PDocumentBase pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     Assert(pmvu->FTextMode(), "Bad mode");
@@ -1422,7 +1422,7 @@ bool TBXG::FCmdClip(PCMD pcmd)
             return (fTrue);
         }
         //
-        // Pass this onto the MVU for pasting
+        // Pass this onto the MovieView for pasting
         //
 
         cmd = *pcmd;
@@ -1803,7 +1803,7 @@ struct TBOXH
  * Parameters:
  *	pscen - Scene which owns this textbox.
  *	prcRel - The bounding rectangle of the DDG for the text box within the
- *		the owning MVU.
+ *		the owning MovieView.
  *	fStory - Is this a story text box?
  *
  * Returns:

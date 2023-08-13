@@ -81,7 +81,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
     ChunkIdentification ckiRoot;
     TAG tag;
     PTAG ptag;
-    PMVU pmvu;
+    PMovieView pmvu;
     long thumSelect;
     long sid = ((APP *)vpappb)->SidProduct();
     long brwdid = pcmd->rglw[0];
@@ -235,7 +235,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         if (pbrcn == pvNil)
             pbrcn = NewObj BRCNL;
 
-        pmvu = (PMVU)(Pmvie()->PddgGet(0));
+        pmvu = (PMovieView)(Pmvie()->PddgGet(0));
         ptag = pmvu->PtagTool();
         if (ptag->sid != ksidInvalid)
         {
@@ -397,12 +397,12 @@ void BRWC::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     _pstdio->Pmvie()->Pscen()->FChangeCam(thumSelect);
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
@@ -422,7 +422,7 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
 
     TAG tag;
     CMD cmd;
-    PMVU pmvu;
+    PMovieView pmvu;
 
     tag.sid = sid;
     tag.pcrf = pvNil;
@@ -438,7 +438,7 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
     vpcex->EnqueueCmd(&cmd);
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
@@ -461,9 +461,9 @@ void BRWP::_ApplySelection(long thumSelect, long sid)
     AssertThis(0);
 
     TAG tag;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     if (pmvu == pvNil)
     {
         Warn("No pmvu");
@@ -498,7 +498,7 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
     AssertPo(_pstdio->Pmvie(), 0);
 
     PACTR pactr;
-    PMVU pmvu;
+    PMovieView pmvu;
     PKidspaceGraphicObject pgok;
 
     // Apply the action to the actor
@@ -507,7 +507,7 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
         return; // Error reported earlier
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolRecordSameAction);
 
@@ -539,11 +539,11 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     AssertPo(_pstdio->Pmvie(), 0);
 
     PKidspaceGraphicObject pgok;
-    PMVU pmvu;
+    PMovieView pmvu;
     TAG tag;
     BOOL fClick = fTrue;
 
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     AssertPo(pmvu, 0);
 
     tag.ctg = kctgMsnd;
@@ -646,7 +646,7 @@ void BRWR::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PMovie pmvie = _pstdio->Pmvie();
     long arid;
     STN stn;
@@ -657,7 +657,7 @@ void BRWR::_ApplySelection(long thumSelect, long sid)
         return;
 
     _fApplyingSel = fTrue;
-    pmvu = (PMVU)pmvie->PddgActive();
+    pmvu = (PMovieView)pmvie->PddgActive();
     pmvie->FChooseArid(arid);
     if (!pmvu->FActrMode())
     {

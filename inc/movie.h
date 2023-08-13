@@ -7,9 +7,9 @@
 
     Movie Stuff
 
-        A single view on a movie (MVU)
+        A single view on a movie (MovieView)
 
-                DDG  	--->	MVU
+                DDG  	--->	MovieView
 
         Callbacks to client (MovieClientCallbacks)
 
@@ -116,20 +116,20 @@ enum
 //
 // The class definition
 //
-#define MVU_PAR DDG
+#define MovieView_PAR DDG
 
-typedef class MVU *PMVU;
-#define kclsMVU 'MVU'
-class MVU : public MVU_PAR
+typedef class MovieView *PMovieView;
+#define kclsMovieView 'MVU'
+class MovieView : public MovieView_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(MVU)
+    CMD_MAP_DEC(MovieView)
 
   protected:
     /* Make these static; we want to be able to set and restore without having
-        an actual MVU, and they shouldn't be getting set per-MVU anyway */
+        an actual MovieView, and they shouldn't be getting set per-MovieView anyway */
     static bool _fKbdDelayed;  // fTrue == we have delayed the keyboard
     static long _dtsKbdDelay;  // System keyboard delay before first repeat
     static long _dtsKbdRepeat; // System keyboard delay between repeats
@@ -181,7 +181,7 @@ class MVU : public MVU_PAR
     ulong _grfont;    // Font style for text
     long _lwLastTime; // State variable for the last time through.
 
-    MVU(PDocumentBase pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
+    MovieView(PDocumentBase pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
     {
     }
 
@@ -206,8 +206,8 @@ class MVU : public MVU_PAR
     //
     // Constructors and desctructors
     //
-    static MVU *PmvuNew(PMovie pmvie, PGCB pgcb, long dxy, long dyp);
-    ~MVU(void);
+    static MovieView *PmvuNew(PMovie pmvie, PGCB pgcb, long dxy, long dyp);
+    ~MovieView(void);
 
     //
     // Accessor for getting the owning movie
@@ -635,8 +635,8 @@ class Movie : public Movie_PAR
     //
     // Getting views
     //
-    PMVU PmvuCur(void);
-    PMVU PmvuFirst(void);
+    PMovieView PmvuCur(void);
+    PMovieView PmvuFirst(void);
 
     //
     // Create and Destroy

@@ -1446,7 +1446,7 @@ bool AUND::FUndo(PDocumentBase pdocb)
     AssertPo(pdocb, 0);
 
     PACTR pactr;
-    PMVU pmvu;
+    PMovieView pmvu;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -1505,7 +1505,7 @@ bool AUND::FUndo(PDocumentBase pdocb)
             return (fFalse);
         }
 
-        pmvu = (PMVU)_pmvie->PddgGet(0);
+        pmvu = (PMovieView)_pmvie->PddgGet(0);
         AssertNilOrPo(pmvu, 0);
 
         if ((pmvu != pvNil) && !pmvu->FTextMode())

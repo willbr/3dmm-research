@@ -912,7 +912,7 @@ bool SCEN::FGotoFrm(long nfrm)
 
     bool fSoundInFrame = fFalse, fUpdateSndFrame = nfrm != _nfrmCur;
     SEV sev;
-    PMVU pmvu;
+    PMovieView pmvu;
     void *qvVar;
     long isev;
     long nfrmOld = _nfrmCur;
@@ -981,7 +981,7 @@ bool SCEN::FGotoFrm(long nfrm)
     else if (nfrm > _nfrmCur)
     {
 
-        pmvu = (PMVU)Pmvie()->PddgGet(0);
+        pmvu = (PMovieView)Pmvie()->PddgGet(0);
         AssertNilOrPo(pmvu, 0);
 
         if ((pmvu != pvNil) && (pmvu->Tool() == toolRecordSameAction))
@@ -2421,9 +2421,9 @@ void SCEN::SelectActr(ACTR *pactr)
     AssertThis(0);
     AssertNilOrPo(pactr, 0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
     AssertNilOrPo(pmvu, 0);
 
     if ((pmvu != pvNil) && !pmvu->FTextMode())
@@ -2467,9 +2467,9 @@ void SCEN::SelectTbox(PTBOX ptbox)
     AssertThis(0);
     AssertNilOrPo(ptbox, 0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
     AssertNilOrPo(pmvu, 0);
 
     _pmvie->InvalViews();
@@ -2659,7 +2659,7 @@ bool SCEN::FAddActr(ACTR *pactr)
     SelectActr(pactr);
 
     //
-    // The MVU creates the undo object for this because of the mouse
+    // The MovieView creates the undo object for this because of the mouse
     // placement.
     //
     return (fTrue);
@@ -2727,10 +2727,10 @@ void SCEN::RemActrCore(long arid)
             //
             if (_pactrSelected == pactrTmp)
             {
-                PMVU pmvu;
+                PMovieView pmvu;
 
                 _pactrSelected = pvNil;
-                pmvu = (PMVU)_pmvie->PddgGet(0);
+                pmvu = (PMovieView)_pmvie->PddgGet(0);
                 if (pmvu != pvNil)
                 {
                     pmvu->EndPlaceActor();
@@ -4660,7 +4660,7 @@ void SCEN::_UpdateThumbnail(void)
 
     long nfrmCur;
     PGPT pgpt, pgptThumb;
-    PMVU pmvu;
+    PMovieView pmvu;
     PTBOX ptbox = PtboxSelected();
     PACTR pactr = PactrSelected();
     RC rc, rcThumb;
@@ -4670,7 +4670,7 @@ void SCEN::_UpdateThumbnail(void)
     dtimSnd = Pmvie()->Pmsq()->DtimSnd();
     Pmvie()->Pmsq()->SndOff();
 
-    pmvu = (PMVU)Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
     if ((_pbkgd == pvNil) || (pmvu == pvNil))
     {
         goto LEnd;

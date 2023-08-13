@@ -804,9 +804,9 @@ bool Movie::FChooseArid(long arid)
     PACTR pactr, pactrDup;
     MACTR mactr;
     long imactr;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     if (pmvu == pvNil)
     {
         return (fFalse);
@@ -2997,7 +2997,7 @@ PDDG Movie::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     AssertVarMem(pgcb);
-    return (MVU::PmvuNew(this, pgcb, _pmcc->Dxp(), _pmcc->Dyp()));
+    return (MovieView::PmvuNew(this, pgcb, _pmcc->Dxp(), _pmcc->Dyp()));
 }
 
 /****************************************************
@@ -3255,9 +3255,9 @@ void Movie::SetPaintAcr(AbstractColor acr)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     AssertPo(pmvu, 0);
     pmvu->SetPaintAcr(acr);
 }
@@ -3309,31 +3309,31 @@ void Movie::SetOnnTextCur(long onn)
 
 /******************************************************************************
     PmvuCur
-        Returns the active MVU for this movie
+        Returns the active MovieView for this movie
 
 ************************************************************ PETED ***********/
-PMVU Movie::PmvuCur(void)
+PMovieView Movie::PmvuCur(void)
 {
     AssertThis(0);
-    PMVU pmvu = (PMVU)PddgActive();
+    PMovieView pmvu = (PMovieView)PddgActive();
 
     AssertPo(pmvu, 0);
-    Assert(pmvu->FIs(kclsMVU), "Current DDG isn't an MVU");
+    Assert(pmvu->FIs(kclsMovieView), "Current DDG isn't an MovieView");
     return pmvu;
 }
 
 /******************************************************************************
     PmvuFirst
-        Returns the first MVU for this movie
+        Returns the first MovieView for this movie
 
 ************************************************************ PETED ***********/
-PMVU Movie::PmvuFirst(void)
+PMovieView Movie::PmvuFirst(void)
 {
     AssertThis(0);
-    PMVU pmvu = (PMVU)PddgGet(0);
+    PMovieView pmvu = (PMovieView)PddgGet(0);
 
     AssertPo(pmvu, 0);
-    Assert(pmvu->FIs(kclsMVU), "First DDG isn't an MVU");
+    Assert(pmvu->FIs(kclsMovieView), "First DDG isn't an MovieView");
     return pmvu;
 }
 
@@ -4129,7 +4129,7 @@ bool Movie::FCmdAlarm(PCMD pcmd)
         //
         if (!_clok.FSetAlarm(0, this))
         {
-            PMVU pmvu;
+            PMovieView pmvu;
 
             //
             // Things are in a bad way.
@@ -4142,7 +4142,7 @@ bool Movie::FCmdAlarm(PCMD pcmd)
             _fPausing = fFalse;
             _fScrolling = fFalse;
             _wit = witNil;
-            pmvu = (PMVU)PddgGet(0);
+            pmvu = (PMovieView)PddgGet(0);
             pmvu->PauseUntilClick(fFalse);
             Pscen()->Enable(fscenTboxes);
             Pscen()->Disable(fscenPauses);
@@ -4194,12 +4194,12 @@ bool Movie::FCmdRender(PCMD pcmd)
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PTBOX ptbox;
     long itbox;
     ulong tsCur = TsCurrent();
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     AssertPo(pmvu, 0);
 
     if (FStopPlaying())
@@ -5225,9 +5225,9 @@ bool Movie::FPasteActr(PACTR pactr)
     AssertPo(pactr, 0);
     AssertPo(Pscen(), 0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     if (pmvu == pvNil)
     {
         return (fFalse);
@@ -5783,34 +5783,34 @@ void Movie::_SetTitle(PFilename pfni)
 //
 //
 //
-//  BEGIN MVU GOODIES
+//  BEGIN MovieView GOODIES
 //
 //
 //
 
-BEGIN_CMD_MAP(MVU, DDG)
-ON_CID_GEN(cidCopyRoute, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidCutTool, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidShiftCut, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidCopyTool, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidShiftCopy, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidPasteTool, &MVU::FCmdClip, pvNil)
+BEGIN_CMD_MAP(MovieView, DDG)
+ON_CID_GEN(cidCopyRoute, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidCutTool, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidShiftCut, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidCopyTool, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidShiftCopy, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidPasteTool, &MovieView::FCmdClip, pvNil)
 ON_CID_GEN(cidClose, pvNil, pvNil)
-ON_CID_GEN(cidSave, &MVU::FCmdSave, pvNil)
-ON_CID_GEN(cidSaveAs, &MVU::FCmdSave, pvNil)
-ON_CID_GEN(cidSaveCopy, &MVU::FCmdSave, pvNil)
-ON_CID_GEN(cidIdle, &MVU::FCmdIdle, pvNil)
-ON_CID_GEN(cidRollOff, &MVU::FCmdRollOff, pvNil)
+ON_CID_GEN(cidSave, &MovieView::FCmdSave, pvNil)
+ON_CID_GEN(cidSaveAs, &MovieView::FCmdSave, pvNil)
+ON_CID_GEN(cidSaveCopy, &MovieView::FCmdSave, pvNil)
+ON_CID_GEN(cidIdle, &MovieView::FCmdIdle, pvNil)
+ON_CID_GEN(cidRollOff, &MovieView::FCmdRollOff, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(MVU)
+RTCLASS(MovieView)
 
 /****************************************************
  *
  * Destructor for movie view objects
  *
  ****************************************************/
-MVU::~MVU(void)
+MovieView::~MovieView(void)
 {
     if (_tagTool.sid != ksidInvalid)
         TAGM::CloseTag(&_tagTool);
@@ -5830,18 +5830,18 @@ MVU::~MVU(void)
  *  A pointer to the view, otw pvNil on failure
  *
  ***************************************************************************/
-MVU *MVU::PmvuNew(PMovie pmvie, PGCB pgcb, long dxp, long dyp)
+MovieView *MovieView::PmvuNew(PMovie pmvie, PGCB pgcb, long dxp, long dyp)
 {
     AssertPo(pmvie, 0);
     AssertVarMem(pgcb);
 
-    MVU *pmvu;
+    MovieView *pmvu;
     BRS rgr[3][3] = {{rOne, rZero, rZero}, {rZero, rZero, rOne}, {rZero, -rOne, rZero}};
 
     //
     // Create the new view
     //
-    if ((pmvu = NewObj MVU(pmvie, pgcb)) == pvNil)
+    if ((pmvu = NewObj MovieView(pmvie, pgcb)) == pvNil)
         return pvNil;
 
     //
@@ -5879,7 +5879,7 @@ MVU *MVU::PmvuNew(PMovie pmvie, PGCB pgcb, long dxp, long dyp)
  *  None.
  *
  ***************************************************************************/
-void MVU::SetTool(long tool)
+void MovieView::SetTool(long tool)
 {
     AssertThis(0);
     AssertPo(Pmvie(), 0);
@@ -6121,7 +6121,7 @@ void MVU::SetTool(long tool)
  *  None.
  *
  ***************************************************************************/
-void MVU::SetTagTool(PTAG ptag)
+void MovieView::SetTagTool(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -6156,7 +6156,7 @@ void MVU::SetTagTool(PTAG ptag)
  *  None.
  *
  ***************************************************************************/
-void MVU::Draw(PGNV pgnv, RC *prcClip)
+void MovieView::Draw(PGNV pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -6215,7 +6215,7 @@ void MVU::Draw(PGNV pgnv, RC *prcClip)
  *	None.
  *
  **************************************************************************/
-void MVU::WarpCursToCenter(void)
+void MovieView::WarpCursToCenter(void)
 {
     AssertThis(0);
 
@@ -6241,7 +6241,7 @@ void MVU::WarpCursToCenter(void)
  *	None.
  *
  **************************************************************************/
-void MVU::WarpCursToActor(PACTR pactr)
+void MovieView::WarpCursToActor(PACTR pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -6269,7 +6269,7 @@ void MVU::WarpCursToActor(PACTR pactr)
  *	None.
  *
  **************************************************************************/
-void MVU::AdjustCursor(long xp, long yp)
+void MovieView::AdjustCursor(long xp, long yp)
 {
     AssertThis(0);
 
@@ -6307,7 +6307,7 @@ void MVU::AdjustCursor(long xp, long yp)
  *  None.
  *
  **************************************************************************/
-void MVU::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord)
+void MovieView::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord)
 {
     AssertThis(0);
     AssertVarMem(pdxrWld);
@@ -6337,9 +6337,9 @@ void MVU::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, B
     *pdzrWld = BR_MAC3(dxrScr, bmat34Cam.m[0][2], dyrScr, bmat34Cam.m[1][2], dzrScr, bmat34Cam.m[2][2]);
 }
 
-bool MVU::_fKbdDelayed = fFalse;
-long MVU::_dtsKbdDelay;
-long MVU::_dtsKbdRepeat;
+bool MovieView::_fKbdDelayed = fFalse;
+long MovieView::_dtsKbdDelay;
+long MovieView::_dtsKbdRepeat;
 
 /***************************************************************************
  *
@@ -6353,7 +6353,7 @@ long MVU::_dtsKbdRepeat;
  *  none
  *
  **************************************************************************/
-void MVU::SlowKeyboardRepeat(void)
+void MovieView::SlowKeyboardRepeat(void)
 {
     if (_fKbdDelayed)
         return;
@@ -6396,7 +6396,7 @@ void MVU::SlowKeyboardRepeat(void)
  *  none
  *
  **************************************************************************/
-void MVU::RestoreKeyboardRepeat(void)
+void MovieView::RestoreKeyboardRepeat(void)
 {
     if (!_fKbdDelayed)
         return;
@@ -6431,7 +6431,7 @@ void MVU::RestoreKeyboardRepeat(void)
  *  None.
  *
  **************************************************************************/
-void MVU::StartPlaceActor(bool fEntireScene)
+void MovieView::StartPlaceActor(bool fEntireScene)
 {
     AssertThis(0);
     AssertPo(Pmvie()->Pscen(), 0);
@@ -6478,7 +6478,7 @@ void MVU::StartPlaceActor(bool fEntireScene)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-void MVU::EndPlaceActor()
+void MovieView::EndPlaceActor()
 {
     AssertThis(0);
     AssertPo(Pmvie()->Pscen(), 0);
@@ -6510,7 +6510,7 @@ void MVU::EndPlaceActor()
  *  fTrue - indicating that the command was processed.
  *
  ***************************************************************************/
-bool MVU::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool MovieView::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -6694,7 +6694,7 @@ bool MVU::FCmdMouseMove(PCMD_MOUSE pcmd)
  *  fTrue - indicating that the command was processed.
  *
  ***************************************************************************/
-bool MVU::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool MovieView::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -6740,7 +6740,7 @@ bool MVU::FCmdTrackMouse(PCMD_MOUSE pcmd)
  *  None.
  *
  **************************************************************************/
-void MVU::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
+void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
 {
     AssertThis(0);
     Assert(Tool() == toolPlace, "Wrong tool in effect");
@@ -6797,7 +6797,7 @@ void MVU::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
  *  None.
  *
  **************************************************************************/
-void MVU::_ActorClicked(PACTR pactr, bool fDown)
+void MovieView::_ActorClicked(PACTR pactr, bool fDown)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -6835,7 +6835,7 @@ void MVU::_ActorClicked(PACTR pactr, bool fDown)
  *  None.
  *
  **************************************************************************/
-void MVU::_MouseDown(CMD_MOUSE *pcmd)
+void MovieView::_MouseDown(CMD_MOUSE *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -7262,7 +7262,7 @@ LEnd:
  *  None.
  *
  **************************************************************************/
-void MVU::_MouseDrag(CMD_MOUSE *pcmd)
+void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -7667,7 +7667,7 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
  *  None.
  *
  **************************************************************************/
-void MVU::_MouseUp(CMD_MOUSE *pcmd)
+void MovieView::_MouseUp(CMD_MOUSE *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -7959,7 +7959,7 @@ LEndTracking:
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MVU::FCmdClip(PCMD pcmd)
+bool MovieView::FCmdClip(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8101,7 +8101,7 @@ bool MVU::FCmdClip(PCMD pcmd)
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MVU::FDoClip(long tool)
+bool MovieView::FDoClip(long tool)
 {
     AssertThis(0);
 
@@ -8185,7 +8185,7 @@ bool MVU::FDoClip(long tool)
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MVU::FCmdUndo(PCMD pcmd)
+bool MovieView::FCmdUndo(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8201,7 +8201,7 @@ bool MVU::FCmdUndo(PCMD pcmd)
         Pmvie()->Pmcc()->PlayUISound(toolRedo);
     }
 
-    fRet = MVU_PAR::FCmdUndo(pcmd);
+    fRet = MovieView_PAR::FCmdUndo(pcmd);
     Pmvie()->Pmcc()->SetUndo(Pmvie()->CundbUndo() != 0   ? undoUndo
                              : Pmvie()->CundbRedo() != 0 ? undoRedo
                                                          : undoDisabled);
@@ -8225,7 +8225,7 @@ bool MVU::FCmdUndo(PCMD pcmd)
  *  fTrue if it was successful, else fFalse.
  *
  **************************************************************************/
-bool MVU::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
+bool MovieView::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
 {
     AssertThis(0);
 
@@ -8273,7 +8273,7 @@ bool MVU::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
  *  None.
  *
  **************************************************************************/
-void MVU::_ClearSel()
+void MovieView::_ClearSel()
 {
     AssertThis(0);
 
@@ -8338,7 +8338,7 @@ void MVU::_ClearSel()
  *  fTrue if it was successful, else fFalse.
  *
  **************************************************************************/
-bool MVU::_FPaste(PCLIP pclip)
+bool MovieView::_FPaste(PCLIP pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
@@ -8410,7 +8410,7 @@ bool MVU::_FPaste(PCLIP pclip)
  * 	fTrue if the client should close this document.
  *
  **************************************************************************/
-bool MVU::FCloseDoc(bool fAssumeYes, bool fSaveDDG)
+bool MovieView::FCloseDoc(bool fAssumeYes, bool fSaveDDG)
 {
     AssertThis(0);
     bool fRet;
@@ -8464,7 +8464,7 @@ LSaved:
  *  fTrue.
  *
  **************************************************************************/
-bool MVU::FCmdSave(PCMD pcmd)
+bool MovieView::FCmdSave(PCMD pcmd)
 {
     if (Pmvie()->Cscen() < 1)
     {
@@ -8489,7 +8489,7 @@ bool MVU::FCmdSave(PCMD pcmd)
  *  fFalse.
  *
  ***************************************************************************/
-bool MVU::FCmdIdle(PCMD pcmd)
+bool MovieView::FCmdIdle(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8509,7 +8509,7 @@ bool MVU::FCmdIdle(PCMD pcmd)
  *  fFalse.
  *
  ***************************************************************************/
-bool MVU::FCmdRollOff(PCMD pcmd)
+bool MovieView::FCmdRollOff(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8527,7 +8527,7 @@ bool MVU::FCmdRollOff(PCMD pcmd)
 #ifdef DEBUG
 /***************************************************************************
  *
- * Assert the validity of the MVU.
+ * Assert the validity of the MovieView.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -8536,14 +8536,14 @@ bool MVU::FCmdRollOff(PCMD pcmd)
  *  None.
  *
  **************************************************************************/
-void MVU::AssertValid(ulong grf)
+void MovieView::AssertValid(ulong grf)
 {
-    MVU_PAR::AssertValid(fobjAllocated);
+    MovieView_PAR::AssertValid(fobjAllocated);
 }
 
 /***************************************************************************
  *
- * Mark memory used by the MVU
+ * Mark memory used by the MovieView
  *
  * Parameters:
  *  None.
@@ -8552,10 +8552,10 @@ void MVU::AssertValid(ulong grf)
  *  None.
  *
  **************************************************************************/
-void MVU::MarkMem(void)
+void MovieView::MarkMem(void)
 {
     AssertThis(0);
-    MVU_PAR::MarkMem();
+    MovieView_PAR::MarkMem();
     MarkMemObj(Pmvie());
 }
 #endif // DEBUG

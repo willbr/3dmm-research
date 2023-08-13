@@ -442,7 +442,7 @@ bool SCRT::FCmdDismiss(PCMD pcmd)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     if (pcmd->cid == cidSceneSortOk)
     {
@@ -459,7 +459,7 @@ bool SCRT::FCmdDismiss(PCMD pcmd)
     }
 
     /* Change to the tool for scenes */
-    pmvu = (PMVU)(_pmvie->PddgActive());
+    pmvu = (PMovieView)(_pmvie->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
     _pstdio->ChangeTool(toolDefault);

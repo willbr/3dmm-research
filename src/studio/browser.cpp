@@ -1961,8 +1961,8 @@ bool BRWN::FCmdOk(PCMD pcmd)
     if (ivNil == _ithumSelect)
     {
         TAG tag;
-        PMVU pmvu;
-        pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+        PMovieView pmvu;
+        pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
         tag.sid = ksidInvalid;
         tag.pcrf = pvNil;
         pmvu->SetTagTool(&tag); // No need to close tag with ksidInvalid
@@ -2348,12 +2348,12 @@ bool BRWM::FCmdDel(PCMD pcmd)
     PMSND pmsnd;
     STN stnErr;
     STN stnSnd;
-    PMVU pmvu;
+    PMovieView pmvu;
 
     if (_ithumSelect < _cthumCD)
         return fTrue; // CD Sounds cannot be deleted
 
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     AssertPo(pmvu, 0);
     _pgst->GetStn(_ithumSelect, &stnSnd);
 
@@ -2864,10 +2864,10 @@ bool BRWB::FCmdCancel(PCMD pcmd)
     AssertVarMem(pcmd);
     AssertVarMem(_pstdio);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
@@ -2949,10 +2949,10 @@ bool BRWC::FCmdCancel(PCMD pcmd)
     AssertVarMem(pcmd);
     AssertVarMem(_pstdio);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 

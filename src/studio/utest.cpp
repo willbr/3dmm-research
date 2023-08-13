@@ -119,7 +119,7 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
         }
 
         _fQuit = fTrue;
-        MVU::RestoreKeyboardRepeat();
+        MovieView::RestoreKeyboardRepeat();
 #ifdef WIN
         ClipCursor(NULL);
 #endif // WIN

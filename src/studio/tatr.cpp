@@ -117,7 +117,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
         goto LFail;
     ReleasePpo(&pmcc);
 
-    // Create a new MVU (with PddgNew()) as a child GraphicsObject of _kidParent.
+    // Create a new MovieView (with PddgNew()) as a child GraphicsObject of _kidParent.
     // Make it invisible until we get a play command
     pgob = vpapp->Pkwa()->PgobFromHid(_kidParent);
     if (pvNil == pgob)
@@ -156,14 +156,14 @@ LFail:
 }
 
 /***************************************************************************
-    Play the current movie.  Also makes the MVU visible, if it was hidden.
+    Play the current movie.  Also makes the MovieView visible, if it was hidden.
 ***************************************************************************/
 bool TATR::FCmdPlay(PCMD pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     RC rcAbs;
     RC rcRel;
 

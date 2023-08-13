@@ -77,7 +77,7 @@ LFail:
 /******************************************************************************
     FCmdInit
         Initializes the splot machine; right now, just sets up the movie
-        and MVU for the splot machine, inside the given KidspaceGraphicObject parent.  In the
+        and MovieView for the splot machine, inside the given KidspaceGraphicObject parent.  In the
         future, perhaps the content data structures can be inited here, and
         only updated if we fail loading something (which would indicate that
         the user removed a CD or something during the splot machine).
@@ -402,7 +402,7 @@ SPLOT::~SPLOT(void)
     {
         /* This should be freed when its parent, the Splot Machine View gob, is
             freed */
-        Assert(_pmvie->PddgGet(0) == pvNil, "MVU wasn't freed");
+        Assert(_pmvie->PddgGet(0) == pvNil, "MovieView wasn't freed");
 
         _pmvie->Pmsq()->StopAll();
         _pmvie->Pmsq()->SndOnShort();
