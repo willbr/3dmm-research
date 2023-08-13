@@ -23,7 +23,7 @@ void CheckForLostMem(BASE *po);
 void TestUtil(void);
 long _LwSqrt(long lw);
 
-#define APP_PAR APPB
+#define APP_PAR ApplicationBase
 #define kclsAPP 'APP'
 class APP : public APP_PAR
 {
@@ -56,7 +56,7 @@ class APP : public APP_PAR
     bool FEnableMacro(PCMD pcmd, ulong *pgrfeds);
 };
 
-BEGIN_CMD_MAP(APP, APPB)
+BEGIN_CMD_MAP(APP, ApplicationBase)
 ON_CID_GEN(cidTestSuite, &APP::FCmdTestSuite, pvNil)
 ON_CID_GEN(cidNewTestWnd, &APP::FCmdNewTestWnd, pvNil)
 ON_CID_GEN(cidTextTestWnd, &APP::FCmdTextTestWnd, pvNil)

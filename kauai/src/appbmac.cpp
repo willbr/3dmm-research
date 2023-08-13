@@ -27,7 +27,7 @@ void __cdecl main(void)
 {
     // Grow the stack and expand the heap. This MUST be done first!
     if (pvNil == vpappb)
-        APPB::_SetupHeap(_cbExtraStackDef, _cactMoreMastersDef);
+        ApplicationBase::_SetupHeap(_cbExtraStackDef, _cactMoreMastersDef);
     else
         vpappb->SetupHeap();
 
@@ -48,7 +48,7 @@ void __cdecl main(void)
     Static method to increase the stack size by cbExtraStack and call
     MoreMasters the specified number of times.
 ***************************************************************************/
-void APPB::_SetupHeap(long cbExtraStack, long cactMoreMasters)
+void ApplicationBase::_SetupHeap(long cbExtraStack, long cactMoreMasters)
 {
     // This is called before any Mac OS stuff is initialized, so
     // don't assert on anything.
@@ -73,7 +73,7 @@ void APPB::_SetupHeap(long cbExtraStack, long cactMoreMasters)
 /***************************************************************************
     Method to set up the heap.
 ***************************************************************************/
-void APPB::SetupHeap(void)
+void ApplicationBase::SetupHeap(void)
 {
     // This is called before any Mac OS stuff is initialized, so
     // don't assert on anything.
@@ -85,7 +85,7 @@ void APPB::SetupHeap(void)
 /***************************************************************************
     Shutdown immediately.
 ***************************************************************************/
-void APPB::Abort(void)
+void ApplicationBase::Abort(void)
 {
     ExitToShell();
 }
@@ -93,7 +93,7 @@ void APPB::Abort(void)
 /***************************************************************************
     Do OS specific initialization.
 ***************************************************************************/
-bool APPB::_FInitOS(void)
+bool ApplicationBase::_FInitOS(void)
 {
     AssertThis(0);
 
@@ -104,7 +104,7 @@ bool APPB::_FInitOS(void)
 /***************************************************************************
     Open a desk accessory.
 ***************************************************************************/
-bool APPB::FCmdOpenDA(PCMD pcmd)
+bool ApplicationBase::FCmdOpenDA(PCMD pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -128,7 +128,7 @@ bool APPB::FCmdOpenDA(PCMD pcmd)
 /***************************************************************************
     Get the next event from the OS.
 ***************************************************************************/
-bool APPB::_FGetNextEvt(EVT *pevt)
+bool ApplicationBase::_FGetNextEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -146,7 +146,7 @@ bool APPB::_FGetNextEvt(EVT *pevt)
     of the mouse relative to pgob. Also ensure that GrfcustCur() will
     return the correct mouse state.
 ***************************************************************************/
-void APPB::TrackMouse(PGraphicsObject pgob, PT *ppt)
+void ApplicationBase::TrackMouse(PGraphicsObject pgob, PT *ppt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -213,7 +213,7 @@ LDone:
 /***************************************************************************
     Dispatch the OS level event to a translator.
 ***************************************************************************/
-void APPB::_DispatchEvt(EVT *pevt)
+void ApplicationBase::_DispatchEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -266,7 +266,7 @@ void APPB::_DispatchEvt(EVT *pevt)
 /***************************************************************************
     Dispatch an OS level mouse down event.
 ***************************************************************************/
-void APPB::_MouseDownEvt(EVT *pevt)
+void ApplicationBase::_MouseDownEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -347,7 +347,7 @@ void APPB::_MouseDownEvt(EVT *pevt)
 /***************************************************************************
     Dispatch an OS level mouse up event.
 ***************************************************************************/
-void APPB::_MouseUpEvt(EVT *pevt)
+void ApplicationBase::_MouseUpEvt(EVT *pevt)
 {
     // Ignore mouse up events
 }
@@ -357,7 +357,7 @@ void APPB::_MouseUpEvt(EVT *pevt)
     the key maps to a menu item.
     //REVIEW shonk: resolve (ch, vk) differences between Mac and Win
 ***************************************************************************/
-bool APPB::_FTranslateKeyEvt(EVT *pevt, PCMD_KEY pcmd)
+bool ApplicationBase::_FTranslateKeyEvt(EVT *pevt, PCMD_KEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -381,7 +381,7 @@ bool APPB::_FTranslateKeyEvt(EVT *pevt, PCMD_KEY pcmd)
     Look at the next system event and if it's a key, fill in the *pcmd with
     the relevant info.
 ***************************************************************************/
-bool APPB::FGetNextKeyFromOsQueue(PCMD_KEY pcmd)
+bool ApplicationBase::FGetNextKeyFromOsQueue(PCMD_KEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -427,7 +427,7 @@ ulong _GrfcustFromEvt(PEVT pevt)
 /***************************************************************************
     Dispatch an OS level update event.
 ***************************************************************************/
-void APPB::_UpdateEvt(EVT *pevt)
+void ApplicationBase::_UpdateEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -453,7 +453,7 @@ void APPB::_UpdateEvt(EVT *pevt)
 /***************************************************************************
     Dispatch an OS level activate event.
 ***************************************************************************/
-void APPB::_ActivateEvt(EVT *pevt)
+void ApplicationBase::_ActivateEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -465,7 +465,7 @@ void APPB::_ActivateEvt(EVT *pevt)
 /***************************************************************************
     Handle an OS level disk event.
 ***************************************************************************/
-void APPB::_DiskEvt(EVT *pevt)
+void ApplicationBase::_DiskEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -474,7 +474,7 @@ void APPB::_DiskEvt(EVT *pevt)
 /***************************************************************************
     Handle activation of the app.
 ***************************************************************************/
-void APPB::_ActivateApp(EVT *pevt)
+void ApplicationBase::_ActivateApp(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -485,7 +485,7 @@ void APPB::_ActivateApp(EVT *pevt)
 /***************************************************************************
     Handle deactivation of the app.
 ***************************************************************************/
-void APPB::_DeactivateApp(EVT *pevt)
+void ApplicationBase::_DeactivateApp(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -496,7 +496,7 @@ void APPB::_DeactivateApp(EVT *pevt)
 /***************************************************************************
     Handle an OS level mouse moved event.
 ***************************************************************************/
-void APPB::_MouseMovedEvt(EVT *pevt)
+void ApplicationBase::_MouseMovedEvt(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -517,7 +517,7 @@ enum
     Put an alert up.  Return which button was hit.  Returns tYes for yes
     or ok; tNo for no; tMaybe for cancel.
 ***************************************************************************/
-bool APPB::TGiveAlertSz(PSZ psz, long bk, long cok)
+bool ApplicationBase::TGiveAlertSz(PSZ psz, long bk, long cok)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -587,7 +587,7 @@ const short kbidQuit = 3;
 /***************************************************************************
     Debug initialization.
 ***************************************************************************/
-bool APPB::_FInitDebug(void)
+bool ApplicationBase::_FInitDebug(void)
 {
     return fTrue;
 }
@@ -596,7 +596,7 @@ bool APPB::_FInitDebug(void)
     Assert proc.
     REVIEW shonk: Mac FAssertProcApp: flesh out and fix for unicode.
 ***************************************************************************/
-bool APPB::FAssertProcApp(PSZ pszFile, long lwLine, PSZ pszMsg, void *pv, long cb)
+bool ApplicationBase::FAssertProcApp(PSZ pszFile, long lwLine, PSZ pszMsg, void *pv, long cb)
 {
     short bid;
     achar stLine[kcbMaxSt];

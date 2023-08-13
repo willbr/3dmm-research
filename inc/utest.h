@@ -78,7 +78,7 @@ enum
     The app class
 ****************************************/
 typedef class APP *PAPP;
-#define APP_PAR APPB
+#define APP_PAR ApplicationBase
 #define kclsAPP 'APP'
 class APP : public APP_PAR
 {
@@ -195,7 +195,7 @@ class APP : public APP_PAR
     bool _FProcessOpenDocCmd(void);
 #endif // WIN
 
-    // APPB methods that we override
+    // ApplicationBase methods that we override
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
     virtual bool _FInitOS(void);
     virtual bool _FInitMenu(void)
@@ -217,7 +217,7 @@ class APP : public APP_PAR
         _dypTextDef = 0;
     }
 
-    // Overridden APPB functions
+    // Overridden ApplicationBase functions
     virtual void GetStnAppName(PSTN pstn);
     virtual long OnnDefVariable(void);
     virtual long DypTextDef(void);

@@ -20,7 +20,7 @@
 
 #include "chdoc.h"
 
-#define APP_PAR APPB
+#define APP_PAR ApplicationBase
 #define kclsAPP 'APP'
 class APP : public APP_PAR
 {

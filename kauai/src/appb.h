@@ -58,15 +58,15 @@ enum
     fappOnscreen = 0x2,
 };
 
-typedef class APPB *PAPPB;
-#define APPB_PAR CMH
-#define kclsAPPB 'APPB'
-class APPB : public APPB_PAR
+typedef class ApplicationBase *PApplicationBase;
+#define ApplicationBase_PAR CMH
+#define kclsApplicationBase 'APPB'
+class ApplicationBase : public ApplicationBase_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(APPB)
+    CMD_MAP_DEC(ApplicationBase)
 
   protected:
     // marked region - for fast updating
@@ -204,8 +204,8 @@ class APPB : public APPB_PAR
     virtual void _Activate(bool fActive);
 
   public:
-    APPB(void);
-    ~APPB(void);
+    ApplicationBase(void);
+    ~ApplicationBase(void);
 
 #ifdef MAC
     // setting up the heap
@@ -322,7 +322,7 @@ class APPB : public APPB_PAR
     virtual bool FAllowScreenSaver(void);
 };
 
-extern PAPPB vpappb;
+extern PApplicationBase vpappb;
 extern PCEX vpcex;
 extern PSNDM vpsndm;
 

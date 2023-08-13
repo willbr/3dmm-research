@@ -9,7 +9,7 @@
 #include "chelp.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(APP, APPB)
+BEGIN_CMD_MAP(APP, ApplicationBase)
 ON_CID_GEN(cidNew, &APP::FCmdOpen, pvNil)
 ON_CID_GEN(cidOpen, &APP::FCmdOpen, pvNil)
 ON_CID_GEN(cidOpenText, &APP::FCmdOpen, pvNil)

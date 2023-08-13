@@ -54,7 +54,7 @@ const PSZ kpszOpenFile = PszLit("3DMMOpen.tmp");
 
 const long klwOpenDoc = 0x12123434; // arbitrary wParam for WM_USER
 
-BEGIN_CMD_MAP(APP, APPB)
+BEGIN_CMD_MAP(APP, ApplicationBase)
 ON_CID_GEN(cidInfo, &APP::FCmdInfo, pvNil)
 ON_CID_GEN(cidLoadStudio, &APP::FCmdLoadStudio, pvNil)
 ON_CID_GEN(cidLoadBuilding, &APP::FCmdLoadBuilding, pvNil)
@@ -86,7 +86,7 @@ void FrameMain(void)
 
 /******************************************************************************
     Run
-        Overridden APPB::Run method, so that we can attempt to recover
+        Overridden ApplicationBase::Run method, so that we can attempt to recover
         gracefully from a crash.
 
     Arguments:
@@ -3989,7 +3989,7 @@ void APP::DisplayErrors(void)
 }
 
 /***************************************************************************
-    Idle routine.  Do APPB idle stuff, then report any runtime errors.
+    Idle routine.  Do ApplicationBase idle stuff, then report any runtime errors.
 ***************************************************************************/
 bool APP::FCmdIdle(PCMD pcmd)
 {

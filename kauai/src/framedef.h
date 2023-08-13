@@ -81,7 +81,7 @@
 #define kgrfcustApp 0xFFFF0000
 
 /***************************************************************************
-    Property id's.  For APPB::FSetProp and APPB::FGetProp.
+    Property id's.  For ApplicationBase::FSetProp and ApplicationBase::FGetProp.
 ***************************************************************************/
 #define kpridMaximized 1
 #define kpridFullScreen 2
