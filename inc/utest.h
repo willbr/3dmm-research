@@ -36,7 +36,7 @@ class KWA : public KWA_PAR
     ~KWA(void);
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FFindFile(PSTN pstnSrc, PFilename pfni); // for finding AVIs
-    virtual bool FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet);
+    virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
     void SetMbmp(PMBMP pmbmp);
     void SetCDPrompt(bool fAskForCD)
     {
@@ -175,7 +175,7 @@ class APP : public APP_PAR
     bool _FInitProductNames(void);
     bool _FReadTitlesFromReg(PGST *ppgst);
     bool _FInitTdt(void);
-    PGST _PgstRead(CNO cno);
+    PGST _PgstRead(ChunkNumber cno);
     bool _FReadStringTables(void);
     bool _FSetWindowTitle(void);
     bool _FInitCrm(void);

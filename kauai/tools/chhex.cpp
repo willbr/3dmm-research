@@ -1114,7 +1114,7 @@ void DCH::MarkMem(void)
 /***************************************************************************
     Constructor for a chunk hex editing doc.
 ***************************************************************************/
-DOCH::DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCH::DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
 }
 
@@ -1122,7 +1122,7 @@ DOCH::DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno) : DOCE(pdocb, pcfl, ct
     Creates a new hex editing doc based on the given chunk.  Asserts that
     there are no open editing docs based on the chunk.
 ***************************************************************************/
-PDOCH DOCH::PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno)
+PDOCH DOCH::PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);

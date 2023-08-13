@@ -189,8 +189,8 @@ class SCEN : public SCEN_PAR
     // Create and destroy
     //
     static SCEN *PscenNew(PMVIE pmvie);                      // Returns pvNil if it fails.
-    static SCEN *PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno); // Returns pvNil if it fails.
-    bool FWrite(PCRF pcrf, CNO *pcno);                       // Returns fFalse if it fails, else the cno written.
+    static SCEN *PscenRead(PMVIE pmvie, PCRF pcrf, ChunkNumber cno); // Returns pvNil if it fails.
+    bool FWrite(PCRF pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
     static void Close(PSCEN *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.
     bool FAddActrsToRollCall(void);                          // Adds actors from movie roll call.
@@ -198,7 +198,7 @@ class SCEN : public SCEN_PAR
     //
     // Tag collection
     //
-    static bool FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl);
+    static bool FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl);
 
     //
     // Frame functions
@@ -259,8 +259,8 @@ class SCEN : public SCEN_PAR
         return _trans;
     } // Returns the transition setting.
     // These two operate a specific SCEN chunk rather than a SCEN in memory
-    static bool FTransOnFile(PCRF pcrf, CNO cno, TRANS *ptrans);
-    static bool FSetTransOnFile(PCRF pcrf, CNO cno, TRANS trans);
+    static bool FTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS *ptrans);
+    static bool FSetTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS trans);
 
     //
     // State functions
@@ -318,7 +318,7 @@ class SCEN : public SCEN_PAR
     bool FQuerySnd(long sty, PGL *pgltagSnd, long *pvlm, bool *pfLoop);
     void SetSndVlmCore(long sty, long vlmNew);
     void UpdateSndFrame(void);
-    bool FResolveAllSndTags(CNO cnoScen);
+    bool FResolveAllSndTags(ChunkNumber cnoScen);
 
     //
     // Text box functions

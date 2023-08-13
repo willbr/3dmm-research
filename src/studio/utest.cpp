@@ -1658,7 +1658,7 @@ bool APP::_FInitTdt(void)
     Read and byte-swap a GST from _pcfl.  Assumes that extra data, if any,
     is a long.
 ***************************************************************************/
-PGST APP::_PgstRead(CNO cno)
+PGST APP::_PgstRead(ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
@@ -2953,7 +2953,7 @@ bool APP::FCmdPortfolioOpen(PCMD pcmd)
     Filename fniUsersDir;
     PFilename pfni;
     ulong grfPrevType;
-    CNO cnoWave = cnoNil;
+    ChunkNumber cnoWave = cnoNil;
 
     // Set up strings specific to this use of the portfolio.
 
@@ -4661,7 +4661,7 @@ bool KWA::FFindFile(PSTN pstnSrc, PFilename pfni)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool KWA::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
+bool KWA::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);

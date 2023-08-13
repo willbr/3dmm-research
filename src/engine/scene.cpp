@@ -185,7 +185,7 @@ class SUNC : public SUNC_PAR
     ASSERT
 
   protected:
-    CNO _cno;
+    ChunkNumber _cno;
     PCRF _pcrf;
     SUNC(void)
     {
@@ -3757,7 +3757,7 @@ bool SCEN::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
+SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, ChunkNumber cno)
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
@@ -4180,7 +4180,7 @@ bool SCEN::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
-bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
+bool SCEN::FWrite(PCRF pcrf, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -4189,7 +4189,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     PGG pggStartTemp = pvNil;
     SEV sev;
     CHID chidActr, chidTbox;
-    CNO cnoChild, cnoFrmEvent, cnoStartEvent;
+    ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
     SCENH scenh;
     long isevFrm = -1;
     long isevStart = -1;
@@ -4204,7 +4204,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     *pcno = cnoNil;
 
     //
-    // Get a new CNO for this chunk
+    // Get a new ChunkNumber for this chunk
     //
     if (!pcfl->FAdd(0, kctgScen, pcno))
     {
@@ -4505,7 +4505,7 @@ LFail:
  *  None
  *
  ****************************************************/
-bool SCEN::FResolveAllSndTags(CNO cnoScen)
+bool SCEN::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
 
@@ -5058,7 +5058,7 @@ void SCEN::SetMvie(PMVIE pmvie)
  *  fFalse if an error occurred, else fTrue
  *
  ****************************************************/
-bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
+bool SCEN::FAddTagsToTagl(PCFL pcfl, ChunkNumber cno, PTAGL ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
@@ -5761,13 +5761,13 @@ void SCEN::StopPlaying()
 
     Arguments:
         PCRF pcrf     -- the chunky resource file the SCEN lives on
-        CNO cno       -- the CNO of the SCEN chunk
+        ChunkNumber cno       -- the ChunkNumber of the SCEN chunk
         TRANS *ptrans -- pointer to memory to take the transition setting
 
     Returns: fTrue if it was able to set *ptrans, fFalse if something failed
 
 ************************************************************ PETED ***********/
-bool SCEN::FTransOnFile(PCRF pcrf, CNO cno, TRANS *ptrans)
+bool SCEN::FTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS *ptrans)
 {
     DataBlock blck;
     SCENH scenh;
@@ -5795,14 +5795,14 @@ LFail:
 
     Arguments:
         PCRF pcrf   -- the chunky resource file the SCEN lives on
-        CNO cno     -- the CNO of the SCEN chunk
+        ChunkNumber cno     -- the ChunkNumber of the SCEN chunk
         TRANS trans -- the transition state to use
 
     Returns: fTrue if the routine could guarantee that the scene has the
         given transition state.
 
 ************************************************************ PETED ***********/
-bool SCEN::FSetTransOnFile(PCRF pcrf, CNO cno, TRANS trans)
+bool SCEN::FSetTransOnFile(PCRF pcrf, ChunkNumber cno, TRANS trans)
 {
     DataBlock blck;
     SCENH scenh;

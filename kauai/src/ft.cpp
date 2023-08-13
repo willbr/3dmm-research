@@ -1535,7 +1535,7 @@ bool DOCPIC::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     PCFL pcfl;
     bool fT;
-    CNO cno;
+    ChunkNumber cno;
 
     if (pvNil == (pcfl = CFL::PcflCreate(pfni, fcflNil)))
         return fFalse;

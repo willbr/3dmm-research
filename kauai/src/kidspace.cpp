@@ -131,7 +131,7 @@ KidspaceGraphicObject::~KidspaceGraphicObject(void)
 /***************************************************************************
     Initialize this KidspaceGraphicObject given the cno for the gokd.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, CNO cno, PRCA prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -1227,7 +1227,7 @@ bool KidspaceGraphicObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xp
     AssertThis(0);
     AssertVarMem(ppgobCurTip);
     AssertNilOrPo(*ppgobCurTip, 0);
-    CNO cno;
+    ChunkNumber cno;
     HTOP htop;
     PKidspaceGraphicObject pgokSrc;
 
@@ -1273,7 +1273,7 @@ bool KidspaceGraphicObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xp
 /***************************************************************************
     Get the cno for the our tool tip (given the current modifier state).
 ***************************************************************************/
-CNO KidspaceGraphicObject::_CnoToolTip(void)
+ChunkNumber KidspaceGraphicObject::_CnoToolTip(void)
 {
     AssertThis(0);
     CUME cume;
@@ -1400,7 +1400,7 @@ bool KidspaceGraphicObject::FRunScript(CHID chid, long *prglw, long clw, long *p
     was a failure, tYes if the script exists and running it succeeded.
     CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FRunScriptCno(CNO cno, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
+bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
@@ -1533,10 +1533,10 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGORP KidspaceGraphicObject::_PgorpNew(PCRF pcrf, ChunkTag ctg, CNO cno)
+PGORP KidspaceGraphicObject::_PgorpNew(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
+    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
     PFNGORP pfngorp;
 
     switch (ctg)
@@ -1713,7 +1713,7 @@ long KidspaceGraphicObject::NfrCur(void)
     Play a sound and attach the sound to this KidspaceGraphicObject so that when the KidspaceGraphicObject
     goes away, the sound will be killed.
 ***************************************************************************/
-long KidspaceGraphicObject::SiiPlaySound(ChunkTag ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long KidspaceGraphicObject::SiiPlaySound(ChunkTag ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
 
@@ -1758,7 +1758,7 @@ void KidspaceGraphicObject::_DeferSnd(bool fDefer)
     sound, so that when the KidspaceGraphicObject goes away and the mouse state changes,
     the sound will be killed.
 ***************************************************************************/
-long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTag ctg, CNO cno)
+long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
 
@@ -1971,7 +1971,7 @@ const ByteOrderMask kbomGokfl = 0x5FFF0000;
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
+PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2076,7 +2076,7 @@ void GORF::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
+PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2213,7 +2213,7 @@ void GORB::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
+PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2613,7 +2613,7 @@ void GORT::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
+PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2635,7 +2635,7 @@ PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO c
 /***************************************************************************
     Initialize the GORV - load the movie indicated byt (pcrf, ctg, cno).
 ***************************************************************************/
-bool GORV::_FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno)
+bool GORV::_FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);

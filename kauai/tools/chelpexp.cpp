@@ -304,7 +304,7 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, CKI *pckiPar)
         switch (B3Lw(lw))
         {
         case 64: // sprmGroup
-            if (cb <= size(byte) + size(CNO))
+            if (cb <= size(byte) + size(ChunkNumber))
                 goto LWriteCore;
             if (cb > size(rgb))
             {
@@ -313,7 +313,7 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, CKI *pckiPar)
             }
 
             pag->GetRgb(iv, 0, cb, rgb);
-            ib = size(byte) + size(CNO);
+            ib = size(byte) + size(ChunkNumber);
             if (!stnT.FSetData(rgb + ib, cb - ib) || stnT.Cch() == 0)
             {
                 Bug("bad group data");

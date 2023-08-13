@@ -254,7 +254,7 @@ void CRF::SetCbMax(long cbMax)
     tNo if the chunk isn't in the CRF and tMaybe if there wasn't room
     to cache the chunk.
 ***************************************************************************/
-tribool CRF::TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc, long crep)
+tribool CRF::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -335,7 +335,7 @@ tribool CRF::TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc, long crep)
     Make sure the object is loaded and increment its reference count.  If
     successful, must be balanced with a call to ReleasePpo.
 ***************************************************************************/
-PBACO CRF::PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBACO CRF::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -413,7 +413,7 @@ PBACO CRF::PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError, RSC r
     If the object is loaded, increment its reference count and return it.
     If it's not already loaded, just return nil.
 ***************************************************************************/
-PBACO CRF::PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
+PBACO CRF::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -437,7 +437,7 @@ PBACO CRF::PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
     If the baco indicated chunk is cached, set its crep.  Returns true
     iff the baco was cached.
 ***************************************************************************/
-bool CRF::FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
+bool CRF::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -461,7 +461,7 @@ bool CRF::FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
     Return this if the chunk is in this crf, otherwise return nil. The
     caller is not given a reference count.
 ***************************************************************************/
-PCRF CRF::PcrfFindChunk(ChunkTag ctg, CNO cno, RSC rsc)
+PCRF CRF::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
 
@@ -538,7 +538,7 @@ void CRF::BacoReleased(PBACO pbaco)
     Find the cre corresponding to the (ctg, cno, pfnrpo).  Set *picre to
     its location (or where it would be if it were in the list).
 ***************************************************************************/
-bool CRF::_FFindCre(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, long *picre)
+bool CRF::_FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre)
 {
     AssertThis(0);
     AssertVarMem(picre);
@@ -585,7 +585,7 @@ bool CRF::_FFindBaco(PBACO pbaco, long *picre)
     Assert(pbaco->_pcrf == this, "BACO doesn't have right CRF");
     AssertVarMem(picre);
     ChunkTag ctg;
-    CNO cno;
+    ChunkNumber cno;
     CRE *qrgcre, *qcre;
     long icreMin, icreLim, icre;
 
@@ -798,7 +798,7 @@ PCRM CRM::PcrmNew(long ccrfInit)
     Prefetch the object if there is room in the cache.  Assigns the fetched
     object the given priority (crep).
 ***************************************************************************/
-tribool CRM::TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc, long crep)
+tribool CRM::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -824,7 +824,7 @@ tribool CRM::TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc, long crep)
     and pfError is not nil, *pfError is set iff the chunk exists but
     couldn't be loaded.
 ***************************************************************************/
-PBACO CRM::PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBACO CRM::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -853,7 +853,7 @@ PBACO CRM::PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError, RSC r
     If the object is loaded, increment its reference count and return it.
     If it's not already loaded, just return nil.
 ***************************************************************************/
-PBACO CRM::PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
+PBACO CRM::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -870,7 +870,7 @@ PBACO CRM::PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
     If the chunk is cached, set its crep.  Returns true iff the chunk
     was cached.
 ***************************************************************************/
-bool CRM::FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
+bool CRM::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -892,7 +892,7 @@ bool CRM::FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc)
     Return which CRF the given chunk is in. The caller is not given a
     reference count.
 ***************************************************************************/
-PCRF CRM::PcrfFindChunk(ChunkTag ctg, CNO cno, RSC rsc)
+PCRF CRM::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
     PCRF pcrf;
@@ -991,7 +991,7 @@ void CRM::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read GHQ objects.
 ***************************************************************************/
-bool GHQ::FReadGhq(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool GHQ::FReadGhq(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

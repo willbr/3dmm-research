@@ -437,7 +437,7 @@ void CEX::RecordCmd(PCMD pcmd)
     {
         DataBlock blck;
         long cb;
-        CNO cno;
+        ChunkNumber cno;
 
         cb = pcmd->pgg->CbOnFile();
         if (!_pcfl->FAddChild(kctgMacro, _cno, cmdf.chidGg, cb, kctgGg, &cno, &blck))
@@ -461,7 +461,7 @@ void CEX::RecordCmd(PCMD pcmd)
     Play back the command stream starting in the given pcfl with the given
     cno.
 ***************************************************************************/
-void CEX::Play(PCFL pcfl, CNO cno)
+void CEX::Play(PCFL pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

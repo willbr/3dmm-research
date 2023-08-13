@@ -122,7 +122,7 @@ class CAMS : public CAMS_PAR
 
     IAMSound *psnd; // the sound to use
 
-    static bool FReadCams(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCams(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     bool FInMemory(void)
     {
         return _pstbl->FInMemory();
@@ -188,7 +188,7 @@ class AMQUE : public AMQUE_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(void);
-    virtual PBACO _PbacoFetch(PRCA prca, ChunkTag ctg, CNO cno);
+    virtual PBACO _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);

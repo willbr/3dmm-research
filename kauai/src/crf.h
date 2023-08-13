@@ -20,7 +20,7 @@
 #define CHRES_H
 
 typedef class CRF *PCRF;
-typedef CNO RSC;
+typedef ChunkNumber RSC;
 const RSC rscNil = 0L;
 
 // chunky resource entry priority
@@ -47,7 +47,7 @@ class BACO : public BACO_PAR
     // These fields are owned by the CRF
     PCRF _pcrf; // The BACO has a ref count on this iff !_fAttached
     ChunkTag _ctg;
-    CNO _cno;
+    ChunkNumber _cno;
     long _crep : 16;
     long _fAttached : 1;
 
@@ -67,7 +67,7 @@ class BACO : public BACO_PAR
     {
         return _ctg;
     }
-    CNO Cno(void)
+    ChunkNumber Cno(void)
     {
         return _cno;
     }
@@ -94,7 +94,7 @@ class BACO : public BACO_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+typedef bool FNRPO(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 typedef FNRPO *PFNRPO;
 
 typedef class RCA *PRCA;
@@ -105,11 +105,11 @@ class RCA : public RCA_PAR
     RTCLASS_DEC
 
   public:
-    virtual tribool TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal) = 0;
-    virtual PBACO PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
-    virtual PBACO PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
-    virtual bool FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
-    virtual PCRF PcrfFindChunk(ChunkTag ctg, CNO cno, RSC rsc = rscNil) = 0;
+    virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal) = 0;
+    virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil) = 0;
+    virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
+    virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil) = 0;
+    virtual PCRF PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
 };
 
 /***************************************************************************
@@ -139,7 +139,7 @@ class CRF : public CRF_PAR
     long _cactRelease;
 
     CRF(PCFL pcfl, long cbMax);
-    bool _FFindCre(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, long *picre);
+    bool _FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre);
     bool _FFindBaco(PBACO pbaco, long *picre);
     bool _FPurgeCb(long cbPurge, long crepLast);
 
@@ -147,11 +147,11 @@ class CRF : public CRF_PAR
     ~CRF(void);
     static PCRF PcrfNew(PCFL pcfl, long cbMax);
 
-    virtual tribool TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
-    virtual PBACO PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
-    virtual PBACO PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual bool FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual PCRF PcrfFindChunk(ChunkTag ctg, CNO cno, RSC rsc = rscNil);
+    virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
+    virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
+    virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual PCRF PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
     long CbMax(void)
     {
@@ -192,11 +192,11 @@ class CRM : public CRM_PAR
     ~CRM(void);
     static PCRM PcrmNew(long ccrfInit);
 
-    virtual tribool TLoad(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
-    virtual PBACO PbacoFetch(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
-    virtual PBACO PbacoFind(ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual bool FSetCrep(long crep, ChunkTag ctg, CNO cno, PFNRPO pfnrpo, RSC rsc = rscNil);
-    virtual PCRF PcrfFindChunk(ChunkTag ctg, CNO cno, RSC rsc = rscNil);
+    virtual tribool TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil, long crep = crepNormal);
+    virtual PBACO PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError = pvNil, RSC rsc = rscNil);
+    virtual PBACO PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual bool FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
+    virtual PCRF PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc = rscNil);
 
     bool FAddCfl(PCFL pcfl, long cbMax, long *piv = pvNil);
     long Ccrf(void)
@@ -232,7 +232,7 @@ class GHQ : public GHQ_PAR
     }
 
     // An object reader for a GHQ.
-    static bool FReadGhq(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGhq(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 };
 
 /***************************************************************************

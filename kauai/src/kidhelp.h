@@ -21,10 +21,10 @@
 ***************************************************************************/
 struct HTOP
 {
-    CNO cnoBalloon;
+    ChunkNumber cnoBalloon;
     long hidThis;
     long hidTarget;
-    CNO cnoScript;
+    ChunkNumber cnoScript;
     long dxp;
     long dyp;
     CKI ckiSnd;
@@ -79,27 +79,27 @@ class TXHD : public TXHD_PAR
     TXHD(PRCA prca, PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXHD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
+    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
     virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
     virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, CNO cno, PSTRG pstrg = pvNil,
+    static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
     virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
 
-    bool FInsertPicture(CNO cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
+    bool FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                         ulong grfdoc = fdocUpdate);
-    bool FInsertButton(CNO cno, CNO cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
+    bool FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                        ulong grfdoc = fdocUpdate);
     PRCA Prca(void)
     {
         return _prca;
     }
-    bool FGroupText(long cp1, long cp2, byte bGroup, CNO cnoTopic = cnoNil, PSTN pstnTopic = pvNil);
-    bool FGrouped(long cp, long *pcpMin = pvNil, long *pcpLim = pvNil, byte *pbGroup = pvNil, CNO *pcnoTopic = pvNil,
+    bool FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic = cnoNil, PSTN pstnTopic = pvNil);
+    bool FGrouped(long cp, long *pcpMin = pvNil, long *pcpLim = pvNil, byte *pbGroup = pvNil, ChunkNumber *pcnoTopic = pvNil,
                   PSTN pstnTopic = pvNil);
 
     void GetHtop(PHTOP phtop);
@@ -123,14 +123,14 @@ class TXHG : public TXHG_PAR
 
   protected:
     byte _bTrack;
-    CNO _cnoTrack;
+    ChunkNumber _cnoTrack;
     long _hidBase;
     ulong _grfcust;
     PWorldOfKidspace _pwoks;
 
     TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb);
     virtual bool _FInit(void);
-    virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cnoTopic = cnoNil,
+    virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic = cnoNil,
                              long *plwRet = pvNil);
 
   public:
@@ -144,8 +144,8 @@ class TXHG : public TXHG_PAR
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdBadKey(PCMD_BADKEY pcmd);
-    virtual bool FGroupFromPt(long xp, long yp, byte *pbGroup = pvNil, CNO *pcnoTopic = pvNil);
-    virtual void DoHit(byte bGroup, CNO cnoTopic, ulong grfcust, long hidHit);
+    virtual bool FGroupFromPt(long xp, long yp, byte *pbGroup = pvNil, ChunkNumber *pcnoTopic = pvNil);
+    virtual void DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit);
     virtual void SetCursor(ulong grfcust);
 };
 
@@ -168,7 +168,7 @@ class HBAL : public HBAL_PAR
     virtual bool _FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
 
   public:
-    static PHBAL PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
+    static PHBAL PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
     static PHBAL PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
 
     virtual bool FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
@@ -188,10 +188,10 @@ class HBTN : public HBTN_PAR
     HBTN(GraphicsObjectBlock *pgcb);
 
     byte _bGroup;
-    CNO _cnoTopic;
+    ChunkNumber _cnoTopic;
 
   public:
-    static PHBTN PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic,
+    static PHBTN PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca, byte bGroup, ChunkNumber cnoTopic,
                           long xpLeft, long ypBottom);
 
     virtual bool FPtIn(long xp, long yp);

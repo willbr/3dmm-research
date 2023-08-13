@@ -427,7 +427,7 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
     tag.sid = sid;
     tag.pcrf = pvNil;
     tag.ctg = kctgBkgd;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
 
     ClearPb(&cmd, size(cmd));
     cmd.cid = cidNewScene;
@@ -474,7 +474,7 @@ void BRWP::_ApplySelection(long thumSelect, long sid)
     tag.sid = sid;
     tag.pcrf = pvNil;
     tag.ctg = kctgTmpl;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
 
     if (!_pstdio->Pmvie()->FInsActr(&tag))
         goto LFail;
@@ -547,7 +547,7 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     AssertPo(pmvu, 0);
 
     tag.ctg = kctgMsnd;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
     tag.sid = sid;
     if (ksidUseCrf != sid)
         tag.pcrf = pvNil;
@@ -599,7 +599,7 @@ void BRWI::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
-    CNO cnoDest;
+    ChunkNumber cnoDest;
     long kidBrws;
 
     switch (_sty)
@@ -623,7 +623,7 @@ void BRWI::_ApplySelection(long thumSelect, long sid)
 
     // Copy	sound from _pcrf->Pcfl() to current movie
     vpappb->BeginLongOp();
-    if (!_pstdio->Pmvie()->FCopyMsndFromPcfl(_pcrf->Pcfl(), (CNO)thumSelect, &cnoDest))
+    if (!_pstdio->Pmvie()->FCopyMsndFromPcfl(_pcrf->Pcfl(), (ChunkNumber)thumSelect, &cnoDest))
     {
         vpappb->EndLongOp();
         return;

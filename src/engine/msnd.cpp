@@ -46,7 +46,7 @@ const WORD knBlockAlign = 1;
     A PFNRPO to read a MSND from a file
 
 ***************************************************************************/
-bool MSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -79,7 +79,7 @@ bool MSND::FReadMsnd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbac
     Retrieve information contained in the msnd chunk
 
 ***************************************************************************/
-bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfInvalid, long *psty, long *pvlm)
+bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
 {
     AssertPo(pcfl, 0);
 
@@ -109,7 +109,7 @@ bool MSND::FGetMsndInfo(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfInvalid, long 
     Init a MSND from the given chunk of the given CFL
 
 ***************************************************************************/
-bool MSND::_FInit(PCFL pcfl, ChunkTag ctg, CNO cno)
+bool MSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -158,7 +158,7 @@ LFail:
     ie, write the MSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, CNO *pcno)
+bool MSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pcflDest, 0);
     AssertPo(pmids, 0);
@@ -167,7 +167,7 @@ bool MSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, CNO *pcno)
 
     MSNDF msndf;
     DataBlock blck;
-    CNO cno;
+    ChunkNumber cno;
 
     msndf.bo = kboCur;
     msndf.osk = koskCur;
@@ -202,7 +202,7 @@ LFail:
     ie, write the MSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, CNO *pcno)
+bool MSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
@@ -210,7 +210,7 @@ bool MSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, CNO 
     AssertVarMem(pcno);
 
     MSNDF msndf;
-    CNO cno;
+    ChunkNumber cno;
     FLO floSrc;
     FLO floDest;
 
@@ -254,7 +254,7 @@ LFail:
     The *pcno is returned
 
 ***************************************************************************/
-bool MSND::FCopyMidi(PFIL pfilSrc, PCFL pcflDest, CNO *pcno, PSTN pstn)
+bool MSND::FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
@@ -294,7 +294,7 @@ LFail:
     Copy the wave file to a chunk in the current movie
 
 ***************************************************************************/
-bool MSND::FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, CNO *pcno, PSTN pstn)
+bool MSND::FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertPo(pcflDest, 0);
@@ -672,7 +672,7 @@ void MSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fA
 
     static long _siiLastMidi;
     static ChunkTag _ctgLastMidi;
-    static CNO _cnoLastMidi;
+    static ChunkNumber _cnoLastMidi;
 
     if (_fInvalid)
         return;

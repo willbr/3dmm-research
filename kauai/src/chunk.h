@@ -21,7 +21,7 @@
     that they are unsinged.
 ***************************************************************************/
 typedef ulong ChunkTag;  // chunk tag/type
-typedef ulong CNO;  // chunk number
+typedef ulong ChunkNumber;  // chunk number
 typedef ulong CHID; // child chunk id
 
 enum
@@ -49,7 +49,7 @@ enum
 struct CKI
 {
     ChunkTag ctg;
-    CNO cno;
+    ChunkNumber cno;
 };
 const ByteOrderMask kbomCki = 0xF0000000;
 
@@ -101,13 +101,13 @@ class CFL : public CFL_PAR
     struct RTIE
     {
         ChunkTag ctg;
-        CNO cno;
+        ChunkNumber cno;
         long rti;
     };
 
     PGL _pglrtie;
 
-    bool _FFindRtie(ChunkTag ctg, CNO cno, RTIE *prtie = pvNil, long *pirtie = pvNil);
+    bool _FFindRtie(ChunkTag ctg, ChunkNumber cno, RTIE *prtie = pvNil, long *pirtie = pvNil);
 #endif //! CHUNK_BIG_INDEX
 
     // static member variables
@@ -126,28 +126,28 @@ class CFL : public CFL_PAR
     bool _FWriteIndex(ChunkTag ctgCreator);
     bool _FCreateExtra(void);
     bool _FAllocFlo(long cb, PFLO pflo, bool fForceOnExtra = fFalse);
-    bool _FFindCtgCno(ChunkTag ctg, CNO cno, long *picrp);
-    void _GetUniqueCno(ChunkTag ctg, long *picrp, CNO *pcno);
+    bool _FFindCtgCno(ChunkTag ctg, ChunkNumber cno, long *picrp);
+    void _GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno);
     void _FreeFpCb(bool fOnExtra, FP fp, long cb);
-    bool _FAdd(long cb, ChunkTag ctg, CNO cno, long icrp, PBLCK pblck);
-    bool _FPut(long cb, ChunkTag ctg, CNO cno, PBLCK pblck, PBLCK pblckSrc, void *pv);
-    bool _FCopy(ChunkTag ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst, bool fClone);
-    bool _FFindMatch(ChunkTag ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst);
-    bool _FFindCtgRti(ChunkTag ctg, long rti, CNO cnoMin, CNO *pcnoDst);
+    bool _FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PBLCK pblck);
+    bool _FPut(long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBLCK pblckSrc, void *pv);
+    bool _FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst, bool fClone);
+    bool _FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+    bool _FFindCtgRti(ChunkTag ctg, long rti, ChunkNumber cnoMin, ChunkNumber *pcnoDst);
     bool _FDecRefCount(long icrp);
     void _DeleteCore(long icrp);
-    bool _FFindChild(long icrpPar, ChunkTag ctgChild, CNO cnoChild, CHID chid, long *pikid);
-    bool _FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, CNO cnoChild, CHID chid, bool fClearLoner);
+    bool _FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid, long *pikid);
+    bool _FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid, bool fClearLoner);
     void _ReadFreeMap(void);
-    bool _FFindChidCtg(ChunkTag ctgPar, CNO cnoPar, CHID chid, ChunkTag ctg, KID *pkid);
+    bool _FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, ChunkTag ctg, KID *pkid);
     bool _FSetName(long icrp, PSTN pstn);
     bool _FGetName(long icrp, PSTN pstn);
     void _GetFlo(long icrp, PFLO pflo);
     void _GetBlck(long icrp, PBLCK pblck);
     bool _FEnsureOnExtra(long icrp, FLO *pflo = pvNil);
 
-    long _Rti(ChunkTag ctg, CNO cno);
-    bool _FSetRti(ChunkTag ctg, CNO cno, long rti);
+    long _Rti(ChunkTag ctg, ChunkNumber cno);
+    bool _FSetRti(ChunkTag ctg, ChunkNumber cno, long rti);
 
   public:
     // static methods
@@ -193,72 +193,72 @@ class CFL : public CFL_PAR
     bool FReopen(void);
 
     // finding and reading chunks
-    bool FOnExtra(ChunkTag ctg, CNO cno);
-    bool FEnsureOnExtra(ChunkTag ctg, CNO cno);
-    bool FFind(ChunkTag ctg, CNO cno, DataBlock *pblck = pvNil);
-    bool FFindFlo(ChunkTag ctg, CNO cno, PFLO pflo);
-    bool FReadHq(ChunkTag ctg, CNO cno, HQ *phq);
-    void SetPacked(ChunkTag ctg, CNO cno, bool fPacked);
-    bool FPacked(ChunkTag ctg, CNO cno);
-    bool FUnpackData(ChunkTag ctg, CNO cno);
-    bool FPackData(ChunkTag ctg, CNO cno);
+    bool FOnExtra(ChunkTag ctg, ChunkNumber cno);
+    bool FEnsureOnExtra(ChunkTag ctg, ChunkNumber cno);
+    bool FFind(ChunkTag ctg, ChunkNumber cno, DataBlock *pblck = pvNil);
+    bool FFindFlo(ChunkTag ctg, ChunkNumber cno, PFLO pflo);
+    bool FReadHq(ChunkTag ctg, ChunkNumber cno, HQ *phq);
+    void SetPacked(ChunkTag ctg, ChunkNumber cno, bool fPacked);
+    bool FPacked(ChunkTag ctg, ChunkNumber cno);
+    bool FUnpackData(ChunkTag ctg, ChunkNumber cno);
+    bool FPackData(ChunkTag ctg, ChunkNumber cno);
 
     // creating and replacing chunks
-    bool FAdd(long cb, ChunkTag ctg, CNO *pcno, PBLCK pblck = pvNil);
-    bool FAddPv(void *pv, long cb, ChunkTag ctg, CNO *pcno);
-    bool FAddHq(HQ hq, ChunkTag ctg, CNO *pcno);
-    bool FAddBlck(PBLCK pblckSrc, ChunkTag ctg, CNO *pcno);
-    bool FPut(long cb, ChunkTag ctg, CNO cno, PBLCK pblck = pvNil);
-    bool FPutPv(void *pv, long cb, ChunkTag ctg, CNO cno);
-    bool FPutHq(HQ hq, ChunkTag ctg, CNO cno);
-    bool FPutBlck(PBLCK pblck, ChunkTag ctg, CNO cno);
-    bool FCopy(ChunkTag ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst);
-    bool FClone(ChunkTag ctgSrc, CNO cnoSrc, PCFL pcflDst, CNO *pcnoDst);
-    void SwapData(ChunkTag ctg1, CNO cno1, ChunkTag ctg2, CNO cno2);
-    void SwapChildren(ChunkTag ctg1, CNO cno1, ChunkTag ctg2, CNO cno2);
-    void Move(ChunkTag ctg, CNO cno, ChunkTag ctgNew, CNO cnoNew);
+    bool FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck = pvNil);
+    bool FAddPv(void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
+    bool FAddHq(HQ hq, ChunkTag ctg, ChunkNumber *pcno);
+    bool FAddBlck(PBLCK pblckSrc, ChunkTag ctg, ChunkNumber *pcno);
+    bool FPut(long cb, ChunkTag ctg, ChunkNumber cno, PBLCK pblck = pvNil);
+    bool FPutPv(void *pv, long cb, ChunkTag ctg, ChunkNumber cno);
+    bool FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno);
+    bool FPutBlck(PBLCK pblck, ChunkTag ctg, ChunkNumber cno);
+    bool FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+    bool FClone(ChunkTag ctgSrc, ChunkNumber cnoSrc, PCFL pcflDst, ChunkNumber *pcnoDst);
+    void SwapData(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkNumber cno2);
+    void SwapChildren(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkNumber cno2);
+    void Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumber cnoNew);
 
     // creating child chunks
-    bool FAddChild(ChunkTag ctgPar, CNO cnoPar, CHID chid, long cb, ChunkTag ctg, CNO *pcno, PBLCK pblck = pvNil);
-    bool FAddChildPv(ChunkTag ctgPar, CNO cnoPar, CHID chid, void *pv, long cb, ChunkTag ctg, CNO *pcno);
-    bool FAddChildHq(ChunkTag ctgPar, CNO cnoPar, CHID chid, HQ hq, ChunkTag ctg, CNO *pcno);
+    bool FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, long cb, ChunkTag ctg, ChunkNumber *pcno, PBLCK pblck = pvNil);
+    bool FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
+    bool FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, HQ hq, ChunkTag ctg, ChunkNumber *pcno);
 
     // deleting chunks
-    void Delete(ChunkTag ctg, CNO cno);
-    void SetLoner(ChunkTag ctg, CNO cno, bool fLoner);
-    bool FLoner(ChunkTag ctg, CNO cno);
+    void Delete(ChunkTag ctg, ChunkNumber cno);
+    void SetLoner(ChunkTag ctg, ChunkNumber cno, bool fLoner);
+    bool FLoner(ChunkTag ctg, ChunkNumber cno);
 
     // chunk naming
-    bool FSetName(ChunkTag ctg, CNO cno, PSTN pstn);
-    bool FGetName(ChunkTag ctg, CNO cno, PSTN pstn);
+    bool FSetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn);
+    bool FGetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn);
 
     // graph structure
-    bool FAdoptChild(ChunkTag ctgPar, CNO cnoPar, ChunkTag ctgChild, CNO cnoChild, CHID chid = 0, bool fClearLoner = fTrue);
-    void DeleteChild(ChunkTag ctgPar, CNO cnoPar, ChunkTag ctgChild, CNO cnoChild, CHID chid = 0);
-    long CckiRef(ChunkTag ctg, CNO cno);
-    tribool TIsDescendent(ChunkTag ctg, CNO cno, ChunkTag ctgSub, CNO cnoSub);
-    void ChangeChid(ChunkTag ctgPar, CNO cnoPar, ChunkTag ctgChild, CNO cnoChild, CHID chidOld, CHID chidNew);
+    bool FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid = 0, bool fClearLoner = fTrue);
+    void DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chid = 0);
+    long CckiRef(ChunkTag ctg, ChunkNumber cno);
+    tribool TIsDescendent(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgSub, ChunkNumber cnoSub);
+    void ChangeChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, CHID chidOld, CHID chidNew);
 
     // enumerating chunks
     long Ccki(void);
     bool FGetCki(long icki, CKI *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
-    bool FGetIcki(ChunkTag ctg, CNO cno, long *picki);
+    bool FGetIcki(ChunkTag ctg, ChunkNumber cno, long *picki);
     long CckiCtg(ChunkTag ctg);
     bool FGetCkiCtg(ChunkTag ctg, long icki, CKI *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
 
     // enumerating child chunks
-    long Ckid(ChunkTag ctgPar, CNO cnoPar);
-    bool FGetKid(ChunkTag ctgPar, CNO cnoPar, long ikid, KID *pkid);
-    bool FGetKidChid(ChunkTag ctgPar, CNO cnoPar, CHID chid, KID *pkid);
-    bool FGetKidChidCtg(ChunkTag ctgPar, CNO cnoPar, CHID chid, ChunkTag ctg, KID *pkid);
-    bool FGetIkid(ChunkTag ctgPar, CNO cnoPar, ChunkTag ctg, CNO cno, CHID chid, long *pikid);
+    long Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
+    bool FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, KID *pkid);
+    bool FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, KID *pkid);
+    bool FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, CHID chid, ChunkTag ctg, KID *pkid);
+    bool FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumber cno, CHID chid, long *pikid);
 
     // Serialized chunk forests
-    bool FWriteChunkTree(ChunkTag ctg, CNO cno, PFIL pfilDst, FP fpDst, long *pcb);
+    bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP fpDst, long *pcb);
     static PCFL PcflReadForestFromFlo(PFLO pflo, bool fCopyData);
-    bool FForest(ChunkTag ctg, CNO cno);
-    void SetForest(ChunkTag ctg, CNO cno, bool fForest = fTrue);
-    PCFL PcflReadForest(ChunkTag ctg, CNO cno, bool fCopyData);
+    bool FForest(ChunkTag ctg, ChunkNumber cno);
+    void SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest = fTrue);
+    PCFL PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData);
 
     // writing
     bool FSave(ChunkTag ctgCreator, Filename *pfni = pvNil);
@@ -316,7 +316,7 @@ class CGE : public CGE_PAR
     CGE(void);
     ~CGE(void);
 
-    void Init(PCFL pcfl, ChunkTag ctg, CNO cno);
+    void Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     bool FNextKid(KID *pkid, CKI *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
 };
 

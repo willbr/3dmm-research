@@ -982,7 +982,7 @@ bool TAGM::FOpenTag(PTAG ptag, PCRF pcrfDest, PCFL pcflSrc)
     AssertPo(pcrfDest, 0);
     AssertNilOrPo(pcflSrc, 0);
 
-    CNO cnoDest;
+    ChunkNumber cnoDest;
 
     if (ptag->sid != ksidUseCrf)
         return fTrue;
@@ -1010,7 +1010,7 @@ bool TAGM::FSaveTag(PTAG ptag, PCRF pcrf, bool fRedirect)
     Assert(ptag->sid >= 0, "Invalid sid");
     AssertPo(pcrf, 0);
 
-    CNO cnoDest;
+    ChunkNumber cnoDest;
 
     if (ptag->sid != ksidUseCrf)
         return fTrue;
@@ -1067,7 +1067,7 @@ void TAGM::CloseTag(PTAG ptag)
 }
 
 /***************************************************************************
-    Compare two tags.  Tags are sorted first by sid, then ChunkTag, then CNO.
+    Compare two tags.  Tags are sorted first by sid, then ChunkTag, then ChunkNumber.
 ***************************************************************************/
 ulong TAGM::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 {

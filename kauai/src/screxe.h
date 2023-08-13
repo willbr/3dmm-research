@@ -54,11 +54,11 @@ class SCPT : public SCPT_PAR
     friend class SCCB;
 
   public:
-    static bool FReadScript(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PSCPT PscptRead(PCFL pcfl, ChunkTag ctg, CNO cno);
+    static bool FReadScript(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static PSCPT PscptRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~SCPT(void);
 
-    bool FSaveToChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fPack = fFalse);
+    bool FSaveToChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack = fFalse);
 };
 
 /***************************************************************************
@@ -139,7 +139,7 @@ class SCEB : public SCEB_PAR
     void _RndList(long clw);
     void _Match(long clw);
     void _CopySubStr(long stidSrc, long ichMin, long cch, long stidDst);
-    void _MergeStrings(CNO cno, RSC rsc);
+    void _MergeStrings(ChunkNumber cno, RSC rsc);
     void _NumToStr(long lw, long stid);
     void _StrToNum(long stid, long lwEmpty, long lwError);
     void _ConcatStrs(long stidSrc1, long stidSrc2, long stidDst);

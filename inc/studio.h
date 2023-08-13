@@ -78,7 +78,7 @@ class Studio : public Studio_PAR
     bool _FBuildMenuCidCtg(long cid, ChunkTag ctg, PGL pgl, ulong grfHotKey, ulong grfNum, bool fNew);
     PBRCN _PbrcnFromBrwdid(long brwdid);
 #ifdef BUG1959
-    bool _FLoadMovie(PFilename pfni, CNO cno, bool *pfClosedOld);
+    bool _FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld);
 #endif // BUG1959
 
   public:
@@ -171,8 +171,8 @@ class Studio : public Studio_PAR
     {
         return _pbrwrProp;
     }
-    bool FAddCmg(CNO cnoTmpl, CNO cnoGokd);
-    CNO CnoGokdFromCnoTmpl(CNO cnoTmpl);
+    bool FAddCmg(ChunkNumber cnoTmpl, ChunkNumber cnoGokd);
+    ChunkNumber CnoGokdFromCnoTmpl(ChunkNumber cnoTmpl);
     void SetDisplayCast(bool fDisplayCast)
     {
         _fDisplayCast = fDisplayCast;
@@ -190,7 +190,7 @@ class Studio : public Studio_PAR
     //
     // Movie changing
     //
-    bool FLoadMovie(PFilename pfni = pvNil, CNO cno = cnoNil);
+    bool FLoadMovie(PFilename pfni = pvNil, ChunkNumber cno = cnoNil);
     bool FSetMovie(PMVIE pmvie);
     PMVIE Pmvie()
     {

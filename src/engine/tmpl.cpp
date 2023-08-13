@@ -105,7 +105,7 @@ LFail:
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read an ACTN from a file
 ***************************************************************************/
-bool ACTN::FReadActn(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool ACTN::FReadActn(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -140,7 +140,7 @@ bool ACTN::FReadActn(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbac
 /***************************************************************************
     Read an ACTN from a chunk
 ***************************************************************************/
-bool ACTN::_FInit(PCFL pcfl, ChunkTag ctg, CNO cno)
+bool ACTN::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -310,7 +310,7 @@ void ACTN::MarkMem(void)
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read TMPL objects.
 ***************************************************************************/
-bool TMPL::FReadTmpl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool TMPL::FReadTmpl(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -352,7 +352,7 @@ bool TMPL::FReadTmpl(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbac
 /***************************************************************************
     Read a TMPL from a chunk
 ***************************************************************************/
-bool TMPL::_FReadTmplf(PCFL pcfl, ChunkTag ctg, CNO cno)
+bool TMPL::_FReadTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
 
@@ -380,12 +380,12 @@ bool TMPL::_FReadTmplf(PCFL pcfl, ChunkTag ctg, CNO cno)
 }
 
 /***************************************************************************
-    Write the TMPLF chunk.  Creates a new chunk and returns the CNO in pcno.
+    Write the TMPLF chunk.  Creates a new chunk and returns the ChunkNumber in pcno.
 
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for TDTs.
 ***************************************************************************/
-bool TMPL::_FWriteTmplf(PCFL pcfl, ChunkTag ctg, CNO *pcno)
+bool TMPL::_FWriteTmplf(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -414,7 +414,7 @@ bool TMPL::_FWriteTmplf(PCFL pcfl, ChunkTag ctg, CNO *pcno)
 /***************************************************************************
     Read a TMPL from a chunk
 ***************************************************************************/
-bool TMPL::_FInit(PCFL pcfl, ChunkTag ctg, CNO cno)
+bool TMPL::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -567,7 +567,7 @@ TMPL::~TMPL(void)
     return value of pvNil does not mean an error occurred, but simply that
     this TMPL has no embedded tags.
 ***************************************************************************/
-PGL TMPL::PgltagFetch(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfError)
+PGL TMPL::PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);

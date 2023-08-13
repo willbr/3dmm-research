@@ -52,9 +52,9 @@ class CHSE : public CHSE_PAR
     void Init(PMSNK pmsnkDump, PMSNK pmsnkError = pvNil);
     void Uninit(void);
 
-    void DumpHeader(ChunkTag ctg, CNO cno, PSTN pstnName = pvNil, bool fPack = fFalse);
+    void DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName = pvNil, bool fPack = fFalse);
     void DumpRgb(void *prgb, long cb, long cactTab = 1);
-    void DumpParentCmd(ChunkTag ctg, CNO cno, CHID chid);
+    void DumpParentCmd(ChunkTag ctg, ChunkNumber cno, CHID chid);
     void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile);
     void DumpFileCmd(PSTN pstnFile, bool fPacked = fFalse);
     void DumpAdoptCmd(CKI *pcki, KID *pkid);

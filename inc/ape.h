@@ -101,7 +101,7 @@ class APE : public APE_PAR
 
     bool FChangeTdt(PSTN pstn, long tdts, PTAG ptagTdf);
     bool FSetTdtMtrl(PTAG ptagMtrl);
-    bool FGetTdtMtrlCno(CNO *pcno);
+    bool FGetTdtMtrlCno(ChunkNumber *pcno);
 
     void GetTdtInfo(PSTN pstn, long *ptdts, PTAG ptagTdf);
     long Anid(void)

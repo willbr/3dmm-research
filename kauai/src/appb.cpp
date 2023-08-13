@@ -119,7 +119,7 @@ void APPB::SetCurs(PCURS pcurs, bool fLongOp)
 /***************************************************************************
     Set the indicated cursor as the current one.
 ***************************************************************************/
-void APPB::SetCursCno(PRCA prca, CNO cno, bool fLongOp)
+void APPB::SetCursCno(PRCA prca, ChunkNumber cno, bool fLongOp)
 {
     AssertThis(0);
     AssertPo(prca, 0);

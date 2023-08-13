@@ -37,19 +37,19 @@ struct ACTF // Actor chunk on file
 const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 
 /***************************************************************************
-    Write the actor out to disk.  Store the root chunk in the given CNO.
+    Write the actor out to disk.  Store the root chunk in the given ChunkNumber.
     If this function returns false, it is the client's responsibility to
     delete the actor chunks.
 ***************************************************************************/
-bool ACTR::FWrite(PCFL pcfl, CNO cnoActr, CNO cnoScene)
+bool ACTR::FWrite(PCFL pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
 
     ACTF actf;
-    CNO cnoPath;
-    CNO cnoGgae;
-    CNO cnoTmpl;
+    ChunkNumber cnoPath;
+    ChunkNumber cnoGgae;
+    ChunkNumber cnoTmpl;
     DataBlock blck;
     KID kid;
     long iaev;
@@ -77,7 +77,7 @@ bool ACTR::FWrite(PCFL pcfl, CNO cnoActr, CNO cnoScene)
         {
             if (!((PTDT)_ptmpl)->FWrite(pcfl, _tagTmpl.ctg, &cnoTmpl))
                 return fFalse;
-            // Keep CNO the same
+            // Keep ChunkNumber the same
             pcfl->Move(_tagTmpl.ctg, cnoTmpl, _tagTmpl.ctg, _tagTmpl.cno);
         }
 
@@ -154,7 +154,7 @@ bool ACTR::FWrite(PCFL pcfl, CNO cnoActr, CNO cnoScene)
     Read the actor data from disk, (re-)construct the actor, and return a
     pointer to it.
 ***************************************************************************/
-PACTR ACTR::PactrRead(PCRF pcrf, CNO cnoActr)
+PACTR ACTR::PactrRead(PCRF pcrf, ChunkNumber cnoActr)
 {
     AssertPo(pcrf, 0);
 
@@ -246,7 +246,7 @@ bool _FReadActf(PBLCK pblck, ACTF *pactf)
 /***************************************************************************
     Read the ACTR chunk
 ***************************************************************************/
-bool ACTR::_FReadActor(PCFL pcfl, CNO cno)
+bool ACTR::_FReadActor(PCFL pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -284,18 +284,18 @@ bool ACTR::_FReadActor(PCFL pcfl, CNO cno)
 
 /******************************************************************************
     FAdjustAridOnFile
-        Given a chunky file, a CNO and a delta for the arid, updates the
+        Given a chunky file, a ChunkNumber and a delta for the arid, updates the
         arid for the actor on file.
 
     Arguments:
         PCFL pcfl   -- the file the actor's on
-        CNO cno     -- the CNO of the actor
+        ChunkNumber cno     -- the ChunkNumber of the actor
         long darid  -- the change of the arid
 
     Returns: fTrue if everything went well, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool ACTR::FAdjustAridOnFile(PCFL pcfl, CNO cno, long darid)
+bool ACTR::FAdjustAridOnFile(PCFL pcfl, ChunkNumber cno, long darid)
 {
     AssertPo(pcfl, 0);
     Assert(darid != 0, "Why call this with darid == 0?");
@@ -314,7 +314,7 @@ bool ACTR::FAdjustAridOnFile(PCFL pcfl, CNO cno, long darid)
 /***************************************************************************
     Read the PATH (_pglrpt) chunk
 ***************************************************************************/
-bool ACTR::_FReadRoute(PCFL pcfl, CNO cno)
+bool ACTR::_FReadRoute(PCFL pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -338,7 +338,7 @@ bool ACTR::_FReadRoute(PCFL pcfl, CNO cno)
 /***************************************************************************
     Read the GGAE (_pggaev) chunk
 ***************************************************************************/
-bool ACTR::_FReadEvents(PCFL pcfl, CNO cno)
+bool ACTR::_FReadEvents(PCFL pcfl, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -478,7 +478,7 @@ void ACTR::_CloseTags(void)
 /***************************************************************************
     Get all the tags that the actor uses
 ***************************************************************************/
-PGL ACTR::PgltagFetch(PCFL pcfl, CNO cno, bool *pfError)
+PGL ACTR::PgltagFetch(PCFL pcfl, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);

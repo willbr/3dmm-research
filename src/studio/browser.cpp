@@ -1142,7 +1142,7 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
         *((CHID *)pvthumSelect) = thd.chid;
         break;
     case kbwsCnoRoot:
-        *((CNO *)pvthumSelect) = thd.tag.cno;
+        *((ChunkNumber *)pvthumSelect) = thd.tag.cno;
         break;
     default:
         Bug("Unhandled bws case");
@@ -1724,7 +1724,7 @@ LFail:
  * Save the name of the Par chunk in the Gst
  *
  ****************************************************/
-bool BCLS::_FSetNameGst(PCFL pcfl, ChunkTag ctg, CNO cno)
+bool BCLS::_FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2106,7 +2106,7 @@ bool BRWM::_FUpdateLists(void)
  * Test to see if a sound is already in the lists
  *
  ****************************************************/
-bool BRWM::_FSndListed(CNO cno, long *pithd)
+bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
 {
     AssertBaseThis(0);
 
@@ -2177,7 +2177,7 @@ void BRWM::_ProcessSelection(void)
     tag.sid = sid;
     tag.pcrf = (ksidUseCrf == sid) ? _pcrf : pvNil;
     tag.ctg = kctgMsnd;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
 
     if (!vptagm->FCacheTagToHD(&tag))
     {
@@ -3282,7 +3282,7 @@ bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
     if (!_pstdio->Pmvie()->FIsIaridTdt(iarid))
     {
         PKidspaceGraphicObject pgok;
-        CNO cno = _pstdio->CnoGokdFromCnoTmpl(tag.cno);
+        ChunkNumber cno = _pstdio->CnoGokdFromCnoTmpl(tag.cno);
         long kidThum = _KidThumFromIfrm(_cfrmPageCur);
         pgok = vapp.Pkwa()->PgokNew(pgobPar, kidThum, cno, _pcrm);
         if (pvNil == pgok)

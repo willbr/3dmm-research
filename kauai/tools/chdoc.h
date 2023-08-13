@@ -86,18 +86,18 @@ class DOCE : public DOCE_PAR
   protected:
     PCFL _pcfl; // which chunk is being edited
     ChunkTag _ctg;
-    CNO _cno;
+    ChunkNumber _cno;
 
-    DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     bool _FInit(void);
 
-    virtual bool _FSaveToChunk(ChunkTag ctg, CNO cno, bool fRedirect);
+    virtual bool _FSaveToChunk(ChunkTag ctg, ChunkNumber cno, bool fRedirect);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect) = 0;
     virtual long _CbOnFile(void) = 0;
     virtual bool _FRead(PBLCK pblck) = 0;
 
   public:
-    static PDOCE PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    static PDOCE PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     static void CloseDeletedDoce(PDOCB pdocb);
 
     virtual void GetName(PSTN pstn);
@@ -118,13 +118,13 @@ class DOCH : public DOCH_PAR
   protected:
     BSF _bsf; // the byte stream
 
-    DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    DOCH(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCH PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    static PDOCH PdochNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual PDDG PddgNew(PGCB pgcb);
 };
 
@@ -145,14 +145,14 @@ class DOCG : public DOCG_PAR
     short _bo;
     short _osk;
 
-    DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno, long cls);
+    DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     ~DOCG(void);
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
     virtual long _CbOnFile(void);
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCG PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno, long cls);
+    static PDOCG PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
     virtual PDDG PddgNew(PGCB pgcb);
 
     PDOCI PdociFromItem(long iv, long dln);
@@ -221,7 +221,7 @@ class DOCPIC : public DOCPIC_PAR
   protected:
     PPIC _ppic;
 
-    DOCPIC(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    DOCPIC(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCPIC(void);
 
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
@@ -229,7 +229,7 @@ class DOCPIC : public DOCPIC_PAR
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCPIC PdocpicNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    static PDOCPIC PdocpicNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PPIC Ppic(void)
@@ -252,7 +252,7 @@ class DOCMBMP : public DOCMBMP_PAR
   protected:
     PMBMP _pmbmp;
 
-    DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCMBMP(void);
 
     virtual bool _FWrite(PBLCK pblck, bool fRedirect);
@@ -260,7 +260,7 @@ class DOCMBMP : public DOCMBMP_PAR
     virtual bool _FRead(PBLCK pblck);
 
   public:
-    static PDOCMBMP PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno);
+    static PDOCMBMP PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDDG PddgNew(PGCB pgcb);
     PMBMP Pmbmp(void)
@@ -341,7 +341,7 @@ class SEL : public SEL_PAR
     bool _fHideKids : 1; // whether to hide the kids
 
     void _SetNil(void);
-    bool _FFilter(ChunkTag ctg, CNO cno);
+    bool _FFilter(ChunkTag ctg, ChunkNumber cno);
 
   public:
     SEL(PCFL pcfl);
@@ -459,9 +459,9 @@ class DCD : public DCD_PAR
     virtual bool FCmdCloneChunk(PCMD pcmd);
     virtual bool FCmdReopen(PCMD pcmd);
 
-    bool FTestScript(ChunkTag ctg, CNO cno, long cbCache = 0x00300000L);
-    bool FPlayMidi(ChunkTag ctg, CNO cno);
-    bool FPlayWave(ChunkTag ctg, CNO cno);
+    bool FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache = 0x00300000L);
+    bool FPlayMidi(ChunkTag ctg, ChunkNumber cno);
+    bool FPlayWave(ChunkTag ctg, ChunkNumber cno);
 };
 
 /***************************************************************************

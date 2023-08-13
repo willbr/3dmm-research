@@ -177,7 +177,7 @@ void MDWS::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MDWS::FReadMdws(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MDWS::FReadMdws(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -417,7 +417,7 @@ void MSQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as an MDWS.
 ***************************************************************************/
-PBACO MSQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, CNO cno)
+PBACO MSQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

@@ -245,14 +245,14 @@ bool MVIE::_FSetPfilSave(PFilename pfni)
  * Parameters:
  *  pmcc - Pointer to the movie client class block to use.
  *	pfni - File to read from.
- *	cno - CNO of the movie chunk, cnoNil if using the
+ *	cno - ChunkNumber of the movie chunk, cnoNil if using the
  *		the first one in the file.
  *
  * Returns:
  *  pvNil if failure, else a pointer to the movie object.
  *
  ****************************************************/
-PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, CNO cno)
+PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni, ChunkNumber cno)
 {
     AssertNilOrPo(pfni, 0);
     AssertPo(pmcc, 0);
@@ -445,14 +445,14 @@ LFail:
     Arguments:
         PCFL pcfl       -- the file the movie is on
         PCRF pcrf       -- the autosave CRF for the movie's ACTR tags
-        CNO cno         -- the cno of the movie
+        ChunkNumber cno         -- the cno of the movie
         PGST *ppgst     -- the PGST to fill in
         long *paridLim  -- the max arid to update
 
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FReadRollCall(PCRF pcrf, CNO cno, PGST *ppgst, long *paridLim)
+bool MVIE::FReadRollCall(PCRF pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim)
 {
     AssertPo(pcrf, 0);
     AssertVarMem(ppgst);
@@ -1410,12 +1410,12 @@ void MVIE::_MoveChids(CHID chid, bool fDown)
     Arguments:
         PCFL pcfl  --  the file on which to check
         ChunkTag ctg    --  these are self-explanatory
-        CNO cno
+        ChunkNumber cno
 
     Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the MVIE
 
 ************************************************************ PETED ***********/
-bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, CNO cno)
+bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;
@@ -1454,7 +1454,7 @@ bool MVIE::_FIsChild(PCFL pcfl, ChunkTag ctg, CNO cno)
  * success or failure
  *
  ****************************************************/
-bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, CNO cnoScen)
+bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1507,7 +1507,7 @@ LFail:
  * Updated *ptag
  *
  ****************************************************/
-bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, CNO cnoScen, PCRF pcrf)
+bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, ChunkNumber cnoScen, PCRF pcrf)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -1560,7 +1560,7 @@ bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, CNO cnoScen, PCRF pcrf)
  * Updated *pchid
  *
  ****************************************************/
-bool MVIE::FChidFromUserSndCno(CNO cno, CHID *pchid)
+bool MVIE::FChidFromUserSndCno(ChunkNumber cno, CHID *pchid)
 {
     AssertThis(0);
     AssertVarMem(pchid);
@@ -1606,7 +1606,7 @@ bool MVIE::FChidFromUserSndCno(CNO cno, CHID *pchid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, CNO *pcno, PSTN pstn)
+bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN pstn)
 {
     AssertThis(0);
     AssertVarMem(pfilSrc);
@@ -1673,7 +1673,7 @@ LFail:
  *	*pcnoDest
  *
  ****************************************************/
-bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, CNO cnoSrc, CNO *pcnoDest)
+bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
     AssertBaseThis(0);
     AssertPo(pcflSrc, 0);
@@ -1780,13 +1780,13 @@ CHID MVIE::_ChidMvieNewSnd(void)
  *  *pcno updated
  *
  ****************************************************/
-bool MVIE::FVerifyVersion(PCFL pcfl, CNO *pcno)
+bool MVIE::FVerifyVersion(PCFL pcfl, ChunkNumber *pcno)
 {
     AssertBaseThis(0); // MVIE hasn't been loaded yet
     AssertPo(pcfl, 0);
 
     KID kid;
-    CNO cnoMvie;
+    ChunkNumber cnoMvie;
     MFP mfp;
     DataBlock blck;
 
@@ -2034,7 +2034,7 @@ bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
 
     PCRF pcrf;
     PCFL pcfl;
-    CNO cno;
+    ChunkNumber cno;
 
     if (!FEnsureAutosave(&pcrf))
     {
@@ -2116,7 +2116,7 @@ bool MVIE::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
     AssertVarMem(ptagTdf);
 
     PCFL pcfl;
-    CNO cno;
+    ChunkNumber cno;
     PTDT ptdt;
     TAG tagTdt;
 
@@ -2193,7 +2193,7 @@ bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     PTDT ptdtNew;
     TAG tagTdtNew;
     PCFL pcfl;
-    CNO cno;
+    ChunkNumber cno;
     PACTR pactrDup;
 
     Assert(pactr == Pscen()->PactrSelected(), 0);
@@ -2447,9 +2447,9 @@ bool MVIE::FAutoSave(PFilename pfni, bool fCleanRollCall)
     bool fRetry = fTrue;
 #endif // BUG1848
     DataBlock blck;
-    CNO cno;
-    CNO cnoScen;
-    CNO cnoSource;
+    ChunkNumber cno;
+    ChunkNumber cnoScen;
+    ChunkNumber cnoSource;
     MFP mfp;
     KID kidScen, kidGstRollCall, kidGstSource;
     PCFL pcfl;
@@ -3727,7 +3727,7 @@ bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
     AssertPo(pscen, 0);
     Assert(pscen->Pmvie() == this, "Cannot insert a scene from another movie");
 
-    CNO cnoScen;
+    ChunkNumber cnoScen;
     PCFL pcfl;
 
     //
@@ -4673,7 +4673,7 @@ bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
         bool fSuccess;
         KID kid;
 
-        /* Get CNO */
+        /* Get ChunkNumber */
         AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Not enough scene chunks for movie");
         scend.cno = kid.cki.cno;
         scend.chid = iscen;
@@ -4792,7 +4792,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
 
     for (iscend = 0; iscend < iscendMac; iscend++)
     {
-        CNO cnoScen = cnoNil;
+        ChunkNumber cnoScen = cnoNil;
         SCEND scend;
         MVIED mvied;
 
@@ -4954,13 +4954,13 @@ LFail:
         movie's file.
 
     Arguments:
-        CNO cno       -- the CNO of the copied movie
+        ChunkNumber cno       -- the ChunkNumber of the copied movie
         long aridMin  -- the new base arid for this movie's actors
 
     Returns: fTrue if it succeeds, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
+bool MVIE::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 {
     AssertThis(0);
 
@@ -4998,7 +4998,7 @@ bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
         KID kid;
         CGE cge;
 
-        if ((pglcno = GL::PglNew(size(CNO))) == pvNil)
+        if ((pglcno = GL::PglNew(size(ChunkNumber))) == pvNil)
             goto LFail;
         cge.Init(pcfl, kctgMvie, cno);
         while (cge.FNextKid(&kid, &ckiPar, &grfcge, fcgeNil))
@@ -5010,7 +5010,7 @@ bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
                 if (kid.cki.ctg == kctgActr)
                 {
                     long icno;
-                    CNO cnoActr;
+                    ChunkNumber cnoActr;
 
                     /* Only do a given chunk once */
                     Assert(icnoMac == pglcno->IvMac(), "icnoMac isn't up-to-date");

@@ -32,7 +32,7 @@ typedef struct _bmdb
     MODLF *pmodlf; // the file data
     long cbModlf;
     CHID chidBmdl;  // BMDL child ID
-    CNO cnoBmdl;    // BMDL CNO
+    ChunkNumber cnoBmdl;    // BMDL ChunkNumber
     char *pszName;  // name of the BMDL
     PGL pglkidCmtl; // GL of CMTL parents' CNOs
     unsigned fFixWrap : 1, fSpherical : 1;
@@ -75,7 +75,7 @@ typedef struct _crng
 /* A CMTL descriptor */
 typedef struct _cmtld
 {
-    CNO cno;      // the CMTL's CNO
+    ChunkNumber cno;      // the CMTL's ChunkNumber
     CHID chidCur; // the next CHID for the CMTL's children
     short ibps;   // the body part set as specified in the .hrc file
     CHID chid;    // the CHID of this CMTL
@@ -278,9 +278,9 @@ class S2B : public S2B_PAR
     /* Used by script interpreter and chunk output code */
     PS2BLX _ps2blx; // used to process script file
     CHSE _chse;     // used to dump chunk text to output file
-    ChunkTag _ctgPar;    // ChunkTag and CNO of current parent
-    CNO _cnoPar;
-    CNO _cnoCur;  // Current chunk number
+    ChunkTag _ctgPar;    // ChunkTag and ChunkNumber of current parent
+    ChunkNumber _cnoPar;
+    ChunkNumber _cnoCur;  // Current chunk number
     STN _stnT;    // tmp buf for S2B to use
     S2BTK _s2btk; // current script token
     int _iZsign;  // Z multiplier
@@ -331,7 +331,7 @@ class S2B : public S2B_PAR
     bool _FDoTtBackgroundS2B(void);
     bool _FDoTtCostume(void);
     bool _FReadCmdline(char *szResult, bool *pfGotTok, const SCRP rgscrp[], ...);
-    void _DumpHeader(ChunkTag ctg, CNO cno, PSTN pstnName, bool fPack);
+    void _DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack);
 
     /* TMPL-specific stuff */
     bool _FInitGlpiCost(bool fForceCost);
@@ -361,7 +361,7 @@ class S2B : public S2B_PAR
     bool _FDoBodyPart(PBMHR pbmhr, long ibp);
     void _ApplyBmdlXF(PBMHR pbmhr);
     void _TextureFileFromModel(Model *pmodel, PBMHR pbmhr, bool fWrapOnly = fFalse);
-    bool _FTmapFromBmp(PBMHR pbmhr, CNO cnoPar, PSTN pstnMtrl);
+    bool _FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl);
     bool _FFlushTmaps(void);
 
     /* BKGD-specific stuff */
@@ -371,7 +371,7 @@ class S2B : public S2B_PAR
     void _Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34);
     void _ReadLite(PSTN pstnLite, LITE *plite);
     void _ReadCam(PSTN pstnCam, CAM *pcam, PGL *ppglapos);
-    bool _FZbmpFromZpic(PSTN pstnBkgd, CNO cnoPar, int iCam, long dxp, long dyp, CAM *pcam);
+    bool _FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CAM *pcam);
 
     /* Brender-knowledgable utilities */
     bool _FBrsFromS2btk(PS2BTK ps2btk, BRS *pbrs)

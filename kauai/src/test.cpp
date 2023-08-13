@@ -434,7 +434,7 @@ void TestCfl(void)
     struct EREL
     {
         ChunkTag ctg;
-        CNO cno;
+        ChunkNumber cno;
         PSZ psz;
         short relPar1, relPar2;
     };
@@ -457,7 +457,7 @@ void TestCfl(void)
     DataBlock blck;
     short rel;
     long icki;
-    CNO cno;
+    ChunkNumber cno;
     CKI cki;
     EREL *perel, *perelPar;
     STN stn;
@@ -627,10 +627,10 @@ void TestErs(void)
 ******************************************************************************/
 void TestCrf(void)
 {
-    const CNO cnoLim = 10;
+    const ChunkNumber cnoLim = 10;
     Filename fni;
     ChunkTag ctg = 'JUNK';
-    CNO cno;
+    ChunkNumber cno;
     PGHQ rgpghq[cnoLim];
     PCFL pcfl;
     PCRF pcrf;

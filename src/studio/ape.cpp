@@ -768,10 +768,10 @@ bool APE::FSetTdtMtrl(PTAG ptagMtrl)
 }
 
 /***************************************************************************
-    Get the CNO of the MTRL attached to this TDT.  Returns fFalse if there
+    Get the ChunkNumber of the MTRL attached to this TDT.  Returns fFalse if there
     is no MTRL attached or the MTRL didn't come from a chunk.
 ***************************************************************************/
-bool APE::FGetTdtMtrlCno(CNO *pcno)
+bool APE::FGetTdtMtrlCno(ChunkNumber *pcno)
 {
     AssertThis(0);
     Assert(_ptmpl->FIsTdt(), "FGetTdtMtrlCno is only for TDTs");

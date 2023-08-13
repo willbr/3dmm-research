@@ -113,7 +113,7 @@ class BKGD : public BKGD_PAR
     long _icam;          // current camera
     BMAT34 _bmat34Mouse; // camera matrix for mouse model
     BRA _braRotY;        // Y rotation of current camera
-    CNO _cnoSnd;         // background sound
+    ChunkNumber _cnoSnd;         // background sound
     STN _stn;            // name of this background
     PGL _pglclr;         // palette for this background
     byte _bIndexBase;    // first index for palette
@@ -129,14 +129,14 @@ class BKGD : public BKGD_PAR
     BRS _zrCam;
 
   protected:
-    bool _FInit(PCFL pcfl, ChunkTag ctg, CNO cno);
-    long _Ccam(PCFL pcfl, ChunkTag ctg, CNO cno);
+    bool _FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
+    long _Ccam(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     void _SetupLights(PGL pgllite);
 
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadBkgd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     ~BKGD(void);
     void GetName(PSTN pstn);
 

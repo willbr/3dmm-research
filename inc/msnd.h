@@ -110,7 +110,7 @@ class MSND : public MSND_PAR
   protected:
     // these are inherent to the msnd
     ChunkTag _ctgSnd;       // ChunkTag of the WAV or MIDI chunk
-    CNO _cnoSnd;       // CNO of the WAV or MIDI chunk
+    ChunkNumber _cnoSnd;       // ChunkNumber of the WAV or MIDI chunk
     PRCA _prca;        // file that the WAV/MIDI lives in
     long _sty;         // MIDI, speech, or sfx
     long _vlm;         // Volume of the sound
@@ -119,16 +119,16 @@ class MSND : public MSND_PAR
     bool _fInvalid;    // Invalid flag
 
   protected:
-    bool _FInit(PCFL pcfl, ChunkTag ctg, CNO cno);
+    bool _FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
   public:
-    static bool FReadMsnd(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static bool FGetMsndInfo(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfInvalid = pvNil, long *psty = pvNil,
+    static bool FReadMsnd(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FGetMsndInfo(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
-    static bool FCopyMidi(PFIL pfilSrc, PCFL pcflDest, CNO *pcno, PSTN pstn = pvNil);
-    static bool FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, CNO *pcno);
-    static bool FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, CNO *pcno, PSTN pstn = pvNil);
-    static bool FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, CNO *pcno);
+    static bool FCopyMidi(PFIL pfilSrc, PCFL pcflDest, ChunkNumber *pcno, PSTN pstn = pvNil);
+    static bool FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno);
+    static bool FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
+    static bool FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, ChunkNumber *pcno);
     ~MSND(void);
 
     static long SqnActr(long sty, long objID);

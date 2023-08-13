@@ -503,7 +503,7 @@ typedef struct _scend
     /* The first fields are private...the client shouldn't change them, and
         in fact, generally shouldn't even look at them */
     long imvied;     // index of the MVIED for this scene
-    CNO cno;         // the CNO of this scene chunk
+    ChunkNumber cno;         // the ChunkNumber of this scene chunk
     CHID chid;       // the original CHID
     PMBMP pmbmp;     // pointer to thumbnail MBMP
                      /* The client can read or write the following fields */
@@ -515,7 +515,7 @@ typedef struct _scend
 typedef struct _mvied
 {
     PCRF pcrf;    // the file this scene's movie is in
-    CNO cno;      // CNO of the MVIE chunk
+    ChunkNumber cno;      // ChunkNumber of the MVIE chunk
     long aridLim; // _aridLim from the MVIE
 } MVIED, *PMVIED;
 
@@ -556,7 +556,7 @@ class MVIE : public MVIE_PAR
     PCRF _pcrfAutoSave; // CRF/CFL of auto save file.
     PFIL _pfilSave;     // User's document
 
-    CNO _cno; // CNO of movie in current file.
+    ChunkNumber _cno; // ChunkNumber of movie in current file.
 
     STN _stnTitle; // Title of the movie
 
@@ -611,7 +611,7 @@ class MVIE : public MVIE_PAR
     CHID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
     CHID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
-    bool _FIsChild(PCFL pcfl, ChunkTag ctg, CNO cno);
+    bool _FIsChild(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
     bool _FSetPfilSave(PFilename pfni);
 
   public:
@@ -641,10 +641,10 @@ class MVIE : public MVIE_PAR
     //
     // Create and Destroy
     //
-    static PMVIE PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni = pvNil, CNO cno = cnoNil);
+    static PMVIE PmvieNew(bool fHalfMode, PMCC pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
-    static bool FReadRollCall(PCRF pcrf, CNO cno, PGST *ppgst, long *paridLim = pvNil);
+    static bool FReadRollCall(PCRF pcrf, ChunkNumber cno, PGST *ppgst, long *paridLim = pvNil);
     // reads roll call for a given movie
     void ForceSaveAs(void)
     {
@@ -723,12 +723,12 @@ class MVIE : public MVIE_PAR
     bool FAddToCmvi(PCMVI pcmvi, long *piscendIns);
     // Add this movie to the CMVI
     bool FSetCmvi(PCMVI pcmvi); // Re-build the movie from the CMVI
-    bool _FAddMvieToRollCall(CNO cno, long aridMin);
+    bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
     bool _FInsertScend(PGL pglscend, long iscend, PSCEND pscend);
     // Insert an imported scene
     void _DeleteScend(PGL pglscend, long iscend);   // Delete an imported scene
-    bool _FAdoptMsndInMvie(PCFL pcfl, CNO cnoScen); // Adopt msnd chunks as children of the movie
+    bool _FAdoptMsndInMvie(PCFL pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
 
     bool FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm = vlmNil,
                      long sty = styNil);                                                              // Adds a sound
@@ -742,12 +742,12 @@ class MVIE : public MVIE_PAR
     {
         return TAGM::FSaveTag(ptag, _pcrfAutoSave, fTrue);
     }
-    bool FCopySndFileToMvie(PFIL pfil, long sty, CNO *pcno, PSTN pstn = pvNil);
-    bool FVerifyVersion(PCFL pcfl, CNO *pcno = pvNil);
+    bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
+    bool FVerifyVersion(PCFL pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PCRF *pcrf = pvNil);
-    bool FCopyMsndFromPcfl(PCFL pcfl, CNO cnoSrc, CNO *pcnoDest);
-    bool FResolveSndTag(PTAG ptag, CHID chid, CNO cnoScen = cnoNil, PCRF pcrf = pvNil);
-    bool FChidFromUserSndCno(CNO cno, CHID *pchid);
+    bool FCopyMsndFromPcfl(PCFL pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
+    bool FResolveSndTag(PTAG ptag, CHID chid, ChunkNumber cnoScen = cnoNil, PCRF pcrf = pvNil);
+    bool FChidFromUserSndCno(ChunkNumber cno, CHID *pchid);
     void SetDocClosing(bool fClose)
     {
         _fDocClosing = fClose;

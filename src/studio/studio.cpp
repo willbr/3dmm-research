@@ -339,7 +339,7 @@ LEnd:
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FLoadMovie(PFilename pfni, CNO cno)
+bool Studio::FLoadMovie(PFilename pfni, ChunkNumber cno)
 #ifdef BUG1959
 {
     bool fRet, fClosedOld;
@@ -358,7 +358,7 @@ LDone:
     return fRet;
 }
 
-bool Studio::_FLoadMovie(PFilename pfni, CNO cno, bool *pfClosedOld)
+bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
 #endif // BUG1959
 {
     AssertBaseThis(0);
@@ -2111,9 +2111,9 @@ void Studio::NewActor(void)
 }
 
 /***************************************************************************
-    The RollCall needs a mapping from Tmpl CNO's to the GOKD thumb cno
+    The RollCall needs a mapping from Tmpl ChunkNumber's to the GOKD thumb cno
 ***************************************************************************/
-bool Studio::FAddCmg(CNO cnoTmpl, CNO cnoGokd)
+bool Studio::FAddCmg(ChunkNumber cnoTmpl, ChunkNumber cnoGokd)
 {
     AssertThis(0);
 
@@ -2140,7 +2140,7 @@ bool Studio::FAddCmg(CNO cnoTmpl, CNO cnoGokd)
 /***************************************************************************
     Return the cnoGokd corres to the cnoTmpl
 ***************************************************************************/
-CNO Studio::CnoGokdFromCnoTmpl(CNO cnoTmpl)
+ChunkNumber Studio::CnoGokdFromCnoTmpl(ChunkNumber cnoTmpl)
 {
     AssertThis(0);
 

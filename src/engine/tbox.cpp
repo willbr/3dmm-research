@@ -1878,7 +1878,7 @@ void TBOX::SetDirty(bool fDirty)
  *  Pointer to a new tbox, else pvNil.
  *
  ****************************************************/
-PTBOX TBOX::PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen)
+PTBOX TBOX::PtboxRead(PCRF pcrf, ChunkNumber cno, PSCEN pscen)
 {
     AssertPo(pcrf, 0);
     AssertNilOrPo(pscen, 0);
@@ -1951,7 +1951,7 @@ PTBOX TBOX::PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FWrite(PCFL pcfl, CNO cno)
+bool TBOX::FWrite(PCFL pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

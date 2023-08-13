@@ -51,7 +51,7 @@ class ZBMP : public ZBMP_PAR
     static PZBMP PzbmpNew(long dxp, long dyp);
     static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
     static PZBMP PzbmpRead(PBLCK pblck);
-    static bool FReadZbmp(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadZbmp(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
     ~ZBMP(void);
 
     byte *Prgb(void)
@@ -68,7 +68,7 @@ class ZBMP : public ZBMP_PAR
     void DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
                   PREGN pregnClip = pvNil);
 
-    bool FWrite(PCFL pcfl, ChunkTag ctg, CNO *pcno);
+    bool FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno);
 };
 
 #endif ZBMP_H

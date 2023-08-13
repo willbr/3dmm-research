@@ -10,13 +10,13 @@
 
     Syntax of a sitobren script (.s2b file):
 
-    ACTOR CNO <TMPL-id> NAMED "<actor_name>" [XREST <xaRest>]
+    ACTOR ChunkNumber <TMPL-id> NAMED "<actor_name>" [XREST <xaRest>]
         [YREST <yaRest>] [ZREST <zaRest>] [FLAGS <cust_mat_only>]
         [BPSETS <bpsets>]
     ACTION NAMED "<action_name>" FILEBASE "<file_name_base>"
         FIRST <start-#> LAST <end-#> FLAGS <action_flags>
         [SCALE <dwrScale>] [SKIP <skip_count>] [SUBMODEL "<submodel>"]
-    BACKGROUND CNO <BKGD-id> NAMED "<bkgd_name>" [LIGHTS <#lights>]
+    BACKGROUND ChunkNumber <BKGD-id> NAMED "<bkgd_name>" [LIGHTS <#lights>]
         [CAMERAS <#cameras>] [FIRST <first_pal>] [LENGTH <#entries>]
     COSTUME FILE "<filename>" USE_SETS <set #> [<set #> [<set #> [...]]]
 
@@ -636,12 +636,12 @@ S2B::~S2B(void)
 
     Arguments:
         ChunkTag ctg       -- the ChunkTag of the chunk; used in the #ifdef
-        CNO cno       -- the remainder of the arguments are just passed
+        ChunkNumber cno       -- the remainder of the arguments are just passed
         PSTN pstnName    directly to the CHSE DumpHeader()
         bool fPack
 
 ************************************************************ PETED ***********/
-void S2B::_DumpHeader(ChunkTag ctg, CNO cno, PSTN pstnName, bool fPack)
+void S2B::_DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
 {
     if (_fPreprocess)
     {
@@ -901,7 +901,7 @@ LDone:
     return fRet;
 }
 
-const SCRP rgscrpActor[] = {{ptLong, ttCno, "missing CNO for actor"},
+const SCRP rgscrpActor[] = {{ptLong, ttCno, "missing ChunkNumber for actor"},
                             {ptString, ttCalled, "missing name for actor"},
                             {ptBRA, ttXRest, ""},
                             {ptBRA, ttYRest, ""},
@@ -926,7 +926,7 @@ bool S2B::_FDoTtActor(bool *pfHaveActor)
 {
     bool fRet = fTrue;
     uint mdBPS = _mdBPS, mdMaterials = 2;
-    CNO cno;
+    ChunkNumber cno;
     TMPLF tmplf;
 
     _FlushTmplKids();
@@ -983,7 +983,7 @@ LFail:
     if (!*pfHaveActor)
     {
         printf("Error occured during processing for command line:\n");
-        printf("    ACTOR CNO %d, NAMED \"%s\",\n"
+        printf("    ACTOR ChunkNumber %d, NAMED \"%s\",\n"
                "        XREST %f, YREST %f, ZREST %f FLAGS %08x, BPSETS %d\n",
                cno, _stnTmpl.Psz(), BrScalarToFloat(BrAngleToDegree(tmplf.xaRest)),
                BrScalarToFloat(BrAngleToDegree(tmplf.yaRest)), BrScalarToFloat(BrAngleToDegree(tmplf.zaRest)),
@@ -1022,7 +1022,7 @@ bool S2B::_FDoTtActionS2B(void)
     int cCel, iCel, iCelBase, dCel = 1, iCelMac;
     long grfactn;
     ACTNF actnf;
-    CNO cnoActn;
+    ChunkNumber cnoActn;
     BRS brsScale = BrFloatToScalar(1.0), brsStep = BR_SCALAR(-1);
     BRS rgbrsDwr[3] = {BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(0)};
 
@@ -1291,7 +1291,7 @@ LFail:
     return fFalse;
 }
 
-const SCRP rgscrpBackground[] = {{ptLong, ttCno, "missing CNO for background"},
+const SCRP rgscrpBackground[] = {{ptLong, ttCno, "missing ChunkNumber for background"},
                                  {ptString, ttCalled, "missing name for background"},
                                  {ptLong, ttLights, ""},
                                  {ptLong, ttCameras, ""},
@@ -1313,7 +1313,7 @@ bool S2B::_FDoTtBackgroundS2B(void)
     bool fGotTok, fSuccess = fFalse;
     long cLite = 2, cCam = 9, iPalBase = 151, cPal = 95;
     ChunkTag ctgSav;
-    CNO cnoBkgd, cnoSav;
+    ChunkNumber cnoBkgd, cnoSav;
     STN stnBkgd;
     BKGDF bkgdf;
 
@@ -1354,7 +1354,7 @@ LFail:
     if (!fSuccess)
     {
         printf("Error occured during processing for command line:\n");
-        printf("    BACKGROUND CNO %d, NAMED \"%s\""
+        printf("    BACKGROUND ChunkNumber %d, NAMED \"%s\""
                "        LIGHTS %d, CAMERAS %d, FIRST %d, LENGTH %d\n",
                cnoBkgd, stnBkgd.Psz(), cLite, cCam, iPalBase, cPal);
     }
@@ -1559,7 +1559,7 @@ bool S2B::_FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal)
         read each file and create the chunk */
     for (iCam = 1; iCam <= cCam; iCam++)
     {
-        CNO cnoCam;
+        ChunkNumber cnoCam;
         Filename fni;
         PGL pglapos = pvNil;
 
@@ -1670,7 +1670,7 @@ LFail:
 
     Arguments:
         PSTN pstnBkgd -- the name of the background
-        CNO cnoPar    -- the CNO of the parent camera chunk
+        ChunkNumber cnoPar    -- the ChunkNumber of the parent camera chunk
         int iCam      -- the number of the camera
         long dxp      -- the width of the background
         long dyp      -- the height of the background
@@ -1680,7 +1680,7 @@ LFail:
         data, fFalse otherwise.
 
 ************************************************************ PETED ***********/
-bool S2B::_FZbmpFromZpic(PSTN pstnBkgd, CNO cnoPar, int iCam, long dxp, long dyp, CAM *pcam)
+bool S2B::_FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CAM *pcam)
 {
     Assert(dxp > 0, "Invalid z-buffer width");
     Assert(dyp > 0, "Invalid z-buffer height");
@@ -2534,21 +2534,21 @@ LNotexture:
 
 /******************************************************************************
     _FTmapFromBmp
-        Given a texture name, adds the texture to the MTRL with the given CNO.
+        Given a texture name, adds the texture to the MTRL with the given ChunkNumber.
         If this texture has never been seen before, the .bmp file is converted
         to an appropriate TMAP chunk file.  The reference to the parent MTRL's
-        CNO is added to our list of generated TMAPs for use later in actually
+        ChunkNumber is added to our list of generated TMAPs for use later in actually
         dumping out the TMAP chunk definition.
 
     Arguments:
         PSTN pstnBmpFile  -- the name of the texture
-        CNO cnoPar        -- the CNO of the parent MTRL
+        ChunkNumber cnoPar        -- the ChunkNumber of the parent MTRL
         pstnMtrl          -- the string used for the MTRL name
 
     Returns: fTrue if the texture was successfully added
 
 ************************************************************ PETED ***********/
-bool S2B::_FTmapFromBmp(PBMHR pbmhr, CNO cnoPar, PSTN pstnMtrl)
+bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
 {
     Assert(pbmhr != pvNil, 0);
     AssertPo(pbmhr->pstnMtrlFile, 0);
@@ -2591,7 +2591,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, CNO cnoPar, PSTN pstnMtrl)
         tmapd.ccnoPar = 1;
         tmapd.xp = ptmap->Pbpmp()->width;
         tmapd.yp = ptmap->Pbpmp()->height;
-        if (!_pggtmapd->FAdd(size(CNO), pvNil, &cnoPar, &tmapd))
+        if (!_pggtmapd->FAdd(size(ChunkNumber), pvNil, &cnoPar, &tmapd))
             goto LFailAdd;
 
         /* Write the file out last; it's easier to remove the reference to a
@@ -2606,7 +2606,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, CNO cnoPar, PSTN pstnMtrl)
     }
     else
     {
-        if (!_pggtmapd->FInsertRgb(itmapd, tmapd.ccnoPar * size(CNO), size(CNO), &cnoPar))
+        if (!_pggtmapd->FInsertRgb(itmapd, tmapd.ccnoPar * size(ChunkNumber), size(ChunkNumber), &cnoPar))
             goto LFail;
         tmapd.ccnoPar++;
         _pggtmapd->PutFixed(itmapd, &tmapd);
@@ -2673,7 +2673,7 @@ bool S2B::_FFlushTmaps(void)
     bool fRet = fTrue;
     long itmapd, itmapdMac = _pggtmapd->IvMac();
     long icnoPar;
-    CNO cnoPar;
+    ChunkNumber cnoPar;
     TMAPD tmapd;
 
     for (itmapd = 0; itmapd < itmapdMac; itmapd++)
@@ -2699,7 +2699,7 @@ bool S2B::_FFlushTmaps(void)
         /* Dump out all the necessary PARENT declarations */
         for (icnoPar = 0; icnoPar < tmapd.ccnoPar; icnoPar++)
         {
-            _pggtmapd->GetRgb(itmapd, icnoPar * size(CNO), size(CNO), &cnoPar);
+            _pggtmapd->GetRgb(itmapd, icnoPar * size(ChunkNumber), size(ChunkNumber), &cnoPar);
             _chse.DumpParentCmd(kctgMtrl, cnoPar, 0);
         }
 
@@ -4548,7 +4548,7 @@ static KEYTT _rgkeyttS2B[] = {"ACTOR",
                               ttFovCam,
                               DK_A_POS_STATIC_TOKEN,
                               ttStatic,
-                              "CNO",
+                              "ChunkNumber",
                               ttCno,
                               "NAMED",
                               ttCalled,

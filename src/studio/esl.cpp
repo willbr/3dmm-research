@@ -429,7 +429,7 @@ bool ESLT::FCmdStartPopup(PCMD pcmd)
     long cidSelect;
     TAG tagTdf;
     long tdts;
-    CNO cnoSelect;
+    ChunkNumber cnoSelect;
 
     ckiGPar.cno = cnoNil;
 
@@ -1886,7 +1886,7 @@ bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
     Filename fni;
     STN stn;
     PFIL pfil = pvNil;
-    CNO cno;
+    ChunkNumber cno;
     long sty = _fSpeech ? stySpeech : stySfx;
     long kid = _fSpeech ? kidSpeechGlass : kidFXGlass;
 

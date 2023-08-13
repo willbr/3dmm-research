@@ -50,7 +50,7 @@ class SCEG : public SCEG_PAR
     void _DoAlert(long op);
     void _SetColorTable(CHID chid);
     void _DoEditControl(long hid, long stid, bool fGet);
-    PGL _PglclrGet(CNO cno);
+    PGL _PglclrGet(ChunkNumber cno);
     bool _FLaunch(long stid);
 
   public:
@@ -64,6 +64,6 @@ class SCEG : public SCEG_PAR
 };
 
 // a Chunky resource reader for a color table
-bool FReadColorTable(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+bool FReadColorTable(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 
 #endif //! SCREXEG_H

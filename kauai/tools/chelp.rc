@@ -268,7 +268,7 @@ BEGIN
     RTEXT           "Y Offset:",110,118,102,45,7
     RTEXT           "Topic Description:",111,82,123,82,8
     RTEXT           "Sound ChunkTag:",112,16,141,58,7
-    RTEXT           "Sound CNO:",115,14,158,60,8
+    RTEXT           "Sound ChunkNumber:",115,14,158,60,8
     RTEXT           "Name:",116,130,158,33,8
     RTEXT           "Topic Width (Pixels):",114,77,178,85,9
 END

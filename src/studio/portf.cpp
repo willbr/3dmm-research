@@ -35,7 +35,7 @@ ASSERTNAME
 
 ***************************************************************************/
 bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, CNO cnoWave)
+                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave)
 {
     STN stnTitle;
     STN stnFilterLabel;
@@ -114,7 +114,7 @@ bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFi
 
 ***************************************************************************/
 bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, Filename *pfniInitialDir, ulong grfPrevType,
-                     CNO cnoWave)
+                     ChunkNumber cnoWave)
 {
     SZ szFile;
     DLGINFO diPortfolio;
@@ -232,7 +232,7 @@ bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, File
 
 ***************************************************************************/
 bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
-                     ulong grfPrevType, CNO cnoWave)
+                     ulong grfPrevType, ChunkNumber cnoWave)
 {
     DLGINFO diPortfolio;
     OPENFILENAME ofn;
@@ -666,7 +666,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
     case WM_DRAWITEM: {
         int iDlgId = (int)wParam;
         DRAWITEMSTRUCT *pDrawItem = (DRAWITEMSTRUCT *)lParam;
-        CNO cnoDisplay = cnoNil;
+        ChunkNumber cnoDisplay = cnoNil;
         PMBMP pmbmp;
 
         // Custom draw the our push btns here.
@@ -1018,7 +1018,7 @@ void RepaintPortfolio(HWND hwndCustom)
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
     PMBMP pmbmp, pmbmpBtn;
     int iBtn;
-    CNO cnoBack;
+    ChunkNumber cnoBack;
 
     // Draw the custom background for the common dlg.
     BeginPaint(hwndCustom, &ps);
@@ -1066,7 +1066,7 @@ void RepaintPortfolio(HWND hwndCustom)
             PGNV pgnvOff;
             PGPT pgptOff;
             HWND hwndPreview;
-            CNO cnoBtn;
+            ChunkNumber cnoBtn;
             int iBtnId;
 
             // Get the current size of the Portfolio window.

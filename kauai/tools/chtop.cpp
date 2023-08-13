@@ -179,7 +179,7 @@ bool HEDO::FGetFniSave(Filename *pfni)
     Invalidate all DDGs on this HEDO.  Also dirties the document.  Should be
     called by any code that edits the document.
 ***************************************************************************/
-void HEDO::InvalAllDdg(CNO cno)
+void HEDO::InvalAllDdg(ChunkNumber cno)
 {
     AssertThis(0);
     long ipddg;
@@ -242,7 +242,7 @@ bool HEDO::FExportText(void)
     Resume searching in the topic at or after the given one, according to
     fAdvance.
 ***************************************************************************/
-void HEDO::DoFindNext(PHETD phetd, CNO cno, bool fAdvance)
+void HEDO::DoFindNext(PHETD phetd, ChunkNumber cno, bool fAdvance)
 {
     AssertThis(0);
     AssertNilOrPo(phetd, 0);
@@ -477,7 +477,7 @@ bool TSEL::FSetIcki(long icki)
 /***************************************************************************
     Set the selection to the given cno.
 ***************************************************************************/
-bool TSEL::FSetCno(CNO cno)
+bool TSEL::FSetCno(ChunkNumber cno)
 {
     AssertThis(0);
 
@@ -575,7 +575,7 @@ void HEDG::_Activate(bool fActive)
     Invalidate the display from cno to the end of the display.  If we're
     the active HEDG, also redraw.
 ***************************************************************************/
-void HEDG::InvalCno(CNO cno)
+void HEDG::InvalCno(ChunkNumber cno)
 {
     AssertThis(0);
     long icki, ickiT;
@@ -625,7 +625,7 @@ void HEDG::Draw(PGNV pgnv, RC *prcClip)
     xp = _XpFromIch(0);
 
     // draw the header
-    stn = PszLit("  Hex         CNO     Name");
+    stn = PszLit("  Hex         ChunkNumber     Name");
     pgnv->DrawStn(&stn, xp, 0);
     pgnv->GetRcSrc(&rc);
     rc.ypTop = _dypHeader - 1;
@@ -673,7 +673,7 @@ void HEDG::_DrawSel(PGNV pgnv)
     this uses the cno, otherwise it uses the icki.  If both are nil, it
     clears the selection.
 ***************************************************************************/
-void HEDG::_SetSel(long icki, CNO cno)
+void HEDG::_SetSel(long icki, ChunkNumber cno)
 {
     AssertThis(0);
 
@@ -926,7 +926,7 @@ bool HEDG::FCmdExport(PCMD pcmd)
 /***************************************************************************
     Opens a window onto the given topic.
 ***************************************************************************/
-void HEDG::_EditTopic(CNO cno)
+void HEDG::_EditTopic(ChunkNumber cno)
 {
     AssertThis(0);
     PHETD phetd;
@@ -952,7 +952,7 @@ bool HEDG::_FCopySel(PDOCB *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
-    CNO cno;
+    ChunkNumber cno;
     PHEDO phedo;
 
     if (ivNil == _tsel.Icki())
@@ -977,7 +977,7 @@ bool HEDG::_FCopySel(PDOCB *ppdocb)
 void HEDG::_ClearSel(void)
 {
     AssertThis(0);
-    CNO cno;
+    ChunkNumber cno;
 
     if (ivNil == _tsel.Icki())
         return;
@@ -999,7 +999,7 @@ bool HEDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     PCFL pcfl;
     long icki;
     CKI cki;
-    CNO cnoSel;
+    ChunkNumber cnoSel;
     bool fFailed = fFalse;
 
     if (cidPaste != cid || !pclip->FGetFormat(kclsHEDO))
@@ -1435,7 +1435,7 @@ bool HEDG::FCmdCheckSpelling(PCMD pcmd)
     AssertVarMem(pcmd);
 
 #ifdef SPELL
-    CNO cno;
+    ChunkNumber cno;
     PDMD pdmd;
     long cactT;
     PHETD phetd, phetdT;
@@ -1656,7 +1656,7 @@ void HETD::CloseDeletedHetd(PDOCB pdocb)
 /***************************************************************************
     Static method to look for a HETD for the given chunk.
 ***************************************************************************/
-PHETD HETD::PhetdFromChunk(PDOCB pdocb, CNO cno)
+PHETD HETD::PhetdFromChunk(PDOCB pdocb, ChunkNumber cno)
 {
     AssertPo(pdocb, 0);
     Assert(cnoNil != cno, 0);
@@ -1677,7 +1677,7 @@ PHETD HETD::PhetdFromChunk(PDOCB pdocb, CNO cno)
 /***************************************************************************
     Constructor for a help topic document.
 ***************************************************************************/
-HETD::HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno) : TXHD(prca, pdocb)
+HETD::HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno) : TXHD(prca, pdocb)
 {
     AssertNilOrPo(pcfl, 0);
     _pcfl = pcfl;
@@ -1697,7 +1697,7 @@ HETD::~HETD(void)
     (pcfl, cno) and using the given prca as the source for pictures
     and buttons.
 ***************************************************************************/
-PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno)
+PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno)
 {
     AssertNilOrPo(pdocb, 0);
     AssertPo(prca, 0);
@@ -1733,7 +1733,7 @@ PHETD HETD::PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno)
 /***************************************************************************
     Read the given chunk into this TXRD.
 ***************************************************************************/
-bool HETD::_FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText)
+bool HETD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
@@ -1843,7 +1843,7 @@ bool HETD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
     DataBlock blck;
-    CNO cno;
+    ChunkNumber cno;
 
     if (!HETD_PAR::FSaveToChunk(pcfl, pcki, fRedirectText))
         return fFalse;
@@ -2228,7 +2228,7 @@ enum
 /***************************************************************************
     Insert a picture into the help text document.
 ***************************************************************************/
-bool HETG::FInsertPicture(PCRF pcrf, ChunkTag ctg, CNO cno)
+bool HETG::FInsertPicture(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2328,7 +2328,7 @@ bool _FDlgFormatButton(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Insert a button into the help text document.
 ***************************************************************************/
-bool HETG::FInsertButton(PCRF pcrf, ChunkTag ctg, CNO cno)
+bool HETG::FInsertButton(PCRF pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2369,7 +2369,7 @@ bool HETG::FInsertButton(PCRF pcrf, ChunkTag ctg, CNO cno)
     cb += stn.CbData();
     ReleasePpo(&pdlg);
 
-    if (Phetd()->FInsertButton(cno, (CNO)lw, rgb, cb, cpMin, cpLim - cpMin, _fValidChp ? &_chpIns : pvNil))
+    if (Phetd()->FInsertButton(cno, (ChunkNumber)lw, rgb, cb, cpMin, cpLim - cpMin, _fValidChp ? &_chpIns : pvNil))
     {
         cpMin++;
         SetSel(cpMin, cpMin);
@@ -2573,7 +2573,7 @@ bool HETG::FCmdGroupText(PCMD pcmd)
     AssertVarMem(pcmd);
     long cpAnchor, cpOther;
     PDLG pdlg;
-    CNO cnoTopic;
+    ChunkNumber cnoTopic;
     STN stnTopic;
     byte bGroup;
     long lw;

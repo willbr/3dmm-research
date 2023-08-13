@@ -114,7 +114,7 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoInfo, &lw, &fEmpty) && !fEmpty)
         {
-            vpappb->TGiveAlertSz(PszLit("CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoInfo);
             return fFalse;
         }
@@ -122,7 +122,7 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
         if (!fEmpty && (!padcd->fCkiValid || ctg != padcd->cki.ctg || lw != (long)padcd->cki.cno) &&
             padcd->pcfl->FFind(ctg, lw))
         {
-            tribool tRet = vpappb->TGiveAlertSz(PszLit("A chunk with this ChunkTag & CNO")
+            tribool tRet = vpappb->TGiveAlertSz(PszLit("A chunk with this ChunkTag & ChunkNumber")
                                                     PszLit(" already exists. Replace the existing chunk?"),
                                                 bkYesNoCancel, cokQuestion);
 
@@ -278,7 +278,7 @@ void DOC::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for chunk editing doc.
 ***************************************************************************/
-DOCE::DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno) : DOCB(pdocb)
+DOCE::DOCE(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCB(pdocb)
 {
     _pcfl = pcfl;
     _ctg = ctg;
@@ -307,7 +307,7 @@ bool DOCE::_FInit(void)
 /***************************************************************************
     Static method to look for a DOCE for the given chunk.
 ***************************************************************************/
-PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno)
+PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     PDOCE pdoce;
 
@@ -368,7 +368,7 @@ bool DOCE::FSave(long cid)
 {
     AssertThis(0);
     ChunkTag ctg;
-    CNO cno;
+    ChunkNumber cno;
     bool fCreated = fFalse;
     PDLG pdlg = pvNil;
 
@@ -445,10 +445,10 @@ LCancel:
 /***************************************************************************
     Save the chunk data to a chunk.
 ***************************************************************************/
-bool DOCE::_FSaveToChunk(ChunkTag ctg, CNO cno, bool fRedirect)
+bool DOCE::_FSaveToChunk(ChunkTag ctg, ChunkNumber cno, bool fRedirect)
 {
     AssertThis(0);
-    CNO cnoT;
+    ChunkNumber cnoT;
     CKI cki;
     DataBlock blck;
     long cb = _CbOnFile();
@@ -798,7 +798,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
     rc.ypTop = 0;
     rc.ypBottom = _dypHeader - _dypBorder;
     pgnv->FillRc(&rc, kacrWhite);
-    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (CHID)   ChunkTag     CNO     Name   Lines: %d"), _sel.LnLim());
+    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (CHID)   ChunkTag     ChunkNumber     Name   Lines: %d"), _sel.LnLim());
     pgnv->DrawStn(&stn, xp, 0);
     rc = *prcClip;
     rc.ypTop = _dypHeader - _dypBorder;
@@ -1715,14 +1715,14 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoInfo, &lw, &fEmpty))
         {
-            vpappb->TGiveAlertSz(PszLit("CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoInfo);
             return fFalse;
         }
         cki.cno = lw;
         if (pclan->pcfl->FFind(cki.ctg, cki.cno) && (cki.ctg != pclan->cki.ctg || cki.cno != pclan->cki.cno))
         {
-            vpappb->TGiveAlertSz(PszLit("That ChunkTag/CNO pair already exists"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("That ChunkTag/ChunkNumber pair already exists"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
@@ -1896,7 +1896,7 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
         }
         chid = lw;
 
-        // check the new chid to make sure that the ChunkTag/CNO/new CHID does not
+        // check the new chid to make sure that the ChunkTag/ChunkNumber/new CHID does not
         // already exist
         if (pclan->pcfl->FGetIkid(pclan->cki.ctg, pclan->cki.cno, pclan->kid.cki.ctg, pclan->kid.cki.cno, chid,
                                   &ikid) &&
@@ -2045,7 +2045,7 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoParAdopt, &lw))
         {
-            vpappb->TGiveAlertSz(PszLit("Parent CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Parent ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoParAdopt);
             return fFalse;
         }
@@ -2066,7 +2066,7 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoChdAdopt, &lw))
         {
-            vpappb->TGiveAlertSz(PszLit("Child CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Child ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoChdAdopt);
             return fFalse;
         }
@@ -2571,7 +2571,7 @@ bool DCD::FCmdPack(PCMD pcmd)
 /***************************************************************************
     Run a script. Make the crf cache cbCache large.
 ***************************************************************************/
-bool DCD::FTestScript(ChunkTag ctg, CNO cno, long cbCache)
+bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
 {
     AssertThis(0);
     AssertIn(cbCache, 0, kcbMax);
@@ -3352,7 +3352,7 @@ bool SEL::FAddCtgFilter(ChunkTag ctg)
 /***************************************************************************
     Return true iff (ctg, cno) passes our filtering criteria.
 ***************************************************************************/
-bool SEL::_FFilter(ChunkTag ctg, CNO cno)
+bool SEL::_FFilter(ChunkTag ctg, ChunkNumber cno)
 {
     long cctg;
     ChunkTag *qctg;

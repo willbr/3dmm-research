@@ -78,7 +78,7 @@ struct TFC
         struct
         {
             ChunkTag ctg;
-            CNO cno;
+            ChunkNumber cno;
         };
         struct
         {
@@ -284,7 +284,7 @@ struct THD
         };
     };
 
-    CNO cno;       // GOKD cno
+    ChunkNumber cno;       // GOKD cno
     CHID chidThum; // GOKD's parent's CHID (relative to GOKD parent's parent)
     long ithd;     // Original index for this THD, before sorting (used to
                    // retrieve proper STN for the BRWN-derived browsers)
@@ -303,7 +303,7 @@ class BCL : public BCL_PAR
 
   protected:
     ChunkTag _ctgRoot;
-    CNO _cnoRoot;
+    ChunkNumber _cnoRoot;
     ChunkTag _ctgContent;
     bool _fDescend;
     PGL _pglthd;
@@ -367,7 +367,7 @@ class BCLS : public BCLS_PAR
     }
 
     bool _FInit(PCRM pcrm, CKI *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
-    bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, CNO cno);
+    bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
 
@@ -698,7 +698,7 @@ class BRWM : public BRWM_PAR
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type
     void _ProcessSelection(void); // Sound Preview
     bool _FAddThd(STN *pstn, CKI *pcki);
-    bool _FSndListed(CNO cno, long *pithd = pvNil);
+    bool _FSndListed(ChunkNumber cno, long *pithd = pvNil);
 
   public:
     //
@@ -806,8 +806,8 @@ class BRWR : public BRWR_PAR
 const long kglcmgGrow = 8;
 struct CMG // Gokd Cno Map
 {
-    CNO cnoTmpl; // Content cno
-    CNO cnoGokd; // Thumbnail gokd cno
+    ChunkNumber cnoTmpl; // Content cno
+    ChunkNumber cnoGokd; // Thumbnail gokd cno
 };
 
 /************************************

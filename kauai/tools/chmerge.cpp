@@ -23,7 +23,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fniSrc, fniT;
     CKI cki;
     long icki;
-    CNO cnoDst;
+    ChunkNumber cnoDst;
     PCFL pcflSrc;
     bool fPreOrder = fFalse;
     PCFL pcflMerge = pvNil;

@@ -15,7 +15,7 @@ RTCLASS(DCMBMP)
 /****************************************************************************
     Constructor for a MBMP document.
 ****************************************************************************/
-DOCMBMP::DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCMBMP::DOCMBMP(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pmbmp = pvNil;
 }
@@ -31,7 +31,7 @@ DOCMBMP::~DOCMBMP(void)
 /****************************************************************************
     Static method to create a new MBMP document.
 ****************************************************************************/
-PDOCMBMP DOCMBMP::PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno)
+PDOCMBMP DOCMBMP::PdocmbmpNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     PDOCMBMP pdocmbmp;
 

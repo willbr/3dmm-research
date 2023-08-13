@@ -70,7 +70,7 @@ class GORF : public GORF_PAR
     long _dyp;
 
   public:
-    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
+    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -92,13 +92,13 @@ class GORB : public GORB_PAR
   protected:
     PCRF _pcrf;
     ChunkTag _ctg;
-    CNO _cno;
+    ChunkNumber _cno;
     bool _fStream;
 
     ~GORB(void);
 
   public:
-    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
+    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -144,7 +144,7 @@ class GORT : public GORT_PAR
 
     PCRF _pcrf;
     ChunkTag _ctg;
-    CNO _cno;
+    ChunkNumber _cno;
     short _rgdxp[idzpLimGort];
     short _rgdyp[idzpLimGort];
 
@@ -164,7 +164,7 @@ class GORT : public GORT_PAR
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
-    static PGORT PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
+    static PGORT PgortNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -196,10 +196,10 @@ class GORV : public GORV_PAR
 
     ~GORV(void);
 
-    virtual bool _FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
+    virtual bool _FInit(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
   public:
-    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, CNO cno);
+    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -355,7 +355,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     static PGraphicsObject _PgobBefore(PGraphicsObject pgobPar, long zp);
 
     virtual bool _FInit(PWorldOfKidspace pwoks, PGOKD pgokd, PRCA prca);
-    virtual bool _FInit(PWorldOfKidspace pwoks, CNO cno, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA prca);
 
     virtual bool _FAdjustGms(struct GMSE *pmpgmsgmse);
     virtual bool _FSetGmsCore(long gms, ulong grfact, bool *pfStable);
@@ -367,12 +367,12 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool _FAdvanceFrame(void);
 
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual PGORP _PgorpNew(PCRF pcrf, ChunkTag ctg, CNO cno);
+    virtual PGORP _PgorpNew(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
     bool _FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilter);
     void _PlayMouseSound(CHID chid);
-    CNO _CnoToolTip(void);
+    ChunkNumber _CnoToolTip(void);
     CHID _ChidMouse(void);
     void _DeferGorp(bool fDefer);
     void _DeferSnd(bool fDefer);
@@ -418,7 +418,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     virtual bool FRunScript(CHID chid, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                             tribool *ptSuccess = pvNil);
-    virtual bool FRunScriptCno(CNO cno, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScriptCno(ChunkNumber cno, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                                tribool *ptSuccess = pvNil);
     virtual bool FChangeState(long sno);
     virtual bool FSetRep(CHID chid, ulong grfgok = fgokKillAnim, ChunkTag ctg = ctgNil, long dxp = 0, long dyp = 0,
@@ -431,8 +431,8 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual long NfrMac(void);
     virtual long NfrCur(void);
 
-    virtual long SiiPlaySound(ChunkTag ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
-    virtual long SiiPlayMouseSound(ChunkTag ctg, CNO cno);
+    virtual long SiiPlaySound(ChunkTag ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
+    virtual long SiiPlayMouseSound(ChunkTag ctg, ChunkNumber cno);
 
     virtual void Suspend(void);
     virtual void Resume(void);

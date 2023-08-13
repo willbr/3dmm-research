@@ -11,7 +11,7 @@
     BASE ---> TAGM
 
     A TAG is a reference to a piece of content: a background, actor
-    template, sound, etc.  In addition to a ChunkTag and CNO, a TAG specifies
+    template, sound, etc.  In addition to a ChunkTag and ChunkNumber, a TAG specifies
     a SID, or source ID, that helps TAGM find the content.
 
     A source (identified by a SID) is a group of chunky files (managed
@@ -56,7 +56,7 @@ struct TAG
     long sid;  // Source ID (or ksidUseCrf)
     PCRF pcrf; // File to look in for this chunk if sid is ksidUseCrf
     ChunkTag ctg;   // ChunkTag of chunk
-    CNO cno;   // CNO of chunk
+    ChunkNumber cno;   // ChunkNumber of chunk
 };
 const ByteOrderMask kbomTag = 0xFF000000;
 

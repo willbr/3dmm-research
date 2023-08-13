@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     The GG of TAGFs is maintained in sorted order.  It is sorted by sid,
-    then by	ChunkTag, then by CNO.
+    then by	ChunkTag, then by ChunkNumber.
 
 ***************************************************************************/
 #include "soc.h"
@@ -124,7 +124,7 @@ bool TAGL::_FFindTag(PTAG ptag, long *pitag)
     long itagfMin, itagfLim, itagf;
     long sid = ptag->sid;
     ChunkTag ctg = ptag->ctg;
-    CNO cno = ptag->cno;
+    ChunkNumber cno = ptag->cno;
 
     if (_pggtagf->IvMac() == 0)
     {

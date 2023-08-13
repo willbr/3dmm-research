@@ -114,7 +114,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PCFL pcflDst)
     CHID chid;
     CHID chidMax = 0;
     PMODL pmodl;
-    CNO cnoModl;
+    ChunkNumber cnoModl;
     PCRF pcrf;
     PSZ psz;
     long cch;

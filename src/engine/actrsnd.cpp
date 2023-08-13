@@ -716,7 +716,7 @@ bool ACTR::FSoundInFrm(void)
     Resolve all sound tags
 
 ******************************************************************************/
-bool ACTR::FResolveAllSndTags(CNO cnoScen)
+bool ACTR::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
     long iaev;

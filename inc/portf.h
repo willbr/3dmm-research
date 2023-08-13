@@ -13,11 +13,11 @@
 // Top level portoflio routines.
 bool FPortGetFniMovieOpen(Filename *pfni);
 bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, CNO cnoWave);
+                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave);
 bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, Filename *pfniInitialDir, ulong grfPrevType,
-                     CNO cnoWave);
+                     ChunkNumber cnoWave);
 bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
-                     ulong grfPrevType, CNO cnoWave);
+                     ulong grfPrevType, ChunkNumber cnoWave);
 
 UINT CALLBACK OpenHookProc(HWND hWnd, UINT msg, UINT wParam, LONG lParam);
 void OpenPreview(HWND hwnd, PGNV pgnvOff, RCS *prcsPreview);
@@ -36,7 +36,7 @@ typedef struct dlginfo
     bool fDrawnBkgnd;  // fTrue if portfolio background bitmap has been displayed.
     RCS rcsDlg;        // Initial size of the portfolio common dlg window client area.
     ulong grfPrevType; // Bits for types of preview required, (eg movie, sound etc) == 0 if no preview
-    CNO cnoWave;       // Wave file cno for audio when portfolio is invoked.
+    ChunkNumber cnoWave;       // Wave file cno for audio when portfolio is invoked.
 } DLGINFO;
 typedef DLGINFO *PDLGINFO;
 

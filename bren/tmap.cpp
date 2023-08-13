@@ -12,7 +12,7 @@ RTCLASS(TMAP)
 /***************************************************************************
     A PFNRPO to read TMAP objects.
 ***************************************************************************/
-bool TMAP::FReadTmap(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool TMAP::FReadTmap(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -39,7 +39,7 @@ bool TMAP::FReadTmap(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbac
 /***************************************************************************
     Read a TMAP from a chunk
 ***************************************************************************/
-PTMAP TMAP::PtmapRead(PCFL pcfl, ChunkTag ctg, CNO cno)
+PTMAP TMAP::PtmapRead(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     TMAPF tmapf;
     DataBlock blck;
@@ -118,7 +118,7 @@ TMAP::~TMAP(void)
 /***************************************************************************
     Write a TMAP to a chunk
 ***************************************************************************/
-bool TMAP::FWrite(PCFL pcfl, ChunkTag ctg, CNO *pcno)
+bool TMAP::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     DataBlock blck;

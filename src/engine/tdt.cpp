@@ -85,7 +85,7 @@ const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
     if an error occurs.  The point is, look at *pfError, not the return
     value.
 ***************************************************************************/
-PGL TDT::PgltagFetch(PCFL pcfl, ChunkTag ctg, CNO cno, bool *pfError)
+PGL TDT::PgltagFetch(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
@@ -163,7 +163,7 @@ PTDT TDT::PtdtNew(PSTN pstn, long tdts, PTAG ptagTdf)
     Read the generic TMPL info and the TDT-specific info (tdts and tagTdf),
     then call _FInitLists to build the rest of the TDT.
 ***************************************************************************/
-bool TDT::_FInit(PCFL pcfl, ChunkTag ctgTmpl, CNO cnoTmpl)
+bool TDT::_FInit(PCFL pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -712,14 +712,14 @@ PCMTL TDT::PcmtlFetch(long cmid)
 /***************************************************************************
     Write the TDT out as a TMPL hierarchy.
 ***************************************************************************/
-bool TDT::FWrite(PCFL pcfl, ChunkTag ctg, CNO *pcno)
+bool TDT::FWrite(PCFL pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcno);
 
     TDTF tdtf;
-    CNO cnoTdt;
+    ChunkNumber cnoTdt;
     DataBlock blck;
 
     if (!_FWriteTmplf(pcfl, ctg, pcno))

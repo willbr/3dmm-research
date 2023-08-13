@@ -21,7 +21,7 @@ RTCLASS(WorldOfKidspace)
 /***************************************************************************
     Static method to read a GKDS from the CRF. This is a CRF object reader.
 ***************************************************************************/
-bool GKDS::FReadGkds(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool GKDS::FReadGkds(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     PGKDS pgkds;
     GOKDF gokdf;
@@ -254,7 +254,7 @@ bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 /***************************************************************************
     Get a GOKD from the given chunk.
 ***************************************************************************/
-PGOKD WorldOfKidspace::PgokdFetch(ChunkTag ctg, CNO cno, PRCA prca)
+PGOKD WorldOfKidspace::PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -265,7 +265,7 @@ PGOKD WorldOfKidspace::PgokdFetch(ChunkTag ctg, CNO cno, PRCA prca)
 /***************************************************************************
     Create a new gob in this kidspace world.
 ***************************************************************************/
-PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, CNO cnoGokd, PRCA prca)
+PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cnoGokd, PRCA prca)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -313,7 +313,7 @@ PSCEG WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject pgob)
 /***************************************************************************
     Create a new help balloon.
 ***************************************************************************/
-PHBAL WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PHBAL WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -463,7 +463,7 @@ ulong WorldOfKidspace::GrfcustAdjust(ulong grfcust)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool WorldOfKidspace::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
+bool WorldOfKidspace::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);

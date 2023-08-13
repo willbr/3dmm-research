@@ -236,7 +236,7 @@ class CEX : public CEX_PAR
     long _rec;      // recording/playback errors
     PCFL _pcfl;     // the file we are recording to or playing from
     PGL _pglcmdf;   // the command stream
-    CNO _cno;       // which macro is being played
+    ChunkNumber _cno;       // which macro is being played
     long _icmdf;    // current command for recording or playback
     CHID _chidLast; // last chid used for recording
     long _cact;     // number of times on this command
@@ -290,7 +290,7 @@ class CEX : public CEX_PAR
         return _rs == rsPlaying;
     }
     void Record(PCFL pcfl);
-    void Play(PCFL pcfl, CNO cno);
+    void Play(PCFL pcfl, ChunkNumber cno);
     void StopRecording(void);
     void StopPlaying(void);
 

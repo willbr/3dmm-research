@@ -34,7 +34,7 @@ RTCLASS(DCST)
     the edited chunk belongs to.  cls should be one of GL, AL, GG, AG,
     GST, AST.
 ***************************************************************************/
-DOCG::DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
+DOCG::DOCG(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pgrpb = pvNil;
     _cls = cls;
@@ -52,7 +52,7 @@ DOCG::~DOCG(void)
     Static method to create a new document based on a group in a chunk.
     Asserts that there are no other editing docs open on this chunk.
 ***************************************************************************/
-PDOCG DOCG::PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, CNO cno, long cls)
+PDOCG DOCG::PdocgNew(PDOCB pdocb, PCFL pcfl, ChunkTag ctg, ChunkNumber cno, long cls)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);

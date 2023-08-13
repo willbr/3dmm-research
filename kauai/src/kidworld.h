@@ -35,10 +35,10 @@ struct CUME
     ulong grfcustMask; // what cursor states this CUME is good for
     ulong grfcust;
     ulong grfbitSno; // what button states this CUME is good for
-    CNO cnoCurs;     // the cursor to use
+    ChunkNumber cnoCurs;     // the cursor to use
     CHID chidScript; // execution script (absolute)
     long cidDefault; // default command
-    CNO cnoTopic;    // tool tip topic
+    ChunkNumber cnoTopic;    // tool tip topic
 };
 
 typedef class GOKD *PGOKD;
@@ -95,7 +95,7 @@ class GKDS : public GKDS_PAR
 
   public:
     // An object reader for a GOKD.
-    static bool FReadGkds(PCRF pcrf, ChunkTag ctg, CNO cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadGkds(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBACO *ppbaco, long *pcb);
     ~GKDS(void);
 
     virtual long Gokk(void);
@@ -135,10 +135,10 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     }
 
     virtual bool FGobIn(PGraphicsObject pgob);
-    virtual PGOKD PgokdFetch(ChunkTag ctg, CNO cno, PRCA prca);
-    virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, CNO cno, PRCA prca);
+    virtual PGOKD PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca);
+    virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca);
     virtual PSCEG PscegNew(PRCA prca, PGraphicsObject pgob);
-    virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
+    virtual PHBAL PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
     virtual PCMH PcmhFromHid(long hid);
     virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);
     virtual bool FFindFile(PSTN pstnSrc, PFilename pfni);
@@ -149,7 +149,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual void ModifyGrfcust(ulong grfcustOr, ulong grfcustXor);
     virtual ulong GrfcustAdjust(ulong grfcust);
 
-    virtual bool FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet);
+    virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
     virtual PCLOK PclokAnim(void)
     {
         return &_clokAnim;

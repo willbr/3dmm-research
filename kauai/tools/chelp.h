@@ -83,8 +83,8 @@ class LID : public LID_PAR
     struct CACH
     {
         PCRF pcrf;
-        CNO cno;
-        CNO cnoMbmp;
+        ChunkNumber cno;
+        ChunkNumber cnoMbmp;
     };
 
     PCRM _pcrm;   // where to look for the chunks
@@ -233,9 +233,9 @@ class HEDO : public HEDO_PAR
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 
-    virtual void InvalAllDdg(CNO cno);
+    virtual void InvalAllDdg(ChunkNumber cno);
     virtual bool FExportText(void);
-    virtual void DoFindNext(PHETD phetd, CNO cno, bool fAdvance = fTrue);
+    virtual void DoFindNext(PHETD phetd, ChunkNumber cno, bool fAdvance = fTrue);
 
     virtual PHETD PhetdOpenNext(PHETD phetd);
     virtual PHETD PhetdOpenPrev(PHETD phetd);
@@ -254,7 +254,7 @@ class TSEL : public TSEL_PAR
   protected:
     PCFL _pcfl;
     long _icki;
-    CNO _cno;
+    ChunkNumber _cno;
 
     void _SetNil(void);
 
@@ -267,13 +267,13 @@ class TSEL : public TSEL_PAR
     {
         return _icki;
     }
-    CNO Cno(void)
+    ChunkNumber Cno(void)
     {
         return _cno;
     }
 
     bool FSetIcki(long icki);
-    bool FSetCno(CNO cno);
+    bool FSetCno(ChunkNumber cno);
 };
 
 /***************************************************************************
@@ -313,9 +313,9 @@ class HEDG : public HEDG_PAR
     void _GetContent(RC *prc);
 
     void _DrawSel(PGNV pgnv);
-    void _SetSel(long icki, CNO cno = cnoNil);
+    void _SetSel(long icki, ChunkNumber cno = cnoNil);
     void _ShowSel(void);
-    void _EditTopic(CNO cno);
+    void _EditTopic(ChunkNumber cno);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
@@ -336,7 +336,7 @@ class HEDG : public HEDG_PAR
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual bool FCmdKey(PCMD_KEY pcmd);
 
-    virtual void InvalCno(CNO cno);
+    virtual void InvalCno(ChunkNumber cno);
     virtual bool FEnableHedgCmd(PCMD pcmd, ulong *pgrfeds);
     virtual bool FCmdNewTopic(PCMD pcmd);
     virtual bool FCmdEditTopic(PCMD pcmd);
@@ -367,18 +367,18 @@ class HETD : public HETD_PAR
 
   protected:
     PCFL _pcfl; // which chunk is being edited
-    CNO _cno;
+    ChunkNumber _cno;
     PGST _pgst;   // string versions of stuff in HTOP
     STN _stnDesc; // description
 
-    HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno);
+    HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
     ~HETD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, CNO cno, bool fCopyText);
+    virtual bool _FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
 
   public:
-    static PHETD PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno);
-    static PHETD PhetdFromChunk(PDOCB pdocb, CNO cno);
+    static PHETD PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, ChunkNumber cno);
+    static PHETD PhetdFromChunk(PDOCB pdocb, ChunkNumber cno);
     static void CloseDeletedHetd(PDOCB pdocb);
 
     virtual PDMD PdmdNew(void);
@@ -396,7 +396,7 @@ class HETD : public HETD_PAR
     {
         return (PHEDO)PdocbPar();
     }
-    CNO Cno(void)
+    ChunkNumber Cno(void)
     {
         return _cno;
     }
@@ -438,8 +438,8 @@ class HETG : public HETG_PAR
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FInsertPicture(PCRF pcrf, ChunkTag ctg, CNO cno);
-    virtual bool FInsertButton(PCRF pcrf, ChunkTag ctg, CNO cno);
+    virtual bool FInsertPicture(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual bool FInsertButton(PCRF pcrf, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool FCmdGroupText(PCMD pcmd);
     virtual bool FCmdFormatPicture(PCMD pcmd);

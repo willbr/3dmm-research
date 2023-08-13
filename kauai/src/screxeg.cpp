@@ -677,7 +677,7 @@ bool SCEG::_FExecOp(long op)
         if (!_fError)
         {
             ACR acr;
-            PGL pglclr = _PglclrGet((CNO)lw4);
+            PGL pglclr = _PglclrGet((ChunkNumber)lw4);
             acr.SetFromLw(lw3);
             vpappb->SetGft(lw1, lw2, LuMulDiv(dtim, kdtsSecond, kdtimSecond), pglclr, acr);
             ReleasePpo(&pglclr);
@@ -1174,7 +1174,7 @@ void SCEG::_DoEditControl(long hid, long stid, bool fGet)
 /***************************************************************************
     Set the current color table.
 ***************************************************************************/
-void SCEG::_SetColorTable(CNO cno)
+void SCEG::_SetColorTable(ChunkNumber cno)
 {
     PGL pglclr;
 
@@ -1188,7 +1188,7 @@ void SCEG::_SetColorTable(CNO cno)
 /***************************************************************************
     Read the indicated color table and return a reference to it.
 ***************************************************************************/
-PGL SCEG::_PglclrGet(CNO cno)
+PGL SCEG::_PglclrGet(ChunkNumber cno)
 {
     PCABO pcabo;
     PGL pglclr;
@@ -1213,7 +1213,7 @@ PGL SCEG::_PglclrGet(CNO cno)
     A chunky resource reader to read a color table. Wraps the color table in
     a CABO.
 ***************************************************************************/
-bool FReadColorTable(PCRF pcrf, ChunkTag ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool FReadColorTable(PCRF pcrf, ChunkTag ctg, ChunkNumber cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
 {
     PCABO pcabo;
     PGL pglclr = pvNil;
