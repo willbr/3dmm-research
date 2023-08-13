@@ -21,6 +21,8 @@
 #ifndef TMPL_H
 #define TMPL_H
 
+using namespace BRender;
+
 /****************************************
     Cel part spec: tells what model and
     xfrm to apply to a body part for

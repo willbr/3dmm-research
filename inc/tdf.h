@@ -14,6 +14,8 @@
 #ifndef TDF_H
 #define TDF_H
 
+using namespace BRender;
+
 /****************************************
     3-D Font class
 ****************************************/

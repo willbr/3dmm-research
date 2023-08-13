@@ -23,6 +23,8 @@
 
 ASSERTNAME
 
+namespace BRender {
+
 RTCLASS(BWLD)
 
 const long kcbitPixelRGB = 8; // RGB buffers are 8 bits deep
@@ -804,3 +806,5 @@ bool BWLD::FWriteBmp(PFilename pfni)
 }
 
 #endif // DEBUG
+
+} // end of namespace BRender

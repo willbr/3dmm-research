@@ -9,6 +9,8 @@
 #include "bren.h"
 ASSERTNAME
 
+namespace BRender {
+
 RTCLASS(ZBMP)
 
 /***************************************************************************
@@ -307,3 +309,5 @@ void ZBMP::MarkMem(void)
     MarkPv(_prgb);
 }
 #endif // DEBUG
+
+} // end of namespace BRender

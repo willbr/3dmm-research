@@ -12,6 +12,8 @@
 #include "kidframe.h"
 #include "brender.h"
 
+namespace BRender {
+
 typedef br_actor BACT;
 typedef br_model BMDL;
 typedef br_light BLIT;
@@ -145,6 +147,8 @@ inline BRS BrsDiv(BRS r1, BRS r2) // Safety net: Prevent ovfl on division of int
 #undef BR_ACOS
 #endif // BR_ACOS
 #define BR_ACOS(a) BrRadianToAngle(BrFloatToScalar(acos(BrScalarToFloat(a))))
+
+} // end of namespace BRender
 
 #include "zbmp.h"
 #include "bwld.h"

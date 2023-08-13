@@ -14,6 +14,8 @@
 #ifndef BODY_H
 #define BODY_H
 
+using namespace BRender;
+
 /****************************************
     The BODY class
 ****************************************/

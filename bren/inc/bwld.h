@@ -11,6 +11,8 @@
 #ifndef BWLD_H
 #define BWLD_H
 
+namespace BRender {
+
 // Callback function per BACT when it's rendered, passing the 2D bounds
 typedef void FNBACTREND(PBACT pbact, RC *prc);
 typedef FNBACTREND *PFNBACTREND;
@@ -132,5 +134,7 @@ class BWLD : public BWLD_PAR
     bool FWriteBmp(PFilename pfni);
 #endif // DEBUG
 };
+
+} // end of namespace BRender
 
 #endif BWLD_H

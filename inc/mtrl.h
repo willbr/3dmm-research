@@ -15,6 +15,8 @@
 #ifndef MTRL_H
 #define MTRL_H
 
+using namespace BRender;
+
 // CMTL on File
 struct CMTLF
 {

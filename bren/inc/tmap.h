@@ -8,6 +8,8 @@
 #ifndef TMAP_H
 #define TMAP_H
 
+namespace BRender {
+
 const ChunkTag kctgTmap = 'TMAP';
 const ChunkTag kctgTxxf = 'TXXF';
 
@@ -109,5 +111,7 @@ class TMAP : public TMAP_PAR
     byte *PrgbBuildInverseTable(void);
 #endif // NOT_YET_REVIEWED
 };
+
+} // end of namespace BRender
 
 #endif // TMAP_H

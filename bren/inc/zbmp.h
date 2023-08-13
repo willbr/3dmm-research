@@ -11,6 +11,8 @@
 #ifndef ZBMP_H
 #define ZBMP_H
 
+namespace BRender {
+
 #define kcbPixelZbmp 2 // Z-buffers are 2 bytes per pixel (16 bit)
 
 // ZBMP on file
@@ -70,5 +72,7 @@ class ZBMP : public ZBMP_PAR
 
     bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
 };
+
+} // end of namespace BRender
 
 #endif ZBMP_H

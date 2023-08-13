@@ -7,6 +7,8 @@
 
 ASSERTNAME
 
+namespace BRender {
+
 RTCLASS(TMAP)
 
 /***************************************************************************
@@ -462,3 +464,5 @@ void TMAP::MarkMem(void)
         MarkPv(_bpmp.pixels);
 }
 #endif // DEBUG
+
+} // end of namespace BRender

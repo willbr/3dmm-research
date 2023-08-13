@@ -14,6 +14,8 @@
 #ifndef MODL_H
 #define MODL_H
 
+using namespace BRender;
+
 // Model on file:
 struct MODLF
 {

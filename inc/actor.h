@@ -20,6 +20,8 @@
 #ifndef ACTOR_H
 #define ACTOR_H
 
+using namespace BRender;
+
 //
 //	RoutePoint : A point in x,y,z along an actor's RouTE.
 //
