@@ -2707,14 +2707,14 @@ bool TXLG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
 /***************************************************************************
     Constructor for a rich text document display gob.
 ***************************************************************************/
-TXRG::TXRG(PTXRD ptxrd, PGCB pgcb) : TXRG_PAR(ptxrd, pgcb)
+TXRG::TXRG(PRichTextDocument ptxrd, PGCB pgcb) : TXRG_PAR(ptxrd, pgcb)
 {
 }
 
 /***************************************************************************
     Create a new rich text document display GraphicsObject.
 ***************************************************************************/
-PTXRG TXRG::PtxrgNew(PTXRD ptxrd, PGCB pgcb)
+PTXRG TXRG::PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb)
 {
     PTXRG ptxrg;
 
@@ -2745,7 +2745,7 @@ void TXRG::AssertValid(ulong grf)
 ***************************************************************************/
 void TXRG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 {
-    ((PTXRD)_ptxtb)->FetchChp(cp, pchp, pcpMin, pcpLim);
+    ((PRichTextDocument)_ptxtb)->FetchChp(cp, pchp, pcpMin, pcpLim);
 }
 
 /***************************************************************************
@@ -2753,7 +2753,7 @@ void TXRG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 ***************************************************************************/
 void TXRG::_FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 {
-    ((PTXRD)_ptxtb)->FetchPap(cp, ppap, pcpMin, pcpLim);
+    ((PRichTextDocument)_ptxtb)->FetchPap(cp, ppap, pcpMin, pcpLim);
 }
 
 /***************************************************************************
@@ -2775,7 +2775,7 @@ void TXRG::SetDxpTab(long dxp)
 
     papNew.dxpTab = (short)dxp;
     _SwitchSel(fFalse, ginNil);
-    if (!((PTXRD)_ptxtb)->FApplyPap(cpMin, cpLim - cpMin, &papNew, &papOld, &cpMin, &cpLim))
+    if (!((PRichTextDocument)_ptxtb)->FApplyPap(cpMin, cpLim - cpMin, &papNew, &papOld, &cpMin, &cpLim))
     {
         _SwitchSel(fTrue, kginMark);
     }
@@ -2835,7 +2835,7 @@ void TXRG::_FetchChpSel(long cp1, long cp2, PCHP pchp)
     // classes to modify the chp used for display without affecting the
     // chp used for editing.  This chp is an editing chp.  Same note
     // applies several other places in this file.
-    ((PTXRD)_ptxtb)->FetchChp(cp, pchp);
+    ((PRichTextDocument)_ptxtb)->FetchChp(cp, pchp);
 }
 
 /***************************************************************************
@@ -2875,7 +2875,7 @@ bool TXRG::FReplace(achar *prgch, long cch, long cp1, long cp2)
     else
         _FetchChpSel(cp1, cp2, &chp);
 
-    if (!((PTXRD)_ptxtb)->FReplaceRgch(prgch, cch, cp1, cp2 - cp1, &chp))
+    if (!((PRichTextDocument)_ptxtb)->FReplaceRgch(prgch, cch, cp1, cp2 - cp1, &chp))
         return fFalse;
 
     cp1 += cch;
@@ -2898,7 +2898,7 @@ bool TXRG::FReplace(achar *prgch, long cch, long cp1, long cp2)
 bool TXRG::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
-    PTXRD ptxrd;
+    PRichTextDocument ptxrd;
 
     if (_cpAnchor == _cpOther)
         return fFalse;
@@ -2906,13 +2906,13 @@ bool TXRG::_FCopySel(PDocumentBase *ppdocb)
     if (pvNil == ppdocb)
         return fTrue;
 
-    if (pvNil != (ptxrd = TXRD::PtxrdNew(pvNil)))
+    if (pvNil != (ptxrd = RichTextDocument::PtxrdNew(pvNil)))
     {
         long cpMin = LwMin(_cpAnchor, _cpOther);
         long cpLim = LwMax(_cpAnchor, _cpOther);
 
         ptxrd->SuspendUndo();
-        if (!ptxrd->FReplaceTxrd((PTXRD)_ptxtb, cpMin, cpLim - cpMin, 0, 0, fdocNil))
+        if (!ptxrd->FReplaceTxrd((PRichTextDocument)_ptxtb, cpMin, cpLim - cpMin, 0, 0, fdocNil))
         {
             ReleasePpo(&ptxrd);
         }
@@ -2950,7 +2950,7 @@ bool TXRG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXRD, (PDocumentBase *)&ptxtb) && !pclip->FGetFormat(kclsTextDocumentBase, (PDocumentBase *)&ptxtb))
+    if (!pclip->FGetFormat(kclsRichTextDocument, (PDocumentBase *)&ptxtb) && !pclip->FGetFormat(kclsTextDocumentBase, (PDocumentBase *)&ptxtb))
     {
         return fFalse;
     }
@@ -2966,14 +2966,14 @@ bool TXRG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     cp1 = LwMin(_cpAnchor, _cpOther);
     cp2 = LwMax(_cpAnchor, _cpOther);
     _ptxtb->BumpCombineUndo();
-    if (ptxtb->FIs(kclsTXRD))
+    if (ptxtb->FIs(kclsRichTextDocument))
     {
-        fRet = ((PTXRD)_ptxtb)->FReplaceTxrd((PTXRD)ptxtb, 0, ccp, cp1, cp2 - cp1);
+        fRet = ((PRichTextDocument)_ptxtb)->FReplaceTxrd((PRichTextDocument)ptxtb, 0, ccp, cp1, cp2 - cp1);
     }
     else
     {
         _EnsureChpIns();
-        fRet = ((PTXRD)_ptxtb)->FReplaceTxtb(ptxtb, 0, ccp, cp1, cp2 - cp1, &_chpIns);
+        fRet = ((PRichTextDocument)_ptxtb)->FReplaceTxtb(ptxtb, 0, ccp, cp1, cp2 - cp1, &_chpIns);
     }
     ReleasePpo(&ptxtb);
 
@@ -3030,7 +3030,7 @@ bool TXRG::FApplyChp(PCHP pchp, PCHP pchpDiff)
     }
 
     _SwitchSel(fFalse, ginNil);
-    if (!((PTXRD)_ptxtb)->FApplyChp(cpMin, cpLim - cpMin, pchp, pchpDiff))
+    if (!((PRichTextDocument)_ptxtb)->FApplyChp(cpMin, cpLim - cpMin, pchp, pchpDiff))
     {
         _SwitchSel(fTrue, kginMark);
         return fFalse;
@@ -3056,7 +3056,7 @@ bool TXRG::FApplyPap(PPAP ppap, PPAP ppapDiff, bool fExpand)
     cpLim = LwMax(_cpAnchor, _cpOther);
 
     _SwitchSel(fFalse, ginNil);
-    if (!((PTXRD)_ptxtb)->FApplyPap(cpMin, cpLim - cpMin, ppap, ppapDiff, pvNil, pvNil, fExpand))
+    if (!((PRichTextDocument)_ptxtb)->FApplyPap(cpMin, cpLim - cpMin, ppap, ppapDiff, pvNil, pvNil, fExpand))
     {
         _SwitchSel(fTrue, kginMark);
         return fFalse;
@@ -3244,7 +3244,7 @@ bool TXRG::FEnablePropCmd(PCMD pcmd, ulong *pgrfeds)
     STN stn, stnT;
 
     _EnsureChpIns();
-    ((PTXRD)_ptxtb)->FetchPap(LwMin(_cpAnchor, _cpOther), &pap);
+    ((PRichTextDocument)_ptxtb)->FetchPap(LwMin(_cpAnchor, _cpOther), &pap);
 
     switch (pcmd->cid)
     {

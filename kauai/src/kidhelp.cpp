@@ -89,7 +89,7 @@ PTXHD TXHD::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumbe
 }
 
 /***************************************************************************
-    Read the given chunk into this TXRD.
+    Read the given chunk into this RichTextDocument.
 ***************************************************************************/
 bool TXHD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
 {

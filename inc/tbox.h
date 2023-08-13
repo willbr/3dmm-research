@@ -9,7 +9,7 @@
 
         Textbox (TBOX)
 
-            TXRD ---> TBOX
+            RichTextDocument ---> TBOX
 
     Drawing stuff
 
@@ -129,7 +129,7 @@ class TBXG : public TBXG_PAR
     PTBXB _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
 
-    TBXG(PTXRD ptxrd, PGCB pgcb) : TXRG(ptxrd, pgcb)
+    TBXG(PRichTextDocument ptxrd, PGCB pgcb) : TXRG(ptxrd, pgcb)
     {
     }
     ~TBXG(void);
@@ -201,7 +201,7 @@ const ulong kgrfchpAll = (kfchpOnn | kfchpDypFont | kfchpBold | kfchpItalic);
 //
 typedef class TBOX *PTBOX;
 
-#define TBOX_PAR TXRD
+#define TBOX_PAR RichTextDocument
 #define kclsTBOX 'TBOX'
 class TBOX : public TBOX_PAR
 {
@@ -218,7 +218,7 @@ class TBOX : public TBOX_PAR
     bool _fStory;    // Is this a story text box.
     RC _rc;          // Size of text box.
 
-    TBOX(void) : TXRD()
+    TBOX(void) : RichTextDocument()
     {
     }
 

@@ -1731,7 +1731,7 @@ PHETD HETD::PhetdNew(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumb
 }
 
 /***************************************************************************
-    Read the given chunk into this TXRD.
+    Read the given chunk into this RichTextDocument.
 ***************************************************************************/
 bool HETD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
@@ -2493,7 +2493,7 @@ bool HETG::_FCopySel(PDocumentBase *ppdocb)
 
         phetd->SetInternal();
         phetd->SuspendUndo();
-        if (!phetd->FReplaceTxrd((PTXRD)_ptxtb, cpMin, cpLim - cpMin, 0, 0, fdocNil))
+        if (!phetd->FReplaceTxrd((PRichTextDocument)_ptxtb, cpMin, cpLim - cpMin, 0, 0, fdocNil))
         {
             ReleasePpo(&phetd);
         }

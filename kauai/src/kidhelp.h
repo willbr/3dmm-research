@@ -58,7 +58,7 @@ enum
 };
 
 typedef class TXHD *PTXHD;
-#define TXHD_PAR TXRD
+#define TXHD_PAR RichTextDocument
 #define kclsTXHD 'TXHD'
 class TXHD : public TXHD_PAR
 {

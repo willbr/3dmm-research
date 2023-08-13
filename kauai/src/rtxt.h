@@ -198,10 +198,10 @@ class PlainTextDocument : public PlainTextDocument_PAR
 const long kcpMaxTxrd = 0x00800000; // 8MB
 typedef class RTUN *PRTUN;
 
-typedef class TXRD *PTXRD;
-#define TXRD_PAR TextDocumentBase
-#define kclsTXRD 'TXRD'
-class TXRD : public TXRD_PAR
+typedef class RichTextDocument *PRichTextDocument;
+#define RichTextDocument_PAR TextDocumentBase
+#define kclsRichTextDocument 'TXRD'
+class RichTextDocument : public RichTextDocument_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -209,7 +209,7 @@ class TXRD : public TXRD_PAR
 
   protected:
     // WARNING: changing these values affects the file format
-    // NOTE: Originally, _FSprmInAg was a virtual TXRD method called to
+    // NOTE: Originally, _FSprmInAg was a virtual RichTextDocument method called to
     // determine if a sprm stored its value in the AG. This didn't work
     // well when a subclass had a sprm in an AG (it broke undo for that
     // sprm). To fix this I (shonk) made _FSprmInAg static and made it
@@ -294,8 +294,8 @@ class TXRD : public TXRD_PAR
     // current undo record
     PRTUN _prtun;
 
-    TXRD(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXRD(void);
+    RichTextDocument(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~RichTextDocument(void);
     bool _FInit(PFilename pfni = pvNil, ChunkTag ctg = kctgRichText);
     virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
@@ -327,7 +327,7 @@ class TXRD : public TXRD_PAR
     void _ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm);
     void _GetParaBounds(long *pcpMin, long *pccp, bool fExpand);
     void _AdjustMpe(long cp, long ccpIns, long ccpDel);
-    void _CopyProps(PTXRD ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim);
+    void _CopyProps(PRichTextDocument ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim);
 
     virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
     virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
@@ -338,8 +338,8 @@ class TXRD : public TXRD_PAR
     static bool _FSprmInAg(byte sprm);
 
   public:
-    static PTXRD PtxrdNew(PFilename pfni = pvNil);
-    static PTXRD PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
+    static PRichTextDocument PtxrdNew(PFilename pfni = pvNil);
+    static PRichTextDocument PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
@@ -364,7 +364,7 @@ class TXRD : public TXRD_PAR
                      ulong grfdoc = fdocUpdate);
     bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
                       ulong grfdoc = fdocUpdate);
-    bool FReplaceTxrd(PTXRD ptxrd, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
+    bool FReplaceTxrd(PRichTextDocument ptxrd, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
 
     bool FFetchObject(long cpMin, long *pcp, void **ppv = pvNil, long *pcb = pvNil);
     virtual bool FInsertObject(void *pv, long cb, long cp, long ccpDel, PCHP pchp = pvNil, ulong grfdoc = fdocUpdate);
@@ -397,12 +397,12 @@ class RTUN : public RTUN_PAR
 
   protected:
     long _cactCombine; // RTUNs with different values can't be combined
-    PTXRD _ptxrd;      // copy of replaced text
+    PRichTextDocument _ptxrd;      // copy of replaced text
     long _cpMin;       // where the text came from in the original RTXD
     long _ccpIns;      // how many characters the original text was replaced with
 
   public:
-    static PRTUN PrtunNew(long cactCombine, PTXRD ptxrd, long cp1, long cp2, long ccpIns);
+    static PRTUN PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns);
     ~RTUN(void);
 
     virtual bool FUndo(PDocumentBase pdocb);
@@ -575,7 +575,7 @@ class TXRG : public TXRG_PAR
     ASSERT
 
   protected:
-    TXRG(PTXRD ptxrd, PGCB pgcb);
+    TXRG(PRichTextDocument ptxrd, PGCB pgcb);
 
     CHP _chpIns;
     bool _fValidChp;
@@ -595,7 +595,7 @@ class TXRG : public TXRG_PAR
     void _EnsureChpIns(void);
 
   public:
-    static PTXRG PtxrgNew(PTXRD ptxrd, PGCB pgcb);
+    static PTXRG PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb);
 
     virtual void SetSel(long cpAnchor, long cpOther, long gin = kginDraw);
     virtual bool FReplace(achar *prgch, long cch, long cp1, long cp2);

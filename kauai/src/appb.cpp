@@ -1500,7 +1500,7 @@ bool APPB::FImportClip(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool
         if (pvNil == *ppdocb || !(*ppdocb)->FIs(kclsTextDocumentBase))
         {
             ReleasePpo(ppdocb);
-            if (pvNil == (*ppdocb = TXRD::PtxrdNew()))
+            if (pvNil == (*ppdocb = RichTextDocument::PtxrdNew()))
                 return fFalse;
         }
 

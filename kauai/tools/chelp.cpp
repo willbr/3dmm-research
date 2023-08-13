@@ -224,7 +224,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
         return;
 
     // for text windows, do offscreen updating
-    if (pgob->FIs(kclsDMD) && ((PDMD)pgob)->Pdocb()->FIs(kclsTXRD))
+    if (pgob->FIs(kclsDMD) && ((PDMD)pgob)->Pdocb()->FIs(kclsRichTextDocument))
         grfapp |= fappOffscreen;
 
     APP_PAR::UpdateHwnd(hwnd, prc, grfapp);
@@ -238,7 +238,7 @@ void APP::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT 
     AssertThis(0);
 
     // for text windows, do offscreen updating
-    if (pgob->FIs(kclsDMD) && ((PDMD)pgob)->Pdocb()->FIs(kclsTXRD))
+    if (pgob->FIs(kclsDMD) && ((PDMD)pgob)->Pdocb()->FIs(kclsRichTextDocument))
         grfapp |= fappOffscreen;
 
     APP_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
@@ -307,7 +307,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
     bool fRet;
     PDocumentBase pdocb;
     PHEDO phedo;
-    PTXRD ptxrd;
+    PRichTextDocument ptxrd;
 
     if (pvNil != pfni && pvNil != (pdocb = DocumentBase::PdocbFromFni(pfni)))
     {
@@ -319,7 +319,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
     switch (cid)
     {
     case cidOpenText:
-        if (pvNil == (ptxrd = TXRD::PtxrdNew(pvNil)))
+        if (pvNil == (ptxrd = RichTextDocument::PtxrdNew(pvNil)))
             return fFalse;
 
         fRet = fFalse;
@@ -345,7 +345,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
         break;
 
     case cidOpenRichText:
-        if (pvNil == (pdocb = TXRD::PtxrdNew(pfni)))
+        if (pvNil == (pdocb = RichTextDocument::PtxrdNew(pfni)))
             return fFalse;
         break;
 

@@ -15,7 +15,7 @@ ASSERTNAME
 
 RTCLASS(TextDocumentBase)
 RTCLASS(PlainTextDocument)
-RTCLASS(TXRD)
+RTCLASS(RichTextDocument)
 RTCLASS(TXTG)
 RTCLASS(TXLG)
 RTCLASS(TXRG)
@@ -992,14 +992,14 @@ bool PlainTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 /***************************************************************************
     Constructor for a rich text document.
 ***************************************************************************/
-TXRD::TXRD(PDocumentBase pdocb, ulong grfdoc) : TXRD_PAR(pdocb, grfdoc)
+RichTextDocument::RichTextDocument(PDocumentBase pdocb, ulong grfdoc) : RichTextDocument_PAR(pdocb, grfdoc)
 {
 }
 
 /***************************************************************************
     Destructor for a rich text document.
 ***************************************************************************/
-TXRD::~TXRD(void)
+RichTextDocument::~RichTextDocument(void)
 {
     ReleasePpo(&_pglmpe);
     ReleasePpo(&_pagcact);
@@ -1008,11 +1008,11 @@ TXRD::~TXRD(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXRD.
+    Assert the validity of a RichTextDocument.
 ***************************************************************************/
-void TXRD::AssertValid(ulong grfobj)
+void RichTextDocument::AssertValid(ulong grfobj)
 {
-    TXRD_PAR::AssertValid(grfobj);
+    RichTextDocument_PAR::AssertValid(grfobj);
     AssertPo(_pglmpe, 0);
     AssertNilOrPo(_pagcact, 0);
     AssertIn(_dypFontDef, 1, kswMax);
@@ -1030,17 +1030,17 @@ void TXRD::AssertValid(ulong grfobj)
             Assert(mpe.spcp < mpePrev.spcp, "non-increasing mpe's");
             mpePrev = mpe;
         }
-        // REVIEW shonk: TXRD::AssertValid: fill out
+        // REVIEW shonk: RichTextDocument::AssertValid: fill out
     }
 }
 
 /***************************************************************************
-    Mark memory for the TXRD.
+    Mark memory for the RichTextDocument.
 ***************************************************************************/
-void TXRD::MarkMem(void)
+void RichTextDocument::MarkMem(void)
 {
     AssertThis(fobjAssertFull);
-    TXRD_PAR::MarkMem();
+    RichTextDocument_PAR::MarkMem();
     MarkMemObj(_pglmpe);
     MarkMemObj(_pagcact);
 }
@@ -1049,12 +1049,12 @@ void TXRD::MarkMem(void)
 /***************************************************************************
     Static method to create or open a rich text document.
 ***************************************************************************/
-PTXRD TXRD::PtxrdNew(PFilename pfni)
+PRichTextDocument RichTextDocument::PtxrdNew(PFilename pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
-    PTXRD ptxrd;
+    PRichTextDocument ptxrd;
 
-    if (pvNil != (ptxrd = NewObj TXRD) && !ptxrd->_FInit(pfni))
+    if (pvNil != (ptxrd = NewObj RichTextDocument) && !ptxrd->_FInit(pfni))
         ReleasePpo(&ptxrd);
     return ptxrd;
 }
@@ -1062,7 +1062,7 @@ PTXRD TXRD::PtxrdNew(PFilename pfni)
 /***************************************************************************
     Initialize the rich text document.
 ***************************************************************************/
-bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
+bool RichTextDocument::_FInit(PFilename pfni, ChunkTag ctg)
 {
     AssertBaseThis(0);
     AssertNilOrPo(pfni, 0);
@@ -1088,7 +1088,7 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
         return fTrue;
     }
 
-    if (!TXRD_PAR::_FInit())
+    if (!RichTextDocument_PAR::_FInit())
         return fFalse;
     if (pvNil == (_pglmpe = GL::PglNew(size(MPE))))
         return fFalse;
@@ -1097,7 +1097,7 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
     _oskFont = koskCur;
     vntl.GetStn(_onnDef, &_stnFontDef);
 
-    // NOTE: don't use vpappb->DypTextDef() so all TXRD's will have the
+    // NOTE: don't use vpappb->DypTextDef() so all RichTextDocument's will have the
     // same _dypFontDef unless explicitly changed in code.
     _dypFontDef = 12;
 
@@ -1108,12 +1108,12 @@ bool TXRD::_FInit(PFilename pfni, ChunkTag ctg)
 /***************************************************************************
     Static method to read a rich text document from a chunk.
 ***************************************************************************/
-PTXRD TXRD::PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
+PRichTextDocument RichTextDocument::PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    PTXRD ptxrd;
+    PRichTextDocument ptxrd;
 
-    if (pvNil != (ptxrd = NewObj TXRD) && !ptxrd->_FReadChunk(pcfl, ctg, cno, fCopyText))
+    if (pvNil != (ptxrd = NewObj RichTextDocument) && !ptxrd->_FReadChunk(pcfl, ctg, cno, fCopyText))
     {
         PushErc(ercRtxdReadFailed);
         ReleasePpo(&ptxrd);
@@ -1122,9 +1122,9 @@ PTXRD TXRD::PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool
 }
 
 /***************************************************************************
-    Read the given chunk into this TXRD.
+    Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TXRD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
+bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
@@ -1136,7 +1136,7 @@ bool TXRD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCo
     RDOP rdop;
     short bo, osk;
 
-    if (!TXRD_PAR::_FInit())
+    if (!RichTextDocument_PAR::_FInit())
         return fFalse;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() < size(RDOP) ||
@@ -1228,7 +1228,7 @@ bool TXRD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCo
     Do any necessary munging of the AG entry on open. Return false if
     we don't recognize this argument type.
 ***************************************************************************/
-bool TXRD::_FOpenArg(long icact, byte sprm, short bo, short osk)
+bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
     AssertBaseThis(0);
     long onn, cb;
@@ -1270,7 +1270,7 @@ bool TXRD::_FOpenArg(long icact, byte sprm, short bo, short osk)
     Get the current Filename for the doc. Return false if the doc is not
     currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool TXRD::FGetFni(Filename *pfni)
+bool RichTextDocument::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -1285,7 +1285,7 @@ bool TXRD::FGetFni(Filename *pfni)
 /***************************************************************************
     Ask the user what file they want to save to.
 ***************************************************************************/
-bool TXRD::FGetFniSave(Filename *pfni)
+bool RichTextDocument::FGetFniSave(Filename *pfni)
 {
     // REVIEW shonk: what file type to use on Mac?
     AssertThis(0);
@@ -1302,7 +1302,7 @@ bool TXRD::FGetFniSave(Filename *pfni)
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
+bool RichTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
@@ -1353,7 +1353,7 @@ bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
     Save a rich text document to the given chunky file. Fill in *pcki with
     where we put the root chunk.
 ***************************************************************************/
-bool TXRD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
+bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pcfl, 0);
@@ -1423,9 +1423,9 @@ LFail:
 }
 
 /***************************************************************************
-    Create a new TXRG to display the TXRD.
+    Create a new TXRG to display the RichTextDocument.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject TXRD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject RichTextDocument::PddgNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
     return TXRG::PtxrgNew(this, pgcb);
@@ -1435,7 +1435,7 @@ PDocumentDisplayGraphicsObject TXRD::PddgNew(PGCB pgcb)
     Look for an MPE for the given spcp. Return false iff there isn't one.
     In either event, fill pimpe with where one would go if it did exist.
 ***************************************************************************/
-bool TXRD::_FFindMpe(ulong spcp, MPE *pmpe, long *pcpLim, long *pimpe)
+bool RichTextDocument::_FFindMpe(ulong spcp, MPE *pmpe, long *pcpLim, long *pimpe)
 {
     AssertThis(0);
     AssertNilOrVarMem(pmpe);
@@ -1499,7 +1499,7 @@ bool TXRD::_FFindMpe(ulong spcp, MPE *pmpe, long *pcpLim, long *pimpe)
 /***************************************************************************
     Fetch the impe'th property, returning all the relevant info about it.
 ***************************************************************************/
-bool TXRD::_FFetchProp(long impe, byte *psprm, long *plw, long *pcpMin, long *pcpLim)
+bool RichTextDocument::_FFetchProp(long impe, byte *psprm, long *plw, long *pcpMin, long *pcpLim)
 {
     MPE mpe;
 
@@ -1532,7 +1532,7 @@ bool TXRD::_FFetchProp(long impe, byte *psprm, long *plw, long *pcpMin, long *pc
     Adjust the MPE's after an edit. This may involve deleting some MPE's
     and/or updating the cp's.
 ***************************************************************************/
-void TXRD::_AdjustMpe(long cp, long ccpIns, long ccpDel)
+void RichTextDocument::_AdjustMpe(long cp, long ccpIns, long ccpDel)
 {
     AssertBaseThis(0);
     AssertIn(cp, 0, CpMac());
@@ -1649,7 +1649,7 @@ void TXRD::_AdjustMpe(long cp, long ccpIns, long ccpDel)
     already there, increment its reference count. Otherwise, set its
     reference count to 1.
 ***************************************************************************/
-bool TXRD::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
+bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
 {
     AssertIn(cb, 1, kcbMax);
     AssertPvCb(pv, cb);
@@ -1701,7 +1701,7 @@ bool TXRD::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
     Decrement the reference count on the given element of the AG and if
     the reference count becomes zero, delete the element.
 ***************************************************************************/
-void TXRD::_ReleaseInAg(long jv)
+void RichTextDocument::_ReleaseInAg(long jv)
 {
     long cact, cactT;
 
@@ -1725,7 +1725,7 @@ void TXRD::_ReleaseInAg(long jv)
 /***************************************************************************
     Increment the reference count on the given element of the AG.
 ***************************************************************************/
-void TXRD::_AddRefInAg(long jv)
+void RichTextDocument::_AddRefInAg(long jv)
 {
     long cact;
 
@@ -1745,11 +1745,11 @@ void TXRD::_AddRefInAg(long jv)
     Static method: return true iff the given sprm has its argument in
     the _pagcact.
 ***************************************************************************/
-bool TXRD::_FSprmInAg(byte sprm)
+bool RichTextDocument::_FSprmInAg(byte sprm)
 {
     if (sprm < sprmMinChpClient || FIn(sprm, sprmMinPap, sprmMinPapClient))
     {
-        // a base TXRD sprm
+        // a base RichTextDocument sprm
         return sprm == sprmFont;
     }
 
@@ -1762,7 +1762,7 @@ bool TXRD::_FSprmInAg(byte sprm)
     If the sprm allocates stuff in the ag, release it. The inverse operation
     of _AddRefSprmLw.
 ***************************************************************************/
-void TXRD::_ReleaseSprmLw(byte sprm, long lw)
+void RichTextDocument::_ReleaseSprmLw(byte sprm, long lw)
 {
     if (lw > 0 && _FSprmInAg(sprm))
         _ReleaseInAg(lw);
@@ -1772,7 +1772,7 @@ void TXRD::_ReleaseSprmLw(byte sprm, long lw)
     If the sprm allocates stuff in the ag, addref it. The inverse operation
     of _ReleaseSprmLw.
 ***************************************************************************/
-void TXRD::_AddRefSprmLw(byte sprm, long lw)
+void RichTextDocument::_AddRefSprmLw(byte sprm, long lw)
 {
     if (lw > 0 && _FSprmInAg(sprm))
         _AddRefInAg(lw);
@@ -1783,7 +1783,7 @@ void TXRD::_AddRefSprmLw(byte sprm, long lw)
     pchpDiff. If pchpDiff is nil, pchp is just described. If this
     succeeds, either _ApplyRgspvm or _ReleaseRgspvm should be called.
 ***************************************************************************/
-bool TXRD::_FGetRgspvmFromChp(PCHP pchp, PCHP pchpDiff, SPVM *prgspvm, long *pcspvm)
+bool RichTextDocument::_FGetRgspvmFromChp(PCHP pchp, PCHP pchpDiff, SPVM *prgspvm, long *pcspvm)
 {
     AssertVarMem(pchp);
     AssertNilOrVarMem(pchpDiff);
@@ -1819,7 +1819,7 @@ bool TXRD::_FGetRgspvmFromChp(PCHP pchp, PCHP pchpDiff, SPVM *prgspvm, long *pcs
     ppapDiff. If ppapDiff is nil, ppap is just described. If this
     succeeds, either _ApplyRgspvm or _ReleaseRgspvm should be called.
 ***************************************************************************/
-bool TXRD::_FGetRgspvmFromPap(PPAP ppap, PPAP ppapDiff, SPVM *prgspvm, long *pcspvm)
+bool RichTextDocument::_FGetRgspvmFromPap(PPAP ppap, PPAP ppapDiff, SPVM *prgspvm, long *pcspvm)
 {
     AssertVarMem(ppap);
     AssertNilOrVarMem(ppapDiff);
@@ -1853,7 +1853,7 @@ bool TXRD::_FGetRgspvmFromPap(PPAP ppap, PPAP ppapDiff, SPVM *prgspvm, long *pcs
 /***************************************************************************
     Release the SPVM's.
 ***************************************************************************/
-void TXRD::_ReleaseRgspvm(SPVM *prgspvm, long cspvm)
+void RichTextDocument::_ReleaseRgspvm(SPVM *prgspvm, long cspvm)
 {
     AssertIn(cspvm, 0, kcbMax);
     AssertPvCb(prgspvm, LwMul(size(SPVM), cspvm));
@@ -1869,7 +1869,7 @@ void TXRD::_ReleaseRgspvm(SPVM *prgspvm, long cspvm)
     The caller should have ensured that _pglmpe has room for 2 * cspvm
     additional entries.
 ***************************************************************************/
-void TXRD::_ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm)
+void RichTextDocument::_ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm)
 {
     AssertIn(cp, 0, CpMac());
     AssertIn(ccp, 1, CpMac() + 1 - cp);
@@ -1994,7 +1994,7 @@ void TXRD::_ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm)
     values of pchpOld and pchpNew differ for the given sprm. Returns
     tMaybe on error.
 ***************************************************************************/
-tribool TXRD::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, long *plw, long *plwMask)
+tribool RichTextDocument::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, long *plw, long *plwMask)
 {
     AssertIn(sprm, sprmMinChp, sprmLimChp);
     AssertVarMem(pchpNew);
@@ -2075,7 +2075,7 @@ tribool TXRD::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, long *plw, l
 /***************************************************************************
     Get the character properties for the given character.
 ***************************************************************************/
-void TXRD::FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
+void RichTextDocument::FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -2157,7 +2157,7 @@ LDone:
 /***************************************************************************
     Apply the given character properties to the given range of characters.
 ***************************************************************************/
-bool TXRD::FApplyChp(long cp, long ccp, PCHP pchp, PCHP pchpDiff, ulong grfdoc)
+bool RichTextDocument::FApplyChp(long cp, long ccp, PCHP pchp, PCHP pchpDiff, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cp, 0, CpMac() - 1);
@@ -2205,7 +2205,7 @@ bool TXRD::FApplyChp(long cp, long ccp, PCHP pchp, PCHP pchpDiff, ulong grfdoc)
     *pcpLim may decrease or at most increase past an end of
     paragraph marker and its associated line feed characters.
 ***************************************************************************/
-void TXRD::_GetParaBounds(long *pcpMin, long *pcpLim, bool fExpand)
+void RichTextDocument::_GetParaBounds(long *pcpMin, long *pcpLim, bool fExpand)
 {
     AssertVarMem(pcpMin);
     AssertVarMem(pcpLim);
@@ -2237,7 +2237,7 @@ void TXRD::_GetParaBounds(long *pcpMin, long *pcpLim, bool fExpand)
     values of pchpOld and pchpNew differ for the given sprm. Returns
     tMaybe on error.
 ***************************************************************************/
-tribool TXRD::_TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, long *plw, long *plwMask)
+tribool RichTextDocument::_TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, long *plw, long *plwMask)
 {
     AssertIn(sprm, sprmMinPap, sprmLimPap);
     AssertVarMem(ppapNew);
@@ -2294,7 +2294,7 @@ tribool TXRD::_TGetLwFromPap(byte sprm, PPAP ppapNew, PPAP ppapOld, long *plw, l
     Get the paragraph properties for the paragraph containing the given
     character.
 ***************************************************************************/
-void TXRD::FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
+void RichTextDocument::FetchPap(long cp, PPAP ppap, long *pcpMin, long *pcpLim)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -2358,7 +2358,7 @@ LDone:
     cp are set regardless of whether cp is at the beginning of the
     paragraph.
 ***************************************************************************/
-bool TXRD::FApplyPap(long cp, long ccp, PPAP ppap, PPAP ppapDiff, long *pcpMin, long *pcpLim, bool fExpand,
+bool RichTextDocument::FApplyPap(long cp, long ccp, PPAP ppap, PPAP ppapDiff, long *pcpMin, long *pcpLim, bool fExpand,
                      ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
@@ -2419,7 +2419,7 @@ bool TXRD::FApplyPap(long cp, long ccp, PPAP ppap, PPAP ppapDiff, long *pcpMin, 
     Set up undo for an action. If this succeeds, you must call either
     CancelUndo or CommitUndo.
 ***************************************************************************/
-bool TXRD::FSetUndo(long cp1, long cp2, long ccpIns)
+bool RichTextDocument::FSetUndo(long cp1, long cp2, long ccpIns)
 {
     if (_cactSuspendUndo++ > 0 || _cundbMax == 0)
         return fTrue;
@@ -2439,7 +2439,7 @@ bool TXRD::FSetUndo(long cp1, long cp2, long ccpIns)
 /***************************************************************************
     Cancel undo.
 ***************************************************************************/
-void TXRD::CancelUndo(void)
+void RichTextDocument::CancelUndo(void)
 {
     ResumeUndo();
     if (_cactSuspendUndo == 0)
@@ -2449,7 +2449,7 @@ void TXRD::CancelUndo(void)
 /***************************************************************************
     Commit the setup undo.
 ***************************************************************************/
-void TXRD::CommitUndo(void)
+void RichTextDocument::CommitUndo(void)
 {
     PRTUN prtunPrev;
 
@@ -2478,7 +2478,7 @@ LDone:
     Replace cp to cp + ccpDel with ccpIns characters from prgch. If ccpIns
     is zero, prgch can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc)
+bool RichTextDocument::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ccpIns, 0, kcbMax);
@@ -2495,7 +2495,7 @@ bool TXRD::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong gr
     if (!FSetUndo(cp, cp + ccpDel, ccpIns))
         return fFalse;
 
-    if (!TXRD_PAR::FReplaceRgch(prgch, ccpIns, cp, ccpDel, fdocNil))
+    if (!RichTextDocument_PAR::FReplaceRgch(prgch, ccpIns, cp, ccpDel, fdocNil))
     {
         CancelUndo();
         return fFalse;
@@ -2512,7 +2512,7 @@ bool TXRD::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong gr
     the given chp and pap. If ccpIns is zero, prgch can be nil. pchp
     and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, PCHP pchp, PPAP ppap, ulong grfdoc)
+bool RichTextDocument::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, PCHP pchp, PPAP ppap, ulong grfdoc)
 {
     AssertThis(0);
     AssertIn(ccpIns, 0, kcbMax);
@@ -2530,7 +2530,7 @@ bool TXRD::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, PCHP pch
     using the given chp and pap. If ccpIns is zero, prgch can be nil. pchp
     and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PBSF pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
+bool RichTextDocument::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PBSF pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
                          PCHP pchp, PPAP ppap, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
@@ -2627,7 +2627,7 @@ bool TXRD::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PBSF pbsf, long cpS
 /***************************************************************************
     Replace cp to cp + ccpDel with the characters in the given FLO.
 ***************************************************************************/
-bool TXRD::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
+bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pflo, 0);
@@ -2650,7 +2650,7 @@ bool TXRD::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, u
     if (!FSetUndo(cp, cp + ccpDel, ccpIns))
         goto LFail;
 
-    if (!TXRD_PAR::FReplaceFlo(&flo, fCopy, cp, ccpDel, koskCur, fdocNil))
+    if (!RichTextDocument_PAR::FReplaceFlo(&flo, fCopy, cp, ccpDel, koskCur, fdocNil))
     {
         CancelUndo();
     LFail:
@@ -2670,7 +2670,7 @@ bool TXRD::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, u
     Replace cp to cp + ccpDel with the characters in the given FLO, using
     the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap, short osk, ulong grfdoc)
+bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap, short osk, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -2692,7 +2692,7 @@ bool TXRD::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, P
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc.
 ***************************************************************************/
-bool TXRD::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool RichTextDocument::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pbsfSrc, 0);
@@ -2710,7 +2710,7 @@ bool TXRD::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long c
     if (!FSetUndo(cpDst, cpDst + ccpDel, ccpSrc))
         return fFalse;
 
-    if (!TXRD_PAR::FReplaceBsf(pbsfSrc, cpSrc, ccpSrc, cpDst, ccpDel, fdocNil))
+    if (!RichTextDocument_PAR::FReplaceBsf(pbsfSrc, cpSrc, ccpSrc, cpDst, ccpDel, fdocNil))
     {
         CancelUndo();
         return fFalse;
@@ -2727,7 +2727,7 @@ bool TXRD::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long c
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
+bool RichTextDocument::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
                        ulong grfdoc)
 {
     AssertThis(0);
@@ -2746,7 +2746,7 @@ bool TXRD::FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long c
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool RichTextDocument::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(ptxtbSrc, 0);
@@ -2755,17 +2755,17 @@ bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, lon
     AssertIn(cpDst, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cpDst);
 
-    // NOTE: this cast to PTXRD is just a rude hack to get around
-    // an oddity of C++. TXRD cannot access _pbsf in a TextDocumentBase, only in a TXRD.
-    // ptxtbSrc is probably not a TXRD, but the cast still works.
-    return FReplaceBsf(((PTXRD)ptxtbSrc)->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, grfdoc);
+    // NOTE: this cast to PRichTextDocument is just a rude hack to get around
+    // an oddity of C++. RichTextDocument cannot access _pbsf in a TextDocumentBase, only in a RichTextDocument.
+    // ptxtbSrc is probably not a RichTextDocument, but the cast still works.
+    return FReplaceBsf(((PRichTextDocument)ptxtbSrc)->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, grfdoc);
 }
 
 /***************************************************************************
     Replace cp to cpDst + ccpDel with ccpSrc characters from pbsfSrc starting
     at cpSrc, using the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
+bool RichTextDocument::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap,
                         ulong grfdoc)
 {
     AssertThis(0);
@@ -2777,10 +2777,10 @@ bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, lon
     AssertNilOrVarMem(pchp);
     AssertNilOrVarMem(ppap);
 
-    // NOTE: this cast to PTXRD is just a rude hack to get around
-    // an oddity of C++. TXRD cannot access _pbsf in a TextDocumentBase, only in a TXRD.
-    // ptxtbSrc is probably not a TXRD, but the cast still works.
-    return _FReplaceCore(pvNil, pvNil, fFalse, ((PTXRD)ptxtbSrc)->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, pchp, ppap,
+    // NOTE: this cast to PRichTextDocument is just a rude hack to get around
+    // an oddity of C++. RichTextDocument cannot access _pbsf in a TextDocumentBase, only in a RichTextDocument.
+    // ptxtbSrc is probably not a RichTextDocument, but the cast still works.
+    return _FReplaceCore(pvNil, pvNil, fFalse, ((PRichTextDocument)ptxtbSrc)->_pbsf, cpSrc, ccpSrc, cpDst, ccpDel, pchp, ppap,
                          grfdoc);
 }
 
@@ -2789,7 +2789,7 @@ bool TXRD::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, lon
     REVIEW shonk: this doesn't preserve font size if the two docs have
     different default font sizes!
 ***************************************************************************/
-bool TXRD::FReplaceTxrd(PTXRD ptxrd, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
+bool RichTextDocument::FReplaceTxrd(PRichTextDocument ptxrd, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(ptxrd, 0);
@@ -2890,10 +2890,10 @@ bool TXRD::FReplaceTxrd(PTXRD ptxrd, long cpSrc, long ccpSrc, long cpDst, long c
 }
 
 /***************************************************************************
-    Copy properties from a TXRD to this one. Properties from sprmMin to
+    Copy properties from a RichTextDocument to this one. Properties from sprmMin to
     sprmLim are copied.
 ***************************************************************************/
-void TXRD::_CopyProps(PTXRD ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim)
+void RichTextDocument::_CopyProps(PRichTextDocument ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim)
 {
     AssertThis(0);
     AssertPo(ptxrd, 0);
@@ -2982,7 +2982,7 @@ void TXRD::_CopyProps(PTXRD ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccp
     not nil). If an object was found, but the buffer couldn't be allocated,
     *ppv is set to nil.
 ***************************************************************************/
-bool TXRD::FFetchObject(long cpMin, long *pcp, void **ppv, long *pcb)
+bool RichTextDocument::FFetchObject(long cpMin, long *pcp, void **ppv, long *pcb)
 {
     AssertThis(0);
     AssertIn(cpMin, 0, CpMac());
@@ -3026,7 +3026,7 @@ bool TXRD::FFetchObject(long cpMin, long *pcp, void **ppv, long *pcb)
 /***************************************************************************
     Insert a picture into the rich text document.
 ***************************************************************************/
-bool TXRD::FInsertObject(void *pv, long cb, long cp, long ccpDel, PCHP pchp, ulong grfdoc)
+bool RichTextDocument::FInsertObject(void *pv, long cb, long cp, long ccpDel, PCHP pchp, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPvCb(pv, cb);
@@ -3082,7 +3082,7 @@ bool TXRD::FInsertObject(void *pv, long cb, long cp, long ccpDel, PCHP pchp, ulo
 /***************************************************************************
     Insert a picture into the rich text document.
 ***************************************************************************/
-bool TXRD::FApplyObjectProps(void *pv, long cb, long cp, ulong grfdoc)
+bool RichTextDocument::FApplyObjectProps(void *pv, long cb, long cp, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPvCb(pv, cb);
@@ -3121,7 +3121,7 @@ bool TXRD::FApplyObjectProps(void *pv, long cb, long cp, ulong grfdoc)
 /***************************************************************************
     Get the bounds of an object.
 ***************************************************************************/
-bool TXRD::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
+bool RichTextDocument::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -3140,7 +3140,7 @@ bool TXRD::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
 /***************************************************************************
     Get the object bounds from the AG entry.
 ***************************************************************************/
-bool TXRD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
+bool RichTextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);
@@ -3148,7 +3148,7 @@ bool TXRD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
     AssertVarMem(pchp);
     AssertVarMem(prc);
 
-    // TXRD has no acceptable object types
+    // RichTextDocument has no acceptable object types
     TrashVar(prc);
     return fFalse;
 }
@@ -3156,7 +3156,7 @@ bool TXRD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
 /***************************************************************************
     Draw an object.
 ***************************************************************************/
-bool TXRD::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool RichTextDocument::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -3176,7 +3176,7 @@ bool TXRD::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *pr
 /***************************************************************************
     Draw the object.
 ***************************************************************************/
-bool TXRD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool RichTextDocument::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);
@@ -3185,14 +3185,14 @@ bool TXRD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
     AssertVarMem(pchp);
     AssertVarMem(prcClip);
 
-    // TXRD has no acceptable object types
+    // RichTextDocument has no acceptable object types
     return fFalse;
 }
 
 /***************************************************************************
     Create a new rich text undo object for the given rich text document.
 ***************************************************************************/
-PRTUN RTUN::PrtunNew(long cactCombine, PTXRD ptxrd, long cp1, long cp2, long ccpIns)
+PRTUN RTUN::PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns)
 {
     AssertPo(ptxrd, 0);
     AssertIn(cp1, 0, ptxrd->CpMac() + 1);
@@ -3211,7 +3211,7 @@ PRTUN RTUN::PrtunNew(long cactCombine, PTXRD ptxrd, long cp1, long cp2, long ccp
     if (cp1 < cp2)
     {
         // copy the piece of the txrd.
-        if (pvNil == (prtun->_ptxrd = TXRD::PtxrdNew(pvNil)))
+        if (pvNil == (prtun->_ptxrd = RichTextDocument::PtxrdNew(pvNil)))
             goto LFail;
         prtun->_ptxrd->SetInternal();
         prtun->_ptxrd->SuspendUndo();
@@ -3241,13 +3241,13 @@ bool RTUN::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
-    PTXRD ptxrd;
+    PRichTextDocument ptxrd;
     long ccpIns;
-    PTXRD ptxrdNew = pvNil;
+    PRichTextDocument ptxrdNew = pvNil;
 
-    if (!pdocb->FIs(kclsTXRD))
+    if (!pdocb->FIs(kclsRichTextDocument))
         goto LAssert;
-    ptxrd = (PTXRD)pdocb;
+    ptxrd = (PRichTextDocument)pdocb;
     AssertPo(ptxrd, 0);
 
     if (!FIn(_cpMin, 0, ptxrd->CpMac()) || !FIn(_ccpIns, 0, ptxrd->CpMac() + 1 - _cpMin))
@@ -3260,7 +3260,7 @@ bool RTUN::FUndo(PDocumentBase pdocb)
     if (_ccpIns > 0)
     {
         // copy the piece of the txrd.
-        if (pvNil == (ptxrdNew = TXRD::PtxrdNew(pvNil)))
+        if (pvNil == (ptxrdNew = RichTextDocument::PtxrdNew(pvNil)))
             return fFalse;
         ptxrdNew->SetInternal();
         ptxrdNew->SuspendUndo();
