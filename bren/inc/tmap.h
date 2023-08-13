@@ -1,6 +1,6 @@
 /*************************************************************************
 
-    Texture map (TMAP)
+    Texture map (TextureMap)
 
     This manages I/O and caching for BPMPs
 
@@ -44,12 +44,12 @@ const ByteOrderMask kbomTxxff = 0x5FFF0000;
 //   is the shade table a global animal?  Right now it's global.
 
 /****************************************
-    The TMAP class
+    The TextureMap class
 ****************************************/
-typedef class TMAP *PTMAP;
-#define TMAP_PAR BaseCacheableObject
-#define kclsTMAP 'TMAP'
-class TMAP : public TMAP_PAR
+typedef class TextureMap *PTextureMap;
+#define TextureMap_PAR BaseCacheableObject
+#define kclsTextureMap 'TMAP'
+class TextureMap : public TextureMap_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -59,14 +59,14 @@ class TMAP : public TMAP_PAR
     bool _fImported; // if fTrue, BRender allocated the pixels
                      // if fFalse, we allocated the pixels
   protected:
-    TMAP(void)
+    TextureMap(void)
     {
     } // can't instantiate directly; must use PtmapRead
 #ifdef NOT_YET_REVIEWED
-    void TMAP::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrHi);
+    void TextureMap::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrHi);
 #endif // NOT_YET_REVIEWED
   public:
-    ~TMAP(void);
+    ~TextureMap(void);
 
     //  REVIEW *****(peted): MBMP's ...Read function just takes a PDataBlock; this
     //  is more like the FRead... function, just without the BaseCacheableObject stuff.  Why
@@ -75,29 +75,29 @@ class TMAP : public TMAP_PAR
     //	take just a PDataBlock.  Should this be necessary for PtmapRead in the future,
     //	it's a simple matter of extracting the code in PtmapRead that is needed,
     //	like I did for FWrite.
-    static PTMAP PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    static PTextureMap PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
-    //	a chunky resource reader for a TMAP
+    //	a chunky resource reader for a TextureMap
     static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
-    //	Given a BPMP (a Brender br_pixelmap), create a TMAP
-    static PTMAP PtmapNewFromBpmp(BPMP *pbpmp);
+    //	Given a BPMP (a Brender br_pixelmap), create a TextureMap
+    static PTextureMap PtmapNewFromBpmp(BPMP *pbpmp);
 
-    //	Give back the bpmp for this TMAP
+    //	Give back the bpmp for this TextureMap
     BPMP *Pbpmp(void)
     {
         return &_bpmp;
     }
 
     //	Reads a .bmp file.
-    static PTMAP PtmapReadNative(Filename *pfni, PGL pglclr = pvNil);
+    static PTextureMap PtmapReadNative(Filename *pfni, PGL pglclr = pvNil);
 
-    // Writes a standalone TMAP-chunk file (not a .chk)
+    // Writes a standalone TextureMap-chunk file (not a .chk)
     bool FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr = pvNil);
 
-    // Creates a TMAP from the width, height, and an array of bytes
-    static PTMAP PtmapNew(byte *prgbPixels, long dxWidth, long dxHeight);
+    // Creates a TextureMap from the width, height, and an array of bytes
+    static PTextureMap PtmapNew(byte *prgbPixels, long dxWidth, long dxHeight);
 
     // Some useful file methods
     long CbOnFile(void)

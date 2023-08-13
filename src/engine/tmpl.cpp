@@ -22,7 +22,7 @@
      |   |
      |   +--MTRL*
      |       |
-     |       +--TMAP
+     |       +--TextureMap
      |
      +--MODL* - models used in this template
      |

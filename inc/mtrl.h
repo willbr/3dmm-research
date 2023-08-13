@@ -58,7 +58,7 @@ class MTRL : public MTRL_PAR
     MARKMEM
 
   protected:
-    static PTMAP _ptmapShadeTable; // shade table for all MTRLs
+    static PTextureMap _ptmapShadeTable; // shade table for all MTRLs
     PBMTL _pbmtl;
 
   protected:
@@ -76,7 +76,7 @@ class MTRL : public MTRL_PAR
     static PMTRL PmtrlNewFromBmp(PFilename pfni, PGL pglclr = pvNil);
     static PMTRL PmtrlFromBmtl(PBMTL pbmtl);
     ~MTRL(void);
-    PTMAP Ptmap(void);
+    PTextureMap Ptmap(void);
     PBMTL Pbmtl(void)
     {
         return _pbmtl;

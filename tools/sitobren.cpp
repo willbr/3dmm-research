@@ -2536,9 +2536,9 @@ LNotexture:
     _FTmapFromBmp
         Given a texture name, adds the texture to the MTRL with the given ChunkNumber.
         If this texture has never been seen before, the .bmp file is converted
-        to an appropriate TMAP chunk file.  The reference to the parent MTRL's
+        to an appropriate TextureMap chunk file.  The reference to the parent MTRL's
         ChunkNumber is added to our list of generated TMAPs for use later in actually
-        dumping out the TMAP chunk definition.
+        dumping out the TextureMap chunk definition.
 
     Arguments:
         PSTN pstnBmpFile  -- the name of the texture
@@ -2556,7 +2556,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
     bool fRet = fFalse;
     long itmapd, itmapdMac;
     Filename fni;
-    PTMAP ptmap = pvNil;
+    PTextureMap ptmap = pvNil;
     TMAPD tmapd;
     PSTN pstnBmpFile = pbmhr->pstnMtrlFile;
 
@@ -2578,7 +2578,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
         if (!fni.FSetLeaf(&_stnT, kftgBmp))
             goto LFail;
 
-        ptmap = TMAP::PtmapReadNative(&fni);
+        ptmap = TextureMap::PtmapReadNative(&fni);
         if (ptmap == pvNil)
             goto LFail;
 
@@ -2655,12 +2655,12 @@ LFail:
 
 /******************************************************************************
     _FFlushTmaps
-        Actually writes out the TMAP definitions to the chunk source file.
-        Each unique TMAP chunk is added once, with each MTRL that refers to
-        it being included as a parent of the TMAP chunk.
+        Actually writes out the TextureMap definitions to the chunk source file.
+        Each unique TextureMap chunk is added once, with each MTRL that refers to
+        it being included as a parent of the TextureMap chunk.
 
-    Returns: fTrue if all of the TMAP declarations could be generated; in
-        theory, since we would have failed to even add a given TMAP to the list
+    Returns: fTrue if all of the TextureMap declarations could be generated; in
+        theory, since we would have failed to even add a given TextureMap to the list
         of TMAPs if we couldn't successfully generate the complete filename
         *and* failing to generate the complete filename is the only way for
         this routine to fail, this routine should never fail.
@@ -2867,7 +2867,7 @@ void S2B::_CopyFaces(DK_Polygon *polygons, void *pvDst, long cFaces, BRV rgbrv[]
         long ibp     -- the actual body part number for this body part
 
     Returns:  fTrue if the body part could be added, and its basic costume
-        information could be written out; failing to add the TMAP information
+        information could be written out; failing to add the TextureMap information
         simply generates a warning without causing this routine to return a
         failure.
 

@@ -25,7 +25,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fniSrc, fniDst;
     STN stn;
     char chs;
-    PTMAP ptmap = pvNil;
+    PTextureMap ptmap = pvNil;
     long cfni = 0;
     bool fCompress = fFalse;
     MSSIO mssioErr(stderr);
@@ -78,7 +78,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    ptmap = TMAP::PtmapReadNative(&fniSrc);
+    ptmap = TextureMap::PtmapReadNative(&fniSrc);
     if (pvNil == ptmap)
     {
         fprintf(stderr, "reading texture map failed\n\n");

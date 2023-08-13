@@ -9,19 +9,19 @@ ASSERTNAME
 
 namespace BRender {
 
-RTCLASS(TMAP)
+RTCLASS(TextureMap)
 
 /***************************************************************************
-    A PFNRPO to read TMAP objects.
+    A PFNRPO to read TextureMap objects.
 ***************************************************************************/
-bool TMAP::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    PTMAP ptmap;
+    PTextureMap ptmap;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)
@@ -39,15 +39,15 @@ bool TMAP::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 }
 
 /***************************************************************************
-    Read a TMAP from a chunk
+    Read a TextureMap from a chunk
 ***************************************************************************/
-PTMAP TMAP::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     TMAPF tmapf;
     DataBlock blck;
-    TMAP *ptmap;
+    TextureMap *ptmap;
 
-    ptmap = NewObj TMAP;
+    ptmap = NewObj TextureMap;
     if (pvNil == ptmap)
         goto LFail;
 
@@ -60,7 +60,7 @@ PTMAP TMAP::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
         SwapBytesBom(&tmapf, kbomTmapf);
     Assert(kboCur == tmapf.bo, "bad TMAPF");
 
-    ptmap->_bpmp.identifier = (char *)ptmap; // to get TMAP from a (BPMP *)
+    ptmap->_bpmp.identifier = (char *)ptmap; // to get TextureMap from a (BPMP *)
     if (!FAllocPv((void **)&ptmap->_bpmp.pixels, LwMul(tmapf.cbRow, tmapf.dyp), fmemClear, mprNormal))
     {
         goto LFail;
@@ -87,13 +87,13 @@ LFail:
 }
 
 /***************************************************************************
-    Create a TMAP from a BRender BPMP...used only for importing PIX's
+    Create a TextureMap from a BRender BPMP...used only for importing PIX's
 ***************************************************************************/
-PTMAP TMAP::PtmapNewFromBpmp(BPMP *pbpmp)
+PTextureMap TextureMap::PtmapNewFromBpmp(BPMP *pbpmp)
 {
-    PTMAP ptmap;
+    PTextureMap ptmap;
 
-    ptmap = NewObj TMAP;
+    ptmap = NewObj TextureMap;
     if (pvNil == ptmap)
         return pvNil;
     ptmap->_bpmp = *pbpmp;
@@ -106,7 +106,7 @@ PTMAP TMAP::PtmapNewFromBpmp(BPMP *pbpmp)
 /***************************************************************************
     destructor
 ***************************************************************************/
-TMAP::~TMAP(void)
+TextureMap::~TextureMap(void)
 {
     if (_fImported)
     {
@@ -118,9 +118,9 @@ TMAP::~TMAP(void)
 }
 
 /***************************************************************************
-    Write a TMAP to a chunk
+    Write a TextureMap to a chunk
 ***************************************************************************/
-bool TMAP::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     DataBlock blck;
@@ -134,9 +134,9 @@ bool TMAP::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 }
 
 /***************************************************************************
-    Write a TMAP to the given FLO
+    Write a TextureMap to the given FLO
 ***************************************************************************/
-bool TMAP::FWrite(PDataBlock pblck)
+bool TextureMap::FWrite(PDataBlock pblck)
 {
     TMAPF tmapf;
 
@@ -167,19 +167,19 @@ bool TMAP::FWrite(PDataBlock pblck)
      ((bBlue1) - (bBlue2)) * ((bBlue1) - (bBlue2)))
 
 /*
- *	PtmapReadNative	--	Creates a TMAP object, reading the data from a .BMP file
+ *	PtmapReadNative	--	Creates a TextureMap object, reading the data from a .BMP file
  *
  *	input:
  *			pfni	--	the Filename to read the data from
  *			pglclr	--	the colors to map to.
  *
  *	output:
- *			returns the pointer to the new TMAP
+ *			returns the pointer to the new TextureMap
  */
-PTMAP TMAP::PtmapReadNative(Filename *pfni, PGL pglclr)
+PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PGL pglclr)
 {
     byte *prgb = pvNil;
-    PTMAP ptmap = pvNil;
+    PTextureMap ptmap = pvNil;
     long dxp, dyp;
     bool fUpsideDown;
     long iclrBest, igl;
@@ -266,7 +266,7 @@ PTMAP TMAP::PtmapReadNative(Filename *pfni, PGL pglclr)
 
         ReleasePpo(&pglclrSrc);
 
-        ptmap = TMAP::PtmapNew(prgb, dxp, dyp);
+        ptmap = TextureMap::PtmapNew(prgb, dxp, dyp);
     }
 
     return ptmap;
@@ -274,7 +274,7 @@ PTMAP TMAP::PtmapReadNative(Filename *pfni, PGL pglclr)
 #endif // WIN
 
 #ifdef MAC
-PTMAP TMAP::PtmapReadNative(Filename *pfni)
+PTextureMap TextureMap::PtmapReadNative(Filename *pfni)
 {
     RawRtn(); // REVIEW peted: NYI
     return pvNil;
@@ -282,24 +282,24 @@ PTMAP TMAP::PtmapReadNative(Filename *pfni)
 #endif // MAC
 
 /*
- *	PtmapNew	--	Given pixel data and attributes, creates a new TMAP with
+ *	PtmapNew	--	Given pixel data and attributes, creates a new TextureMap with
  *		the given information.
  *
  *	input:
- *			prgbPixels	--	the actual pixels for the TMAP
+ *			prgbPixels	--	the actual pixels for the TextureMap
  *			pbmh		--	The bitmap header from the .BMP file
  *
  *	output:
- *			returns the pointer to the new TMAP
+ *			returns the pointer to the new TextureMap
  */
-PTMAP TMAP::PtmapNew(byte *prgbPixels, long dxp, long dyp)
+PTextureMap TextureMap::PtmapNew(byte *prgbPixels, long dxp, long dyp)
 {
-    PTMAP ptmap;
+    PTextureMap ptmap;
 
     Assert(dxp <= ksuMax, "bitmap too wide");
     Assert(dyp <= ksuMax, "bitmap too high");
 
-    if ((ptmap = NewObj TMAP) != pvNil)
+    if ((ptmap = NewObj TextureMap) != pvNil)
     {
         ptmap->_fImported = fFalse;
         ptmap->_bpmp.identifier = (char *)ptmap;
@@ -319,7 +319,7 @@ PTMAP TMAP::PtmapNew(byte *prgbPixels, long dxp, long dyp)
 
 /******************************************************************************
     FWriteTmapChkFile
-        Writes a stand-alone file with a TMAP chunk in it.  The file can
+        Writes a stand-alone file with a TextureMap chunk in it.  The file can
         be later read in by the Compiler class with the FILE command.
 
     Arguments:
@@ -330,7 +330,7 @@ PTMAP TMAP::PtmapNew(byte *prgbPixels, long dxp, long dyp)
     Returns: fTrue if the file was written successfully
 
 ************************************************************ PETED ***********/
-bool TMAP::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr)
+bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr)
 {
     AssertThis(0);
     AssertPo(pfniDst, ffniFile);
@@ -392,7 +392,7 @@ LFail:
 }
 
 #ifdef NOT_YET_REVIEWED
-byte *TMAP::PrgbBuildInverseTable(void)
+byte *TextureMap::PrgbBuildInverseTable(void)
 {
     byte *prgb, *prgbT, iclr;
     long cbRgb;
@@ -410,7 +410,7 @@ byte *TMAP::PrgbBuildInverseTable(void)
     return prgb;
 }
 
-void TMAP::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrHi)
+void TextureMap::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrHi)
 {
     long cbRgb1 = 0, cbRgb2 = 0;
     byte *prgb2, *prgbRead, bT;
@@ -444,22 +444,22 @@ void TMAP::_SortInverseTable(byte *prgb, long cbRgb, BRCLR brclrLo, BRCLR brclrH
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TMAP.
+    Assert the validity of the TextureMap.
 ***************************************************************************/
-void TMAP::AssertValid(ulong grf)
+void TextureMap::AssertValid(ulong grf)
 {
-    TMAP_PAR::AssertValid(fobjAllocated);
+    TextureMap_PAR::AssertValid(fobjAllocated);
     if (!_fImported)
         AssertPvCb(_bpmp.pixels, LwMul(_bpmp.row_bytes, _bpmp.height));
 }
 
 /***************************************************************************
-    Mark memory used by the TMAP.
+    Mark memory used by the TextureMap.
 ***************************************************************************/
-void TMAP::MarkMem(void)
+void TextureMap::MarkMem(void)
 {
     AssertThis(0);
-    TMAP_PAR::MarkMem();
+    TextureMap_PAR::MarkMem();
     if (!_fImported)
         MarkPv(_bpmp.pixels);
 }

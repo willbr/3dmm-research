@@ -81,10 +81,10 @@ typedef struct _cmtld
     ChildChunkID chid;    // the ChildChunkID of this CMTL
 } CMTLD, *PCMTLD;
 
-/* A TMAP descriptor */
+/* A TextureMap descriptor */
 typedef struct _tmapd
 {
-    PSTN pstn;    // the name of the TMAP
+    PSTN pstn;    // the name of the TextureMap
     long ccnoPar; // the number of MTRL parents
     long xp;      // the size of the bitmap
     long yp;
@@ -299,7 +299,7 @@ class S2B : public S2B_PAR
     PGL _pglxf;
     PGL _pglibps; // list of body part sets to generate costumes for
     PGG _pggcm;
-    PGG _pggtmapd; // list of TMAP chunks used by the current actor
+    PGG _pggtmapd; // list of TextureMap chunks used by the current actor
 #if HASH_FIXED
     PBMDB *_prgpbmdb; // BMDL database
 //	PBMATDB *_prgpbmatdb;	// BMAT34 database
