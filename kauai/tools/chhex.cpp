@@ -39,7 +39,7 @@ class DHEX : public DHEX_PAR
         return &_bsf;
     }
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 };
 
 RTCLASS(DCH)
@@ -63,7 +63,7 @@ PDHEX DHEX::PdhexNew(void)
 /***************************************************************************
     Create a new DCH displaying this stream.
 ***************************************************************************/
-PDDG DHEX::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DHEX::PddgNew(PGCB pgcb)
 {
     return DCH::PdchNew(this, &_bsf, fFalse, pgcb);
 }
@@ -129,7 +129,7 @@ void DCH::_Activate(bool fActive)
     AssertThis(0);
     RC rc;
 
-    DDG::_Activate(fActive);
+    DocumentDisplayGraphicsObject::_Activate(fActive);
     GetRc(&rc, cooLocal);
     rc.ypBottom = _dypHeader;
     InvalRc(&rc);
@@ -471,7 +471,7 @@ void DCH::_InvalAllDch(long ib, long cbIns, long cbDel)
 {
     AssertThis(0);
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     // mark the document dirty
     _pdocb->SetDirty();
@@ -1169,9 +1169,9 @@ bool DOCH::_FRead(PDataBlock pblck)
 }
 
 /***************************************************************************
-    Create a new DDG for the doc.
+    Create a new DocumentDisplayGraphicsObject for the doc.
 ***************************************************************************/
-PDDG DOCH::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCH::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     return DCH::PdchNew(this, &_bsf, fFalse, pgcb);

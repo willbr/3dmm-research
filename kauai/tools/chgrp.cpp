@@ -14,7 +14,7 @@ ASSERTNAME
 
 bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv);
 
-BEGIN_CMD_MAP(DCGB, DDG)
+BEGIN_CMD_MAP(DCGB, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidEditNatural, &DCGB::FCmdEditItem, &DCGB::FEnableDcgbCmd)
 ON_CID_GEN(cidEditHex, &DCGB::FCmdEditItem, &DCGB::FEnableDcgbCmd)
 ON_CID_GEN(cidInsertItem, &DCGB::FCmdAddItem, &DCGB::FEnableDcgbCmd)
@@ -230,12 +230,12 @@ bool DOCG::_FRead(PDataBlock pblck)
 }
 
 /***************************************************************************
-    Create a new DDG onto the document.
+    Create a new DocumentDisplayGraphicsObject onto the document.
 ***************************************************************************/
-PDDG DOCG::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     pddg = pvNil;
     switch (_cls)
@@ -352,7 +352,7 @@ DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) 
 void DCGB::InvalAllDcgb(PDocumentBase pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel)
 {
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     PDCGB pdcgb;
 
     // mark the document dirty
@@ -417,7 +417,7 @@ void DCGB::_InvalIv(long iv, long cvIns, long cvDel)
 void DCGB::_Activate(bool fActive)
 {
     AssertThis(0);
-    DDG::_Activate(fActive);
+    DocumentDisplayGraphicsObject::_Activate(fActive);
 
     GNV gnv(this);
     _DrawSel(&gnv);
@@ -1351,9 +1351,9 @@ bool DOCI::_FInit(void)
 }
 
 /***************************************************************************
-    Create a new DDG for this doc.
+    Create a new DocumentDisplayGraphicsObject for this doc.
 ***************************************************************************/
-PDDG DOCI::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCI::PddgNew(PGCB pgcb)
 {
     return DCH::PdchNew(this, &_bsf, _fFixed, pgcb);
 }

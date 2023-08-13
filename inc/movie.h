@@ -9,7 +9,7 @@
 
         A single view on a movie (MovieView)
 
-                DDG  	--->	MovieView
+                DocumentDisplayGraphicsObject  	--->	MovieView
 
         Callbacks to client (MovieClientCallbacks)
 
@@ -116,7 +116,7 @@ enum
 //
 // The class definition
 //
-#define MovieView_PAR DDG
+#define MovieView_PAR DocumentDisplayGraphicsObject
 
 typedef class MovieView *PMovieView;
 #define kclsMovieView 'MVU'
@@ -181,7 +181,7 @@ class MovieView : public MovieView_PAR
     ulong _grfont;    // Font style for text
     long _lwLastTime; // State variable for the last time through.
 
-    MovieView(PDocumentBase pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
+    MovieView(PDocumentBase pdocb, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
     {
     }
 
@@ -897,7 +897,7 @@ class Movie : public Movie_PAR
     //
     // Overridden DocumentBase functions
     //
-    PDDG PddgNew(PGCB pgcb);    // For creating a view on a movie.
+    PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);    // For creating a view on a movie.
     bool FAddUndo(PMUNB pmunb); // Add an item to the undo list
     void ClearUndo(void);
 

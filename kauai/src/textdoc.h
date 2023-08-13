@@ -46,19 +46,19 @@ class TXDC : public TXDC_PAR
         return _pbsf;
     }
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     virtual bool FGetFni(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
 /***************************************************************************
-    Text document display GraphicsObject - DDG for a TXDC.
+    Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TXDC.
 ***************************************************************************/
 const long kcchMaxLine = 512;
 const long kdxpIndentTxdd = 5;
 
 typedef class TXDD *PTXDD;
-#define TXDD_PAR DDG
+#define TXDD_PAR DocumentDisplayGraphicsObject
 #define kclsTXDD 'TXDD'
 class TXDD : public TXDD_PAR
 {

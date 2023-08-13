@@ -188,7 +188,7 @@ class TXPD : public TXPD_PAR
     static PTXPD PtxpdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                           ulong grfdoc = fdocNil);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
@@ -341,7 +341,7 @@ class TXRD : public TXRD_PAR
     static PTXRD PtxrdNew(PFilename pfni = pvNil);
     static PTXRD PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
     void FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
     void FetchPap(long cp, PPAP ppap, long *pcpMin = pvNil, long *pcpLim = pvNil);
@@ -412,7 +412,7 @@ class RTUN : public RTUN_PAR
 };
 
 /***************************************************************************
-    Text document display GraphicsObject - DDG for a TXTB.
+    Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TXTB.
 ***************************************************************************/
 const long kdxpIndentTxtg = (kdzpInch / 8);
 const long kcchMaxLineTxtg = 512;
@@ -425,7 +425,7 @@ enum
 };
 
 typedef class TXTG *PTXTG;
-#define TXTG_PAR DDG
+#define TXTG_PAR DocumentDisplayGraphicsObject
 #define kclsTXTG 'TXTG'
 class TXTG : public TXTG_PAR
 {

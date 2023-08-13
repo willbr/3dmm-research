@@ -22,7 +22,7 @@ RTCLASS(HTRU)
 #undef SPELL
 #endif // UNICODE
 
-BEGIN_CMD_MAP(HEDG, DDG)
+BEGIN_CMD_MAP(HEDG, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidDeleteTopic, &HEDG::FCmdDeleteTopic, &HEDG::FEnableHedgCmd)
 ON_CID_GEN(cidEditTopic, &HEDG::FCmdEditTopic, &HEDG::FEnableHedgCmd)
 ON_CID_GEN(cidNewTopic, &HEDG::FCmdNewTopic, pvNil)
@@ -116,9 +116,9 @@ PHEDO HEDO::PhedoNew(Filename *pfni, PRCA prca)
 }
 
 /***************************************************************************
-    Create a new DDG for the HEDO.
+    Create a new DocumentDisplayGraphicsObject for the HEDO.
 ***************************************************************************/
-PDDG HEDO::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject HEDO::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     return HEDG::PhedgNew(this, _pcfl, pgcb);
@@ -183,7 +183,7 @@ void HEDO::InvalAllDdg(ChunkNumber cno)
 {
     AssertThis(0);
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     // mark the document dirty
     SetDirty();
@@ -520,7 +520,7 @@ void TSEL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the HEDG.
 ***************************************************************************/
-HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb) : DDG(phedo, pgcb), _tsel(pcfl)
+HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb) : DocumentDisplayGraphicsObject(phedo, pgcb), _tsel(pcfl)
 {
     AssertPo(pcfl, 0);
     RC rc;
@@ -565,7 +565,7 @@ PHEDG HEDG::PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb)
 void HEDG::_Activate(bool fActive)
 {
     AssertThis(0);
-    DDG::_Activate(fActive);
+    DocumentDisplayGraphicsObject::_Activate(fActive);
 
     GNV gnv(this);
     _DrawSel(&gnv);
@@ -1925,9 +1925,9 @@ PDMD HETD::PdmdNew(void)
 }
 
 /***************************************************************************
-    Create a new DDG for the HETD.
+    Create a new DocumentDisplayGraphicsObject for the HETD.
 ***************************************************************************/
-PDDG HETD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject HETD::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     return HETG::PhetgNew(this, pgcb);

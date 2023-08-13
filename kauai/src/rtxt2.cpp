@@ -7,7 +7,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Rich text document and associated DDG, continued
+    Rich text document and associated DocumentDisplayGraphicsObject, continued
 
 ***************************************************************************/
 #include "frame.h"

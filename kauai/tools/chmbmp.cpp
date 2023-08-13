@@ -49,7 +49,7 @@ PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ct
 /****************************************************************************
     Create a new display gob for the MBMP document.
 ****************************************************************************/
-PDDG DOCMBMP::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCMBMP::PddgNew(PGCB pgcb)
 {
     return DCMBMP::PdcmbmpNew(this, _pmbmp, pgcb);
 }
@@ -109,7 +109,7 @@ void DOCMBMP::MarkMem(void)
 /*****************************************************************************
     Constructor for a pic display gob.
 *****************************************************************************/
-DCMBMP::DCMBMP(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb) : DDG(pdocb, pgcb)
+DCMBMP::DCMBMP(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     _pmbmp = pmbmp;
 }

@@ -1172,12 +1172,12 @@ class DOCP : public DocumentBase
 
     DOCP(void);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     void GetRcPic(RC *prc);
 };
 
 // ddg for a docp
-class DDP : public DDG
+class DDP : public DocumentDisplayGraphicsObject
 {
   protected:
     DDP(DOCP *pdocp, PGCB pgcb);
@@ -1213,7 +1213,7 @@ DOCP::DOCP(void)
 /***************************************************************************
     Create a new pane for a perspective doc.
 ***************************************************************************/
-PDDG DOCP::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCP::PddgNew(PGCB pgcb)
 {
     return DDP::PddpNew(this, pgcb);
 }
@@ -1236,7 +1236,7 @@ void DOCP::GetRcPic(RC *prc)
 /***************************************************************************
     Constructor for a perspective doc pane.
 ***************************************************************************/
-DDP::DDP(DOCP *pdocp, PGCB pgcb) : DDG(pdocp, pgcb)
+DDP::DDP(DOCP *pdocp, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocp, pgcb)
 {
 }
 
@@ -1402,7 +1402,7 @@ class DOCPIC : public DOCPIC_PAR
 
     static DOCPIC *PdocpicNew(void);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     PPIC Ppic(void)
     {
         return _ppic;
@@ -1411,7 +1411,7 @@ class DOCPIC : public DOCPIC_PAR
 };
 
 // picture document display
-#define DDPIC_PAR DDG
+#define DDPIC_PAR DocumentDisplayGraphicsObject
 class DDPIC : public DDPIC_PAR
 {
   protected:
@@ -1523,7 +1523,7 @@ DOCPIC *DOCPIC::PdocpicNew(void)
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDDG DOCPIC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCPIC::PddgNew(PGCB pgcb)
 {
     return DDPIC::PddpicNew(this, pgcb);
 }
@@ -1549,7 +1549,7 @@ bool DOCPIC::FSaveToFni(Filename *pfni, bool fSetFni)
 /***************************************************************************
     Constructor for a picture doc pane.
 ***************************************************************************/
-DDPIC::DDPIC(DOCPIC *pdocpic, PGCB pgcb) : DDG(pdocpic, pgcb)
+DDPIC::DDPIC(DOCPIC *pdocpic, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocpic, pgcb)
 {
 }
 
@@ -1634,7 +1634,7 @@ class DOCGPT : public DOCGPT_PAR
 
     static DOCGPT *PdocgptNew(void);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     PGPT Pgpt(void)
     {
         return _pgpt;
@@ -1642,7 +1642,7 @@ class DOCGPT : public DOCGPT_PAR
 };
 
 // GPT display class.
-#define DDGPT_PAR DDG
+#define DDGPT_PAR DocumentDisplayGraphicsObject
 class DDGPT : public DDGPT_PAR
 {
   protected:
@@ -1819,7 +1819,7 @@ LFail:
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDDG DOCGPT::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCGPT::PddgNew(PGCB pgcb)
 {
     return DDGPT::PddgptNew(this, pgcb);
 }
@@ -1827,7 +1827,7 @@ PDDG DOCGPT::PddgNew(PGCB pgcb)
 /***************************************************************************
     Constructor for a gpt doc pane.
 ***************************************************************************/
-DDGPT::DDGPT(DOCGPT *pdocgpt, PGCB pgcb) : DDG(pdocgpt, pgcb)
+DDGPT::DDGPT(DOCGPT *pdocgpt, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocgpt, pgcb)
 {
 }
 

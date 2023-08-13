@@ -265,7 +265,7 @@ PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
     }
 
     //
-    // Now create the DDG area for the text
+    // Now create the DocumentDisplayGraphicsObject area for the text
     //
     rcAbs.Set(kdzpBorderTbox, kdzpBorderTbox, -kdzpBorderTbox, -kdzpBorderTbox);
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
@@ -303,7 +303,7 @@ void TBXB::Draw(PGNV pgnv, RC *prcClip)
     RC rcClip;
     long lwSave;
 
-    Assert(_ptbox->FIsVisible(), "DDG existing for invisible tbox");
+    Assert(_ptbox->FIsVisible(), "DocumentDisplayGraphicsObject existing for invisible tbox");
 
     if (!_ptbox->FSelected())
     {
@@ -828,7 +828,7 @@ TBXT TBXB::_TbxtAnchor(long xp, long yp)
  **************************************************************************/
 void TBXB::Activate(bool fActive)
 {
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     pddg = _ptbox->PddgGet(0);
     AssertPo(pddg, 0);
@@ -951,7 +951,7 @@ void TBXB::AssertValid(ulong grf)
 // Disable the some default rich text functionality,
 // and then intercept other commands.
 //
-BEGIN_CMD_MAP(TBXG, DDG)
+BEGIN_CMD_MAP(TBXG, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidSave, pvNil, pvNil)
 ON_CID_GEN(cidClose, pvNil, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
@@ -1032,11 +1032,11 @@ void TBXG::Draw(PGNV pgnv, RC *prcClip)
 
     //
     // In order to do scrolling text boxex, the easiest
-    // way to get the text to scroll is to grow the DDG
+    // way to get the text to scroll is to grow the DocumentDisplayGraphicsObject
     // upward (to the top of the screen), but then clip
     // the drawing to within the border.
     //
-    // The DDG will automatically be clipped to within
+    // The DocumentDisplayGraphicsObject will automatically be clipped to within
     // the border GraphicsObject, but the drawn border (dashes and
     // anchors) must then be subtracted.
     //
@@ -1802,7 +1802,7 @@ struct TBOXH
  *
  * Parameters:
  *	pscen - Scene which owns this textbox.
- *	prcRel - The bounding rectangle of the DDG for the text box within the
+ *	prcRel - The bounding rectangle of the DocumentDisplayGraphicsObject for the text box within the
  *		the owning MovieView.
  *	fStory - Is this a story text box?
  *
@@ -2573,7 +2573,7 @@ bool TBOX::FSetDypFontText(long dypFont)
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DDG isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTBXG), "DocumentDisplayGraphicsObject isn't a TBXG");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2603,7 +2603,7 @@ bool TBOX::FSetStyleText(ulong grfont)
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DDG isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTBXG), "DocumentDisplayGraphicsObject isn't a TBXG");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2633,7 +2633,7 @@ bool TBOX::FSetOnnText(long onn)
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DDG isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTBXG), "DocumentDisplayGraphicsObject isn't a TBXG");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2645,7 +2645,7 @@ bool TBOX::FSetOnnText(long onn)
 /******************************************************************************
     FetchChpSel
         Gets the character formatting for the current selection of the active
-        DDG for this TBOX.  Returns the formatting of the first character of
+        DocumentDisplayGraphicsObject for this TBOX.  Returns the formatting of the first character of
         the selection in the CHP, and sets the corresponding bit in *pgrfchp
         if that particular formatting holds for the entire selection.
 
@@ -2669,7 +2669,7 @@ void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
         goto LFail;
     if (!ptxtg->FIs(kclsTXTG))
     {
-        Bug("DDG isn't a TXTG");
+        Bug("DocumentDisplayGraphicsObject isn't a TXTG");
     LFail:
         *pgrfchp = 0;
         return;
@@ -2857,7 +2857,7 @@ void TBOX::ClearUndo()
 
 /****************************************************
  *
- * Ensure that the DDG for this tbox is the proper size,
+ * Ensure that the DocumentDisplayGraphicsObject for this tbox is the proper size,
  * used for cleaning after a playback.
  *
  * Parameters:
@@ -2871,7 +2871,7 @@ void TBOX::CleanDdg(void)
 {
     AssertThis(0);
 
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     RC rcAbs, rcRel;
 
     pddg = PddgGet(0);

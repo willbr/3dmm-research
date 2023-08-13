@@ -110,7 +110,7 @@ class TBXB : public TBXB_PAR
 
 //
 //
-// The DDG for a single textbox (TBXG).
+// The DocumentDisplayGraphicsObject for a single textbox (TBXG).
 //
 //
 
@@ -227,7 +227,7 @@ class TBOX : public TBOX_PAR
     // Creation routines
     //
     static PTBOX PtboxNew(PSCEN pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
-    PDDG PddgNew(PGCB pgcb)
+    PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb)
     {
         return TBXG::PtbxgNew(this, pgcb);
     }

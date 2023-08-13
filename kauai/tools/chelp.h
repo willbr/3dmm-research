@@ -113,7 +113,7 @@ const long kdxpCellLig = kdzpInch * 2;
 const long kdypCellLig = kdzpInch;
 
 typedef class LIG *PLIG;
-#define LIG_PAR DDG
+#define LIG_PAR DocumentDisplayGraphicsObject
 #define kclsLIG 'LIG'
 class LIG : public LIG_PAR
 {
@@ -228,7 +228,7 @@ class HEDO : public HEDO_PAR
     {
         return _prca;
     }
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     virtual bool FGetFni(Filename *pfni);
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
@@ -280,7 +280,7 @@ class TSEL : public TSEL_PAR
     Help editor document display GraphicsObject - displays a HEDO.
 ***************************************************************************/
 typedef class HEDG *PHEDG;
-#define HEDG_PAR DDG
+#define HEDG_PAR DocumentDisplayGraphicsObject
 #define kclsHEDG 'HEDG'
 class HEDG : public HEDG_PAR
 {
@@ -382,7 +382,7 @@ class HETD : public HETD_PAR
     static void CloseDeletedHetd(PDocumentBase pdocb);
 
     virtual PDMD PdmdNew(void);
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     virtual void GetName(PSTN pstn);
     virtual bool FSave(long cid);
 
@@ -405,7 +405,7 @@ class HETD : public HETD_PAR
 };
 
 /***************************************************************************
-    DDG for an HETD.  Help text document editing gob.
+    DocumentDisplayGraphicsObject for an HETD.  Help text document editing gob.
 ***************************************************************************/
 typedef class HETG *PHETG;
 #define HETG_PAR TXRG

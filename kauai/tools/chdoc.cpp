@@ -9,7 +9,7 @@
 #include "ched.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(DCD, DDG)
+BEGIN_CMD_MAP(DCD, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidAddChunk, &DCD::FCmdAddChunk, pvNil)
 ON_CID_GEN(cidAddPicChunk, &DCD::FCmdAddPicChunk, pvNil)
 ON_CID_GEN(cidAddMbmpChunk, &DCD::FCmdAddBitmapChunk, pvNil)
@@ -199,9 +199,9 @@ PDOC DOC::PdocNew(Filename *pfni)
 }
 
 /***************************************************************************
-    Create a new DDG for the doc.
+    Create a new DocumentDisplayGraphicsObject for the doc.
 ***************************************************************************/
-PDDG DOC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOC::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     return DCD::PdcdNew(this, _pcfl, pgcb);
@@ -420,7 +420,7 @@ bool DOCE::FSave(long cid)
     if (_FSaveToChunk(ctg, cno, cid != cidSaveCopy))
     {
         PDocumentBase pdocb;
-        PDDG pddg;
+        PDocumentDisplayGraphicsObject pddg;
 
         if (pvNil != (pdocb = PdocbPar()) && pvNil != (pddg = pdocb->PddgGet(0)) && pddg->FIs(kclsDCD))
         {
@@ -507,7 +507,7 @@ void DOCE::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for a DCLB.
 ***************************************************************************/
-DCLB::DCLB(PDocumentBase pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
+DCLB::DCLB(PDocumentBase pdocb, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     achar ch;
     RC rc;
@@ -691,7 +691,7 @@ PDCD DCD::PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb)
 void DCD::_Activate(bool fActive)
 {
     AssertThis(0);
-    DDG::_Activate(fActive);
+    DocumentDisplayGraphicsObject::_Activate(fActive);
 
     GNV gnv(this);
     _DrawSel(&gnv);
@@ -709,7 +709,7 @@ void DCD::InvalAllDcd(PDocumentBase pdocb, PChunkyFile pcfl, ChunkIdentification
     AssertNilOrVarMem(pcki);
     AssertNilOrVarMem(pkid);
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     PDCD pdcd;
 
     // mark the document dirty

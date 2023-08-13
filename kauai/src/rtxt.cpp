@@ -7,7 +7,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Rich text document and associated DDG.
+    Rich text document and associated DocumentDisplayGraphicsObject.
 
 ***************************************************************************/
 #include "frame.h"
@@ -21,7 +21,7 @@ RTCLASS(TXLG)
 RTCLASS(TXRG)
 RTCLASS(RTUN)
 
-BEGIN_CMD_MAP(TXRG, DDG)
+BEGIN_CMD_MAP(TXRG, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidPlain, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
 ON_CID_GEN(cidBold, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
 ON_CID_GEN(cidItalic, &TXRG::FCmdApplyProperty, &TXRG::FEnablePropCmd)
@@ -315,37 +315,37 @@ bool TXTB::FFind(achar *prgch, long cch, long cpMin, long *pcpMin, long *pcpLim,
 }
 
 /***************************************************************************
-    Turn the selection of this TXTB's active DDG off.
+    Turn the selection of this TXTB's active DocumentDisplayGraphicsObject off.
 ***************************************************************************/
 void TXTB::HideSel(void)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTXTG))
         ((PTXTG)pddg)->HideSel();
 }
 
 /***************************************************************************
-    Set the selection of this TXTB's active DDG to the given range.
+    Set the selection of this TXTB's active DocumentDisplayGraphicsObject to the given range.
 ***************************************************************************/
 void TXTB::SetSel(long cpAnchor, long cpOther, long gin)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTXTG))
         ((PTXTG)pddg)->SetSel(cpAnchor, cpOther, gin);
 }
 
 /***************************************************************************
-    Make sure the selection of this TXTB's acttive DDG is visible (at least
+    Make sure the selection of this TXTB's acttive DocumentDisplayGraphicsObject is visible (at least
     the _cpOther end of it).
 ***************************************************************************/
 void TXTB::ShowSel(void)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     if (pvNil != (pddg = PddgActive()) && pddg->FIs(kclsTXTG))
         ((PTXTG)pddg)->ShowSel();
@@ -675,7 +675,7 @@ void TXTB::InvalAllDdg(long cp, long ccpIns, long ccpDel, ulong grfdoc)
     AssertIn(ccpIns, 0, CpMac() + 1 - cp);
     AssertIn(ccpDel, 0, kcbMax);
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     // mark the document dirty
     SetDirty();
@@ -911,7 +911,7 @@ PTXPD TXPD::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdocb, 
 /***************************************************************************
     Create a new TXLG to display the TXPD.
 ***************************************************************************/
-PDDG TXPD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject TXPD::PddgNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
     long onn = vpappb->OnnDefFixed();
@@ -1425,7 +1425,7 @@ LFail:
 /***************************************************************************
     Create a new TXRG to display the TXRD.
 ***************************************************************************/
-PDDG TXRD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject TXRD::PddgNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
     return TXRG::PtxrgNew(this, pgcb);

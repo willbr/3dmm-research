@@ -80,7 +80,7 @@ class DocumentBase : public DocumentBase_PAR
     long _ipundbLimDone;
     long _cundbMax;
 
-    bool _FFindDdg(PDDG pddg, long *pipddg);
+    bool _FFindDdg(PDocumentDisplayGraphicsObject pddg, long *pipddg);
     virtual tribool _TQuerySave(bool fForce);
 
     DocumentBase(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
@@ -116,21 +116,21 @@ class DocumentBase : public DocumentBase_PAR
     // low level calls - generally not for public consumption
     virtual PDMW PdmwNew(PGCB pgcb);
     virtual PDSG PdsgNew(PDMW pdwm, PDSG pdsgSplit, ulong grfdsg, long rel);
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
-    // DDG management - only to be called by DDGs
-    bool FAddDdg(PDDG pddg);
-    void RemoveDdg(PDDG pddg);
-    void MakeFirstDdg(PDDG pddg);
+    // DocumentDisplayGraphicsObject management - only to be called by DDGs
+    bool FAddDdg(PDocumentDisplayGraphicsObject pddg);
+    void RemoveDdg(PDocumentDisplayGraphicsObject pddg);
+    void MakeFirstDdg(PDocumentDisplayGraphicsObject pddg);
     void CloseAllDdg(void);
 
-    // General DDG management
+    // General DocumentDisplayGraphicsObject management
     long Cddg(void)
     {
         return pvNil == _pglpddg ? 0 : _pglpddg->IvMac();
     }
-    PDDG PddgGet(long ipddg);
-    PDDG PddgActive(void);
+    PDocumentDisplayGraphicsObject PddgGet(long ipddg);
+    PDocumentDisplayGraphicsObject PddgActive(void);
 
     virtual void UpdateName(void);
     virtual void GetName(PSTN pstn);
@@ -215,12 +215,12 @@ class DTE : public DTE_PAR
     document display gob - normally a child of a DSG but can be a child
     of any gob (for doc previewing, etc)
 ***************************************************************************/
-#define DDG_PAR GraphicsObject
-#define kclsDDG 'DDG'
-class DDG : public DDG_PAR
+#define DocumentDisplayGraphicsObject_PAR GraphicsObject
+#define kclsDocumentDisplayGraphicsObject 'DDG'
+class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(DDG)
+    CMD_MAP_DEC(DocumentDisplayGraphicsObject)
     ASSERT
     MARKMEM
 
@@ -230,8 +230,8 @@ class DDG : public DDG_PAR
     long _scvVert; // scroll values
     long _scvHorz;
 
-    DDG(PDocumentBase pdocb, PGCB pgcb);
-    ~DDG(void);
+    DocumentDisplayGraphicsObject(PDocumentBase pdocb, PGCB pgcb);
+    ~DocumentDisplayGraphicsObject(void);
 
     virtual bool _FInit(void);
     virtual void _Activate(bool fActive);
@@ -249,7 +249,7 @@ class DDG : public DDG_PAR
     virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
 
   public:
-    static PDDG PddgNew(PDocumentBase pdocb, PGCB pgcb);
+    static PDocumentDisplayGraphicsObject PddgNew(PDocumentBase pdocb, PGCB pgcb);
 
     PDocumentBase Pdocb(void)
     {
@@ -300,7 +300,7 @@ class DMD : public DMD_PAR
     {
         return _pdocb;
     }
-    virtual void ActivateNext(PDDG pddg);
+    virtual void ActivateNext(PDocumentDisplayGraphicsObject pddg);
     virtual bool FCmdCloseWnd(PCMD pcmd);
 };
 
@@ -371,7 +371,7 @@ class DMW : public DMW_PAR
 /***************************************************************************
     document scroll gob - child gob of a DMW
     holds any scroll bars, splitter boxes and split movers
-    dialogs tightly with DMW and DDG
+    dialogs tightly with DMW and DocumentDisplayGraphicsObject
 ***************************************************************************/
 #define DSG_PAR GraphicsObject
 #define kclsDSG 'DSG'
@@ -385,7 +385,7 @@ class DSG : public DSG_PAR
 
   private:
     long _dsno; // this is how the DMW refers to this DSG
-    PDDG _pddg;
+    PDocumentDisplayGraphicsObject _pddg;
 
   protected:
     DSG(PGCB pgcb);

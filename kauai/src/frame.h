@@ -29,7 +29,7 @@ class DocumentBase; // base document
 class DMD;  // document mdi window
 class DMW;  // main document window
 class DSG;  // document scroll gob
-class DDG;  // document display gob
+class DocumentDisplayGraphicsObject;  // document display gob
 class SNDM; // sound manager
 
 typedef class GPT *PGPT;
@@ -41,7 +41,7 @@ typedef class DocumentBase *PDocumentBase;
 typedef class DMD *PDMD;
 typedef class DMW *PDMW;
 typedef class DSG *PDSG;
-typedef class DDG *PDDG;
+typedef class DocumentDisplayGraphicsObject *PDocumentDisplayGraphicsObject;
 typedef class SNDM *PSNDM;
 
 #include "region.h"

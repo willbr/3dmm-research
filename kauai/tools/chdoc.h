@@ -65,7 +65,7 @@ class DOC : public DOC_PAR
     {
         return _pcfl;
     }
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     virtual bool FGetFni(Filename *pfni);
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
@@ -125,7 +125,7 @@ class DOCH : public DOCH_PAR
 
   public:
     static PDOCH PdochNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 };
 
 /***************************************************************************
@@ -153,7 +153,7 @@ class DOCG : public DOCG_PAR
 
   public:
     static PDOCG PdocgNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, long cls);
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
     PDOCI PdociFromItem(long iv, long dln);
     void CloseDeletedDoci(long iv, long cvDel);
@@ -192,7 +192,7 @@ class DOCI : public DOCI_PAR
 
   public:
     static PDOCI PdociNew(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln);
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
     long Iv(void)
     {
@@ -231,7 +231,7 @@ class DOCPIC : public DOCPIC_PAR
   public:
     static PDOCPIC PdocpicNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     PPIC Ppic(void)
     {
         return _ppic;
@@ -262,7 +262,7 @@ class DOCMBMP : public DOCMBMP_PAR
   public:
     static PDOCMBMP PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
     PMBMP Pmbmp(void)
     {
         return _pmbmp;
@@ -270,7 +270,7 @@ class DOCMBMP : public DOCMBMP_PAR
 };
 
 /***************************************************************************
-    Document editing window classes follow. These are all DDG's.
+    Document editing window classes follow. These are all DocumentDisplayGraphicsObject's.
     Most are also DCLB's (the first class defined below).  DCLB is
     an abstract class that handles a line based editing window.
     The DCD class is for displaying a DOC (chunky file document).
@@ -279,7 +279,7 @@ class DOCMBMP : public DOCMBMP_PAR
 /***************************************************************************
     abstract class for line based document windows
 ***************************************************************************/
-#define DCLB_PAR DDG
+#define DCLB_PAR DocumentDisplayGraphicsObject
 #define kclsDCLB 'DCLB'
 class DCLB : public DCLB_PAR
 {
@@ -644,7 +644,7 @@ class DCST : public DCST_PAR
 /***************************************************************************
     Display a picture chunk.
 ***************************************************************************/
-#define DCPIC_PAR DDG
+#define DCPIC_PAR DocumentDisplayGraphicsObject
 #define kclsDCPIC 'dpic'
 class DCPIC : public DCPIC_PAR
 {
@@ -667,7 +667,7 @@ class DCPIC : public DCPIC_PAR
 /***************************************************************************
     Display a MBMP chunk.
 ***************************************************************************/
-#define DCMBMP_PAR DDG
+#define DCMBMP_PAR DocumentDisplayGraphicsObject
 #define kclsDCMBMP 'dmbp'
 class DCMBMP : public DCMBMP_PAR
 {
@@ -721,7 +721,7 @@ class CHTXD : public CHTXD_PAR
     static PCHTXD PchtxdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                             ulong grfdoc = fdocNil);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 };
 
 /***************************************************************************

@@ -2993,7 +2993,7 @@ bool Movie::FGetFniSave(Filename *pfni)
  *  A pointer to the view, otw pvNil on failure
  *
  ****************************************************/
-PDDG Movie::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject Movie::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     AssertVarMem(pgcb);
@@ -3318,7 +3318,7 @@ PMovieView Movie::PmvuCur(void)
     PMovieView pmvu = (PMovieView)PddgActive();
 
     AssertPo(pmvu, 0);
-    Assert(pmvu->FIs(kclsMovieView), "Current DDG isn't an MovieView");
+    Assert(pmvu->FIs(kclsMovieView), "Current DocumentDisplayGraphicsObject isn't an MovieView");
     return pmvu;
 }
 
@@ -3333,7 +3333,7 @@ PMovieView Movie::PmvuFirst(void)
     PMovieView pmvu = (PMovieView)PddgGet(0);
 
     AssertPo(pmvu, 0);
-    Assert(pmvu->FIs(kclsMovieView), "First DDG isn't an MovieView");
+    Assert(pmvu->FIs(kclsMovieView), "First DocumentDisplayGraphicsObject isn't an MovieView");
     return pmvu;
 }
 
@@ -5327,7 +5327,7 @@ void Movie::InvalViews(void)
     AssertThis(0);
 
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     for (ipddg = 0; pvNil != (pddg = PddgGet(ipddg)); ipddg++)
     {
@@ -5371,7 +5371,7 @@ void Movie::MarkViews(void)
     AssertThis(0);
 
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     //
     // Need this call in order to mark correctly the changed regions.
@@ -5788,7 +5788,7 @@ void Movie::_SetTitle(PFilename pfni)
 //
 //
 
-BEGIN_CMD_MAP(MovieView, DDG)
+BEGIN_CMD_MAP(MovieView, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidCopyRoute, &MovieView::FCmdClip, pvNil)
 ON_CID_GEN(cidCutTool, &MovieView::FCmdClip, pvNil)
 ON_CID_GEN(cidShiftCut, &MovieView::FCmdClip, pvNil)

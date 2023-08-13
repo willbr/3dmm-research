@@ -38,12 +38,12 @@ PCHTXD CHTXD::PchtxdNew(PFilename pfni, PBSF pbsf, short osk, PDocumentBase pdoc
 /***************************************************************************
     Create a new document display gob for the chunky text doc.
 ***************************************************************************/
-PDDG CHTXD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject CHTXD::PddgNew(PGCB pgcb)
 {
     return CHTDD::PchtddNew(this, pgcb, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef(), 4);
 }
 
-BEGIN_CMD_MAP(CHTDD, DDG)
+BEGIN_CMD_MAP(CHTDD, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidCompileChunky, &CHTDD::FCmdCompileChunky, pvNil)
 ON_CID_GEN(cidCompileScript, &CHTDD::FCmdCompileScript, pvNil)
 ON_CID_GEN(cidAssembleScript, &CHTDD::FCmdCompileScript, pvNil)

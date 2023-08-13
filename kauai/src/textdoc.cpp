@@ -94,7 +94,7 @@ bool TXDC::_FInit(PFilename pfni, PBSF pbsf)
 /***************************************************************************
     Create a new TXDD to display the TXDC.
 ***************************************************************************/
-PDDG TXDC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject TXDC::PddgNew(PGCB pgcb)
 {
     AssertThis(0);
     return TXDD::PtxddNew(this, pgcb, _pbsf, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef());
@@ -198,7 +198,7 @@ void TXDC::MarkMem(void)
 /***************************************************************************
     Constructor for a text document display gob.
 ***************************************************************************/
-TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont) : DDG(pdocb, pgcb)
+TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     AssertPo(pbsf, 0);
     Assert(vntl.FValidOnn(onn), "bad onn");
@@ -1622,7 +1622,7 @@ void TXDD::_InvalAllTxdd(long ich, long cchIns, long cchDel)
 {
     AssertThis(0);
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     // mark the document dirty
     _pdocb->SetDirty();

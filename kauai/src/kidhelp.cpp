@@ -1163,7 +1163,7 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
     RTVN rtvn;
     PTXHG ptxhgSave = _ptxhg;
 
-    // create the topic DDG.
+    // create the topic DocumentDisplayGraphicsObject.
     gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
     if (pvNil == (_ptxhg = TXHG::PtxhgNew(_pwoks, ptxhd, &gcb)))
         goto LFail;
@@ -1180,7 +1180,7 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
     LFail:
         ReleasePpo(&_ptxhg);
 
-        // restore the previous topic DDG
+        // restore the previous topic DocumentDisplayGraphicsObject
         _ptxhg = ptxhgSave;
         return fFalse;
     }

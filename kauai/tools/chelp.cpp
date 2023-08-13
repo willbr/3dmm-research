@@ -614,7 +614,7 @@ bool LID::FRefresh(void)
     long ivMin, ivLim, iv;
     ChildChunkIdentification kid;
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     bool fRet = fFalse;
 
     _pglcach->FSetIvMac(0);
@@ -911,7 +911,7 @@ bool LIG::FCmdScroll(PCMD pcmd)
 
 /***************************************************************************
     The mouse was clicked in the LIG.  Insert the object in the active
-    DDG.
+    DocumentDisplayGraphicsObject.
 ***************************************************************************/
 void LIG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
@@ -968,7 +968,7 @@ CCG::CCG(GraphicsObjectBlock *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow) 
 
 /***************************************************************************
     Handle mousedown in a CCG.  Set the foreground or background color of
-    the text in the active of DDG of the ptxhd.
+    the text in the active of DocumentDisplayGraphicsObject of the ptxhd.
 ***************************************************************************/
 void CCG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {

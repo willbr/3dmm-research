@@ -111,7 +111,7 @@ class TXHD : public TXHD_PAR
 };
 
 /***************************************************************************
-    A runtime DDG for a help topic.
+    A runtime DocumentDisplayGraphicsObject for a help topic.
 ***************************************************************************/
 typedef class TXHG *PTXHG;
 #define TXHG_PAR TXRG
