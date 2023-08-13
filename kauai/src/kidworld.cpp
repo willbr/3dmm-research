@@ -15,15 +15,15 @@
 ASSERTNAME
 
 RTCLASS(KidspaceGraphicObjectDescriptor)
-RTCLASS(GKDS)
+RTCLASS(KidspaceGraphicObjectDescriptorLocation)
 RTCLASS(WorldOfKidspace)
 
 /***************************************************************************
-    Static method to read a GKDS from the ChunkyResourceFile. This is a ChunkyResourceFile object reader.
+    Static method to read a KidspaceGraphicObjectDescriptorLocation from the ChunkyResourceFile. This is a ChunkyResourceFile object reader.
 ***************************************************************************/
-bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool KidspaceGraphicObjectDescriptorLocation::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
-    PGKDS pgkds;
+    PKidspaceGraphicObjectDescriptorLocation pgkds;
     GOKDF gokdf;
     HQ hq;
     LOP *qlop;
@@ -60,7 +60,7 @@ bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         return fFalse;
     cb = CbOfHq(hq);
 
-    if (pvNil == (pgkds = NewObj GKDS))
+    if (pvNil == (pgkds = NewObj KidspaceGraphicObjectDescriptorLocation))
     {
         FreePhq(&hq);
         return fFalse;
@@ -96,37 +96,37 @@ bool GKDS::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 }
 
 /***************************************************************************
-    Destructor for a GKDS object.
+    Destructor for a KidspaceGraphicObjectDescriptorLocation object.
 ***************************************************************************/
-GKDS::~GKDS(void)
+KidspaceGraphicObjectDescriptorLocation::~KidspaceGraphicObjectDescriptorLocation(void)
 {
     FreePhq(&_hqData);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GKDS.
+    Assert the validity of a KidspaceGraphicObjectDescriptorLocation.
 ***************************************************************************/
-void GKDS::AssertValid(ulong grf)
+void KidspaceGraphicObjectDescriptorLocation::AssertValid(ulong grf)
 {
     LOP *qrglop;
 
-    GKDS_PAR::AssertValid(0);
+    KidspaceGraphicObjectDescriptorLocation_PAR::AssertValid(0);
     AssertHq(_hqData);
     AssertIn(_clop, 0, kcbMax);
     AssertIn(_ccume, 0, kcbMax);
-    Assert(LwMul(_clop, size(LOP)) + LwMul(_ccume, size(CursorMapEntry)) == CbOfHq(_hqData), "GKDS _hqData wrong size");
+    Assert(LwMul(_clop, size(LOP)) + LwMul(_ccume, size(CursorMapEntry)) == CbOfHq(_hqData), "KidspaceGraphicObjectDescriptorLocation _hqData wrong size");
     qrglop = (LOP *)QvFromHq(_hqData);
-    Assert(qrglop[_clop - 1].hidPar == hidNil, "bad rglop in GKDS");
+    Assert(qrglop[_clop - 1].hidPar == hidNil, "bad rglop in KidspaceGraphicObjectDescriptorLocation");
 }
 
 /***************************************************************************
-    Mark memory for the GKDS.
+    Mark memory for the KidspaceGraphicObjectDescriptorLocation.
 ***************************************************************************/
-void GKDS::MarkMem(void)
+void KidspaceGraphicObjectDescriptorLocation::MarkMem(void)
 {
     AssertValid(0);
-    GKDS_PAR::MarkMem();
+    KidspaceGraphicObjectDescriptorLocation_PAR::MarkMem();
     MarkHq(_hqData);
 }
 #endif // DEBUG
@@ -134,16 +134,16 @@ void GKDS::MarkMem(void)
 /***************************************************************************
     Return the KidspaceGraphicObject kind id.
 ***************************************************************************/
-long GKDS::Gokk(void)
+long KidspaceGraphicObjectDescriptorLocation::Gokk(void)
 {
     AssertThis(0);
     return _gokk;
 }
 
 /***************************************************************************
-    Look for a cursor map entry in this GKDS.
+    Look for a cursor map entry in this KidspaceGraphicObjectDescriptorLocation.
 ***************************************************************************/
-bool GKDS::FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume)
+bool KidspaceGraphicObjectDescriptorLocation::FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume)
 {
     AssertThis(0);
     AssertVarMem(pcume);
@@ -170,7 +170,7 @@ bool GKDS::FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume)
 /***************************************************************************
     Get the location map entry from the parent id.
 ***************************************************************************/
-void GKDS::GetLop(long hidPar, LOP *plop)
+void KidspaceGraphicObjectDescriptorLocation::GetLop(long hidPar, LOP *plop)
 {
     AssertThis(0);
     AssertVarMem(plop);
@@ -259,7 +259,7 @@ PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTag ctg, Chunk
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return (PKidspaceGraphicObjectDescriptor)prca->PbacoFetch(ctg, cno, GKDS::FReadGkds);
+    return (PKidspaceGraphicObjectDescriptor)prca->PbacoFetch(ctg, cno, KidspaceGraphicObjectDescriptorLocation::FReadGkds);
 }
 
 /***************************************************************************

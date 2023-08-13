@@ -74,10 +74,10 @@ struct GOKDF
 };
 const ByteOrderMask kbomGokdf = 0x0C000000;
 
-typedef class GKDS *PGKDS;
-#define GKDS_PAR KidspaceGraphicObjectDescriptor
-#define kclsGKDS 'GKDS'
-class GKDS : public GKDS_PAR
+typedef class KidspaceGraphicObjectDescriptorLocation *PKidspaceGraphicObjectDescriptorLocation;
+#define KidspaceGraphicObjectDescriptorLocation_PAR KidspaceGraphicObjectDescriptor
+#define kclsKidspaceGraphicObjectDescriptorLocation 'GKDS'
+class KidspaceGraphicObjectDescriptorLocation : public KidspaceGraphicObjectDescriptorLocation_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -89,14 +89,14 @@ class GKDS : public GKDS_PAR
     long _clop;
     long _ccume;
 
-    GKDS(void)
+    KidspaceGraphicObjectDescriptorLocation(void)
     {
     }
 
   public:
     // An object reader for a KidspaceGraphicObjectDescriptor.
     static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    ~GKDS(void);
+    ~KidspaceGraphicObjectDescriptorLocation(void);
 
     virtual long Gokk(void);
     virtual bool FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume);
