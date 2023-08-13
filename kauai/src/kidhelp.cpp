@@ -105,7 +105,7 @@ bool TXHD::_FReadChunk(PCFL pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ul
 
     if (pcfl->FForest(ctg, cno))
     {
-        ChunkID cki;
+        ChunkIdentification cki;
 
         if (pvNil == (pcfl = pcfl->PcflReadForest(ctg, cno, fFalse)))
             goto LFail;
@@ -254,13 +254,13 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
     Save a help topic to the given chunky file.  Fill in *pcki with where
     we put the root chunk.
 ***************************************************************************/
-bool TXHD::FSaveToChunk(PCFL pcfl, ChunkID *pcki, bool fRedirectText)
+bool TXHD::FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
     DataBlock blck;
-    ChunkID cki;
+    ChunkIdentification cki;
     HTOPF htopf;
 
     pcki->ctg = kctgHelpTopic;
@@ -442,7 +442,7 @@ bool TXHD::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp,
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    ChunkID cki;
+    ChunkIdentification cki;
     void *pv = &cki;
     bool fRet = fFalse;
 
@@ -450,13 +450,13 @@ bool TXHD::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp,
     cki.cno = cno;
     if (cbExtra > 0)
     {
-        if (!FAllocPv(&pv, size(ChunkID) + cbExtra, fmemNil, mprNormal))
+        if (!FAllocPv(&pv, size(ChunkIdentification) + cbExtra, fmemNil, mprNormal))
             return fFalse;
-        CopyPb(&cki, pv, size(ChunkID));
-        CopyPb(pvExtra, PvAddBv(pv, size(ChunkID)), cbExtra);
+        CopyPb(&cki, pv, size(ChunkIdentification));
+        CopyPb(pvExtra, PvAddBv(pv, size(ChunkIdentification)), cbExtra);
     }
 
-    fRet = FInsertObject(pv, size(ChunkID) + cbExtra, cp, ccpDel, pchp, grfdoc);
+    fRet = FInsertObject(pv, size(ChunkIdentification) + cbExtra, cp, ccpDel, pchp, grfdoc);
 
     if (pv != &cki)
         FreePpv(&pv);
@@ -474,8 +474,8 @@ bool TXHD::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, l
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    byte rgb[size(ChunkID) + size(long)];
-    ChunkID *pcki = (ChunkID *)rgb;
+    byte rgb[size(ChunkIdentification) + size(long)];
+    ChunkIdentification *pcki = (ChunkIdentification *)rgb;
     ChunkNumber *pcnoTopic = (ChunkNumber *)(pcki + 1);
     ;
     void *pv = rgb;
@@ -689,7 +689,7 @@ bool TXHG::_FInit(void)
     PRCA prca;
     long cp, cb;
     void *pv;
-    ChunkID *pcki;
+    ChunkIdentification *pcki;
     long dxp;
     ChunkNumber cno;
     long xp, ypBase;
@@ -766,9 +766,9 @@ bool TXHG::_FInit(void)
             break;
 
         case kctgGokd:
-            if (cb < size(ChunkID) + size(ChunkNumber))
+            if (cb < size(ChunkIdentification) + size(ChunkNumber))
                 goto LContinue;
-            pcki = (ChunkID *)pv;
+            pcki = (ChunkIdentification *)pv;
             cno = pcki->cno;
             cnoTopic = *(ChunkNumber *)(pcki + 1);
             FreePpv(&pv);

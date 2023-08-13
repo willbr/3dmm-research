@@ -376,7 +376,7 @@ class TXRD : public TXRD_PAR
     virtual bool FGetFni(Filename *pfni);
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
-    virtual bool FSaveToChunk(PCFL pcfl, ChunkID *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
     virtual bool FSetUndo(long cp1, long cp2, long ccpIns);
     virtual void CancelUndo(void);

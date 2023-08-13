@@ -253,7 +253,7 @@ class BRCNL : public BRCNL_PAR
 
   public:
     long cthumCD;
-    ChunkID ckiRoot;
+    ChunkIdentification ckiRoot;
     PGL pglthd;
     PGST pgst;
     PCRM pcrm;
@@ -318,15 +318,15 @@ class BCL : public BCL_PAR
         ReleasePpo(&_pglthd);
     }
 
-    bool _FInit(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGL pglthd);
-    bool _FAddGokdToThd(PCFL pcfl, long sid, ChunkID *pcki);
+    bool _FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd);
+    bool _FAddGokdToThd(PCFL pcfl, long sid, ChunkIdentification *pcki);
     bool _FAddFileToThd(PCFL pcfl, long sid);
     bool _FBuildThd(PCRM pcrm);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
 
   public:
-    static PBCL PbclNew(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBCL PbclNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
 
     PGL Pglthd(void)
     {
@@ -366,13 +366,13 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
+    bool _FInit(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGST pgst, PGL pglthd);
     bool _FSetNameGst(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
 
   public:
-    static PBCLS PbclsNew(PCRM pcrm, ChunkID *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
+    static PBCLS PbclsNew(PCRM pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
     PGST Pgst(void)
@@ -418,14 +418,14 @@ class BRWL : public BRWL_PAR
     // Browser Search (List) parameters
     BWS _bws;         // Selection type flag
     bool _fSinglePar; // Single parent search
-    ChunkID _ckiRoot;     // Grandparent cno=cnoNil => global search
+    ChunkIdentification _ckiRoot;     // Grandparent cno=cnoNil => global search
     ChunkTag _ctgContent;  // Parent
 
   protected:
     // BRWL List
-    bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, ChunkID ckiRoot, ChunkTag ctgContent);
-    bool _FCreateBuildThd(ChunkID ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
-    virtual bool _FGetContent(PCRM pcrm, ChunkID *pcki, ChunkTag ctg, bool fBuildGl);
+    bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
+    bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
+    virtual bool _FGetContent(PCRM pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         AssertThis(0);
@@ -455,7 +455,7 @@ class BRWL : public BRWL_PAR
     ~BRWL(void);
 
     static PBRWL PbrwlNew(PRCA prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkID ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
@@ -518,7 +518,7 @@ class BRWN : public BRWN_PAR
     RTCLASS_DEC
 
   protected:
-    virtual bool _FGetContent(PCRM pcrm, ChunkID *pcki, ChunkTag ctg, bool fBuildGl);
+    virtual bool _FGetContent(PCRM pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         return _pglthd->IvMac();
@@ -534,7 +534,7 @@ class BRWN : public BRWN_PAR
     {
     }
     ~BRWN(void){};
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkID ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
     virtual bool FCmdOk(PCMD pcmd);
@@ -697,7 +697,7 @@ class BRWM : public BRWM_PAR
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type
     void _ProcessSelection(void); // Sound Preview
-    bool _FAddThd(STN *pstn, ChunkID *pcki);
+    bool _FAddThd(STN *pstn, ChunkIdentification *pcki);
     bool _FSndListed(ChunkNumber cno, long *pithd = pvNil);
 
   public:
@@ -747,7 +747,7 @@ class BRWI : public BRWI_PAR
     ~BRWI(void);
 
     static PBRWI PbrwiNew(PRCA prca, long kidGlass, long sty);
-    bool FInit(PCMD pcmd, ChunkID cki, PStudio pstdio);
+    bool FInit(PCMD pcmd, ChunkIdentification cki, PStudio pstdio);
 };
 
 /************************************

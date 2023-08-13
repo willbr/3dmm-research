@@ -203,7 +203,7 @@ void CHSE::DumpFileCmd(PSTN pstnFile, bool fPacked)
 /***************************************************************************
     Dump an adopt directive
 ***************************************************************************/
-void CHSE::DumpAdoptCmd(ChunkID *pcki, KID *pkid)
+void CHSE::DumpAdoptCmd(ChunkIdentification *pcki, KID *pkid)
 {
     AssertThis(fchseDump);
     AssertVarMem(pcki);

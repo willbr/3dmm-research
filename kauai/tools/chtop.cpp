@@ -319,7 +319,7 @@ PHETD HEDO::PhetdOpenNext(PHETD phetd)
     AssertNilOrPo(phetd, 0);
     Assert(pvNil == phetd || phetd->PdocbPar() == this, "bad topic doc");
     long icki;
-    ChunkID cki;
+    ChunkIdentification cki;
     PDOCB pdocb;
 
     if (pvNil == phetd)
@@ -382,7 +382,7 @@ PHETD HEDO::PhetdOpenPrev(PHETD phetd)
     AssertNilOrPo(phetd, 0);
     Assert(pvNil == phetd || phetd->PdocbPar() == this, "bad topic doc");
     long icki;
-    ChunkID cki;
+    ChunkIdentification cki;
     PDOCB pdocb;
     PHETD phetdNew;
 
@@ -460,7 +460,7 @@ void TSEL::_SetNil(void)
 bool TSEL::FSetIcki(long icki)
 {
     AssertThis(0);
-    ChunkID cki;
+    ChunkIdentification cki;
 
     if (icki == ivNil || !_pcfl->FGetCkiCtg(kctgHelpTopic, icki, &cki))
     {
@@ -617,7 +617,7 @@ void HEDG::Draw(PGNV pgnv, RC *prcClip)
     RC rc;
     long yp, xp;
     long icki;
-    ChunkID cki;
+    ChunkIdentification cki;
 
     pgnv->ClipRc(prcClip);
     pgnv->FillRc(prcClip, kacrWhite);
@@ -843,7 +843,7 @@ bool HEDG::FEnableHedgCmd(PCMD pcmd, ulong *pgrfeds)
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(pgrfeds);
-    ChunkID cki;
+    ChunkIdentification cki;
     STN stn;
 
     *pgrfeds = fedsEnable;
@@ -998,7 +998,7 @@ bool HEDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     PHEDO phedo;
     PCFL pcfl;
     long icki;
-    ChunkID cki;
+    ChunkIdentification cki;
     ChunkNumber cnoSel;
     bool fFailed = fFalse;
 
@@ -1173,7 +1173,7 @@ bool HEDG::FCmdPrint(PCMD pcmd)
     const long kdypFontTitle = 9;
     const long kdzpBox = 2;
     long icki;
-    ChunkID cki;
+    ChunkIdentification cki;
     PDOCB pdocb;
     PRINTDLG pd;
     DOCINFO di;
@@ -1526,7 +1526,7 @@ bool HEDG::FCmdDump(PCMD pcmd)
     const long kcchEop = MacWin(1, 2);
     achar rgchEop[] = {kchReturn, kchLineFeed};
     long icki;
-    ChunkID cki;
+    ChunkIdentification cki;
     PDOCB pdocb;
     Filename fni;
     PFIL pfil;
@@ -1795,7 +1795,7 @@ void HETD::GetName(PSTN pstn)
 bool HETD::FSave(long cid)
 {
     AssertThis(0);
-    ChunkID cki;
+    ChunkIdentification cki;
 
     if (cidSave != cid)
     {
@@ -1837,7 +1837,7 @@ bool HETD::FSave(long cid)
     Save a help topic to the given chunky file.  Fill in *pcki with where
     we put the root chunk.
 ***************************************************************************/
-bool HETD::FSaveToChunk(PCFL pcfl, ChunkID *pcki, bool fRedirectText)
+bool HETD::FSaveToChunk(PCFL pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2721,7 +2721,7 @@ bool HETG::FEnableHetgCmd(PCMD pcmd, ulong *pgrfeds)
         cp = LwMin(_cpAnchor, _cpOther);
         if (!Phetd()->FFetchObject(cp, &cpT, &pv, &cb))
             break;
-        if (cp == cpT && cb >= size(ChunkID))
+        if (cp == cpT && cb >= size(ChunkIdentification))
         {
             switch (*(ChunkTag *)pv)
             {
@@ -2763,9 +2763,9 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
     void *pv;
     PDLG pdlg;
     long cp, cpT, cb;
-    byte rgb[size(ChunkID) + kcbMaxDataStn];
+    byte rgb[size(ChunkIdentification) + kcbMaxDataStn];
     STN stn;
-    ChunkID *pcki = (ChunkID *)rgb;
+    ChunkIdentification *pcki = (ChunkIdentification *)rgb;
 
     if (LwAbs(_cpAnchor - _cpOther) > 1)
         return fTrue;
@@ -2774,7 +2774,7 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
     if (!Phetd()->FFetchObject(cp, &cpT, &pv, &cb))
         return fTrue;
 
-    if (cp != cpT || !FIn(cb, size(ChunkID), size(rgb) + 1) || ((ChunkID *)pv)->ctg != kctgMbmp)
+    if (cp != cpT || !FIn(cb, size(ChunkIdentification), size(rgb) + 1) || ((ChunkIdentification *)pv)->ctg != kctgMbmp)
     {
         FreePpv(&pv);
         return fFalse;
@@ -2787,7 +2787,7 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
     if (pvNil == pdlg)
         return fFalse;
 
-    if (cb > size(ChunkID) && stn.FSetData(rgb + size(ChunkID), cb - size(ChunkID)))
+    if (cb > size(ChunkIdentification) && stn.FSetData(rgb + size(ChunkIdentification), cb - size(ChunkIdentification)))
     {
         _TokenizeStn(&stn);
         pdlg->FPutStn(kiditNamePicture, &stn);
@@ -2802,8 +2802,8 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
 
     pdlg->GetStn(kiditNamePicture, &stn);
     _TokenizeStn(&stn);
-    cb = stn.CbData() + size(ChunkID);
-    stn.GetData(rgb + size(ChunkID));
+    cb = stn.CbData() + size(ChunkIdentification);
+    stn.GetData(rgb + size(ChunkIdentification));
     ReleasePpo(&pdlg);
 
     if (Phetd()->FApplyObjectProps(rgb, cb, cp))
@@ -2829,8 +2829,8 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
     PDLG pdlg;
     long cp, cpT, cb, ib, cbRead;
     STN stn;
-    byte rgb[size(ChunkID) + size(long) + 2 * kcbMaxDataStn];
-    ChunkID *pcki = (ChunkID *)rgb;
+    byte rgb[size(ChunkIdentification) + size(long) + 2 * kcbMaxDataStn];
+    ChunkIdentification *pcki = (ChunkIdentification *)rgb;
     long *plw = (long *)(pcki + 1);
 
     if (LwAbs(_cpAnchor - _cpOther) > 1)
@@ -2840,7 +2840,7 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
     if (!Phetd()->FFetchObject(cp, &cpT, &pv, &cb))
         return fTrue;
 
-    if (cp != cpT || !FIn(cb, size(ChunkID) + size(long), size(rgb) + 1) || ((ChunkID *)pv)->ctg != kctgGokd)
+    if (cp != cpT || !FIn(cb, size(ChunkIdentification) + size(long), size(rgb) + 1) || ((ChunkIdentification *)pv)->ctg != kctgGokd)
     {
         FreePpv(&pv);
         return fFalse;
@@ -2853,7 +2853,7 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
     if (pvNil == pdlg)
         return fFalse;
 
-    ib = size(ChunkID) + size(long);
+    ib = size(ChunkIdentification) + size(long);
     if (cb > ib && stn.FSetData(rgb + ib, cb - ib, &cbRead))
     {
         _TokenizeStn(&stn);
@@ -2875,7 +2875,7 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
 
     pdlg->GetStn(kiditNameButton, &stn);
     _TokenizeStn(&stn);
-    ib = size(ChunkID) + size(long);
+    ib = size(ChunkIdentification) + size(long);
     stn.GetData(rgb + ib);
     ib += stn.CbData();
     pdlg->GetStn(kiditTopicNameButton, &stn);

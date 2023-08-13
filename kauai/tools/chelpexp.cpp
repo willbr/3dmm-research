@@ -13,8 +13,8 @@
 #include "chelpexp.h"
 ASSERTNAME
 
-static bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar);
-static bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar);
+static bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar);
+static bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar);
 static void _AppendHelpStnLw(PSTN pstn, PGST pgst, long istn, long lw);
 
 /***************************************************************************
@@ -29,7 +29,7 @@ bool FExportHelpText(PCFL pcfl, PMSNK pmsnk)
     DataBlock blck;
     PGST pgst;
     long icki;
-    ChunkID cki, ckiPar;
+    ChunkIdentification cki, ckiPar;
     KID kid;
     CGE cge;
     ulong grfcge;
@@ -179,7 +179,7 @@ LFail:
 /***************************************************************************
     Dump a chunk as text to the given chse.
 ***************************************************************************/
-bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
+bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);
@@ -245,7 +245,7 @@ bool _FWriteHelpChunk(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
 /***************************************************************************
     Write the property AG.  This requires special processing
 ***************************************************************************/
-bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
+bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkIdentification *pckiPar)
 {
     AssertPo(pcfl, 0);
     AssertPo(pchse, 0);
@@ -258,7 +258,7 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
     byte rgb[2 * kcbMaxDataStn];
     DataBlock blck;
     long iv, lw, cb, ib, cbRead;
-    ChunkID cki;
+    ChunkIdentification cki;
 
     pag = pvNil;
     if (!pcfl->FFind(pkid->cki.ctg, pkid->cki.cno, &blck) || pvNil == (pag = AG::PagRead(&blck, &bo, &osk)) ||
@@ -328,18 +328,18 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
             break;
 
         case 192: // sprmObject
-            if (cb <= size(ChunkID))
+            if (cb <= size(ChunkIdentification))
                 goto LWriteCore;
 
             // an object
-            pag->GetRgb(iv, 0, size(ChunkID), &cki);
+            pag->GetRgb(iv, 0, size(ChunkIdentification), &cki);
             switch (cki.ctg)
             {
             default:
                 goto LWriteCore;
 
             case kctgMbmp:
-                ib = size(ChunkID);
+                ib = size(ChunkIdentification);
                 if (ib >= cb)
                     goto LWriteCore;
                 if ((cb -= ib) > kcbMaxDataStn)
@@ -361,7 +361,7 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
                 break;
 
             case kctgGokd:
-                ib = size(ChunkID) + size(long);
+                ib = size(ChunkIdentification) + size(long);
                 if (ib >= cb)
                     goto LWriteCore;
                 if ((cb -= ib) > size(rgb))
@@ -395,7 +395,7 @@ bool _FWriteHelpPropAg(PCFL pcfl, PCHSE pchse, KID *pkid, ChunkID *pckiPar)
                 }
                 else
                 {
-                    pag->GetRgb(iv, size(ChunkID), size(long), &lw);
+                    pag->GetRgb(iv, size(ChunkIdentification), size(long), &lw);
                     stnT2.FFormatSz(PszLit("0x%x"), lw);
                     stn.FAppendStn(&stnT2);
                     stnT2.SetNil();

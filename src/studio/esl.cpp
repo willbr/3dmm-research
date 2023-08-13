@@ -360,7 +360,7 @@ bool ESLT::FCmdTransmogrify(PCMD pcmd)
     AssertVarMem(pcmd);
 
     long tdts;
-    ChunkID cki;
+    ChunkIdentification cki;
     long ithd;
     THD thd;
     TAG tagTdf;
@@ -422,7 +422,7 @@ bool ESLT::FCmdStartPopup(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    ChunkID ckiGPar;
+    ChunkIdentification ckiGPar;
     long kid;
     long ithumSelect = ivNil;
     long sidSelect = vpapp->SidProduct();

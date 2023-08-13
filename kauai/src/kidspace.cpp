@@ -648,7 +648,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag c
             continue;
         }
 
-        if (!(grfgok & fgokReset) && pvNil != _pgorp && FEqualRgb(&kid.cki, &_ckiGorp, size(ChunkID)))
+        if (!(grfgok & fgokReset) && pvNil != _pgorp && FEqualRgb(&kid.cki, &_ckiGorp, size(ChunkIdentification)))
         {
             fSet = fTrue;
             break;

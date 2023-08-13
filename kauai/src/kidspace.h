@@ -325,7 +325,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     long _cactDeferGorp; // defer marking and positioning the gorp
     PGORP _pgorp;        // the graphical representation
-    ChunkID _ckiGorp;        // cki of the current gorp
+    ChunkIdentification _ckiGorp;        // cki of the current gorp
 
     long _dtim;       // current time increment for animation
     PSCEG _pscegAnim; // animation script
@@ -335,7 +335,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     long _siiSound;     // sound to kill when we go away
     long _siiMouse;     // mouse tracking sound - kill it when we go away
-    ChunkID _ckiMouseSnd;   // for deferred playing of the mouse sound
+    ChunkIdentification _ckiMouseSnd;   // for deferred playing of the mouse sound
     long _cactDeferSnd; // defer starting the mouse sound if this is > 0
 
     // cid/hid filtering

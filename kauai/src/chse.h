@@ -57,7 +57,7 @@ class CHSE : public CHSE_PAR
     void DumpParentCmd(ChunkTag ctg, ChunkNumber cno, ChildChunkID chid);
     void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile);
     void DumpFileCmd(PSTN pstnFile, bool fPacked = fFalse);
-    void DumpAdoptCmd(ChunkID *pcki, KID *pkid);
+    void DumpAdoptCmd(ChunkIdentification *pcki, KID *pkid);
     void DumpList(PGLB pglb);
     void DumpGroup(PGGB pggb);
     bool FDumpStringTable(PGSTB pgstb);

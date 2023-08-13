@@ -46,7 +46,7 @@ enum
 };
 
 // chunk identification
-struct ChunkID
+struct ChunkIdentification
 {
     ChunkTag ctg;
     ChunkNumber cno;
@@ -56,7 +56,7 @@ const ByteOrderMask kbomCki = 0xF0000000;
 // child chunk identification
 struct KID
 {
-    ChunkID cki;
+    ChunkIdentification cki;
     ChildChunkID chid;
 };
 const ByteOrderMask kbomKid = 0xFC000000;
@@ -241,10 +241,10 @@ class CFL : public CFL_PAR
 
     // enumerating chunks
     long Ccki(void);
-    bool FGetCki(long icki, ChunkID *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
+    bool FGetCki(long icki, ChunkIdentification *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
     bool FGetIcki(ChunkTag ctg, ChunkNumber cno, long *picki);
     long CckiCtg(ChunkTag ctg);
-    bool FGetCkiCtg(ChunkTag ctg, long icki, ChunkID *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
+    bool FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, long *pckid = pvNil, PBLCK pblck = pvNil);
 
     // enumerating child chunks
     long Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
@@ -317,7 +317,7 @@ class CGE : public CGE_PAR
     ~CGE(void);
 
     void Init(PCFL pcfl, ChunkTag ctg, ChunkNumber cno);
-    bool FNextKid(KID *pkid, ChunkID *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
+    bool FNextKid(KID *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
 };
 
 #ifdef CHUNK_STATS

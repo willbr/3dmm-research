@@ -155,14 +155,14 @@ TDF::~TDF(void)
     TDF instance in memory...to do that, call FReadTdf with the values
     returned in pckiTdf.
 ***************************************************************************/
-bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, ChunkID *pckiTdf)
+bool TDF::FCreate(PCRF pcrf, PGL pglkid, STN *pstn, ChunkIdentification *pckiTdf)
 {
     AssertPo(pcrf, 0);
     AssertPo(pglkid, 0);
     AssertPo(pstn, 0);
     AssertNilOrVarMem(pckiTdf);
 
-    ChunkID ckiTdf;
+    ChunkIdentification ckiTdf;
     KID kid;
     KID kid2;
     TDFF tdff;

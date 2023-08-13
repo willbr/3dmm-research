@@ -43,7 +43,7 @@ class TDF : public TDF_PAR
     ~TDF(void);
 
     // This authoring-only API creates a new TDF based on a set of models
-    static bool FCreate(PCRF pcrf, PGL pglkid, STN *pstn, ChunkID *pckiTdf = pvNil);
+    static bool FCreate(PCRF pcrf, PGL pglkid, STN *pstn, ChunkIdentification *pckiTdf = pvNil);
 
     PMODL PmodlFetch(ChildChunkID chid);
     BRS DxrChar(long ich);

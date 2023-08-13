@@ -1957,7 +1957,7 @@ bool TBOX::FWrite(PCFL pcfl, ChunkNumber cno)
     AssertPo(pcfl, 0);
 
     TBOXH tboxh;
-    ChunkID cki;
+    ChunkIdentification cki;
 
     tboxh.bo = kboCur;
     tboxh.osk = koskCur;
