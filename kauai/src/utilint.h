@@ -311,24 +311,24 @@ inline long LwMul(long lw1, long lw2)
 ****************************************/
 
 // byte order mask
-typedef ulong BOM;
+typedef ulong ByteOrderMask;
 
-void SwapBytesBom(void *pv, BOM bom);
+void SwapBytesBom(void *pv, ByteOrderMask bom);
 void SwapBytesRgsw(void *psw, long csw);
 void SwapBytesRglw(void *plw, long clw);
 
-const BOM bomNil = 0;
-const BOM kbomSwapShort = 0x40000000;
-const BOM kbomSwapLong = 0xC0000000;
-const BOM kbomLeaveShort = 0x00000000;
-const BOM kbomLeaveLong = 0x80000000;
+const ByteOrderMask bomNil = 0;
+const ByteOrderMask kbomSwapShort = 0x40000000;
+const ByteOrderMask kbomSwapLong = 0xC0000000;
+const ByteOrderMask kbomLeaveShort = 0x00000000;
+const ByteOrderMask kbomLeaveLong = 0x80000000;
 
 /* You can chain up to 16 of these (2 bits each) */
 #define BomField(bomNew, bomLast) ((bomNew) | ((bomLast) >> 2))
 
 #ifdef DEBUG
-void AssertBomRglw(BOM bom, long cb);
-void AssertBomRgsw(BOM bom, long cb);
+void AssertBomRglw(ByteOrderMask bom, long cb);
+void AssertBomRgsw(ByteOrderMask bom, long cb);
 #else //! DEBUG
 #define AssertBomRglw(bom, cb)
 #define AssertBomRgsw(bom, cb)

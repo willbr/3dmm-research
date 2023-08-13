@@ -101,8 +101,8 @@ const auto kbomScenh = 0x5FC00000;
 /****************************************
     TAGC - Tag,Chid combo
 ****************************************/
-const BOM kbomChid = 0xC0000000;
-const BOM kbomTagc = kbomChid | (kbomTag >> 2);
+const ByteOrderMask kbomChid = 0xC0000000;
+const ByteOrderMask kbomTagc = kbomChid | (kbomTag >> 2);
 typedef struct TAGC *PTAGC;
 struct TAGC
 {
@@ -113,7 +113,7 @@ struct TAGC
 /****************************************
     SSE - scene sound event
 ****************************************/
-const BOM kbomSse = 0xFF000000;
+const ByteOrderMask kbomSse = 0xFF000000;
 typedef struct SSE *PSSE;
 struct SSE
 {

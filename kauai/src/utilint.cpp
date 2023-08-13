@@ -399,7 +399,7 @@ void AssertIn(long lw, long lwMin, long lwLim)
     bit of each opcode indicates whether the bytes are to be swapped
     in the field (1) or left alone (0).
 ***************************************************************************/
-void SwapBytesBom(void *pv, BOM bom)
+void SwapBytesBom(void *pv, ByteOrderMask bom)
 {
     byte b;
     byte *pb = (byte *)pv;
@@ -483,13 +483,13 @@ void SwapBytesRglw(void *plw, long clw)
 
 #ifdef DEBUG
 /***************************************************************************
-    Asserts that the given BOM indicates a struct having cb/size(long) longs
+    Asserts that the given ByteOrderMask indicates a struct having cb/size(long) longs
     to be swapped (so SwapBytesRglw can legally be used on an array of
     these).
 ***************************************************************************/
-void AssertBomRglw(BOM bom, long cb)
+void AssertBomRglw(ByteOrderMask bom, long cb)
 {
-    BOM bomT;
+    ByteOrderMask bomT;
     long clw;
 
     clw = cb / size(long);
@@ -500,13 +500,13 @@ void AssertBomRglw(BOM bom, long cb)
 }
 
 /***************************************************************************
-    Asserts that the given BOM indicates a struct having cb/size(short) shorts
+    Asserts that the given ByteOrderMask indicates a struct having cb/size(short) shorts
     to be swapped (so SwapBytesRgsw can legally be used on an array of
     these).
 ***************************************************************************/
-void AssertBomRgsw(BOM bom, long cb)
+void AssertBomRgsw(ByteOrderMask bom, long cb)
 {
-    BOM bomT;
+    ByteOrderMask bomT;
     long csw;
 
     csw = cb / size(short);

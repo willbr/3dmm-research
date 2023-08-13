@@ -43,7 +43,7 @@ ASSERTNAME
 
 RTCLASS(TAGM)
 
-const BOM kbomSid = 0xc0000000;
+const ByteOrderMask kbomSid = 0xc0000000;
 
 // Source File Structure...keeps track of known sources and caches
 struct SFS

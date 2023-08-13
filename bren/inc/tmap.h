@@ -36,7 +36,7 @@ typedef struct _txxff
     short osk; // OS kind
     BMAT23 bmat23;
 } TXXFF, *PTXXFF;
-const BOM kbomTxxff = 0x5FFF0000;
+const ByteOrderMask kbomTxxff = 0x5FFF0000;
 
 // REVIEW *****: should TMAPs have shade table chunks under them, or
 //   is the shade table a global animal?  Right now it's global.

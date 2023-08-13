@@ -106,7 +106,7 @@ class MBMP : public MBMP_PAR
     // a chunky resource reader for an MBMP
     static bool FReadMbmp(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
 };
-const BOM kbomMbmph = 0xAFFC0000;
+const ByteOrderMask kbomMbmph = 0xAFFC0000;
 
 // reads a bitmap from the given file
 bool FReadBitmap(FNI *pfni, byte **pprgb, PGL *ppglclr, long *pdxp, long *pdyp, bool *pfUpsideDown,

@@ -49,7 +49,7 @@ struct TDFF
     //  BRS rgdxr[cch];
     //  BRS rgdyr[cch];
 };
-const BOM kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr!
+const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr!
 
 /***************************************************************************
     A PFNRPO to read a TDF from a file.

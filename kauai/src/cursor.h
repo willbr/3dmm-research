@@ -32,7 +32,7 @@ struct CURF
     // byte rgbAnd[];
     // byte rgbXor[];
 };
-const BOM kbomCurf = 0xC0000000;
+const ByteOrderMask kbomCurf = 0xC0000000;
 
 typedef class CURS *PCURS;
 #define CURS_PAR BACO

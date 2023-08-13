@@ -72,7 +72,7 @@ struct GOKDF
     // LOP rglop[];		ends with a default entry (hidPar == hidNil)
     // CUME rgcume[];	the cursor map
 };
-const BOM kbomGokdf = 0x0C000000;
+const ByteOrderMask kbomGokdf = 0x0C000000;
 
 typedef class GKDS *PGKDS;
 #define GKDS_PAR GOKD

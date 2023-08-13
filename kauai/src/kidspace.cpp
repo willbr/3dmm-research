@@ -1964,7 +1964,7 @@ struct GOKFL
     long lwAcrBack;
     byte rgbPat[8];
 };
-const BOM kbomGokfl = 0x5FFF0000;
+const ByteOrderMask kbomGokfl = 0x5FFF0000;
 
 /***************************************************************************
     Static method to create a new fill representation.

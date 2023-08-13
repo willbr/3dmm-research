@@ -58,7 +58,7 @@ struct TAG
     CTG ctg;   // CTG of chunk
     CNO cno;   // CNO of chunk
 };
-const BOM kbomTag = 0xFF000000;
+const ByteOrderMask kbomTag = 0xFF000000;
 
 // FNINSCD is a client-supplied callback function to alert the user to
 // insert the given CD.  The name of the source is passed to the callback.

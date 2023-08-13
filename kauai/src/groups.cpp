@@ -467,7 +467,7 @@ struct GLF
     long cbEntry;
     long ivMac;
 };
-const BOM kbomGlf = 0x5F000000L;
+const ByteOrderMask kbomGlf = 0x5F000000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the list.
@@ -818,7 +818,7 @@ struct ALF
     long ivMac;
     long cvFree;
 };
-const BOM kbomAlf = 0x5FC00000L;
+const ByteOrderMask kbomAlf = 0x5FC00000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the list.
@@ -1118,7 +1118,7 @@ struct GGF
     long clocFree;
     long cbFixed;
 };
-const BOM kbomGgf = 0x5FF00000L;
+const ByteOrderMask kbomGgf = 0x5FF00000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the group.

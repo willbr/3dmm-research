@@ -77,7 +77,7 @@ struct GSTF
     long bstMac;
     long cbstFree;
 };
-const BOM kbomGstf = 0x5FF00000L;
+const ByteOrderMask kbomGstf = 0x5FF00000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the string table.

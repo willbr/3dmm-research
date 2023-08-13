@@ -456,8 +456,8 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
 
 #ifdef DEBUG
     {
-        BOM bomCam = kbomCam, bomCamOld = kbomCamOld;
-        Assert(bomCam == bomCamOld, "BOM macros aren't right");
+        ByteOrderMask bomCam = kbomCam, bomCamOld = kbomCamOld;
+        Assert(bomCam == bomCamOld, "ByteOrderMask macros aren't right");
     }
 #endif // DEBUG
 

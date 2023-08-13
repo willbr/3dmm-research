@@ -28,7 +28,7 @@ struct MODLF
     //	br_face rgbrf[]; // faces
 };
 typedef MODLF *PMODLF;
-const BOM kbomModlf = 0x55fffff0;
+const ByteOrderMask kbomModlf = 0x55fffff0;
 
 /****************************************
     MODL: a wrapper for BRender models

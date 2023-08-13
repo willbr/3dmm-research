@@ -127,7 +127,7 @@ struct CFP
 
     long rglwReserved[23]; // reserved for future use - should be zero
 };
-const BOM kbomCfp = 0xB55FFC00L;
+const ByteOrderMask kbomCfp = 0xB55FFC00L;
 
 // free space map entry
 struct FSM
@@ -135,7 +135,7 @@ struct FSM
     FP fp;
     long cb;
 };
-const BOM kbomFsm = 0xF0000000L;
+const ByteOrderMask kbomFsm = 0xF0000000L;
 
 enum
 {
@@ -206,8 +206,8 @@ struct CRPBG
         cb = cbT;
     }
 };
-const BOM kbomCrpbgGrfcrp = 0xFFFF0000L;
-const BOM kbomCrpbgBytes = 0xFFFE0000L;
+const ByteOrderMask kbomCrpbgGrfcrp = 0xFFFF0000L;
+const ByteOrderMask kbomCrpbgBytes = 0xFFFE0000L;
 
 // Chunk Representation (small version) - fixed element in pggcrp
 // variable part of group element is an rgkid and stn data (the name)
@@ -256,7 +256,7 @@ struct CRPSM
         luGrfcrpCb = (cbT << kcbitGrfcrp) | luGrfcrpCb & kgrfcrpAll;
     }
 };
-const BOM kbomCrpsm = 0xFF500000L;
+const ByteOrderMask kbomCrpsm = 0xFF500000L;
 
 #ifdef CHUNK_BIG_INDEX
 
@@ -265,7 +265,7 @@ typedef CRPSM CRPOTH;
 const long kcbMaxCrp = kcbMaxCrpbg;
 typedef long CKID;
 const long kckidMax = kcbMax;
-const BOM kbomCrpsm = kbomCrpbgGrfcrp;
+const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
 
 #else //! CHUNK_BIG_INDEX
 
@@ -274,7 +274,7 @@ typedef CRPBG CRPOTH;
 const long kcbMaxCrp = kcbMaxCrpsm;
 typedef ushort CKID;
 const long kckidMax = ksuMax;
-const BOM kbomCrp = kbomCrpsm;
+const ByteOrderMask kbomCrp = kbomCrpsm;
 
 #endif //! CHUNK_BIG_INDEX
 
@@ -579,7 +579,7 @@ struct ECDF
     long ckid;
     ulong grfcrp;
 };
-const BOM kbomEcdf = 0x5FFC0000L;
+const ByteOrderMask kbomEcdf = 0x5FFC0000L;
 
 /***************************************************************************
     Combine the indicated chunk and its children into an embedded chunk.
@@ -1332,7 +1332,7 @@ bool CFL::_FReadIndex(void)
     long cbRgch;
     long icrp, ccrp;
     long cbFixed;
-    BOM bom;
+    ByteOrderMask bom;
 
     // used for old name stuff
     SZS szsName;

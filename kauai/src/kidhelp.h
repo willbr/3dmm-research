@@ -30,7 +30,7 @@ struct HTOP
     CKI ckiSnd;
 };
 typedef HTOP *PHTOP;
-const BOM kbomHtop = 0xFFF00000;
+const ByteOrderMask kbomHtop = 0xFFF00000;
 
 // help topic on file
 struct HTOPF

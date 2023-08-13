@@ -41,7 +41,7 @@ struct XYZ
 
 typedef XYZ *PXYZ;
 
-const BOM kbomXyz = 0xfc000000;
+const ByteOrderMask kbomXyz = 0xfc000000;
 
 //
 // 	A RouTE is a general list (GL) of Route PoinTs(RPT)
@@ -52,7 +52,7 @@ struct RPT
     XYZ xyz;
     BRS dwr; // Distance from this node to the next node on the route
 };
-const BOM kbomRpt = 0xff000000;
+const ByteOrderMask kbomRpt = 0xff000000;
 
 const long knfrmInvalid = klwMax;                                  // invalid frame state.  Regenerate correct state
 const long kcrptGrow = 32;                                         // quantum growth for rpt
@@ -179,8 +179,8 @@ enum AET
     aetLim
 };
 
-const BOM kbomAet = 0xc0000000;
-const BOM kbomAev = 0xff000000;
+const ByteOrderMask kbomAet = 0xc0000000;
+const ByteOrderMask kbomAev = 0xff000000;
 
 //
 //	Variable part of the Actor EVent GG:
@@ -191,7 +191,7 @@ struct AEVPULL // Squash/stretch
     BRS rScaleY;
     BRS rScaleZ;
 };
-const BOM kbomAevpull = 0xfc000000;
+const ByteOrderMask kbomAevpull = 0xfc000000;
 
 // Every subroute is normalized.  The normalization translation is
 // stored in the Add Event
@@ -205,14 +205,14 @@ struct AEVADD
     BRA ya;  // Single point orientation
     BRA za;  // Single point orientation
 };
-const BOM kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
+const ByteOrderMask kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
 
 struct AEVACTN
 {
     long anid;
     long celn; // starting cel of action
 };
-const BOM kbomAevactn = 0xf0000000;
+const ByteOrderMask kbomAevactn = 0xf0000000;
 
 struct AEVCOST
 {
@@ -221,7 +221,7 @@ struct AEVCOST
     tribool fCmtl; // vs fMtrl
     TAG tag;
 };
-const BOM kbomAevcost = 0xfc000000 | (kbomTag >> 6);
+const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
 
 struct AEVSND
 {
@@ -234,14 +234,14 @@ struct AEVSND
     CHID chid;        // user sound requires chid
     TAG tag;
 };
-const BOM kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
+const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
 
-const BOM kbomAevsize = 0xc0000000;
-const BOM kbomAevfreeze = 0xc0000000;
-const BOM kbomAevstep = 0xc0000000;
-const BOM kbomAevmove = kbomXyz;
-const BOM kbomAevtweak = kbomXyz;
-const BOM kbomAevrot = kbomBmat34;
+const ByteOrderMask kbomAevsize = 0xc0000000;
+const ByteOrderMask kbomAevfreeze = 0xc0000000;
+const ByteOrderMask kbomAevstep = 0xc0000000;
+const ByteOrderMask kbomAevmove = kbomXyz;
+const ByteOrderMask kbomAevtweak = kbomXyz;
+const ByteOrderMask kbomAevrot = kbomBmat34;
 
 // Separate ggaev variable portion sizes
 #define kcbVarAdd (size(AEVADD))

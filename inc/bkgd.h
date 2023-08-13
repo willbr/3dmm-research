@@ -25,7 +25,7 @@ struct BKGDF
     byte bPad;
     short swPad;
 };
-const BOM kbomBkgdf = 0x50000000;
+const ByteOrderMask kbomBkgdf = 0x50000000;
 
 /****************************************
     Specifies a light's kind, position,
@@ -37,7 +37,7 @@ struct LITE
     BRS rIntensity;
     long lt; // light type
 };
-const BOM kbomLite = 0xfffffff0;
+const ByteOrderMask kbomLite = 0xfffffff0;
 
 /****************************************
     Specifies a camera for a view
@@ -64,8 +64,8 @@ struct CAM
     BMAT34 bmat34Cam; // Camera view matrix
     // APOS rgapos[];
 };
-const BOM kbomCamOld = 0x5f4fc000;
-const BOM kbomCam = BomField(
+const ByteOrderMask kbomCamOld = 0x5f4fc000;
+const ByteOrderMask kbomCam = BomField(
     kbomSwapShort,
     BomField(kbomSwapShort,
              BomField(kbomSwapLong,
@@ -89,7 +89,7 @@ struct BDS
     bool fLoop;
     TAG tagSnd;
 };
-const BOM kbomBds = 0x5f000000 | kbomTag >> 8;
+const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
 
 /****************************************
     The background class

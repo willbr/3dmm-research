@@ -92,7 +92,7 @@ struct TFC
         };
     };
 };
-const BOM kbomTfc = 0x5f000000;
+const ByteOrderMask kbomTfc = 0x5f000000;
 
 /************************************
 

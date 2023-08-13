@@ -74,7 +74,7 @@ struct TDTF
     long tdts;
     TAG tagTdf;
 };
-const BOM kbomTdtf = (0x5C000000 | kbomTag >> 6);
+const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
 
 /***************************************************************************
     Return a list of all tags embedded in this TDT.  Note that a

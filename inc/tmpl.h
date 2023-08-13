@@ -31,7 +31,7 @@ struct CPS
     short chidModl; // CHID (under TMPL chunk) of model for this body part
     short imat34;   // index into ACTN's GL of transforms
 };
-const BOM kbomCps = 0x50000000;
+const ByteOrderMask kbomCps = 0x50000000;
 
 /****************************************
     Cel: tells what CPS's to apply to an
@@ -46,7 +46,7 @@ struct CEL
     BRS dwr;      // distance from previous cel
                   //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
 };
-const BOM kbomCel = 0xf0000000;
+const ByteOrderMask kbomCel = 0xf0000000;
 
 // template on file
 struct TMPLF

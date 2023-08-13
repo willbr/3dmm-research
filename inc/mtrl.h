@@ -22,7 +22,7 @@ struct CMTLF
     short osk;
     long ibset; // which body part set this CMTL attaches to
 };
-const BOM kbomCmtlf = 0x5c000000;
+const ByteOrderMask kbomCmtlf = 0x5c000000;
 
 // material on file (MTRL chunk)
 struct MTRLF
@@ -37,7 +37,7 @@ struct MTRLF
     byte cIndexRange;    // count of entries in palette for this color
     BRS rPower;          // specular exponent
 };
-const BOM kbomMtrlf = 0x5D530000;
+const ByteOrderMask kbomMtrlf = 0x5D530000;
 
 /****************************************
     The MTRL class.  There are two kinds

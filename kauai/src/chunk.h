@@ -51,7 +51,7 @@ struct CKI
     CTG ctg;
     CNO cno;
 };
-const BOM kbomCki = 0xF0000000;
+const ByteOrderMask kbomCki = 0xF0000000;
 
 // child chunk identification
 struct KID
@@ -59,7 +59,7 @@ struct KID
     CKI cki;
     CHID chid;
 };
-const BOM kbomKid = 0xFC000000;
+const ByteOrderMask kbomKid = 0xFC000000;
 
 /***************************************************************************
     Chunky file class.

@@ -34,7 +34,7 @@ struct ACTF // Actor chunk on file
     long nfrmLast;   // Last frame in this actor's stage life
     TAG tagTmpl;     // Tag to actor's template
 };
-const BOM kbomActf = 0x5ffc0000 | kbomTag;
+const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 
 /***************************************************************************
     Write the actor out to disk.  Store the root chunk in the given CNO.

@@ -166,7 +166,7 @@ struct MFP
     short osk; // which system wrote this
     DVER dver; // chunky file version
 };
-const BOM kbomMfp = 0x55000000;
+const ByteOrderMask kbomMfp = 0x55000000;
 
 //
 // Used to keep track of the roll call list of the movie
@@ -181,7 +181,7 @@ struct MACTR
 
 typedef MACTR *PMACTR;
 
-const BOM kbomMactr = (0xFC000000 | (kbomTag >> 4));
+const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
 /****************************************************
  *

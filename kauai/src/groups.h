@@ -239,7 +239,7 @@ class AL : public AL_PAR
     GGB is a virtual class supporting
     GG and AG
 ****************************************/
-const BOM kbomLoc = 0xF0000000;
+const ByteOrderMask kbomLoc = 0xF0000000;
 #define GGB_PAR GRPB
 #define kclsGGB 'GGB'
 class GGB : public GGB_PAR
