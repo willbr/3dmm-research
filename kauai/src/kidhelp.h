@@ -59,10 +59,10 @@ enum
     ftxhdExpandStrings = 2,
 };
 
-typedef class TXHD *PTXHD;
-#define TXHD_PAR RichTextDocument
-#define kclsTXHD 'TXHD'
-class TXHD : public TXHD_PAR
+typedef class TextDocument *PTextDocument;
+#define TextDocument_PAR RichTextDocument
+#define kclsTextDocument 'TXHD'
+class TextDocument : public TextDocument_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -78,8 +78,8 @@ class TXHD : public TXHD_PAR
     HTOP _htop;         // our gob creation information
     bool _fHideButtons; // whether to draw buttons
 
-    TXHD(PRCA prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXHD(void);
+    TextDocument(PRCA prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~TextDocument(void);
 
     virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
@@ -87,7 +87,7 @@ class TXHD : public TXHD_PAR
     virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTXHD PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil,
+    static PTextDocument PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
     virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
@@ -130,17 +130,17 @@ class TXHG : public TXHG_PAR
     ulong _grfcust;
     PWorldOfKidspace _pwoks;
 
-    TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb);
+    TXHG(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
     virtual bool _FInit(void);
     virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic = cnoNil,
                              long *plwRet = pvNil);
 
   public:
-    static PTXHG PtxhgNew(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb);
+    static PTXHG PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
 
-    PTXHD Ptxhd(void)
+    PTextDocument Ptxhd(void)
     {
-        return (PTXHD)_ptxtb;
+        return (PTextDocument)_ptxtb;
     }
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
@@ -166,14 +166,14 @@ class HBAL : public HBAL_PAR
 
     HBAL(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual bool _FInit(PWorldOfKidspace pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca);
-    virtual bool _FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca);
+    virtual bool _FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca);
 
   public:
     static PHBAL PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PHTOP phtop = pvNil);
-    static PHBAL PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
+    static PHBAL PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop = pvNil);
 
-    virtual bool FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
+    virtual bool FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca);
 };
 
 /***************************************************************************

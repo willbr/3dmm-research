@@ -1677,7 +1677,7 @@ PHETD HETD::PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno)
 /***************************************************************************
     Constructor for a help topic document.
 ***************************************************************************/
-HETD::HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno) : TXHD(prca, pdocb)
+HETD::HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno) : TextDocument(prca, pdocb)
 {
     AssertNilOrPo(pcfl, 0);
     _pcfl = pcfl;

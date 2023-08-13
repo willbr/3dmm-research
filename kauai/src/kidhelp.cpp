@@ -20,7 +20,7 @@ ON_CID_GEN(cidSelIdle, pvNil, pvNil)
 ON_CID_ME(cidActivateSel, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(TXHD)
+RTCLASS(TextDocument)
 RTCLASS(TXHG)
 RTCLASS(HBAL)
 RTCLASS(HBTN)
@@ -30,7 +30,7 @@ const achar kchHelpString = '~';
 /***************************************************************************
     Constructor for a help text document.
 ***************************************************************************/
-TXHD::TXHD(PRCA prca, PDocumentBase pdocb, ulong grfdoc) : TXHD_PAR(pdocb, grfdoc)
+TextDocument::TextDocument(PRCA prca, PDocumentBase pdocb, ulong grfdoc) : TextDocument_PAR(pdocb, grfdoc)
 {
     AssertPo(prca, 0);
     _prca = prca;
@@ -44,28 +44,28 @@ TXHD::TXHD(PRCA prca, PDocumentBase pdocb, ulong grfdoc) : TXHD_PAR(pdocb, grfdo
 /***************************************************************************
     Destructor for a help text document.
 ***************************************************************************/
-TXHD::~TXHD(void)
+TextDocument::~TextDocument(void)
 {
     ReleasePpo(&_prca);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXHD.
+    Assert the validity of a TextDocument.
 ***************************************************************************/
-void TXHD::AssertValid(ulong grf)
+void TextDocument::AssertValid(ulong grf)
 {
-    TXHD_PAR::AssertValid(0);
+    TextDocument_PAR::AssertValid(0);
     AssertPo(_prca, 0);
 }
 
 /***************************************************************************
-    Mark memory for the TXHD.
+    Mark memory for the TextDocument.
 ***************************************************************************/
-void TXHD::MarkMem(void)
+void TextDocument::MarkMem(void)
 {
     AssertValid(0);
-    TXHD_PAR::MarkMem();
+    TextDocument_PAR::MarkMem();
     MarkMemObj(_prca);
 }
 #endif // DEBUG
@@ -74,13 +74,13 @@ void TXHD::MarkMem(void)
     Static method to read a help text document from the given (pcfl, ctg, cno)
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTXHD TXHD::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
+PTextDocument TextDocument::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
-    PTXHD ptxhd;
+    PTextDocument ptxhd;
 
-    if (pvNil == (ptxhd = NewObj TXHD(prca)) || !ptxhd->_FReadChunk(pcfl, ctg, cno, pstrg, grftxhd))
+    if (pvNil == (ptxhd = NewObj TextDocument(prca)) || !ptxhd->_FReadChunk(pcfl, ctg, cno, pstrg, grftxhd))
     {
         PushErc(ercHelpReadFailed);
         ReleasePpo(&ptxhd);
@@ -93,7 +93,7 @@ PTXHD TXHD::PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumbe
 /***************************************************************************
     Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TXHD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
+bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
@@ -136,7 +136,7 @@ bool TXHD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PSTRG ps
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgRichText, &kid))
         goto LFail;
 
-    if (!TXHD_PAR::_FReadChunk(pcfl, kid.cki.ctg, kid.cki.cno, FPure(grftxhd & ftxhdCopyText)))
+    if (!TextDocument_PAR::_FReadChunk(pcfl, kid.cki.ctg, kid.cki.cno, FPure(grftxhd & ftxhdCopyText)))
     {
         goto LFail;
     }
@@ -182,7 +182,7 @@ LFail:
     Do any necessary munging of the AG entry on open.  Return false if
     we don't recognize this argument type.
 ***************************************************************************/
-bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
+bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
     ChunkTag ctg;
     ChunkNumber cno;
@@ -190,7 +190,7 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
     long rglw[2];
     long clw;
 
-    if (TXHD_PAR::_FOpenArg(icact, sprm, bo, osk))
+    if (TextDocument_PAR::_FOpenArg(icact, sprm, bo, osk))
         return fTrue;
 
     cb = _pagcact->Cb(icact);
@@ -256,7 +256,7 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
     Save a help topic to the given chunky file.  Fill in *pcki with where
     we put the root chunk.
 ***************************************************************************/
-bool TXHD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
+bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -277,7 +277,7 @@ bool TXHD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedir
     if (!blck.FWrite(&htopf))
         goto LFail;
 
-    if (!TXHD_PAR::FSaveToChunk(pcfl, &cki, fRedirectText))
+    if (!TextDocument_PAR::FSaveToChunk(pcfl, &cki, fRedirectText))
         goto LFail;
 
     // add the text chunk and write it
@@ -296,7 +296,7 @@ bool TXHD::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedir
 /***************************************************************************
     Get the bounding rectangle for the given object.
 ***************************************************************************/
-bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
+bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(icact, 0, _pagcact->IvMac());
@@ -358,7 +358,7 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
 /***************************************************************************
     Draw the given object.
 ***************************************************************************/
-bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool TextDocument::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);
@@ -437,7 +437,7 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
 /***************************************************************************
     Insert a picture into the help text document.
 ***************************************************************************/
-bool TXHD::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp, ulong grfdoc)
+bool TextDocument::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp, ulong grfdoc)
 {
     AssertThis(0);
     AssertPvCb(pvExtra, cbExtra);
@@ -468,7 +468,7 @@ bool TXHD::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp,
 /***************************************************************************
     Insert a new button
 ***************************************************************************/
-bool TXHD::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp,
+bool TextDocument::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp,
                          ulong grfdoc)
 {
     AssertThis(0);
@@ -506,7 +506,7 @@ bool TXHD::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, l
     Group the given text into the given group.  lw == 0 indicates no group.
     Any non-zero number is a group.
 ***************************************************************************/
-bool TXHD::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic, PSTN pstnTopic)
+bool TextDocument::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic, PSTN pstnTopic)
 {
     AssertThis(0);
     AssertNilOrPo(pstnTopic, 0);
@@ -566,7 +566,7 @@ bool TXHD::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic, PST
 /***************************************************************************
     Determine if the given cp is in a grouped text range.
 ***************************************************************************/
-bool TXHD::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, ChunkNumber *pcnoTopic, PSTN pstnTopic)
+bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, ChunkNumber *pcnoTopic, PSTN pstnTopic)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -634,7 +634,7 @@ bool TXHD::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, ChunkNum
 /***************************************************************************
     Get the help topic information.
 ***************************************************************************/
-void TXHD::GetHtop(PHTOP phtop)
+void TextDocument::GetHtop(PHTOP phtop)
 {
     AssertThis(0);
     AssertVarMem(phtop);
@@ -645,7 +645,7 @@ void TXHD::GetHtop(PHTOP phtop)
 /***************************************************************************
     Set the topic info.
 ***************************************************************************/
-void TXHD::SetHtop(PHTOP phtop)
+void TextDocument::SetHtop(PHTOP phtop)
 {
     AssertThis(0);
     AssertVarMem(phtop);
@@ -657,7 +657,7 @@ void TXHD::SetHtop(PHTOP phtop)
 /***************************************************************************
     Constructor for a TXHG.
 ***************************************************************************/
-TXHG::TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
+TXHG::TXHG(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -668,7 +668,7 @@ TXHG::TXHG(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb) : RichTextDocumentGra
 /***************************************************************************
     Create a new help topic display gob.
 ***************************************************************************/
-PTXHG TXHG::PtxhgNew(PWorldOfKidspace pwoks, PTXHD ptxhd, PGCB pgcb)
+PTXHG TXHG::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb)
 {
     PTXHG ptxhg;
 
@@ -704,7 +704,7 @@ bool TXHG::_FInit(void)
     RC rc;
     EDPAR edpar;
     STN stn;
-    PTXHD ptxhd = Ptxhd();
+    PTextDocument ptxhd = Ptxhd();
 
     if (!TXHG_PAR::_FInit())
         return fFalse;
@@ -912,7 +912,7 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkN
     PSCEG psceg;
     HTOP htop;
     bool fRet = fTrue;
-    PTXHD ptxhd = Ptxhd();
+    PTextDocument ptxhd = Ptxhd();
     PRCA prca = ptxhd->Prca();
 
     if (pvNil != plwRet)
@@ -1001,14 +1001,14 @@ PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA pr
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
     PChunkyResourceFile pcrf;
-    PTXHD ptxhd;
+    PTextDocument ptxhd;
     PHBAL phbal;
 
     pcrf = prca->PcrfFindChunk(kctgHelpTopic, cnoTopic);
     if (pvNil == pcrf)
         return pvNil;
 
-    ptxhd = TXHD::PtxhdReadChunk(prca, pcrf->Pcfl(), kctgHelpTopic, cnoTopic, pwoks->Pstrg());
+    ptxhd = TextDocument::PtxhdReadChunk(prca, pcrf->Pcfl(), kctgHelpTopic, cnoTopic, pwoks->Pstrg());
     if (pvNil == ptxhd)
         return pvNil;
 
@@ -1023,7 +1023,7 @@ PHBAL HBAL::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA pr
     Static method to create a new help balloon based on the given help
     topic document and htop.
 ***************************************************************************/
-PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop)
+PHBAL HBAL::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PHTOP phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
@@ -1118,7 +1118,7 @@ HBAL::HBAL(GraphicsObjectBlock *pgcb) : HBAL_PAR(pgcb)
 /***************************************************************************
     Initialize the help balloon.
 ***************************************************************************/
-bool HBAL::_FInit(PWorldOfKidspace pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca)
+bool HBAL::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, HTOP *phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
@@ -1135,7 +1135,7 @@ bool HBAL::_FInit(PWorldOfKidspace pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca)
     Set the topic for this balloon.  Returns false if setting the topic
     fails or if the balloon is instantly killed by a script.
 ***************************************************************************/
-bool HBAL::FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
+bool HBAL::FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 {
     AssertThis(0);
     AssertPo(ptxhd, 0);
@@ -1151,7 +1151,7 @@ bool HBAL::FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
 /***************************************************************************
     Set the topic in the help balloon.  Don't enter the initial state.
 ***************************************************************************/
-bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
+bool HBAL::_FSetTopic(PTextDocument ptxhd, PHTOP phtop, PRCA prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);

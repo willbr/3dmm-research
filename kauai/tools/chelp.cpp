@@ -515,7 +515,7 @@ bool APP::FCmdChooseLanguage(PCMD pcmd)
 /***************************************************************************
     Create a new LIG for the given help text document.
 ***************************************************************************/
-PLIG APP::PligNew(bool fButton, PGCB pgcb, PTXHD ptxhd)
+PLIG APP::PligNew(bool fButton, PGCB pgcb, PTextDocument ptxhd)
 {
     PLID plid = fButton ? _plidButton : _plidPicture;
 
@@ -739,7 +739,7 @@ void LIG::MarkMem(void)
 /***************************************************************************
     Static method to create a new list display gob.
 ***************************************************************************/
-PLIG LIG::PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTXHD ptxhd, long dypCell)
+PLIG LIG::PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTextDocument ptxhd, long dypCell)
 {
     AssertPo(plid, 0);
     AssertVarMem(pgcb);
@@ -769,7 +769,7 @@ PLID LIG::Plid(void)
 /***************************************************************************
     Initialization for the list display gob.
 ***************************************************************************/
-bool LIG::_FInit(PTXHD ptxhd, long dypCell)
+bool LIG::_FInit(PTextDocument ptxhd, long dypCell)
 {
     AssertPo(ptxhd, 0);
     AssertIn(dypCell, 1, kswMax);
@@ -957,7 +957,7 @@ void LIG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Constructor for the CCG.
 ***************************************************************************/
-CCG::CCG(GraphicsObjectBlock *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow) : CCG_PAR(pgcb)
+CCG::CCG(GraphicsObjectBlock *pgcb, PTextDocument ptxhd, bool fForeColor, long cacrRow) : CCG_PAR(pgcb)
 {
     AssertPo(ptxhd, 0);
     AssertIn(cacrRow, 1, 257);

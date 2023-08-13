@@ -62,7 +62,7 @@ class APP : public APP_PAR
     virtual bool FCmdChooseLanguage(PCMD pcmd);
     virtual bool FEnableChooseLanguage(PCMD pcmd, ulong *pgrfeds);
 
-    PLIG PligNew(bool fButton, PGCB pgcb, PTXHD ptxhd);
+    PLIG PligNew(bool fButton, PGCB pgcb, PTextDocument ptxhd);
     bool FLoadResFile(PFilename pfni);
     bool FOpenDocFile(PFilename pfni, long cid = cidOpen);
 };
@@ -123,15 +123,15 @@ class LIG : public LIG_PAR
     CMD_MAP_DEC(LIG)
 
   protected:
-    PTXHD _ptxhd;  // the document to put the chunk in
+    PTextDocument _ptxhd;  // the document to put the chunk in
     PSCB _pscb;    // our scroll bar
     long _dypCell; // how tall are our cells
 
     LIG(PLID plid, GraphicsObjectBlock *pgcb);
-    bool _FInit(PTXHD ptxhd, long dypCell);
+    bool _FInit(PTextDocument ptxhd, long dypCell);
 
   public:
-    static PLIG PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTXHD ptxhd, long dypCell = kdypCellLig);
+    static PLIG PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTextDocument ptxhd, long dypCell = kdypCellLig);
 
     PLID Plid(void);
     void Refresh(void);
@@ -156,14 +156,14 @@ class CCG : public CCG_PAR
     ASSERT
 
   protected:
-    PTXHD _ptxhd;     // the document to put the color in
+    PTextDocument _ptxhd;     // the document to put the color in
     long _cacrRow;    // how many colors to put on a row
     bool _fForeColor; // whether this sets the foreground or background color
 
     bool _FGetAcrFromPt(long xp, long yp, AbstractColor *pacr, RC *prc = pvNil, long *piscr = pvNil);
 
   public:
-    CCG(GraphicsObjectBlock *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
+    CCG(GraphicsObjectBlock *pgcb, PTextDocument ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
 
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual void Draw(PGNV pgnv, RC *prcClip);
@@ -357,7 +357,7 @@ class HEDG : public HEDG_PAR
     Help editor topic doc - for editing a single topic in a HEDO.
     An instance of this class is a child doc of a HEDO.
 ***************************************************************************/
-#define HETD_PAR TXHD
+#define HETD_PAR TextDocument
 #define kclsHETD 'HETD'
 class HETD : public HETD_PAR
 {
