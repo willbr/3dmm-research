@@ -97,7 +97,7 @@ TXTB::~TXTB(void)
 /***************************************************************************
     Initializer for the base text document class.
 ***************************************************************************/
-bool TXTB::_FInit(PFNI pfni, PBSF pbsf, short osk)
+bool TXTB::_FInit(PFilename pfni, PBSF pbsf, short osk)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -847,10 +847,10 @@ bool TXTB::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *pr
 }
 
 /***************************************************************************
-    Get the current FNI for the doc. Return false if the doc is not
-    currently based on an FNI (it's a new doc or an internal one).
+    Get the current Filename for the doc. Return false if the doc is not
+    currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool TXTB::FGetFni(FNI *pfni)
+bool TXTB::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -894,7 +894,7 @@ TXPD::TXPD(PDOCB pdocb, ulong grfdoc) : TXPD_PAR(pdocb, grfdoc)
 /***************************************************************************
     Static method to create a new plain text document.
 ***************************************************************************/
-PTXPD TXPD::PtxpdNew(PFNI pfni, PBSF pbsf, short osk, PDOCB pdocb, ulong grfdoc)
+PTXPD TXPD::PtxpdNew(PFilename pfni, PBSF pbsf, short osk, PDOCB pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -922,17 +922,17 @@ PDDG TXPD::PddgNew(PGCB pgcb)
 
 /***************************************************************************
     Save the document and optionally set this fni as the current one.
-    If the doc is currently based on an FNI, pfni may be nil, indicating
+    If the doc is currently based on an Filename, pfni may be nil, indicating
     that this is a normal save (not save as). If pfni is not nil and
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool TXPD::FSaveToFni(FNI *pfni, bool fSetFni)
+bool TXPD::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
     FLO flo;
-    FNI fniT;
+    Filename fniT;
 
     if (pvNil == pfni)
     {
@@ -1049,7 +1049,7 @@ void TXRD::MarkMem(void)
 /***************************************************************************
     Static method to create or open a rich text document.
 ***************************************************************************/
-PTXRD TXRD::PtxrdNew(PFNI pfni)
+PTXRD TXRD::PtxrdNew(PFilename pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
     PTXRD ptxrd;
@@ -1062,7 +1062,7 @@ PTXRD TXRD::PtxrdNew(PFNI pfni)
 /***************************************************************************
     Initialize the rich text document.
 ***************************************************************************/
-bool TXRD::_FInit(PFNI pfni, CTG ctg)
+bool TXRD::_FInit(PFilename pfni, CTG ctg)
 {
     AssertBaseThis(0);
     AssertNilOrPo(pfni, 0);
@@ -1267,10 +1267,10 @@ bool TXRD::_FOpenArg(long icact, byte sprm, short bo, short osk)
 }
 
 /***************************************************************************
-    Get the current FNI for the doc. Return false if the doc is not
-    currently based on an FNI (it's a new doc or an internal one).
+    Get the current Filename for the doc. Return false if the doc is not
+    currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool TXRD::FGetFni(FNI *pfni)
+bool TXRD::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -1285,7 +1285,7 @@ bool TXRD::FGetFni(FNI *pfni)
 /***************************************************************************
     Ask the user what file they want to save to.
 ***************************************************************************/
-bool TXRD::FGetFniSave(FNI *pfni)
+bool TXRD::FGetFniSave(Filename *pfni)
 {
     // REVIEW shonk: what file type to use on Mac?
     AssertThis(0);
@@ -1297,16 +1297,16 @@ bool TXRD::FGetFniSave(FNI *pfni)
 
 /***************************************************************************
     Save the rich text document and optionally set this fni as the current
-    one. If the doc is currently based on an FNI, pfni may be nil, indicating
+    one. If the doc is currently based on an Filename, pfni may be nil, indicating
     that this is a normal save (not save as). If pfni is not nil and
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool TXRD::FSaveToFni(FNI *pfni, bool fSetFni)
+bool TXRD::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
-    FNI fni;
+    Filename fni;
     PCFL pcfl;
     CKI cki;
 

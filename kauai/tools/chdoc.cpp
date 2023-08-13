@@ -167,7 +167,7 @@ DOC::~DOC(void)
     Use pfni == pvNil to create a new file, non-nil to open an
     existing file.
 ***************************************************************************/
-PDOC DOC::PdocNew(FNI *pfni)
+PDOC DOC::PdocNew(Filename *pfni)
 {
     PCFL pcfl;
     PDOC pdoc;
@@ -208,10 +208,10 @@ PDDG DOC::PddgNew(PGCB pgcb)
 }
 
 /***************************************************************************
-    Get the current FNI for the doc. Return false if the doc is not
-    currently based on an FNI (it's a new doc or an internal one).
+    Get the current Filename for the doc. Return false if the doc is not
+    currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool DOC::FGetFni(FNI *pfni)
+bool DOC::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -224,12 +224,12 @@ bool DOC::FGetFni(FNI *pfni)
 
 /***************************************************************************
     Save the document and optionally set this fni as the current one.
-    If the doc is currently based on an FNI, pfni may be nil, indicating
+    If the doc is currently based on an Filename, pfni may be nil, indicating
     that this is a normal save (not save as). If pfni is not nil and
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool DOC::FSaveToFni(FNI *pfni, bool fSetFni)
+bool DOC::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     if (!fSetFni && pvNil != pfni)
@@ -255,7 +255,7 @@ bool DOC::FSaveToFni(FNI *pfni, bool fSetFni)
 /***************************************************************************
     Ask the user what file they want to save to.
 ***************************************************************************/
-bool DOC::FGetFniSave(FNI *pfni)
+bool DOC::FGetFniSave(Filename *pfni)
 {
     AssertThis(0);
     return FGetFniSaveMacro(pfni, 'CHN2',
@@ -1427,7 +1427,7 @@ bool DCD::FCmdAddPicChunk(PCMD pcmd)
     DataBlock blck;
     long cb;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
     PPIC ppic = pvNil;
 
@@ -1540,7 +1540,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
     DataBlock blck;
     long lw;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
     byte bTransparent;
     long xp, yp;
@@ -1626,7 +1626,7 @@ bool DCD::FCmdAddFileChunk(PCMD pcmd)
     PFIL pfil;
     DataBlock blck;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
 
     // save and clear the sel
@@ -2413,7 +2413,7 @@ bool DCD::FCmdImportScript(PCMD pcmd)
     SCCG sccg;
     CKI cki;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
     MSFIL msfil;
     PSCPT pscpt = pvNil;
@@ -2609,7 +2609,7 @@ bool DCD::FCmdDisasmScript(PCMD pcmd)
     CKI cki;
     PSCPT pscpt;
     SCCG sccg;
-    FNI fni;
+    Filename fni;
     MSFIL msfil, msfilError;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))

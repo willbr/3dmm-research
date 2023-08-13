@@ -827,13 +827,13 @@ class FNET : public FNET_PAR
     bool _fInitMSKDir;
     FNE _fne;
     FNE _fneDir;
-    FNI _fniDirMSK;
-    FNI _fniDir;
-    FNI _fniDirProduct;
+    Filename _fniDirMSK;
+    Filename _fniDir;
+    Filename _fniDirProduct;
     bool _fInited;
 
   protected:
-    bool _FNextFni(FNI *pfni, long *psid);
+    bool _FNextFni(Filename *pfni, long *psid);
 
   public:
     //
@@ -846,7 +846,7 @@ class FNET : public FNET_PAR
     ~FNET(void){};
 
     bool FInit(void);
-    bool FNext(FNI *pfni, long *psid = pvNil);
+    bool FNext(Filename *pfni, long *psid = pvNil);
 };
 
 #endif

@@ -29,13 +29,13 @@ FileType vftgTemp = kftgTemp;
 typedef StandardFileReply SFR;
 priv bool _FFssDir(FSS *pfss, long *plwDir);
 
-RTCLASS(FNI)
+RTCLASS(Filename)
 RTCLASS(FNE)
 
 /***************************************************************************
     Sets the fni to nil values.
 ***************************************************************************/
-void FNI::SetNil(void)
+void Filename::SetNil(void)
 {
     _ftg = ftgNil;
     _lwDir = 0;
@@ -46,7 +46,7 @@ void FNI::SetNil(void)
 /***************************************************************************
     Constructor for fni class.
 ***************************************************************************/
-FNI::FNI(void)
+Filename::Filename(void)
 {
     SetNil();
 }
@@ -54,7 +54,7 @@ FNI::FNI(void)
 /***************************************************************************
     Get an fni (for opening) from the user.
 ***************************************************************************/
-bool FNI::FGetOpen(FileType *prgftg, short cftg)
+bool Filename::FGetOpen(FileType *prgftg, short cftg)
 {
     AssertThis(0);
     AssertNilOrVarMem(prgftg);
@@ -78,7 +78,7 @@ bool FNI::FGetOpen(FileType *prgftg, short cftg)
 /***************************************************************************
     Get an fni (for saving) from the user.
 ***************************************************************************/
-bool FNI::FGetSave(FileType ftg, PST pstPrompt, PST pstDefault)
+bool Filename::FGetSave(FileType ftg, PST pstPrompt, PST pstDefault)
 {
     AssertThis(0);
     AssertNilOrSt(pstPrompt);
@@ -103,7 +103,7 @@ bool FNI::FGetSave(FileType ftg, PST pstPrompt, PST pstDefault)
 /***************************************************************************
     Get a unique filename in the given directory.
 ***************************************************************************/
-bool FNI::FGetUnique(FileType ftg)
+bool Filename::FGetUnique(FileType ftg)
 {
     AssertThis(ffniFile | ffniDir);
     static long _dlw = 0;
@@ -136,7 +136,7 @@ bool FNI::FGetUnique(FileType ftg)
 /***************************************************************************
     Get a temporary fni.
 ***************************************************************************/
-bool FNI::FGetTemp(void)
+bool Filename::FGetTemp(void)
 {
     AssertThis(0);
     static short _swVolTemp = 0;
@@ -165,7 +165,7 @@ bool FNI::FGetTemp(void)
 /***************************************************************************
     Return the file type of the fni.
 ***************************************************************************/
-FileType FNI::Ftg(void)
+FileType Filename::Ftg(void)
 {
     AssertThis(0);
     return _ftg;
@@ -174,7 +174,7 @@ FileType FNI::Ftg(void)
 /***************************************************************************
     Return the volume kind for the given fni.
 ***************************************************************************/
-ulong FNI::Grfvk(void)
+ulong Filename::Grfvk(void)
 {
     AssertThis(0);
     ulong grfvk = fvkNil;
@@ -187,7 +187,7 @@ ulong FNI::Grfvk(void)
 /***************************************************************************
     Set the leaf for the fni.
 ***************************************************************************/
-bool FNI::FSetLeaf(PSTZ pstz, FileType ftg)
+bool Filename::FSetLeaf(PSTZ pstz, FileType ftg)
 {
     AssertThis(ffniFile | ffniDir);
     return FBuild(_fss.vRefNum, _lwDir, pstz, ftg);
@@ -196,7 +196,7 @@ bool FNI::FSetLeaf(PSTZ pstz, FileType ftg)
 /***************************************************************************
     Set the leaf for the fni.
 ***************************************************************************/
-bool FNI::FBuild(long lwVol, long lwDir, PSTZ pstz, FileType ftg)
+bool Filename::FBuild(long lwVol, long lwDir, PSTZ pstz, FileType ftg)
 {
     AssertNilOrStz(pstz);
     short err;
@@ -240,7 +240,7 @@ LFail:
 /***************************************************************************
     Set the FileType for the fni.
 ***************************************************************************/
-bool FNI::FChangeFtg(FileType ftg)
+bool Filename::FChangeFtg(FileType ftg)
 {
     AssertThis(ffniFile);
     Assert(ftg != ftgNil && ftg != kftgDir, "Bad FileType");
@@ -252,7 +252,7 @@ bool FNI::FChangeFtg(FileType ftg)
 /***************************************************************************
     Get the leaf name for the fni.
 ***************************************************************************/
-void FNI::GetLeaf(PSTZ pstz)
+void Filename::GetLeaf(PSTZ pstz)
 {
     AssertThis(0);
     AssertMaxStz(pstz);
@@ -266,7 +266,7 @@ void FNI::GetLeaf(PSTZ pstz)
 /***************************************************************************
     Get a string representing the path of the fni.
 ***************************************************************************/
-void FNI::GetStzPath(PSTZ pstz)
+void Filename::GetStzPath(PSTZ pstz)
 {
     AssertThis(0);
     AssertMaxStz(pstz);
@@ -280,7 +280,7 @@ void FNI::GetStzPath(PSTZ pstz)
     same name or if the file/dir is invisible or is an alias.  Pushes an
     erc if it returns tMaybe.
 ***************************************************************************/
-bool FNI::TExists(void)
+bool Filename::TExists(void)
 {
     AssertThis(ffniFile | ffniDir);
     CInfoPBRec iob;
@@ -317,7 +317,7 @@ bool FNI::TExists(void)
 /***************************************************************************
     Delete the file.
 ***************************************************************************/
-bool FNI::FDelete(void)
+bool Filename::FDelete(void)
 {
     AssertThis(ffniFile);
     if (FSpDelete(&_fss) == noErr)
@@ -329,7 +329,7 @@ bool FNI::FDelete(void)
 /***************************************************************************
     Rename the file as indicated by *pfni.  The directories must match.
 ***************************************************************************/
-bool FNI::FRename(FNI *pfni)
+bool Filename::FRename(Filename *pfni)
 {
     AssertThis(ffniFile);
     AssertPo(pfni, ffniFile);
@@ -345,7 +345,7 @@ bool FNI::FRename(FNI *pfni)
 /***************************************************************************
     Compare two fni's for equality.  Doesn't consider the ftg's.
 ***************************************************************************/
-bool FNI::FEqual(FNI *pfni)
+bool Filename::FEqual(Filename *pfni)
 {
     // NOTE: see IM:Text, pg 5-17.  It's not documented whether the comparison
     // should be case sensitive and/or diacritical sensitive.  Experimenting
@@ -361,7 +361,7 @@ bool FNI::FEqual(FNI *pfni)
 /***************************************************************************
     Return whether the fni refers to a directory.
 ***************************************************************************/
-bool FNI::FDir(void)
+bool Filename::FDir(void)
 {
     AssertThis(0);
     return _ftg == kftgDir;
@@ -370,7 +370,7 @@ bool FNI::FDir(void)
 /***************************************************************************
     Return whether the directory portions of the fni's are the same.
 ***************************************************************************/
-bool FNI::FSameDir(FNI *pfni)
+bool Filename::FSameDir(Filename *pfni)
 {
     AssertThis(ffniDir | ffniFile);
     AssertPo(pfni, ffniDir | ffniFile);
@@ -384,7 +384,7 @@ bool FNI::FSameDir(FNI *pfni)
     doesn't exist.  Specify ffniMoveTo to make the fni refer to it.
     If this fails, the fni is untouched.
 ***************************************************************************/
-bool FNI::FDownDir(PSTZ pstz, ulong grffni)
+bool Filename::FDownDir(PSTZ pstz, ulong grffni)
 {
     AssertThis(ffniDir);
     AssertStz(pstz);
@@ -438,7 +438,7 @@ bool FNI::FDownDir(PSTZ pstz, ulong grffni)
     moves the fni up a level (if ffniMoveToDir is specified).  If this
     fails, the fni is untouched.
 ***************************************************************************/
-bool FNI::FUpDir(PSTZ pstz, ulong grffni)
+bool Filename::FUpDir(PSTZ pstz, ulong grffni)
 {
     AssertThis(ffniDir);
     AssertNilOrMaxStz(pstz);
@@ -481,11 +481,11 @@ bool FNI::FUpDir(PSTZ pstz, ulong grffni)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert validity of the FNI.
+    Assert validity of the Filename.
 ***************************************************************************/
-void FNI::AssertValid(ulong grffni)
+void Filename::AssertValid(ulong grffni)
 {
-    FNI_PAR::AssertValid(0);
+    Filename_PAR::AssertValid(0);
     if (grffni == 0)
         grffni = ffniEmpty | ffniFile | ffniDir;
 
@@ -580,7 +580,7 @@ void FNE::_Free(void)
 /***************************************************************************
     Initialize the fne to do an enumeration.
 ***************************************************************************/
-bool FNE::FInit(FNI *pfniDir, FileType *prgftg, long cftg, ulong grffne)
+bool FNE::FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfniDir);
@@ -622,9 +622,9 @@ bool FNE::FInit(FNI *pfniDir, FileType *prgftg, long cftg, ulong grffne)
 }
 
 /***************************************************************************
-    Get the next FNI in the enumeration.
+    Get the next Filename in the enumeration.
 ***************************************************************************/
-bool FNE::FNextFni(FNI *pfni, ulong *pgrffneOut, ulong grffneIn)
+bool FNE::FNextFni(Filename *pfni, ulong *pgrffneOut, ulong grffneIn)
 {
     AssertThis(0);
     AssertVarMem(pfni);

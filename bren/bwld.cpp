@@ -785,12 +785,12 @@ void BWLD::MarkMem(void)
         Writes the current rendered buffer out to the given file
 
     Arguments:
-        PFNI pfni -- the name of the file
+        PFilename pfni -- the name of the file
 
     Returns: fTrue if the file could be written successfully
 
 ************************************************************ PETED ***********/
-bool BWLD::FWriteBmp(PFNI pfni)
+bool BWLD::FWriteBmp(PFilename pfni)
 {
     AssertPo(pfni, 0);
 

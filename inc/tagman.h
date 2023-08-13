@@ -87,7 +87,7 @@ class TAGM : public TAGM_PAR
     ASSERT
 
   protected:
-    FNI _fniHDRoot;     // Root HD directory to search for content
+    Filename _fniHDRoot;     // Root HD directory to search for content
     long _cbCache;      // Size of RAM Cache on files in CRM for each source
     PGL _pglsfs;        // GL of source file structs
     PGST _pgstSource;   // String table of source descriptions
@@ -101,21 +101,21 @@ class TAGM : public TAGM_PAR
     bool _FGetStnMergedOfSid(long sid, PSTN pstn);
     bool _FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort);
     bool _FRetry(long sid);
-    bool _FEnsureFniCD(long sid, PFNI pfniCD, PSTN pstn = pvNil);
-    bool _FFindFniCD(long sid, PFNI pfniCD, bool *pfFniChanged);
+    bool _FEnsureFniCD(long sid, PFilename pfniCD, PSTN pstn = pvNil);
+    bool _FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged);
     bool _FDetermineIfSourceHD(long sid, bool *pfSourceIsOnHD);
-    bool _FDetermineIfContentOnFni(PFNI pfni, bool *pfContentOnFni);
+    bool _FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni);
 
-    bool _FGetFniHD(long sid, PFNI pfniHD);
-    bool _FGetFniCD(long sid, PFNI pfniHD, bool fAskForCD);
+    bool _FGetFniHD(long sid, PFilename pfniHD);
+    bool _FGetFniCD(long sid, PFilename pfniHD, bool fAskForCD);
 
-    bool _FBuildFniHD(long sid, PFNI pfniHD, bool *pfExists);
-    PCRM _PcrmSourceNew(long sid, PFNI pfniInfo);
+    bool _FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists);
+    PCRM _PcrmSourceNew(long sid, PFilename pfniInfo);
     PCRM _PcrmSourceGet(long sid, bool fDontHitCD = fFalse);
     PCFL _PcflFindTag(PTAG ptag);
 
   public:
-    static PTAGM PtagmNew(PFNI pfniHDRoot, PFNINSCD pfninscd, long cbCache);
+    static PTAGM PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache);
     ~TAGM(void);
 
     // GstSource stuff:
@@ -124,7 +124,7 @@ class TAGM : public TAGM_PAR
     bool FAddStnSource(PSTN pstnMerged, long sid);
     bool FGetSid(PSTN pstn, long *psid); // pstn can be short or long
 
-    bool FFindFile(long sid, PSTN pstn, PFNI pfni, bool fAskForCD);
+    bool FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD);
     void SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort);
 
     bool FBuildChildTag(PTAG ptagPar, CHID chid, CTG ctgChild, PTAG ptagChild);

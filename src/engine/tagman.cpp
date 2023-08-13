@@ -50,8 +50,8 @@ struct SFS
 {
   public:
     long sid;             // ID for this source
-    FNI fniHD;            // FNI of the HD directory
-    FNI fniCD;            // FNI of the CD directory
+    Filename fniHD;            // Filename of the HD directory
+    Filename fniCD;            // Filename of the CD directory
     PCRM pcrmSource;      // CRM of files on the CD (or possibly HD)
     tribool tContentOnHD; // Is the content on the HD or CD?
 
@@ -69,7 +69,7 @@ struct SFS
 /***************************************************************************
     Initialize the tag manager
 ***************************************************************************/
-PTAGM TAGM::PtagmNew(PFNI pfniHDRoot, PFNINSCD pfninscd, long cbCache)
+PTAGM TAGM::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache)
 {
     AssertPo(pfniHDRoot, ffniDir);
     Assert(pvNil != pfninscd, "bad pfninscd");
@@ -298,13 +298,13 @@ bool TAGM::_FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort)
 }
 
 /***************************************************************************
-    Builds the FNI to the HD files for a given sid
+    Builds the Filename to the HD files for a given sid
     - If we don't even know the string for the sid, return fFalse
     - If there is no fniHD, set *pfExists to fFalse and return fTrue
     - If we find the fniHD, put it in *pfniHD, set *pfExists to fTrue,
       and return fTrue
 ***************************************************************************/
-bool TAGM::_FBuildFniHD(long sid, PFNI pfniHD, bool *pfExists)
+bool TAGM::_FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -313,7 +313,7 @@ bool TAGM::_FBuildFniHD(long sid, PFNI pfniHD, bool *pfExists)
 
     STN stnLong;
     STN stnShort;
-    FNI fni;
+    Filename fni;
 
     *pfExists = fFalse;
     if (!_FGetStnSplitOfSid(sid, &stnLong, &stnShort))
@@ -334,7 +334,7 @@ bool TAGM::_FBuildFniHD(long sid, PFNI pfniHD, bool *pfExists)
 /***************************************************************************
     See if there are any content files in the directory specified by pfni
 ***************************************************************************/
-bool TAGM::_FDetermineIfContentOnFni(PFNI pfni, bool *pfContentOnFni)
+bool TAGM::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniDir);
@@ -342,7 +342,7 @@ bool TAGM::_FDetermineIfContentOnFni(PFNI pfni, bool *pfContentOnFni)
 
     FNE fne;
     FileType ftgContent = kftgContent;
-    FNI fni;
+    Filename fni;
 
     if (!fne.FInit(pfni, &ftgContent, 1))
         return fFalse;
@@ -358,7 +358,7 @@ bool TAGM::_FDetermineIfContentOnFni(PFNI pfni, bool *pfContentOnFni)
     think it does.  Or, if pstn is non-nil, try to go down from pfniCD
     to pstn.
 ***************************************************************************/
-bool TAGM::_FEnsureFniCD(long sid, FNI *pfniCD, PSTN pstn)
+bool TAGM::_FEnsureFniCD(long sid, Filename *pfniCD, PSTN pstn)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -393,23 +393,23 @@ bool TAGM::_FEnsureFniCD(long sid, FNI *pfniCD, PSTN pstn)
 
 /***************************************************************************
     This function verifies that the source (e.g., CD) is where we think it
-    is, and searches for it otherwise.  Pass the previously determined FNI
+    is, and searches for it otherwise.  Pass the previously determined Filename
     of the CD directory file in pfniCD.  Or if this is the first time
-    looking for this source, pass in any FNI with a FileType of ftgNil.	If it
+    looking for this source, pass in any Filename with a FileType of ftgNil.	If it
     can't find the CD directory, it returns fFalse with pfniInfo untouched.
 ***************************************************************************/
-bool TAGM::_FFindFniCD(long sid, PFNI pfniCD, bool *pfFniChanged)
+bool TAGM::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
-    AssertPo(pfniCD, ffniEmpty | ffniDir); // could be a blank FNI
+    AssertPo(pfniCD, ffniEmpty | ffniDir); // could be a blank Filename
     AssertVarMem(pfFniChanged);
 
     FNE fne;
-    FNI fni;
+    Filename fni;
     STN stnLong;
     STN stnShort;
-    FNI fniCD;
+    Filename fniCD;
 
     *pfFniChanged = fFalse;
 
@@ -479,14 +479,14 @@ bool TAGM::_FRetry(long sid)
     Builds the CRM for the given sid's source.  pfniDir tells where the
     content files are.
 ***************************************************************************/
-PCRM TAGM::_PcrmSourceNew(long sid, PFNI pfniDir)
+PCRM TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
     AssertPo(pfniDir, ffniDir);
 
     STN stn;
-    FNI fni;
+    Filename fni;
     PCRM pcrmSource = pvNil;
     FNE fne;
     FileType ftgChk = kftgContent;
@@ -658,9 +658,9 @@ LSetupSfs:
 }
 
 /***************************************************************************
-    Get the FNI for the HD directory
+    Get the Filename for the HD directory
 ***************************************************************************/
-bool TAGM::_FGetFniHD(long sid, PFNI pfniHD)
+bool TAGM::_FGetFniHD(long sid, PFilename pfniHD)
 {
     AssertThis(0);
     AssertVarMem(pfniHD);
@@ -692,9 +692,9 @@ LSetupSFS:
 }
 
 /***************************************************************************
-    Get the FNI for the CD directory
+    Get the Filename for the CD directory
 ***************************************************************************/
-bool TAGM::_FGetFniCD(long sid, PFNI pfniCD, bool fAskForCD)
+bool TAGM::_FGetFniCD(long sid, PFilename pfniCD, bool fAskForCD)
 {
     AssertThis(0);
     AssertVarMem(pfniCD);
@@ -731,7 +731,7 @@ LSetupSFS:
 /***************************************************************************
     Finds the file with name pstn on the HD or CD.
 ***************************************************************************/
-bool TAGM::FFindFile(long sid, PSTN pstn, PFNI pfni, bool fAskForCD)
+bool TAGM::FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");

@@ -59,16 +59,16 @@ class DOC : public DOC_PAR
     ~DOC(void);
 
   public:
-    static PDOC PdocNew(FNI *pfni);
+    static PDOC PdocNew(Filename *pfni);
 
     PCFL Pcfl(void)
     {
         return _pcfl;
     }
     virtual PDDG PddgNew(PGCB pgcb);
-    virtual bool FGetFni(FNI *pfni);
-    virtual bool FGetFniSave(FNI *pfni);
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
+    virtual bool FGetFni(Filename *pfni);
+    virtual bool FGetFniSave(Filename *pfni);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
 /***************************************************************************
@@ -718,7 +718,7 @@ class CHTXD : public CHTXD_PAR
     CHTXD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
 
   public:
-    static PCHTXD PchtxdNew(PFNI pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDOCB pdocb = pvNil,
+    static PCHTXD PchtxdNew(PFilename pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDOCB pdocb = pvNil,
                             ulong grfdoc = fdocNil);
 
     virtual PDDG PddgNew(PGCB pgcb);

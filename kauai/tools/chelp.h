@@ -63,8 +63,8 @@ class APP : public APP_PAR
     virtual bool FEnableChooseLanguage(PCMD pcmd, ulong *pgrfeds);
 
     PLIG PligNew(bool fButton, PGCB pgcb, PTXHD ptxhd);
-    bool FLoadResFile(PFNI pfni);
-    bool FOpenDocFile(PFNI pfni, long cid = cidOpen);
+    bool FLoadResFile(PFilename pfni);
+    bool FOpenDocFile(PFilename pfni, long cid = cidOpen);
 };
 extern APP vapp;
 
@@ -218,7 +218,7 @@ class HEDO : public HEDO_PAR
     ~HEDO(void);
 
   public:
-    static PHEDO PhedoNew(FNI *pfni, PRCA prca);
+    static PHEDO PhedoNew(Filename *pfni, PRCA prca);
 
     PCFL Pcfl(void)
     {
@@ -229,9 +229,9 @@ class HEDO : public HEDO_PAR
         return _prca;
     }
     virtual PDDG PddgNew(PGCB pgcb);
-    virtual bool FGetFni(FNI *pfni);
-    virtual bool FGetFniSave(FNI *pfni);
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
+    virtual bool FGetFni(Filename *pfni);
+    virtual bool FGetFniSave(Filename *pfni);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 
     virtual void InvalAllDdg(CNO cno);
     virtual bool FExportText(void);

@@ -126,7 +126,7 @@ class SREC : public SREC_PAR
     bool FPlay(void);
     bool FRecording(void);
     bool FPlaying(void);
-    bool FSave(PFNI pfni);
+    bool FSave(PFilename pfni);
     bool FHaveSound(void)
     {
         return _fHaveSound;

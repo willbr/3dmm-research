@@ -90,11 +90,11 @@ REVIEW shonk: assert and check for cycles.
 		Chunky files form a linked list.  This returns the first chunky file
 		in the linked list.
 
-	PCFL CFL::PcflFromFni(FNI *pfni);
+	PCFL CFL::PcflFromFni(Filename *pfni);
 		If the file indicated by *pfni is open as a chunky file, this returns
 		a pointer to the CFL.  Otherwise it returns pNil.
 
-	PCFL CFL::PcflOpen(FNI *pfni, ulong grfcfl);
+	PCFL CFL::PcflOpen(Filename *pfni, ulong grfcfl);
 		Attempts to open the indicated file as a chunky file.  grfcfl may
 		include fcflWriteEnable, fcflAddToExtra, fcflMark.  fcflTemp is
 		illegal.  If the file is already open as a chunky file, this ensures
@@ -103,7 +103,7 @@ REVIEW shonk: assert and check for cycles.
 		fcflMark causes the cfl to be marked (but not the underlying fil).
 		Returns pNil on failure.
 
-	PCFL CFL::PcflCreate(FNI *pfni, ulong grfcfl);
+	PCFL CFL::PcflCreate(Filename *pfni, ulong grfcfl);
 		Creates and opens the indicated file as a chunk file (asserts that it
 		isn't already open) and sets the open count to 1.  Assumes
 		fcflWriteEnable.  fcflMark is legal.  Use fcflTemp to create a temp
@@ -133,7 +133,7 @@ REVIEW shonk: assert and check for cycles.
 		Decrements the open count.  If the cfl is not marked and the
 		open count becomes zero, the cfl is closed.
 
-	bool CFL::FSave(CTG ctgCreator, FNI *pfni = pNil);
+	bool CFL::FSave(CTG ctgCreator, Filename *pfni = pNil);
 		Saves the chunky file.  Passing pNil (or the current fni of the CFL)
 		for pfni does a normal save.  Passing any other fni does a save as
 		(the original file still exists).  Note:  if you do a save as, but
@@ -151,7 +151,7 @@ REVIEW shonk: assert and check for cycles.
 	bool CFL::FTemp(void);
 		Return whether the chunky file is a temp file.
 
-	void CFL::GetFni(FNI *pfni);
+	void CFL::GetFni(Filename *pfni);
 		Get the file name.
 
 	bool CFL::FFind(CTG ctg, CNO cno, FLO *pflo);

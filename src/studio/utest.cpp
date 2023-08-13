@@ -171,7 +171,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 
     ulong tsHomeLogo;
     ulong tsSplashScreen;
-    FNI fniUserDoc;
+    Filename fniUserDoc;
     long fFirstTimeUser;
     long fSkipSplashScreen = fFalse;
     
@@ -462,7 +462,7 @@ LFail:
 ************************************************************ PETED ***********/
 void APP::_CleanupTemp(void)
 {
-    FNI fni;
+    Filename fni;
 
     /* Attempt to cleanup any leftovers from a previous bad exit */
     vftgTemp = kftgSocTemp;
@@ -525,7 +525,7 @@ void APP::_TryToActivateWindow(void)
 #ifdef WIN
     HWND hwnd;
     STN stn;
-    FNI fniUserDoc;
+    Filename fniUserDoc;
 
     GetStnAppName(&stn);
     hwnd = FindWindow(kpszAppWndCls, stn.Psz());
@@ -1079,7 +1079,7 @@ bool APP::_FOpenResourceFile(void)
     AssertBaseThis(0);
     AssertPo(&_fniProductDir, ffniDir);
 
-    FNI fni;
+    Filename fni;
     STN stn;
 
     fni = _fniProductDir;
@@ -1127,7 +1127,7 @@ bool APP::_FCantFindFileDialog(PSTN pstnFile)
 /***************************************************************************
     Report that 3DMM ran into a generic error
 ***************************************************************************/
-bool APP::_FGenericError(FNI *path)
+bool APP::_FGenericError(Filename *path)
 {
     STN stn;
     path->GetStnPath(&stn);
@@ -1848,7 +1848,7 @@ bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
     AssertNilOrPo(pglFiles, 0);
 
     bool fRet = fFalse;
-    FNI fni;
+    Filename fni;
     STN stn;
     long istn;
     long cbCache;
@@ -1970,7 +1970,7 @@ LFail:
 /***************************************************************************
     Initialize and start the studio script
 ***************************************************************************/
-bool APP::_FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
+bool APP::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
 {
     AssertBaseThis(0);
 
@@ -2139,7 +2139,7 @@ void APP::_ParseCommandLine(void)
     STN stn;
     achar *pch;
     achar *pchT;
-    FNI fniT;
+    Filename fniT;
 
     // Get path to current directory
     GetCurrentDirectory(kcchMaxSz, sz);
@@ -2296,7 +2296,7 @@ bool APP::_FFindMsKidsDir(void)
     AssertBaseThis(0);
     Assert(_stnProductLong.Cch() > 0 && _stnProductShort.Cch() > 0, "_stnProductLong and _stnProductShort must exist");
 
-    FNI fni;
+    Filename fni;
     SZ szMsKidsDir;
     STN stn;
     STN stnUsers;
@@ -2342,7 +2342,7 @@ bool APP::_FFindMsKidsDir(void)
     Finds Microsoft Kids directory at a given path. Modifies the path to
     descend into the directory. Returns true if successful.
 ***************************************************************************/
-bool APP::_FFindMsKidsDirAt(FNI *path)
+bool APP::_FFindMsKidsDirAt(Filename *path)
 {
     STN stn;
 
@@ -2380,7 +2380,7 @@ bool APP::_FFindProductDir(PGST pgst)
     STN stnLong;
     STN stnShort;
     STN stn;
-    FNI fni;
+    Filename fni;
     long istn;
 
     if (_FQueryProductExists(&_stnProductLong, &_stnProductShort, &_fniProductDir))
@@ -2405,14 +2405,14 @@ bool APP::_FFindProductDir(PGST pgst)
     See if the product exists.
     Method:  See if the directory and chunk file exist.
 ***************************************************************************/
-bool APP::_FQueryProductExists(STN *pstnLong, STN *pstnShort, FNI *pfni)
+bool APP::_FQueryProductExists(STN *pstnLong, STN *pstnShort, Filename *pfni)
 {
     AssertBaseThis(0);
     AssertVarMem(pfni);
     AssertPo(pstnLong, 0);
     AssertPo(pstnShort, 0);
 
-    FNI fni;
+    Filename fni;
     STN stn;
 
     *pfni = _fniMsKidsDir;
@@ -2776,7 +2776,7 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    FNI fniUserDoc;
+    Filename fniUserDoc;
     CHID chidProject;
     long kidBuilding;
     PGOB pgob;
@@ -2947,11 +2947,11 @@ bool APP::FCmdPortfolioOpen(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    FNI fni;
+    Filename fni;
     bool fOKed;
     long idsTitle, idsFilterLabel, idsFilterExt;
-    FNI fniUsersDir;
-    PFNI pfni;
+    Filename fniUsersDir;
+    PFilename pfni;
     ulong grfPrevType;
     CNO cnoWave = cnoNil;
 
@@ -4023,7 +4023,7 @@ bool APP::FCmdIdle(PCMD pcmd)
 /***************************************************************************
     Tell another instance of the app to open a document.
 ***************************************************************************/
-bool APP::_FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc)
+bool APP::_FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc)
 {
     AssertBaseThis(0);
     Assert(pvNil != hwnd, "bad hwnd");
@@ -4031,7 +4031,7 @@ bool APP::_FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc)
 
     STN stnUserDoc;
     STN stn;
-    FNI fniTemp;
+    Filename fniTemp;
     PFIL pfil = pvNil;
     DataBlock blck;
     DWORD dwProcId;
@@ -4083,9 +4083,9 @@ bool APP::_FProcessOpenDocCmd(void)
 
     STN stnUserDoc;
     STN stn;
-    FNI fniTemp;
+    Filename fniTemp;
     PFIL pfil = pvNil;
-    FNI fniUserDoc;
+    Filename fniUserDoc;
     DataBlock blck;
 
     // Find the temp file
@@ -4649,7 +4649,7 @@ void KWA::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool KWA::FFindFile(PSTN pstnSrc, PFNI pfni)
+bool KWA::FFindFile(PSTN pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);

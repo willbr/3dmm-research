@@ -78,14 +78,14 @@ class Studio : public Studio_PAR
     bool _FBuildMenuCidCtg(long cid, CTG ctg, PGL pgl, ulong grfHotKey, ulong grfNum, bool fNew);
     PBRCN _PbrcnFromBrwdid(long brwdid);
 #ifdef BUG1959
-    bool _FLoadMovie(PFNI pfni, CNO cno, bool *pfClosedOld);
+    bool _FLoadMovie(PFilename pfni, CNO cno, bool *pfClosedOld);
 #endif // BUG1959
 
   public:
     //
     // Create and destroy functions
     //
-    static PStudio PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
+    static PStudio PstdioNew(long hid, PCRM pcrmStudio, PFilename pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
     void ReleaseBrcn(void);
     ~Studio(void);
 
@@ -190,13 +190,13 @@ class Studio : public Studio_PAR
     //
     // Movie changing
     //
-    bool FLoadMovie(PFNI pfni = pvNil, CNO cno = cnoNil);
+    bool FLoadMovie(PFilename pfni = pvNil, CNO cno = cnoNil);
     bool FSetMovie(PMVIE pmvie);
     PMVIE Pmvie()
     {
         return _pmvie;
     };
-    bool FGetFniMovieOpen(PFNI pfni)
+    bool FGetFniMovieOpen(PFilename pfni)
     {
         return FPortDisplayWithIds(pfni, fTrue, idsPortfMovieFilterLabel, idsPortfMovieFilterExt,
                                    idsPortfOpenMovieTitle, pvNil, pvNil, pvNil, fpfPortPrevMovie, kwavPortOpenMovie);
@@ -342,7 +342,7 @@ class SMCC : public SMCC_PAR
     {
         _pstdio->StartListenerEasel();
     }
-    virtual bool GetFniSave(FNI *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
+    virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
                             PSTN pstnDefFileName)
     {
         return (FPortDisplayWithIds(pfni, fFalse, lFilterLabel, lFilterExt, lTitle, lpstrDefExt, pstnDefFileName, pvNil,

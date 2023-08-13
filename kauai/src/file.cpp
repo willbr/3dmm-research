@@ -24,7 +24,7 @@ RTCLASS(MSFIL)
 /***************************************************************************
     Constructor for a file.
 ***************************************************************************/
-FIL::FIL(FNI *pfni, ulong grffil)
+FIL::FIL(Filename *pfni, ulong grffil)
 {
     AssertPo(pfni, ffniFile);
     _fni = *pfni;
@@ -52,7 +52,7 @@ FIL::~FIL(void)
 /***************************************************************************
     Static method to open an existing file.  Increments the open count.
 ***************************************************************************/
-PFIL FIL::PfilOpen(FNI *pfni, ulong grffil)
+PFIL FIL::PfilOpen(Filename *pfni, ulong grffil)
 {
     AssertPo(pfni, ffniFile);
     PFIL pfil;
@@ -86,7 +86,7 @@ PFIL FIL::PfilOpen(FNI *pfni, ulong grffil)
 /***************************************************************************
     Create a new file.  Increments the open count.
 ***************************************************************************/
-PFIL FIL::PfilCreate(FNI *pfni, ulong grffil)
+PFIL FIL::PfilCreate(Filename *pfni, ulong grffil)
 {
     AssertPo(pfni, ffniFile);
     PFIL pfil;
@@ -118,10 +118,10 @@ PFIL FIL::PfilCreate(FNI *pfni, ulong grffil)
     the same ftg, or, if pfni is nil, in the standard place with vftgTemp.
     The file is not marked.
 ***************************************************************************/
-PFIL FIL::PfilCreateTemp(FNI *pfni)
+PFIL FIL::PfilCreateTemp(Filename *pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
-    FNI fni;
+    Filename fni;
 
     if (pvNil != pfni)
     {
@@ -143,7 +143,7 @@ PFIL FIL::PfilCreateTemp(FNI *pfni)
     If we have the file indicated by fni open, returns the pfil, otherwise
     returns pvNil.  Doesn't affect the open count.
 ***************************************************************************/
-PFIL FIL::PfilFromFni(FNI *pfni)
+PFIL FIL::PfilFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     PFIL pfil;
@@ -254,7 +254,7 @@ void FIL::SetTemp(bool fTemp)
     Otherwise, we delete any existing file with the same name.  The rules
     for *pfni are the same as for FRename.
 ***************************************************************************/
-bool FIL::FSetFni(FNI *pfni)
+bool FIL::FSetFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     PFIL pfilOld;

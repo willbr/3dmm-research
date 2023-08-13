@@ -71,7 +71,7 @@ bool SPLC::_FInit(SC_LID sclid, PSTN pstnCustom)
     AssertNilOrPo(pstnCustom, 0);
 
     SC_WSC wsc;
-    FNI fni;
+    Filename fni;
 
     if (!_FEnsureDll(sclid))
         return fFalse;
@@ -159,7 +159,7 @@ LError:
 /***************************************************************************
     Find the main dictionary and load it
 ***************************************************************************/
-bool SPLC::_FEnsureMainDict(SC_LID sclid, PFNI pfni)
+bool SPLC::_FEnsureMainDict(SC_LID sclid, PFilename pfni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, 0);
@@ -213,7 +213,7 @@ LError:
 /***************************************************************************
     Find the main dictionary and load it
 ***************************************************************************/
-bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFNI pfniDef)
+bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFilename pfniDef)
 {
     AssertThis(0);
     AssertPo(pstnCustom, 0);
@@ -223,7 +223,7 @@ bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFNI pfniDef)
     long cb, lwType;
     SZ sz;
     STN stn;
-    FNI fni;
+    Filename fni;
 
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, PszLit("SOFTWARE\\Microsoft\\Shared Tools Location"), 0,
                                       KEY_QUERY_VALUE, &hkey))

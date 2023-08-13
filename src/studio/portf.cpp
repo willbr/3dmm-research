@@ -19,7 +19,7 @@ ASSERTNAME
  FPortDisplayWithIds: Display the portfolio to open or save a file. Portfolio
                     title and filters generated using supplied string ids.
 
- Arguments: fni 			- Output FNI for file selected
+ Arguments: fni 			- Output Filename for file selected
             fOpen			- fTrue if open portfolio, else save portfolio.
             lFilterLabel	- id of portfolio filter label
             lFilterExt		- id of portfolio filter extension
@@ -34,8 +34,8 @@ ASSERTNAME
             FALSE	- User canceled portfolio.
 
 ***************************************************************************/
-bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                         PSTN pstnDefFileName, FNI *pfniInitialDir, ulong grfPrevType, CNO cnoWave)
+bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
+                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, CNO cnoWave)
 {
     STN stnTitle;
     STN stnFilterLabel;
@@ -102,7 +102,7 @@ bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterE
 
  FPortGetFniOpen: Display the portfolio to open a file.
 
- Arguments: pfni 		- Output FNI for file selected
+ Arguments: pfni 		- Output Filename for file selected
             lpstrFilter	- String containing files types to filter on
             lpstrTitle	- String containing title of portfolio
             pfniInitialDir	- Ptr to initial directory fni if required.
@@ -113,7 +113,7 @@ bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterE
             FALSE	- User canceled portfolio.
 
 ***************************************************************************/
-bool FPortGetFniOpen(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, FNI *pfniInitialDir, ulong grfPrevType,
+bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, Filename *pfniInitialDir, ulong grfPrevType,
                      CNO cnoWave)
 {
     SZ szFile;
@@ -218,7 +218,7 @@ bool FPortGetFniOpen(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, FNI *pfni
 
  pfGetFniSave: Display the save portfolio.
 
- Arguments: pfni		- Output FNI for file selected
+ Arguments: pfni		- Output Filename for file selected
             lpstrFilter	- String containing files types to filter on
             lpstrTitle	- String containing title of portfolio
             lpstrDefExt	- String containing default extension for filenames
@@ -231,7 +231,7 @@ bool FPortGetFniOpen(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, FNI *pfni
             FALSE	- User canceled portfolio, (or other error).
 
 ***************************************************************************/
-bool FPortGetFniSave(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
+bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
                      ulong grfPrevType, CNO cnoWave)
 {
     DLGINFO diPortfolio;
@@ -241,7 +241,7 @@ bool FPortGetFniSave(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lp
     bool fRedisplayPortfolio = fFalse;
     bool fExplorer = fTrue;
     STN stnFile, stnErr;
-    FNI fniUserDir;
+    Filename fniUserDir;
     STN stnUserDir;
     SZ szUserDir;
     SZ szDefFileName;
@@ -615,7 +615,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 return (1);
 
             case IDC_BUTTON3: {
-                FNI fniUserDir;
+                Filename fniUserDir;
                 STN stnUserDir;
                 SZ szUserDir;
                 SZ szCurFile;
@@ -937,7 +937,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
 
                 if (CchSz(lpofNotify->lpOFN->lpstrFile) != 0)
                 {
-                    FNI fni;
+                    Filename fni;
                     STN stnFile, stnErr;
                     bool fHelp, tRet;
                     long lSelect;
@@ -1213,7 +1213,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
     STN stn;
     PCFL pcfl;
     PMBMP pmbmp;
-    FNI fni;
+    Filename fni;
     SZ szFile;
     ERS ersT;
     ERS *pers;

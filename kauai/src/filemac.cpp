@@ -214,7 +214,7 @@ bool FIL::FSwapNames(PFIL pfil)
     AssertThis(0);
     AssertPo(pfil, 0);
 
-    FNI fni;
+    Filename fni;
 
     if (_el != elNil || pfil->_el != elNil)
         return fFalse;
@@ -240,7 +240,7 @@ bool FIL::FSwapNames(PFIL pfil)
 /***************************************************************************
     Rename the file.
 ***************************************************************************/
-bool FIL::FRename(FNI *pfni)
+bool FIL::FRename(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);

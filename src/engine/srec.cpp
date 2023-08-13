@@ -382,9 +382,9 @@ bool SREC::FPlaying(void)
 }
 
 /***************************************************************************
-    Save the current sound to the given FNI
+    Save the current sound to the given Filename
 ***************************************************************************/
-bool SREC::FSave(PFNI pfni)
+bool SREC::FSave(PFilename pfni)
 {
     AssertThis(0);
     Assert(_fHaveSound, "Nothing to save!");
@@ -395,7 +395,7 @@ bool SREC::FSave(PFNI pfni)
     {
         pfni->GetStnPath(&stn);
 
-        // now save _psnd to the FNI passed in
+        // now save _psnd to the Filename passed in
         if (FAILED(SoundToFileAsWave(_psnd, stn.Psz())))
         {
             PushErc(ercSocWaveSaveFailure);

@@ -35,7 +35,7 @@ class KWA : public KWA_PAR
     }
     ~KWA(void);
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FFindFile(PSTN pstnSrc, PFNI pfni); // for finding AVIs
+    virtual bool FFindFile(PSTN pstnSrc, PFilename pfni); // for finding AVIs
     virtual bool FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet);
     void SetMbmp(PMBMP pmbmp);
     void SetCDPrompt(bool fAskForCD)
@@ -104,7 +104,7 @@ class APP : public APP_PAR
         _fFontError : 1,   // Have we already seen a font error?
         _fInPortfolio : 1; // Is the portfolio active?
     PCEX _pcex;            // Pointer to suspended cex.
-    FNI _fniPortfolioDoc;  // document last opened in portfolio
+    Filename _fniPortfolioDoc;  // document last opened in portfolio
     PMVIE _pmvieHandoff;   // Stores movie for studio to use
     PKWA _pkwa;            // Kidworld for App
     PGST _pgstBuildingFiles;
@@ -116,14 +116,14 @@ class APP : public APP_PAR
     STN _stnProductShort; // Short version of product name
     STN _stnUser;         // User's name
     long _sidProduct;
-    FNI _fniCurrentDir; // fni of current working directory
-    FNI _fniExe;        // fni of this executable file
-    FNI _fniMsKidsDir;  // e.g., \mskids
-    FNI _fniUsersDir;   // e.g., \mskids\users
-    FNI _fniMelanieDir; // e.g., \mskids\users\melanie
-    FNI _fniProductDir; // e.g., \mskids\3dmovie or \mskids\otherproduct
-    FNI _fniUserDir;    // User's preferred directory
-    FNI _fni3DMovieDir; // e.g., \mskids\3dMovie
+    Filename _fniCurrentDir; // fni of current working directory
+    Filename _fniExe;        // fni of this executable file
+    Filename _fniMsKidsDir;  // e.g., \mskids
+    Filename _fniUsersDir;   // e.g., \mskids\users
+    Filename _fniMelanieDir; // e.g., \mskids\users\melanie
+    Filename _fniProductDir; // e.g., \mskids\3dmovie or \mskids\otherproduct
+    Filename _fniUserDir;    // User's preferred directory
+    Filename _fni3DMovieDir; // e.g., \mskids\3dMovie
     long _dypTextDef;   // Default text height
 
     long _cactDisable; // disable count for keyboard accelerators
@@ -157,13 +157,13 @@ class APP : public APP_PAR
     void _SkipSpace(char **ppch);
     bool _FEnsureProductNames(void);
     bool _FFindProductDir(PGST pgst);
-    bool _FQueryProductExists(STN *pstnLong, STN *pstnShort, FNI *pfni);
+    bool _FQueryProductExists(STN *pstnLong, STN *pstnShort, Filename *pfni);
     bool _FFindMsKidsDir(void);
-    bool _FFindMsKidsDirAt(FNI *path);
+    bool _FFindMsKidsDirAt(Filename *path);
     bool _FCantFindFileDialog(PSTN pstn);
     bool _FGenericError(PSTZ message);
     bool _FGenericError(PSTN message);
-    bool _FGenericError(FNI *path);
+    bool _FGenericError(Filename *path);
     bool _FGetUserName(void);
     bool _FGetUserDirectories(void);
     bool _FReadUserData(void);
@@ -181,7 +181,7 @@ class APP : public APP_PAR
     bool _FInitCrm(void);
     bool _FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles);
     bool _FInitBuilding(void);
-    bool _FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
+    bool _FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
     void _GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle);
     void _RebuildMainWindow(void);
     bool _FSwitch640480(bool fTo640480);
@@ -191,7 +191,7 @@ class APP : public APP_PAR
     PMVIE _Pmvie(void);
     void _CleanupTemp(void);
 #ifdef WIN
-    bool _FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc);
+    bool _FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc);
     bool _FProcessOpenDocCmd(void);
 #endif // WIN
 
@@ -251,11 +251,11 @@ class APP : public APP_PAR
 
     static bool FInsertCD(PSTN pstnTitle);
     void DisplayErrors(void);
-    void SetPortfolioDoc(PFNI pfni)
+    void SetPortfolioDoc(PFilename pfni)
     {
         _fniPortfolioDoc = *pfni;
     }
-    void GetPortfolioDoc(PFNI pfni)
+    void GetPortfolioDoc(PFilename pfni)
     {
         *pfni = _fniPortfolioDoc;
     }
@@ -297,23 +297,23 @@ class APP : public APP_PAR
     {
         *pstn = _stnUser;
     }
-    void GetFniExe(PFNI pfni)
+    void GetFniExe(PFilename pfni)
     {
         *pfni = _fniExe;
     }
-    void GetFniProduct(PFNI pfni)
+    void GetFniProduct(PFilename pfni)
     {
         *pfni = _fniProductDir;
     }
-    void GetFniUsers(PFNI pfni)
+    void GetFniUsers(PFilename pfni)
     {
         *pfni = _fniUsersDir;
     }
-    void GetFniUser(PFNI pfni)
+    void GetFniUser(PFilename pfni)
     {
         *pfni = _fniUserDir;
     }
-    void GetFniMelanie(PFNI pfni)
+    void GetFniMelanie(PFilename pfni)
     {
         *pfni = _fniMelanieDir;
     }

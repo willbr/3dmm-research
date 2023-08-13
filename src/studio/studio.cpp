@@ -81,7 +81,7 @@ const long kcbCursorCache = 1024;
  *  Pointer to the studio if successful, else pvNil.
  *
  **************************************************************************/
-PStudio Studio::PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
+PStudio Studio::PstdioNew(long hid, PCRM pcrmStudio, PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
 {
     AssertPo(pcrmStudio, 0);
     AssertNilOrPo(pfniUserDoc, ffniFile);
@@ -291,7 +291,7 @@ bool Studio::FCmdLoadProjectMovie(PCMD pcmd)
     long stid = pcmd->rglw[0];
     STN stn;
     STN stnLeaf;
-    FNI fni;
+    Filename fni;
     bool fLoaded = fFalse;
 
     if (!vpapp->Pkwa()->Pstrg()->FGet(stid, &stnLeaf))
@@ -339,7 +339,7 @@ LEnd:
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FLoadMovie(PFNI pfni, CNO cno)
+bool Studio::FLoadMovie(PFilename pfni, CNO cno)
 #ifdef BUG1959
 {
     bool fRet, fClosedOld;
@@ -358,7 +358,7 @@ LDone:
     return fRet;
 }
 
-bool Studio::_FLoadMovie(PFNI pfni, CNO cno, bool *pfClosedOld)
+bool Studio::_FLoadMovie(PFilename pfni, CNO cno, bool *pfClosedOld)
 #endif // BUG1959
 {
     AssertBaseThis(0);
@@ -953,7 +953,7 @@ bool Studio::FCmdOpen(PCMD pcmd)
     case cidNew:
         if (_fDisplayCast && vpappb->GrfcustCur() & fcustShift)
         {
-            FNI fni;
+            Filename fni;
             STN stn;
 
             _fDisplayCast = fFalse;
@@ -970,7 +970,7 @@ bool Studio::FCmdOpen(PCMD pcmd)
         break;
 
     case cidOpen: {
-        FNI fni;
+        Filename fni;
 
         _fDisplayCast = fFalse;
         if (FGetFniMovieOpen(&fni))

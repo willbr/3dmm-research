@@ -26,7 +26,7 @@ enum
     ffniCreateDir = 0x0001,
     ffniMoveToDir = 0x0002,
 
-// for FNI::AssertValid
+// for Filename::AssertValid
 #ifdef DEBUG
     ffniFile = 0x10000,
     ffniDir = 0x20000,
@@ -56,10 +56,10 @@ extern FileType vftgTemp; // the ftg to use for temp files
 /****************************************
     File name class
 ****************************************/
-typedef class FNI *PFNI;
-#define FNI_PAR BASE
-#define kclsFNI 'FNI'
-class FNI : public FNI_PAR
+typedef class Filename *PFilename;
+#define Filename_PAR BASE
+#define kclsFilename 'FNI'
+class Filename : public Filename_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -83,7 +83,7 @@ class FNI : public FNI_PAR
 #endif // WIN
 
   public:
-    FNI(void);
+    Filename(void);
 
 // building FNIs
 #ifdef MAC
@@ -110,11 +110,11 @@ class FNI : public FNI_PAR
 
     tribool TExists(void);
     bool FDelete(void);
-    bool FRename(PFNI pfniNew);
-    bool FEqual(PFNI pfni);
+    bool FRename(PFilename pfniNew);
+    bool FEqual(PFilename pfni);
 
     bool FDir(void);
-    bool FSameDir(PFNI pfni);
+    bool FSameDir(PFilename pfni);
     bool FDownDir(PSTN pstn, ulong grffni);
     bool FUpDir(PSTN pstn, ulong grffni);
 };
@@ -163,7 +163,7 @@ class FNE : public FNE_PAR
         long iv;
 #endif // MAC
 #ifdef WIN
-        FNI fni; // directory fni
+        Filename fni; // directory fni
         HN hn;   // for enumerating files/directories
         WIN32_FIND_DATA wfd;
         ulong grfvol; // which volumes are available (for enumerating volumes)
@@ -188,8 +188,8 @@ class FNE : public FNE_PAR
     FNE(void);
     ~FNE(void);
 
-    bool FInit(FNI *pfniDir, FileType *prgftg, long cftg, ulong grffne = ffneNil);
-    bool FNextFni(FNI *pfni, ulong *pgrffneOut = pvNil, ulong grffneIn = ffneNil);
+    bool FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne = ffneNil);
+    bool FNextFni(Filename *pfni, ulong *pgrffneOut = pvNil, ulong grffneIn = ffneNil);
 };
 
 #endif //! FNI_H

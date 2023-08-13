@@ -1509,7 +1509,7 @@ bool BCL::_FBuildThd(PCRM pcrm)
     PCFL pcfl;
     long sid;
     FNET fnet;
-    FNI fniThd;
+    Filename fniThd;
 
     if (!fnet.FInit())
         return fFalse;
@@ -1771,7 +1771,7 @@ bool FNET::FInit(void)
  * Note: _idir == 0 -> current product
  *
  ****************************************************/
-bool FNET::FNext(FNI *pfni, long *psid)
+bool FNET::FNext(Filename *pfni, long *psid)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
@@ -1817,7 +1817,7 @@ bool FNET::FNext(FNI *pfni, long *psid)
  * This uses the current fne.
  *
  ****************************************************/
-bool FNET::_FNextFni(FNI *pfni, long *psid)
+bool FNET::_FNextFni(Filename *pfni, long *psid)
 {
     AssertThis(0);
     STN stnProduct;
@@ -2207,7 +2207,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    FNI fni;
+    Filename fni;
     long kidBrws;
     PFIL pfil = pvNil; // Wave or midi file
     PCFL pcfl = pvNil; // Movie file
@@ -2749,7 +2749,7 @@ bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PStudio pstdio)
     AssertBaseThis(0);
 
     PCFL pcfl;
-    FNI fni;
+    Filename fni;
     STN stn;
 
     _pstdio = pstdio;
@@ -3008,7 +3008,7 @@ bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PStudio pstdio)
     TFC tfc;
     KID kid;
     FNET fnet;
-    FNI fniThd;
+    Filename fniThd;
 
     if (!fnet.FInit())
         return fFalse;

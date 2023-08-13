@@ -83,7 +83,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
     AssertVarMem(pcmd);
 
     PMCC pmcc;
-    FNI fni;
+    Filename fni;
     PMVIE pmvie = pvNil;
     PGOB pgob;
     GraphicsObjectBlock gcb;
@@ -95,7 +95,7 @@ bool TATR::FCmdLoad(PCMD pcmd)
     vpapp->GetPortfolioDoc(&fni);
     if (fni.Ftg() != kftg3mm)
     {
-        Bug("Portfolio's FNI has bad FileType in theater");
+        Bug("Portfolio's Filename has bad FileType in theater");
         goto LFail;
     }
 

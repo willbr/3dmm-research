@@ -278,7 +278,7 @@ void TestGl(void)
 ***************************************************************************/
 void TestFni(void)
 {
-    FNI fni1, fni2;
+    Filename fni1, fni2;
     STN stn1, stn2, stn3;
 
     AssertDo(fni1.FGetTemp(), 0);
@@ -318,7 +318,7 @@ void TestFni(void)
 void TestFil(void)
 {
     PFIL pfil;
-    FNI fni;
+    Filename fni;
 
     while (FGetFniSaveMacro(&fni, 'TEXT',
                             "\x9"
@@ -452,7 +452,7 @@ void TestCfl(void)
         {kctgSandy, 0, PszLit("Joshua"), relCathy, relLim},   {kctgSandy, 0, PszLit("Rachel"), relCathy, relLim},
     };
 
-    FNI fni, fniDst;
+    Filename fni, fniDst;
     PCFL pcfl, pcflDst;
     DataBlock blck;
     short rel;
@@ -628,7 +628,7 @@ void TestErs(void)
 void TestCrf(void)
 {
     const CNO cnoLim = 10;
-    FNI fni;
+    Filename fni;
     CTG ctg = 'JUNK';
     CNO cno;
     PGHQ rgpghq[cnoLim];
