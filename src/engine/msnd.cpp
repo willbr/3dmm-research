@@ -115,18 +115,18 @@ bool MovieSoundMSND::_FInit(PCFL pcfl, ChunkTag ctg, ChunkNumber cno)
     AssertPo(pcfl, 0);
 
     DataBlock blck;
-    MSNDF msndf;
+    MovieSoundFile msndf;
     ChildChunkIdentification kid;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         goto LFail;
-    if (blck.Cb() > size(MSNDF))
+    if (blck.Cb() > size(MovieSoundFile))
         goto LFail;
-    if (!blck.FReadRgb(&msndf, size(MSNDF), 0))
+    if (!blck.FReadRgb(&msndf, size(MovieSoundFile), 0))
         goto LFail;
     if (kboCur != msndf.bo)
         SwapBytesBom(&msndf, kbomBkgdf);
-    Assert(kboCur == msndf.bo, "bad MSNDF");
+    Assert(kboCur == msndf.bo, "bad MovieSoundFile");
 
     if (!pcfl->FGetName(ctg, cno, &_stn))
         return fFalse;
@@ -165,7 +165,7 @@ bool MovieSoundMSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, Chunk
     AssertVarMem(pstnName);
     AssertVarMem(pcno);
 
-    MSNDF msndf;
+    MovieSoundFile msndf;
     DataBlock blck;
     ChunkNumber cno;
 
@@ -176,7 +176,7 @@ bool MovieSoundMSND::FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, Chunk
     msndf.fInvalid = fFalse;
 
     // Create the msnd chunk
-    if (!pcflDest->FAddPv(&msndf, size(MSNDF), kctgMsnd, pcno))
+    if (!pcflDest->FAddPv(&msndf, size(MovieSoundFile), kctgMsnd, pcno))
         return fFalse;
 
     // Create the midi chunk as a child of the msnd chunk
@@ -209,7 +209,7 @@ bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstn
     AssertVarMem(pstnName);
     AssertVarMem(pcno);
 
-    MSNDF msndf;
+    MovieSoundFile msndf;
     ChunkNumber cno;
     FLO floSrc;
     FLO floDest;
@@ -225,7 +225,7 @@ bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstn
     floSrc.fp = 0;
 
     // Create the msnd chunk
-    if (!pcflDest->FAddPv(&msndf, size(MSNDF), kctgMsnd, pcno))
+    if (!pcflDest->FAddPv(&msndf, size(MovieSoundFile), kctgMsnd, pcno))
         return fFalse;
 
     // Create the wave chunk as a child of the msnd chunk
@@ -564,7 +564,7 @@ bool MovieSoundMSND::FInvalidate(void)
     AssertThis(0);
 
     ChildChunkIdentification kid;
-    MSNDF msndf;
+    MovieSoundFile msndf;
 
     // Invalidate the msnd on file
     if (!Pcrf()->Pcfl()->FGetKidChid(kctgMsnd, Cno(), kchidSnd, &kid))
@@ -574,7 +574,7 @@ bool MovieSoundMSND::FInvalidate(void)
     msndf.sty = _sty;
     msndf.vlmDefault = _vlm;
     msndf.fInvalid = fTrue;
-    if (!Pcrf()->Pcfl()->FPutPv(&msndf, size(MSNDF), Ctg(), Cno()))
+    if (!Pcrf()->Pcfl()->FPutPv(&msndf, size(MovieSoundFile), Ctg(), Cno()))
         return fFalse;
     Pcrf()->Pcfl()->DeleteChild(Ctg(), Cno(), kid.cki.ctg, kid.cki.cno);
 

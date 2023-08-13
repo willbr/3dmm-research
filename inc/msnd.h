@@ -73,7 +73,7 @@ const long kSndChannels = 1;
     Movie Sound on file
 
 ****************************************/
-struct MSNDF
+struct MovieSoundFile
 {
     short bo;
     short osk;
