@@ -152,7 +152,7 @@ const short kswMinSccg = 0x1015;  // we can read back to this version
     Gob based script compiler
 ****************************************/
 typedef class SCCG *PSCCG;
-#define SCCG_PAR SCCB
+#define SCCG_PAR CompilerBase
 #define kclsSCCG 'SCCG'
 class SCCG : public SCCG_PAR
 {

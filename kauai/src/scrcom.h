@@ -170,10 +170,10 @@ struct RTVN
 /***************************************************************************
     The script compiler base class.
 ***************************************************************************/
-typedef class SCCB *PSCCB;
-#define SCCB_PAR BASE
-#define kclsSCCB 'SCCB'
-class SCCB : public SCCB_PAR
+typedef class CompilerBase *PCompilerBase;
+#define CompilerBase_PAR BASE
+#define kclsCompilerBase 'SCCB'
+class CompilerBase : public CompilerBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -259,8 +259,8 @@ class SCCB : public SCCB_PAR
     void _PushStringIstn(long istn);
 
   public:
-    SCCB(void);
-    ~SCCB(void);
+    CompilerBase(void);
+    ~CompilerBase(void);
 
     virtual PScript PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
     virtual PScript PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk);

@@ -8,7 +8,7 @@
     Copyright (c) Microsoft Corporation
 
     Script compiler for gob based scripts.  The real compilation is
-    done at the SCCB class level.  The SCCG class just provides mapping
+    done at the CompilerBase class level.  The SCCG class just provides mapping
     of identifiers to opcodes for GraphicsObject specific script primitives.
 
 ***************************************************************************/

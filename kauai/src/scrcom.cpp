@@ -10,7 +10,7 @@
     Script compiler.  This supports a post-fix (RPN-style) stack base
     "assembly" language and an in-fix (standard) higher level language similar
     to "C" in its operator set and syntax.  The only data type supported
-    is 32 bit signed integers.  The SCCB class can also "disassemble"
+    is 32 bit signed integers.  The CompilerBase class can also "disassemble"
     a script.  Compilation is case sensitive.  The in-fix compiler supports
     all valid "C" expressions not involving arrays, pointers or structures,
     including the ternary operator (?:).  Supported control structures
@@ -98,7 +98,7 @@ ASSERTNAME
 
 namespace ScriptCompiler {
 
-RTCLASS(SCCB)
+RTCLASS(CompilerBase)
 
 // common error messages
 PSZ _pszOom = PszLit("Out of memory");
@@ -265,7 +265,7 @@ struct CSTD
 /***************************************************************************
     Constructor for a script compiler.
 ***************************************************************************/
-SCCB::SCCB(void)
+CompilerBase::CompilerBase(void)
 {
     AssertBaseThis(0);
     _plexb = pvNil;
@@ -283,7 +283,7 @@ SCCB::SCCB(void)
 /***************************************************************************
     Destructor for a script compiler.
 ***************************************************************************/
-SCCB::~SCCB(void)
+CompilerBase::~CompilerBase(void)
 {
     AssertThis(0);
     _Free();
@@ -291,11 +291,11 @@ SCCB::~SCCB(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SCCB.
+    Assert the validity of a CompilerBase.
 ***************************************************************************/
-void SCCB::AssertValid(ulong grf)
+void CompilerBase::AssertValid(ulong grf)
 {
-    SCCB_PAR::AssertValid(0);
+    CompilerBase_PAR::AssertValid(0);
     AssertNilOrPo(_plexb, 0);
     AssertNilOrPo(_pscpt, 0);
     AssertNilOrPo(_pgletnTree, 0);
@@ -308,13 +308,13 @@ void SCCB::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the SCCB.
+    Mark memory for the CompilerBase.
 ***************************************************************************/
-void SCCB::MarkMem(void)
+void CompilerBase::MarkMem(void)
 {
     AssertValid(0);
 
-    SCCB_PAR::MarkMem();
+    CompilerBase_PAR::MarkMem();
     MarkMemObj(_plexb);
     MarkMemObj(_pscpt);
     MarkMemObj(_pgletnTree);
@@ -342,7 +342,7 @@ void SCCB::MarkMem(void)
     Initializes the script compiler to compile the stream from the given
     lexer object.  pmsnk is a message sink for error reporting.
 ***************************************************************************/
-bool SCCB::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
+bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(plexb, 0);
@@ -395,9 +395,9 @@ bool SCCB::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
 }
 
 /***************************************************************************
-    Free all memory hanging off this SCCB.
+    Free all memory hanging off this CompilerBase.
 ***************************************************************************/
-void SCCB::_Free(void)
+void CompilerBase::_Free(void)
 {
     AssertThis(0);
     CSTD cstd;
@@ -424,7 +424,7 @@ void SCCB::_Free(void)
     allows scripts to be embedded in source for other tools (such as
     chomp.exe).
 ***************************************************************************/
-PScript SCCB::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
+PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd)
 {
     AssertThis(0);
     AssertPo(plexb, 0);
@@ -477,7 +477,7 @@ PScript SCCB::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long t
     Compile the given text file and return the executable script.
     Uses the in-fix or post-fix compiler according to fInFix.
 ***************************************************************************/
-PScript SCCB::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
+PScript CompilerBase::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
@@ -495,7 +495,7 @@ PScript SCCB::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
 /***************************************************************************
     Compile a script from the given text file name.
 ***************************************************************************/
-PScript SCCB::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
+PScript CompilerBase::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
 {
     AssertPo(pfni, ffniFile);
     AssertPo(pmsnk, 0);
@@ -512,7 +512,7 @@ PScript SCCB::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
 /***************************************************************************
     Get the next token.  Returns false if the token is a _ttEnd.
 ***************************************************************************/
-bool SCCB::_FGetTok(PToken ptok)
+bool CompilerBase::_FGetTok(PToken ptok)
 {
     AssertBaseThis(0);
     AssertPo(_plexb, 0);
@@ -526,10 +526,10 @@ bool SCCB::_FGetTok(PToken ptok)
 
 /***************************************************************************
     Return the current version number of the script compiler.  This is
-    a virtual method so subclasses of SCCB can provide their own
+    a virtual method so subclasses of CompilerBase can provide their own
     version numbers.
 ***************************************************************************/
-short SCCB::_SwCur(void)
+short CompilerBase::_SwCur(void)
 {
     AssertBaseThis(0);
     return kswCurSccb;
@@ -539,7 +539,7 @@ short SCCB::_SwCur(void)
     Return the back version number of the script compiler.  Versions
     back to here can read this script.
 ***************************************************************************/
-short SCCB::_SwBack(void)
+short CompilerBase::_SwBack(void)
 {
     AssertBaseThis(0);
     return kswBackSccb;
@@ -549,7 +549,7 @@ short SCCB::_SwBack(void)
     Return the min version number of the script compiler.  We can read
     scripts back to this version.
 ***************************************************************************/
-short SCCB::_SwMin(void)
+short CompilerBase::_SwMin(void)
 {
     AssertBaseThis(0);
     return kswMinSccb;
@@ -558,7 +558,7 @@ short SCCB::_SwMin(void)
 /***************************************************************************
     An error occured.  Report it to the message sink.
 ***************************************************************************/
-void SCCB::_ReportError(PSZ psz)
+void CompilerBase::_ReportError(PSZ psz)
 {
     AssertThis(0);
     AssertPo(_plexb, 0);
@@ -576,7 +576,7 @@ void SCCB::_ReportError(PSZ psz)
 /***************************************************************************
     The given long is immediate data to be pushed onto the execution stack.
 ***************************************************************************/
-void SCCB::_PushLw(long lw)
+void CompilerBase::_PushLw(long lw)
 {
     AssertThis(0);
 
@@ -594,7 +594,7 @@ void SCCB::_PushLw(long lw)
     "Push" a string constant.  Puts the string in the string table and emits
     code to push the corresponding internal variable.
 ***************************************************************************/
-void SCCB::_PushString(PSTN pstn)
+void CompilerBase::_PushString(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -620,7 +620,7 @@ void SCCB::_PushString(PSTN pstn)
 /***************************************************************************
     Add an opcode to the compiled script.
 ***************************************************************************/
-void SCCB::_PushOp(long op)
+void CompilerBase::_PushOp(long op)
 {
     AssertThis(0);
     Assert((long)(short)op == op, "bad opcode");
@@ -641,7 +641,7 @@ void SCCB::_PushOp(long op)
 /***************************************************************************
     Close out an opcode by setting the number of immediate longs that follow.
 ***************************************************************************/
-void SCCB::_EndOp(void)
+void CompilerBase::_EndOp(void)
 {
     AssertThis(0);
     long ilw;
@@ -665,7 +665,7 @@ void SCCB::_EndOp(void)
 /***************************************************************************
     Add an opcode that acts on a variable.
 ***************************************************************************/
-void SCCB::_PushVarOp(long op, RTVN *prtvn)
+void CompilerBase::_PushVarOp(long op, RTVN *prtvn)
 {
     AssertThis(0);
     Assert((long)(byte)op == op, "bad opcode");
@@ -689,7 +689,7 @@ void SCCB::_PushVarOp(long op, RTVN *prtvn)
 /***************************************************************************
     Look up the indicated label and put it's location in *plwLoc.
 ***************************************************************************/
-bool SCCB::_FFindLabel(PSTN pstn, long *plwLoc)
+bool CompilerBase::_FFindLabel(PSTN pstn, long *plwLoc)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -708,7 +708,7 @@ bool SCCB::_FFindLabel(PSTN pstn, long *plwLoc)
 /***************************************************************************
     Add the given label, giving it the current location.
 ***************************************************************************/
-void SCCB::_AddLabel(PSTN pstn)
+void CompilerBase::_AddLabel(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -745,7 +745,7 @@ void SCCB::_AddLabel(PSTN pstn)
     of 0 in the compiled script.  When compilation is finished, we'll
     write the actual value for the label.
 ***************************************************************************/
-void SCCB::_PushLabelRequest(PSTN pstn)
+void CompilerBase::_PushLabelRequest(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -773,7 +773,7 @@ void SCCB::_PushLabelRequest(PSTN pstn)
     Add an internal label.  These are numeric to avoid conflicting with
     a user defined label.
 ***************************************************************************/
-void SCCB::_AddLabelLw(long lw)
+void CompilerBase::_AddLabelLw(long lw)
 {
     AssertThis(0);
     STN stn;
@@ -785,7 +785,7 @@ void SCCB::_AddLabelLw(long lw)
 /***************************************************************************
     Push an internal label request.
 ***************************************************************************/
-void SCCB::_PushLabelRequestLw(long lw)
+void CompilerBase::_PushLabelRequestLw(long lw)
 {
     AssertThis(0);
     STN stn;
@@ -797,7 +797,7 @@ void SCCB::_PushLabelRequestLw(long lw)
 /***************************************************************************
     Find the opcode that corresponds to the given stn.
 ***************************************************************************/
-long SCCB::_OpFromStn(PSTN pstn)
+long CompilerBase::_OpFromStn(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -809,7 +809,7 @@ long SCCB::_OpFromStn(PSTN pstn)
     Check the pstn against the strings in the prgszop and return the
     corresponding op code.
 ***************************************************************************/
-long SCCB::_OpFromStnRgszop(PSTN pstn, SZOP *prgszop)
+long CompilerBase::_OpFromStnRgszop(PSTN pstn, SZOP *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -828,7 +828,7 @@ long SCCB::_OpFromStnRgszop(PSTN pstn, SZOP *prgszop)
     Find the string corresponding to the given opcode.  This is used during
     disassembly.
 ***************************************************************************/
-bool SCCB::_FGetStnFromOp(long op, PSTN pstn)
+bool CompilerBase::_FGetStnFromOp(long op, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -840,7 +840,7 @@ bool SCCB::_FGetStnFromOp(long op, PSTN pstn)
     Check the op against the ops in the prgszop and return the corresponding
     string.
 ***************************************************************************/
-bool SCCB::_FGetStnFromOpRgszop(long op, PSTN pstn, SZOP *prgszop)
+bool CompilerBase::_FGetStnFromOpRgszop(long op, PSTN pstn, SZOP *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -862,7 +862,7 @@ bool SCCB::_FGetStnFromOpRgszop(long op, PSTN pstn, SZOP *prgszop)
 /***************************************************************************
     Compile the post-fix script source in _plexb.
 ***************************************************************************/
-void SCCB::_CompilePost(void)
+void CompilerBase::_CompilePost(void)
 {
     AssertThis(0);
     AssertPo(_plexb, 0);
@@ -1129,7 +1129,7 @@ TOME *_PtomeFromTt(long tt, bool fOp)
 /***************************************************************************
     Resolve the ETN stack to something at the given opl.
 ***************************************************************************/
-bool SCCB::_FResolveToOpl(long opl, long oplMin, long *pietn)
+bool CompilerBase::_FResolveToOpl(long opl, long oplMin, long *pietn)
 {
     AssertThis(0);
     AssertIn(opl, oplNil + 1, koplMax);
@@ -1201,7 +1201,7 @@ bool SCCB::_FResolveToOpl(long opl, long oplMin, long *pietn)
     be simplified to nuke () groupings and unary plus operators and just
     add the rest to _pgletnTree.
 ***************************************************************************/
-bool SCCB::_FAddToTree(ETN *petn, long *pietn)
+bool CompilerBase::_FAddToTree(ETN *petn, long *pietn)
 {
     AssertThis(0);
     AssertVarMem(petn);
@@ -1449,7 +1449,7 @@ LAdd:
     Set the depth of the ETN from its children.  If fCommute is true and
     the first two children are non-nil, puts the deepest child first.
 ***************************************************************************/
-void SCCB::_SetDepth(ETN *petn, bool fCommute)
+void CompilerBase::_SetDepth(ETN *petn, bool fCommute)
 {
     AssertThis(0);
     AssertVarMem(petn);
@@ -1504,7 +1504,7 @@ void SCCB::_SetDepth(ETN *petn, bool fCommute)
     Return true iff the given etn is constant.  If so, set *plw to its
     value.
 ***************************************************************************/
-bool SCCB::_FConstEtn(long ietn, long *plw)
+bool CompilerBase::_FConstEtn(long ietn, long *plw)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -1530,7 +1530,7 @@ bool SCCB::_FConstEtn(long ietn, long *plw)
     Put the result in *plw.  Return false if we can't combine the values
     using op.
 ***************************************************************************/
-bool SCCB::_FCombineConstValues(long op, long lw1, long lw2, long *plw)
+bool CompilerBase::_FCombineConstValues(long op, long lw1, long lw2, long *plw)
 {
     AssertBaseThis(0);
     AssertVarMem(plw);
@@ -1613,7 +1613,7 @@ bool SCCB::_FCombineConstValues(long op, long lw1, long lw2, long *plw)
 
     This is highly recursive, so limit the stack space needed.
 ***************************************************************************/
-void SCCB::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
+void CompilerBase::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -1863,7 +1863,7 @@ void SCCB::_EmitCode(long ietnTop, ulong grfscc, long *pclwArg)
 /***************************************************************************
     If the etn is for a control structure, return the cst.
 ***************************************************************************/
-long SCCB::_CstFromName(long ietn)
+long CompilerBase::_CstFromName(long ietn)
 {
     AssertThis(0);
     long istn;
@@ -1884,7 +1884,7 @@ long SCCB::_CstFromName(long ietn)
 /***************************************************************************
     Begin a new control structure.
 ***************************************************************************/
-void SCCB::_BeginCst(long cst, long ietn)
+void CompilerBase::_BeginCst(long cst, long ietn)
 {
     AssertThis(0);
     AssertPo(_pglcstd, 0);
@@ -1987,7 +1987,7 @@ void SCCB::_BeginCst(long cst, long ietn)
     If this name token is "End", "Break", "Continue" or "Else", deal with it
     and return true.
 ***************************************************************************/
-bool SCCB::_FHandleCst(long ietn)
+bool CompilerBase::_FHandleCst(long ietn)
 {
     AssertThis(0);
     AssertPo(_pglcstd, 0);
@@ -2130,7 +2130,7 @@ bool SCCB::_FHandleCst(long ietn)
     variable (iff the variable is a remote variable or an array access).
     Fills in *prtvn.
 ***************************************************************************/
-void SCCB::_EmitVarAccess(long ietn, RTVN *prtvn, long *popPush, long *popPop, long *pclwStack)
+void CompilerBase::_EmitVarAccess(long ietn, RTVN *prtvn, long *popPush, long *popPop, long *pclwStack)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -2205,7 +2205,7 @@ void SCCB::_EmitVarAccess(long ietn, RTVN *prtvn, long *popPush, long *popPop, l
 /***************************************************************************
     Push the opcode for a function and verify parameters and return type.
 ***************************************************************************/
-void SCCB::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
+void CompilerBase::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
 {
     AssertThis(0);
     long istn;
@@ -2238,7 +2238,7 @@ void SCCB::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
     Find the string in the given rgarop and get the associated parameter
     and return type information.
 ***************************************************************************/
-bool SCCB::_FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+bool CompilerBase::_FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                      bool *pfVoid)
 {
     AssertThis(0);
@@ -2270,7 +2270,7 @@ bool SCCB::_FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long 
     See if the given name is a function and give argument and return type
     information.
 ***************************************************************************/
-bool SCCB::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
+bool CompilerBase::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
 {
     AssertThis(0);
     return _FGetArop(pstn, _rgarop, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid);
@@ -2279,7 +2279,7 @@ bool SCCB::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar,
 /***************************************************************************
     Add the given string to _pgstNames.
 ***************************************************************************/
-void SCCB::_AddNameRef(PSTN pstn, long *pistn)
+void CompilerBase::_AddNameRef(PSTN pstn, long *pistn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2301,7 +2301,7 @@ void SCCB::_AddNameRef(PSTN pstn, long *pistn)
 /***************************************************************************
     Make sure (assert) the given ietn is a name and get the istn for the name.
 ***************************************************************************/
-void SCCB::_GetIstnNameFromIetn(long ietn, long *pistn)
+void CompilerBase::_GetIstnNameFromIetn(long ietn, long *pistn)
 {
     AssertThis(0);
     AssertPo(_pgletnTree, 0);
@@ -2319,7 +2319,7 @@ void SCCB::_GetIstnNameFromIetn(long ietn, long *pistn)
 /***************************************************************************
     Get the rtvn for the given string (in _pgstNames).
 ***************************************************************************/
-void SCCB::_GetStnFromIstn(long istn, PSTN pstn)
+void CompilerBase::_GetStnFromIstn(long istn, PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2336,7 +2336,7 @@ void SCCB::_GetStnFromIstn(long istn, PSTN pstn)
 /***************************************************************************
     Get the rtvn for the given string (in _pgstNames).
 ***************************************************************************/
-void SCCB::_GetRtvnFromName(long istn, RTVN *prtvn)
+void CompilerBase::_GetRtvnFromName(long istn, RTVN *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -2351,7 +2351,7 @@ void SCCB::_GetRtvnFromName(long istn, RTVN *prtvn)
 /***************************************************************************
     Determine if the given string is a keyword.
 ***************************************************************************/
-bool SCCB::_FKeyWord(PSTN pstn)
+bool CompilerBase::_FKeyWord(PSTN pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2373,7 +2373,7 @@ bool SCCB::_FKeyWord(PSTN pstn)
 /***************************************************************************
     Push a label request using the name in the given ietn.
 ***************************************************************************/
-void SCCB::_PushLabelRequestIetn(long ietn)
+void CompilerBase::_PushLabelRequestIetn(long ietn)
 {
     AssertThis(0);
     long istn;
@@ -2387,7 +2387,7 @@ void SCCB::_PushLabelRequestIetn(long ietn)
 /***************************************************************************
     Add the label here.
 ***************************************************************************/
-void SCCB::_AddLabelIetn(long ietn)
+void CompilerBase::_AddLabelIetn(long ietn)
 {
     AssertThis(0);
     long istn;
@@ -2401,7 +2401,7 @@ void SCCB::_AddLabelIetn(long ietn)
 /***************************************************************************
     "Push" a string constant that is currently in the name string table.
 ***************************************************************************/
-void SCCB::_PushStringIstn(long istn)
+void CompilerBase::_PushStringIstn(long istn)
 {
     AssertThis(0);
     STN stn;
@@ -2413,7 +2413,7 @@ void SCCB::_PushStringIstn(long istn)
 /***************************************************************************
     Compile the in-fix script source.
 ***************************************************************************/
-void SCCB::_CompileIn(void)
+void CompilerBase::_CompileIn(void)
 {
     AssertThis(0);
     AssertPo(_plexb, 0);
@@ -2549,7 +2549,7 @@ void SCCB::_CompileIn(void)
     Disassemble the script into a message sink (MSNK) and return whether
     there was an error.
 ***************************************************************************/
-bool SCCB::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
+bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pscpt, 0);

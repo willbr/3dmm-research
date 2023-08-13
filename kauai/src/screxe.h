@@ -56,7 +56,7 @@ class Script : public Script_PAR
     }
 
     friend class Interpreter;
-    friend class SCCB;
+    friend class CompilerBase;
 
   public:
     static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
