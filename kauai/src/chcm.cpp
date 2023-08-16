@@ -1171,7 +1171,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
     byte *prgb;
     long iv, iiv;
     DataBlock blck;
-    PGLB pglb = pvNil;
+    PVirtualArray pglb = pvNil;
     PGL pglivFree = pvNil;
 
     // get size of entry data
@@ -1190,7 +1190,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
         return;
     }
 
-    pglb = fAl ? (PGLB)AL::PalNew(cbEntry) : (PGLB)GL::PglNew(cbEntry);
+    pglb = fAl ? (PVirtualArray)AL::PalNew(cbEntry) : (PVirtualArray)GL::PglNew(cbEntry);
     if (pvNil == pglb)
     {
         _Error(ertOom);
@@ -2622,12 +2622,12 @@ bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
 
-    PGLB pglb;
+    PVirtualArray pglb;
     short bo, osk;
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pglb = fAl ? (PGLB)AL::PalRead(pblck, &bo, &osk) : (PGLB)GL::PglRead(pblck, &bo, &osk);
+    pglb = fAl ? (PVirtualArray)AL::PalRead(pblck, &bo, &osk) : (PVirtualArray)GL::PglRead(pblck, &bo, &osk);
     if (pvNil == pglb)
         return fFalse;
 

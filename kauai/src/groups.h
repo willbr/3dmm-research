@@ -15,7 +15,7 @@
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> GLB -+-> GL
+        BASE ---> GRPB -+-> VirtualArray -+-> GL
                         |        +-> AL
                         |
                         +-> GGB -+-> GG
@@ -113,12 +113,12 @@ class GRPB : public GRPB_PAR
 };
 
 /****************************************
-    GLB is a virtual class supporting
+    VirtualArray is a virtual class supporting
     GL and AL
 ****************************************/
-#define GLB_PAR GRPB
-#define kclsGLB 'GLB'
-class GLB : public GLB_PAR
+#define VirtualArray_PAR GRPB
+#define kclsVirtualArray 'GLB'
+class VirtualArray : public VirtualArray_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -126,7 +126,7 @@ class GLB : public GLB_PAR
   protected:
     long _cbEntry;
 
-    GLB(long cb);
+    VirtualArray(long cb);
 
   public:
     long CbEntry(void)
@@ -145,7 +145,7 @@ class GLB : public GLB_PAR
 /****************************************
     GL is the basic dynamic array
 ****************************************/
-#define GL_PAR GLB
+#define GL_PAR VirtualArray
 #define kclsGL 'GL'
 class GL : public GL_PAR
 {
@@ -195,7 +195,7 @@ class GL : public GL_PAR
 /****************************************
     Allocated (fixed index) list class
 ****************************************/
-#define AL_PAR GLB
+#define AL_PAR VirtualArray
 #define kclsAL 'AL'
 class AL : public AL_PAR
 {

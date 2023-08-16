@@ -597,10 +597,10 @@ class DCGL : public DCGL_PAR
     RTCLASS_DEC
 
   protected:
-    DCGL(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb);
+    DCGL(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb);
 
   public:
-    static PDCGL PdcglNew(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb);
+    static PDCGL PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCMD pcmd);

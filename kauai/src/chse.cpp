@@ -302,7 +302,7 @@ bool SourceEmitter::FDumpScript(PScript pscpt, PCompilerBase psccb)
     Dumps a GL or AL, including the GL or AL directive. pglb is the GL or AL
     to dump.
 ******************************************************************************/
-void SourceEmitter::DumpList(PGLB pglb)
+void SourceEmitter::DumpList(PVirtualArray pglb)
 {
     AssertThis(fchseDump);
     AssertPo(pglb, 0);

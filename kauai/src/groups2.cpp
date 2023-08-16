@@ -12,7 +12,7 @@
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> GLB -+-> GL
+        BASE ---> GRPB -+-> VirtualArray -+-> GL
                         |        +-> AL
                         |
                         +-> GGB -+-> GG

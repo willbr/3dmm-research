@@ -63,7 +63,7 @@ class SourceEmitter : public SourceEmitter_PAR
     void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile);
     void DumpFileCmd(PSTN pstnFile, bool fPacked = fFalse);
     void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
-    void DumpList(PGLB pglb);
+    void DumpList(PVirtualArray pglb);
     void DumpGroup(PGGB pggb);
     bool FDumpStringTable(PVirtualStringTable pgstb);
     void DumpBlck(PDataBlock pblck);

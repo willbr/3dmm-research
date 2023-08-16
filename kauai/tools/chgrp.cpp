@@ -242,7 +242,7 @@ PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
     {
     case kclsGL:
     case kclsAL:
-        pddg = DCGL::PdcglNew(this, (PGLB)_pgrpb, _cls, pgcb);
+        pddg = DCGL::PdcglNew(this, (PVirtualArray)_pgrpb, _cls, pgcb);
         break;
     case kclsGG:
     case kclsAG:
@@ -764,14 +764,14 @@ void DCGB::MarkMem(void)
     Constructor for the DCGL class.  This class displays (and allows
     editing of) a GL or AL.
 ***************************************************************************/
-DCGL::DCGL(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
+DCGL::DCGL(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCGL for the GL or AL.
 ***************************************************************************/
-PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PGLB pglb, long cls, PGCB pgcb)
+PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb)
 {
     AssertVar(cls == kclsGL || cls == kclsAL, "bad cls", &cls);
     PDCGL pdcgl;
@@ -798,7 +798,7 @@ void DCGL::Draw(PGNV pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PGLB pglb;
+    PVirtualArray pglb;
     STN stn;
     byte rgb[kcbMaxDispGrp];
     long ivMac, iv;
@@ -810,7 +810,7 @@ void DCGL::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->SetOnn(_onn);
 
-    pglb = (PGLB)_pgrpb;
+    pglb = (PVirtualArray)_pgrpb;
     ivMac = pglb->IvMac();
     xp = _XpFromIch(0);
     cbDisp = cbEntry = pglb->CbEntry();
@@ -883,9 +883,9 @@ bool DCGL::FCmdAddItem(PCMD pcmd)
     void *pv;
     long ivNew;
     bool fT;
-    PGLB pglb;
+    PVirtualArray pglb;
 
-    pglb = (PGLB)_pgrpb;
+    pglb = (PVirtualArray)_pgrpb;
     cb = pglb->CbEntry();
     if (!FAllocHq(&hq, cb, fmemClear, mprNormal))
         return fTrue;
@@ -1436,8 +1436,8 @@ bool DOCI::_FWrite(long iv)
     {
     case kclsGL:
     case kclsAL:
-        Assert(cb == ((PGLB)_pgrpb)->CbEntry(), "bad cb in GL/AL");
-        ((PGLB)_pgrpb)->Put(iv, pv);
+        Assert(cb == ((PVirtualArray)_pgrpb)->CbEntry(), "bad cb in GL/AL");
+        ((PVirtualArray)_pgrpb)->Put(iv, pv);
         break;
     case kclsGG:
     case kclsAG:
@@ -1489,7 +1489,7 @@ HQ DOCI::_HqRead(void)
     {
     case kclsGL:
     case kclsAL:
-        cb = ((PGLB)_pgrpb)->CbEntry();
+        cb = ((PVirtualArray)_pgrpb)->CbEntry();
         break;
     case kclsGG:
     case kclsAG:
@@ -1525,7 +1525,7 @@ HQ DOCI::_HqRead(void)
     {
     case kclsGL:
     case kclsAL:
-        ((PGLB)_pgrpb)->Get(_iv, pv);
+        ((PVirtualArray)_pgrpb)->Get(_iv, pv);
         break;
     case kclsGG:
     case kclsAG:

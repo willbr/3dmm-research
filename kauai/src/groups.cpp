@@ -12,7 +12,7 @@
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> GLB -+-> GL
+        BASE ---> GRPB -+-> VirtualArray -+-> GL
                         |        +-> AL
                         |
                         +-> GGB -+-> GG
@@ -28,7 +28,7 @@ ASSERTNAME
 namespace Group {
 
 RTCLASS(GRPB)
-RTCLASS(GLB)
+RTCLASS(VirtualArray)
 RTCLASS(GL)
 RTCLASS(AL)
 RTCLASS(GGB)
@@ -282,7 +282,7 @@ void GRPB::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    GLB:  Base class for GL (general list) and AL (general allocated list).
+    VirtualArray:  Base class for GL (general list) and AL (general allocated list).
     The list data goes in section 1.  The GL class doesn't use section 2.
     The AL class uses section 2 for a bit array indicating whether an entry
     is free or in use.
@@ -291,7 +291,7 @@ void GRPB::MarkMem(void)
 /***************************************************************************
     Constructor for the list base.
 ***************************************************************************/
-GLB::GLB(long cb)
+VirtualArray::VirtualArray(long cb)
 {
     AssertIn(cb, 0, kcbMax);
     _cbEntry = cb;
@@ -307,7 +307,7 @@ GLB::GLB(long cb)
     Return a volatile pointer to a list entry.
     NOTE: don't assert !FFree(iv) for allocated lists.
 ***************************************************************************/
-void *GLB::QvGet(long iv)
+void *VirtualArray::QvGet(long iv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac + 1);
@@ -315,9 +315,9 @@ void *GLB::QvGet(long iv)
 }
 
 /***************************************************************************
-    Get the data for the iv'th element in the GLB.
+    Get the data for the iv'th element in the VirtualArray.
 ***************************************************************************/
-void GLB::Get(long iv, void *pv)
+void VirtualArray::Get(long iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -326,9 +326,9 @@ void GLB::Get(long iv, void *pv)
 }
 
 /***************************************************************************
-    Put data into the iv'th element in the GLB.
+    Put data into the iv'th element in the VirtualArray.
 ***************************************************************************/
-void GLB::Put(long iv, void *pv)
+void VirtualArray::Put(long iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -340,7 +340,7 @@ void GLB::Put(long iv, void *pv)
 /***************************************************************************
     Lock the data and return a pointer to the ith item.
 ***************************************************************************/
-void *GLB::PvLock(long iv)
+void *VirtualArray::PvLock(long iv)
 {
     Lock();
     return QvGet(iv);
@@ -349,7 +349,7 @@ void *GLB::PvLock(long iv)
 /***************************************************************************
     Set the minimum that a GL should grow by.
 ***************************************************************************/
-void GLB::SetMinGrow(long cvAdd)
+void VirtualArray::SetMinGrow(long cvAdd)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
@@ -362,9 +362,9 @@ void GLB::SetMinGrow(long cvAdd)
 /***************************************************************************
     Assert the validity of a list (GL or AL).
 ***************************************************************************/
-void GLB::AssertValid(ulong grfobj)
+void VirtualArray::AssertValid(ulong grfobj)
 {
-    GLB_PAR::AssertValid(grfobj);
+    VirtualArray_PAR::AssertValid(grfobj);
     AssertIn(_cbEntry, 1, kcbMax);
     AssertIn(_ivMac, 0, kcbMax);
     Assert(_Cb1() >= LwMul(_cbEntry, _ivMac), "array area too small");
@@ -428,7 +428,7 @@ PGL GL::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 /***************************************************************************
     Constructor for GL.
 ***************************************************************************/
-GL::GL(long cb) : GLB(cb)
+GL::GL(long cb) : VirtualArray(cb)
 {
     AssertThis(0);
 }
@@ -786,7 +786,7 @@ PAL AL::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 /***************************************************************************
     Constructor for AL (allocated list) class.
 ***************************************************************************/
-AL::AL(long cb) : GLB(cb)
+AL::AL(long cb) : VirtualArray(cb)
 {
     AssertThis(fobjAssertFull);
 }
