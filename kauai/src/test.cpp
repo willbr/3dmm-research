@@ -348,14 +348,14 @@ void TestFil(void)
 ***************************************************************************/
 void TestGg(void)
 {
-    PGG pgg;
+    PGeneralGroup pgg;
     ulong grf;
     long cb, iv;
     byte *qb;
     PSZ psz = PszLit("0123456789ABCDEFG");
     achar rgch[100];
 
-    AssertDo((pgg = GG::PggNew(0)) != pvNil, 0);
+    AssertDo((pgg = GeneralGroup::PggNew(0)) != pvNil, 0);
     for (iv = 0; iv < 10; iv++)
     {
         AssertDo(pgg->FInsert(iv / 2, iv + 1, psz), 0);

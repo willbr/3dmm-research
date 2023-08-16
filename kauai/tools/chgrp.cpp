@@ -4,7 +4,7 @@
 /***************************************************************************
 
     Handles editing a chunk consisting of a group
-    (DynamicArray, AllocatedArray, GG, AG, StringTable, AllocatedStringTable)
+    (DynamicArray, AllocatedArray, GeneralGroup, AG, StringTable, AllocatedStringTable)
 
 ***************************************************************************/
 #include "ched.h"
@@ -31,7 +31,7 @@ RTCLASS(DCST)
 
 /***************************************************************************
     Constructor for a group document.  cls indicates which group class
-    the edited chunk belongs to.  cls should be one of DynamicArray, AllocatedArray, GG, AG,
+    the edited chunk belongs to.  cls should be one of DynamicArray, AllocatedArray, GeneralGroup, AG,
     StringTable, AllocatedStringTable.
 ***************************************************************************/
 DOCG::DOCG(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
@@ -142,7 +142,7 @@ bool DOCG::_FRead(PDataBlock pblck)
             dlid = dlidGlbNew;
             cbMin = 1;
             break;
-        case kclsGG:
+        case kclsGeneralGroup:
         case kclsAG:
             dlid = dlidGgbNew;
             break;
@@ -176,8 +176,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAllocatedArray:
             _pgrpb = AllocatedArray::PalNew(cb);
             break;
-        case kclsGG:
-            _pgrpb = GG::PggNew(cb);
+        case kclsGeneralGroup:
+            _pgrpb = GeneralGroup::PggNew(cb);
             break;
         case kclsAG:
             _pgrpb = AG::PagNew(cb);
@@ -208,8 +208,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAllocatedArray:
             _pgrpb = AllocatedArray::PalRead(pblck, &_bo, &_osk);
             break;
-        case kclsGG:
-            _pgrpb = GG::PggRead(pblck, &_bo, &_osk);
+        case kclsGeneralGroup:
+            _pgrpb = GeneralGroup::PggRead(pblck, &_bo, &_osk);
             break;
         case kclsAG:
             _pgrpb = AG::PagRead(pblck, &_bo, &_osk);
@@ -244,7 +244,7 @@ PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
     case kclsAllocatedArray:
         pddg = DCGL::PdcglNew(this, (PVirtualArray)_pgrpb, _cls, pgcb);
         break;
-    case kclsGG:
+    case kclsGeneralGroup:
     case kclsAG:
         pddg = DCGG::PdcggNew(this, (PVirtualGroup)_pgrpb, _cls, pgcb);
         break;
@@ -291,7 +291,7 @@ void DOCG::AssertValid(ulong grf)
     {
     case kclsDynamicArray:
     case kclsAllocatedArray:
-    case kclsGG:
+    case kclsGeneralGroup:
     case kclsAG:
     case kclsStringTable:
     case kclsAllocatedStringTable:
@@ -332,7 +332,7 @@ DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) 
 #ifdef DEBUG
         BugVar("bad cls value", &_cls);
     case kclsDynamicArray:
-    case kclsGG:
+    case kclsGeneralGroup:
     case kclsStringTable:
 #endif // DEBUG
         _fAllocated = fFalse;
@@ -919,18 +919,18 @@ bool DCGL::FCmdAddItem(PCMD pcmd)
 
 /***************************************************************************
     Constructor for the DCGG class.  This class displays (and allows
-    editing of) a GG or AG.
+    editing of) a GeneralGroup or AG.
 ***************************************************************************/
 DCGG::DCGG(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCGG for the GG or AG.
+    Static method to create a new DCGG for the GeneralGroup or AG.
 ***************************************************************************/
 PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb)
 {
-    AssertVar(cls == kclsGG || cls == kclsAG, "bad cls", &cls);
+    AssertVar(cls == kclsGeneralGroup || cls == kclsAG, "bad cls", &cls);
     PDCGG pdcgg;
 
     if (pvNil == (pdcgg = NewObj DCGG(pdocb, pggb, cls, pgcb)))
@@ -1081,8 +1081,8 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
     case cidInsertItem:
         if (_fAllocated)
             break;
-        Assert(pggb->FIs(kclsGG), "bad grpb");
-        fT = ((PGG)pggb)->FInsert(ivNew = _ivCur, cb);
+        Assert(pggb->FIs(kclsGeneralGroup), "bad grpb");
+        fT = ((PGeneralGroup)pggb)->FInsert(ivNew = _ivCur, cb);
     }
     if (!fT)
         return fTrue;
@@ -1439,13 +1439,13 @@ bool DOCI::_FWrite(long iv)
         Assert(cb == ((PVirtualArray)_pgrpb)->CbEntry(), "bad cb in DynamicArray/AllocatedArray");
         ((PVirtualArray)_pgrpb)->Put(iv, pv);
         break;
-    case kclsGG:
+    case kclsGeneralGroup:
     case kclsAG:
         if (_dln == 0)
             fRet = ((PVirtualGroup)_pgrpb)->FPut(iv, cb, pv);
         else
         {
-            Assert(cb == ((PVirtualGroup)_pgrpb)->CbFixed(), "bad cb in GG/AG");
+            Assert(cb == ((PVirtualGroup)_pgrpb)->CbFixed(), "bad cb in GeneralGroup/AG");
             ((PVirtualGroup)_pgrpb)->PutFixed(iv, pv);
         }
         break;
@@ -1491,7 +1491,7 @@ HQ DOCI::_HqRead(void)
     case kclsAllocatedArray:
         cb = ((PVirtualArray)_pgrpb)->CbEntry();
         break;
-    case kclsGG:
+    case kclsGeneralGroup:
     case kclsAG:
         if (_dln == 0)
         {
@@ -1527,7 +1527,7 @@ HQ DOCI::_HqRead(void)
     case kclsAllocatedArray:
         ((PVirtualArray)_pgrpb)->Get(_iv, pv);
         break;
-    case kclsGG:
+    case kclsGeneralGroup:
     case kclsAG:
         if (_dln == 0)
             ((PVirtualGroup)_pgrpb)->Get(_iv, pv);

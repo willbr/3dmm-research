@@ -9,13 +9,13 @@
 
     Basic collection classes:
         General List (DynamicArray), Allocated List (AllocatedArray),
-        General Group (GG), Allocated Group (AG),
+        General Group (GeneralGroup), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
-                        +-> VirtualGroup -+-> GG
+                        +-> VirtualGroup -+-> GeneralGroup
                         |        +-> AG
                         |
                         +-> VirtualStringTable-+-> StringTable
@@ -32,7 +32,7 @@ RTCLASS(VirtualArray)
 RTCLASS(DynamicArray)
 RTCLASS(AllocatedArray)
 RTCLASS(VirtualGroup)
-RTCLASS(GG)
+RTCLASS(GeneralGroup)
 RTCLASS(AG)
 
 /***************************************************************************
@@ -1834,15 +1834,15 @@ void VirtualGroup::AssertValid(ulong grfobj)
     Allocate a new group with room for at least cvInit elements containing
     at least cbInit bytes worth of (total) space.
 ***************************************************************************/
-PGG GG::PggNew(long cbFixed, long cvInit, long cbInit)
+PGeneralGroup GeneralGroup::PggNew(long cbFixed, long cvInit, long cbInit)
 {
     AssertIn(cbFixed, 0, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
     AssertIn(cbInit, 0, kcbMax);
 
-    PGG pgg;
+    PGeneralGroup pgg;
 
-    if ((pgg = NewObj GG(cbFixed)) == pvNil)
+    if ((pgg = NewObj GeneralGroup(cbFixed)) == pvNil)
         return pvNil;
     if ((cvInit > 0 || cbInit > 0) && !pgg->FEnsureSpace(cvInit, cbInit, fgrpNil))
     {
@@ -1856,15 +1856,15 @@ PGG GG::PggNew(long cbFixed, long cvInit, long cbInit)
 /***************************************************************************
     Read a group from a block and return it.
 ***************************************************************************/
-PGG GG::PggRead(PDataBlock pblck, short *pbo, short *posk)
+PGeneralGroup GeneralGroup::PggRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PGG pgg;
+    PGeneralGroup pgg;
 
-    if ((pgg = NewObj GG(0)) == pvNil)
+    if ((pgg = NewObj GeneralGroup(0)) == pvNil)
         goto LFail;
     if (!pgg->_FRead(pblck, pbo, posk))
     {
@@ -1881,19 +1881,19 @@ PGG GG::PggRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a group from file and return it.
 ***************************************************************************/
-PGG GG::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PGeneralGroup GeneralGroup::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PggRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Duplicate this GG.
+    Duplicate this GeneralGroup.
 ***************************************************************************/
-PGG GG::PggDup(void)
+PGeneralGroup GeneralGroup::PggDup(void)
 {
     AssertThis(0);
-    PGG pgg;
+    PGeneralGroup pgg;
 
     if (pvNil == (pgg = PggNew(_cbFixed)))
         return pvNil;
@@ -1908,7 +1908,7 @@ PGG GG::PggDup(void)
 /***************************************************************************
     Insert an element into the group.
 ***************************************************************************/
-bool GG::FInsert(long iv, long cb, void *pv, void *pvFixed)
+bool GeneralGroup::FInsert(long iv, long cb, void *pv, void *pvFixed)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cb, 0, kcbMax);
@@ -1960,9 +1960,9 @@ bool GG::FInsert(long iv, long cb, void *pv, void *pvFixed)
 
 /***************************************************************************
     Takes cv entries from pggSrc at ivSrc and inserts (a copy of) them into
-    this GG at ivDst.
+    this GeneralGroup at ivDst.
 ***************************************************************************/
-bool GG::FCopyEntries(PGG pggSrc, long ivSrc, long ivDst, long cv)
+bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, long cv)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pggSrc, 0);
@@ -2007,7 +2007,7 @@ bool GG::FCopyEntries(PGG pggSrc, long ivSrc, long ivDst, long cv)
 /***************************************************************************
     Append an element to the group.
 ***************************************************************************/
-bool GG::FAdd(long cb, long *piv, void *pv, void *pvFixed)
+bool GeneralGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 {
     AssertThis(0);
     AssertNilOrVarMem(piv);
@@ -2025,7 +2025,7 @@ bool GG::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 /***************************************************************************
     Delete an element from the group.
 ***************************************************************************/
-void GG::Delete(long iv)
+void GeneralGroup::Delete(long iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
@@ -2050,7 +2050,7 @@ void GG::Delete(long iv)
     ivTarget moves to (ivTarget + 1).  Everything in between is shifted
     appropriately.  ivTarget is allowed to be equal to IvMac().
 ***************************************************************************/
-void GG::Move(long ivSrc, long ivTarget)
+void GeneralGroup::Move(long ivSrc, long ivTarget)
 {
     AssertThis(0);
     AssertIn(ivSrc, 0, _ivMac);
@@ -2061,9 +2061,9 @@ void GG::Move(long ivSrc, long ivTarget)
 }
 
 /***************************************************************************
-    Swap two elements in a GG.
+    Swap two elements in a GeneralGroup.
 ***************************************************************************/
-void GG::Swap(long iv1, long iv2)
+void GeneralGroup::Swap(long iv1, long iv2)
 {
     AssertThis(0);
     AssertIn(iv1, 0, _ivMac);
@@ -2077,10 +2077,10 @@ void GG::Swap(long iv1, long iv2)
 /***************************************************************************
     Validate a group.
 ***************************************************************************/
-void GG::AssertValid(ulong grfobj)
+void GeneralGroup::AssertValid(ulong grfobj)
 {
-    GG_PAR::AssertValid(grfobj);
-    AssertVar(_clocFree == cvNil, "bad _clocFree in GG", &_clocFree);
+    GeneralGroup_PAR::AssertValid(grfobj);
+    AssertVar(_clocFree == cvNil, "bad _clocFree in GeneralGroup", &_clocFree);
 }
 #endif // DEBUG
 

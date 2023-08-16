@@ -43,7 +43,7 @@
     index and free map. The heap contains only the raw chunk data.
     The index is not updated on disk until FSave is called.
 
-    The index is implemented as a general group (GG). The fixed portion
+    The index is implemented as a general group (GeneralGroup). The fixed portion
     of each entry is a CRP (defined below). The variable portion contains
     the list of children of the chunk (including ChildChunkID values) and the
     chunk name (if it has one).
@@ -400,7 +400,7 @@ bool ChunkyFile::FReopen(void)
 {
     AssertThis(0);
     CSTO csto, cstoExtra;
-    PGG pggcrp;
+    PGeneralGroup pggcrp;
 #ifndef CHUNK_BIG_INDEX
     PDynamicArray pglrtie;
 #endif // CHUNK_BIG_INDEX
@@ -491,7 +491,7 @@ PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
         goto LFail;
 
-    if ((pcfl->_pggcrp = GG::PggNew(size(CRP))) == pvNil ||
+    if ((pcfl->_pggcrp = GeneralGroup::PggNew(size(CRP))) == pvNil ||
         (pcfl->_csto.pfil = FIL::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
     {
         ReleasePpo(&pcfl);
@@ -680,7 +680,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
         goto LFail;
 
-    if (pvNil == (pcfl->_pggcrp = GG::PggNew(size(CRP))))
+    if (pvNil == (pcfl->_pggcrp = GeneralGroup::PggNew(size(CRP))))
         goto LFail;
 
     if (fCopyData)
@@ -1383,7 +1383,7 @@ bool ChunkyFile::_FReadIndex(void)
     }
 
     // read and validate the index
-    if ((_pggcrp = GG::PggRead(_csto.pfil, cfp.fpIndex, cfp.cbIndex, &bo, &osk)) == pvNil)
+    if ((_pggcrp = GeneralGroup::PggRead(_csto.pfil, cfp.fpIndex, cfp.cbIndex, &bo, &osk)) == pvNil)
     {
         return fFalse;
     }
@@ -1523,11 +1523,11 @@ bool ChunkyFile::_FReadIndex(void)
     if (size(CRP) != cbFixed)
     {
         // need to convert the index (from big to small or small to big)
-        PGG pggcrp;
+        PGeneralGroup pggcrp;
         CRPOTH *pcrpOld;
         CRP crp;
 
-        if (pvNil == (pggcrp = GG::PggNew(size(CRP), _pggcrp->IvMac())))
+        if (pvNil == (pggcrp = GeneralGroup::PggNew(size(CRP), _pggcrp->IvMac())))
             goto LFail;
 
         for (ccrp = _pggcrp->IvMac(), icrp = 0; icrp < ccrp; icrp++)

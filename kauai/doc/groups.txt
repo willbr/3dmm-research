@@ -1,7 +1,7 @@
 /***************************************************************************
 
 	Collection classes:  General List (DynamicArray), Allocated List (AllocatedArray),
-	General Group (GG),  Allocated Group (AG),
+	General Group (GeneralGroup),  Allocated Group (AG),
 	General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
 ***************************************************************************/
@@ -26,8 +26,8 @@
 		Note, however, that an element may be free.  Call FFree to
 		determine if a particular item is free.
 
-	class GG;
-	typedef class GG *PGG;
+	class GeneralGroup;
+	typedef class GeneralGroup *PGeneralGroup;
 		A group: a collection of data objects of possibly different
 		sizes.  If all your elements are the same size, use a DynamicArray.
 
@@ -63,7 +63,7 @@
 
 	PDynamicArray   DynamicArray::PglNew(long cb, long cvInit = 0);
 	PAllocatedArray   AllocatedArray::PalNew(long cb, long cvInit = 0);
-	PGG   GG::PggNew(long cvInit = 0, long cbInit = 0);
+	PGeneralGroup   GeneralGroup::PggNew(long cvInit = 0, long cbInit = 0);
 	PAG   AG::PagNew(long cvInit = 0, long cbInit = 0);
 	PStringTable StringTable::PgstNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 	PAllocatedStringTable AllocatedStringTable::PastNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
@@ -72,13 +72,13 @@
 		AllocatedArray classes, cb is the size of the elements and cvInit is the
 		number of elements to reserve space for.  For StringTable and AllocatedStringTable, cbExtra
 		is the amount of extra data associated with each string.  For
-		GG, AG, StringTable and AllocatedStringTable, cvInit/cstzInit are how many entries to make room
+		GeneralGroup, AG, StringTable and AllocatedStringTable, cvInit/cstzInit are how many entries to make room
 		for and cbInit/cchInit are the total number of bytes to allow for
 		these entries.  These values are as in FEnsureSpace.
 
 	PDynamicArray   DynamicArray::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAllocatedArray   AllocatedArray::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
-	PGG   GG::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
+	PGeneralGroup   GeneralGroup::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAG   AG::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PStringTable StringTable::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAllocatedStringTable AllocatedStringTable::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
@@ -92,7 +92,7 @@
 			short bo = kboCur, short osk = koskCur);
 	bool  AllocatedArray::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool  GG::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
+	bool  GeneralGroup::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
 	bool  AG::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
@@ -109,7 +109,7 @@
 
 	long  DynamicArray::CbOnFile(void);
 	long  AllocatedArray::CbOnFile(void);
-	long  GG::CbOnFile(void);
+	long  GeneralGroup::CbOnFile(void);
 	long  AG::CbOnFile(void);
 	long StringTable::CbOnFile(void);
 	long AllocatedStringTable::CbOnFile(void);
@@ -118,7 +118,7 @@
 
 	long  DynamicArray::IvMac(void);
 	long  AllocatedArray::IvMac(void);
-	long  GG::IvMac(void);
+	long  GeneralGroup::IvMac(void);
 	long  AG::IvMac(void);
 	long StringTable::IstzMac(void);
 	long AllocatedStringTable::IstzMac(void);
@@ -128,7 +128,7 @@
 
 	void  DynamicArray::Delete(long iv);
 	void  AllocatedArray::Delete(long iv);
-	void  GG::Delete(long iv);
+	void  GeneralGroup::Delete(long iv);
 	void  AG::Delete(long iv);
 	void StringTable::Delete(long istz);
 	void AllocatedStringTable::Delete(long istz);
@@ -138,7 +138,7 @@
 
 	void *DynamicArray::QvGet(long iv);
 	void *AllocatedArray::QvGet(long iv);
-	void *GG::QvGet(long iv);
+	void *GeneralGroup::QvGet(long iv);
 	void *AG::QvGet(long iv);
 		Returns a volatile pointer to the element.  For GPs, iv must
 		be less than IvMac().  For DynamicArray and AllocatedArray, iv must be <= IMac()
@@ -147,45 +147,45 @@
 
 	void *DynamicArray::PvLock(long iv);
 	void *AllocatedArray::PvLock(long iv);
-	void *GG::PvLock(long iv);
+	void *GeneralGroup::PvLock(long iv);
 	void *AG::PvLock(long iv);
 		Locks the data and returns a pointer to the iv'th element.
 		Same restrictions on iv as for QvGet(iv).
 
 	void DynamicArray::Lock(void);
 	void AllocatedArray::Lock(void);
-	void GG::Lock(void);
+	void GeneralGroup::Lock(void);
 	void AG::Lock(void);
 		Locks the data.
 
 	void DynamicArray::Unlock(void);
 	void AllocatedArray::Unlock(void);
-	void GG::Unlock(void);
+	void GeneralGroup::Unlock(void);
 	void AG::Unlock(void);
 		Unlocks the data.  Balances a call to PvLock() or Lock().
 		Locking is nestable.
 
 	void DynamicArray::Get(long iv, void *pv);
 	void AllocatedArray::Get(long iv, void *pv);
-	void GG::Get(long iv, void *pv);
+	void GeneralGroup::Get(long iv, void *pv);
 	void AG::Get(long iv, void *pv);
 		Copies the iv'th item to *pv.  Assumes pv points to a block
 		large enough to hold the item.  iv must be less than IvMac().
-		For GG and AG, GetRgb is more useful.
+		For GeneralGroup and AG, GetRgb is more useful.
 
 	void DynamicArray::Put(long iv, void *pv);
 	void AllocatedArray::Put(long iv, void *pv);
-	void GG::Put(long iv, void *pv);
+	void GeneralGroup::Put(long iv, void *pv);
 	void AG::Put(long iv, void *pv);
 		The opposite of Get(iv, pv).  Copies data from *pv to the iv'th
-		element.  For GG and AG, see FPut and PutRgb.
+		element.  For GeneralGroup and AG, see FPut and PutRgb.
 
 	bool DynamicArray::FAdd(void *pv, long *piv);
 	bool AllocatedArray::FAdd(void *pv, long *piv);
-	bool GG::FAdd(long cb, void *pv, long *piv);
+	bool GeneralGroup::FAdd(long cb, void *pv, long *piv);
 	bool AG::FAdd(long cb, void *pv, long *piv);
 		Add a new element to the class.  If piv is not nil, *piv is
-		set to the index of the new item.  For DynamicArray and GG, the new item
+		set to the index of the new item.  For DynamicArray and GeneralGroup, the new item
 		is always the last.  For AllocatedArray and AG, the first free slot is used.
 
 
@@ -250,39 +250,39 @@
 	Group specific methods
 ****************************************/
 
-	bool GG::FEnsureSpace(long cvAdd, long cbAdd, short grfgrp);
+	bool GeneralGroup::FEnsureSpace(long cvAdd, long cbAdd, short grfgrp);
 	bool AG::FEnsureSpace(long cvAdd, long cbAdd, short grfgrp);
 		Make sure there is room for at least cvAdd additional items,
 		using cbAdd bytes of space.  To close up the group
 		use FEnsureSpace(0, 0, fgrpShrink).
 
-	bool GG::FInsert(long iv, long cb, void *pv);
+	bool GeneralGroup::FInsert(long iv, long cb, void *pv);
 		Inserts an item of size cb into the group.  pv may be nil.
 
-	bool GG::FPut(long iv, long cb, void *pv);
+	bool GeneralGroup::FPut(long iv, long cb, void *pv);
 	bool AG::FPut(long iv, long cb, void *pv);
 		Replaces the item with new data of the given length.  pv may
 		be nil, in which case this effectively resizes the element.
 
-	long GG::Cb(long iv);
+	long GeneralGroup::Cb(long iv);
 	long AG::Cb(long iv);
 		Returns the length of the item.
 
-	void GG::GetRgb(long iv, long bv, long cb, void *pv);
+	void GeneralGroup::GetRgb(long iv, long bv, long cb, void *pv);
 	void AG::GetRgb(long iv, long bv, long cb, void *pv);
 		Fetches a section of data from the given element.  bv is the offset
 		of the data into the element, cb is the amount of data to copy
 		and pv is the destination.
 
-	void GG::PutRgb(long iv, long bv, long cb, void *pv);
+	void GeneralGroup::PutRgb(long iv, long bv, long cb, void *pv);
 	void AG::PutRgb(long iv, long bv, long cb, void *pv);
 		The inverse of GetRgb.
 
-	void GG::DeleteRgb(long iv, long bv, long cb);
+	void GeneralGroup::DeleteRgb(long iv, long bv, long cb);
 	void AG::DeleteRgb(long iv, long bv, long cb);
 		Deletes a portion of the given element.  Deletes bytes [bv, bv+cb).
 
-	bool GG::FInsertRgb(long iv, long bv, long cb, void *pv);
+	bool GeneralGroup::FInsertRgb(long iv, long bv, long cb, void *pv);
 	bool AG::FInsertRgb(long iv, long bv, long cb, void *pv);
 		Inserts cb new bytes before byte bv of the element.  pv may be nil.
 

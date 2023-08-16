@@ -350,7 +350,7 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 
     if (!pcfl->FFind(kctgGgae, cno, &blck))
         return fFalse;
-    _pggaev = GG::PggRead(&blck, &bo);
+    _pggaev = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == _pggaev)
         return fFalse;
     if (kboOther == bo)
@@ -361,7 +361,7 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 /***************************************************************************
     SwapBytes all events in pggaev
 ***************************************************************************/
-void Actor::_SwapBytesPggaev(PGG pggaev)
+void Actor::_SwapBytesPggaev(PGeneralGroup pggaev)
 {
     AssertPo(pggaev, 0);
 
@@ -490,7 +490,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
     short bo;
     PTAG ptag;
     PDynamicArray pgltag;
-    PGG pggaev = pvNil;
+    PGeneralGroup pggaev = pvNil;
     long iaev;
     ChildChunkIdentification kid;
 
@@ -549,7 +549,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
         goto LFail;
     if (!pcfl->FFind(kctgGgae, kid.cki.cno, &blck))
         goto LFail;
-    pggaev = GG::PggRead(&blck, &bo);
+    pggaev = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == pggaev)
         goto LFail;
     if (kboOther == bo)
@@ -581,7 +581,7 @@ LFail:
     If the iaev'th event of pggaev has a tag, sets *pptag to point to it.
     WARNING: unless you locked pggaev, *pptag is a qtag!
 ***************************************************************************/
-bool Actor::_FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PBase *pqaev)
+bool Actor::_FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, PBase *pqaev)
 {
     AssertPo(pggaev, 0);
     AssertIn(iaev, 0, pggaev->IvMac());

@@ -45,7 +45,7 @@ struct CMD
 
     PCMH pcmh;          // the target of the command - may be nil
     long cid;           // the command id
-    PGG pgg;            // additional parameters for the command
+    PGeneralGroup pgg;            // additional parameters for the command
     long rglw[kclwCmd]; // standard parameters
 };
 typedef CMD *PCMD;
@@ -69,7 +69,7 @@ struct CommandFile
     {                                                                                                                  \
         PCMH pcmh;                                                                                                     \
         long cid;                                                                                                      \
-        PGG pgg;                                                                                                       \
+        PGeneralGroup pgg;                                                                                                       \
         long a, b, c, d;                                                                                               \
     };                                                                                                                 \
     typedef CMD_##foo *PCMD_##foo
@@ -304,9 +304,9 @@ class CEX : public CEX_PAR
     // queueing and dispatching
     virtual void EnqueueCmd(PCMD pcmd);
     virtual void PushCmd(PCMD pcmd);
-    virtual void EnqueueCid(long cid, PCMH pcmh = pvNil, PGG pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual void EnqueueCid(long cid, PCMH pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                             long lw3 = 0);
-    virtual void PushCid(long cid, PCMH pcmh = pvNil, PGG pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual void PushCid(long cid, PCMH pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                          long lw3 = 0);
     virtual bool FDispatchNextCmd(void);
     virtual bool FGetNextKey(PCMD pcmd);
@@ -315,7 +315,7 @@ class CEX : public CEX_PAR
 
     // menu marking
     virtual ulong GrfedsForCmd(PCMD pcmd);
-    virtual ulong GrfedsForCid(long cid, PCMH pcmh = pvNil, PGG pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual ulong GrfedsForCid(long cid, PCMH pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                                long lw3 = 0);
 
     // mouse tracking

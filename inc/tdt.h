@@ -80,9 +80,9 @@ class TDT : public TDT_PAR
     bool _FInitLists(void);
     PDynamicArray _PglibactParBuild(void);
     PDynamicArray _PglibsetBuild(void);
-    PGG _PggcmidBuild(void);
+    PGeneralGroup _PggcmidBuild(void);
     PDynamicArray _Pglbmat34Build(long tda);
-    PGG _PggcelBuild(long tda);
+    PGeneralGroup _PggcelBuild(long tda);
     virtual PACTN _PactnFetch(long tda);
     PACTN _PactnBuild(long tda);
     virtual PMODL _PmodlFetch(ChildChunkID chidModl);

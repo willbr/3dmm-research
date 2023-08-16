@@ -1949,7 +1949,7 @@ bool DCD::_FChangeChid(ChunkIdentification *pcki, ChildChunkIdentification *pkid
     ReleasePpo(&pdlg);
 
     // If new ChildChunkID is different, unadopt and adopt child to change ChildChunkID.
-    // This is easier than directly changing the GG which keeps track of the
+    // This is easier than directly changing the GeneralGroup which keeps track of the
     // parent and its children.
     if (chid != pkid->chid)
     {
@@ -2312,7 +2312,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
             cls = kclsAllocatedArray;
             goto LDocg;
         case kctgGg:
-            cls = kclsGG;
+            cls = kclsGeneralGroup;
             goto LDocg;
         case kctgAg:
             cls = kclsAG;
@@ -2334,7 +2334,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         cls = kclsAllocatedArray;
         goto LDocg;
     case cidEditGG:
-        cls = kclsGG;
+        cls = kclsGeneralGroup;
         goto LDocg;
     case cidEditAG:
         cls = kclsAG;

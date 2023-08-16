@@ -133,7 +133,7 @@ struct SSE
   public:
     static PSSE PsseNew(long ctagc);
     static PSSE PsseNew(long vlm, long sty, bool fLoop, long ctagc, TAGC *prgtagc);
-    static PSSE PsseDupFromGg(PGG pgg, long iv, bool fDupTags = fTrue);
+    static PSSE PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags = fTrue);
 
     PTAG Ptag(long itagc)
     {
@@ -514,14 +514,14 @@ PScene Scene::PscenNew(PMovie pmvie)
     //
     // Initialize event list
     //
-    pscen->_pggsevFrm = GG::PggNew(size(SEV));
+    pscen->_pggsevFrm = GeneralGroup::PggNew(size(SEV));
     if (pscen->_pggsevFrm == pvNil)
     {
         goto LFail;
     }
     pscen->_isevFrmLim = 0;
 
-    pscen->_pggsevStart = GG::PggNew(size(SEV));
+    pscen->_pggsevStart = GeneralGroup::PggNew(size(SEV));
     if (pscen->_pggsevStart == pvNil)
     {
         goto LFail;
@@ -1817,7 +1817,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     {
         // non-fatal error...ignore it
     }
-    FreePpv((void **)&psseNew); // don't ReleasePpsse because GG got the tags
+    FreePpv((void **)&psseNew); // don't ReleasePpsse because GeneralGroup got the tags
 
     _MarkMovieDirty();
     Pmvie()->Pmcc()->SetSndFrame(fTrue);
@@ -1919,7 +1919,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
         // non-fatal error...ignore it
     }
 
-    FreePpv((void **)&psseNew); // don't ReleasePpsse because GG got the tags
+    FreePpv((void **)&psseNew); // don't ReleasePpsse because GeneralGroup got the tags
     _MarkMovieDirty();
     Pmvie()->Pmcc()->SetSndFrame(fTrue);
     return fTrue;
@@ -3846,20 +3846,20 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     }
 
     //
-    // Read in GG of Frame events
+    // Read in GeneralGroup of Frame events
     //
     if (!pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgFrmGg, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
         goto LFail0;
     }
 
-    pscen->_pggsevFrm = GG::PggRead(&blck, &bo);
+    pscen->_pggsevFrm = GeneralGroup::PggRead(&blck, &bo);
     if (pscen->_pggsevFrm == pvNil)
     {
         goto LFail0;
     }
 
-    Assert(pscen->_pggsevFrm->CbFixed() == size(SEV), "Bad GG read for event");
+    Assert(pscen->_pggsevFrm->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
 
     //
     // Convert all open tags to pointers.
@@ -3905,9 +3905,9 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
                     goto LFail1;
                 }
             }
-            // Put SSE with opened tags back in GG
+            // Put SSE with opened tags back in GeneralGroup
             pscen->_pggsevFrm->Put(isevFrm, psse);
-            FreePpv((void **)&psse); // don't ReleasePpsse because GG keeps the tags
+            FreePpv((void **)&psse); // don't ReleasePpsse because GeneralGroup keeps the tags
             break;
 
         case sevtChngCamera:
@@ -3933,14 +3933,14 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         goto LFail1;
     }
 
-    pscen->_pggsevStart = GG::PggRead(&blck, &bo);
+    pscen->_pggsevStart = GeneralGroup::PggRead(&blck, &bo);
 
     if (pscen->_pggsevStart == pvNil)
     {
         goto LFail1;
     }
 
-    Assert(pscen->_pggsevStart->CbFixed() == size(SEV), "Bad GG read for event");
+    Assert(pscen->_pggsevStart->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
 
     //
     // Convert all open tags to pointers.
@@ -4078,7 +4078,7 @@ LFail1:
             qsse = (PSSE)pscen->_pggsevFrm->QvGet(isevFrm);
             if (qsse->Cb() != (pscen->_pggsevFrm->CbFixed() + pscen->_pggsevFrm->Cb(isevFrm)))
             {
-                Bug("Wrong size for SSE in GG");
+                Bug("Wrong size for SSE in GeneralGroup");
                 continue;
             }
 
@@ -4185,8 +4185,8 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     AssertThis(0);
     AssertPo(pcrf, 0);
 
-    PGG pggFrmTemp = pvNil;
-    PGG pggStartTemp = pvNil;
+    PGeneralGroup pggFrmTemp = pvNil;
+    PGeneralGroup pggStartTemp = pvNil;
     SEV sev;
     ChildChunkID chidActr, chidTbox;
     ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
@@ -4212,9 +4212,9 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     }
 
     //
-    // Copy frame event GG to temporary GG
+    // Copy frame event GeneralGroup to temporary GeneralGroup
     //
-    pggFrmTemp = GG::PggNew(size(SEV));
+    pggFrmTemp = GeneralGroup::PggNew(size(SEV));
 
     if (pggFrmTemp == pvNil)
     {
@@ -4226,7 +4226,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         sev = *(PSEV)_pggsevFrm->QvFixedGet(isevFrm);
 
         //
-        // Convert pointers in the GG to CHIDs
+        // Convert pointers in the GeneralGroup to CHIDs
         //
         switch (sev.sevt)
         {
@@ -4301,9 +4301,9 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     }
 
     //
-    // Copy start event GG to temporary GG
+    // Copy start event GeneralGroup to temporary GeneralGroup
     //
-    pggStartTemp = GG::PggNew(size(SEV));
+    pggStartTemp = GeneralGroup::PggNew(size(SEV));
 
     if (pggStartTemp == pvNil)
     {
@@ -4314,7 +4314,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     {
         sev = *(PSEV)_pggsevStart->QvFixedGet(isevStart);
         //
-        // Convert pointers in the GG to CHIDs
+        // Convert pointers in the GeneralGroup to CHIDs
         //
         switch (sev.sevt)
         {
@@ -5068,7 +5068,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
     long isev;
     PSEV qsev;
     short bo;
-    PGG pggsev;
+    PGeneralGroup pggsev;
     TAG tag;
     TAG tagBkgd;
     PDynamicArray pgltagSrc;
@@ -5091,14 +5091,14 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
         return fFalse;
     }
 
-    pggsev = GG::PggRead(&blck, &bo);
+    pggsev = GeneralGroup::PggRead(&blck, &bo);
 
     if (pggsev == pvNil)
     {
         return fFalse;
     }
 
-    Assert(pggsev->CbFixed() == size(SEV), "Bad GG read for event");
+    Assert(pggsev->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
 
     //
     // Find all tags in starting events
@@ -5195,7 +5195,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
     ReleasePpo(&pggsev);
 
     //
-    // Read in GG of Frame events
+    // Read in GeneralGroup of Frame events
     //
     if (!pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgFrmGg, &kid))
     {
@@ -5207,14 +5207,14 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
         return fFalse;
     }
 
-    pggsev = GG::PggRead(&blck, &bo);
+    pggsev = GeneralGroup::PggRead(&blck, &bo);
 
     if (pggsev == pvNil)
     {
         return fFalse;
     }
 
-    Assert(pggsev->CbFixed() == size(SEV), "Bad GG read for event");
+    Assert(pggsev->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
 
     //
     // Look in all events for tags
@@ -7209,11 +7209,11 @@ void ReleasePpsse(PSSE *ppsse)
 }
 
 /***************************************************************************
-    Static function to allocate and read a SSE from a GG.  This is tricky
+    Static function to allocate and read a SSE from a GeneralGroup.  This is tricky
     because I can't do a pgg->Get() since the SSE is variable-sized, and
     I need to do QvGet twice since I'm allocating memory in this function.
 ***************************************************************************/
-PSSE SSE::PsseDupFromGg(PGG pgg, long iv, bool fDupTags)
+PSSE SSE::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
 {
     AssertPo(pgg, 0);
     AssertIn(iv, 0, pgg->IvMac());

@@ -150,19 +150,19 @@ struct RouteLocation // RouTE Location - a function of space and time
 
 namespace ActorEvent {
 
-// Actor EVents are stored in a GG (general group)
-// Fixed part of the GG:
+// Actor EVents are stored in a GeneralGroup (general group)
+// Fixed part of the GeneralGroup:
 struct Base
 {
     long aet;  // Actor Event Type
     long nfrm; // Absolute frame number (* Only valid < current event)
     RouteLocation rtel; // RouTE Location for this event
-};             // Additional event parameters (in the GG)
+};             // Additional event parameters (in the GeneralGroup)
 typedef Base *PBase;
 
 //
-//	Actor level Event Types which live in a GG.
-//	The fixed part of a GG entry is an actor event (aev)
+//	Actor level Event Types which live in a GeneralGroup.
+//	The fixed part of a GeneralGroup entry is an actor event (aev)
 //	The variable part is documented in the following comments
 //
 enum AET
@@ -187,7 +187,7 @@ const ByteOrderMask kbomAet = 0xc0000000;
 const ByteOrderMask kbomAev = 0xff000000;
 
 //
-//	Variable part of the Actor EVent GG:
+//	Variable part of the Actor EVent GeneralGroup:
 //
 struct Stretch // Squash/stretch
 {
@@ -339,7 +339,7 @@ class Actor : public Actor_PAR
     // Note: In addition to these components, any complete actor must
     // have either fLifeDirty set or _nfrmLast current.
     // Note: _tagTmpl cannot be derived from _ptmpl
-    PGG _pggaev;      // GG pointer to Actor EVent list
+    PGeneralGroup _pggaev;      // GeneralGroup pointer to Actor EVent list
     PDynamicArray _pglrpt;      // DynamicArray pointer to actor's route
     TMPL *_ptmpl;     // Actor body & action list template
     BODY *_pbody;     // Actor's body
@@ -462,9 +462,9 @@ class Actor : public Actor_PAR
     bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadRoute(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
-    static void _SwapBytesPggaev(PGG pggaev);
+    static void _SwapBytesPggaev(PGeneralGroup pggaev);
     bool _FOpenTags(PChunkyResourceFile pcrf);
-    static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
+    static bool _FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
     void _CloseTags(void);
 
   public:

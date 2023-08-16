@@ -21,7 +21,7 @@ enum
     curtMonochrome = 0,
 };
 
-// cursor on file - stored in a GG with the rgb's in the variable part
+// cursor on file - stored in a GeneralGroup with the rgb's in the variable part
 struct CURF
 {
     long curt; // type of cursor

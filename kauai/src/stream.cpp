@@ -301,7 +301,7 @@ bool FileByteStream::_FEnsureSplit(long ib, long *piflo)
 
     if (pvNil == _pggflo)
     {
-        if (pvNil == (_pggflo = GG::PggNew(size(FLO))))
+        if (pvNil == (_pggflo = GeneralGroup::PggNew(size(FLO))))
             return fFalse;
         // REVIEW shonk: what values should we use for SetMinGrow?
         //_pggflo->SetMinGrow(2, 100);
@@ -761,7 +761,7 @@ void FileByteStream::FetchRgb(long ib, long cb, void *prgb)
         cbT = LwMin(cb, flo.cb - ib);
         if (pvNil == flo.pfil)
         {
-            // the data is in the GG
+            // the data is in the GeneralGroup
             Assert(_pggflo->Cb(iflo) == flo.cb, "group element wrong size");
             _pggflo->GetRgb(iflo, ib, cbT, prgb);
         }
@@ -833,7 +833,7 @@ bool FileByteStream::FWriteRgb(PDataBlock pblck, long ib)
         Assert(pblck->Cb() == cb, 0);
         if (pvNil == flo.pfil)
         {
-            // the data is in the GG
+            // the data is in the GeneralGroup
             Assert(_pggflo->Cb(iflo) == flo.cb, "group element wrong size");
             fRet = pblck->FWrite(PvAddBv(_pggflo->QvGet(iflo), ib));
         }

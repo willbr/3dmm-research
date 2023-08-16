@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    The GG of TAGFs is maintained in sorted order.  It is sorted by sid,
+    The GeneralGroup of TAGFs is maintained in sorted order.  It is sorted by sid,
     then by	ChunkTag, then by ChunkNumber.
 
 ***************************************************************************/
@@ -33,7 +33,7 @@ struct TAGF
     CC, or "chid-ctg" struct, for
     children of a tag.  An array of
     these is the variable part of the
-    GG.
+    GeneralGroup.
 ****************************************/
 struct CC
 {
@@ -67,7 +67,7 @@ bool TAGL::_FInit(void)
 {
     AssertBaseThis(0);
 
-    _pggtagf = GG::PggNew(size(TAGF));
+    _pggtagf = GeneralGroup::PggNew(size(TAGF));
     if (pvNil == _pggtagf)
         return fFalse;
     return fTrue;
@@ -109,10 +109,10 @@ void TAGL::GetTag(long itag, PTAG ptag)
 
 /***************************************************************************
     Find ptag in the TAGL.  If the tag is found, the function returns
-    fTrue and *pitag is the location of the tag in the GG.  If the tag
+    fTrue and *pitag is the location of the tag in the GeneralGroup.  If the tag
     is not found, the function returns fFalse and *pitag is the location
-    at which the tag should be inserted into the GG to maintain correct
-    sorting order in the GG.
+    at which the tag should be inserted into the GeneralGroup to maintain correct
+    sorting order in the GeneralGroup.
 ***************************************************************************/
 bool TAGL::_FFindTag(PTAG ptag, long *pitag)
 {
@@ -174,14 +174,14 @@ bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
 
     if (!_FFindTag(ptag, &itag))
     {
-        // Build and insert TAGF into fixed part of GG
+        // Build and insert TAGF into fixed part of GeneralGroup
         tagf.tag = *ptag;
         tagf.fCacheChildren = fCacheChildren;
         if (!_pggtagf->FInsert(itag, 0, pvNil, &tagf))
             return fFalse;
         return fTrue;
     }
-    // Tag is already in GG, see if fCacheChildren needs to be updated
+    // Tag is already in GeneralGroup, see if fCacheChildren needs to be updated
     _pggtagf->GetFixed(itag, &tagf);
     if (!tagf.fCacheChildren && fCacheChildren)
     {

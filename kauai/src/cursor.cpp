@@ -31,7 +31,7 @@ CURS::~CURS(void)
 ***************************************************************************/
 bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
-    PGG pggcurf;
+    PGeneralGroup pggcurf;
     long icurf, icurfBest;
     CURF curf;
     short bo;
@@ -45,7 +45,7 @@ bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     if (pvNil == ppbaco)
         return fTrue;
 
-    if (pvNil == (pggcurf = GG::PggRead(pblck, &bo)) || pggcurf->IvMac() == 0)
+    if (pvNil == (pggcurf = GeneralGroup::PggRead(pblck, &bo)) || pggcurf->IvMac() == 0)
     {
         ReleasePpo(&pggcurf);
         return fFalse;

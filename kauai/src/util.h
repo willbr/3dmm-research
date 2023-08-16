@@ -138,10 +138,10 @@ namespace Group {
    typedef class AllocatedArray *PAllocatedArray;
 
    class VirtualGroup;
-   class GG;
+   class GeneralGroup;
    class AG;
    typedef class VirtualGroup *PVirtualGroup;
-   typedef class GG *PGG;
+   typedef class GeneralGroup *PGeneralGroup;
    typedef class AG *PAG;
 
    class VirtualStringTable;

@@ -249,7 +249,7 @@ bool Actor::_FCreateGroups(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pggaev = GG::PggNew(size(Base), kcaevInit, kcbVarAdd)))
+    if (pvNil == (_pggaev = GeneralGroup::PggNew(size(Base), kcaevInit, kcbVarAdd)))
         return fFalse;
 
     if (pvNil == (_pglrpt = DynamicArray::PglNew(size(RouteDistancePoint), kcrptGrow)))
@@ -5463,7 +5463,7 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     cbsetNew = _pbody->Cbset();
     // Need to remove any costume events acting on ibset >= cbsetNew
     // Loop backwards to prevent indexing problems since we are deleting
-    // events in this GG as we go
+    // events in this GeneralGroup as we go
     for (iaev = _pggaev->IvMac() - 1; iaev >= 0; iaev--)
     {
         _pggaev->GetFixed(iaev, &aev);

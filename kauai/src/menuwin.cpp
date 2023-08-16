@@ -500,7 +500,7 @@ bool MenuBar::_FGetCmdForWcid(long wcid, PCMD pcmd)
         mlst.pgllw->Get(wcid - mlst.wcidList, &lw);
         cch = GetMenuString(mlst.hmenu, mlst.imniBase + wcid - mlst.wcidList, sz, kcchMaxSz, MF_BYPOSITION);
         stn = sz;
-        if (cch == 0 || (pcmd->pgg = GG::PggNew(0, 1, stn.CbData())) == pvNil)
+        if (cch == 0 || (pcmd->pgg = GeneralGroup::PggNew(0, 1, stn.CbData())) == pvNil)
             return fFalse;
         AssertDo(pcmd->pgg->FInsert(0, stn.CbData(), pvNil), 0);
         stn.GetData(pcmd->pgg->PvLock(0));

@@ -129,9 +129,9 @@ class Scene : public Scene_PAR
 
     //
     // Frames with events in them.  This stuff works as follows.
-    //   _isevFrmLim is the index into the GG of a sev with nfrm > nCurFrm.
+    //   _isevFrmLim is the index into the GeneralGroup of a sev with nfrm > nCurFrm.
     //
-    PGG _pggsevFrm;   // List of events that occur in frames.
+    PGeneralGroup _pggsevFrm;   // List of events that occur in frames.
     long _isevFrmLim; // Next event to process.
 
     //
@@ -140,7 +140,7 @@ class Scene : public Scene_PAR
     STN _stnName;         // Name of this scene
     PDynamicArray _pglpactr;        // List of actors in the scene.
     PDynamicArray _pglptbox;        // List of text boxes in the scene.
-    PGG _pggsevStart;     // List of frame independent events.
+    PGeneralGroup _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
     ulong _grfscen;       // Disabled functionality.

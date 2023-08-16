@@ -18,7 +18,7 @@ RTCLASS(Dialog)
 /***************************************************************************
     Constructor for a dialog object.
 ***************************************************************************/
-Dialog::Dialog(long rid) : GG(size(DialogItem))
+Dialog::Dialog(long rid) : GeneralGroup(size(DialogItem))
 {
     _rid = rid;
 }

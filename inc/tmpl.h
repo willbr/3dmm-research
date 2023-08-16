@@ -95,7 +95,7 @@ class ACTN : public ACTN_PAR
     MARKMEM
 
   protected:
-    PGG _pggcel;    // GG of CELs; variable part is a rgcps[]
+    PGeneralGroup _pggcel;    // GeneralGroup of CELs; variable part is a rgcps[]
     PDynamicArray _pglbmat34; // DynamicArray of transformation matrices used in this action
     PDynamicArray _pgltagSnd; // DynamicArray of motion-match sounds for this action
     ulong _grfactn; // various flags for this action
@@ -107,7 +107,7 @@ class ACTN : public ACTN_PAR
     bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
   public:
-    static PACTN PactnNew(PGG pggcel, PDynamicArray pglbmat34, ulong grfactn);
+    static PACTN PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn);
     static bool FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~ACTN(void);
 
@@ -156,7 +156,7 @@ class TMPL : public TMPL_PAR
     ulong _grftmpl;
     PDynamicArray _pglibactPar; // DynamicArray of parent IDs (shorts) to build BODY
     PDynamicArray _pglibset;    // DynamicArray of body-part-set IDs to build BODY
-    PGG _pggcmid;     // List of costumes for each body part set
+    PGeneralGroup _pggcmid;     // List of costumes for each body part set
     long _ccmid;      // Count of custom costumes
     long _cbset;      // Count of body part sets
     long _cactn;      // Count of actions

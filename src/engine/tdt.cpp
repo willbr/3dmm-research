@@ -210,7 +210,7 @@ bool TDT::_FInitLists(void)
     long cch;
     PDynamicArray pglibactParNew = pvNil;
     PDynamicArray pglibsetNew = pvNil;
-    PGG pggcmidNew = pvNil;
+    PGeneralGroup pggcmidNew = pvNil;
     PMTRL pmtrlDefaultNew = pvNil;
 
     pglibactParNew = _PglibactParBuild();
@@ -292,7 +292,7 @@ PACTN TDT::_PactnBuild(long tda)
     AssertIn(tda, 0, tdaLim);
 
     PACTN pactn;
-    PGG pggcel;
+    PGeneralGroup pggcel;
     PDynamicArray pglbmat34 = pvNil;
     ulong grfactn;
 
@@ -405,19 +405,19 @@ PDynamicArray TDT::_PglibsetBuild(void)
 }
 
 /***************************************************************************
-    Build the costume GG for TMPL creation.  For TDTs, the costume is
+    Build the costume GeneralGroup for TMPL creation.  For TDTs, the costume is
     simple: all body part sets get cmid 0.
 ***************************************************************************/
-PGG TDT::_PggcmidBuild(void)
+PGeneralGroup TDT::_PggcmidBuild(void)
 {
     AssertBaseThis(0);
 
     long cch = _stn.Cch();
     long lwOne = 1;
-    PGG pggcmid;
+    PGeneralGroup pggcmid;
     long cmid = 0;
 
-    pggcmid = GG::PggNew(size(long), 1, size(long));
+    pggcmid = GeneralGroup::PggNew(size(long), 1, size(long));
     if (pvNil == pggcmid)
         return pvNil;
     if (!pggcmid->FAdd(size(long), pvNil, &cmid, &lwOne))
@@ -535,16 +535,16 @@ LFail:
 }
 
 /***************************************************************************
-    Build a GG of cels for the action
+    Build a GeneralGroup of cels for the action
 ***************************************************************************/
-PGG TDT::_PggcelBuild(long tda)
+PGeneralGroup TDT::_PggcelBuild(long tda)
 {
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
 
     long cch = _stn.Cch();
     long ich;
-    PGG pggcel;
+    PGeneralGroup pggcel;
     CEL cel;
     CPS *prgcps = pvNil;
     long iv;
@@ -553,7 +553,7 @@ PGG TDT::_PggcelBuild(long tda)
 
     ccel = _CcelOfTda(tda);
 
-    pggcel = GG::PggNew(size(CEL));
+    pggcel = GeneralGroup::PggNew(size(CEL));
     if (pvNil == pggcel)
         goto LFail;
     if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CPS)), fmemClear, mprNormal))

@@ -16,7 +16,7 @@
 #ifndef DLG_H
 #define DLG_H
 
-using Group::GG;
+using Group::GeneralGroup;
 
 #ifdef MAC
 typedef DialogPtr HDLG;
@@ -49,8 +49,8 @@ typedef class Dialog *PDLG;
 // callback to notify of an item change (while the dialog is active)
 typedef bool (*PFNDLG)(PDLG pdlg, long *pidit, void *pv);
 
-// dialog class - a Dialog is a GG of DITs
-#define Dialog_PAR GG
+// dialog class - a Dialog is a GeneralGroup of DITs
+#define Dialog_PAR GeneralGroup
 #define kclsDialog 'DLG'
 class Dialog : public Dialog_PAR
 {

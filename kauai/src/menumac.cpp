@@ -10,7 +10,7 @@
     Mac menu bar management.
 
     REVIEW shonk: this is broken! Menu item names should be stored as STNs
-    in the GG, except for DA names, which should be raw schar's (since
+    in the GeneralGroup, except for DA names, which should be raw schar's (since
     they can have zeros in them).
 
 ***************************************************************************/
@@ -343,10 +343,10 @@ void MenuBar::Clean(void)
 
             if (_FFindMlst(imnu, imni))
             {
-                // need the item name in a GG
+                // need the item name in a GeneralGroup
                 GetItem(mnu.hnsmu, imni + 1, (byte *)st);
                 cch = (long)*(byte *)st;
-                if ((cmd.pgg = GG::PggNew(0, 1, cch)) != pvNil)
+                if ((cmd.pgg = GeneralGroup::PggNew(0, 1, cch)) != pvNil)
                     AssertDo(cmd.pgg->FInsert(0, cch, st + 1), 0);
             }
             grfeds = vpcex->GrfedsForCmd(&cmd);
@@ -449,10 +449,10 @@ bool MenuBar::_FGetCmdFromCode(long lwCode, CMD *pcmd)
 
     if (fNeedName)
     {
-        // need the item name in a GG
+        // need the item name in a GeneralGroup
         GetItem(mnu.hnsmu, imni + 1, (byte *)st);
         cch = (long)*(byte *)st;
-        if (pvNil == (pcmd->pgg = GG::PggNew(0, 1, cch)))
+        if (pvNil == (pcmd->pgg = GeneralGroup::PggNew(0, 1, cch)))
             return fFalse;
         AssertDo(pcmd->pgg->FInsert(0, cch, st + 1), 0);
     }

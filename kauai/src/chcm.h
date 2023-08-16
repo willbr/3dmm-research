@@ -31,10 +31,10 @@ enum
     ttBitmap,            // bitmap import command
     ttFree,              // for AllocatedArray, AG, AllocatedStringTable - item is free
     ttItem,              // for DynamicArray, etc - start of data for new item
-    ttVar,               // for GG and AG - variable sized data
+    ttVar,               // for GeneralGroup and AG - variable sized data
     ttGl,                // DynamicArray command
     ttAl,                // AllocatedArray command
-    ttGg,                // GG command
+    ttGg,                // GeneralGroup command
     ttAg,                // AG command
     ttGst,               // StringTable command
     ttAst,               // AllocatedStringTable command

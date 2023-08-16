@@ -12,13 +12,13 @@
 
     Basic collection classes:
         General List (DynamicArray), Allocated List (AllocatedArray),
-        General Group (GG), Allocated Group (AG),
+        General Group (GeneralGroup), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
-                        +-> VirtualGroup -+-> GG
+                        +-> VirtualGroup -+-> GeneralGroup
                         |        +-> AG
                         |
                         +-> VirtualStringTable-+-> StringTable
@@ -239,7 +239,7 @@ class AllocatedArray : public AllocatedArray_PAR
 
 /****************************************
     VirtualGroup is a virtual class supporting
-    GG and AG
+    GeneralGroup and AG
 ****************************************/
 const ByteOrderMask kbomLoc = 0xF0000000;
 #define VirtualGroup_PAR GRPB
@@ -312,26 +312,26 @@ class VirtualGroup : public VirtualGroup_PAR
 /****************************************
     General Group - based on VirtualGroup
 ****************************************/
-#define GG_PAR VirtualGroup
-#define kclsGG 'GG'
-class GG : public GG_PAR
+#define GeneralGroup_PAR VirtualGroup
+#define kclsGeneralGroup 'GG'
+class GeneralGroup : public GeneralGroup_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    GG(long cbFixed) : VirtualGroup(cbFixed, fFalse)
+    GeneralGroup(long cbFixed) : VirtualGroup(cbFixed, fFalse)
     {
     }
 
   public:
     // static methods
-    static PGG PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
-    static PGG PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGG PggRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
+    static PGeneralGroup PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PGG PggDup(void);
+    PGeneralGroup PggDup(void);
 
     // methods required by parent class
     virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
@@ -339,7 +339,7 @@ class GG : public GG_PAR
 
     // new methods
     bool FInsert(long iv, long cb, void *pv = pvNil, void *pvFixed = pvNil);
-    bool FCopyEntries(PGG pggSrc, long ivSrc, long ivDst, long cv);
+    bool FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, long cv);
     void Move(long ivSrc, long ivTarget);
     void Swap(long iv1, long iv2);
 };

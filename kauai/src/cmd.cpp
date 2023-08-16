@@ -556,7 +556,7 @@ bool CEX::_FReadCmd(PCMD pcmd)
 
         // read the gg
         if (!_pcfl->FGetKidChidCtg(kctgMacro, _cno, cmdf.chidGg, kctgGg, &kid) ||
-            !_pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pcmd->pgg = GG::PggRead(&blck, &bo, &osk)))
+            !_pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pcmd->pgg = GeneralGroup::PggRead(&blck, &bo, &osk)))
         {
             _rec = recFileError;
             goto LStop;
@@ -751,7 +751,7 @@ bool CEX::_FFindCmhl(long cmhl, long *picmhe)
 /***************************************************************************
     Adds a command to the tail of the queue.
 ***************************************************************************/
-void CEX::EnqueueCid(long cid, PCMH pcmh, PGG pgg, long lw0, long lw1, long lw2, long lw3)
+void CEX::EnqueueCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
 {
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
@@ -771,7 +771,7 @@ void CEX::EnqueueCid(long cid, PCMH pcmh, PGG pgg, long lw0, long lw1, long lw2,
 /***************************************************************************
     Pushes a command onto the head of the queue.
 ***************************************************************************/
-void CEX::PushCid(long cid, PCMH pcmh, PGG pgg, long lw0, long lw1, long lw2, long lw3)
+void CEX::PushCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
 {
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
@@ -1121,7 +1121,7 @@ LDone:
     Determines whether the given command is currently enabled. This is
     normally used for menu graying/checking etc and toolbar enabling/status.
 ***************************************************************************/
-ulong CEX::GrfedsForCid(long cid, PCMH pcmh, PGG pgg, long lw0, long lw1, long lw2, long lw3)
+ulong CEX::GrfedsForCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
 {
     AssertThis(0);
     Assert(cid != cidNil, 0);

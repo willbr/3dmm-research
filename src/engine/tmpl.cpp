@@ -16,7 +16,7 @@
      |
      +--GLBS (chid 0) - body part sets for BODY
      |
-     +--GGCM (chid 0) - custom costumes per body part set (GG of cmids)
+     +--GGCM (chid 0) - custom costumes per body part set (GeneralGroup of cmids)
      |
      +--CMTL* (chid <cmid>) - custom material...see mtrl.h
      |   |
@@ -28,7 +28,7 @@
      |
      +--ACTN* (chid <anid>) - action for this template
          |
-         +--GGCL (chid 0) - GG of cels for this action
+         +--GGCL (chid 0) - GeneralGroup of cels for this action
          |
          +--GLXF (chid 0) - DynamicArray of transformation matrices for this action
          |
@@ -72,7 +72,7 @@ RTCLASS(TMPL)
 /***************************************************************************
     Create a new action
 ***************************************************************************/
-PACTN ACTN::PactnNew(PGG pggcel, PDynamicArray pglbmat34, ulong grfactn)
+PACTN ACTN::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn)
 {
     AssertPo(pggcel, 0);
     AssertPo(pglbmat34, 0);
@@ -162,12 +162,12 @@ bool ACTN::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     Assert(kboCur == actnf.bo, "bad ACTNF");
     _grfactn = actnf.grfactn;
 
-    // read GG of cels (chid 0, ctg kctgGgcl):
+    // read GeneralGroup of cels (chid 0, ctg kctgGgcl):
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGgcl, &kid))
         return fFalse;
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         return fFalse;
-    _pggcel = GG::PggRead(&blck, &bo);
+    _pggcel = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == _pggcel)
         return fFalse;
     AssertBomRglw(kbomCel, size(CEL));
@@ -486,7 +486,7 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     }
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         return fFalse;
-    _pggcmid = GG::PggRead(&blck, &bo);
+    _pggcmid = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == _pggcmid)
         return fFalse;
     Assert(_pggcmid->CbFixed() == size(long), "Bad TMPL _pggcmid");
@@ -514,7 +514,7 @@ LBuildGgcm:
     if (pvNil == pcrf)
         return fFalse;
 
-    _pggcmid = GG::PggNew(size(long));
+    _pggcmid = GeneralGroup::PggNew(size(long));
     if (pvNil == _pggcmid)
     {
         ReleasePpo(&pcrf);

@@ -338,7 +338,7 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
 }
 
 /******************************************************************************
-    Dumps a GG or AG, including the GG or AG directive. pggb is the GG or AG
+    Dumps a GeneralGroup or AG, including the GeneralGroup or AG directive. pggb is the GeneralGroup or AG
     to dump.
 ******************************************************************************/
 void SourceEmitter::DumpGroup(PVirtualGroup pggb)
@@ -351,9 +351,9 @@ void SourceEmitter::DumpGroup(PVirtualGroup pggb)
     STN stnT;
     bool fAg = pggb->FIs(kclsAG);
 
-    Assert(fAg || pggb->FIs(kclsGG), "neither a GG or AG!");
+    Assert(fAg || pggb->FIs(kclsGeneralGroup), "neither a GeneralGroup or AG!");
 
-    // have a valid GG or AG -- print it out in readable format
+    // have a valid GeneralGroup or AG -- print it out in readable format
     cbFixed = pggb->CbFixed();
     AssertIn(cbFixed, 0, kcbMax);
     ivMac = pggb->IvMac();

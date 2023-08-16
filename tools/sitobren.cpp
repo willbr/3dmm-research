@@ -1140,7 +1140,7 @@ bool S2B::_FDoTtActionS2B(void)
                 _ibpCur = 0;
                 if (_FProcessBmhr(&_pbmhr))
                 {
-                    if (_pggcl != pvNil || (_pggcl = GG::PggNew(size(CEL))) != pvNil)
+                    if (_pggcl != pvNil || (_pggcl = GeneralGroup::PggNew(size(CEL))) != pvNil)
                         fSuccess = _pggcl->FAdd(cbrgcps, pvNil, _prgcps, &cel);
                 }
             }
@@ -1277,7 +1277,7 @@ bool S2B::_FInitGlpiCost(bool fForceCost)
         Assert(_pglcmtld == pvNil, "Non-nil GLCMTLD");
         if ((_pglcmtld = DynamicArray::PglNew(size(CMTLD))) == pvNil)
             goto LFailCost;
-        if (_pggcm == pvNil && (_pggcm = GG::PggNew(size(long))) == pvNil)
+        if (_pggcm == pvNil && (_pggcm = GeneralGroup::PggNew(size(long))) == pvNil)
         {
             ReleasePpo(&_pglcmtld);
         LFailCost:
@@ -2561,7 +2561,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
     PSTN pstnBmpFile = pbmhr->pstnMtrlFile;
 
     /* Look for the bitmap file in our list */
-    if (_pggtmapd == pvNil && (_pggtmapd = GG::PggNew(size(TMAPD))) == pvNil)
+    if (_pggtmapd == pvNil && (_pggtmapd = GeneralGroup::PggNew(size(TMAPD))) == pvNil)
         goto LFail;
     itmapdMac = _pggtmapd->IvMac();
     for (itmapd = 0; itmapd < itmapdMac; itmapd++)

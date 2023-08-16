@@ -22,7 +22,7 @@
 #ifndef STREAM_H
 #define STREAM_H
 
-using Group::PGG;
+using Group::PGeneralGroup;
 
 /***************************************************************************
     Byte stream in memory.  The entire stream is in contiguous memory.
@@ -77,7 +77,7 @@ class FileByteStream : public FileByteStream_PAR
     NOCOPY(FileByteStream)
 
   protected:
-    PGG _pggflo;
+    PGeneralGroup _pggflo;
     long _ibMac;
 
     long _IfloFind(long ib, long *pib, long *pcb = pvNil);

@@ -295,11 +295,11 @@ class S2B : public S2B_PAR
     PDynamicArray _pglibactPar;
     PDynamicArray _pglbs;
     PDynamicArray _pglcmtld;
-    PGG _pggcl;
+    PGeneralGroup _pggcl;
     PDynamicArray _pglxf;
     PDynamicArray _pglibps; // list of body part sets to generate costumes for
-    PGG _pggcm;
-    PGG _pggtmapd; // list of TextureMap chunks used by the current actor
+    PGeneralGroup _pggcm;
+    PGeneralGroup _pggtmapd; // list of TextureMap chunks used by the current actor
 #if HASH_FIXED
     PBMDB *_prgpbmdb; // BMDL database
 //	PBMATDB *_prgpbmatdb;	// BMAT34 database
