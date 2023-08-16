@@ -42,7 +42,7 @@ PSZ _mpertpsz[] = {
     PszLit("Alignment parameter out of range"),               // ertBodyAlignRange
     PszLit("File name expected"),                             // ertBodyFile
     PszLit("ENDCHUNK expected"),                              // ertNeedEndChunk
-    PszLit("Invalid DynamicArray or AL declaration"),                   // ertListHead
+    PszLit("Invalid DynamicArray or AllocatedArray declaration"),                   // ertListHead
     PszLit("Invalid size for list entries"),                  // ertListEntrySize
     PszLit("Variable undefined"),                             // ertVarUndefined
     PszLit("Too much data for item"),                         // ertItemOverflow
@@ -1190,7 +1190,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
         return;
     }
 
-    pglb = fAl ? (PVirtualArray)AL::PalNew(cbEntry) : (PVirtualArray)DynamicArray::PglNew(cbEntry);
+    pglb = fAl ? (PVirtualArray)AllocatedArray::PalNew(cbEntry) : (PVirtualArray)DynamicArray::PglNew(cbEntry);
     if (pvNil == pglb)
     {
         _Error(ertOom);
@@ -2149,7 +2149,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
     PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
-    PszLit("AL"),        ttAl,        PszLit("GG"),         ttGg,         PszLit("AG"),      ttAg,
+    PszLit("AllocatedArray"),        ttAl,        PszLit("GG"),         ttGg,         PszLit("AG"),      ttAg,
     PszLit("StringTable"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
     PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
     PszLit("LONER"),     ttLoner,     PszLit("CURSOR"),     ttCursor,     PszLit("PALETTE"), ttPalette,
@@ -2627,7 +2627,7 @@ bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pglb = fAl ? (PVirtualArray)AL::PalRead(pblck, &bo, &osk) : (PVirtualArray)DynamicArray::PglRead(pblck, &bo, &osk);
+    pglb = fAl ? (PVirtualArray)AllocatedArray::PalRead(pblck, &bo, &osk) : (PVirtualArray)DynamicArray::PglRead(pblck, &bo, &osk);
     if (pvNil == pglb)
         return fFalse;
 

@@ -29,11 +29,11 @@ enum
     ttFile,              // file import command
     ttMeta,              // metafile import command
     ttBitmap,            // bitmap import command
-    ttFree,              // for AL, AG, AllocatedStringTable - item is free
+    ttFree,              // for AllocatedArray, AG, AllocatedStringTable - item is free
     ttItem,              // for DynamicArray, etc - start of data for new item
     ttVar,               // for GG and AG - variable sized data
     ttGl,                // DynamicArray command
-    ttAl,                // AL command
+    ttAl,                // AllocatedArray command
     ttGg,                // GG command
     ttAg,                // AG command
     ttGst,               // StringTable command

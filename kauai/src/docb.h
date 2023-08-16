@@ -330,7 +330,7 @@ class DMW : public DMW_PAR
         long idsedPar;
         PDSG pdsg;
     };
-    PAL _paldsed; // the tree of DSEDs
+    PAllocatedArray _paldsed; // the tree of DSEDs
     long _idsedRoot;
     PDocumentBase _pdocb;
 

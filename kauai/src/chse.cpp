@@ -299,7 +299,7 @@ bool SourceEmitter::FDumpScript(PScript pscpt, PCompilerBase psccb)
 }
 
 /******************************************************************************
-    Dumps a DynamicArray or AL, including the DynamicArray or AL directive. pglb is the DynamicArray or AL
+    Dumps a DynamicArray or AllocatedArray, including the DynamicArray or AllocatedArray directive. pglb is the DynamicArray or AllocatedArray
     to dump.
 ******************************************************************************/
 void SourceEmitter::DumpList(PVirtualArray pglb)
@@ -310,11 +310,11 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
     long cbEntry;
     long iv, ivMac;
     STN stn;
-    bool fAl = pglb->FIs(kclsAL);
+    bool fAl = pglb->FIs(kclsAllocatedArray);
 
-    Assert(fAl || pglb->FIs(kclsDynamicArray), "neither a DynamicArray or AL!");
+    Assert(fAl || pglb->FIs(kclsDynamicArray), "neither a DynamicArray or AllocatedArray!");
 
-    // have a valid DynamicArray or AL -- print it out in readable format
+    // have a valid DynamicArray or AllocatedArray -- print it out in readable format
     cbEntry = pglb->CbEntry();
     AssertIn(cbEntry, 0, kcbMax);
     ivMac = pglb->IvMac();

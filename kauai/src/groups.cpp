@@ -8,12 +8,12 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes:
-        General List (DynamicArray), Allocated List (AL),
+        General List (DynamicArray), Allocated List (AllocatedArray),
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
-                        |        +-> AL
+                        |        +-> AllocatedArray
                         |
                         +-> GGB -+-> GG
                         |        +-> AG
@@ -30,7 +30,7 @@ namespace Group {
 RTCLASS(GRPB)
 RTCLASS(VirtualArray)
 RTCLASS(DynamicArray)
-RTCLASS(AL)
+RTCLASS(AllocatedArray)
 RTCLASS(GGB)
 RTCLASS(GG)
 RTCLASS(AG)
@@ -282,9 +282,9 @@ void GRPB::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    VirtualArray:  Base class for DynamicArray (general list) and AL (general allocated list).
+    VirtualArray:  Base class for DynamicArray (general list) and AllocatedArray (general allocated list).
     The list data goes in section 1.  The DynamicArray class doesn't use section 2.
-    The AL class uses section 2 for a bit array indicating whether an entry
+    The AllocatedArray class uses section 2 for a bit array indicating whether an entry
     is free or in use.
 ***************************************************************************/
 
@@ -360,7 +360,7 @@ void VirtualArray::SetMinGrow(long cvAdd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a list (DynamicArray or AL).
+    Assert the validity of a list (DynamicArray or AllocatedArray).
 ***************************************************************************/
 void VirtualArray::AssertValid(ulong grfobj)
 {
@@ -731,13 +731,13 @@ bool DynamicArray::FEnsureSpace(long cvAdd, ulong grfgrp)
     Allocate a new allocated list and ensure that it has space for
     cvInit elements.
 ***************************************************************************/
-PAL AL::PalNew(long cb, long cvInit)
+PAllocatedArray AllocatedArray::PalNew(long cb, long cvInit)
 {
     AssertIn(cb, 1, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
-    PAL pal;
+    PAllocatedArray pal;
 
-    if ((pal = NewObj AL(cb)) == pvNil)
+    if ((pal = NewObj AllocatedArray(cb)) == pvNil)
         return pvNil;
     if (cvInit > 0 && !pal->FEnsureSpace(cvInit, fgrpNil))
     {
@@ -751,16 +751,16 @@ PAL AL::PalNew(long cb, long cvInit)
 /***************************************************************************
     Read an allocated list from the block and return it.
 ***************************************************************************/
-PAL AL::PalRead(PDataBlock pblck, short *pbo, short *posk)
+PAllocatedArray AllocatedArray::PalRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PAL pal;
+    PAllocatedArray pal;
 
     /* the use of 4 for the cb is bogus, but _FRead overwrites the cb anyway */
-    if ((pal = NewObj AL(4)) == pvNil)
+    if ((pal = NewObj AllocatedArray(4)) == pvNil)
         goto LFail;
     if (!pal->_FRead(pblck, pbo, posk))
     {
@@ -777,27 +777,27 @@ PAL AL::PalRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read an allocated list from file and return it.
 ***************************************************************************/
-PAL AL::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedArray AllocatedArray::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PalRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Constructor for AL (allocated list) class.
+    Constructor for AllocatedArray (allocated list) class.
 ***************************************************************************/
-AL::AL(long cb) : VirtualArray(cb)
+AllocatedArray::AllocatedArray(long cb) : VirtualArray(cb)
 {
     AssertThis(fobjAssertFull);
 }
 
 /***************************************************************************
-    Duplicate this AL.
+    Duplicate this AllocatedArray.
 ***************************************************************************/
-PAL AL::PalDup(void)
+PAllocatedArray AllocatedArray::PalDup(void)
 {
     AssertThis(fobjAssertFull);
-    PAL pal;
+    PAllocatedArray pal;
 
     if (pvNil == (pal = PalNew(_cbEntry)))
         return pvNil;
@@ -825,7 +825,7 @@ const ByteOrderMask kbomAlf = 0x5FC00000L;
 /***************************************************************************
     Return the amount of space on file needed for the list.
 ***************************************************************************/
-long AL::CbOnFile(void)
+long AllocatedArray::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
 
@@ -835,7 +835,7 @@ long AL::CbOnFile(void)
 /***************************************************************************
     Write the list to disk.
 ***************************************************************************/
-bool AL::FWrite(PDataBlock pblck, short bo, short osk)
+bool AllocatedArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -861,7 +861,7 @@ bool AL::FWrite(PDataBlock pblck, short bo, short osk)
 /***************************************************************************
     Read allocated list data from the block.
 ***************************************************************************/
-bool AL::_FRead(PDataBlock pblck, short *pbo, short *posk)
+bool AllocatedArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -897,7 +897,7 @@ bool AL::_FRead(PDataBlock pblck, short *pbo, short *posk)
         alf.cvFree >= LwMax(1, alf.ivMac))
     {
     LBug:
-        Warn("file corrupt or not an AL");
+        Warn("file corrupt or not an AllocatedArray");
         goto LFail;
     }
 
@@ -913,9 +913,9 @@ LFail:
 }
 
 /***************************************************************************
-    Delete all entries in the AL.
+    Delete all entries in the AllocatedArray.
 ***************************************************************************/
-void AL::DeleteAll(void)
+void AllocatedArray::DeleteAll(void)
 {
     _ivMac = 0;
     _cvFree = 0;
@@ -924,7 +924,7 @@ void AL::DeleteAll(void)
 /***************************************************************************
     Returns whether the given element of the allocated list is free.
 ***************************************************************************/
-bool AL::FFree(long iv)
+bool AllocatedArray::FFree(long iv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -936,7 +936,7 @@ bool AL::FFree(long iv)
     fgrpShrink is set, will try to shrink the list if it has more than
     cvAdd available entries.
 ***************************************************************************/
-bool AL::FEnsureSpace(long cvAdd, ulong grfgrp)
+bool AllocatedArray::FEnsureSpace(long cvAdd, ulong grfgrp)
 {
     AssertIn(cvAdd, 0, kcbMax);
     AssertThis(0);
@@ -955,7 +955,7 @@ bool AL::FEnsureSpace(long cvAdd, ulong grfgrp)
 /***************************************************************************
     Add an element to the list.
 ***************************************************************************/
-bool AL::FAdd(void *pv, long *piv)
+bool AllocatedArray::FAdd(void *pv, long *piv)
 {
     AssertThis(fobjAssertFull);
     AssertPvCb(pv, _cbEntry);
@@ -1001,7 +1001,7 @@ bool AL::FAdd(void *pv, long *piv)
 /***************************************************************************
     Delete element iv from an allocated list.
 ***************************************************************************/
-void AL::Delete(long iv)
+void AllocatedArray::Delete(long iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
@@ -1056,11 +1056,11 @@ void AL::Delete(long iv)
 /***************************************************************************
     Check the validity of an allocated list.
 ***************************************************************************/
-void AL::AssertValid(ulong grfobj)
+void AllocatedArray::AssertValid(ulong grfobj)
 {
     long cT, iv;
 
-    AL_PAR::AssertValid(0);
+    AllocatedArray_PAR::AssertValid(0);
     Assert(_Cb2() >= CbFromCbit(_ivMac), "flag area too small");
     if (grfobj & fobjAssertFull)
     {

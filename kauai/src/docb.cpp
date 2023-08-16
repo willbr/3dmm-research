@@ -1531,7 +1531,7 @@ bool DMW::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
     {
         // this is the first one
         Assert(pvNil == pdsgSplit, "no DSGs yet, so can't split one");
-        if (pvNil == _paldsed && pvNil == (_paldsed = AL::PalNew(size(DSED), 1)))
+        if (pvNil == _paldsed && pvNil == (_paldsed = AllocatedArray::PalNew(size(DSED), 1)))
             return fFalse;
         dsed.pdsg = pdsg;
         if (!_paldsed->FAdd(&dsed, &_idsedRoot))

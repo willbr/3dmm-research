@@ -131,11 +131,11 @@ namespace Group {
    class GRPB;
    class VirtualArray;
    class DynamicArray;
-   class AL;
+   class AllocatedArray;
    typedef class GRPB *PGRPB;
    typedef class VirtualArray *PVirtualArray;
    typedef class DynamicArray *PDynamicArray;
-   typedef class AL *PAL;
+   typedef class AllocatedArray *PAllocatedArray;
 
    class GGB;
    class GG;

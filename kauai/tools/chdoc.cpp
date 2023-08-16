@@ -2309,7 +2309,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
             cls = kclsDynamicArray;
             goto LDocg;
         case kctgAl:
-            cls = kclsAL;
+            cls = kclsAllocatedArray;
             goto LDocg;
         case kctgGg:
             cls = kclsGG;
@@ -2331,7 +2331,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         cls = kclsDynamicArray;
         goto LDocg;
     case cidEditAL:
-        cls = kclsAL;
+        cls = kclsAllocatedArray;
         goto LDocg;
     case cidEditGG:
         cls = kclsGG;

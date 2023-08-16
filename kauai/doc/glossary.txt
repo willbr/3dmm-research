@@ -9,7 +9,7 @@ chdoc.h		sel - selection
 chdoc.h		dcd - display for chunky document - displays a DOC
 chdoc.h		dch - display chunk in hex - displays a FileByteStream
 chdoc.h		dcgb - display for group chunk
-chdoc.h		dcgl - display for DynamicArray or AL chunk
+chdoc.h		dcgl - display for DynamicArray or AllocatedArray chunk
 chdoc.h		dcgg - display for GG or AG chunk
 chdoc.h		dcst - display for StringTable or AllocatedStringTable chunk
 chdoc.h		dcpic - display for picture chunk

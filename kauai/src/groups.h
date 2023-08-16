@@ -11,12 +11,12 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes:
-        General List (DynamicArray), Allocated List (AL),
+        General List (DynamicArray), Allocated List (AllocatedArray),
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
-                        |        +-> AL
+                        |        +-> AllocatedArray
                         |
                         +-> GGB -+-> GG
                         |        +-> AG
@@ -114,7 +114,7 @@ class GRPB : public GRPB_PAR
 
 /****************************************
     VirtualArray is a virtual class supporting
-    DynamicArray and AL
+    DynamicArray and AllocatedArray
 ****************************************/
 #define VirtualArray_PAR GRPB
 #define kclsVirtualArray 'GLB'
@@ -195,9 +195,9 @@ class DynamicArray : public DynamicArray_PAR
 /****************************************
     Allocated (fixed index) list class
 ****************************************/
-#define AL_PAR VirtualArray
-#define kclsAL 'AL'
-class AL : public AL_PAR
+#define AllocatedArray_PAR VirtualArray
+#define kclsAllocatedArray 'AL'
+class AllocatedArray : public AllocatedArray_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -213,17 +213,17 @@ class AL : public AL_PAR
     }
 
   protected:
-    AL(long cb);
+    AllocatedArray(long cb);
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
-    static PAL PalNew(long cb, long cvInit = 0);
-    static PAL PalRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAL PalRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedArray PalNew(long cb, long cvInit = 0);
+    static PAllocatedArray PalRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedArray PalRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PAL PalDup(void);
+    PAllocatedArray PalDup(void);
 
     // methods required by parent class
     virtual bool FAdd(void *pv, long *piv = pvNil);

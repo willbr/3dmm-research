@@ -4,7 +4,7 @@
 /***************************************************************************
 
     Handles editing a chunk consisting of a group
-    (DynamicArray, AL, GG, AG, StringTable, AllocatedStringTable)
+    (DynamicArray, AllocatedArray, GG, AG, StringTable, AllocatedStringTable)
 
 ***************************************************************************/
 #include "ched.h"
@@ -31,7 +31,7 @@ RTCLASS(DCST)
 
 /***************************************************************************
     Constructor for a group document.  cls indicates which group class
-    the edited chunk belongs to.  cls should be one of DynamicArray, AL, GG, AG,
+    the edited chunk belongs to.  cls should be one of DynamicArray, AllocatedArray, GG, AG,
     StringTable, AllocatedStringTable.
 ***************************************************************************/
 DOCG::DOCG(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
@@ -138,7 +138,7 @@ bool DOCG::_FRead(PDataBlock pblck)
         switch (_cls)
         {
         case kclsDynamicArray:
-        case kclsAL:
+        case kclsAllocatedArray:
             dlid = dlidGlbNew;
             cbMin = 1;
             break;
@@ -173,8 +173,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsDynamicArray:
             _pgrpb = DynamicArray::PglNew(cb);
             break;
-        case kclsAL:
-            _pgrpb = AL::PalNew(cb);
+        case kclsAllocatedArray:
+            _pgrpb = AllocatedArray::PalNew(cb);
             break;
         case kclsGG:
             _pgrpb = GG::PggNew(cb);
@@ -205,8 +205,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsDynamicArray:
             _pgrpb = DynamicArray::PglRead(pblck, &_bo, &_osk);
             break;
-        case kclsAL:
-            _pgrpb = AL::PalRead(pblck, &_bo, &_osk);
+        case kclsAllocatedArray:
+            _pgrpb = AllocatedArray::PalRead(pblck, &_bo, &_osk);
             break;
         case kclsGG:
             _pgrpb = GG::PggRead(pblck, &_bo, &_osk);
@@ -241,7 +241,7 @@ PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
     switch (_cls)
     {
     case kclsDynamicArray:
-    case kclsAL:
+    case kclsAllocatedArray:
         pddg = DCGL::PdcglNew(this, (PVirtualArray)_pgrpb, _cls, pgcb);
         break;
     case kclsGG:
@@ -290,7 +290,7 @@ void DOCG::AssertValid(ulong grf)
     switch (_cls)
     {
     case kclsDynamicArray:
-    case kclsAL:
+    case kclsAllocatedArray:
     case kclsGG:
     case kclsAG:
     case kclsStringTable:
@@ -337,7 +337,7 @@ DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) 
 #endif // DEBUG
         _fAllocated = fFalse;
         break;
-    case kclsAL:
+    case kclsAllocatedArray:
     case kclsAG:
     case kclsAllocatedStringTable:
         _fAllocated = fTrue;
@@ -762,18 +762,18 @@ void DCGB::MarkMem(void)
 
 /***************************************************************************
     Constructor for the DCGL class.  This class displays (and allows
-    editing of) a DynamicArray or AL.
+    editing of) a DynamicArray or AllocatedArray.
 ***************************************************************************/
 DCGL::DCGL(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCGL for the DynamicArray or AL.
+    Static method to create a new DCGL for the DynamicArray or AllocatedArray.
 ***************************************************************************/
 PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb)
 {
-    AssertVar(cls == kclsDynamicArray || cls == kclsAL, "bad cls", &cls);
+    AssertVar(cls == kclsDynamicArray || cls == kclsAllocatedArray, "bad cls", &cls);
     PDCGL pdcgl;
 
     if (pvNil == (pdcgl = NewObj DCGL(pdocb, pglb, cls, pgcb)))
@@ -1435,8 +1435,8 @@ bool DOCI::_FWrite(long iv)
     switch (_cls)
     {
     case kclsDynamicArray:
-    case kclsAL:
-        Assert(cb == ((PVirtualArray)_pgrpb)->CbEntry(), "bad cb in DynamicArray/AL");
+    case kclsAllocatedArray:
+        Assert(cb == ((PVirtualArray)_pgrpb)->CbEntry(), "bad cb in DynamicArray/AllocatedArray");
         ((PVirtualArray)_pgrpb)->Put(iv, pv);
         break;
     case kclsGG:
@@ -1488,7 +1488,7 @@ HQ DOCI::_HqRead(void)
     switch (_cls)
     {
     case kclsDynamicArray:
-    case kclsAL:
+    case kclsAllocatedArray:
         cb = ((PVirtualArray)_pgrpb)->CbEntry();
         break;
     case kclsGG:
@@ -1524,7 +1524,7 @@ HQ DOCI::_HqRead(void)
     switch (_cls)
     {
     case kclsDynamicArray:
-    case kclsAL:
+    case kclsAllocatedArray:
         ((PVirtualArray)_pgrpb)->Get(_iv, pv);
         break;
     case kclsGG:

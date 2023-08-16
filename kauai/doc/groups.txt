@@ -1,6 +1,6 @@
 /***************************************************************************
 
-	Collection classes:  General List (DynamicArray), Allocated List (AL),
+	Collection classes:  General List (DynamicArray), Allocated List (AllocatedArray),
 	General Group (GG),  Allocated Group (AG),
 	General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
@@ -19,8 +19,8 @@
 		the iv'th element, incrementing the pointer will give you a pointer
 		to the (iv+1)th element.
 
-	class AL;
-	typedef class AL *PAL;
+	class AllocatedArray;
+	typedef class AllocatedArray *PAllocatedArray;
 		A list where indices don't change when items are added
 		or deleted.  Clients may assume data elements are contiguous.
 		Note, however, that an element may be free.  Call FFree to
@@ -62,14 +62,14 @@
 ****************************************/
 
 	PDynamicArray   DynamicArray::PglNew(long cb, long cvInit = 0);
-	PAL   AL::PalNew(long cb, long cvInit = 0);
+	PAllocatedArray   AllocatedArray::PalNew(long cb, long cvInit = 0);
 	PGG   GG::PggNew(long cvInit = 0, long cbInit = 0);
 	PAG   AG::PagNew(long cvInit = 0, long cbInit = 0);
 	PStringTable StringTable::PgstNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 	PAllocatedStringTable AllocatedStringTable::PastNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 		These are static methods (not invoked from an object) that
 		allocate a new object of the appropriate class.  For DynamicArray and
-		AL classes, cb is the size of the elements and cvInit is the
+		AllocatedArray classes, cb is the size of the elements and cvInit is the
 		number of elements to reserve space for.  For StringTable and AllocatedStringTable, cbExtra
 		is the amount of extra data associated with each string.  For
 		GG, AG, StringTable and AllocatedStringTable, cvInit/cstzInit are how many entries to make room
@@ -77,7 +77,7 @@
 		these entries.  These values are as in FEnsureSpace.
 
 	PDynamicArray   DynamicArray::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
-	PAL   AL::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
+	PAllocatedArray   AllocatedArray::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PGG   GG::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAG   AG::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PStringTable StringTable::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
@@ -90,7 +90,7 @@
 
 	bool  DynamicArray::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool  AL::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
+	bool  AllocatedArray::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
 	bool  GG::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
@@ -108,7 +108,7 @@
 		in an StringTable/AllocatedStringTable be handled automatically.
 
 	long  DynamicArray::CbOnFile(void);
-	long  AL::CbOnFile(void);
+	long  AllocatedArray::CbOnFile(void);
 	long  GG::CbOnFile(void);
 	long  AG::CbOnFile(void);
 	long StringTable::CbOnFile(void);
@@ -117,56 +117,56 @@
 		disk.
 
 	long  DynamicArray::IvMac(void);
-	long  AL::IvMac(void);
+	long  AllocatedArray::IvMac(void);
 	long  GG::IvMac(void);
 	long  AG::IvMac(void);
 	long StringTable::IstzMac(void);
 	long AllocatedStringTable::IstzMac(void);
-		Returns the number of active items.  For AL, AG and AllocatedStringTable, this
+		Returns the number of active items.  For AllocatedArray, AG and AllocatedStringTable, this
 		is the lim of legal indices, not the number of non-free
 		entries.
 
 	void  DynamicArray::Delete(long iv);
-	void  AL::Delete(long iv);
+	void  AllocatedArray::Delete(long iv);
 	void  GG::Delete(long iv);
 	void  AG::Delete(long iv);
 	void StringTable::Delete(long istz);
 	void AllocatedStringTable::Delete(long istz);
-		Deletes the indicated element.  For AL, AG and AllocatedStringTable, indices of
+		Deletes the indicated element.  For AllocatedArray, AG and AllocatedStringTable, indices of
 		remaining items don't change (ie, a hole is created).  For the other
 		classes, items with larger indices "slide down" to fill the hole.
 
 	void *DynamicArray::QvGet(long iv);
-	void *AL::QvGet(long iv);
+	void *AllocatedArray::QvGet(long iv);
 	void *GG::QvGet(long iv);
 	void *AG::QvGet(long iv);
 		Returns a volatile pointer to the element.  For GPs, iv must
-		be less than IvMac().  For DynamicArray and AL, iv must be <= IMac()
-		( == is allowed for convenience; don't access it!).  For AL and AG,
+		be less than IvMac().  For DynamicArray and AllocatedArray, iv must be <= IMac()
+		( == is allowed for convenience; don't access it!).  For AllocatedArray and AG,
 		the element may be free (call FFree to check).
 
 	void *DynamicArray::PvLock(long iv);
-	void *AL::PvLock(long iv);
+	void *AllocatedArray::PvLock(long iv);
 	void *GG::PvLock(long iv);
 	void *AG::PvLock(long iv);
 		Locks the data and returns a pointer to the iv'th element.
 		Same restrictions on iv as for QvGet(iv).
 
 	void DynamicArray::Lock(void);
-	void AL::Lock(void);
+	void AllocatedArray::Lock(void);
 	void GG::Lock(void);
 	void AG::Lock(void);
 		Locks the data.
 
 	void DynamicArray::Unlock(void);
-	void AL::Unlock(void);
+	void AllocatedArray::Unlock(void);
 	void GG::Unlock(void);
 	void AG::Unlock(void);
 		Unlocks the data.  Balances a call to PvLock() or Lock().
 		Locking is nestable.
 
 	void DynamicArray::Get(long iv, void *pv);
-	void AL::Get(long iv, void *pv);
+	void AllocatedArray::Get(long iv, void *pv);
 	void GG::Get(long iv, void *pv);
 	void AG::Get(long iv, void *pv);
 		Copies the iv'th item to *pv.  Assumes pv points to a block
@@ -174,19 +174,19 @@
 		For GG and AG, GetRgb is more useful.
 
 	void DynamicArray::Put(long iv, void *pv);
-	void AL::Put(long iv, void *pv);
+	void AllocatedArray::Put(long iv, void *pv);
 	void GG::Put(long iv, void *pv);
 	void AG::Put(long iv, void *pv);
 		The opposite of Get(iv, pv).  Copies data from *pv to the iv'th
 		element.  For GG and AG, see FPut and PutRgb.
 
 	bool DynamicArray::FAdd(void *pv, long *piv);
-	bool AL::FAdd(void *pv, long *piv);
+	bool AllocatedArray::FAdd(void *pv, long *piv);
 	bool GG::FAdd(long cb, void *pv, long *piv);
 	bool AG::FAdd(long cb, void *pv, long *piv);
 		Add a new element to the class.  If piv is not nil, *piv is
 		set to the index of the new item.  For DynamicArray and GG, the new item
-		is always the last.  For AL and AG, the first free slot is used.
+		is always the last.  For AllocatedArray and AG, the first free slot is used.
 
 
 /****************************************
@@ -233,15 +233,15 @@
 	Allocated List specific methods
 ****************************************/
 
-	long AL::CbEntry(void);
+	long AllocatedArray::CbEntry(void);
 		Returns the size of each element of the list (as specified
 		in PalNew or as read from file in PalRead.
 
-	bool AL::FEnsureSpace(long cvAdd, short grfgrp);
+	bool AllocatedArray::FEnsureSpace(long cvAdd, short grfgrp);
 		Ensure that there is room for at least cvAdd additional items.
 		To close up the allocated list use FEnsureSpace(0, fgrpShrink).
 
-	bool AL::FFree(long iv);
+	bool AllocatedArray::FFree(long iv);
 		Indicates whether item iv is free.  (This is fast).  iv should
 		be less than IvMac().
 
