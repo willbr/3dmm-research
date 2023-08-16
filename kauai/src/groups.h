@@ -520,6 +520,6 @@ class AllocatedStringTable : public AllocatedStringTable_PAR
     virtual void Delete(long istn);
 };
 
-#endif //! GROUPS_H
-
 } // end of namespace Group
+
+#endif //! GROUPS_H
