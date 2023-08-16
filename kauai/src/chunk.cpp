@@ -402,7 +402,7 @@ bool ChunkyFile::FReopen(void)
     CSTO csto, cstoExtra;
     PGG pggcrp;
 #ifndef CHUNK_BIG_INDEX
-    PGL pglrtie;
+    PDynamicArray pglrtie;
 #endif // CHUNK_BIG_INDEX
     bool fFreeMapNotRead;
     bool fRet;
@@ -672,9 +672,9 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
     ECDF ecdf;
     ECSD ecsdT, ecsdCur;
     FP fpSrc, fpLimSrc;
-    PGL pglecsd = pvNil;
+    PDynamicArray pglecsd = pvNil;
 
-    if (pvNil == (pglecsd = GL::PglNew(size(ECSD))))
+    if (pvNil == (pglecsd = DynamicArray::PglNew(size(ECSD))))
         goto LFail;
 
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
@@ -1595,7 +1595,7 @@ void ChunkyFile::_ReadFreeMap(void)
 
     if (_cbFreeMap > 0)
     {
-        if ((_csto.pglfsm = GL::PglRead(_csto.pfil, _fpFreeMap, _cbFreeMap, &bo, &osk)) == pvNil ||
+        if ((_csto.pglfsm = DynamicArray::PglRead(_csto.pfil, _fpFreeMap, _cbFreeMap, &bo, &osk)) == pvNil ||
             _csto.pglfsm->CbEntry() != size(FSM))
         {
             // it failed, but so what
@@ -3062,7 +3062,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FP fp, long cb)
     Assert(cb > 0 || cb == 0 && fp == 0, "bad cb");
     Assert(fp >= 0 && (fOnExtra || fp >= size(ChunkyFilePrefix) || cb == 0 || _fInvalidMainFile), "bad fp");
 
-    PGL pglfsm;
+    PDynamicArray pglfsm;
     long ifsm, ifsmMin, ifsmLim;
     FSM fsm, fsmT;
     CSTO *pcsto;
@@ -3102,7 +3102,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FP fp, long cb)
 
     // Chunk is not at the end of the file.  We need to add it
     // to the free map.
-    if (pglfsm == pvNil && (pglfsm = pcsto->pglfsm = GL::PglNew(size(FSM), 1)) == pvNil)
+    if (pglfsm == pvNil && (pglfsm = pcsto->pglfsm = DynamicArray::PglNew(size(FSM), 1)) == pvNil)
     {
         // can't create the free map, just drop the space
         return;
@@ -3737,14 +3737,14 @@ struct CNOM
     ChunkNumber cnoDst;
 };
 
-bool _FFindCnom(PGL pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom = pvNil, long *picnom = pvNil);
-bool _FAddCnom(PGL *ppglcnom, CNOM *pcnom);
+bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom = pvNil, long *picnom = pvNil);
+bool _FAddCnom(PDynamicArray *ppglcnom, CNOM *pcnom);
 
 /***************************************************************************
     Look for a cnom for the given (ctg, cno). Whether or not it exists,
     fill *picnom with where it would go in the pglcnom.
 ***************************************************************************/
-bool _FFindCnom(PGL pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom, long *picnom)
+bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom, long *picnom)
 {
     AssertNilOrPo(pglcnom, 0);
     AssertNilOrVarMem(pcnom);
@@ -3791,14 +3791,14 @@ bool _FFindCnom(PGL pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom, long *p
 /***************************************************************************
     Add a cnom to the *ppglcnom. Allocated *ppglcnom if it is nil.
 ***************************************************************************/
-bool _FAddCnom(PGL *ppglcnom, CNOM *pcnom)
+bool _FAddCnom(PDynamicArray *ppglcnom, CNOM *pcnom)
 {
     AssertVarMem(ppglcnom);
     AssertNilOrPo(*ppglcnom, 0);
     AssertVarMem(pcnom);
     long icnom;
 
-    if (pvNil == *ppglcnom && pvNil == (*ppglcnom = GL::PglNew(size(CNOM))))
+    if (pvNil == *ppglcnom && pvNil == (*ppglcnom = DynamicArray::PglNew(size(CNOM))))
         return fFalse;
 
     AssertDo(!_FFindCnom(*ppglcnom, pcnom->ctg, pcnom->cnoSrc, pvNil, &icnom), "why is this cnom already in the gl?");
@@ -3830,7 +3830,7 @@ bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst
     CRP *qcrp;
 
     bool fFreeDstOnFailure = fFalse;
-    PGL pglcnom = pvNil;
+    PDynamicArray pglcnom = pvNil;
     bool fRet = fFalse;
 
     if (!_FFindCtgCno(ctgSrc, cnoSrc, &icrpSrc))
@@ -4204,7 +4204,7 @@ bool ChunkyFile::_FSetRti(ChunkTag ctg, ChunkNumber cno, long rti)
     rtie.ctg = ctg;
     rtie.cno = cno;
     rtie.rti = rti;
-    if (pvNil == _pglrtie && pvNil == (_pglrtie = GL::PglNew(size(RTIE), 1)))
+    if (pvNil == _pglrtie && pvNil == (_pglrtie = DynamicArray::PglNew(size(RTIE), 1)))
         return fFalse;
 
     return _pglrtie->FInsert(irtie, &rtie);
@@ -4407,7 +4407,7 @@ bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar,
         if (_pcfl->Ckid(pkid->cki.ctg, pkid->cki.cno) > 0)
         {
             // child has children, need to push the dps
-            if (_pgldps == pvNil && (_pgldps = GL::PglNew(size(DPS), 10)) == pvNil || !_pgldps->FPush(&_dps))
+            if (_pgldps == pvNil && (_pgldps = DynamicArray::PglNew(size(DPS), 10)) == pvNil || !_pgldps->FPush(&_dps))
             {
                 // mem failure, pretend it has no children
                 *pgrfcgeOut |= fcgeError;

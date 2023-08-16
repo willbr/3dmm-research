@@ -15,7 +15,7 @@
 
     Background // Contains stage bounding cuboid
      |
-     +---GLLT (chid 0) // GL of light position specs (LITEs)
+     +---GLLT (chid 0) // DynamicArray of light position specs (LITEs)
      |
      +---SND  (chid 0) // Background sound/music
      |
@@ -44,7 +44,7 @@ ASSERTNAME
 RTCLASS(Background)
 
 const ChildChunkID kchidBds = 0;  // Background default sound
-const ChildChunkID kchidGllt = 0; // GL of LITEs
+const ChildChunkID kchidGllt = 0; // DynamicArray of LITEs
 const ChildChunkID kchidGlcr = 0; // Palette
 const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 
@@ -158,7 +158,7 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     DataBlock blck;
     BackgroundFile bkgdf;
     ChildChunkIdentification kid;
-    PGL pgllite = pvNil;
+    PDynamicArray pgllite = pvNil;
     short bo;
 
     _ccam = _Ccam(pcfl, ctg, cno); // compute # of views in this background
@@ -200,7 +200,7 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     {
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
             goto LFail;
-        _pglclr = GL::PglRead(&blck, &bo);
+        _pglclr = DynamicArray::PglRead(&blck, &bo);
         if (_pglclr != pvNil)
         {
             if (kboOther == bo)
@@ -211,12 +211,12 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     else
         _pglclr = pvNil;
 
-    // Read the GL of LITEs (GLLT)
+    // Read the DynamicArray of LITEs (GLLT)
     if (!pcfl->FGetKidChidCtg(ctg, cno, kchidGllt, kctgGllt, &kid))
         goto LFail;
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         goto LFail;
-    pgllite = GL::PglRead(&blck, &bo);
+    pgllite = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == pgllite)
         goto LFail;
     Assert(pgllite->CbEntry() == size(LightPosition), "bad pgllite...you may need to update bkgds.chk");
@@ -273,9 +273,9 @@ long Background::_Ccam(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 }
 
 /***************************************************************************
-    Fill _prgbactLight and _prgblitLight using a GL of LITEs
+    Fill _prgbactLight and _prgblitLight using a DynamicArray of LITEs
 ***************************************************************************/
-void Background::_SetupLights(PGL pgllite)
+void Background::_SetupLights(PDynamicArray pgllite)
 {
     AssertBaseThis(0);
     AssertPo(pgllite, 0);
@@ -328,10 +328,10 @@ void Background::GetName(PSTN pstn)
 
 /***************************************************************************
     Get the custom palette for this background, if any.  Returns fFalse if
-    an error occurs.  Sets *ppglclr to an empty GL and *piclrMin to 0 if
+    an error occurs.  Sets *ppglclr to an empty DynamicArray and *piclrMin to 0 if
     this background has no custom palette.
 ***************************************************************************/
-bool Background::FGetPalette(PGL *ppglclr, long *piclrMin)
+bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
 {
     AssertThis(0);
     AssertVarMem(ppglclr);
@@ -340,7 +340,7 @@ bool Background::FGetPalette(PGL *ppglclr, long *piclrMin)
     *piclrMin = _bIndexBase;
     if (pvNil == _pglclr) // no custom palette
     {
-        *ppglclr = GL::PglNew(size(Color)); // "palette" with 0 entries
+        *ppglclr = DynamicArray::PglNew(size(Color)); // "palette" with 0 entries
     }
     else
     {
@@ -488,7 +488,7 @@ bool Background::FSetCamera(PWorld pbwld, long icam)
     // Get actor placements
     ReleasePpo(&_pglapos);
     _iaposNext = _iaposLast = 0;
-    if (capos > 0 && (_pglapos = GL::PglNew(size(APOS), capos)) != pvNil)
+    if (capos > 0 && (_pglapos = DynamicArray::PglNew(size(APOS), capos)) != pvNil)
     {
         AssertDo(_pglapos->FSetIvMac(capos), "Should never fail");
         _pglapos->Lock();

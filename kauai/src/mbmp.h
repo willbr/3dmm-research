@@ -109,10 +109,10 @@ class MBMP : public MBMP_PAR
 const ByteOrderMask kbomMbmph = 0xAFFC0000;
 
 // reads a bitmap from the given file
-bool FReadBitmap(Filename *pfni, byte **pprgb, PGL *ppglclr, long *pdxp, long *pdyp, bool *pfUpsideDown,
+bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdxp, long *pdyp, bool *pfUpsideDown,
                  byte bTransparent = 0);
 
 // writes a bitmap file
-bool FWriteBitmap(Filename *pfni, byte *prgb, PGL pglclr, long dxp, long dyp, bool fUpsideDown = fTrue);
+bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, long dyp, bool fUpsideDown = fTrue);
 
 #endif //! MBMP_H

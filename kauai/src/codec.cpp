@@ -122,7 +122,7 @@ bool CODM::FRegisterCodec(PCODC pcodc)
     AssertThis(0);
     AssertPo(pcodc, 0);
 
-    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = GL::PglNew(size(PCODC))))
+    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = DynamicArray::PglNew(size(PCODC))))
         return fFalse;
 
     if (!_pglpcodc->FAdd(&pcodc))

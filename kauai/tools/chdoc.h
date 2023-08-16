@@ -132,7 +132,7 @@ class DOCH : public DOCH_PAR
 };
 
 /***************************************************************************
-    Group editor document - for editing GL, AL, GG, AG, StringTable, and AllocatedStringTable.
+    Group editor document - for editing DynamicArray, AL, GG, AG, StringTable, and AllocatedStringTable.
 ***************************************************************************/
 #define DOCG_PAR DOCE
 #define kclsDOCG 'DOCG'
@@ -339,7 +339,7 @@ class SEL : public SEL_PAR
     ChildChunkIdentification _kid;
     long _ln;
     long _lnLim;         // this is lnNil if we haven't yet calculated the lim
-    PGL _pglctg;         // the ctgs to filter on
+    PDynamicArray _pglctg;         // the ctgs to filter on
     bool _fHideList : 1; // whether to hide the ctgs in the list or show them
     bool _fHideKids : 1; // whether to hide the kids
 
@@ -588,7 +588,7 @@ class DCGB : public DCGB_PAR
 };
 
 /***************************************************************************
-    Display GL or AL chunk.
+    Display DynamicArray or AL chunk.
 ***************************************************************************/
 #define DCGL_PAR DCGB
 #define kclsDCGL 'DCGL'

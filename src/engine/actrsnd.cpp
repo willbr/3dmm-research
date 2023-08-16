@@ -520,14 +520,14 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     Query actor for current frame sounds
 
 ***************************************************************************/
-bool Actor::FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, bool *pfLoop)
+bool Actor::FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, long *pvlm, bool *pfLoop)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
     AssertVarMem(pvlm);
     AssertVarMem(pfLoop);
 
-    PGL pgltag = pvNil;
+    PDynamicArray pgltag = pvNil;
     Sound aevsnd;
     long ccel;
     long celn;
@@ -536,7 +536,7 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, b
     long ismm;
     SMM smm;
 
-    if (pvNil == (pgltag = GL::PglNew(size(TAG), kctagSndGrow)))
+    if (pvNil == (pgltag = DynamicArray::PglNew(size(TAG), kctagSndGrow)))
         return fFalse;
     pgltag->SetMinGrow(kctagSndGrow);
 

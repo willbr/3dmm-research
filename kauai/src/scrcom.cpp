@@ -70,7 +70,7 @@
         <a 100 >~answer				// 100->answer = a;
 
 
-    A compiled script consists of a GL of longs.  Each long is one of 3 types:
+    A compiled script consists of a DynamicArray of longs.  Each long is one of 3 types:
 
         1) an opcode that acts on a variable:
             byte : opcode
@@ -90,7 +90,7 @@
     kbLabel in the high byte and the destination index (into the gl) in
     the low 3 bytes.
 
-    The first long in the GL is version number information (a dver).
+    The first long in the DynamicArray is version number information (a dver).
 
 ***************************************************************************/
 #include "util.h"
@@ -258,7 +258,7 @@ struct CSTD
     long lwLabel1;  // use depends on cst
     long lwLabel2;  // use depends on cst
     long lwLabel3;  // use depends on cst
-    PGL pgletnTree; // for while loops - the expression tree
+    PDynamicArray pgletnTree; // for while loops - the expression tree
     long ietnTop;   // the top of the expression tree
 };
 
@@ -361,8 +361,8 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
     {
         // in-fix compilation requires an expression stack, expression parse
         // tree and a control structure stack
-        if (pvNil == (_pgletnTree = GL::PglNew(size(ETN))) || pvNil == (_pgletnStack = GL::PglNew(size(ETN))) ||
-            pvNil == (_pglcstd = GL::PglNew(size(CSTD))))
+        if (pvNil == (_pgletnTree = DynamicArray::PglNew(size(ETN))) || pvNil == (_pgletnStack = DynamicArray::PglNew(size(ETN))) ||
+            pvNil == (_pglcstd = DynamicArray::PglNew(size(CSTD))))
         {
             _Free();
             return fFalse;
@@ -371,7 +371,7 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
         _pgletnStack->SetMinGrow(100);
     }
 
-    if (pvNil == (_pscpt = NewObj Script) || pvNil == (_pscpt->_pgllw = GL::PglNew(size(long))))
+    if (pvNil == (_pscpt = NewObj Script) || pvNil == (_pscpt->_pgllw = DynamicArray::PglNew(size(long))))
     {
         ReleasePpo(&_pscpt);
     }
@@ -1914,7 +1914,7 @@ void CompilerBase::_BeginCst(long cst, long ietn)
         {
             // copy the etn tree
             cetn = _pgletnTree->IvMac();
-            if (pvNil == (cstd.pgletnTree = GL::PglNew(size(ETN), cetn)))
+            if (pvNil == (cstd.pgletnTree = DynamicArray::PglNew(size(ETN), cetn)))
             {
                 _ReportError(_pszOom);
                 return;
@@ -2561,7 +2561,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     long op;
     STN stn;
     DVER dver;
-    PGL pgllw = pscpt->_pgllw;
+    PDynamicArray pgllw = pscpt->_pgllw;
     PSZ pszError = pvNil;
     AssertPo(pgllw, 0);
     Assert(pgllw->CbEntry() == size(long), "bad script");

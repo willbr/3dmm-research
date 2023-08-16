@@ -714,7 +714,7 @@ PMSQ MSQ::PmsqNew(void)
     if (pvNil == (pmsq = NewObj MSQ(khidMsq)))
         return pvNil;
 
-    if (pvNil == (pmsq->_pglsqe = GL::PglNew(size(SQE), kcsqeGrow)))
+    if (pvNil == (pmsq->_pglsqe = DynamicArray::PglNew(size(SQE), kcsqeGrow)))
     {
         ReleasePpo(&pmsq);
         return pvNil;

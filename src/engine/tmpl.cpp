@@ -30,9 +30,9 @@
          |
          +--GGCL (chid 0) - GG of cels for this action
          |
-         +--GLXF (chid 0) - GL of transformation matrices for this action
+         +--GLXF (chid 0) - DynamicArray of transformation matrices for this action
          |
-         +--GLMS (chid 0) - GL of motionmatch sounds for cels of this action
+         +--GLMS (chid 0) - DynamicArray of motionmatch sounds for cels of this action
 
     About Actions: An action is an activity that a body can perform, such
     as walking, jumping, breathing, or resting.  Actions are broken down
@@ -72,7 +72,7 @@ RTCLASS(TMPL)
 /***************************************************************************
     Create a new action
 ***************************************************************************/
-PACTN ACTN::PactnNew(PGG pggcel, PGL pglbmat34, ulong grfactn)
+PACTN ACTN::PactnNew(PGG pggcel, PDynamicArray pglbmat34, ulong grfactn)
 {
     AssertPo(pggcel, 0);
     AssertPo(pglbmat34, 0);
@@ -181,12 +181,12 @@ bool ACTN::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
         }
     }
 
-    // read GL of transforms (chid 0, ctg kctgGlxf):
+    // read DynamicArray of transforms (chid 0, ctg kctgGlxf):
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlxf, &kid))
         return fFalse;
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         return fFalse;
-    _pglbmat34 = GL::PglRead(&blck, &bo);
+    _pglbmat34 = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == _pglbmat34)
         return fFalse;
     AssertBomRglw(kbomBmat34, size(BMAT34));
@@ -195,12 +195,12 @@ bool ACTN::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
         SwapBytesRglw(_pglbmat34->QvGet(0), LwMul(_pglbmat34->IvMac(), size(BMAT34) / size(long)));
     }
 
-    // read (optional) GL of motion-match sounds (chid 0, ctg kctgGlms):
+    // read (optional) DynamicArray of motion-match sounds (chid 0, ctg kctgGlms):
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlms, &kid))
     {
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
             return fFalse;
-        _pgltagSnd = GL::PglRead(&blck, &bo);
+        _pgltagSnd = DynamicArray::PglRead(&blck, &bo);
         if (pvNil == _pgltagSnd)
             return fFalse;
         AssertBomRglw(kbomTag, size(TAG));
@@ -432,7 +432,7 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
         return fFalse;
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         return fFalse;
-    _pglibactPar = GL::PglRead(&blck, &bo);
+    _pglibactPar = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == _pglibactPar)
         return fFalse;
     Assert(_pglibactPar->CbEntry() == size(short), "Bad _pglibactPar!");
@@ -444,7 +444,7 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
         return fFalse;
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         return fFalse;
-    _pglibset = GL::PglRead(&blck, &bo);
+    _pglibset = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == _pglibset)
         return fFalse;
     Assert(_pglibset->CbEntry() == size(short), "Bad TMPL _pglibset!");
@@ -567,7 +567,7 @@ TMPL::~TMPL(void)
     return value of pvNil does not mean an error occurred, but simply that
     this TMPL has no embedded tags.
 ***************************************************************************/
-PGL TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
+PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);

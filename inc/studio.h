@@ -58,12 +58,12 @@ class Studio : public Studio_PAR
     PStringTable _pgstMisc;
     PMovie _pmvie;
     PSMCC _psmcc;
-    PGL _pglpbrcn;
+    PDynamicArray _pglpbrcn;
     long _aridSelected;
     PBRWR _pbrwrActr;
     PBRWR _pbrwrProp;
-    PGL _pglcmg;        // Cno map tmpl->gokd for rollcall
-    PGL _pglclr;        // Color table for common palette
+    PDynamicArray _pglcmg;        // Cno map tmpl->gokd for rollcall
+    PDynamicArray _pglclr;        // Color table for common palette
     bool _fDisplayCast; // Display movie's cast
 
     CMD _cmd;
@@ -75,7 +75,7 @@ class Studio : public Studio_PAR
     Studio(PGCB pgcb) : GraphicsObject(pgcb){};
     bool _FOpenStudio(bool fPaletteFade);
     void _SetToolStates(void);
-    bool _FBuildMenuCidCtg(long cid, ChunkTag ctg, PGL pgl, ulong grfHotKey, ulong grfNum, bool fNew);
+    bool _FBuildMenuCidCtg(long cid, ChunkTag ctg, PDynamicArray pgl, ulong grfHotKey, ulong grfNum, bool fNew);
     PBRCN _PbrcnFromBrwdid(long brwdid);
 #ifdef BUG1959
     bool _FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld);

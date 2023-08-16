@@ -557,7 +557,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
     {
         if (pcfl->FFind(kctgColorTable, 0, &blck))
         {
-            _pglclr = GL::PglRead(&blck, &bo);
+            _pglclr = DynamicArray::PglRead(&blck, &bo);
             if (_pglclr != pvNil && bo == kboCur)
             {
                 ChildChunkIdentification kidGlcg;
@@ -565,7 +565,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
                 if (pcfl->FGetKidChidCtg(kctgColorTable, 0, 0, kctgGlcg, &kidGlcg) &&
                     pcfl->FFind(kidGlcg.cki.ctg, kidGlcg.cki.cno, &blck))
                 {
-                    _pglcrng = GL::PglRead(&blck, &bo);
+                    _pglcrng = DynamicArray::PglRead(&blck, &bo);
                     Assert(bo == kboCur, "GLCG byte-order not same as GLCR");
                 }
                 else
@@ -725,9 +725,9 @@ bool S2B::FConvertSI(PMSNK pmsnkErr, PMSNK pmsnkDst, PFilename pfniInc, ulong gr
 #if HASH_FIXED
     if (!FAllocPv((void **)&_prgpbmdb, kcbrgpbmdb, fmemClear, mprNormal))
 #else  /* HASH_FIXED */
-    if ((_pglpbmatdb = GL::PglNew(size(PBMATDB))) == pvNil)
+    if ((_pglpbmatdb = DynamicArray::PglNew(size(PBMATDB))) == pvNil)
         goto LFail;
-    if ((_pglpbmdb = GL::PglNew(size(PBMDB))) == pvNil)
+    if ((_pglpbmdb = DynamicArray::PglNew(size(PBMDB))) == pvNil)
 #endif /* !HASH_FIXED */
         goto LFail;
 
@@ -1135,7 +1135,7 @@ bool S2B::_FDoTtActionS2B(void)
 
         if (FAllocPv((void **)&_prgcps, cbrgcps, fmemNil, mprNormal))
         {
-            if ((_pglxf != pvNil) || (_pglxf = GL::PglNew(size(BMAT34))) != pvNil)
+            if ((_pglxf != pvNil) || (_pglxf = DynamicArray::PglNew(size(BMAT34))) != pvNil)
             {
                 _ibpCur = 0;
                 if (_FProcessBmhr(&_pbmhr))
@@ -1260,12 +1260,12 @@ bool S2B::_FInitGlpiCost(bool fForceCost)
     if (_fMakeGlpi)
     {
         Assert(_pglbs == pvNil, "Non-nil body part set");
-        if ((_pglibactPar = GL::PglNew(size(short))) == pvNil)
+        if ((_pglibactPar = DynamicArray::PglNew(size(short))) == pvNil)
         {
             printf("Error: Couldn't create GLPI -- OOM\n");
             goto LFail;
         }
-        if ((_pglbs = GL::PglNew(size(short))) == pvNil)
+        if ((_pglbs = DynamicArray::PglNew(size(short))) == pvNil)
         {
             printf("Warning: no body part set info -- OOM\n");
             _fMakeCostume = fFalse;
@@ -1275,7 +1275,7 @@ bool S2B::_FInitGlpiCost(bool fForceCost)
     if (_fMakeCostume)
     {
         Assert(_pglcmtld == pvNil, "Non-nil GLCMTLD");
-        if ((_pglcmtld = GL::PglNew(size(CMTLD))) == pvNil)
+        if ((_pglcmtld = DynamicArray::PglNew(size(CMTLD))) == pvNil)
             goto LFailCost;
         if (_pggcm == pvNil && (_pggcm = GG::PggNew(size(long))) == pvNil)
         {
@@ -1388,7 +1388,7 @@ bool S2B::_FDoTtCostume(void)
         goto LFail;
 
     /* Get list of body part sets to pay attention to */
-    if ((_pglibps = GL::PglNew(size(long))) == pvNil)
+    if ((_pglibps = DynamicArray::PglNew(size(long))) == pvNil)
         goto LOOM1;
     if (!_pglibps->FAdd(&ibpsCur))
         goto LOOM1;
@@ -1489,16 +1489,16 @@ bool S2B::_FDumpLites(int cLite, PSTN pstnBkgd)
     bool fRet = fFalse;
     int iLite;
     LightPosition lite;
-    PGL pgllite;
+    PDynamicArray pgllite;
 
-    /* Create a GL of LITEs */
-    if ((pgllite = GL::PglNew(size(LightPosition))) == pvNil)
+    /* Create a DynamicArray of LITEs */
+    if ((pgllite = DynamicArray::PglNew(size(LightPosition))) == pvNil)
     {
         printf("Couldn't allocate GLLT\n");
         goto LFail;
     }
 
-    /* Read in the SoftImage lights, adding each to the GL */
+    /* Read in the SoftImage lights, adding each to the DynamicArray */
     for (iLite = 0; iLite < cLite; iLite++)
     {
         if (!_stnT.FFormatSz(kszLight, pstnBkgd, iLite + 1))
@@ -1561,7 +1561,7 @@ bool S2B::_FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal)
     {
         ChunkNumber cnoCam;
         Filename fni;
-        PGL pglapos = pvNil;
+        PDynamicArray pglapos = pvNil;
 
         /* Get the file */
         if (!stnFile.FFormatSz(kszCam, pstnBkgd, iCam))
@@ -1590,7 +1590,7 @@ bool S2B::_FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal)
         /* Only extract the palette once */
         if (iCam == 1)
         {
-            PGL pglclr;
+            PDynamicArray pglclr;
 
             /* Read the palette */
             if (FReadBitmap(&fni, pvNil, &pglclr, &dxp, &dyp, pvNil))
@@ -1997,7 +1997,7 @@ LFail:
         CameraPosition *pcam    -- pointer to the CameraPosition to fill in
 
 ************************************************************ PETED ***********/
-void S2B::_ReadCam(PSTN pstnCam, CameraPosition *pcam, PGL *ppglapos)
+void S2B::_ReadCam(PSTN pstnCam, CameraPosition *pcam, PDynamicArray *ppglapos)
 {
     bool fGotActorPos = fFalse;
     Filename fni;
@@ -2087,7 +2087,7 @@ void S2B::_ReadCam(PSTN pstnCam, CameraPosition *pcam, PGL *ppglapos)
                     }
                     else
                     {
-                        if (*ppglapos != pvNil || (*ppglapos = GL::PglNew(size(APOS))) != pvNil)
+                        if (*ppglapos != pvNil || (*ppglapos = DynamicArray::PglNew(size(APOS))) != pvNil)
                         {
                             APOS apos;
 
@@ -2858,7 +2858,7 @@ void S2B::_CopyFaces(DK_Polygon *polygons, void *pvDst, long cFaces, BRV rgbrv[]
 /******************************************************************************
     _FDoBodyPart
         Handles a single body part.  Sets the Brender body part set for the
-        given body part and stores that in the GL for the body part sets, and
+        given body part and stores that in the DynamicArray for the body part sets, and
         then handles actually generating whatever costume information for this
         body part is needed.
 
@@ -3703,7 +3703,7 @@ void S2B::_FlushTmplKids(void)
             /* Don't need this any more */
             ReleasePpo(&_pglibactPar);
 
-            /* Do material stuff if we have the CMTL GL and there's valid
+            /* Do material stuff if we have the CMTL DynamicArray and there's valid
                 color info */
             if (_pggcm != pvNil && _pglclr != pvNil)
             {
@@ -4074,7 +4074,7 @@ bool S2B::_FAddBmdlParent(PBMDB pbmdb, ChildChunkIdentification *pkid)
 {
     AssertVarMem(pkid);
 
-    if (pbmdb->pglkidCmtl == pvNil && (pbmdb->pglkidCmtl = GL::PglNew(size(ChildChunkIdentification))) == pvNil)
+    if (pbmdb->pglkidCmtl == pvNil && (pbmdb->pglkidCmtl = DynamicArray::PglNew(size(ChildChunkIdentification))) == pvNil)
     {
         goto LFail;
     }
@@ -4093,12 +4093,12 @@ LFail:
 
     Arguments:
         PHSHDB phshdb  -- pointer to the hash DB entry to insert
-        PGL pglphshdb  -- the GL used to maintain the sorted hash table
+        PDynamicArray pglphshdb  -- the DynamicArray used to maintain the sorted hash table
 
     Returns: fTrue if the entry could be inserted
 
 ************************************************************ PETED ***********/
-bool S2B::_FInsertPhshdb(PHSHDB phshdb, PGL pglphshdb)
+bool S2B::_FInsertPhshdb(PHSHDB phshdb, PDynamicArray pglphshdb)
 {
     long iphshdb;
 
@@ -4124,13 +4124,13 @@ bool S2B::_FInsertPhshdb(PHSHDB phshdb, PGL pglphshdb)
     Arguments:
         uint luHash     -- the hash value to look for
         long *piphshdb  -- takes the position in the hash table
-        PGL pglphshdb   -- the hash table
+        PDynamicArray pglphshdb   -- the hash table
 
     Returns: fTrue if the hash value is already in the hash table, fFalse if
         it needs to be added
 
 ************************************************************ PETED ***********/
-bool S2B::_FIphshdbFromLuHash(uint luHash, long *piphshdb, PGL pglphshdb)
+bool S2B::_FIphshdbFromLuHash(uint luHash, long *piphshdb, PDynamicArray pglphshdb)
 {
     bool fRet = fFalse;
     long iphshdbMin = 0, iphshdbMac = pglphshdb->IvMac();
@@ -4287,7 +4287,7 @@ uint S2B::_LuHashBytes(uint luHash, void *pv, long cb)
 |
 |	Returns:
 |		fTrue if it succeeds, fFalse otherwise
-|		*pimat34 takes the index for the BMAT34 in the GL
+|		*pimat34 takes the index for the BMAT34 in the DynamicArray
 |
 -------------------------------------------------------------PETED-----------*/
 bool S2B::_FImat34GetBmat34(BMAT34 *pbmat34, long *pimat34)
@@ -4329,7 +4329,7 @@ bool S2B::_FImat34GetBmat34(BMAT34 *pbmat34, long *pimat34)
     if (pbmatdb == pvNil)
     {
     LAddXF:
-        /* Add the XF to the GL and to the database */
+        /* Add the XF to the DynamicArray and to the database */
         if (_pglxf->FAdd(pbmat34, pimat34))
         {
             if (FAllocPv((void **)&pbmatdb, size(BMATDB), fmemNil, mprNormal))
@@ -4391,19 +4391,19 @@ void S2B::_DisposeBmhr(PBMHR *ppbmhr)
     obsolete.
 
     Arguments:
-        PGL pglclr -- the palette to use
+        PDynamicArray pglclr -- the palette to use
 
-    Returns: a GL of CRNGs, each entry is the description of one color range
+    Returns: a DynamicArray of CRNGs, each entry is the description of one color range
 
 ************************************************************ PETED ***********/
-PGL PglcrngFromPal(PGL pglclr)
+PDynamicArray PglcrngFromPal(PDynamicArray pglclr)
 {
     long lwCur, lwStart, lwMac = pglclr->IvMac();
     BRCLR brclr;
     BRS brsRLast, brsGLast, brsBLast;
     BRS brsNorm, brsR, brsG, brsB;
     CRNG crng;
-    PGL pglcrng = GL::PglNew(size(CRNG));
+    PDynamicArray pglcrng = DynamicArray::PglNew(size(CRNG));
 
     if (pglcrng == pvNil)
         goto LFail;
@@ -4476,14 +4476,14 @@ LFail:
 
     Arguments:
         BRCLR brclr -- the Brender color
-        PGL pglclr  -- the palette
-        PGL pglcrng -- description of the color ranges in the palette
+        PDynamicArray pglclr  -- the palette
+        PDynamicArray pglcrng -- description of the color ranges in the palette
 
-    Returns: returns the entry in the color range GL that corresponds to the
+    Returns: returns the entry in the color range DynamicArray that corresponds to the
         given color
 
 ************************************************************ PETED ***********/
-long LwcrngNearestBrclr(BRCLR brclr, PGL pglclr, PGL pglcrng)
+long LwcrngNearestBrclr(BRCLR brclr, PDynamicArray pglclr, PDynamicArray pglcrng)
 {
     long lwclr, lwclrMac = pglclr->IvMac(), lwclrNear, lwcrng, lwcrngMac = pglcrng->IvMac(), lwcrngNear,
                 dclrNear = klwMax, dclrT;

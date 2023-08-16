@@ -25,7 +25,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     long cfmt = vpcodmUtil->CfmtDefault();
     long lwSwapped;
     PMBMP mbmp;
-    PGL pglclrSrc;
+    PDynamicArray pglclrSrc;
 
 #ifdef UNICODE
     fprintf(stderr, "\nPBM to MBMP Utility (Unicode; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");

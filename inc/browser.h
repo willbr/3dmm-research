@@ -254,7 +254,7 @@ class BRCNL : public BRCNL_PAR
   public:
     long cthumCD;
     ChunkIdentification ckiRoot;
-    PGL pglthd;
+    PDynamicArray pglthd;
     PStringTable pgst;
     PChunkyResourceManager pcrm;
 };
@@ -306,7 +306,7 @@ class BCL : public BCL_PAR
     ChunkNumber _cnoRoot;
     ChunkTag _ctgContent;
     bool _fDescend;
-    PGL _pglthd;
+    PDynamicArray _pglthd;
 
   protected:
     BCL(void)
@@ -318,7 +318,7 @@ class BCL : public BCL_PAR
         ReleasePpo(&_pglthd);
     }
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd);
     bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki);
     bool _FAddFileToThd(PChunkyFile pcfl, long sid);
     bool _FBuildThd(PChunkyResourceManager pcrm);
@@ -326,9 +326,9 @@ class BCL : public BCL_PAR
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCL PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBCL PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
 
-    PGL Pglthd(void)
+    PDynamicArray Pglthd(void)
     {
         return _pglthd;
     }
@@ -366,13 +366,13 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PGL pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PDynamicArray pglthd);
     bool _FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd = pvNil, PStringTable pgst = pvNil,
+    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, PStringTable pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
     PStringTable Pgst(void)
@@ -412,7 +412,7 @@ class BRWL : public BRWL_PAR
 
     // Thumnail descriptor lists
     PChunkyResourceManager _pcrm;  // Chunky resource manager
-    PGL _pglthd; // Thumbnail descriptor	gl
+    PDynamicArray _pglthd; // Thumbnail descriptor	gl
     PStringTable _pgst;  // Chunk name
 
     // Browser Search (List) parameters

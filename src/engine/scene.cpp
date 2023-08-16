@@ -527,13 +527,13 @@ PScene Scene::PscenNew(PMovie pmvie)
         goto LFail;
     }
 
-    pscen->_pglpactr = GL::PglNew(size(PActor), 0);
+    pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail;
     }
 
-    pscen->_pglptbox = GL::PglNew(size(PTBOX), 0);
+    pscen->_pglptbox = DynamicArray::PglNew(size(PTBOX), 0);
     if (pscen->_pglptbox == pvNil)
     {
         goto LFail;
@@ -661,14 +661,14 @@ Scene::~Scene(void)
     ReleasePpo(&_pggsevFrm);
 
     //
-    // Remove the GL of actors.  We do not Release the actors
+    // Remove the DynamicArray of actors.  We do not Release the actors
     // themselves as our reference was released above in the
     // the _pggsevStart.
     //
     ReleasePpo(&_pglpactr);
 
     //
-    // Remove the GL of tboxes.  We do not Release the tboxes
+    // Remove the DynamicArray of tboxes.  We do not Release the tboxes
     // themselves as our reference was released above in the
     // the _pggsevStart.
     //
@@ -2228,7 +2228,7 @@ void Scene::PlayBkgdSnd(void)
  *  fFalse if an error occurs
  *
  ****************************************************/
-bool Scene::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
+bool Scene::FQuerySnd(long sty, PDynamicArray *ppgltagSnd, long *pvlm, bool *pfLoop)
 {
     AssertThis(0);
     AssertVarMem(ppgltagSnd);
@@ -2249,7 +2249,7 @@ bool Scene::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
     {
         return fTrue; // no sounds (*ppglTagSnd is nil)
     }
-    *ppgltagSnd = GL::PglNew(size(TAG), psse->ctagc);
+    *ppgltagSnd = DynamicArray::PglNew(size(TAG), psse->ctagc);
     if (pvNil == *ppgltagSnd)
     {
         ReleasePpsse(&psse);
@@ -3069,7 +3069,7 @@ bool Scene::FRemTboxCore(PTBOX ptbox)
                 }
             }
 
-            Bug("Text box not found in GL");
+            Bug("Text box not found in DynamicArray");
             return (fFalse);
         }
     }
@@ -3814,7 +3814,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Initialize roll call	for actors
     //
-    pscen->_pglpactr = GL::PglNew(size(PActor), 0);
+    pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail0;
@@ -3823,7 +3823,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Initialize roll call	for text boxes
     //
-    pscen->_pglptbox = GL::PglNew(size(PTBOX), 0);
+    pscen->_pglptbox = DynamicArray::PglNew(size(PTBOX), 0);
     if (pscen->_pglptbox == pvNil)
     {
         goto LFail0;
@@ -5071,7 +5071,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
     PGG pggsev;
     TAG tag;
     TAG tagBkgd;
-    PGL pgltagSrc;
+    PDynamicArray pgltagSrc;
     TAG tagSrc;
     long itagSrc;
     ChildChunkID chid;

@@ -407,7 +407,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
     long imidtr, imidtrMin;
     ulong tsMin;
     PMIDS pmids = pvNil;
-    PGL pglmidtr = pvNil;
+    PDynamicArray pglmidtr = pvNil;
 
     // open the file and set up the source flo
     if (pvNil == (flo.pfil = FIL::PfilOpen(pfni)))
@@ -431,7 +431,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
     }
 
     // allocate the list of tracks to parse
-    if (pvNil == (pglmidtr = GL::PglNew(size(MIDTR))))
+    if (pvNil == (pglmidtr = DynamicArray::PglNew(size(MIDTR))))
         goto LFail;
 
     // build the track list...

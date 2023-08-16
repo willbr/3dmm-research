@@ -384,7 +384,7 @@ bool DocumentBase::FAddDdg(PDocumentDisplayGraphicsObject pddg)
     AssertPo(pddg, 0);
     bool fT;
 
-    if (pvNil == _pglpddg && pvNil == (_pglpddg = GL::PglNew(size(PDocumentDisplayGraphicsObject), 1)))
+    if (pvNil == _pglpddg && pvNil == (_pglpddg = DynamicArray::PglNew(size(PDocumentDisplayGraphicsObject), 1)))
     {
         return fFalse;
     }
@@ -639,7 +639,7 @@ bool DocumentBase::FAddUndo(PUndoBase pundb)
     if (_cundbMax == 0)
         return fTrue;
 
-    if (pvNil == _pglpundb && pvNil == (_pglpundb = GL::PglNew(size(PUndoBase), 1)))
+    if (pvNil == _pglpundb && pvNil == (_pglpundb = DynamicArray::PglNew(size(PUndoBase), 1)))
     {
         return fFalse;
     }

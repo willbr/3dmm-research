@@ -279,7 +279,7 @@ class RichTextDocument : public RichTextDocument_PAR
 #define kbomRdop 0x5FC00000
 
     PChunkyFile _pcfl;
-    PGL _pglmpe;
+    PDynamicArray _pglmpe;
     PAG _pagcact; // for sprm's that have more than a long's worth of data
 
     long _onnDef; // default font and font size
@@ -448,7 +448,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     };
 
     PTextDocumentBase _ptxtb;
-    PGL _pgllin;
+    PDynamicArray _pgllin;
     long _ilinDisp;
     long _cpDisp;
     long _dypDisp;

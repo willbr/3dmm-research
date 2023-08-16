@@ -347,7 +347,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
         long hid;
         ChildChunkID chidScript;
     };
-    PGL _pglcmflt; // list of cmd filtering structs, sorted by cid
+    PDynamicArray _pglcmflt; // list of cmd filtering structs, sorted by cid
 
     long _hidToolTipSrc; // get the tool tip info from this KidspaceGraphicObject
 

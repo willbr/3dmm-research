@@ -49,7 +49,7 @@ class MenuBar : public MenuBar_PAR
     {
         long mid;
         SMU **hnsmu;
-        PGL pglmni;
+        PDynamicArray pglmni;
     };
 
     // menu list
@@ -63,8 +63,8 @@ class MenuBar : public MenuBar_PAR
     };
 
     HN _hnmbar;
-    PGL _pglmnu;
-    PGL _pglmlst; // menu lists
+    PDynamicArray _pglmnu;
+    PDynamicArray _pglmlst; // menu lists
 
     bool _FInsertMni(long imnu, long imni, long cid, long lw0, PSTN pstn);
     void _DeleteMni(long imnu, long imni);
@@ -83,12 +83,12 @@ class MenuBar : public MenuBar_PAR
         long wcidList;
         long cid;
         bool fSeparator;
-        PGL pgllw;
+        PDynamicArray pgllw;
     };
 
     HMENU _hmenu; // the menu bar
     long _cmnu;   // number of menus on the menu bar
-    PGL _pglmlst; // menu lists
+    PDynamicArray _pglmlst; // menu lists
 
     bool _FInitLists(void);
     bool _FFindMlst(long wcid, MLST *pmlst, long *pimlst = pvNil);

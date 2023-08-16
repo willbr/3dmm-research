@@ -52,7 +52,7 @@ void SCRT::AssertValid(ulong grf)
             SCEND scend;
 
             _cmvi.pglscend->Get(iscend, &scend);
-            Assert(iscend < _iscenMac ? !scend.fNuked : scend.fNuked, "Bad GL of SCENDs");
+            Assert(iscend < _iscenMac ? !scend.fNuked : scend.fNuked, "Bad DynamicArray of SCENDs");
             Assert(scend.imvied < imviedMac, "Bogus scene entry in pglscend");
         }
     }

@@ -280,7 +280,7 @@ bool CEX::_FInit(long ccmdInit, long ccmhInit)
     AssertIn(ccmdInit, 0, kcbMax);
     AssertIn(ccmhInit, 0, kcbMax);
 
-    if (pvNil == (_pglcmd = GL::PglNew(size(CMD), ccmdInit)) || pvNil == (_pglcmhe = GL::PglNew(size(CMHE), ccmhInit)))
+    if (pvNil == (_pglcmd = DynamicArray::PglNew(size(CMD), ccmdInit)) || pvNil == (_pglcmhe = DynamicArray::PglNew(size(CMHE), ccmhInit)))
     {
         return fFalse;
     }
@@ -313,7 +313,7 @@ void CEX::Record(PChunkyFile pcfl)
     _cact = 0;
     Assert(_pglcmdf == pvNil, "why isn't _pglcmdf nil?");
 
-    if ((_pglcmdf = GL::PglNew(size(CommandFile), 100)) == pvNil)
+    if ((_pglcmdf = DynamicArray::PglNew(size(CommandFile), 100)) == pvNil)
         _rec = recMemError;
     else if (!_pcfl->FAdd(0, kctgMacro, &_cno))
     {
@@ -483,7 +483,7 @@ void CEX::Play(PChunkyFile pcfl, ChunkNumber cno)
     _cact = 0;
     Assert(_pglcmdf == pvNil, "why isn't _pglcmdf nil?");
 
-    if (!_pcfl->FFind(kctgMacro, _cno, &blck) || (_pglcmdf = GL::PglRead(&blck, &bo, &osk)) == pvNil)
+    if (!_pcfl->FFind(kctgMacro, _cno, &blck) || (_pglcmdf = DynamicArray::PglRead(&blck, &bo, &osk)) == pvNil)
     {
         _rec = recFileError;
         StopPlaying();

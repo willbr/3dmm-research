@@ -241,7 +241,7 @@ bool MDWS::_FInit(PMIDS pmids)
     MIDEV midev;
     bool fEvt;
 
-    if (pvNil == (_pglmev = GL::PglNew(size(MEV))))
+    if (pvNil == (_pglmev = DynamicArray::PglNew(size(MEV))))
         return fFalse;
 
     Assert(MEVT_SHORTMSG == 0, "this code assumes MEVT_SHORTMSG is 0 and it's not");
@@ -576,7 +576,7 @@ bool MSMIX::_FInit(void)
     AssertBaseThis(0);
     ulong luThread;
 
-    if (pvNil == (_pglmsos = GL::PglNew(size(MSOS))))
+    if (pvNil == (_pglmsos = DynamicArray::PglNew(size(MSOS))))
         return fFalse;
     _pglmsos->SetMinGrow(1);
 
@@ -944,7 +944,7 @@ bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
     ClearPb(&mkey, size(mkey));
     ClearPb(rgmev, size(rgmev));
 
-    if (pvNil == _pglmevKey && (pvNil == (_pglmevKey = GL::PglNew(size(MEV)))))
+    if (pvNil == _pglmevKey && (pvNil == (_pglmevKey = DynamicArray::PglNew(size(MEV)))))
         return fFalse;
     _pglmevKey->FSetIvMac(0);
 
@@ -1468,7 +1468,7 @@ bool WMS::_FInit(void)
 
 #undef _Get
 
-    if (pvNil == (_pglpmsir = GL::PglNew(size(PMSIR))))
+    if (pvNil == (_pglpmsir = DynamicArray::PglNew(size(PMSIR))))
         return fFalse;
     _pglpmsir->SetMinGrow(1);
 
@@ -2044,7 +2044,7 @@ bool OMS::_FInit(void)
     AssertBaseThis(0);
     ulong luThread;
 
-    if (pvNil == (_pglmsb = GL::PglNew(size(MSB))))
+    if (pvNil == (_pglmsb = DynamicArray::PglNew(size(MSB))))
         return fFalse;
     _pglmsb->SetMinGrow(1);
 

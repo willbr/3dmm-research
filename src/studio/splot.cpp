@@ -32,7 +32,7 @@ END_CMD_MAP_NIL()
 PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
 {
     PSPLOT psplot = pvNil;
-    PGL pglclr = pvNil;
+    PDynamicArray pglclr = pvNil;
     PGraphicsObject pgobPar;
     RC rcRel;
     GraphicsObjectBlock gcb;

@@ -73,7 +73,7 @@ class MTRL : public MTRL_PAR
     static PMTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
     static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PMTRL PmtrlNewFromPix(PFilename pfni);
-    static PMTRL PmtrlNewFromBmp(PFilename pfni, PGL pglclr = pvNil);
+    static PMTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
     static PMTRL PmtrlFromBmtl(PBMTL pbmtl);
     ~MTRL(void);
     PTextureMap Ptmap(void);

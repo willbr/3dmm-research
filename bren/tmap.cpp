@@ -176,7 +176,7 @@ bool TextureMap::FWrite(PDataBlock pblck)
  *	output:
  *			returns the pointer to the new TextureMap
  */
-PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PGL pglclr)
+PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PDynamicArray pglclr)
 {
     byte *prgb = pvNil;
     PTextureMap ptmap = pvNil;
@@ -186,8 +186,8 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PGL pglclr)
     long iprgb;
     long dist, min;
     Color clr, clrSrc;
-    PGL pglclrSrc;
-    PGL pglCache;
+    PDynamicArray pglclrSrc;
+    PDynamicArray pglCache;
 
     AssertPo(pfni, 0);
 
@@ -204,7 +204,7 @@ PTextureMap TextureMap::PtmapReadNative(Filename *pfni, PGL pglclr)
             // Do a closest color match
             //
 
-            pglCache = GL::PglNew(size(long), pglclrSrc->IvMac());
+            pglCache = DynamicArray::PglNew(size(long), pglclrSrc->IvMac());
 
             if (pglCache != pvNil)
             {

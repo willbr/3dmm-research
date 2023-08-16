@@ -179,7 +179,7 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     if (!pactr->_FOpenTags(pcrf))
         goto LFail;
-    if (pvNil == (pactr->_pglsmm = GL::PglNew(size(SMM), kcsmmGrow)))
+    if (pvNil == (pactr->_pglsmm = DynamicArray::PglNew(size(SMM), kcsmmGrow)))
         goto LFail;
     pactr->_pglsmm->SetMinGrow(kcsmmGrow);
 
@@ -326,7 +326,7 @@ bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 
     if (!pcfl->FFind(kctgPath, cno, &blck))
         return fFalse;
-    _pglrpt = GL::PglRead(&blck, &bo);
+    _pglrpt = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == _pglrpt)
         return fFalse;
     AssertBomRglw(kbomRpt, size(RouteDistancePoint));
@@ -480,7 +480,7 @@ void Actor::_CloseTags(void)
 /***************************************************************************
     Get all the tags that the actor uses
 ***************************************************************************/
-PGL Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
+PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
@@ -489,12 +489,12 @@ PGL Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
     DataBlock blck;
     short bo;
     PTAG ptag;
-    PGL pgltag;
+    PDynamicArray pgltag;
     PGG pggaev = pvNil;
     long iaev;
     ChildChunkIdentification kid;
 
-    pgltag = GL::PglNew(size(TAG), 0);
+    pgltag = DynamicArray::PglNew(size(TAG), 0);
     if (pvNil == pgltag)
         goto LFail;
 
@@ -504,7 +504,7 @@ PGL Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError)
 
     if (actf.tagTmpl.sid == ksidUseCrf)
     {
-        PGL pgltagTmpl;
+        PDynamicArray pgltagTmpl;
 
         // Actor is a TDT.  Tag might be wrong if this actor was imported,
         // so look for child TMPL.

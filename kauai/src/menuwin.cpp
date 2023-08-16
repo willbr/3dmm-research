@@ -179,7 +179,7 @@ bool MenuBar::FAddListCid(long cid, long lw0, PSTN pstn)
 
         if (pvNil == mlst.pgllw)
         {
-            if (pvNil == (mlst.pgllw = GL::PglNew(size(long))))
+            if (pvNil == (mlst.pgllw = DynamicArray::PglNew(size(long))))
             {
                 fRet = fFalse;
                 goto LAdjustSeparator;
@@ -599,7 +599,7 @@ bool MenuBar::_FInitLists(void)
                 mlst.wcidList = wcidList;
                 wcidList += dwcidList;
                 mlst.cid = cid;
-                if (pvNil == (mlst.pgllw = GL::PglNew(size(long), vntl.OnnMac())))
+                if (pvNil == (mlst.pgllw = DynamicArray::PglNew(size(long), vntl.OnnMac())))
                     return fFalse;
 
                 for (onn = 0; onn < vntl.OnnMac(); onn++)
@@ -628,7 +628,7 @@ bool MenuBar::_FInitLists(void)
                 imni--;
                 cmni--;
             LInsertMlst:
-                if (pvNil == _pglmlst && pvNil == (_pglmlst = GL::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
+                if (pvNil == _pglmlst && pvNil == (_pglmlst = DynamicArray::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
                 {
                     ReleasePpo(&mlst.pgllw);
                     return fFalse;

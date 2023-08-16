@@ -114,7 +114,7 @@ static PALETTEENTRY _rgpe[20] = {
     fpalAnimate means animate the palette with the new colors, don't do
         a normal palette set.
 ***************************************************************************/
-void GPT::SetActiveColors(PGL pglclr, ulong grfpal)
+void GPT::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
 {
     AssertNilOrPo(pglclr, 0);
     Assert(pvNil == pglclr || pglclr->CbEntry() == size(Color), "wrong CbEntry");
@@ -281,11 +281,11 @@ LDone:
 /***************************************************************************
     Static method to create a new pglclr containing the current palette.
 ***************************************************************************/
-PGL GPT::PglclrGetPalette(void)
+PDynamicArray GPT::PglclrGetPalette(void)
 {
-    PGL pglclr;
+    PDynamicArray pglclr;
 
-    if (pvNil == (pglclr = GL::PglNew(size(Color), _cclrPal)))
+    if (pvNil == (pglclr = DynamicArray::PglNew(size(Color), _cclrPal)))
         return pvNil;
 
     AssertDo(pglclr->FSetIvMac(_cclrPal), 0);
@@ -632,7 +632,7 @@ PGPT GPT::PgptNewOffscreen(RC *prc, long cbitPixel)
 /***************************************************************************
     Set the color table of an offscreen GPT.
 ***************************************************************************/
-void GPT::SetOffscreenColors(PGL pglclr)
+void GPT::SetOffscreenColors(PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertNilOrPo(pglclr, 0);

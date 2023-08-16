@@ -214,9 +214,9 @@ void TestGl(void)
     short sw;
     long isw;
     short *qsw;
-    PGL pglsw;
+    PDynamicArray pglsw;
 
-    pglsw = GL::PglNew(size(short));
+    pglsw = DynamicArray::PglNew(size(short));
     if (pvNil == pglsw)
     {
         Bug("PglNew failed");

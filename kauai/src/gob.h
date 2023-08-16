@@ -141,7 +141,7 @@ class GraphicsObject : public GraphicsObject_PAR
     PGraphicsObject _pgobSib;
 
     // variables
-    PGL _pglrtvm;
+    PDynamicArray _pglrtvm;
 
     void _SetRcCur(void);
     HWND _HwndGetDptFromCoo(PT *pdpt, long coo);
@@ -247,7 +247,7 @@ class GraphicsObject : public GraphicsObject_PAR
     void MapRc(RC *prc, long cooSrc, long cooDst);
 
     // variables
-    virtual PGL *Ppglrtvm(void);
+    virtual PDynamicArray *Ppglrtvm(void);
 
     PGPT Pgpt(void)
     {

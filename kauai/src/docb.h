@@ -74,9 +74,9 @@ class DocumentBase : public DocumentBase_PAR
     bool _fDirty : 1;
     bool _fFreeing : 1;
     bool _fInternal : 1;
-    PGL _pglpddg; // keep track of the DDGs based on this doc
+    PDynamicArray _pglpddg; // keep track of the DDGs based on this doc
 
-    PGL _pglpundb; // keep track of undo items
+    PDynamicArray _pglpundb; // keep track of undo items
     long _ipundbLimDone;
     long _cundbMax;
 

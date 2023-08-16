@@ -1482,14 +1482,14 @@ bool APP::_FDisplayHomeLogo(bool fSkipSplashScreen)
     AssertPo(_pcfl, 0);
 
     DataBlock blck;
-    PGL pglclr;
+    PDynamicArray pglclr;
     PMBMP pmbmp;
     short bo;
     short osk;
 
     if (!_pcfl->FFind(kctgColorTable, kcnoGlcrInit, &blck))
         return fFalse;
-    pglclr = GL::PglRead(&blck, &bo, &osk);
+    pglclr = DynamicArray::PglRead(&blck, &bo, &osk);
     if (pvNil == pglclr)
         return fFalse;
     GPT::SetActiveColors(pglclr, fpalIdentity);
@@ -1795,11 +1795,11 @@ bool APP::_FInitCrm(void)
     if (pvNil == _pcrmAll)
         goto LFail;
 
-    _pglicrfBuilding = GL::PglNew(size(long), _pgstBuildingFiles->IvMac());
+    _pglicrfBuilding = DynamicArray::PglNew(size(long), _pgstBuildingFiles->IvMac());
     if (pvNil == _pglicrfBuilding)
         goto LFail;
 
-    _pglicrfStudio = GL::PglNew(size(long), _pgstStudioFiles->IvMac());
+    _pglicrfStudio = DynamicArray::PglNew(size(long), _pgstStudioFiles->IvMac());
     if (pvNil == _pglicrfStudio)
         goto LFail;
 
@@ -1839,7 +1839,7 @@ LFail:
     it is filled in with the positions in the ChunkyResourceManager of each of the loaded
     crfs.
 ***************************************************************************/
-bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PGL pglFiles)
+bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles)
 {
     AssertBaseThis(0);
     AssertPo(&_fniProductDir, ffniDir);

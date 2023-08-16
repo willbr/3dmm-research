@@ -16,13 +16,13 @@
     not of a tree of body parts, but an array of parts and part sets.  The
     "ibact"s and "ibset"s in the BODY APIs are indices into these arrays.
 
-    PbodyNew() takes a parameter called pglibactPar, which is a GL of
+    PbodyNew() takes a parameter called pglibactPar, which is a DynamicArray of
     shorts.  Each short is the body part number of a body part's parent
     body part.	For example, suppose you passed in a pglibactPar of:
 
     (ivNil, 0, 0, 1, 2, 2)
 
-    Body part 0 would have no parent (the first number in the GL is
+    Body part 0 would have no parent (the first number in the DynamicArray is
     always ivNil).  Body part 1's parent would be body part 0.  Body part
     2's	parent would also be body part 0.  Body part 3's parent would be
     body part 1, etc.  The resulting tree would be:
@@ -137,7 +137,7 @@ PBACT BODY::_pbactClosestClicked;
 /***************************************************************************
     Builds a tree of BACTs for the BODY.
 ***************************************************************************/
-BODY *BODY::PbodyNew(PGL pglibactPar, PGL pglibset)
+BODY *BODY::PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
     AssertPo(pglibactPar, 0);
     Assert(pglibactPar->CbEntry() == size(short), "bad pglibactPar");
@@ -175,7 +175,7 @@ BODY *BODY::PbodyNew(PGL pglibactPar, PGL pglibset)
 /***************************************************************************
     Build the BODY
 ***************************************************************************/
-bool BODY::_FInit(PGL pglibactPar, PGL pglibset)
+bool BODY::_FInit(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
     AssertBaseThis(0);
     AssertPo(pglibactPar, 0);
@@ -192,7 +192,7 @@ bool BODY::_FInit(PGL pglibactPar, PGL pglibset)
 /***************************************************************************
     Build the BODY
 ***************************************************************************/
-bool BODY::_FInitShape(PGL pglibactPar, PGL pglibset)
+bool BODY::_FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
     AssertBaseThis(0);
     AssertPo(pglibactPar, 0);
@@ -282,7 +282,7 @@ bool BODY::_FInitShape(PGL pglibactPar, PGL pglibset)
     Models, materials, and matrices are not changed for body parts that
     exist in both the old and reshaped BODYs.
 ***************************************************************************/
-bool BODY::FChangeShape(PGL pglibactPar, PGL pglibset)
+bool BODY::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pglibactPar, 0);

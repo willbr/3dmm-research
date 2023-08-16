@@ -190,9 +190,9 @@ class CompilerBase : public CompilerBase_PAR
 
     PLexerBase _plexb;       // the lexer
     PScript _pscpt;       // the script we're building
-    PGL _pgletnTree;    // expression tree (in-fix only)
-    PGL _pgletnStack;   // token stack for building expression tree (in-fix only)
-    PGL _pglcstd;       // control structure stack (in-fix only)
+    PDynamicArray _pgletnTree;    // expression tree (in-fix only)
+    PDynamicArray _pgletnStack;   // token stack for building expression tree (in-fix only)
+    PDynamicArray _pglcstd;       // control structure stack (in-fix only)
     PStringTable _pgstNames;    // encountered names (in-fix only)
     PStringTable _pgstLabel;    // encountered labels, sorted, extra long is label value
     PStringTable _pgstReq;      // label references, extra long is address of reference

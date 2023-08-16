@@ -9,7 +9,7 @@ chdoc.h		sel - selection
 chdoc.h		dcd - display for chunky document - displays a DOC
 chdoc.h		dch - display chunk in hex - displays a FileByteStream
 chdoc.h		dcgb - display for group chunk
-chdoc.h		dcgl - display for GL or AL chunk
+chdoc.h		dcgl - display for DynamicArray or AL chunk
 chdoc.h		dcgg - display for GG or AG chunk
 chdoc.h		dcst - display for StringTable or AllocatedStringTable chunk
 chdoc.h		dcpic - display for picture chunk
@@ -26,7 +26,7 @@ stream.h	bsm - byte stream in memory (entire stream is in memory)
 stream.h	bsf - byte stream on file (parts of the stream may be in files)
 cache.h		smep - swappable map entry priority
 cache.h		smec - swappable map error code
-cache.h		sml - swappable map of GL
+cache.h		sml - swappable map of DynamicArray
 cache.h		smg - swappable map of GG
 cache.h		smlhq - cache of HQs
 cache.h		smlpo - cache of POs

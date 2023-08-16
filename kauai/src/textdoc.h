@@ -70,7 +70,7 @@ class TXDD : public TXDD_PAR
     PFileByteStream _pbsf;
     long _clnDisp;
     long _clnDispWhole;
-    PGL _pglichStarts;
+    PDynamicArray _pglichStarts;
 
     // the selection
     long _ichAnchor;

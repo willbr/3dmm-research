@@ -88,7 +88,7 @@ bool MenuBar::_FFetchRes(ulong ridMenuBar)
         return fFalse;
 
     cmnu = (*hnsmb)->cmid;
-    if ((_pglmnu = GL::PglNew(size(MNU), cmnu)) == pvNil)
+    if ((_pglmnu = DynamicArray::PglNew(size(MNU), cmnu)) == pvNil)
         return fFalse;
 
     mnu.hnsmu = hNil;
@@ -115,7 +115,7 @@ bool MenuBar::_FFetchRes(ulong ridMenuBar)
         if (hNil == (mnu.hnsmu = GetMHandle((ushort)mnu.mid)))
             goto LFail;
         cmni = CountMItems(mnu.hnsmu);
-        if ((mnu.pglmni = GL::PglNew(size(MNI), cmni)) == pvNil)
+        if ((mnu.pglmni = DynamicArray::PglNew(size(MNI), cmni)) == pvNil)
             goto LFail;
         _pglmnu->Put(imnu, &mnu);
 
@@ -236,7 +236,7 @@ bool MenuBar::_FFetchRes(ulong ridMenuBar)
                 }
 
             LInsertMlst:
-                if (pvNil == _pglmlst && pvNil == (_pglmlst = GL::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
+                if (pvNil == _pglmlst && pvNil == (_pglmlst = DynamicArray::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
                 {
                     goto LFail;
                 }

@@ -16,8 +16,8 @@
 #ifndef GFX_H
 #define GFX_H
 
-using Group::GL;
-using Group::PGL;
+using Group::DynamicArray;
+using Group::PDynamicArray;
 
 /****************************************
     Text and fonts.
@@ -331,7 +331,7 @@ struct OLY // pOLYgon
 const long kcbOlyBase = size(OLY) - size(PTS);
 
 /****************************************
-    High level polygon - a GL of PT's.
+    High level polygon - a DynamicArray of PT's.
 ****************************************/
 enum
 {
@@ -341,7 +341,7 @@ enum
 };
 
 typedef class OGN *POGN;
-#define OGN_PAR GL
+#define OGN_PAR DynamicArray
 #define kclsOGN 'OGN'
 class OGN : public OGN_PAR
 {
@@ -445,8 +445,8 @@ class GNV : public GNV_PAR
     HQ _HqolyFrame(POGN pogn, ulong grfogn);
 
     // transition related methods
-    bool _FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, long cbitPixel = 0);
-    void _PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PGL pglclrTrans, Color *pclrSub = pvNil);
+    bool _FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel = 0);
+    void _PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub = pvNil);
     bool _FEnsureTempGnv(PGNV *ppgnv, RC *prc);
 
   public:
@@ -553,13 +553,13 @@ class GNV : public GNV_PAR
     void DrawMbmp(PMBMP pmbmp, RC *prc);
 
     // transitions
-    void Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
-    void Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
+    void Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
+    void Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
     void Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
-                  PGL pglclr = pvNil);
-    void Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr = pvNil);
+                  PDynamicArray pglclr = pvNil);
+    void Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
     void Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
-              PGL pglclr = pvNil);
+              PDynamicArray pglclr = pvNil);
 };
 
 // palette setting options
@@ -716,14 +716,14 @@ class GPT : public GPT_PAR
     static void MarkStaticMem(void);
 #endif // DEBUG
 
-    static void SetActiveColors(PGL pglclr, ulong grfpal);
-    static PGL PglclrGetPalette(void);
+    static void SetActiveColors(PDynamicArray pglclr, ulong grfpal);
+    static PDynamicArray PglclrGetPalette(void);
     static void Flush(void);
 
     static PGPT PgptNewOffscreen(RC *prc, long cbitPixel);
     static PGPT PgptNewPic(RC *prc);
     PPIC PpicRelease(void);
-    void SetOffscreenColors(PGL pglclr = pvNil);
+    void SetOffscreenColors(PDynamicArray pglclr = pvNil);
 
     void ClipToRegn(PREGN *ppregn);
     void SetPtBase(PT *ppt);

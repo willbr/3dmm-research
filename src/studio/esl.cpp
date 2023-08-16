@@ -1106,7 +1106,7 @@ bool ESLL::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
 
-    PGL pgltag;
+    PDynamicArray pgltag;
     long vlm;
     bool fLoop;
 
@@ -1454,7 +1454,7 @@ void ESLL::MarkMem(void)
     Initialize a LSND.  Note that the LSND takes over the reference to
     *ppgltag.
 ***************************************************************************/
-bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgltag, long vlm, bool fLoop, long objID,
+bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicArray *ppgltag, long vlm, bool fLoop, long objID,
                  bool fMatcher)
 {
     AssertBaseThis(0);

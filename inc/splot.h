@@ -47,7 +47,7 @@ class SPLOT : public SPLOT_PAR
     bool _fDirty;
 
     /* Miscellaneous stuff */
-    PGL _pglclrSav;
+    PDynamicArray _pglclrSav;
 
     SPLOT(PGCB pgcb) : SPLOT_PAR(pgcb)
     {

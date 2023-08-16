@@ -541,7 +541,7 @@ bool TextDocumentGraphicsObject::_FInit(void)
 
     if (!TextDocumentGraphicsObject_PAR::_FInit())
         return fFalse;
-    if (pvNil == (_pgllin = GL::PglNew(size(LIN))))
+    if (pvNil == (_pgllin = DynamicArray::PglNew(size(LIN))))
         return fFalse;
 
     // Allocate the GNV for formatting. Use an offscreen one iff _fMark

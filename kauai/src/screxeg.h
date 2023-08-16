@@ -42,9 +42,9 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     virtual PGraphicsObject _PgobFromHid(long hid);
 
     virtual bool _FExecOp(long op);
-    virtual PGL *_PpglrtvmThis(void);
-    virtual PGL *_PpglrtvmGlobal(void);
-    virtual PGL *_PpglrtvmRemote(long lw);
+    virtual PDynamicArray *_PpglrtvmThis(void);
+    virtual PDynamicArray *_PpglrtvmGlobal(void);
+    virtual PDynamicArray *_PpglrtvmRemote(long lw);
 
     virtual short _SwCur(void);
     virtual short _SwMin(void);
@@ -52,7 +52,7 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     void _DoAlert(long op);
     void _SetColorTable(ChildChunkID chid);
     void _DoEditControl(long hid, long stid, bool fGet);
-    PGL _PglclrGet(ChunkNumber cno);
+    PDynamicArray _PglclrGet(ChunkNumber cno);
     bool _FLaunch(long stid);
 
   public:

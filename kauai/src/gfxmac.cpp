@@ -101,7 +101,7 @@ void GPT::Flush(void)
 
     REVIEW shonk: Mac: implement fpalInitAnim and fpalAnimate.
 ***************************************************************************/
-void GPT::SetActiveColors(PGL pglclr, ulong grfpal)
+void GPT::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
 {
     AssertNilOrPo(pglclr, 0);
     long cclr, iclr, iv;

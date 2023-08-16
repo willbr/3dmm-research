@@ -115,11 +115,11 @@ class Background : public Background_PAR
     BRA _braRotY;        // Y rotation of current camera
     ChunkNumber _cnoSnd;         // background sound
     STN _stn;            // name of this background
-    PGL _pglclr;         // palette for this background
+    PDynamicArray _pglclr;         // palette for this background
     byte _bIndexBase;    // first index for palette
     long _iaposLast;     // Last placement point we used
     long _iaposNext;     // Next placement point to use
-    PGL _pglapos;        // actor placement point(s) for current view
+    PDynamicArray _pglapos;        // actor placement point(s) for current view
     BRS _xrPlace;
     BRS _yrPlace;
     BRS _zrPlace;
@@ -131,7 +131,7 @@ class Background : public Background_PAR
   protected:
     bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     long _Ccam(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    void _SetupLights(PGL pgllite);
+    void _SetupLights(PDynamicArray pgllite);
 
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
@@ -176,7 +176,7 @@ class Background : public Background_PAR
         *pfLoop = _bds.fLoop;
     }
 
-    bool FGetPalette(PGL *ppglclr, long *piclrMin);
+    bool FGetPalette(PDynamicArray *ppglclr, long *piclrMin);
     void GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr);
 
 #ifdef DEBUG

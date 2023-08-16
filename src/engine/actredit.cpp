@@ -333,8 +333,8 @@ void Actor::Restore(PActor pactr)
     // Note that both copies will point to the same *_pbody & *_ptmpl
     cactRef = pactrDest->_cactRef;
     PGG pggaev = pactrDest->_pggaev;
-    PGL pglrpt = pactrDest->_pglrpt;
-    PGL pglsmm = pactrDest->_pglsmm;
+    PDynamicArray pglrpt = pactrDest->_pglrpt;
+    PDynamicArray pglsmm = pactrDest->_pglsmm;
     *(pactrDest) = *pactrSrc;
     pactrDest->_cactRef = cactRef;
     pactrDest->_pggaev = pggaev;
@@ -381,7 +381,7 @@ void Actor::_RestoreFromUndo(PActor pactrRestore)
 
 /***************************************************************************
 
-    Copy the GG and GL structures for actor duplication/restoration
+    Copy the GG and DynamicArray structures for actor duplication/restoration
 
     NOTE:
     This is not from this frame on.  The entire actor is duplicated.

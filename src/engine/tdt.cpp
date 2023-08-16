@@ -85,18 +85,18 @@ const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
     if an error occurs.  The point is, look at *pfError, not the return
     value.
 ***************************************************************************/
-PGL TDT::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
+PDynamicArray TDT::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
 
-    PGL pgltag;
+    PDynamicArray pgltag;
     ChildChunkIdentification kid;
     DataBlock blck;
     TDTF tdtf;
 
     *pfError = fFalse;
-    pgltag = GL::PglNew(size(TAG));
+    pgltag = DynamicArray::PglNew(size(TAG));
     if (pvNil == pgltag)
         goto LFail;
     if (!pcfl->FGetKidChidCtg(ctg, cno, kchidTdt, kctgTdt, &kid))
@@ -208,8 +208,8 @@ bool TDT::_FInitLists(void)
     AssertIn(_tdts, 0, tdtsLim);
 
     long cch;
-    PGL pglibactParNew = pvNil;
-    PGL pglibsetNew = pvNil;
+    PDynamicArray pglibactParNew = pvNil;
+    PDynamicArray pglibsetNew = pvNil;
     PGG pggcmidNew = pvNil;
     PMTRL pmtrlDefaultNew = pvNil;
 
@@ -293,7 +293,7 @@ PACTN TDT::_PactnBuild(long tda)
 
     PACTN pactn;
     PGG pggcel;
-    PGL pglbmat34 = pvNil;
+    PDynamicArray pglbmat34 = pvNil;
     ulong grfactn;
 
     pggcel = _PggcelBuild(tda);
@@ -361,19 +361,19 @@ PMODL TDT::_PmodlFetch(ChildChunkID chidModl)
 }
 
 /***************************************************************************
-    Build the BACT tree GL for BODY creation.  TDTs all have the same
+    Build the BACT tree DynamicArray for BODY creation.  TDTs all have the same
     body part tree: every part is a child of the root.
 ***************************************************************************/
-PGL TDT::_PglibactParBuild(void)
+PDynamicArray TDT::_PglibactParBuild(void)
 {
     AssertBaseThis(0);
 
     long cch = _stn.Cch();
     long ich;
     short ibactPar = ivNil;
-    PGL pglibactPar;
+    PDynamicArray pglibactPar;
 
-    pglibactPar = GL::PglNew(size(short), cch); // ibacts are shorts
+    pglibactPar = DynamicArray::PglNew(size(short), cch); // ibacts are shorts
     if (pvNil == pglibactPar)
         return pvNil;
     AssertDo(pglibactPar->FSetIvMac(cch), "PglNew should have ensured space!");
@@ -383,19 +383,19 @@ PGL TDT::_PglibactParBuild(void)
 }
 
 /***************************************************************************
-    Build the body part set GL for BODY creation.  For TDTs, all body parts
+    Build the body part set DynamicArray for BODY creation.  For TDTs, all body parts
     belong to a single body part set
 ***************************************************************************/
-PGL TDT::_PglibsetBuild(void)
+PDynamicArray TDT::_PglibsetBuild(void)
 {
     AssertBaseThis(0);
 
     long cch = _stn.Cch();
     long ich;
     short ibset = 0;
-    PGL pglibset;
+    PDynamicArray pglibset;
 
-    pglibset = GL::PglNew(size(short), cch);
+    pglibset = DynamicArray::PglNew(size(short), cch);
     if (pvNil == pglibset)
         return pvNil;
     AssertDo(pglibset->FSetIvMac(cch), "PglNew should have ensured space!");
@@ -429,9 +429,9 @@ PGG TDT::_PggcmidBuild(void)
 }
 
 /***************************************************************************
-    Build a GL of matrices for the action
+    Build a DynamicArray of matrices for the action
 ***************************************************************************/
-PGL TDT::_Pglbmat34Build(long tda)
+PDynamicArray TDT::_Pglbmat34Build(long tda)
 {
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
@@ -440,7 +440,7 @@ PGL TDT::_Pglbmat34Build(long tda)
     long cch = _stn.Cch();
     long ich;
     BMAT34 bmat34;
-    PGL pglbmat34 = pvNil;
+    PDynamicArray pglbmat34 = pvNil;
     BRS dxrTotal;     // width of string (before scaling)
     BRS dxrTotal2;    // width of string (after scaling)
     BRS dxrHalf;      // half width of string (before scaling)
@@ -460,7 +460,7 @@ PGL TDT::_Pglbmat34Build(long tda)
 
     ccel = _CcelOfTda(tda);
 
-    pglbmat34 = GL::PglNew(size(BMAT34), LwMul(ccel, cch));
+    pglbmat34 = DynamicArray::PglNew(size(BMAT34), LwMul(ccel, cch));
     if (pvNil == pglbmat34)
         goto LFail;
     AssertDo(pglbmat34->FSetIvMac(LwMul(ccel, cch)), "PglNew should have ensured space!");

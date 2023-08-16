@@ -8,11 +8,11 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes (continued from groups.cpp):
-        General List (GL), Allocated List (AL),
+        General List (DynamicArray), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> VirtualArray -+-> GL
+        BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AL
                         |
                         +-> GGB -+-> GG

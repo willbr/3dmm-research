@@ -1025,7 +1025,7 @@ LGotOne:
 
     if (_fRecurse && pfni->_ftg == kftgDir)
     {
-        if ((pvNil != _pglfes || pvNil != (_pglfes = GL::PglNew(size(FES), 5))) && _pglfes->FPush(&_fesCur))
+        if ((pvNil != _pglfes || pvNil != (_pglfes = DynamicArray::PglNew(size(FES), 5))) && _pglfes->FPush(&_fesCur))
         {
             // set up the new fes
             _fesCur.fni = *pfni;

@@ -522,8 +522,8 @@ typedef struct _mvied
 /* A Composite MoVIe */
 typedef struct _cmvi
 {
-    PGL pglmvied; // GL of movie descriptors
-    PGL pglscend; // GL of scene descriptors
+    PDynamicArray pglmvied; // DynamicArray of movie descriptors
+    PDynamicArray pglscend; // DynamicArray of scene descriptors
 
     void Empty(void);
 #ifdef DEBUG
@@ -596,7 +596,7 @@ class Movie : public Movie_PAR
     long _lwBmp;
 #endif // DEBUG
 
-    PGL _pglclrThumbPalette; // Palette to use for thumbnail rendering.
+    PDynamicArray _pglclrThumbPalette; // Palette to use for thumbnail rendering.
 
   private:
     Movie(void);
@@ -725,9 +725,9 @@ class Movie : public Movie_PAR
     bool FSetCmvi(PCMVI pcmvi); // Re-build the movie from the CMVI
     bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
-    bool _FInsertScend(PGL pglscend, long iscend, PSCEND pscend);
+    bool _FInsertScend(PDynamicArray pglscend, long iscend, PSCEND pscend);
     // Insert an imported scene
-    void _DeleteScend(PGL pglscend, long iscend);   // Delete an imported scene
+    void _DeleteScend(PDynamicArray pglscend, long iscend);   // Delete an imported scene
     bool _FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
 
     bool FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm = vlmNil,
@@ -965,12 +965,12 @@ class Movie : public Movie_PAR
     //
     // Thumbnail stuff
     //
-    PGL PglclrThumbPalette(void)
+    PDynamicArray PglclrThumbPalette(void)
     {
         AssertThis(0);
         return _pglclrThumbPalette;
     }
-    void SetThumbPalette(PGL pglclr)
+    void SetThumbPalette(PDynamicArray pglclr)
     {
         ReleasePpo(&_pglclrThumbPalette);
         _pglclrThumbPalette = pglclr;

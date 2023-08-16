@@ -11,11 +11,11 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes:
-        General List (GL), Allocated List (AL),
+        General List (DynamicArray), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> VirtualArray -+-> GL
+        BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AL
                         |
                         +-> GGB -+-> GG
@@ -114,7 +114,7 @@ class GRPB : public GRPB_PAR
 
 /****************************************
     VirtualArray is a virtual class supporting
-    GL and AL
+    DynamicArray and AL
 ****************************************/
 #define VirtualArray_PAR GRPB
 #define kclsVirtualArray 'GLB'
@@ -143,26 +143,26 @@ class VirtualArray : public VirtualArray_PAR
 };
 
 /****************************************
-    GL is the basic dynamic array
+    DynamicArray is the basic dynamic array
 ****************************************/
-#define GL_PAR VirtualArray
-#define kclsGL 'GL'
-class GL : public GL_PAR
+#define DynamicArray_PAR VirtualArray
+#define kclsDynamicArray 'GL'
+class DynamicArray : public DynamicArray_PAR
 {
     RTCLASS_DEC
 
   protected:
-    GL(long cb);
+    DynamicArray(long cb);
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
-    static PGL PglNew(long cb, long cvInit = 0);
-    static PGL PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGL PglRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglNew(long cb, long cvInit = 0);
+    static PDynamicArray PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PGL PglDup(void);
+    PDynamicArray PglDup(void);
 
     // methods required by parent class
     virtual bool FAdd(void *pv, long *piv = pvNil);

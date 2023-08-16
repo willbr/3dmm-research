@@ -42,7 +42,7 @@ PSZ _mpertpsz[] = {
     PszLit("Alignment parameter out of range"),               // ertBodyAlignRange
     PszLit("File name expected"),                             // ertBodyFile
     PszLit("ENDCHUNK expected"),                              // ertNeedEndChunk
-    PszLit("Invalid GL or AL declaration"),                   // ertListHead
+    PszLit("Invalid DynamicArray or AL declaration"),                   // ertListHead
     PszLit("Invalid size for list entries"),                  // ertListEntrySize
     PszLit("Variable undefined"),                             // ertVarUndefined
     PszLit("Too much data for item"),                         // ertItemOverflow
@@ -798,7 +798,7 @@ void Compiler::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
     Filename fni;
     DataBlock blck;
     Token tok;
-    PGL pglclr;
+    PDynamicArray pglclr;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -1172,7 +1172,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
     long iv, iiv;
     DataBlock blck;
     PVirtualArray pglb = pvNil;
-    PGL pglivFree = pvNil;
+    PDynamicArray pglivFree = pvNil;
 
     // get size of entry data
     ClearPb(rgphp, size(rgphp));
@@ -1190,7 +1190,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
         return;
     }
 
-    pglb = fAl ? (PVirtualArray)AL::PalNew(cbEntry) : (PVirtualArray)GL::PglNew(cbEntry);
+    pglb = fAl ? (PVirtualArray)AL::PalNew(cbEntry) : (PVirtualArray)DynamicArray::PglNew(cbEntry);
     if (pvNil == pglb)
     {
         _Error(ertOom);
@@ -1215,7 +1215,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
             else if (!FError())
             {
                 iv = pglb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = GL::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1268,7 +1268,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cn
 
     if (pvNil != pglivFree)
     {
-        Assert(fAl, "why did GL have free entries?");
+        Assert(fAl, "why did DynamicArray have free entries?");
         for (iiv = pglivFree->IvMac(); iiv-- > 0;)
         {
             pglivFree->Get(iiv, &iv);
@@ -1304,7 +1304,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber c
     DataBlock blck;
     bool fFree;
     PGGB pggb = pvNil;
-    PGL pglivFree = pvNil;
+    PDynamicArray pglivFree = pvNil;
 
     // get size of fixed data
     ClearPb(rgphp, size(rgphp));
@@ -1348,7 +1348,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber c
             else if (!FError())
             {
                 iv = pggb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = GL::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1461,7 +1461,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
     DataBlock blck;
     bool fFree;
     PVirtualStringTable pgstb = pvNil;
-    PGL pglivFree = pvNil;
+    PDynamicArray pglivFree = pvNil;
     void *pvExtra = pvNil;
 
     // get size of attached data
@@ -1503,7 +1503,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
             else if (!FError())
             {
                 iv = pgstb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = GL::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1661,7 +1661,7 @@ void Compiler::_StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     CSFC csfc;
 
-    if (pvNil == _pglcsfc && pvNil == (_pglcsfc = GL::PglNew(size(CSFC))))
+    if (pvNil == _pglcsfc && pvNil == (_pglcsfc = DynamicArray::PglNew(size(CSFC))))
         goto LFail;
 
     csfc.pcfl = _pcfl;
@@ -1848,7 +1848,7 @@ void Compiler::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
             }
             cki.ctg = ctg;
             cki.cno = cno;
-            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = GL::PglNew(size(ChunkIdentification))) || !_pglckiLoner->FPush(&cki))
+            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = DynamicArray::PglNew(size(ChunkIdentification))) || !_pglckiLoner->FPush(&cki))
             {
                 _Error(ertOom);
             }
@@ -2148,7 +2148,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("SZ"),        ttModeSz,    PszLit("ST"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
-    PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("GL"),      ttGl,
+    PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
     PszLit("AL"),        ttAl,        PszLit("GG"),         ttGg,         PszLit("AG"),      ttAg,
     PszLit("StringTable"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
     PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
@@ -2627,7 +2627,7 @@ bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pglb = fAl ? (PVirtualArray)AL::PalRead(pblck, &bo, &osk) : (PVirtualArray)GL::PglRead(pblck, &bo, &osk);
+    pglb = fAl ? (PVirtualArray)AL::PalRead(pblck, &bo, &osk) : (PVirtualArray)DynamicArray::PglRead(pblck, &bo, &osk);
     if (pvNil == pglb)
         return fFalse;
 

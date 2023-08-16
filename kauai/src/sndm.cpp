@@ -124,7 +124,7 @@ bool SNDM::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsndmpe = GL::PglNew(size(SNDMPE))))
+    if (pvNil == (_pglsndmpe = DynamicArray::PglNew(size(SNDMPE))))
         return fFalse;
 
     _pglsndmpe->SetMinGrow(1);
@@ -575,7 +575,7 @@ bool SNDMQ::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsnqd = GL::PglNew(size(SNQD))))
+    if (pvNil == (_pglsnqd = DynamicArray::PglNew(size(SNQD))))
         return fFalse;
 
     _fActive = fTrue;
@@ -939,7 +939,7 @@ bool SNQUE::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsndin = GL::PglNew(size(SNDIN))))
+    if (pvNil == (_pglsndin = DynamicArray::PglNew(size(SNDIN))))
         return fFalse;
 
     AssertThis(0);

@@ -214,7 +214,7 @@ class MSQ : public MSQ_PAR
     CMD_MAP_DEC(MSQ)
 
   protected:
-    PGL _pglsqe; // Sound queue entries
+    PDynamicArray _pglsqe; // Sound queue entries
     long _dtim;  // Time sound allowed to play
     PCLOK _pclok;
 

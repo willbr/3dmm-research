@@ -85,7 +85,7 @@ PTAGM TAGM::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache)
     ptagm->_cbCache = cbCache;
     ptagm->_pfninscd = pfninscd;
 
-    ptagm->_pglsfs = GL::PglNew(size(SFS));
+    ptagm->_pglsfs = DynamicArray::PglNew(size(SFS));
     if (pvNil == ptagm->_pglsfs)
         goto LFail;
 

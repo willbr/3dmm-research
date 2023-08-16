@@ -135,7 +135,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     };
 
     PChunkyFile _pcfl;
-    PGL _pglcre; // sorted by (cki, pfnrpo)
+    PDynamicArray _pglcre; // sorted by (cki, pfnrpo)
     long _cbMax;
     long _cbCur;
     long _cactRelease;
@@ -184,7 +184,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     MARKMEM
 
   protected:
-    PGL _pglpcrf;
+    PDynamicArray _pglpcrf;
 
     ChunkyResourceManager(void)
     {

@@ -226,7 +226,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
         pcrf = _pcrm->PcrfGet(icrf);
         if (pcrf->Pcfl()->FFind(kctgColorTable, kidPalette, &blck))
         {
-            _pglclr = GL::PglRead(&blck);
+            _pglclr = DynamicArray::PglRead(&blck);
             if (_pglclr != pvNil)
             {
                 break;

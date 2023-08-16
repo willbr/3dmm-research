@@ -8,11 +8,11 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes:
-        General List (GL), Allocated List (AL),
+        General List (DynamicArray), Allocated List (AL),
         General Group (GG), Allocated Group (AG),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> VirtualArray -+-> GL
+        BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AL
                         |
                         +-> GGB -+-> GG
@@ -29,7 +29,7 @@ namespace Group {
 
 RTCLASS(GRPB)
 RTCLASS(VirtualArray)
-RTCLASS(GL)
+RTCLASS(DynamicArray)
 RTCLASS(AL)
 RTCLASS(GGB)
 RTCLASS(GG)
@@ -282,8 +282,8 @@ void GRPB::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    VirtualArray:  Base class for GL (general list) and AL (general allocated list).
-    The list data goes in section 1.  The GL class doesn't use section 2.
+    VirtualArray:  Base class for DynamicArray (general list) and AL (general allocated list).
+    The list data goes in section 1.  The DynamicArray class doesn't use section 2.
     The AL class uses section 2 for a bit array indicating whether an entry
     is free or in use.
 ***************************************************************************/
@@ -347,7 +347,7 @@ void *VirtualArray::PvLock(long iv)
 }
 
 /***************************************************************************
-    Set the minimum that a GL should grow by.
+    Set the minimum that a DynamicArray should grow by.
 ***************************************************************************/
 void VirtualArray::SetMinGrow(long cvAdd)
 {
@@ -360,7 +360,7 @@ void VirtualArray::SetMinGrow(long cvAdd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a list (GL or AL).
+    Assert the validity of a list (DynamicArray or AL).
 ***************************************************************************/
 void VirtualArray::AssertValid(ulong grfobj)
 {
@@ -374,13 +374,13 @@ void VirtualArray::AssertValid(ulong grfobj)
 /***************************************************************************
     Allocate a new list and ensure that it has space for cvInit elements.
 ***************************************************************************/
-PGL GL::PglNew(long cb, long cvInit)
+PDynamicArray DynamicArray::PglNew(long cb, long cvInit)
 {
     AssertIn(cb, 1, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
-    PGL pgl;
+    PDynamicArray pgl;
 
-    if ((pgl = NewObj GL(cb)) == pvNil)
+    if ((pgl = NewObj DynamicArray(cb)) == pvNil)
         return pvNil;
     if (cvInit > 0 && !pgl->FEnsureSpace(cvInit, fgrpNil))
     {
@@ -394,15 +394,15 @@ PGL GL::PglNew(long cb, long cvInit)
 /***************************************************************************
     Read a list from a block and return it.
 ***************************************************************************/
-PGL GL::PglRead(PDataBlock pblck, short *pbo, short *posk)
+PDynamicArray DynamicArray::PglRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
-    PGL pgl;
+    PDynamicArray pgl;
 
     /* the use of 4 for the cb is bogus, but _FRead overwrites the cb anyway */
-    if ((pgl = NewObj GL(4)) == pvNil)
+    if ((pgl = NewObj DynamicArray(4)) == pvNil)
         goto LFail;
     if (!pgl->_FRead(pblck, pbo, posk))
     {
@@ -419,37 +419,37 @@ PGL GL::PglRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a list from file and return it.
 ***************************************************************************/
-PGL GL::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PDynamicArray DynamicArray::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PglRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Constructor for GL.
+    Constructor for DynamicArray.
 ***************************************************************************/
-GL::GL(long cb) : VirtualArray(cb)
+DynamicArray::DynamicArray(long cb) : VirtualArray(cb)
 {
     AssertThis(0);
 }
 
 /***************************************************************************
     Provided for completeness (all GRPB's have an FFree routine).
-    Returns false iff iv is a valid index for the GL.
+    Returns false iff iv is a valid index for the DynamicArray.
 ***************************************************************************/
-bool GL::FFree(long iv)
+bool DynamicArray::FFree(long iv)
 {
     AssertThis(0);
     return !FIn(iv, 0, _ivMac);
 }
 
 /***************************************************************************
-    Duplicate this GL.
+    Duplicate this DynamicArray.
 ***************************************************************************/
-PGL GL::PglDup(void)
+PDynamicArray DynamicArray::PglDup(void)
 {
     AssertThis(0);
-    PGL pgl;
+    PDynamicArray pgl;
 
     if (pvNil == (pgl = PglNew(_cbEntry)))
         return pvNil;
@@ -474,7 +474,7 @@ const ByteOrderMask kbomGlf = 0x5F000000L;
 /***************************************************************************
     Return the amount of space on file needed for the list.
 ***************************************************************************/
-long GL::CbOnFile(void)
+long DynamicArray::CbOnFile(void)
 {
     AssertThis(0);
     return size(GLF) + LwMul(_cbEntry, _ivMac);
@@ -483,7 +483,7 @@ long GL::CbOnFile(void)
 /***************************************************************************
     Write the list to disk.
 ***************************************************************************/
-bool GL::FWrite(PDataBlock pblck, short bo, short osk)
+bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -508,7 +508,7 @@ bool GL::FWrite(PDataBlock pblck, short bo, short osk)
 /***************************************************************************
     Read list data from disk.
 ***************************************************************************/
-bool GL::_FRead(PDataBlock pblck, short *pbo, short *posk)
+bool DynamicArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -541,7 +541,7 @@ bool GL::_FRead(PDataBlock pblck, short *pbo, short *posk)
     if (glf.bo != kboCur || glf.cbEntry <= 0 || glf.ivMac < 0 || cb != glf.cbEntry * glf.ivMac)
     {
     LBug:
-        Warn("file corrupt or not a GL");
+        Warn("file corrupt or not a DynamicArray");
         goto LFail;
     }
 
@@ -558,7 +558,7 @@ LFail:
 /***************************************************************************
     Insert some items into a list at position iv.  iv should be <= IvMac().
 ***************************************************************************/
-bool GL::FInsert(long iv, void *pv, long cv)
+bool DynamicArray::FInsert(long iv, void *pv, long cv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac + 1);
@@ -589,7 +589,7 @@ bool GL::FInsert(long iv, void *pv, long cv)
     Delete an element from the list.  This changes the indices of all
     later elements.
 ***************************************************************************/
-void GL::Delete(long iv)
+void DynamicArray::Delete(long iv)
 {
     AssertThis(0);
     Delete(iv, 1);
@@ -599,7 +599,7 @@ void GL::Delete(long iv)
     Delete a range of elements.  This changes the indices of all later
     elements.
 ***************************************************************************/
-void GL::Delete(long ivMin, long cv)
+void DynamicArray::Delete(long ivMin, long cv)
 {
     AssertThis(0);
     AssertIn(ivMin, 0, _ivMac);
@@ -622,7 +622,7 @@ void GL::Delete(long ivMin, long cv)
     ivTarget moves to (ivTarget + 1).  Everything in between is shifted
     appropriately.  ivTarget is allowed to be equal to IvMac().
 ***************************************************************************/
-void GL::Move(long ivSrc, long ivTarget)
+void DynamicArray::Move(long ivSrc, long ivTarget)
 {
     AssertThis(0);
     AssertIn(ivSrc, 0, _ivMac);
@@ -636,7 +636,7 @@ void GL::Move(long ivSrc, long ivTarget)
     Add an element to the end of the list.  Returns the location in *piv.
     On failure, returns false and *piv is undefined.
 ***************************************************************************/
-bool GL::FAdd(void *pv, long *piv)
+bool DynamicArray::FAdd(void *pv, long *piv)
 {
     AssertThis(0);
     AssertNilOrVarMem(piv);
@@ -654,7 +654,7 @@ bool GL::FAdd(void *pv, long *piv)
 /***************************************************************************
     Stack operation.  Returns fFalse on stack underflow.
 ***************************************************************************/
-bool GL::FPop(void *pv)
+bool DynamicArray::FPop(void *pv)
 {
     AssertThis(0);
     AssertNilOrPvCb(pv, _cbEntry);
@@ -675,7 +675,7 @@ bool GL::FPop(void *pv)
     Set the number of elements.  Used rarely (to add a block of elements
     at a time or to "zero out" a list.
 ***************************************************************************/
-bool GL::FSetIvMac(long ivMacNew)
+bool DynamicArray::FSetIvMac(long ivMacNew)
 {
     AssertThis(0);
     AssertIn(ivMacNew, 0, kcbMax);
@@ -712,7 +712,7 @@ bool GL::FSetIvMac(long ivMacNew)
     fgrpShrink is set, will shrink the list if it has more than cvAdd
     available entries.
 ***************************************************************************/
-bool GL::FEnsureSpace(long cvAdd, ulong grfgrp)
+bool DynamicArray::FEnsureSpace(long cvAdd, ulong grfgrp)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);

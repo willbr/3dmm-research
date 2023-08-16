@@ -34,7 +34,7 @@ class BODY : public BODY_PAR
     static long _dzpClosestClicked;
     static BACT *_pbactClosestClicked;
     BACT *_prgbact;      // array of BACTs
-    PGL _pglibset;       // body part set IDs
+    PDynamicArray _pglibset;       // body part set IDs
     long _cbset;         // count of body part sets
     PCMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
     long _cbactPart;     // count of model body parts in body
@@ -50,8 +50,8 @@ class BODY : public BODY_PAR
     {
     } // can't instantiate directly; must use PbodyNew
     void _DestroyShape(void);
-    bool _FInit(PGL pglibactPar, PGL pglibset);
-    bool _FInitShape(PGL pglibactPar, PGL pglibset);
+    bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
     PBACT _PbactRoot(void) // ptr to root BACT
     {
         return _prgbact;
@@ -82,7 +82,7 @@ class BODY : public BODY_PAR
     static void _GetRc(PBACT pbact, RC *prc);
 
   public:
-    static PBODY PbodyNew(PGL pglibactPar, PGL pglibset);
+    static PBODY PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset);
     static PBODY PbodyFromBact(BACT *pbact, long *pibset = pvNil);
     static PBODY PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset = pvNil);
     ~BODY(void);
@@ -91,7 +91,7 @@ class BODY : public BODY_PAR
     static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
                                     BRS dzpNear, BRS dzpFar, void *pv);
 
-    bool FChangeShape(PGL pglibactPar, PGL pglibset);
+    bool FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
     void SetBwld(PWorld pbwld)
     {
         _pbwld = pbwld;

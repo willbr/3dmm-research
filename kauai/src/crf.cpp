@@ -207,7 +207,7 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile pcfl, long cbMax)
     AssertIn(cbMax, 0, kcbMax);
     PChunkyResourceFile pcrf;
 
-    if (pvNil != (pcrf = NewObj ChunkyResourceFile(pcfl, cbMax)) && pvNil == (pcrf->_pglcre = GL::PglNew(size(CRE), 5)))
+    if (pvNil != (pcrf = NewObj ChunkyResourceFile(pcfl, cbMax)) && pvNil == (pcrf->_pglcre = DynamicArray::PglNew(size(CRE), 5)))
     {
         ReleasePpo(&pcrf);
     }
@@ -787,7 +787,7 @@ PChunkyResourceManager ChunkyResourceManager::PcrmNew(long ccrfInit)
 
     if (pvNil == (pcrm = NewObj ChunkyResourceManager()))
         return pvNil;
-    if (pvNil == (pcrm->_pglpcrf = GL::PglNew(size(PChunkyResourceFile), ccrfInit)))
+    if (pvNil == (pcrm->_pglpcrf = DynamicArray::PglNew(size(PChunkyResourceFile), ccrfInit)))
     {
         ReleasePpo(&pcrm);
         return pvNil;
@@ -917,7 +917,7 @@ PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTag ctg, ChunkNumb
 
 /***************************************************************************
     Add a chunky file to the list of chunky resource files, by
-    creating the chunky resource file object and adding it to the GL
+    creating the chunky resource file object and adding it to the DynamicArray
 ***************************************************************************/
 bool ChunkyResourceManager::FAddCfl(PChunkyFile pcfl, long cbMax, long *piv)
 {

@@ -235,7 +235,7 @@ class CEX : public CEX_PAR
     long _rs;       // recording/playback state
     long _rec;      // recording/playback errors
     PChunkyFile _pcfl;     // the file we are recording to or playing from
-    PGL _pglcmdf;   // the command stream
+    PDynamicArray _pglcmdf;   // the command stream
     ChunkNumber _cno;       // which macro is being played
     long _icmdf;    // current command for recording or playback
     ChildChunkID _chidLast; // last chid used for recording
@@ -251,8 +251,8 @@ class CEX : public CEX_PAR
 #endif                 // WIN
 
     // filter list and command queue
-    PGL _pglcmhe;       // the command filter list
-    PGL _pglcmd;        // the command queue
+    PDynamicArray _pglcmhe;       // the command filter list
+    PDynamicArray _pglcmd;        // the command queue
     bool _fDispatching; // whether we're currently in FDispatchNextCmd
 
     // Modal filtering

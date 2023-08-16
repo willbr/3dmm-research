@@ -51,7 +51,7 @@ class CLOK : public CLOK_PAR
     ulong _dtimAlarm; // processing alarms up to _timCur + _dtimAlarm
     ulong _timNext;   // next alarm time to process (for speed)
     ulong _grfclok;
-    PGL _pglalad; // the registered alarms
+    PDynamicArray _pglalad; // the registered alarms
 
   public:
     CLOK(long hid, ulong grfclok = fclokNil);

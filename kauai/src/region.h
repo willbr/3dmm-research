@@ -40,7 +40,7 @@ class REGN : public REGN_PAR
     // is strictly rectangular.
     RC _rc;     // bounding rectangle
     long _dxp;  // additional offset for xp values
-    PGL _pglxp; // region data - see above
+    PDynamicArray _pglxp; // region data - see above
     HRGN _hrgn; // for HrgnEnsure
     PT _dptRgn; // offset of _hrgn relative to this region
 
@@ -84,7 +84,7 @@ class REGSC : public REGSC_PAR
     RTCLASS_DEC
 
   protected:
-    PGL _pglxpSrc;    // the list of points
+    PDynamicArray _pglxpSrc;    // the list of points
     long *_pxpLimSrc; // the end of the list
     long *_pxpLimCur; // the end of the current row
 
@@ -106,7 +106,7 @@ class REGSC : public REGSC_PAR
     // point into this.
     long _rgxpRect[4];
 
-    void _InitCore(PGL pglxp, RC *prc, RC *prcRel);
+    void _InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel);
     void _ScanNextCore(void);
 
   public:

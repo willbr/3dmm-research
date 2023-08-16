@@ -46,7 +46,7 @@ typedef RoutePoint *PRoutePoint;
 const ByteOrderMask kbomXyz = 0xfc000000;
 
 //
-// 	A RouTE is a general list (GL) of Route PoinTs(RouteDistancePoint)
+// 	A RouTE is a general list (DynamicArray) of Route PoinTs(RouteDistancePoint)
 //  A Subroute is a contiguous section of a route.
 //
 struct RouteDistancePoint
@@ -340,7 +340,7 @@ class Actor : public Actor_PAR
     // have either fLifeDirty set or _nfrmLast current.
     // Note: _tagTmpl cannot be derived from _ptmpl
     PGG _pggaev;      // GG pointer to Actor EVent list
-    PGL _pglrpt;      // GL pointer to actor's route
+    PDynamicArray _pglrpt;      // DynamicArray pointer to actor's route
     TMPL *_ptmpl;     // Actor body & action list template
     BODY *_pbody;     // Actor's body
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
@@ -372,7 +372,7 @@ class Actor : public Actor_PAR
     RouteLocation _rtelCur;           // Current location on route	(excludes tweak info)
     RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
     ActorEvent::FramePosition _xfrm;              // Current transformation
-    PGL _pglsmm;             // Current action motion match sounds
+    PDynamicArray _pglsmm;             // Current action motion match sounds
 
     // Path Recording State Information
     RouteLocation _rtelInsert;        // Joining information
@@ -490,7 +490,7 @@ class Actor : public Actor_PAR
     // ActrSave Routines
     static PActor PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
     bool FWrite(PChunkyFile pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
-    static PGL PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError);
+    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError);
     static bool FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid);
 
     // Visibility
@@ -660,7 +660,7 @@ class Actor : public Actor_PAR
     bool FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty);
     bool FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty);
     bool FSetVlmSnd(long sty, bool fMotionMatch, long vlm); // Set the volume of a sound
-    bool FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, bool *pfLoop);
+    bool FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, long *pvlm, bool *pfLoop);
     bool FDeleteSndCore(long sty, bool fMotionMatch);
     bool FSoundInFrm(void);
     bool FResolveAllSndTags(ChunkNumber cnoScen);

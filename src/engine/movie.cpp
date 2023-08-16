@@ -278,16 +278,16 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     }
 
     //
-    // Create the GL for holding undo events
+    // Create the DynamicArray for holding undo events
     //
-    pmvie->_pglpundb = GL::PglNew(size(PUndoBase), 1);
+    pmvie->_pglpundb = DynamicArray::PglNew(size(PUndoBase), 1);
     if (pmvie->_pglpundb == pvNil)
     {
         goto LFail;
     }
 
     //
-    // Create GL of actors in the movie
+    // Create DynamicArray of actors in the movie
     //
     if (pvNil == pfni)
     {
@@ -2782,13 +2782,13 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
     long icki1 = 0;
     long icki2 = 0;
     ChunkIdentification cki;
-    PGL pglckiDoomed = pvNil;
+    PDynamicArray pglckiDoomed = pvNil;
 
     ptagl = _PtaglFetch(); // get all tags in user's document
     if (ptagl == pvNil)
         goto LEnd; // no work to do
 
-    pglckiDoomed = GL::PglNew(size(ChunkIdentification), 0);
+    pglckiDoomed = DynamicArray::PglNew(size(ChunkIdentification), 0);
     if (pvNil == pglckiDoomed)
         goto LFail;
 
@@ -4614,11 +4614,11 @@ void CMVI::MarkMem(void)
 
 /******************************************************************************
     FAddToCmvi
-        Generates a GL of SCENDs that describes this movie.  A movie client
-        that wishes to makes wholesale changes to a movie may get this GL,
+        Generates a DynamicArray of SCENDs that describes this movie.  A movie client
+        that wishes to makes wholesale changes to a movie may get this DynamicArray,
         rearrange it, including inserting references to new movie files, and
         pass it back to the movie via FSetCmvi to modify the movie.
-        Adds the movie to the GL of movie descriptors.
+        Adds the movie to the DynamicArray of movie descriptors.
 
     Arguments:
         PCMVI pcmvi     --  the CMVI to add the movie to
@@ -4649,12 +4649,12 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     if (!FAutoSave(pvNil, fFalse))
         goto LFail;
 
-    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = GL::PglNew(size(SCEND))) == pvNil)
+    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = DynamicArray::PglNew(size(SCEND))) == pvNil)
     {
         goto LFail;
     }
 
-    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = GL::PglNew(size(MVIED))) == pvNil)
+    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = DynamicArray::PglNew(size(MVIED))) == pvNil)
     {
         goto LFail;
     }
@@ -4734,9 +4734,9 @@ LFail:
         refer to a movie file other than this Movie's auto save file are
         copied into this Movie's auto save file.  Scene chunks are given new
         CHIDs reflecting their new position within the movie.  The non-nuked
-        scenes must appear in the GL in the order that they appear in the
+        scenes must appear in the DynamicArray in the order that they appear in the
         movie; other than that, there is no restriction on the order of the
-        scenes (ie, nuked scenes can appear anywhere in the GL, even though
+        scenes (ie, nuked scenes can appear anywhere in the DynamicArray, even though
         currently the only client of this API keeps the nuked scenes at the
         end).
 
@@ -4761,7 +4761,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
     ChildChunkID chidScen = 0;
     PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     PChunkyResourceFile pcrf = _pcrfAutoSave;
-    PGL pglmviedNew;
+    PDynamicArray pglmviedNew;
 
     pglmviedNew = pcmvi->pglmvied->PglDup();
     if (pglmviedNew == pvNil)
@@ -4786,8 +4786,8 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
         }
         else
         {
-            Assert(mvied.pcrf == pcrf, "Invalid GL of MVIEDs");
-            Assert(mvied.cno == _cno, "Invalid GL of MVIEDs");
+            Assert(mvied.pcrf == pcrf, "Invalid DynamicArray of MVIEDs");
+            Assert(mvied.cno == _cno, "Invalid DynamicArray of MVIEDs");
         }
         aridMin += mvied.aridLim;
     }
@@ -4995,12 +4995,12 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     if (aridMin > 0)
     {
         ulong grfcge, grfcgeIn = fcgeNil;
-        PGL pglcno;
+        PDynamicArray pglcno;
         ChunkIdentification ckiParLast = {ctgNil, cnoNil}, ckiPar;
         ChildChunkIdentification kid;
         CGE cge;
 
-        if ((pglcno = GL::PglNew(size(ChunkNumber))) == pvNil)
+        if ((pglcno = DynamicArray::PglNew(size(ChunkNumber))) == pvNil)
             goto LFail;
         cge.Init(pcfl, kctgMvie, cno);
         while (cge.FNextKid(&kid, &ckiPar, &grfcge, fcgeNil))
@@ -5090,8 +5090,8 @@ LFail:
 /******************************************************************************
     EmptyCmvi
         Frees up the memory used by the CMVI.  For each scene in the
-        GL of SCENDs, releases memory that the SCEND referred to.  Likewise
-        for each MVIED in the GL of MVIEDs.
+        DynamicArray of SCENDs, releases memory that the SCEND referred to.  Likewise
+        for each MVIED in the DynamicArray of MVIEDs.
 
     Arguments:
         PCMVI pcmvi -- the CMVI to empty
@@ -5104,7 +5104,7 @@ void CMVI::Empty(void)
     AssertPo(pglscend, 0);
     AssertPo(pglmvied, 0);
 
-    PGL pgl;
+    PDynamicArray pgl;
 
     if ((pgl = pglscend) != pvNil)
     {
@@ -5139,18 +5139,18 @@ void CMVI::Empty(void)
 
 /******************************************************************************
     _FInsertScend
-        Inserts the given SCEND into a GL of SCENDs that was created by this
+        Inserts the given SCEND into a DynamicArray of SCENDs that was created by this
         movie.
 
     Arguments:
-        PGL pglscend  -- the GL of SCENDs to insert into
+        PDynamicArray pglscend  -- the DynamicArray of SCENDs to insert into
         long iscend   -- the position at which to insert this SCEND
         PSCEND pscend -- the SCEND to insert
 
     Returns: fTrue if successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
+bool Movie::_FInsertScend(PDynamicArray pglscend, long iscend, PSCEND pscend)
 {
     AssertPo(pglscend, 0);
     AssertPo(pscend->pmbmp, 0);
@@ -5163,15 +5163,15 @@ bool Movie::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
 
 /******************************************************************************
     _DeleteScend
-        Deletes the given SCEND from a GL of SCENDs that was created by this
+        Deletes the given SCEND from a DynamicArray of SCENDs that was created by this
         movie.
 
     Arguments:
-        PGL pglscend -- the GL of SCENDs to delete from
+        PDynamicArray pglscend -- the DynamicArray of SCENDs to delete from
         long iscend  -- which SCEND to delete
 
 ************************************************************ PETED ***********/
-void Movie::_DeleteScend(PGL pglscend, long iscend)
+void Movie::_DeleteScend(PDynamicArray pglscend, long iscend)
 {
     AssertPo(pglscend, 0);
     AssertIn(iscend, 0, pglscend->IvMac());
@@ -5491,8 +5491,8 @@ void Movie::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
     AssertVarMem(prcDst);
     AssertVarMem(prcSrc);
 
-    PGL pglclrSystem = pvNil;
-    PGL pglclrBkgd = pvNil;
+    PDynamicArray pglclrSystem = pvNil;
+    PDynamicArray pglclrBkgd = pvNil;
     long iclrMin;
 
     pglclrSystem = GPT::PglclrGetPalette();

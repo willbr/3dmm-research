@@ -90,7 +90,7 @@ class LID : public LID_PAR
     PChunkyResourceManager _pcrm;   // where to look for the chunks
     ChunkTag _ctg;     // what ctg to look for
     ChildChunkID _chid;   // what chid value the MBMP should be at (if _ctg is not MBMP)
-    PGL _pglcach; // list of the chunks that we found
+    PDynamicArray _pglcach; // list of the chunks that we found
 
     LID(void);
     ~LID(void);

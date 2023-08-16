@@ -16,7 +16,7 @@
 #ifndef FNI_H
 #define FNI_H
 
-using Group::PGL;
+using Group::PDynamicArray;
 
 #ifdef MAC
 typedef FSSpec FSS;
@@ -178,7 +178,7 @@ class FNE : public FNE_PAR
     long _cftg;
     bool _fRecurse : 1;
     bool _fInited : 1;
-    PGL _pglfes;
+    PDynamicArray _pglfes;
     FES _fesCur;
 
     void _Free(void);

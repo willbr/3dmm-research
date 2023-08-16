@@ -30,9 +30,9 @@ enum
     ttMeta,              // metafile import command
     ttBitmap,            // bitmap import command
     ttFree,              // for AL, AG, AllocatedStringTable - item is free
-    ttItem,              // for GL, etc - start of data for new item
+    ttItem,              // for DynamicArray, etc - start of data for new item
     ttVar,               // for GG and AG - variable sized data
-    ttGl,                // GL command
+    ttGl,                // DynamicArray command
     ttAl,                // AL command
     ttGg,                // GG command
     ttAg,                // AG command
@@ -191,10 +191,10 @@ class Compiler : public Compiler_PAR
         bool fPack;
     };
 
-    PGL _pglcsfc; // the stack of CSFCs for sub files
+    PDynamicArray _pglcsfc; // the stack of CSFCs for sub files
 
     PChunkyFile _pcfl;       // current sub file
-    PGL _pglckiLoner; // the chunks that must be loners
+    PDynamicArray _pglckiLoner; // the chunks that must be loners
 
     FileByteStream _bsf;     // temporary buffer for the chunk data
     PCompilerLexer _pchlx; // lexer for compiling

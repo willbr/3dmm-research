@@ -103,7 +103,7 @@ PGraphicsObject GraphicsObjectInterpreter::_PgobFromHid(long hid)
     Return the address of the variable table for the GraphicsObject associated with
     this script interpreter.
 ***************************************************************************/
-PGL *GraphicsObjectInterpreter::_PpglrtvmThis(void)
+PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmThis(void)
 {
     PGraphicsObject pgob = _PgobThis();
 
@@ -116,7 +116,7 @@ PGL *GraphicsObjectInterpreter::_PpglrtvmThis(void)
     Return the address of the variable table for the WorldOfKidspace associated with
     this script interpreter.
 ***************************************************************************/
-PGL *GraphicsObjectInterpreter::_PpglrtvmGlobal(void)
+PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmGlobal(void)
 {
     AssertThis(0);
 
@@ -126,7 +126,7 @@ PGL *GraphicsObjectInterpreter::_PpglrtvmGlobal(void)
 /***************************************************************************
     Return the address of the variable table for the GraphicsObject with given hid.
 ***************************************************************************/
-PGL *GraphicsObjectInterpreter::_PpglrtvmRemote(long lw)
+PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmRemote(long lw)
 {
     PGraphicsObject pgob = _PgobFromHid(lw);
 
@@ -683,7 +683,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         if (!_fError)
         {
             AbstractColor acr;
-            PGL pglclr = _PglclrGet((ChunkNumber)lw4);
+            PDynamicArray pglclr = _PglclrGet((ChunkNumber)lw4);
             acr.SetFromLw(lw3);
             vpappb->SetGft(lw1, lw2, LuMulDiv(dtim, kdtsSecond, kdtimSecond), pglclr, acr);
             ReleasePpo(&pglclr);
@@ -1182,7 +1182,7 @@ void GraphicsObjectInterpreter::_DoEditControl(long hid, long stid, bool fGet)
 ***************************************************************************/
 void GraphicsObjectInterpreter::_SetColorTable(ChunkNumber cno)
 {
-    PGL pglclr;
+    PDynamicArray pglclr;
 
     if (pvNil == (pglclr = _PglclrGet(cno)))
         return;
@@ -1194,10 +1194,10 @@ void GraphicsObjectInterpreter::_SetColorTable(ChunkNumber cno)
 /***************************************************************************
     Read the indicated color table and return a reference to it.
 ***************************************************************************/
-PGL GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
+PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
 {
     PGenericCacheableObject pcabo;
-    PGL pglclr;
+    PDynamicArray pglclr;
 
     if (cnoNil == cno)
         return pvNil;
@@ -1206,7 +1206,7 @@ PGL GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
     if (pvNil == pcabo)
         return pvNil;
 
-    pglclr = (PGL)pcabo->po;
+    pglclr = (PDynamicArray)pcabo->po;
     AssertPo(pglclr, 0);
     pglclr->AddRef();
     pcabo->SetCrep(crepTossFirst);
@@ -1222,7 +1222,7 @@ PGL GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
 bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     PGenericCacheableObject pcabo;
-    PGL pglclr = pvNil;
+    PDynamicArray pglclr = pvNil;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)
@@ -1232,7 +1232,7 @@ bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         goto LFail;
     *pcb = pblck->Cb();
 
-    if (pvNil == (pglclr = GL::PglRead(pblck)) || pglclr->CbEntry() != size(Color))
+    if (pvNil == (pglclr = DynamicArray::PglRead(pblck)) || pglclr->CbEntry() != size(Color))
         goto LFail;
 
     if (pvNil == (pcabo = NewObj GenericCacheableObject(pglclr)))

@@ -921,7 +921,7 @@ void ApplicationBase::_MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo)
 
     if (pvNil == _pglmkrgn)
     {
-        if (pvNil == (_pglmkrgn = GL::PglNew(size(MKRGN))))
+        if (pvNil == (_pglmkrgn = DynamicArray::PglNew(size(MKRGN))))
             goto LFail;
     }
     else
@@ -1187,7 +1187,7 @@ void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong g
     If pglclr is not nil, this AddRef's it and holds onto it until after
     the transition is done.
 ***************************************************************************/
-void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PGL pglclr, AbstractColor acr)
+void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PDynamicArray pglclr, AbstractColor acr)
 {
     AssertThis(0);
     AssertNilOrPo(pglclr, 0);
@@ -1351,7 +1351,7 @@ bool ApplicationBase::_FSetProp(long prid, long lw)
     if (pvNil == _pglprop)
     {
         Assert(iprop == 0, 0);
-        if (pvNil == (_pglprop = GL::PglNew(size(PROP))))
+        if (pvNil == (_pglprop = DynamicArray::PglNew(size(PROP))))
             return fFalse;
     }
 
@@ -1533,7 +1533,7 @@ bool ApplicationBase::FPushModal(PCEX pcex)
     MODCX modcx;
     PUSAC pusacNew = pvNil;
 
-    if (pvNil == _pglmodcx && pvNil == (_pglmodcx = GL::PglNew(size(MODCX))))
+    if (pvNil == _pglmodcx && pvNil == (_pglmodcx = DynamicArray::PglNew(size(MODCX))))
     {
         return fFalse;
     }

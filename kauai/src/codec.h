@@ -49,7 +49,7 @@ class CODM : public CODM_PAR
   protected:
     long _cfmtDef;
     PCODC _pcodcDef;
-    PGL _pglpcodc;
+    PDynamicArray _pglpcodc;
 
     virtual bool _FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc);
     virtual bool _FCodePhq(long cfmt, HQ *phq);

@@ -89,7 +89,7 @@ class TAGM : public TAGM_PAR
   protected:
     Filename _fniHDRoot;     // Root HD directory to search for content
     long _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
-    PGL _pglsfs;        // GL of source file structs
+    PDynamicArray _pglsfs;        // DynamicArray of source file structs
     PStringTable _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
 

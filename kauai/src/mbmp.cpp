@@ -528,7 +528,7 @@ bool MBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
             pfUpsideDown	--	fTrue if the bitmap is upside down
         returns fTrue if it succeeds
 ***************************************************************************/
-bool FReadBitmap(Filename *pfni, byte **pprgb, PGL *ppglclr, long *pdxp, long *pdyp, bool *pfUpsideDown, byte bTransparent)
+bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdxp, long *pdyp, bool *pfUpsideDown, byte bTransparent)
 {
     AssertPo(pfni, ffniFile);
     AssertNilOrVarMem(pprgb);
@@ -611,7 +611,7 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PGL *ppglclr, long *pdxp, long *p
             goto LFail;
         }
 
-        if (pvNil == (*ppglclr = GL::PglNew(size(Color), 256)))
+        if (pvNil == (*ppglclr = DynamicArray::PglNew(size(Color), 256)))
             goto LFail;
 
         AssertDo((*ppglclr)->FSetIvMac(256), 0);
@@ -769,14 +769,14 @@ LDone:
     Arguments:
         Filename *pfni         -- the name of the file to write
         byte *prgb        -- the bits in the bitmap
-        PGL pglclr        -- the palette of the bitmap
+        PDynamicArray pglclr        -- the palette of the bitmap
         long dxp          -- the width of the bitmap
         long dyp          -- the height of the bitmap
         bool fUpsideDown  -- indicates if the rows should be inverted
 
     Returns: fTrue if it could write the file
 ***************************************************************************/
-bool FWriteBitmap(Filename *pfni, byte *prgb, PGL pglclr, long dxp, long dyp, bool fUpsideDown)
+bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, long dyp, bool fUpsideDown)
 {
     AssertPo(pfni, ffniFile);
     AssertVarMem(prgb);

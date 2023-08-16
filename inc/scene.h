@@ -138,8 +138,8 @@ class Scene : public Scene_PAR
     // Global information
     //
     STN _stnName;         // Name of this scene
-    PGL _pglpactr;        // List of actors in the scene.
-    PGL _pglptbox;        // List of text boxes in the scene.
+    PDynamicArray _pglpactr;        // List of actors in the scene.
+    PDynamicArray _pglptbox;        // List of text boxes in the scene.
     PGG _pggsevStart;     // List of frame independent events.
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
@@ -292,7 +292,7 @@ class Scene : public Scene_PAR
     }
     void SelectActr(Actor *pactr);                      // Sets the selected actor
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
-    PGL PglRollCall(void)                              // Return a list of all actors in scene.
+    PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {
         return (_pglpactr);
     } // Only to be used by the movie-class
@@ -315,7 +315,7 @@ class Scene : public Scene_PAR
     bool FRemSnd(long sty);                             // Removes the sound from current frame, and undo
     bool FGetSnd(long sty, bool *pfFound, PSSE *ppsse); // Allows for retrieval of sounds.
     void PlayBkgdSnd(void);
-    bool FQuerySnd(long sty, PGL *pgltagSnd, long *pvlm, bool *pfLoop);
+    bool FQuerySnd(long sty, PDynamicArray *pgltagSnd, long *pvlm, bool *pfLoop);
     void SetSndVlmCore(long sty, long vlmNew);
     void UpdateSndFrame(void);
     bool FResolveAllSndTags(ChunkNumber cnoScen);

@@ -94,8 +94,8 @@ class APP : public APP_PAR
     PStudio _pstdio;               // Current studio
     PTATR _ptatr;                 // Current theater
     PChunkyResourceManager _pcrmAll;                // The app ChunkyResourceManager -- all crfs are loaded into this.
-    PGL _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
-    PGL _pglicrfStudio;           // List of crfs in _pcrmAll belonging to Studio.
+    PDynamicArray _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
+    PDynamicArray _pglicrfStudio;           // List of crfs in _pcrmAll belonging to Studio.
     bool _fDontMinimize : 1,      // "/M" command-line switch
         _fSlowCPU : 1,            // running on slow CPU
         _fSwitchedResolution : 1, // we successfully switched to 640x480 mode
@@ -179,7 +179,7 @@ class APP : public APP_PAR
     bool _FReadStringTables(void);
     bool _FSetWindowTitle(void);
     bool _FInitCrm(void);
-    bool _FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PGL pglFiles);
+    bool _FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles);
     bool _FInitBuilding(void);
     bool _FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
     void _GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle);

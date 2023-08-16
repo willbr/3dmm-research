@@ -58,7 +58,7 @@ class APE : public APE_PAR
     PTMPL _ptmpl;       // Template (or TDT) of the actor being previewed
     PBODY _pbody;       // Body of the actor being previewed
     APET _apet;         // Currently selected tool
-    PGL _pglgms;        // What materials are attached to what body part sets
+    PDynamicArray _pglgms;        // What materials are attached to what body part sets
     long _celn;         // Current cel of action
     CLOK _clok;         // To time cel cycling
     BLIT _blit;         // BRender light data

@@ -180,7 +180,7 @@ class LSND : public LSND_PAR
     MARKMEM
 
   protected:
-    PGL _pgltag;      // PGL in case of chained sounds
+    PDynamicArray _pgltag;      // PDynamicArray in case of chained sounds
     long _vlm;        // Initial volume
     long _vlmNew;     // User can redefine with slider
     bool _fLoop;      // Looping sound
@@ -198,7 +198,7 @@ class LSND : public LSND_PAR
     }
     ~LSND(void);
 
-    bool FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgltag, long vlm, bool fLoop, long objID,
+    bool FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicArray *ppgltag, long vlm, bool fLoop, long objID,
                bool fMatcher);
     bool FValidSnd(void);
     void SetVlmNew(long vlmNew)

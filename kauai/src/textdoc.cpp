@@ -258,7 +258,7 @@ bool TXDD::_FInit(void)
 
     if (!TXDD_PAR::_FInit())
         return fFalse;
-    if (pvNil == (_pglichStarts = GL::PglNew(size(long))))
+    if (pvNil == (_pglichStarts = DynamicArray::PglNew(size(long))))
         return fFalse;
 
     _pglichStarts->SetMinGrow(20);

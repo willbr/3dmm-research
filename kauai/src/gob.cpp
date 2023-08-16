@@ -1774,7 +1774,7 @@ void GraphicsObject::SetCursCno(PRCA prca, ChunkNumber cno)
     Return the address of the variable list belonging to this gob.  When the
     gob is freed, the pointer is no longer valid.
 ***************************************************************************/
-PGL *GraphicsObject::Ppglrtvm(void)
+PDynamicArray *GraphicsObject::Ppglrtvm(void)
 {
     AssertThis(0);
     return &_pglrtvm;

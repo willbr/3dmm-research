@@ -1156,7 +1156,7 @@ ulong _mpgfdgrfptInv[4] = {fptNegateXp, fptNil, fptNegateXp | fptTranspose, fptT
     If cbitPixel is not zero and not the depth of this device, this sets
     the palette and returns false.
 ***************************************************************************/
-bool GNV::_FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, long cbitPixel)
+bool GNV::_FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel)
 {
     AssertNilOrPo(pglclr, 0);
     AssertVarMem(ppglclrOld);
@@ -1168,7 +1168,7 @@ bool GNV::_FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, lon
 
     // get the current palette and set up the temporary transitionary palette
     if (0 != cbitPixel && _pgpt->CbitPixel() != cbitPixel || pvNil == (*ppglclrOld = GPT::PglclrGetPalette()) ||
-        0 == (cclr = LwMin((*ppglclrOld)->IvMac(), cclr)) || pvNil == (*ppglclrTrans = GL::PglNew(size(Color), cclr)))
+        0 == (cclr = LwMin((*ppglclrOld)->IvMac(), cclr)) || pvNil == (*ppglclrTrans = DynamicArray::PglNew(size(Color), cclr)))
     {
         ReleasePpo(ppglclrOld);
         if (pvNil != pglclr)
@@ -1186,7 +1186,7 @@ bool GNV::_FInitPaletteTrans(PGL pglclr, PGL *ppglclrOld, PGL *ppglclrTrans, lon
     and animate the palette to pglclrTrans.  If either source palette is nil,
     *pclrSub is used in place of the nil palette.  acrSub must be an RGB color.
 ***************************************************************************/
-void GNV::_PaletteTrans(PGL pglclrOld, PGL pglclrNew, long lwNum, long lwDen, PGL pglclrTrans, Color *pclrSub)
+void GNV::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub)
 {
     AssertNilOrPo(pglclrOld, 0);
     AssertNilOrPo(pglclrNew, 0);
@@ -1254,7 +1254,7 @@ bool GNV::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
     size.  gfd indicates which direction the wipe is.  If pglclr is not
     nil and acrFill is clear, the palette transition is gradual.
 ***************************************************************************/
-void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1269,8 +1269,8 @@ void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *pr
     long cact;
     RC rcSrc, rcDst;
     RC rc1, rc2;
-    PGL pglclrOld = pvNil;
-    PGL pglclrTrans = pvNil;
+    PDynamicArray pglclrOld = pvNil;
+    PDynamicArray pglclrTrans = pvNil;
 
     Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");
 
@@ -1342,7 +1342,7 @@ void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *pr
     Slide the source gnv onto this one.  The source and destination
     rectangles must be the same size.
 ***************************************************************************/
-void GNV::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1359,8 +1359,8 @@ void GNV::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *p
     RC rc1, rc2;
     PGNV pgnv;
     PT dpt;
-    PGL pglclrOld = pvNil;
-    PGL pglclrTrans = pvNil;
+    PDynamicArray pglclrOld = pvNil;
+    PDynamicArray pglclrTrans = pvNil;
 
     Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");
 
@@ -1504,7 +1504,7 @@ inline long _LwNextDissolve(long lw)
     just dissolve into the solid color.  Each portion is done in dts time.
 ***************************************************************************/
 void GNV::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
-                   PGL pglclr)
+                   PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1527,8 +1527,8 @@ void GNV::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pg
     byte *prgbDst = pvNil;
     byte *prgbSrc = pvNil;
     PGNV pgnv = pvNil;
-    PGL pglclrOld = pvNil;
-    PGL pglclrTrans = pvNil;
+    PDynamicArray pglclrOld = pvNil;
+    PDynamicArray pglclrTrans = pvNil;
 
     if (prcDst->FEmpty())
         return;
@@ -1783,7 +1783,7 @@ void GNV::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pg
     the maximum number of palette interpolations to do.  It doesn't make
     sense for this to be bigger than 256.  If it's zero, we'll use 256.
 ***************************************************************************/
-void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertIn(cactMax, 0, 257);
@@ -1796,8 +1796,8 @@ void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC
     ulong tsStart;
     long cact, cactOld;
     Color clr;
-    PGL pglclrOld = pvNil;
-    PGL pglclrTrans = pvNil;
+    PDynamicArray pglclrOld = pvNil;
+    PDynamicArray pglclrTrans = pvNil;
 
     cactMax = (cactMax <= 0) ? 256 : LwMin(cactMax, 256);
 
@@ -1849,7 +1849,7 @@ void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC
     intermediate color of acrFill (if not clear).  xp, yp are the focus
     point of the iris (in destination coordinates).
 ***************************************************************************/
-void GNV::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PGL pglclr)
+void GNV::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1864,8 +1864,8 @@ void GNV::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, 
     long cact;
     bool fOpen;
     PREGN pregn, pregnClip;
-    PGL pglclrOld = pvNil;
-    PGL pglclrTrans = pvNil;
+    PDynamicArray pglclrOld = pvNil;
+    PDynamicArray pglclrTrans = pvNil;
 
     GPT::Flush();
 
@@ -2415,7 +2415,7 @@ POGN OGN::PognNew(long cptInit)
 /***************************************************************************
     Constructor for OGN.
 ***************************************************************************/
-OGN::OGN(void) : GL(size(PT))
+OGN::OGN(void) : DynamicArray(size(PT))
 {
     AssertThis(0);
 }

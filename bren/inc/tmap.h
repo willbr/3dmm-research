@@ -91,7 +91,7 @@ class TextureMap : public TextureMap_PAR
     }
 
     //	Reads a .bmp file.
-    static PTextureMap PtmapReadNative(Filename *pfni, PGL pglclr = pvNil);
+    static PTextureMap PtmapReadNative(Filename *pfni, PDynamicArray pglclr = pvNil);
 
     // Writes a standalone TextureMap-chunk file (not a .chk)
     bool FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr = pvNil);

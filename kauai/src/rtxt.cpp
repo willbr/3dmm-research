@@ -1090,7 +1090,7 @@ bool RichTextDocument::_FInit(PFilename pfni, ChunkTag ctg)
 
     if (!RichTextDocument_PAR::_FInit())
         return fFalse;
-    if (pvNil == (_pglmpe = GL::PglNew(size(MPE))))
+    if (pvNil == (_pglmpe = DynamicArray::PglNew(size(MPE))))
         return fFalse;
     _pglmpe->SetMinGrow(10);
     _onnDef = vpappb->OnnDefVariable();
@@ -1188,7 +1188,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber c
 
     // get the text properties
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTxtProps, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) ||
-        pvNil == (_pglmpe = GL::PglRead(&blck, &bo)) || size(MPE) != _pglmpe->CbEntry())
+        pvNil == (_pglmpe = DynamicArray::PglRead(&blck, &bo)) || size(MPE) != _pglmpe->CbEntry())
     {
         return fFalse;
     }

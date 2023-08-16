@@ -431,9 +431,9 @@ bool APP::FLoadResFile(PFilename pfni)
 
     if (pcfl->FGetCkiCtg(kctgColorTable, 0, pvNil, pvNil, &blck))
     {
-        PGL pglclr;
+        PDynamicArray pglclr;
 
-        if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
+        if (pvNil != (pglclr = DynamicArray::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
         {
             GPT::SetActiveColors(pglclr, fpalIdentity);
         }
@@ -588,7 +588,7 @@ bool LID::_FInit(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid)
     AssertPo(pcrm, 0);
     GraphicsObjectBlock gcb;
 
-    if (pvNil == (_pglcach = GL::PglNew(size(CACH))))
+    if (pvNil == (_pglcach = DynamicArray::PglNew(size(CACH))))
         return fFalse;
     _pglcach->SetMinGrow(100);
 

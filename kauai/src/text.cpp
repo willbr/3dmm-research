@@ -1327,7 +1327,7 @@ bool EDML::_FInit(void)
 {
     long ich;
 
-    if (pvNil == (_pglich = GL::PglNew(size(long))))
+    if (pvNil == (_pglich = DynamicArray::PglNew(size(long))))
         return fFalse;
     _pglich->SetMinGrow(20);
     ich = 0;

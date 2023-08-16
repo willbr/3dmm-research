@@ -34,7 +34,7 @@ typedef struct _bmdb
     ChildChunkID chidBmdl;  // BMDL child ID
     ChunkNumber cnoBmdl;    // BMDL ChunkNumber
     char *pszName;  // name of the BMDL
-    PGL pglkidCmtl; // GL of CMTL parents' CNOs
+    PDynamicArray pglkidCmtl; // DynamicArray of CMTL parents' CNOs
     unsigned fFixWrap : 1, fSpherical : 1;
 } BMDB, *PBMDB;
 
@@ -179,8 +179,8 @@ class S2BLX : public S2BLX_PAR
 #define CnoNext() CnoAdd(1)
 
 /* Some useful helper functions */
-PGL PglcrngFromPal(PGL pglclr);
-long LwcrngNearestBrclr(BRCLR brclr, PGL pglclr, PGL pglcrng);
+PDynamicArray PglcrngFromPal(PDynamicArray pglclr);
+long LwcrngNearestBrclr(BRCLR brclr, PDynamicArray pglclr, PDynamicArray pglcrng);
 
 #if HASH_FIXED
 
@@ -292,20 +292,20 @@ class S2B : public S2B_PAR
     ChildChunkID _chidBmdl;
     ChildChunkID _chidCmtl;
     short _ibpCur; // current body part #
-    PGL _pglibactPar;
-    PGL _pglbs;
-    PGL _pglcmtld;
+    PDynamicArray _pglibactPar;
+    PDynamicArray _pglbs;
+    PDynamicArray _pglcmtld;
     PGG _pggcl;
-    PGL _pglxf;
-    PGL _pglibps; // list of body part sets to generate costumes for
+    PDynamicArray _pglxf;
+    PDynamicArray _pglibps; // list of body part sets to generate costumes for
     PGG _pggcm;
     PGG _pggtmapd; // list of TextureMap chunks used by the current actor
 #if HASH_FIXED
     PBMDB *_prgpbmdb; // BMDL database
 //	PBMATDB *_prgpbmatdb;	// BMAT34 database
 #else             /* HASH_FIXED */
-    PGL _pglpbmdb;   // BMDL database
-    PGL _pglpbmatdb; // XF database
+    PDynamicArray _pglpbmdb;   // BMDL database
+    PDynamicArray _pglpbmatdb; // XF database
 #endif            /* !HASH_FIXED */
     PBMHR _pbmhr; // BMDL hierarchy for current cel
     int _cMesh;   // count of mesh nodes for current cel
@@ -321,8 +321,8 @@ class S2B : public S2B_PAR
     uint _mdBPS : 2;
 
     /* Useful data that doesn't wind up in chunks */
-    PGL _pglcrng;
-    PGL _pglclr;
+    PDynamicArray _pglcrng;
+    PDynamicArray _pglclr;
 
   protected:
     /* General script interpreter and chunk output stuff */
@@ -350,8 +350,8 @@ class S2B : public S2B_PAR
     bool _FSetCps(PBMHR pbmhr, CPS *pcps);
     bool _FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb = pvNil);
     bool _FAddBmdlParent(PBMDB pbmdb, ChildChunkIdentification *pkid);
-    bool _FInsertPhshdb(PHSHDB phshdb, PGL pglphshdb);
-    bool _FIphshdbFromLuHash(uint luHash, long *piphshdb, PGL pglphshdb);
+    bool _FInsertPhshdb(PHSHDB phshdb, PDynamicArray pglphshdb);
+    bool _FIphshdbFromLuHash(uint luHash, long *piphshdb, PDynamicArray pglphshdb);
     PBMDB _PbmdbFindModlf(MODLF *pmodlf, long cbModlf, uint *pluHashList);
     void _InitCrcTable(void);
     uint _LuHashBytesNoTable(uint luHash, void *pv, long cb);
@@ -370,7 +370,7 @@ class S2B : public S2B_PAR
     bool _FBvec3Read(PS2BLX ps2blx, BVEC3 *pbvec3, PS2BTK ps2btk);
     void _Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34);
     void _ReadLite(PSTN pstnLite, LightPosition *plite);
-    void _ReadCam(PSTN pstnCam, CameraPosition *pcam, PGL *ppglapos);
+    void _ReadCam(PSTN pstnCam, CameraPosition *pcam, PDynamicArray *ppglapos);
     bool _FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CameraPosition *pcam);
 
     /* Brender-knowledgable utilities */

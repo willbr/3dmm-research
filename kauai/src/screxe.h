@@ -32,8 +32,8 @@ struct RunTimeVariableMap
     long lwValue;
 };
 
-bool FFindRtvm(PGL pglrtvm, RuntimeVariableName *prtvn, long *plwValue, long *pirtvm);
-bool FAssignRtvm(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw);
+bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, long *plwValue, long *pirtvm);
+bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw);
 
 /***************************************************************************
     A script.  This is here rather than in scrcom.* because scrcom is
@@ -49,7 +49,7 @@ class Script : public Script_PAR
     ASSERT
 
   protected:
-    PGL _pgllw;
+    PDynamicArray _pgllw;
     PStringTable _pgstLiterals;
 
     Script(void)
@@ -119,8 +119,8 @@ class Interpreter : public Interpreter_PAR
   protected:
     PRCA _prca; // the chunky resource file list (may be nil)
     PStringRegistry _pstrg;
-    PGL _pgllwStack;   // the execution stack
-    PGL _pglrtvm;      // the local variables
+    PDynamicArray _pgllwStack;   // the execution stack
+    PDynamicArray _pglrtvm;      // the local variables
     PScript _pscpt;      // the script
     long _ilwMac;      // the length of the script
     long _ilwCur;      // the current location in the script
@@ -155,14 +155,14 @@ class Interpreter : public Interpreter_PAR
     virtual void _AddStrings(PStringTable pgst);
     virtual bool _FExecVarOp(long op, RuntimeVariableName *prtvn);
     virtual bool _FExecOp(long op);
-    virtual void _PushVar(PGL pglrtvm, RuntimeVariableName *prtvn);
-    virtual void _AssignVar(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw);
-    virtual PGL _PglrtvmThis(void);
-    virtual PGL *_PpglrtvmThis(void);
-    virtual PGL _PglrtvmGlobal(void);
-    virtual PGL *_PpglrtvmGlobal(void);
-    virtual PGL _PglrtvmRemote(long lw);
-    virtual PGL *_PpglrtvmRemote(long lw);
+    virtual void _PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn);
+    virtual void _AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw);
+    virtual PDynamicArray _PglrtvmThis(void);
+    virtual PDynamicArray *_PpglrtvmThis(void);
+    virtual PDynamicArray _PglrtvmGlobal(void);
+    virtual PDynamicArray *_PpglrtvmGlobal(void);
+    virtual PDynamicArray _PglrtvmRemote(long lw);
+    virtual PDynamicArray *_PpglrtvmRemote(long lw);
 
     virtual short _SwCur(void);
     virtual short _SwMin(void);

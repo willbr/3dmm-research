@@ -252,11 +252,11 @@ bool Actor::_FCreateGroups(void)
     if (pvNil == (_pggaev = GG::PggNew(size(Base), kcaevInit, kcbVarAdd)))
         return fFalse;
 
-    if (pvNil == (_pglrpt = GL::PglNew(size(RouteDistancePoint), kcrptGrow)))
+    if (pvNil == (_pglrpt = DynamicArray::PglNew(size(RouteDistancePoint), kcrptGrow)))
         return fFalse;
     _pglrpt->SetMinGrow(kcrptGrow);
 
-    if (pvNil == (_pglsmm = GL::PglNew(size(SMM), kcsmmGrow)))
+    if (pvNil == (_pglsmm = DynamicArray::PglNew(size(SMM), kcsmmGrow)))
         return fFalse;
     _pglsmm->SetMinGrow(kcsmmGrow);
 

@@ -960,7 +960,7 @@ bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdent
         pbrcnl->ckiRoot = ckiRoot;
         if (fBuildGl)
         {
-            // Rebuilding the GL ->
+            // Rebuilding the DynamicArray ->
             // Remove old context
             // Save new context later
 
@@ -1055,7 +1055,7 @@ bool BRWL::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bo
         //
         // Create the gl's
         //
-        if (pvNil == (_pglthd = GL::PglNew(size(THD), kglthdGrow)))
+        if (pvNil == (_pglthd = DynamicArray::PglNew(size(THD), kglthdGrow)))
             return fFalse;
         _pglthd->SetMinGrow(kglthdGrow);
     }
@@ -1103,7 +1103,7 @@ bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
 
     /* We passed the pglthd and pgst in, so no need to get them back before
         releasing the BCLS */
-    Assert(_pglthd->CactRef() > 1, "GL of THDs will be lost!");
+    Assert(_pglthd->CactRef() > 1, "DynamicArray of THDs will be lost!");
 
     fRet = fTrue;
 LFail:
@@ -1408,7 +1408,7 @@ void BRWL::_ReleaseThumFrame(long ifrm)
  * BCL class routines
  *
  ****************************************************/
-PBCL BCL::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, bool fOnlineOnly)
+PBCL BCL::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd, bool fOnlineOnly)
 {
     PBCL pbcl;
 
@@ -1422,7 +1422,7 @@ PBCL BCL::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, Ch
     return pbcl;
 }
 
-bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PGL pglthd)
+bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PDynamicArray pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
@@ -1443,7 +1443,7 @@ LFail:
     return fFalse;
 }
 
-bool BCL::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd)
+bool BCL::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd)
 {
     AssertNilOrPo(pcrm, 0);
     Assert(pckiRoot->ctg != ctgNil, "Bad ChunkIdentification");
@@ -1451,7 +1451,7 @@ bool BCL::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, Chu
 
     if (pglthd == pvNil)
     {
-        if ((pglthd = GL::PglNew(size(THD))) == pvNil)
+        if ((pglthd = DynamicArray::PglNew(size(THD))) == pvNil)
             goto LFail;
     }
     else
@@ -1472,7 +1472,7 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PGL pglthd, PStringTable pgst, bool fOnlineOnly)
+PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd, PStringTable pgst, bool fOnlineOnly)
 {
     PBCLS pbcls;
 
@@ -1888,7 +1888,7 @@ bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
 
     /* We passed the pglthd and pgst in, so no need to get them back before
         releasing the BCLS */
-    Assert(_pglthd->CactRef() > 1, "GL of THDs will be lost!");
+    Assert(_pglthd->CactRef() > 1, "DynamicArray of THDs will be lost!");
     Assert(_pgst->CactRef() > 1, "StringTable will be lost!");
 
     fRet = fTrue;
@@ -2756,7 +2756,7 @@ bool BRWI::FInit(PCMD pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
     //
     // Create the gl's
     //
-    if (pvNil == (_pglthd = GL::PglNew(size(THD), kglthdGrow)))
+    if (pvNil == (_pglthd = DynamicArray::PglNew(size(THD), kglthdGrow)))
         return fFalse;
     _pglthd->SetMinGrow(kglthdGrow);
 

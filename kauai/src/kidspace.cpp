@@ -1061,7 +1061,7 @@ bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidS
         return fTrue;
     }
 
-    if (pvNil == _pglcmflt && pvNil == (_pglcmflt = GL::PglNew(size(CMFLT))))
+    if (pvNil == _pglcmflt && pvNil == (_pglcmflt = DynamicArray::PglNew(size(CMFLT))))
         return fFalse;
 
     cmflt.cid = cid;

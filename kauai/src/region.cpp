@@ -31,7 +31,7 @@ class REGBL : public REGBL_PAR
     long _ypCur;
     RC _rcRef;
     RC _rc;
-    PGL _pglxp;
+    PDynamicArray _pglxp;
     bool _fResize;
 
     long _idypPrev;
@@ -48,7 +48,7 @@ class REGBL : public REGBL_PAR
         ReleasePpo(&_pglxp);
     }
 
-    bool FInit(RC *prcRef, PGL pglxp = pvNil);
+    bool FInit(RC *prcRef, PDynamicArray pglxp = pvNil);
     bool FStartRow(long dyp, long cxpMax);
     void EndRow(void);
     void AddXp(long xp)
@@ -70,13 +70,13 @@ class REGBL : public REGBL_PAR
         AssertThis(0);
         return _ypCur >= _rcRef.ypBottom && _idypCur == ivNil;
     }
-    PGL PglxpFree(RC *prc, long *pdxp);
+    PDynamicArray PglxpFree(RC *prc, long *pdxp);
 };
 
 /***************************************************************************
     Initialize a region builder.
 ***************************************************************************/
-bool REGBL::FInit(RC *prcRef, PGL pglxp)
+bool REGBL::FInit(RC *prcRef, PDynamicArray pglxp)
 {
     AssertVarMem(prcRef);
     AssertNilOrPo(pglxp, 0);
@@ -91,7 +91,7 @@ bool REGBL::FInit(RC *prcRef, PGL pglxp)
     }
     else
     {
-        if (pvNil == (_pglxp = GL::PglNew(size(long))))
+        if (pvNil == (_pglxp = DynamicArray::PglNew(size(long))))
             return fFalse;
         _pglxp->SetMinGrow(kcdxpBlock);
         _fResize = fTrue;
@@ -180,12 +180,12 @@ void REGBL::EndRow(void)
 /***************************************************************************
     Clean up and return all the relevant information.
 ***************************************************************************/
-PGL REGBL::PglxpFree(RC *prc, long *pdxp)
+PDynamicArray REGBL::PglxpFree(RC *prc, long *pdxp)
 {
     AssertThis(0);
     AssertVarMem(prc);
     AssertVarMem(pdxp);
-    PGL pglxp;
+    PDynamicArray pglxp;
 
     // see if the last row is empty
     if (_ypCur > _rc.ypBottom)
@@ -276,7 +276,7 @@ void REGSC::InitRc(RC *prc, RC *prcRel)
     Initializes a region scanner.  The scanner implicitly intersects the
     region with *prcRel and returns xp values relative to prcRel->xpLeft.
 ***************************************************************************/
-void REGSC::_InitCore(PGL pglxp, RC *prc, RC *prcRel)
+void REGSC::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
 {
     Free();
 

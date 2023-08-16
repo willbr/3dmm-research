@@ -84,7 +84,7 @@ class ChunkyFile : public ChunkyFile_PAR
     {
         PFIL pfil;  // the file
         FP fpMac;   // logical end of file (for writing new chunks)
-        PGL pglfsm; // free space map
+        PDynamicArray pglfsm; // free space map
     };
 
     PGG _pggcrp;     // the index
@@ -109,7 +109,7 @@ class ChunkyFile : public ChunkyFile_PAR
         long rti;
     };
 
-    PGL _pglrtie;
+    PDynamicArray _pglrtie;
 
     bool _FFindRtie(ChunkTag ctg, ChunkNumber cno, RTIE *prtie = pvNil, long *pirtie = pvNil);
 #endif //! CHUNK_BIG_INDEX
@@ -313,7 +313,7 @@ class CGE : public CGE_PAR
 
     long _es;    // current state
     PChunkyFile _pcfl;  // the chunky file
-    PGL _pgldps; // our stack of DPSs
+    PDynamicArray _pgldps; // our stack of DPSs
     DPS _dps;    // the current DPS
 
   public:

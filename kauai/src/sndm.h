@@ -84,7 +84,7 @@ class SNDM : public SNDM_PAR
         PSNDV psndv;
     };
 
-    PGL _pglsndmpe; // sound type to device mapper
+    PDynamicArray _pglsndmpe; // sound type to device mapper
 
     long _cactSuspend;  // nesting level for suspending
     bool _fActive : 1;  // whether the app is active
@@ -152,7 +152,7 @@ class SNDMQ : public SNDMQ_PAR
         long sqn;
     };
 
-    PGL _pglsnqd; // the queues
+    PDynamicArray _pglsnqd; // the queues
 
     long _cactSuspend;
     bool _fActive : 1;
@@ -218,7 +218,7 @@ class SNQUE : public SNQUE_PAR
     MARKMEM
 
   protected:
-    PGL _pglsndin;   // the queue
+    PDynamicArray _pglsndin;   // the queue
     long _isndinCur; // SNDIN that we should be playing
 
     SNQUE(void);

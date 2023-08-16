@@ -2306,7 +2306,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         switch (ctg)
         {
         case kctgGl:
-            cls = kclsGL;
+            cls = kclsDynamicArray;
             goto LDocg;
         case kctgAl:
             cls = kclsAL;
@@ -2328,7 +2328,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         break;
 
     case cidEditGL:
-        cls = kclsGL;
+        cls = kclsDynamicArray;
         goto LDocg;
     case cidEditAL:
         cls = kclsAL;
@@ -2745,14 +2745,14 @@ bool DCD::FCmdSetColorTable(PCMD pcmd)
     AssertVarMem(pcmd);
     ChunkIdentification cki;
     DataBlock blck;
-    PGL pglclr;
+    PDynamicArray pglclr;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
     if (!_pcfl->FFind(cki.ctg, cki.cno, &blck))
         return fFalse;
 
-    if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
+    if (pvNil != (pglclr = DynamicArray::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
         GPT::SetActiveColors(pglclr, fpalIdentity);
 
     ReleasePpo(&pglclr);
@@ -2982,7 +2982,7 @@ SEL::SEL(SEL &selT)
 }
 
 /***************************************************************************
-    Destructor for a selection. Release the GL of ctg's to filter on.
+    Destructor for a selection. Release the DynamicArray of ctg's to filter on.
 ***************************************************************************/
 SEL::~SEL(void)
 {
@@ -2995,7 +2995,7 @@ SEL::~SEL(void)
 ***************************************************************************/
 SEL &SEL::operator=(SEL &selT)
 {
-    PGL pglctgOld = _pglctg;
+    PDynamicArray pglctgOld = _pglctg;
 
     SEL_PAR::operator=(selT);
     CopyPb(PvAddBv(&selT, size(SEL_PAR)), PvAddBv(this, size(SEL_PAR)), size(SEL) - size(SEL_PAR));
@@ -3341,7 +3341,7 @@ bool SEL::FAddCtgFilter(ChunkTag ctg)
 {
     AssertThis(0);
 
-    if (pvNil == _pglctg && pvNil == (_pglctg = GL::PglNew(size(ChunkTag), 1)))
+    if (pvNil == _pglctg && pvNil == (_pglctg = DynamicArray::PglNew(size(ChunkTag), 1)))
         return fFalse;
     if (!_pglctg->FAdd(&ctg))
         return fFalse;

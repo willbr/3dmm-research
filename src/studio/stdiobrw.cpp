@@ -96,7 +96,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
     // Optionally Save/Retrieve Browser Context
     if (_pglpbrcn == pvNil)
     {
-        if (pvNil == (_pglpbrcn = GL::PglNew(size(PBRCN), kglpbrcnGrow)))
+        if (pvNil == (_pglpbrcn = DynamicArray::PglNew(size(PBRCN), kglpbrcnGrow)))
             goto LFail;
     }
 
@@ -284,7 +284,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         // Create the cno map from tmpl-->gokd
         if (_pglcmg == pvNil)
         {
-            if (pvNil == (_pglcmg = GL::PglNew(size(CMG), kglcmgGrow)))
+            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(CMG), kglcmgGrow)))
                 goto LFail;
             _pglcmg->SetMinGrow(kglcmgGrow);
         }
@@ -303,7 +303,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         // Create the cno map from tmpl-->gokd
         if (_pglcmg == pvNil)
         {
-            if (pvNil == (_pglcmg = GL::PglNew(size(CMG), kglcmgGrow)))
+            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(CMG), kglcmgGrow)))
                 goto LFail;
             _pglcmg->SetMinGrow(kglcmgGrow);
         }

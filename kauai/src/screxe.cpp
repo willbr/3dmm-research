@@ -147,12 +147,12 @@ bool Interpreter::FAttachScript(PScript pscpt, long *prglw, long clw)
     _lwReturn = 0;
     _fError = fFalse;
 
-    // create the stack GL
-    if (pvNil == (_pgllwStack = GL::PglNew(size(long), 10)))
+    // create the stack DynamicArray
+    if (pvNil == (_pgllwStack = DynamicArray::PglNew(size(long), 10)))
         goto LFail;
     _pgllwStack->SetMinGrow(10);
 
-    // stake our claim on the code GL.
+    // stake our claim on the code DynamicArray.
     _pscpt = pscpt;
     _pscpt->AddRef();
 
@@ -1155,7 +1155,7 @@ void Interpreter::_StrToNum(long stid, long lwEmpty, long lwError)
 /***************************************************************************
     Push the value of a variable onto the runtime stack.
 ***************************************************************************/
-void Interpreter::_PushVar(PGL pglrtvm, RuntimeVariableName *prtvn)
+void Interpreter::_PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1180,7 +1180,7 @@ void Interpreter::_PushVar(PGL pglrtvm, RuntimeVariableName *prtvn)
 /***************************************************************************
     Pop the top value off the runtime stack into a variable.
 ***************************************************************************/
-void Interpreter::_AssignVar(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw)
+void Interpreter::_AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
@@ -1202,9 +1202,9 @@ void Interpreter::_AssignVar(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 /***************************************************************************
     Get the variable map for "this" object.
 ***************************************************************************/
-PGL Interpreter::_PglrtvmThis(void)
+PDynamicArray Interpreter::_PglrtvmThis(void)
 {
-    PGL *ppgl = _PpglrtvmThis();
+    PDynamicArray *ppgl = _PpglrtvmThis();
     if (pvNil == ppgl)
         return pvNil;
     return *ppgl;
@@ -1214,7 +1214,7 @@ PGL Interpreter::_PglrtvmThis(void)
     Get the adress of the variable map master pointer for "this" object
     (so we can create the variable map if need be).
 ***************************************************************************/
-PGL *Interpreter::_PpglrtvmThis(void)
+PDynamicArray *Interpreter::_PpglrtvmThis(void)
 {
     return pvNil;
 }
@@ -1222,9 +1222,9 @@ PGL *Interpreter::_PpglrtvmThis(void)
 /***************************************************************************
     Get the variable map for "global" variables.
 ***************************************************************************/
-PGL Interpreter::_PglrtvmGlobal(void)
+PDynamicArray Interpreter::_PglrtvmGlobal(void)
 {
-    PGL *ppgl = _PpglrtvmGlobal();
+    PDynamicArray *ppgl = _PpglrtvmGlobal();
     if (pvNil == ppgl)
         return pvNil;
     return *ppgl;
@@ -1234,7 +1234,7 @@ PGL Interpreter::_PglrtvmGlobal(void)
     Get the adress of the variable map master pointer for "global" variables
     (so we can create the variable map if need be).
 ***************************************************************************/
-PGL *Interpreter::_PpglrtvmGlobal(void)
+PDynamicArray *Interpreter::_PpglrtvmGlobal(void)
 {
     return pvNil;
 }
@@ -1242,9 +1242,9 @@ PGL *Interpreter::_PpglrtvmGlobal(void)
 /***************************************************************************
     Get the variable map for a remote object.
 ***************************************************************************/
-PGL Interpreter::_PglrtvmRemote(long lw)
+PDynamicArray Interpreter::_PglrtvmRemote(long lw)
 {
-    PGL *ppgl = _PpglrtvmRemote(lw);
+    PDynamicArray *ppgl = _PpglrtvmRemote(lw);
     if (pvNil == ppgl)
         return pvNil;
     return *ppgl;
@@ -1254,17 +1254,17 @@ PGL Interpreter::_PglrtvmRemote(long lw)
     Get the adress of the variable map master pointer for a remote object
     (so we can create the variable map if need be).
 ***************************************************************************/
-PGL *Interpreter::_PpglrtvmRemote(long lw)
+PDynamicArray *Interpreter::_PpglrtvmRemote(long lw)
 {
     return pvNil;
 }
 
 /***************************************************************************
     Find a RunTimeVariableMap in the pglrtvm.  Assumes the pglrtvm is sorted by rtvn.
-    If the RuntimeVariableName is not in the GL, sets *pirtvm to where it would be if
+    If the RuntimeVariableName is not in the DynamicArray, sets *pirtvm to where it would be if
     it were.
 ***************************************************************************/
-bool FFindRtvm(PGL pglrtvm, RuntimeVariableName *prtvn, long *plw, long *pirtvm)
+bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, long *plw, long *pirtvm)
 {
     AssertPo(pglrtvm, 0);
     AssertVarMem(prtvn);
@@ -1305,7 +1305,7 @@ bool FFindRtvm(PGL pglrtvm, RuntimeVariableName *prtvn, long *plw, long *pirtvm)
 /***************************************************************************
     Put the given value into a runtime variable.
 ***************************************************************************/
-bool FAssignRtvm(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw)
+bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 {
     AssertVarMem(ppglrtvm);
     AssertNilOrPo(*ppglrtvm, 0);
@@ -1317,7 +1317,7 @@ bool FAssignRtvm(PGL *ppglrtvm, RuntimeVariableName *prtvn, long lw)
     rtvm.rtvn = *prtvn;
     if (pvNil == *ppglrtvm)
     {
-        if (pvNil == (*ppglrtvm = GL::PglNew(size(RunTimeVariableMap))))
+        if (pvNil == (*ppglrtvm = DynamicArray::PglNew(size(RunTimeVariableMap))))
             return fFalse;
         (*ppglrtvm)->SetMinGrow(10);
         irtvm = 0;
@@ -1358,13 +1358,13 @@ PScript Script::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     ChildChunkIdentification kid;
     DataBlock blck;
     PScript pscpt = pvNil;
-    PGL pgllw = pvNil;
+    PDynamicArray pgllw = pvNil;
     PStringTable pgst = pvNil;
 
     if (!pcfl->FFind(ctg, cno, &blck))
         goto LFail;
 
-    if (pvNil == (pgllw = GL::PglRead(&blck, &bo)) || pgllw->CbEntry() != size(long))
+    if (pvNil == (pgllw = DynamicArray::PglRead(&blck, &bo)) || pgllw->CbEntry() != size(long))
     {
         goto LFail;
     }

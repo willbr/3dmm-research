@@ -119,13 +119,13 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     PSZ psz;
     long cch;
     long lw;
-    PGL pglkid;
+    PDynamicArray pglkid;
     ChildChunkIdentification kid;
     bool fFoundSpace = fFalse;  // 0x20
     bool fFoundSpace2 = fFalse; // 0xa0
     long cmodl = 0;
 
-    pglkid = GL::PglNew(size(ChildChunkIdentification));
+    pglkid = DynamicArray::PglNew(size(ChildChunkIdentification));
     if (pglkid == pvNil)
         goto LFail;
     pcrf = ChunkyResourceFile::PcrfNew(pcflDst, 0);
