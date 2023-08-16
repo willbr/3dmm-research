@@ -143,7 +143,7 @@ class DOCG : public DOCG_PAR
     MARKMEM
 
   protected:
-    PGRPB _pgrpb;
+    PGroupBase _pgrpb;
     long _cls; // which class the group belongs to
     short _bo;
     short _osk;
@@ -160,14 +160,14 @@ class DOCG : public DOCG_PAR
 
     PDOCI PdociFromItem(long iv, long dln);
     void CloseDeletedDoci(long iv, long cvDel);
-    PGRPB Pgrpb(void)
+    PGroupBase Pgrpb(void)
     {
         return _pgrpb;
     }
 };
 
 /***************************************************************************
-    Item hex editor document - for editing an item in a GRPB. An instance
+    Item hex editor document - for editing an item in a GroupBase. An instance
     of this class is normally a child doc of a DOCG (but doesn't have to be).
 ***************************************************************************/
 #define DOCI_PAR DocumentBase
@@ -179,14 +179,14 @@ class DOCI : public DOCI_PAR
     MARKMEM
 
   protected:
-    PGRPB _pgrpb; // the group the data came from and gets written to.
+    PGroupBase _pgrpb; // the group the data came from and gets written to.
     long _cls;
     long _iv; // which item is being edited
     long _dln;
     bool _fFixed; // indicates if the data is fixed length
     FileByteStream _bsf;     // the byte stream we're editing
 
-    DOCI(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln);
+    DOCI(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long iv, long dln);
     bool _FInit(void);
 
     virtual bool _FSaveToItem(long iv, bool fRedirect);
@@ -194,7 +194,7 @@ class DOCI : public DOCI_PAR
     virtual HQ _HqRead();
 
   public:
-    static PDOCI PdociNew(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln);
+    static PDOCI PdociNew(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long iv, long dln);
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
     long Iv(void)
@@ -532,7 +532,7 @@ class DCH : public DCH_PAR
 };
 
 /***************************************************************************
-    Virtual class that supports displaying a group chunk - displays a GRPB.
+    Virtual class that supports displaying a group chunk - displays a GroupBase.
     Usually displays a DOCG, but doesn't have to.
 ***************************************************************************/
 #define DCGB_PAR DCLB
@@ -549,11 +549,11 @@ class DCGB : public DCGB_PAR
     long _clnItem;    // number of lines for each item
     long _ivCur;      // which item is selected
     long _dlnCur;     // which line in the item is selected
-    PGRPB _pgrpb;     // the group we're displaying
+    PGroupBase _pgrpb;     // the group we're displaying
     long _cls;        // the class of the group
     bool _fAllocated; // whether the class is allocated or general
 
-    DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb);
+    DCGB(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long clnItem, PGCB pgcb);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
@@ -577,7 +577,7 @@ class DCGB : public DCGB_PAR
     void _DeleteIv(long iv);
 
   public:
-    static void InvalAllDcgb(PDocumentBase pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel);
+    static void InvalAllDcgb(PDocumentBase pdocb, PGroupBase pgrpb, long iv, long cvIns, long cvDel);
     virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 

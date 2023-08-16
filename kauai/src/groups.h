@@ -15,7 +15,7 @@
         General Group (GeneralGroup), Allocated Group (AllocatedGroup),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
+        BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
                         +-> VirtualGroup -+-> GeneralGroup
@@ -37,12 +37,12 @@ enum
 };
 
 /****************************************
-    GRPB is a virtual class supporting
+    GroupBase is a virtual class supporting
     all group classes
 ****************************************/
-#define GRPB_PAR BASE
-#define kclsGRPB 'GRPB'
-class GRPB : public GRPB_PAR
+#define GroupBase_PAR BASE
+#define kclsGroupBase 'GRPB'
+class GroupBase : public GroupBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -80,14 +80,14 @@ class GRPB : public GRPB_PAR
     bool _FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp);
     bool _FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2);
     bool _FReadData(PDataBlock pblck, long ib, long cb1, long cb2);
-    bool _FDup(PGRPB pgrpbDst, long cb1, long cb2);
+    bool _FDup(PGroupBase pgrpbDst, long cb1, long cb2);
 
-    GRPB(void)
+    GroupBase(void)
     {
     }
 
   public:
-    ~GRPB(void);
+    ~GroupBase(void);
 
     void Lock(void)
     {
@@ -116,7 +116,7 @@ class GRPB : public GRPB_PAR
     VirtualArray is a virtual class supporting
     DynamicArray and AllocatedArray
 ****************************************/
-#define VirtualArray_PAR GRPB
+#define VirtualArray_PAR GroupBase
 #define kclsVirtualArray 'GLB'
 class VirtualArray : public VirtualArray_PAR
 {
@@ -242,7 +242,7 @@ class AllocatedArray : public AllocatedArray_PAR
     GeneralGroup and AllocatedGroup
 ****************************************/
 const ByteOrderMask kbomLoc = 0xF0000000;
-#define VirtualGroup_PAR GRPB
+#define VirtualGroup_PAR GroupBase
 #define kclsVirtualGroup 'GGB'
 class VirtualGroup : public VirtualGroup_PAR
 {
@@ -390,7 +390,7 @@ const long kcchMaxGst = kcchMaxStn;
     VirtualStringTable is a virtual class supporting
     StringTable and AllocatedStringTable.
 ****************************************/
-#define VirtualStringTable_PAR GRPB
+#define VirtualStringTable_PAR GroupBase
 #define kclsVirtualStringTable 'GSTB'
 class VirtualStringTable : public VirtualStringTable_PAR
 {

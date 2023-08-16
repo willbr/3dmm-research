@@ -41,7 +41,7 @@ DOCG::DOCG(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno,
 }
 
 /***************************************************************************
-    Destructor for DOCG.  Free the GRPB.
+    Destructor for DOCG.  Free the GroupBase.
 ***************************************************************************/
 DOCG::~DOCG(void)
 {
@@ -316,7 +316,7 @@ void DOCG::MarkMem(void)
 /***************************************************************************
     Constructor for a DCGB.
 ***************************************************************************/
-DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCGB::DCGB(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(pdocb, pgcb)
 {
     AssertIn(clnItem, 1, 10);
     _dypBorder = 1;
@@ -346,10 +346,10 @@ DCGB::DCGB(PDocumentBase pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) 
 }
 
 /***************************************************************************
-    Static method to invalidate all DCGB's on this GRPB.  Also dirties the
+    Static method to invalidate all DCGB's on this GroupBase.  Also dirties the
     document.  Should be called by any code that edits the document.
 ***************************************************************************/
-void DCGB::InvalAllDcgb(PDocumentBase pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel)
+void DCGB::InvalAllDcgb(PDocumentBase pdocb, PGroupBase pgrpb, long iv, long cvIns, long cvDel)
 {
     long ipddg;
     PDocumentDisplayGraphicsObject pddg;
@@ -1292,10 +1292,10 @@ bool DCST::FCmdAddItem(PCMD pcmd)
 }
 
 /***************************************************************************
-    Constructor for DOCI.  DOCI holds an item in a GRPB contained in a
-    chunky file.  Doesn't free the GRPB when the doc goes away.
+    Constructor for DOCI.  DOCI holds an item in a GroupBase contained in a
+    chunky file.  Doesn't free the GroupBase when the doc goes away.
 ***************************************************************************/
-DOCI::DOCI(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln) : DocumentBase(pdocb)
+DOCI::DOCI(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long iv, long dln) : DocumentBase(pdocb)
 {
     AssertPo(pgrpb, 0);
     AssertVar(pgrpb->FIs(cls), "wrong cls value", &cls);
@@ -1309,7 +1309,7 @@ DOCI::DOCI(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln) : Docu
 /***************************************************************************
     Static member to create a new DOCI.
 ***************************************************************************/
-PDOCI DOCI::PdociNew(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long dln)
+PDOCI DOCI::PdociNew(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long iv, long dln)
 {
     AssertPo(pgrpb, 0);
     AssertPo(pdocb, 0);
@@ -1328,7 +1328,7 @@ PDOCI DOCI::PdociNew(PDocumentBase pdocb, PGRPB pgrpb, long cls, long iv, long d
 }
 
 /***************************************************************************
-    Reads the data (from the GRPB) and initializes the stream.
+    Reads the data (from the GroupBase) and initializes the stream.
 ***************************************************************************/
 bool DOCI::_FInit(void)
 {
@@ -1418,7 +1418,7 @@ bool DOCI::_FSaveToItem(long iv, bool fRedirect)
 }
 
 /***************************************************************************
-    Write the data to the GRPB at the given item number.
+    Write the data to the GroupBase at the given item number.
 ***************************************************************************/
 bool DOCI::_FWrite(long iv)
 {
@@ -1474,7 +1474,7 @@ bool DOCI::_FWrite(long iv)
 }
 
 /***************************************************************************
-    Read the data from the GRPB and return it in an hq.  Also set the
+    Read the data from the GroupBase and return it in an hq.  Also set the
     _fFixed flag (which indicates if the data is fixed length).
 ***************************************************************************/
 HQ DOCI::_HqRead(void)

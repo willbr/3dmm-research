@@ -12,7 +12,7 @@
         General Group (GeneralGroup), Allocated Group (AllocatedGroup),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
+        BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
                         +-> VirtualGroup -+-> GeneralGroup

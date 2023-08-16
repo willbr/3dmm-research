@@ -12,7 +12,7 @@
         General Group (GeneralGroup), Allocated Group (AllocatedGroup),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
+        BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
                         +-> VirtualGroup -+-> GeneralGroup
@@ -27,7 +27,7 @@ ASSERTNAME
 
 namespace Group {
 
-RTCLASS(GRPB)
+RTCLASS(GroupBase)
 RTCLASS(VirtualArray)
 RTCLASS(DynamicArray)
 RTCLASS(AllocatedArray)
@@ -36,16 +36,16 @@ RTCLASS(GeneralGroup)
 RTCLASS(AllocatedGroup)
 
 /***************************************************************************
-    GRPB:  Manages two sections of data.  Currently the two sections are
+    GroupBase:  Manages two sections of data.  Currently the two sections are
     in two separate hq's, but they could be in one without affecting the
     clients.  The actual data in the two sections is determined by the
     subclass (client).  This class just manages resizing the data sections.
 ***************************************************************************/
 
 /***************************************************************************
-    Destructor for GRPB.  Frees the hq.
+    Destructor for GroupBase.  Frees the hq.
 ***************************************************************************/
-GRPB::~GRPB(void)
+GroupBase::~GroupBase(void)
 {
     AssertThis(0);
     FreePhq(&_hqData1);
@@ -56,7 +56,7 @@ GRPB::~GRPB(void)
     Ensure that the two sections are at least the given cb's large.
     if (grfgrp & fgrpShrink), makes them exact.
 ***************************************************************************/
-bool GRPB::_FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp)
+bool GroupBase::_FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp)
 {
     AssertThis(0);
     Assert(cbMin1 >= 0 && cbMin2 >= 0, "negative sizes");
@@ -99,7 +99,7 @@ bool GRPB::_FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp)
 /***************************************************************************
     Ensure that the given HQ is large enough.
 ***************************************************************************/
-bool GRPB::_FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb)
+bool GroupBase::_FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb)
 {
     AssertVarMem(phq);
     AssertIn(cbMinGrow, 0, kcbMax);
@@ -145,9 +145,9 @@ bool GRPB::_FEnsureHqCb(HQ *phq, long cb, long cbMinGrow, long *pcb)
 }
 
 /***************************************************************************
-    Make the given GRPB a duplicate of this one.
+    Make the given GroupBase a duplicate of this one.
 ***************************************************************************/
-bool GRPB::_FDup(PGRPB pgrpbDst, long cb1, long cb2)
+bool GroupBase::_FDup(PGroupBase pgrpbDst, long cb1, long cb2)
 {
     AssertThis(0);
     AssertPo(pgrpbDst, 0);
@@ -173,17 +173,17 @@ bool GRPB::_FDup(PGRPB pgrpbDst, long cb1, long cb2)
 /***************************************************************************
     Write a group to a flo.
 ***************************************************************************/
-bool GRPB::FWriteFlo(PFLO pflo, short bo, short osk)
+bool GroupBase::FWriteFlo(PFLO pflo, short bo, short osk)
 {
     DataBlock blck(pflo);
     return FWrite(&blck, bo, osk);
 }
 
 /***************************************************************************
-    Write the GRPB data to the block.  First write the (pv, cb), then
+    Write the GroupBase data to the block.  First write the (pv, cb), then
     cb1 bytes from the first section and cb2 bytes from the second.
 ***************************************************************************/
-bool GRPB::_FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2)
+bool GroupBase::_FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2)
 {
     AssertPo(pblck, 0);
     AssertIn(cb, 1, kcbMax);
@@ -223,7 +223,7 @@ bool GRPB::_FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2)
     Read the two sections of data from the given location in the given
     block.
 ***************************************************************************/
-bool GRPB::_FReadData(PDataBlock pblck, long cb1, long cb2, long ib)
+bool GroupBase::_FReadData(PDataBlock pblck, long cb1, long cb2, long ib)
 {
     AssertPo(pblck, fblckUnpacked);
     AssertIn(cb1, 0, kcbMax);
@@ -258,9 +258,9 @@ bool GRPB::_FReadData(PDataBlock pblck, long cb1, long cb2, long ib)
 /***************************************************************************
     Assert the validity of the grpb stuff.
 ***************************************************************************/
-void GRPB::AssertValid(ulong grfobj)
+void GroupBase::AssertValid(ulong grfobj)
 {
-    GRPB_PAR::AssertValid(grfobj | fobjAllocated);
+    GroupBase_PAR::AssertValid(grfobj | fobjAllocated);
     AssertIn(_cb1, 0, kcbMax);
     AssertIn(_cb2, 0, kcbMax);
     Assert((_cb1 == 0) == (_hqData1 == hqNil), "cb's don't match _hqData1");
@@ -272,10 +272,10 @@ void GRPB::AssertValid(ulong grfobj)
 /***************************************************************************
     Mark the _hqData blocks.
 ***************************************************************************/
-void GRPB::MarkMem(void)
+void GroupBase::MarkMem(void)
 {
     AssertThis(0);
-    GRPB_PAR::MarkMem();
+    GroupBase_PAR::MarkMem();
     MarkHq(_hqData1);
     MarkHq(_hqData2);
 }
@@ -434,7 +434,7 @@ DynamicArray::DynamicArray(long cb) : VirtualArray(cb)
 }
 
 /***************************************************************************
-    Provided for completeness (all GRPB's have an FFree routine).
+    Provided for completeness (all GroupBase's have an FFree routine).
     Returns false iff iv is a valid index for the DynamicArray.
 ***************************************************************************/
 bool DynamicArray::FFree(long iv)

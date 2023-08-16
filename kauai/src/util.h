@@ -128,11 +128,11 @@ const achar kchMin = kschMin;
 #endif //! UNICODE
 
 namespace Group {
-   class GRPB;
+   class GroupBase;
    class VirtualArray;
    class DynamicArray;
    class AllocatedArray;
-   typedef class GRPB *PGRPB;
+   typedef class GroupBase *PGroupBase;
    typedef class VirtualArray *PVirtualArray;
    typedef class DynamicArray *PDynamicArray;
    typedef class AllocatedArray *PAllocatedArray;
