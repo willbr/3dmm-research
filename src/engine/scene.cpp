@@ -2450,6 +2450,40 @@ void Scene::SelectActr(Actor *pactr)
     _pmvie->BuildActionMenu();
 }
 
+void Scene::SelectActr2(Actor *pactr)
+{
+    AssertThis(0);
+    AssertNilOrPo(pactr, 0);
+
+    PMovieView pmvu;
+
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
+    AssertNilOrPo(pmvu, 0);
+
+    if ((pmvu != pvNil) && !pmvu->FTextMode())
+    {
+        if (pvNil != _pactrSelected2)
+        {
+            _pactrSelected2->Unhilite();
+        }
+
+        if (pvNil != pactr)
+        {
+            pactr->Hilite();
+        }
+
+        if (_ptboxSelected != pvNil)
+        {
+            _ptboxSelected->Select(fFalse);
+        }
+    }
+
+    _pmvie->InvalViews();
+    _pactrSelected2 = pactr;
+
+    _pmvie->BuildActionMenu();
+}
+
 /****************************************************
  *
  * This routine sets the selected text box to the given one.

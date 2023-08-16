@@ -6902,7 +6902,13 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         {
             _ActorClicked(pactr, fTrue);
         }
-        Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
+
+        if (pcmd->grfcust & fcustCmd) {
+            Pmvie()->Pscen()->SelectActr2(pactr); // okay even if pactr is pvNil
+        } else {
+            Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
+        }
+
         Pmvie()->Pbwld()->MarkDirty();
     }
 
@@ -7272,6 +7278,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     PMovie pmvie;
     PScene pscen;
     PActor pactr = pvNil;
+    PActor pactr2 = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
     BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
     BRS zrActr, zrCam, dzrActr;
@@ -7298,6 +7305,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     }
 
     pactr = pscen->PactrSelected();
+    pactr2 = pscen->_pactrSelected2;
 
     AssertNilOrPo(pactr, 0);
 
@@ -7440,6 +7448,9 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             {
                 if (fMoved)
                 {
+                    if (pactr2 != pvNil) {
+                        pactr2->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMoved, grfmaf);
+                    }
                     if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
                     {
                         PushErc(ercSocNotUndoable);

@@ -117,6 +117,9 @@ class Scene : public Scene_PAR
     MARKMEM
     ASSERT
 
+  public:
+    PActor _pactrSelected2; // Currently selected actor, if any
+
   protected:
     typedef struct SEV *PSEV;
 
@@ -145,6 +148,7 @@ class Scene : public Scene_PAR
     PBackground _pbkgd;         // Background for this scene.
     ulong _grfscen;       // Disabled functionality.
     PActor _pactrSelected; // Currently selected actor, if any
+    // PActor _pactrSelected2; // Currently selected actor, if any
     PTBOX _ptboxSelected; // Currently selected tbox, if any
     TRANS _trans;         // Transition at the end of the scene.
     PMBMP _pmbmp;         // The thumbnail for this scene.
@@ -291,6 +295,7 @@ class Scene : public Scene_PAR
         return _pactrSelected;
     }
     void SelectActr(Actor *pactr);                      // Sets the selected actor
+    void SelectActr2(Actor *pactr);                      // Sets the selected actor
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {
