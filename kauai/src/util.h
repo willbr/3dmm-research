@@ -139,10 +139,10 @@ namespace Group {
 
    class VirtualGroup;
    class GeneralGroup;
-   class AG;
+   class AllocatedGroup;
    typedef class VirtualGroup *PVirtualGroup;
    typedef class GeneralGroup *PGeneralGroup;
-   typedef class AG *PAG;
+   typedef class AllocatedGroup *PAllocatedGroup;
 
    class VirtualStringTable;
    class StringTable;

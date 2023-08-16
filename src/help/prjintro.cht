@@ -168,7 +168,7 @@ SET _help_cno++
 SET _help_41475041_1=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 ENDCHUNK
@@ -335,7 +335,7 @@ SET _help_cno++
 SET _help_41475041_2=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' kgobOkButton 0xFFFFFFFF __HELP_SYMBOL( STN "kgobOkButton" )
 	ITEM LONG 0x40000001

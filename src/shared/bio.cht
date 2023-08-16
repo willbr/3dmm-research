@@ -44,7 +44,7 @@ SET _help_cno++
 SET _help_41475041_1=_help_cno
 CHUNK('AGPA', _help_cno, "")
 PARENT('RTXT', _help_52545854_2, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcBioTip001 Debug( STN "ktpcBioTip001" )
 	ITEM LONG 0x40000001

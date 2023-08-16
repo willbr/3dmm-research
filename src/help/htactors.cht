@@ -146,7 +146,7 @@ SET _help_cno++
 SET _help_41475041_3=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7D, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000003
 		VAR
 			BYTE
@@ -421,7 +421,7 @@ SET _help_cno++
 SET _help_41475041_1C=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_28, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors79 __HELP_SYMBOL( STN "ktpcHowToActors79" )
@@ -536,7 +536,7 @@ SET _help_cno++
 SET _help_41475041_4A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_17, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000003
 		VAR
 			BYTE
@@ -809,7 +809,7 @@ SET _help_cno++
 SET _help_41475041_B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_13, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors79 __HELP_SYMBOL( STN "ktpcHowToActors79" )
 	ITEM LONG 0x40000001
@@ -923,7 +923,7 @@ SET _help_cno++
 SET _help_41475041_27=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -1195,7 +1195,7 @@ SET _help_cno++
 SET _help_41475041_0=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_11, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors79 __HELP_SYMBOL( STN "ktpcHowToActors79" )
 	ITEM LONG 0x40000001
@@ -1309,7 +1309,7 @@ SET _help_cno++
 SET _help_41475041_55=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6D, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -1644,7 +1644,7 @@ SET _help_cno++
 SET _help_41475041_49=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_10, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors78 __HELP_SYMBOL( STN "ktpcHowToActors78" )
 	FREE
@@ -1737,7 +1737,7 @@ SET _help_cno++
 SET _help_41475041_2B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_68, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors93 __HELP_SYMBOL( STN "ktpcHowToActors93" )
 ENDCHUNK
@@ -1935,7 +1935,7 @@ SET _help_cno++
 SET _help_41475041_46=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors79 __HELP_SYMBOL( STN "ktpcHowToActors79" )
 	ITEM LONG 0x40000001
@@ -2049,7 +2049,7 @@ SET _help_cno++
 SET _help_41475041_8=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors93 __HELP_SYMBOL( STN "ktpcHowToActors93" )
@@ -2253,7 +2253,7 @@ SET _help_cno++
 SET _help_41475041_5E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors79 __HELP_SYMBOL( STN "ktpcHowToActors79" )
 	ITEM LONG 0x40000001
@@ -2369,7 +2369,7 @@ SET _help_cno++
 SET _help_41475041_19=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_27, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -2632,7 +2632,7 @@ SET _help_cno++
 SET _help_41475041_45=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_71, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors7E __HELP_SYMBOL( STN "ktpcHowToActors7E" )
@@ -2779,7 +2779,7 @@ SET _help_cno++
 SET _help_41475041_21=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8C, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	FREE
 	ITEM LONG 0x40000001
@@ -2902,7 +2902,7 @@ SET _help_cno++
 SET _help_41475041_14=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_15, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -3097,7 +3097,7 @@ SET _help_cno++
 SET _help_41475041_5A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_93, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 4 LONG ktpcHowToActors81 __HELP_SYMBOL( STN "ktpcHowToActors81" )
 	FREE
@@ -3234,7 +3234,7 @@ SET _help_cno++
 SET _help_41475041_9=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_73, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -3353,7 +3353,7 @@ SET _help_cno++
 SET _help_41475041_1E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000003
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -3494,7 +3494,7 @@ SET _help_cno++
 SET _help_41475041_11=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1B, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -3597,7 +3597,7 @@ SET _help_cno++
 SET _help_41475041_C=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_49, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -3718,7 +3718,7 @@ SET _help_cno++
 SET _help_41475041_36=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8B, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors7E __HELP_SYMBOL( STN "ktpcHowToActors7E" )
 	ITEM LONG 0x40000001
@@ -3863,7 +3863,7 @@ SET _help_cno++
 SET _help_41475041_18=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_80, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors81 __HELP_SYMBOL( STN "ktpcHowToActors81" )
 	ITEM LONG 0x40000001
@@ -4247,7 +4247,7 @@ SET _help_cno++
 SET _help_41475041_1=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -4378,7 +4378,7 @@ SET _help_cno++
 SET _help_41475041_13=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors89 __HELP_SYMBOL( STN "ktpcHowToActors89" )
 	ITEM LONG 0x40000001
@@ -4560,7 +4560,7 @@ SET _help_cno++
 SET _help_41475041_3F=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_24, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000003
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
 	ITEM LONG 0xC0000001
@@ -4916,7 +4916,7 @@ SET _help_cno++
 SET _help_41475041_D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_31, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -5200,7 +5200,7 @@ SET _help_cno++
 SET _help_41475041_29=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_37, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -5310,7 +5310,7 @@ SET _help_cno++
 SET _help_41475041_6=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_18, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -5606,7 +5606,7 @@ SET _help_cno++
 SET _help_41475041_F=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3A, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -5710,7 +5710,7 @@ SET _help_cno++
 SET _help_41475041_1B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2A, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -5984,7 +5984,7 @@ SET _help_cno++
 SET _help_41475041_44=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors93 __HELP_SYMBOL( STN "ktpcHowToActors93" )
@@ -6241,7 +6241,7 @@ SET _help_cno++
 SET _help_41475041_2A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_14, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors78 __HELP_SYMBOL( STN "ktpcHowToActors78" )
 	FREE
@@ -6343,7 +6343,7 @@ SET _help_cno++
 SET _help_41475041_42=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_45, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -6615,7 +6615,7 @@ SET _help_cno++
 SET _help_41475041_25=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_32, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -6896,7 +6896,7 @@ SET _help_cno++
 SET _help_41475041_2E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4D, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -6990,7 +6990,7 @@ SET _help_cno++
 SET _help_41475041_26=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_33, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -7258,7 +7258,7 @@ SET _help_cno++
 SET _help_41475041_2D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_46, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -7537,7 +7537,7 @@ SET _help_cno++
 SET _help_41475041_30=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_47, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -7631,7 +7631,7 @@ SET _help_cno++
 SET _help_41475041_31=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5D, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -7907,7 +7907,7 @@ SET _help_cno++
 SET _help_41475041_39=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_69, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -8003,7 +8003,7 @@ SET _help_cno++
 SET _help_41475041_34=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_51, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -8198,7 +8198,7 @@ SET _help_cno++
 SET _help_41475041_59=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_72, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors94 __HELP_SYMBOL( STN "ktpcHowToActors94" )
@@ -8302,7 +8302,7 @@ SET _help_cno++
 SET _help_41475041_2F=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_54, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -8404,7 +8404,7 @@ SET _help_cno++
 SET _help_41475041_3A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_59, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -8599,7 +8599,7 @@ SET _help_cno++
 SET _help_41475041_A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors94 __HELP_SYMBOL( STN "ktpcHowToActors94" )
 ENDCHUNK
@@ -8700,7 +8700,7 @@ SET _help_cno++
 SET _help_41475041_20=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_34, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors81 __HELP_SYMBOL( STN "ktpcHowToActors81" )
 	ITEM LONG 0xC0000002
@@ -8803,7 +8803,7 @@ SET _help_cno++
 SET _help_41475041_35=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_52, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -8996,7 +8996,7 @@ SET _help_cno++
 SET _help_41475041_40=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_62, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors94 __HELP_SYMBOL( STN "ktpcHowToActors94" )
@@ -9098,7 +9098,7 @@ SET _help_cno++
 SET _help_41475041_33=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors81 __HELP_SYMBOL( STN "ktpcHowToActors81" )
 	ITEM LONG 0xC0000002
@@ -9201,7 +9201,7 @@ SET _help_cno++
 SET _help_41475041_3D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_61, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -9475,7 +9475,7 @@ SET _help_cno++
 SET _help_41475041_4F=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_60, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG ktpcHowToActors81 __HELP_SYMBOL( STN "ktpcHowToActors81" )
 	ITEM LONG 0xC0000002
@@ -9577,7 +9577,7 @@ SET _help_cno++
 SET _help_41475041_32=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_55, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -9771,7 +9771,7 @@ SET _help_cno++
 SET _help_41475041_48=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_63, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors8D __HELP_SYMBOL( STN "ktpcHowToActors8D" )
@@ -9877,7 +9877,7 @@ SET _help_cno++
 SET _help_41475041_3B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5A, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -9998,7 +9998,7 @@ SET _help_cno++
 SET _help_41475041_43=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -10113,7 +10113,7 @@ SET _help_cno++
 SET _help_41475041_12=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_26, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -10236,7 +10236,7 @@ SET _help_cno++
 SET _help_41475041_28=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_36, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
 	FREE
@@ -10357,7 +10357,7 @@ SET _help_cno++
 SET _help_41475041_3E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_65, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -10549,7 +10549,7 @@ SET _help_cno++
 SET _help_41475041_37=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_78, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors94 __HELP_SYMBOL( STN "ktpcHowToActors94" )
 ENDCHUNK
@@ -10649,7 +10649,7 @@ SET _help_cno++
 SET _help_41475041_16=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_44, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors78 __HELP_SYMBOL( STN "ktpcHowToActors78" )
@@ -10752,7 +10752,7 @@ SET _help_cno++
 SET _help_41475041_4C=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -10947,7 +10947,7 @@ SET _help_cno++
 SET _help_41475041_52=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_75, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 2 LONG kwavHTActors94 __HELP_SYMBOL( STN "kwavHTActors94" )
@@ -11049,7 +11049,7 @@ SET _help_cno++
 SET _help_41475041_53=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_92, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors78 __HELP_SYMBOL( STN "ktpcHowToActors78" )
@@ -11153,7 +11153,7 @@ SET _help_cno++
 SET _help_41475041_10=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -11426,7 +11426,7 @@ SET _help_cno++
 SET _help_41475041_3C=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5C, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcHowToActors78 __HELP_SYMBOL( STN "ktpcHowToActors78" )
@@ -11527,7 +11527,7 @@ SET _help_cno++
 SET _help_41475041_4B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_70, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -11811,7 +11811,7 @@ SET _help_cno++
 SET _help_41475041_22=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_30, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -11905,7 +11905,7 @@ SET _help_cno++
 SET _help_41475041_47=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_94, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -12015,7 +12015,7 @@ SET _help_cno++
 SET _help_41475041_41=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_16, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -12126,7 +12126,7 @@ SET _help_cno++
 SET _help_41475041_2C=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4A, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
 	ITEM LONG 0xC0000001
@@ -12258,7 +12258,7 @@ SET _help_cno++
 SET _help_41475041_54=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6A, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( STN "mbmpCutCopyPaste" )
 	ITEM LONG 0xC0000001
@@ -12381,7 +12381,7 @@ SET _help_cno++
 SET _help_41475041_5B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7C, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
@@ -12532,7 +12532,7 @@ SET _help_cno++
 SET _help_41475041_51=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -12659,7 +12659,7 @@ SET _help_cno++
 SET _help_41475041_2=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -12778,7 +12778,7 @@ SET _help_cno++
 SET _help_41475041_50=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -12887,7 +12887,7 @@ SET _help_cno++
 SET _help_41475041_E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7A, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
@@ -13039,7 +13039,7 @@ SET _help_cno++
 SET _help_41475041_5=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5B, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -13253,7 +13253,7 @@ SET _help_cno++
 SET _help_41475041_5D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_23, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -13359,7 +13359,7 @@ SET _help_cno++
 SET _help_41475041_56=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_84, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -13457,7 +13457,7 @@ SET _help_cno++
 SET _help_41475041_1D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_9, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -13657,7 +13657,7 @@ SET _help_cno++
 SET _help_41475041_7=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
@@ -13749,7 +13749,7 @@ SET _help_cno++
 SET _help_41475041_58=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_86, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -13852,7 +13852,7 @@ SET _help_cno++
 SET _help_41475041_4D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_20, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -14046,7 +14046,7 @@ SET _help_cno++
 SET _help_41475041_24=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
 	ITEM LONG 0xC0000001
@@ -14156,7 +14156,7 @@ SET _help_cno++
 SET _help_41475041_57=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( STN "mbmpPlay" )
 ENDCHUNK
@@ -14237,7 +14237,7 @@ SET _help_cno++
 SET _help_41475041_4E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2B, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -14345,7 +14345,7 @@ SET _help_cno++
 SET _help_41475041_38=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_56, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -14474,7 +14474,7 @@ SET _help_cno++
 SET _help_41475041_1A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_81, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -14617,7 +14617,7 @@ SET _help_cno++
 SET _help_41475041_17=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -14837,7 +14837,7 @@ SET _help_cno++
 SET _help_41475041_4=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_85, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' mbmpActorsGround __HELP_SYMBOL( STN "mbmpActorsGround" )
 	ITEM LONG 0xC0000001
@@ -14965,7 +14965,7 @@ SET _help_cno++
 SET _help_41475041_23=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_50, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000002
 		VAR
 			BYTE

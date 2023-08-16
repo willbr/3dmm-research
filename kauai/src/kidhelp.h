@@ -73,7 +73,7 @@ class TextDocument : public TextDocument_PAR
   protected:
     enum
     {
-        sprmGroup = 64, // grouped (hot) text - uses the AG
+        sprmGroup = 64, // grouped (hot) text - uses the AllocatedGroup
     };
 
     PRCA _prca;         // source of pictures and buttons

@@ -132,7 +132,7 @@ class DOCH : public DOCH_PAR
 };
 
 /***************************************************************************
-    Group editor document - for editing DynamicArray, AllocatedArray, GeneralGroup, AG, StringTable, and AllocatedStringTable.
+    Group editor document - for editing DynamicArray, AllocatedArray, GeneralGroup, AllocatedGroup, StringTable, and AllocatedStringTable.
 ***************************************************************************/
 #define DOCG_PAR DOCE
 #define kclsDOCG 'DOCG'
@@ -607,7 +607,7 @@ class DCGL : public DCGL_PAR
 };
 
 /***************************************************************************
-    Display GeneralGroup or AG chunk.
+    Display GeneralGroup or AllocatedGroup chunk.
 ***************************************************************************/
 #define DCGG_PAR DCGB
 #define kclsDCGG 'DCGG'

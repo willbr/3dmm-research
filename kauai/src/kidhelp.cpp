@@ -179,7 +179,7 @@ LFail:
 }
 
 /***************************************************************************
-    Do any necessary munging of the AG entry on open.  Return false if
+    Do any necessary munging of the AllocatedGroup entry on open.  Return false if
     we don't recognize this argument type.
 ***************************************************************************/
 bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)

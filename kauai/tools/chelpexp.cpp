@@ -139,7 +139,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
             chse.DumpSz(PszLit(""));
             if (kid.cki.ctg == kctgTxtPropArgs)
             {
-                // special handling of argument AG
+                // special handling of argument AllocatedGroup
                 if (!_FWriteHelpPropAg(pcfl, &chse, &kid, &ckiPar))
                     goto LFail;
             }
@@ -243,7 +243,7 @@ bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentifi
 }
 
 /***************************************************************************
-    Write the property AG.  This requires special processing
+    Write the property AllocatedGroup.  This requires special processing
 ***************************************************************************/
 bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar)
 {
@@ -252,7 +252,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
     AssertVarMem(pkid);
     AssertVarMem(pckiPar);
 
-    PAG pag;
+    PAllocatedGroup pag;
     short bo, osk;
     STN stn, stnT, stnT2;
     byte rgb[2 * kcbMaxDataStn];
@@ -261,7 +261,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
     ChunkIdentification cki;
 
     pag = pvNil;
-    if (!pcfl->FFind(pkid->cki.ctg, pkid->cki.cno, &blck) || pvNil == (pag = AG::PagRead(&blck, &bo, &osk)) ||
+    if (!pcfl->FFind(pkid->cki.ctg, pkid->cki.cno, &blck) || pvNil == (pag = AllocatedGroup::PagRead(&blck, &bo, &osk)) ||
         bo != kboCur || osk != koskCur || size(long) != pag->CbFixed())
     {
         ReleasePpo(&pag);
@@ -281,8 +281,8 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
     stn.FFormatSz(PszLit("PARENT('%f', _help_%x_%x, 0x%x)"), pckiPar->ctg, pckiPar->ctg, pckiPar->cno, pkid->chid);
     pchse->DumpSz(stn.Psz());
 
-    // dump the AG declaration
-    pchse->DumpSz(PszLit("AG(4)"));
+    // dump the AllocatedGroup declaration
+    pchse->DumpSz(PszLit("AllocatedGroup(4)"));
 
     // dump the items
     for (iv = 0; iv < pag->IvMac(); iv++)

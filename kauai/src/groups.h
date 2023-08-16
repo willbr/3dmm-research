@@ -12,14 +12,14 @@
 
     Basic collection classes:
         General List (DynamicArray), Allocated List (AllocatedArray),
-        General Group (GeneralGroup), Allocated Group (AG),
+        General Group (GeneralGroup), Allocated Group (AllocatedGroup),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
                         +-> VirtualGroup -+-> GeneralGroup
-                        |        +-> AG
+                        |        +-> AllocatedGroup
                         |
                         +-> VirtualStringTable-+-> StringTable
                                  +-> AllocatedStringTable
@@ -239,7 +239,7 @@ class AllocatedArray : public AllocatedArray_PAR
 
 /****************************************
     VirtualGroup is a virtual class supporting
-    GeneralGroup and AG
+    GeneralGroup and AllocatedGroup
 ****************************************/
 const ByteOrderMask kbomLoc = 0xF0000000;
 #define VirtualGroup_PAR GRPB
@@ -347,26 +347,26 @@ class GeneralGroup : public GeneralGroup_PAR
 /****************************************
     Allocated Group - based on VirtualGroup
 ****************************************/
-#define AG_PAR VirtualGroup
-#define kclsAG 'AG'
-class AG : public AG_PAR
+#define AllocatedGroup_PAR VirtualGroup
+#define kclsAllocatedGroup 'AG'
+class AllocatedGroup : public AllocatedGroup_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    AG(long cbFixed) : VirtualGroup(cbFixed, fTrue)
+    AllocatedGroup(long cbFixed) : VirtualGroup(cbFixed, fTrue)
     {
     }
 
   public:
     // static methods
-    static PAG PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
-    static PAG PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAG PagRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
+    static PAllocatedGroup PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PAG PagDup(void);
+    PAllocatedGroup PagDup(void);
 
     // methods required by parent class
     virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);

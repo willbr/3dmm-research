@@ -9,14 +9,14 @@
 
     Basic collection classes (continued from groups.cpp):
         General List (DynamicArray), Allocated List (AllocatedArray),
-        General Group (GeneralGroup), Allocated Group (AG),
+        General Group (GeneralGroup), Allocated Group (AllocatedGroup),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
                         +-> VirtualGroup -+-> GeneralGroup
-                        |        +-> AG
+                        |        +-> AllocatedGroup
                         |
                         +-> VirtualStringTable-+-> StringTable
                                  +-> AllocatedStringTable

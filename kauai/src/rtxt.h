@@ -212,12 +212,12 @@ class RichTextDocument : public RichTextDocument_PAR
   protected:
     // WARNING: changing these values affects the file format
     // NOTE: Originally, _FSprmInAg was a virtual RichTextDocument method called to
-    // determine if a sprm stored its value in the AG. This didn't work
-    // well when a subclass had a sprm in an AG (it broke undo for that
+    // determine if a sprm stored its value in the AllocatedGroup. This didn't work
+    // well when a subclass had a sprm in an AllocatedGroup (it broke undo for that
     // sprm). To fix this I (shonk) made _FSprmInAg static and made it
-    // know exactly which sprms use the AG. For sprms in the client range
-    // or above sprmMinObj, odd ones are _not_ in the AG and even ones _are_
-    // in the AG. I couldn't just use the odd/even rule throughout the
+    // know exactly which sprms use the AllocatedGroup. For sprms in the client range
+    // or above sprmMinObj, odd ones are _not_ in the AllocatedGroup and even ones _are_
+    // in the AllocatedGroup. I couldn't just use the odd/even rule throughout the
     // range, because that would have required changing values of old
     // sprms, which would have broken existing rich text documents.
     enum
@@ -227,7 +227,7 @@ class RichTextDocument : public RichTextDocument_PAR
         // character properties
         sprmMinChp = 1,
         sprmStyle = 1,     // bold, italic, etc, font size, dypOffset
-        sprmFont = 2,      // font - in the AG
+        sprmFont = 2,      // font - in the AllocatedGroup
         sprmForeColor = 3, // foreground color
         sprmBackColor = 4, // background color
         sprmLimChp,
@@ -280,7 +280,7 @@ class RichTextDocument : public RichTextDocument_PAR
 
     PChunkyFile _pcfl;
     PDynamicArray _pglmpe;
-    PAG _pagcact; // for sprm's that have more than a long's worth of data
+    PAllocatedGroup _pagcact; // for sprm's that have more than a long's worth of data
 
     long _onnDef; // default font and font size
     long _dypFontDef;

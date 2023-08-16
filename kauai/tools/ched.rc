@@ -95,7 +95,7 @@ BEGIN
         MENUITEM "General &List (DynamicArray)",          cidEditGL
         MENUITEM "Allocated L&ist (AllocatedArray)",        cidEditAL
         MENUITEM "General &Group (GeneralGroup)",         cidEditGG
-        MENUITEM "Allocated G&roup (AG)",       cidEditAG
+        MENUITEM "Allocated G&roup (AllocatedGroup)",       cidEditAG
         MENUITEM "General &String Table (StringTable)", cidEditGST
         MENUITEM "Allocated S&tring Table (AllocatedStringTable)", cidEditAST
         MENUITEM SEPARATOR
@@ -201,13 +201,13 @@ END
 
 dlidGgbNew DIALOG DISCARDABLE  100, 100, 185, 78
 STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
-CAPTION "New GeneralGroup/AG"
+CAPTION "New GeneralGroup/AllocatedGroup"
 FONT 10, "System"
 BEGIN
     DEFPUSHBUTTON   "OK",1,129,6,50,14
     PUSHBUTTON      "Cancel",2,129,25,50,14
     EDITTEXT        3,65,50,43,12,ES_AUTOHSCROLL
-    LTEXT           "Enter the size (in bytes) of the fixed-sized portion of each element of the GeneralGroup/AG.",
+    LTEXT           "Enter the size (in bytes) of the fixed-sized portion of each element of the GeneralGroup/AllocatedGroup.",
                     4,10,5,113,30
     RTEXT           "Size:",5,25,52,35,8
 END

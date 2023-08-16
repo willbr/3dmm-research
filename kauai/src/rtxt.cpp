@@ -1200,7 +1200,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber c
     // get the text property arguments
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTxtPropArgs, &kid))
     {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (_pagcact = AG::PagRead(&blck, &bo, &osk)) ||
+        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (_pagcact = AllocatedGroup::PagRead(&blck, &bo, &osk)) ||
             size(long) != _pagcact->CbFixed())
         {
             return fFalse;
@@ -1225,7 +1225,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber c
 }
 
 /***************************************************************************
-    Do any necessary munging of the AG entry on open. Return false if
+    Do any necessary munging of the AllocatedGroup entry on open. Return false if
     we don't recognize this argument type.
 ***************************************************************************/
 bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
@@ -1645,7 +1645,7 @@ void RichTextDocument::_AdjustMpe(long cp, long ccpIns, long ccpDel)
 }
 
 /***************************************************************************
-    Make sure there is an entry in the AG with the given data. If it's
+    Make sure there is an entry in the AllocatedGroup with the given data. If it's
     already there, increment its reference count. Otherwise, set its
     reference count to 1.
 ***************************************************************************/
@@ -1657,7 +1657,7 @@ bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
     long cact, iv, cbT;
     void *qv;
 
-    if (pvNil == _pagcact && pvNil == (_pagcact = AG::PagNew(size(long), 1, cb)))
+    if (pvNil == _pagcact && pvNil == (_pagcact = AllocatedGroup::PagNew(size(long), 1, cb)))
     {
         TrashVar(pjv);
         return fFalse;
@@ -1698,7 +1698,7 @@ bool RichTextDocument::_FEnsureInAg(byte sprm, void *pv, long cb, long *pjv)
 }
 
 /***************************************************************************
-    Decrement the reference count on the given element of the AG and if
+    Decrement the reference count on the given element of the AllocatedGroup and if
     the reference count becomes zero, delete the element.
 ***************************************************************************/
 void RichTextDocument::_ReleaseInAg(long jv)
@@ -1707,7 +1707,7 @@ void RichTextDocument::_ReleaseInAg(long jv)
 
     if (pvNil == _pagcact || !FIn(jv, 1, _pagcact->IvMac() + 1) || _pagcact->FFree(jv - 1))
     {
-        Bug("bad index into AG");
+        Bug("bad index into AllocatedGroup");
         return;
     }
 
@@ -1723,7 +1723,7 @@ void RichTextDocument::_ReleaseInAg(long jv)
 }
 
 /***************************************************************************
-    Increment the reference count on the given element of the AG.
+    Increment the reference count on the given element of the AllocatedGroup.
 ***************************************************************************/
 void RichTextDocument::_AddRefInAg(long jv)
 {
@@ -1731,7 +1731,7 @@ void RichTextDocument::_AddRefInAg(long jv)
 
     if (pvNil == _pagcact || !FIn(jv, 1, _pagcact->IvMac() + 1) || _pagcact->FFree(jv - 1))
     {
-        Bug("bad index into AG");
+        Bug("bad index into AllocatedGroup");
         return;
     }
 
@@ -1753,7 +1753,7 @@ bool RichTextDocument::_FSprmInAg(byte sprm)
         return sprm == sprmFont;
     }
 
-    // The sprm is a client or object sprm. Even ones are in the AG, odd
+    // The sprm is a client or object sprm. Even ones are in the AllocatedGroup, odd
     // ones aren't. See note in rtxt.h where the sprms are defined.
     return !(sprm & 1);
 }
@@ -3138,7 +3138,7 @@ bool RichTextDocument::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
 }
 
 /***************************************************************************
-    Get the object bounds from the AG entry.
+    Get the object bounds from the AllocatedGroup entry.
 ***************************************************************************/
 bool RichTextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
 {

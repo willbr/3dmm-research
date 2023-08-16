@@ -9,14 +9,14 @@
 
     Basic collection classes:
         General List (DynamicArray), Allocated List (AllocatedArray),
-        General Group (GeneralGroup), Allocated Group (AG),
+        General Group (GeneralGroup), Allocated Group (AllocatedGroup),
         General String Table (StringTable), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
                         +-> VirtualGroup -+-> GeneralGroup
-                        |        +-> AG
+                        |        +-> AllocatedGroup
                         |
                         +-> VirtualStringTable-+-> StringTable
                                  +-> AllocatedStringTable
@@ -33,7 +33,7 @@ RTCLASS(DynamicArray)
 RTCLASS(AllocatedArray)
 RTCLASS(VirtualGroup)
 RTCLASS(GeneralGroup)
-RTCLASS(AG)
+RTCLASS(AllocatedGroup)
 
 /***************************************************************************
     GRPB:  Manages two sections of data.  Currently the two sections are
@@ -2088,15 +2088,15 @@ void GeneralGroup::AssertValid(ulong grfobj)
     Allocate a new allocated group with romm for at least cvInit elements
     containing at least cbInit bytes worth of (total) space.
 ***************************************************************************/
-PAG AG::PagNew(long cbFixed, long cvInit, long cbInit)
+PAllocatedGroup AllocatedGroup::PagNew(long cbFixed, long cvInit, long cbInit)
 {
     AssertIn(cbFixed, 0, kcbMax);
     AssertIn(cvInit, 0, kcbMax);
     AssertIn(cbInit, 0, kcbMax);
 
-    PAG pag;
+    PAllocatedGroup pag;
 
-    if ((pag = NewObj AG(cbFixed)) == pvNil)
+    if ((pag = NewObj AllocatedGroup(cbFixed)) == pvNil)
         return pvNil;
     if ((cvInit > 0 || cbInit > 0) && !pag->FEnsureSpace(cvInit, cbInit, fgrpNil))
     {
@@ -2110,15 +2110,15 @@ PAG AG::PagNew(long cbFixed, long cvInit, long cbInit)
 /***************************************************************************
     Read an allocated group from a block and return it.
 ***************************************************************************/
-PAG AG::PagRead(PDataBlock pblck, short *pbo, short *posk)
+PAllocatedGroup AllocatedGroup::PagRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PAG pag;
+    PAllocatedGroup pag;
 
-    if ((pag = NewObj AG(0)) == pvNil)
+    if ((pag = NewObj AllocatedGroup(0)) == pvNil)
         goto LFail;
     if (!pag->_FRead(pblck, pbo, posk))
     {
@@ -2135,19 +2135,19 @@ PAG AG::PagRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read an allocated group from file and return it.
 ***************************************************************************/
-PAG AG::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedGroup AllocatedGroup::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PagRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Duplicate this AG.
+    Duplicate this AllocatedGroup.
 ***************************************************************************/
-PAG AG::PagDup(void)
+PAllocatedGroup AllocatedGroup::PagDup(void)
 {
     AssertThis(0);
-    PAG pag;
+    PAllocatedGroup pag;
 
     if (pvNil == (pag = PagNew(_cbFixed)))
         return pvNil;
@@ -2162,7 +2162,7 @@ PAG AG::PagDup(void)
 /***************************************************************************
     Add an element to the allocated group.
 ***************************************************************************/
-bool AG::FAdd(long cb, long *piv, void *pv, void *pvFixed)
+bool AllocatedGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cb, 0, kcbMax);
@@ -2239,7 +2239,7 @@ bool AG::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 /***************************************************************************
     Delete an element from the group.
 ***************************************************************************/
-void AG::Delete(long iv)
+void AllocatedGroup::Delete(long iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
@@ -2273,9 +2273,9 @@ void AG::Delete(long iv)
 /***************************************************************************
     Validate a group.
 ***************************************************************************/
-void AG::AssertValid(ulong grfobj)
+void AllocatedGroup::AssertValid(ulong grfobj)
 {
-    AG_PAR::AssertValid(grfobj);
+    AllocatedGroup_PAR::AssertValid(grfobj);
     AssertIn(_clocFree, 0, LwMax(1, _ivMac));
 }
 #endif // DEBUG

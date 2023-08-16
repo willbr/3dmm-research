@@ -48,7 +48,7 @@ PSZ _mpertpsz[] = {
     PszLit("Too much data for item"),                         // ertItemOverflow
     PszLit("Can't have a free item in a general collection"), // ertBadFree
     PszLit("Syntax error"),                                   // ertSyntax
-    PszLit("Invalid GeneralGroup or AG declaration"),                   // ertGroupHead
+    PszLit("Invalid GeneralGroup or AllocatedGroup declaration"),                   // ertGroupHead
     PszLit("Invalid size for fixed group data"),              // ertGroupEntrySize
     PszLit("Invalid StringTable or AllocatedStringTable declaration"),                 // ertGstHead
     PszLit("Invalid size for extra string table data"),       // ertGstEntrySize
@@ -1322,7 +1322,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber c
         return;
     }
 
-    pggb = fAg ? (PVirtualGroup)AG::PagNew(cbFixed) : (PVirtualGroup)GeneralGroup::PggNew(cbFixed);
+    pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagNew(cbFixed) : (PVirtualGroup)GeneralGroup::PggNew(cbFixed);
     if (pvNil == pggb)
     {
         _Error(ertOom);
@@ -2149,7 +2149,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
     PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
-    PszLit("AllocatedArray"),        ttAl,        PszLit("GeneralGroup"),         ttGg,         PszLit("AG"),      ttAg,
+    PszLit("AllocatedArray"),        ttAl,        PszLit("GeneralGroup"),         ttGg,         PszLit("AllocatedGroup"),      ttAg,
     PszLit("StringTable"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
     PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
     PszLit("LONER"),     ttLoner,     PszLit("CURSOR"),     ttCursor,     PszLit("PALETTE"), ttPalette,
@@ -2665,7 +2665,7 @@ bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pggb = fAg ? (PVirtualGroup)AG::PagRead(pblck, &bo, &osk) : (PVirtualGroup)GeneralGroup::PggRead(pblck, &bo, &osk);
+    pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagRead(pblck, &bo, &osk) : (PVirtualGroup)GeneralGroup::PggRead(pblck, &bo, &osk);
     if (pvNil == pggb)
         return fFalse;
 

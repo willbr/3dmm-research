@@ -74,7 +74,7 @@ SET _help_cno++
 SET _help_41475041_2=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -181,7 +181,7 @@ SET _help_cno++
 SET _help_41475041_5=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000003
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -300,7 +300,7 @@ SET _help_cno++
 SET _help_41475041_3=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -406,7 +406,7 @@ SET _help_cno++
 SET _help_41475041_4=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -517,7 +517,7 @@ SET _help_cno++
 SET _help_41475041_7=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -635,7 +635,7 @@ SET _help_cno++
 SET _help_41475041_8=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -747,7 +747,7 @@ SET _help_cno++
 SET _help_41475041_0=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000002
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
@@ -860,7 +860,7 @@ SET _help_cno++
 SET _help_41475041_1=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000003
 		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
 	ITEM LONG 0x40000001

@@ -338,7 +338,7 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
 }
 
 /******************************************************************************
-    Dumps a GeneralGroup or AG, including the GeneralGroup or AG directive. pggb is the GeneralGroup or AG
+    Dumps a GeneralGroup or AllocatedGroup, including the GeneralGroup or AllocatedGroup directive. pggb is the GeneralGroup or AllocatedGroup
     to dump.
 ******************************************************************************/
 void SourceEmitter::DumpGroup(PVirtualGroup pggb)
@@ -349,11 +349,11 @@ void SourceEmitter::DumpGroup(PVirtualGroup pggb)
     long cbFixed, cb;
     long iv, ivMac;
     STN stnT;
-    bool fAg = pggb->FIs(kclsAG);
+    bool fAg = pggb->FIs(kclsAllocatedGroup);
 
-    Assert(fAg || pggb->FIs(kclsGeneralGroup), "neither a GeneralGroup or AG!");
+    Assert(fAg || pggb->FIs(kclsGeneralGroup), "neither a GeneralGroup or AllocatedGroup!");
 
-    // have a valid GeneralGroup or AG -- print it out in readable format
+    // have a valid GeneralGroup or AllocatedGroup -- print it out in readable format
     cbFixed = pggb->CbFixed();
     AssertIn(cbFixed, 0, kcbMax);
     ivMac = pggb->IvMac();

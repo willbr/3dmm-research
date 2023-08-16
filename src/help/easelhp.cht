@@ -74,7 +74,7 @@ SET _help_cno++
 SET _help_41475041_13=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_40, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	FREE
 	FREE
@@ -538,7 +538,7 @@ SET _help_cno++
 SET _help_41475041_E=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_31, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( STN "ktpcEaselHelp2F" )
@@ -629,7 +629,7 @@ SET _help_cno++
 SET _help_41475041_8=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -1037,7 +1037,7 @@ SET _help_cno++
 SET _help_41475041_A=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK
@@ -1139,7 +1139,7 @@ SET _help_cno++
 SET _help_41475041_1=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -1229,7 +1229,7 @@ SET _help_cno++
 SET _help_41475041_12=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3E, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000001
 		VAR
 			BYTE
@@ -1639,7 +1639,7 @@ SET _help_cno++
 SET _help_41475041_4=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_12, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( STN )
 	ITEM LONG 0x40000001
@@ -2540,7 +2540,7 @@ SET _help_cno++
 SET _help_41475041_2=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1F, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' mbmpSoundRecord __HELP_SYMBOL( STN "mbmpSoundRecord" )
 ENDCHUNK
@@ -3722,7 +3722,7 @@ SET _help_cno++
 SET _help_41475041_0=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_16, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcEaselHelp3F __HELP_SYMBOL( STN "ktpcEaselHelp3F" )
 	ITEM LONG 0xC0000001
@@ -3818,7 +3818,7 @@ SET _help_cno++
 SET _help_41475041_F=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x2000002
 		VAR
 			BYTE
@@ -4206,7 +4206,7 @@ SET _help_cno++
 SET _help_41475041_3=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_13, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 4 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
@@ -4323,7 +4323,7 @@ SET _help_cno++
 SET _help_41475041_5=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_30, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
@@ -4422,7 +4422,7 @@ SET _help_cno++
 SET _help_41475041_D=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_35, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
 	ITEM LONG 0x40000001
@@ -4537,7 +4537,7 @@ SET _help_cno++
 SET _help_41475041_10=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3D, 0x0)
-AG(4)
+AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
@@ -4642,7 +4642,7 @@ SET _help_cno++
 SET _help_41475041_C=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_34, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 3 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
@@ -4738,7 +4738,7 @@ SET _help_cno++
 SET _help_41475041_11=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_32, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
@@ -4855,7 +4855,7 @@ SET _help_cno++
 SET _help_41475041_15=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3B, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
@@ -4949,7 +4949,7 @@ SET _help_cno++
 SET _help_41475041_B=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_33, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0x40000001
 		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
@@ -5043,7 +5043,7 @@ SET _help_cno++
 SET _help_41475041_6=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_25, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
 	ITEM LONG 0xC0000001
@@ -5149,7 +5149,7 @@ SET _help_cno++
 SET _help_41475041_9=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3C, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
@@ -5472,7 +5472,7 @@ SET _help_cno++
 SET _help_41475041_14=_help_cno
 CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_38, 0x0)
-AG(4)
+AllocatedGroup(4)
 	ITEM LONG 0xC0000001
 		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
 ENDCHUNK

@@ -2315,7 +2315,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
             cls = kclsGeneralGroup;
             goto LDocg;
         case kctgAg:
-            cls = kclsAG;
+            cls = kclsAllocatedGroup;
             goto LDocg;
         default:
             break;
@@ -2337,7 +2337,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
         cls = kclsGeneralGroup;
         goto LDocg;
     case cidEditAG:
-        cls = kclsAG;
+        cls = kclsAllocatedGroup;
         goto LDocg;
     case cidEditGST:
         cls = kclsStringTable;
