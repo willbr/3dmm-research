@@ -137,10 +137,10 @@ namespace Group {
    typedef class DynamicArray *PDynamicArray;
    typedef class AllocatedArray *PAllocatedArray;
 
-   class GGB;
+   class VirtualGroup;
    class GG;
    class AG;
-   typedef class GGB *PGGB;
+   typedef class VirtualGroup *PVirtualGroup;
    typedef class GG *PGG;
    typedef class AG *PAG;
 

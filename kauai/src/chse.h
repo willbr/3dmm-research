@@ -64,7 +64,7 @@ class SourceEmitter : public SourceEmitter_PAR
     void DumpFileCmd(PSTN pstnFile, bool fPacked = fFalse);
     void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
     void DumpList(PVirtualArray pglb);
-    void DumpGroup(PGGB pggb);
+    void DumpGroup(PVirtualGroup pggb);
     bool FDumpStringTable(PVirtualStringTable pgstb);
     void DumpBlck(PDataBlock pblck);
     bool FDumpScript(PScript pscpt, PCompilerBase psccb);

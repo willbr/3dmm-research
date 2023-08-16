@@ -341,7 +341,7 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
     Dumps a GG or AG, including the GG or AG directive. pggb is the GG or AG
     to dump.
 ******************************************************************************/
-void SourceEmitter::DumpGroup(PGGB pggb)
+void SourceEmitter::DumpGroup(PVirtualGroup pggb)
 {
     AssertThis(fchseDump);
     AssertPo(pggb, 0);

@@ -1303,7 +1303,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber c
     long iv, iiv;
     DataBlock blck;
     bool fFree;
-    PGGB pggb = pvNil;
+    PVirtualGroup pggb = pvNil;
     PDynamicArray pglivFree = pvNil;
 
     // get size of fixed data
@@ -1322,7 +1322,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber c
         return;
     }
 
-    pggb = fAg ? (PGGB)AG::PagNew(cbFixed) : (PGGB)GG::PggNew(cbFixed);
+    pggb = fAg ? (PVirtualGroup)AG::PagNew(cbFixed) : (PVirtualGroup)GG::PggNew(cbFixed);
     if (pvNil == pggb)
     {
         _Error(ertOom);
@@ -2660,12 +2660,12 @@ bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
 
-    PGGB pggb;
+    PVirtualGroup pggb;
     short bo, osk;
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pggb = fAg ? (PGGB)AG::PagRead(pblck, &bo, &osk) : (PGGB)GG::PggRead(pblck, &bo, &osk);
+    pggb = fAg ? (PVirtualGroup)AG::PagRead(pblck, &bo, &osk) : (PVirtualGroup)GG::PggRead(pblck, &bo, &osk);
     if (pvNil == pggb)
         return fFalse;
 

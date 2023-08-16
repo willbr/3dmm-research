@@ -616,10 +616,10 @@ class DCGG : public DCGG_PAR
     RTCLASS_DEC
 
   protected:
-    DCGG(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb);
+    DCGG(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb);
 
   public:
-    static PDCGG PdcggNew(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb);
+    static PDCGG PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCMD pcmd);

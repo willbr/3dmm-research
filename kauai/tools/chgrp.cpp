@@ -246,7 +246,7 @@ PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
         break;
     case kclsGG:
     case kclsAG:
-        pddg = DCGG::PdcggNew(this, (PGGB)_pgrpb, _cls, pgcb);
+        pddg = DCGG::PdcggNew(this, (PVirtualGroup)_pgrpb, _cls, pgcb);
         break;
     case kclsStringTable:
     case kclsAllocatedStringTable:
@@ -921,14 +921,14 @@ bool DCGL::FCmdAddItem(PCMD pcmd)
     Constructor for the DCGG class.  This class displays (and allows
     editing of) a GG or AG.
 ***************************************************************************/
-DCGG::DCGG(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
+DCGG::DCGG(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCGG for the GG or AG.
 ***************************************************************************/
-PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PGGB pggb, long cls, PGCB pgcb)
+PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb)
 {
     AssertVar(cls == kclsGG || cls == kclsAG, "bad cls", &cls);
     PDCGG pdcgg;
@@ -955,7 +955,7 @@ void DCGG::Draw(PGNV pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PGGB pggb;
+    PVirtualGroup pggb;
     STN stn;
     byte rgb[kcbMaxDispGrp];
     long ivMac, iv, dln;
@@ -969,7 +969,7 @@ void DCGG::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->SetOnn(_onn);
 
-    pggb = (PGGB)_pgrpb;
+    pggb = (PVirtualGroup)_pgrpb;
     ivMac = pggb->IvMac();
     xp = _XpFromIch(0);
 
@@ -1067,9 +1067,9 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
     long cb;
     long ivNew;
     bool fT;
-    PGGB pggb;
+    PVirtualGroup pggb;
 
-    pggb = (PGGB)_pgrpb;
+    pggb = (PVirtualGroup)_pgrpb;
     cb = (pggb->CbFixed() == 0);
 
     fT = fFalse;
@@ -1442,11 +1442,11 @@ bool DOCI::_FWrite(long iv)
     case kclsGG:
     case kclsAG:
         if (_dln == 0)
-            fRet = ((PGGB)_pgrpb)->FPut(iv, cb, pv);
+            fRet = ((PVirtualGroup)_pgrpb)->FPut(iv, cb, pv);
         else
         {
-            Assert(cb == ((PGGB)_pgrpb)->CbFixed(), "bad cb in GG/AG");
-            ((PGGB)_pgrpb)->PutFixed(iv, pv);
+            Assert(cb == ((PVirtualGroup)_pgrpb)->CbFixed(), "bad cb in GG/AG");
+            ((PVirtualGroup)_pgrpb)->PutFixed(iv, pv);
         }
         break;
     case kclsStringTable:
@@ -1495,11 +1495,11 @@ HQ DOCI::_HqRead(void)
     case kclsAG:
         if (_dln == 0)
         {
-            cb = ((PGGB)_pgrpb)->Cb(_iv);
+            cb = ((PVirtualGroup)_pgrpb)->Cb(_iv);
             _fFixed = fFalse;
         }
         else
-            cb = ((PGGB)_pgrpb)->CbFixed();
+            cb = ((PVirtualGroup)_pgrpb)->CbFixed();
         break;
     case kclsStringTable:
     case kclsAllocatedStringTable:
@@ -1530,9 +1530,9 @@ HQ DOCI::_HqRead(void)
     case kclsGG:
     case kclsAG:
         if (_dln == 0)
-            ((PGGB)_pgrpb)->Get(_iv, pv);
+            ((PVirtualGroup)_pgrpb)->Get(_iv, pv);
         else
-            ((PGGB)_pgrpb)->GetFixed(_iv, pv);
+            ((PVirtualGroup)_pgrpb)->GetFixed(_iv, pv);
         break;
     case kclsStringTable:
     case kclsAllocatedStringTable:

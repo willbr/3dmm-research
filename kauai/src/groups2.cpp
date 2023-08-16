@@ -15,7 +15,7 @@
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
-                        +-> GGB -+-> GG
+                        +-> VirtualGroup -+-> GG
                         |        +-> AG
                         |
                         +-> VirtualStringTable-+-> StringTable

@@ -15,7 +15,7 @@
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
-                        +-> GGB -+-> GG
+                        +-> VirtualGroup -+-> GG
                         |        +-> AG
                         |
                         +-> VirtualStringTable-+-> StringTable
@@ -31,7 +31,7 @@ RTCLASS(GRPB)
 RTCLASS(VirtualArray)
 RTCLASS(DynamicArray)
 RTCLASS(AllocatedArray)
-RTCLASS(GGB)
+RTCLASS(VirtualGroup)
 RTCLASS(GG)
 RTCLASS(AG)
 
@@ -1075,9 +1075,9 @@ void AllocatedArray::AssertValid(ulong grfobj)
 #endif // DEBUG
 
 /***************************************************************************
-    Constructor for GGB class.
+    Constructor for VirtualGroup class.
 ***************************************************************************/
-GGB::GGB(long cbFixed, bool fAllowFree)
+VirtualGroup::VirtualGroup(long cbFixed, bool fAllowFree)
 {
     AssertIn(cbFixed, 0, kcbMax);
     _clocFree = fAllowFree ? 0 : cvNil;
@@ -1093,13 +1093,13 @@ GGB::GGB(long cbFixed, bool fAllowFree)
 /***************************************************************************
     Duplicate the group.
 ***************************************************************************/
-bool GGB::_FDup(PGGB pggbDst)
+bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pggbDst, fobjAssertFull);
     Assert(_cbFixed == pggbDst->_cbFixed, "why do these have different sized fixed portions?");
 
-    if (!GGB_PAR::_FDup(pggbDst, _bvMac, LwMul(_ivMac, size(LOC))))
+    if (!VirtualGroup_PAR::_FDup(pggbDst, _bvMac, LwMul(_ivMac, size(LOC))))
         return fFalse;
 
     pggbDst->_bvMac = _bvMac;
@@ -1125,7 +1125,7 @@ const ByteOrderMask kbomGgf = 0x5FF00000L;
 /***************************************************************************
     Return the amount of space on file needed for the group.
 ***************************************************************************/
-long GGB::CbOnFile(void)
+long VirtualGroup::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
     return size(GGF) + LwMul(_ivMac, size(LOC)) + _bvMac;
@@ -1133,9 +1133,9 @@ long GGB::CbOnFile(void)
 
 /***************************************************************************
     Write the group to disk.  The client must ensure that the data in the
-    GGB has the correct byte order (as specified by the bo).
+    VirtualGroup has the correct byte order (as specified by the bo).
 ***************************************************************************/
-bool GGB::FWrite(PDataBlock pblck, short bo, short osk)
+bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -1172,7 +1172,7 @@ bool GGB::FWrite(PDataBlock pblck, short bo, short osk)
 /***************************************************************************
     Read group data from disk.
 ***************************************************************************/
-bool GGB::_FRead(PDataBlock pblck, short *pbo, short *posk)
+bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -1210,7 +1210,7 @@ bool GGB::_FRead(PDataBlock pblck, short *pbo, short *posk)
         ggf.clocFree != cvNil && (ggf.clocFree < 0 || ggf.clocFree >= ggf.ilocMac))
     {
     LBug:
-        Warn("file corrupt or not a GGB");
+        Warn("file corrupt or not a VirtualGroup");
         goto LFail;
     }
 
@@ -1235,7 +1235,7 @@ LFail:
 /***************************************************************************
     Returns true iff the loc.bv is nil or iloc is out of range.
 ***************************************************************************/
-bool GGB::FFree(long iv)
+bool VirtualGroup::FFree(long iv)
 {
     AssertBaseThis(0);
     AssertIn(iv, 0, kcbMax);
@@ -1256,7 +1256,7 @@ bool GGB::FFree(long iv)
     If there is more than enough room and fgrpShrink is passed, the StringTable
     will shrink.
 ***************************************************************************/
-bool GGB::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
+bool VirtualGroup::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
@@ -1282,9 +1282,9 @@ bool GGB::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
 }
 
 /***************************************************************************
-    Set the minimum that a GGB should grow by.
+    Set the minimum that a VirtualGroup should grow by.
 ***************************************************************************/
-void GGB::SetMinGrow(long cvAdd, long cbAdd)
+void VirtualGroup::SetMinGrow(long cvAdd, long cbAdd)
 {
     AssertThis(0);
     AssertIn(cvAdd, 0, kcbMax);
@@ -1297,7 +1297,7 @@ void GGB::SetMinGrow(long cvAdd, long cbAdd)
 /***************************************************************************
     Private api to remove a block of bytes.
 ***************************************************************************/
-void GGB::_RemoveRgb(long bv, long cb)
+void VirtualGroup::_RemoveRgb(long bv, long cb)
 {
     AssertBaseThis(0);
     AssertIn(bv, 0, _bvMac);
@@ -1319,7 +1319,7 @@ void GGB::_RemoveRgb(long bv, long cb)
 /***************************************************************************
     Private api to remove a block of bytes.
 ***************************************************************************/
-void GGB::_AdjustLocs(long bvMin, long bvLim, long dcb)
+void VirtualGroup::_AdjustLocs(long bvMin, long bvLim, long dcb)
 {
     AssertBaseThis(0);
     AssertIn(bvMin, 0, _bvMac + 2);
@@ -1345,7 +1345,7 @@ void GGB::_AdjustLocs(long bvMin, long bvLim, long dcb)
     Returns a volative pointer the the fixed sized data in the element.
     If pcbVar is not nil, fills *pcbVar with the size of the variable part.
 ***************************************************************************/
-void *GGB::QvFixedGet(long iv, long *pcbVar)
+void *VirtualGroup::QvFixedGet(long iv, long *pcbVar)
 {
     AssertThis(0);
     AssertIn(_cbFixed, 1, kcbMax);
@@ -1365,7 +1365,7 @@ void *GGB::QvFixedGet(long iv, long *pcbVar)
 /***************************************************************************
     Lock the data and return a pointer to the fixed sized data.
 ***************************************************************************/
-void *GGB::PvFixedLock(long iv, long *pcbVar)
+void *VirtualGroup::PvFixedLock(long iv, long *pcbVar)
 {
     AssertThis(0);
     Lock();
@@ -1375,7 +1375,7 @@ void *GGB::PvFixedLock(long iv, long *pcbVar)
 /***************************************************************************
     Get the fixed sized data for the element.
 ***************************************************************************/
-void GGB::GetFixed(long iv, void *pv)
+void VirtualGroup::GetFixed(long iv, void *pv)
 {
     AssertThis(0);
     AssertIn(_cbFixed, 1, kcbMax);
@@ -1393,7 +1393,7 @@ void GGB::GetFixed(long iv, void *pv)
 /***************************************************************************
     Put the fixed sized data for the element.
 ***************************************************************************/
-void GGB::PutFixed(long iv, void *pv)
+void VirtualGroup::PutFixed(long iv, void *pv)
 {
     AssertThis(0);
     AssertIn(_cbFixed, 1, kcbMax);
@@ -1412,7 +1412,7 @@ void GGB::PutFixed(long iv, void *pv)
 /***************************************************************************
     Return the length of the variable part of the iv'th element.
 ***************************************************************************/
-long GGB::Cb(long iv)
+long VirtualGroup::Cb(long iv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1426,7 +1426,7 @@ long GGB::Cb(long iv)
     If pcb is not nil, sets *pcb to the length of the (variable part of the)
     item.
 ***************************************************************************/
-void *GGB::QvGet(long iv, long *pcb)
+void *VirtualGroup::QvGet(long iv, long *pcb)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1447,7 +1447,7 @@ void *GGB::QvGet(long iv, long *pcb)
     item.  If pcb is not nil, sets *pcb to the length of the (variable part
     of the) item.
 ***************************************************************************/
-void *GGB::PvLock(long iv, long *pcb)
+void *VirtualGroup::PvLock(long iv, long *pcb)
 {
     AssertThis(0);
     Lock();
@@ -1457,7 +1457,7 @@ void *GGB::PvLock(long iv, long *pcb)
 /***************************************************************************
     Copy the (variable part of the) iv'th element to pv.
 ***************************************************************************/
-void GGB::Get(long iv, void *pv)
+void VirtualGroup::Get(long iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1473,7 +1473,7 @@ void GGB::Get(long iv, void *pv)
 /***************************************************************************
     Copy *pv to the (variable part of the) iv'th element.
 ***************************************************************************/
-void GGB::Put(long iv, void *pv)
+void VirtualGroup::Put(long iv, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1490,7 +1490,7 @@ void GGB::Put(long iv, void *pv)
     Replace the (variable part of the) iv'th element with the stuff in pv
     (cb bytes worth).  pv may be nil (effectively resizing the block).
 ***************************************************************************/
-bool GGB::FPut(long iv, long cb, void *pv)
+bool VirtualGroup::FPut(long iv, long cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1520,7 +1520,7 @@ bool GGB::FPut(long iv, long cb, void *pv)
 /***************************************************************************
     Get a portion of the element.
 ***************************************************************************/
-void GGB::GetRgb(long iv, long bv, long cb, void *pv)
+void VirtualGroup::GetRgb(long iv, long bv, long cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1540,7 +1540,7 @@ void GGB::GetRgb(long iv, long bv, long cb, void *pv)
 /***************************************************************************
     Put a portion of the element.
 ***************************************************************************/
-void GGB::PutRgb(long iv, long bv, long cb, void *pv)
+void VirtualGroup::PutRgb(long iv, long bv, long cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1561,7 +1561,7 @@ void GGB::PutRgb(long iv, long bv, long cb, void *pv)
 /***************************************************************************
     Remove a portion of element iv (can't be all of it).
 ***************************************************************************/
-void GGB::DeleteRgb(long iv, long bv, long cb)
+void VirtualGroup::DeleteRgb(long iv, long bv, long cb)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1602,7 +1602,7 @@ void GGB::DeleteRgb(long iv, long bv, long cb)
     Insert cb new bytes at location bv into the iv'th element.  pv may
     be nil.
 ***************************************************************************/
-bool GGB::FInsertRgb(long iv, long bv, long cb, void *pv)
+bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
 {
     AssertThis(0);
     AssertIn(iv, 0, _ivMac);
@@ -1667,7 +1667,7 @@ bool GGB::FInsertRgb(long iv, long bv, long cb, void *pv)
     This can fail only because of the padding used for each entry (at most
     size(long) additional bytes will need to be allocated).
 ***************************************************************************/
-bool GGB::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long cb)
+bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long cb)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ivSrc, 0, _ivMac);
@@ -1750,7 +1750,7 @@ bool GGB::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long cb)
     then delete the source element) is if _cbFixed is not a multiple
     of size(long).
 ***************************************************************************/
-void GGB::Merge(long ivSrc, long ivDst)
+void VirtualGroup::Merge(long ivSrc, long ivDst)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ivSrc, 0, _ivMac);
@@ -1791,13 +1791,13 @@ void GGB::Merge(long ivSrc, long ivDst)
 /***************************************************************************
     Validate a group.
 ***************************************************************************/
-void GGB::AssertValid(ulong grfobj)
+void VirtualGroup::AssertValid(ulong grfobj)
 {
     LOC loc;
     long iloc;
     long cbTot, clocFree;
 
-    GGB_PAR::AssertValid(grfobj);
+    VirtualGroup_PAR::AssertValid(grfobj);
     AssertIn(_ivMac, 0, kcbMax);
     AssertIn(_bvMac, 0, kcbMax);
     Assert(_Cb1() >= _bvMac, "group area too small");

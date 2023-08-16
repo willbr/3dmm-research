@@ -18,7 +18,7 @@
         BASE ---> GRPB -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
                         |
-                        +-> GGB -+-> GG
+                        +-> VirtualGroup -+-> GG
                         |        +-> AG
                         |
                         +-> VirtualStringTable-+-> StringTable
@@ -238,13 +238,13 @@ class AllocatedArray : public AllocatedArray_PAR
 };
 
 /****************************************
-    GGB is a virtual class supporting
+    VirtualGroup is a virtual class supporting
     GG and AG
 ****************************************/
 const ByteOrderMask kbomLoc = 0xF0000000;
-#define GGB_PAR GRPB
-#define kclsGGB 'GGB'
-class GGB : public GGB_PAR
+#define VirtualGroup_PAR GRPB
+#define kclsVirtualGroup 'GGB'
+class VirtualGroup : public VirtualGroup_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -261,7 +261,7 @@ class GGB : public GGB_PAR
     long _cbFixed;
 
   protected:
-    GGB(long cbFixed, bool fAllowFree);
+    VirtualGroup(long cbFixed, bool fAllowFree);
 
     void _RemoveRgb(long bv, long cb);
     void _AdjustLocs(long bvMin, long bvLim, long dcb);
@@ -271,7 +271,7 @@ class GGB : public GGB_PAR
     }
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
-    bool _FDup(PGGB pggbDst);
+    bool _FDup(PVirtualGroup pggbDst);
 
   public:
     // methods required by parent class
@@ -310,9 +310,9 @@ class GGB : public GGB_PAR
 };
 
 /****************************************
-    General Group - based on GGB
+    General Group - based on VirtualGroup
 ****************************************/
-#define GG_PAR GGB
+#define GG_PAR VirtualGroup
 #define kclsGG 'GG'
 class GG : public GG_PAR
 {
@@ -320,7 +320,7 @@ class GG : public GG_PAR
     ASSERT
 
   protected:
-    GG(long cbFixed) : GGB(cbFixed, fFalse)
+    GG(long cbFixed) : VirtualGroup(cbFixed, fFalse)
     {
     }
 
@@ -345,9 +345,9 @@ class GG : public GG_PAR
 };
 
 /****************************************
-    Allocated Group - based on GGB
+    Allocated Group - based on VirtualGroup
 ****************************************/
-#define AG_PAR GGB
+#define AG_PAR VirtualGroup
 #define kclsAG 'AG'
 class AG : public AG_PAR
 {
@@ -355,7 +355,7 @@ class AG : public AG_PAR
     ASSERT
 
   protected:
-    AG(long cbFixed) : GGB(cbFixed, fTrue)
+    AG(long cbFixed) : VirtualGroup(cbFixed, fTrue)
     {
     }
 
