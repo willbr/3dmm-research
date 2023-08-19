@@ -2222,7 +2222,7 @@ bool Studio::FCmdEscapeKey(PCMD pcmd)
 
     printf("Studio::FCmdEscapeKey\n");
 
-    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidCostGlass);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidRecordGlass);
 
     if (pgok != pvNil)
     {
