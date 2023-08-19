@@ -5201,6 +5201,8 @@ bool Movie::FSetTransition(TRANS trans)
     AssertIn(trans, 0, transLim);
     AssertPo(Pscen(), 0);
 
+    printf("FSetTransition\n");
+
     if (!Pscen()->FSetTransition(trans))
     {
         return (fFalse);
@@ -5385,11 +5387,14 @@ void Movie::MarkViews(void)
     {
         Filename fni;
         STN stn;
+        STN path;
 
-        if (stn.FFormatSz(PszLit("cel%04d.dib"), _lwBmp++))
+        if (stn.FFormatSz(PszLit(".\\cel%04d.dib"), _lwBmp++))
         {
             if (fni.FBuildFromPath(&stn))
             {
+                fni.GetStnPath(&path);
+                printf("writing: %s\n", path.Psz());
                 if (!Pbwld()->FWriteBmp(&fni))
                     SetFWriteBmps(fFalse);
             }
@@ -5452,6 +5457,8 @@ void Movie::BuildActionMenu()
 {
     AssertThis(0);
     long arid = aridNil;
+
+    // printf("BuildActionMenu\n");
 
     if (pvNil != _pscenOpen && pvNil != _pscenOpen->PactrSelected())
     {
@@ -5887,6 +5894,8 @@ void MovieView::SetTool(long tool)
     AssertPo(Pmvie(), 0);
     AssertNilOrPo(Pmvie()->Pscen(), 0);
 
+    // printf("SetTool\n");
+
     long lwMode; // -1 = Textbox mode, 0 = either mode, 1 = Actor mode
     PTBOX ptbox = pvNil;
     PActor pactr = pvNil;
@@ -5962,7 +5971,6 @@ void MovieView::SetTool(long tool)
     case toolNormalizeRot:
     case toolNormalizeSize:
     case toolActorEasel:
-
         lwMode = 1;
         break;
 
@@ -6223,6 +6231,8 @@ void MovieView::WarpCursToCenter(void)
 
     PT pt;
 
+    printf("WarpCursToCenter\n");
+
     _xpPrev = _dxp / 2;
     _ypPrev = _dyp / 2;
     _dzrPrev = rZero;
@@ -6250,6 +6260,8 @@ void MovieView::WarpCursToActor(PActor pactr)
 
     PT pt;
 
+    printf("WarpCursToActor\n");
+
     pactr->GetCenter(&pt.xp, &pt.yp);
     MapPt(&pt, cooLocal, cooGlobal);
     vpappb->PositionCurs(pt.xp, pt.yp);
@@ -6276,6 +6288,8 @@ void MovieView::AdjustCursor(long xp, long yp)
     AssertThis(0);
 
     RC rc;
+    
+    printf("AdjustCursor\n");
 
     GetRc(&rc, cooLocal);
     rc.Inset(kdpInset, kdpInset); // warp before the cursor gets close to the gob's edge
@@ -6288,6 +6302,7 @@ void MovieView::AdjustCursor(long xp, long yp)
     else
     {
         WarpCursToCenter();
+        // Sleep(8);
     }
 }
 
@@ -6806,6 +6821,8 @@ void MovieView::_ActorClicked(PActor pactr, bool fDown)
 
     ulong grftmpl = 0;
 
+    // printf("_ActorClicked\n");
+    
     if (pactr->Ptmpl()->FIsTdt())
     {
         grftmpl |= ftmplTdt;
@@ -7803,7 +7820,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         }
         else
         {
-
+            printf("cidActorPlaced\n");
             pactrDup->SetArid(pactr->Arid());
             psuna->SetType(_pactrUndo == pvNil ? utAdd : utRep);
             psuna->SetActr(pactrDup);
@@ -7970,6 +7987,8 @@ bool MovieView::FCmdClip(PCMD pcmd)
     PDocumentBase pdocb;
     bool fOV = fFalse;
     CMD cmd;
+
+    printf("FCmdClip\n");
 
     //
     // Check for O-V model for text in text box.

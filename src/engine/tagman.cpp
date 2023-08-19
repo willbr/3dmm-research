@@ -739,10 +739,16 @@ bool TAGM::FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD)
     AssertVarMem(pfni);
 
     FileType ftg;
+    STN path;
+
+    printf("FFindFile %ld, %s\n", sid, pstn->Psz());
 
     if (!pfni->FBuildFromPath(pstn))
         return fFalse;
     ftg = pfni->Ftg();
+
+    pfni->GetStnPath(&path);
+    printf("%s\n", path.Psz());
 
     // First, look on the HD
     if (!_FGetFniHD(sid, pfni))

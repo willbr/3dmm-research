@@ -55,7 +55,8 @@ const PSZ kpszOpenFile = PszLit("3DMMOpen.tmp");
 const long klwOpenDoc = 0x12123434; // arbitrary wParam for WM_USER
 
 BEGIN_CMD_MAP(APP, ApplicationBase)
-ON_CID_GEN(cidInfo, &APP::FCmdInfo, pvNil)
+ON_CID_GEN(cidInfo, &APP::FCmdEscapeKey, pvNil)
+// ON_CID_GEN(cidInfo, &APP::FCmdInfo, pvNil)
 ON_CID_GEN(cidLoadStudio, &APP::FCmdLoadStudio, pvNil)
 ON_CID_GEN(cidLoadBuilding, &APP::FCmdLoadBuilding, pvNil)
 ON_CID_GEN(cidTheaterOpen, &APP::FCmdTheaterOpen, pvNil)
@@ -67,6 +68,7 @@ ON_CID_GEN(cidEnableAccel, &APP::FCmdEnableAccel, pvNil)
 ON_CID_GEN(cidInvokeSplot, &APP::FCmdInvokeSplot, pvNil)
 ON_CID_GEN(cidExitStudio, &APP::FCmdExitStudio, pvNil)
 ON_CID_GEN(cidDeactivate, &APP::FCmdDeactivate, pvNil)
+ON_CID_GEN(cidEscapeKey, &APP::FCmdEscapeKey, pvNil)
 END_CMD_MAP_NIL()
 
 APP vapp;
@@ -1791,6 +1793,8 @@ bool APP::_FInitCrm(void)
     PGraphicsObjectInterpreter psceg = pvNil;
     PScript pscpt = pvNil;
 
+    printf("_FInitCrm\n");
+
     _pcrmAll = ChunkyResourceManager::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
     if (pvNil == _pcrmAll)
         goto LFail;
@@ -1855,12 +1859,14 @@ bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynam
     PChunkyFile pcfl = pvNil;
     long icfl;
 
+    printf("APP::_FAddToCrm\n");
     for (istn = 0; istn < pgstFiles->IvMac(); istn++)
     {
         pgstFiles->GetStn(istn, &stn);
         pgstFiles->GetExtra(istn, &cbCache);
 #ifdef DEBUG
         {
+            printf("%d: %s\n", istn, stn.Psz());
             bool fAskForCDSav = Pkwa()->FAskForCD();
             bool fFoundFile;
 
@@ -1979,6 +1985,11 @@ bool APP::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
     long iv;
     PChunkyResourceFile pcrfT;
     bool fRet = fFalse;
+    STN path;
+
+    
+    pfniUserDoc->GetStnPath(&path);
+    printf("_FInitStudio: %s\n", path.Psz());
 
     _pstdio = Studio::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),
                                fFailIfDocOpenFailed);
@@ -2143,17 +2154,23 @@ void APP::_ParseCommandLine(void)
 
     // Get path to current directory
     GetCurrentDirectory(kcchMaxSz, sz);
+    printf("GetCurrentDirectory: %s\n", sz);
+
     stn.SetSz(sz);
     if (!_fniCurrentDir.FBuildFromPath(&stn, kftgDir))
         Bug("Bad current directory?");
 
     // Get path to exe
     GetModuleFileName(NULL, sz, kcchMaxSz);
+    printf("GetModuleFileName: %s\n", sz);
+
     stn.SetSz(sz);
     if (!_fniExe.FBuildFromPath(&stn))
         Bug("Bad module filename?");
 
     pch = vwig.pszCmdLine;
+    printf("%s\n", pch);
+
     // first argument (app name) is useless...skip it
     _SkipToSpace(&pch);
     _SkipSpace(&pch);
@@ -2175,6 +2192,7 @@ void APP::_ParseCommandLine(void)
                 _fSlowCPU = fFalse;
                 break;
             case ChLit('P'): {
+                printf("case P\n");
                 pch += 2; // skip "-p"
                 pchT = pch;
                 _SkipToSpace(&pchT);
@@ -2186,6 +2204,7 @@ void APP::_ParseCommandLine(void)
             }
             break;
             case ChLit('T'): {
+                printf("case T\n");
                 pch += 2; // skip "-t"
                 pchT = pch;
                 _SkipToSpace(&pchT);
@@ -2273,10 +2292,12 @@ bool APP::_FEnsureProductNames(void)
         if (0 == LoadString(vwig.hinst, stid3DMovieNameLong, sz, kcchMaxSz))
             return fFalse;
         _stnProductLong.SetSz(sz);
+        printf("_stnProductLong: %s\n", sz);
 
         if (0 == LoadString(vwig.hinst, stid3DMovieNameShort, sz, kcchMaxSz))
             return fFalse;
         _stnProductShort.SetSz(sz);
+        printf("_stnProductShort: %s\n", sz);
 #else  // MAC
         RawRtn();
 #endif // MAC
@@ -2300,6 +2321,8 @@ bool APP::_FFindMsKidsDir(void)
     SZ szMsKidsDir;
     STN stn;
     STN stnUsers;
+
+    printf("_FFindMsKidsDir\n");
 
     szMsKidsDir[0] = chNil;
     if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(SZ), fregMachine | fregString))
@@ -2345,6 +2368,8 @@ bool APP::_FFindMsKidsDir(void)
 bool APP::_FFindMsKidsDirAt(Filename *path)
 {
     STN stn;
+    path->GetStnPath(&stn);
+    printf("_FFindMsKidsDirAt: %s\n", stn.Psz());
 
     /* REVIEW ***** (peted): if you check for the MSKIDS dir first, then
         you don't have to reset the dir string before presenting the error
@@ -2383,12 +2408,16 @@ bool APP::_FFindProductDir(PStringTable pgst)
     Filename fni;
     long istn;
 
+    printf("_FFindProductDir\n");
+
     if (_FQueryProductExists(&_stnProductLong, &_stnProductShort, &_fniProductDir))
         return fTrue;
 
     for (istn = 0; istn < pgst->IstnMac(); istn++)
     {
         pgst->GetStn(istn, &stn);
+        printf("%ld: %s\n", istn, stn.Psz());
+
         vptagm->SplitString(&stn, &stnLong, &stnShort);
         if (_FQueryProductExists(&stnLong, &stnShort, &fni))
         {
@@ -2414,6 +2443,9 @@ bool APP::_FQueryProductExists(STN *pstnLong, STN *pstnShort, Filename *pfni)
 
     Filename fni;
     STN stn;
+
+    pfni->GetStnPath(&stn);
+    printf("_FQueryProductExists: '%s', '%s', '%s'\n", pstnLong->Psz(), pstnShort->Psz(), stn.Psz());
 
     *pfni = _fniMsKidsDir;
     if (!pfni->FDownDir(pstnLong, ffniMoveToDir) && !pfni->FDownDir(pstnShort, ffniMoveToDir))
@@ -2781,11 +2813,15 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
     long kidBuilding;
     PGraphicsObject pgob;
     PKidspaceGraphicObject pgokBackground;
+    STN path;
 
     kidBuilding = pcmd->rglw[0];
     chidProject = pcmd->rglw[1];
 
     GetPortfolioDoc(&fniUserDoc); // might be ftgNil
+
+    fniUserDoc.GetStnPath(&path);
+    printf("GetPortfolioDoc:%s\n", path.Psz());
 
     if (_FInitStudio(&fniUserDoc))
     {
@@ -3275,6 +3311,28 @@ char *LoadGenResource(HINSTANCE hInst, LPCSTR lpResource, LPCSTR lpType)
 /***************************************************************************
     Put up info dialog
 ***************************************************************************/
+bool APP::FCmdEscapeKey(PCMD pcmd) {
+    printf("APP::FCmdEscapeKey\n");
+    if (_pstdio == pvNil) {
+        return fTrue;
+    }
+
+    printf("cidBrowserCancel\n");
+    vpcex->EnqueueCid(cidBrowserCancel);
+
+    printf("cidEaselCancel\n");
+    vpcex->EnqueueCid(cidEaselCancel);
+
+    // vpcex->EnqueueCid(cidBrowserCancel, vpappb->PcmhFromHid(kidBrws), pvNil, cnoDest, sid, 1, 1);
+    // vpcex->EnqueueCid(cidBrowserCancel, 0, 0, 0, 0, 0, 0);
+
+    // _pstdio->ReleaseBrcn();
+    return fTrue;
+}
+
+/***************************************************************************
+    Put up info dialog
+***************************************************************************/
 bool APP::FCmdInfo(PCMD pcmd)
 {
     AssertThis(0);
@@ -3285,6 +3343,8 @@ bool APP::FCmdInfo(PCMD pcmd)
     STN stn;
     STN stnT;
     bool fSaveChanges;
+
+    printf("FCmdInfo\n");
 
     pmvie = _Pmvie();
 

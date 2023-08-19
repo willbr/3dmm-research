@@ -241,6 +241,7 @@ class APP : public APP_PAR
     bool FCmdTheaterClose(PCMD pcmd);
     bool FCmdIdle(PCMD pcmd);
     bool FCmdInfo(PCMD pcmd);
+    bool FCmdEscapeKey(PCMD pcmd);
     bool FCmdPortfolioClear(PCMD pcmd);
     bool FCmdPortfolioOpen(PCMD pcmd);
     bool FCmdDisableAccel(PCMD pcmd);

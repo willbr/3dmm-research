@@ -58,6 +58,7 @@ ON_CID_GEN(cidSoundsEnabled, &Studio::FCmdSoundsEnabled, pvNil)
 ON_CID_GEN(cidCreateTbox, &Studio::FCmdCreateTbox, pvNil)
 ON_CID_GEN(cidActorEaselOpen, &Studio::FCmdActorEaselOpen, pvNil)
 ON_CID_GEN(cidListenerEaselOpen, &Studio::FCmdListenerEaselOpen, pvNil)
+ON_CID_GEN(cidEscapeKey, &Studio::FCmdEscapeKey, pvNil)
 #ifdef DEBUG
 ON_CID_GEN(cidWriteBmps, &Studio::FCmdWriteBmps, pvNil)
 #endif // DEBUG
@@ -1114,6 +1115,7 @@ bool Studio::FCmdNewSpletter(PCMD pcmd)
     if (!vptagm->FCacheTagToHD(&tagTdf))
         return fTrue;
 
+    printf("FCmdNewSpletter\n");
     // Note: easels are self-managing, so we don't need to keep the PESLT
     ESLT::PesltNew(_pcrm, _pmvie, pvNil, &stn, tdtsNormal, &tagTdf);
 
@@ -1858,6 +1860,7 @@ void Studio::ActorEasel(bool *pfActrChanged)
     AssertThis(0);
     AssertVarMem(pfActrChanged);
 
+    printf("ActorEasel\n");
     vpcex->EnqueueCid(cidActorEaselOpen);
     *pfActrChanged = fFalse;
 }
@@ -1880,6 +1883,7 @@ bool Studio::FCmdActorEaselOpen(PCMD pcmd)
     // Start the easel.
     // Note: easels are self-managing, so we don't need to keep the PESL
     //
+    printf("FCmdActorEaselOpen\n");
     if (pactr->Ptmpl()->FIsTdt())
     {
         ESLT::PesltNew(_pcrm, _pmvie, pactr);
@@ -2169,6 +2173,8 @@ void Studio::StartActionBrowser(void)
     PKidspaceGraphicObject pgok;
     CMD cmd;
 
+    printf("StartActionBrowser\n");
+
     pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
     if (pgok != pvNil)
@@ -2187,7 +2193,7 @@ void Studio::StartActionBrowser(void)
 void Studio::StartListenerEasel(void)
 {
     AssertThis(0);
-
+    printf("StartListenerEasel\n");
     vpcex->EnqueueCid(cidListenerEaselOpen);
 }
 
@@ -2201,6 +2207,34 @@ bool Studio::FCmdListenerEaselOpen(PCMD pcmd)
 
     // Note: easels are self-managing, so we don't need to keep the PESLL
     ESLL::PesllNew(_pcrm, _pmvie, _pmvie->Pscen()->PactrSelected());
+    return fTrue;
+}
+
+/***************************************************************************
+    Escape Key
+***************************************************************************/
+bool Studio::FCmdEscapeKey(PCMD pcmd)
+{
+    PKidspaceGraphicObject pgok;
+    CMD cmd;
+
+    AssertThis(0);
+    AssertVarMem(pcmd);
+
+    printf("Studio::FCmdEscapeKey\n");
+
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidCameraGlass);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidActorGlass);
+
+    if (pgok != pvNil)
+    {
+        cmd = _cmd;
+        cmd.cid = cidBrowserCancel;
+        cmd.pcmh = pgok;
+        cmd.rglw[0] = kidBrowserCancel;
+        vpcex->EnqueueCmd(&cmd);
+    }
+
     return fTrue;
 }
 
@@ -2519,6 +2553,7 @@ bool Studio::FCmdToggleXY(PCMD pcmd)
     if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
+        printf("FCmdToggleXY\n");
         vpcex->EnqueueCid(cidClicked, pgok, pvNil, pvNil);
     }
 
@@ -2547,6 +2582,7 @@ bool Studio::FCmdHelpBook(PCMD pcmd)
     if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject))
     {
         AssertPo(pgok, 0);
+        printf("FCmdHelpBook\n");
         vpcex->EnqueueCid(cidClicked, pgok, pvNil, pvNil);
     }
 
@@ -2665,6 +2701,7 @@ void Studio::UpdateTitle(PSTN pstnTitle)
 ************************************************************ PETED ***********/
 bool Studio::FCmdWriteBmps(PCMD pcmd)
 {
+    printf("FCmdWriteBmps\n");
     if (_pmvie != pvNil)
     {
         AssertPo(_pmvie, 0);

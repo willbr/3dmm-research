@@ -86,6 +86,8 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
     long sid = ((APP *)vpappb)->SidProduct();
     long brwdid = pcmd->rglw[0];
 
+    printf("FCmdBrowserReady\n");
+
     vapp.BeginLongOp();
 
     if (pvNil == _pmvie)
@@ -107,6 +109,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
     switch (brwdid)
     {
     case kidBrwsBackground:
+        printf("kidBrwsBackground\n");
         // Search for background thumbs of any cno
         ckiRoot.cno = cnoNil;
         ckiRoot.ctg = kctgBkth;
@@ -140,6 +143,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         break;
 
     case kidBrwsCamera:
+        printf("kidBrwsCamera\n");
         if (pvNil == _pmvie->Pscen())
             goto LFail;
         AssertPo(_pmvie->Pscen(), 0);
@@ -165,10 +169,12 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         break;
 
     case kidBrwsProp:
+        printf("kidBrwsProp\n");
         ckiRoot.ctg = kctgPrth;
         pbrwd = (PBRWD)(BRWP::PbrwpNew(_pcrm, kidPropGlass));
         goto LActor;
     case kidBrwsActor:
+        printf("kidBrwsActor\n");
         ckiRoot.ctg = kctgTmth;
         pbrwd = (PBRWD)(BRWP::PbrwpNew(_pcrm, kidActorGlass));
     LActor:
@@ -188,6 +194,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         break;
 
     case kidBrwsAction:
+        printf("kidBrwsAction\n");
         if ((pvNil == _pmvie->Pscen()) || (pvNil == _pmvie->Pscen()->PactrSelected()))
         {
             Bug("No actor selected in action browser");
@@ -207,20 +214,24 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         break;
 
     case kidSSorterBackground:
+        printf("kidSSorterBackground\n");
         if (SCRT::PscrtNew(brwdid, _pmvie, this, _pcrm) == pvNil)
             PushErc(ercSocCantInitSceneSort);
         vapp.EndLongOp();
         return fTrue;
 
     case kidBrwsFX:
+        printf("kidBrwsFX\n");
         ckiRoot.ctg = kctgSfth;
         pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
         goto LMusic;
     case kidBrwsSpeech:
+        printf("kidBrwsSpeech\n");
         ckiRoot.ctg = kctgSvth;
         pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
         goto LMusic;
     case kidBrwsMidi:
+        printf("kidBrwsMidi\n");
         ckiRoot.ctg = kctgSmth;
         pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
     LMusic:
@@ -254,14 +265,17 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
     // rglw[1] = pfniMovie of movie to be scanned.
     //
     case kidBrwsImportFX:
+        printf("kidBrwsImportFX\n");
         ckiRoot.ctg = kctgSfth;
         pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
         goto LImport;
     case kidBrwsImportSpeech:
+        printf("kidBrwsImportSpeech\n");
         ckiRoot.ctg = kctgSvth;
         pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
         goto LImport;
     case kidBrwsImportMidi:
+        printf("kidBrwsImportMidi\n");
         ckiRoot.ctg = kctgSmth;
         pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
     LImport:
@@ -275,6 +289,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         break;
 
     case kidRollCallProp:
+        // printf("kidRollCallProp\n");
         Assert(pvNil == _pbrwrProp, "Roll Call browser already up");
         _pbrwrProp = BRWR::PbrwrNew(_pcrm, kidRollCallProp);
         pbrwd = (PBRWD)_pbrwrProp;
@@ -294,6 +309,7 @@ bool Studio::FCmdBrowserReady(PCMD pcmd)
         break;
 
     case kidRollCallActor:
+        // printf("kidRollCallActor\n");
         Assert(pvNil == _pbrwrActr, "Roll Call browser already up");
         _pbrwrActr = BRWR::PbrwrNew(_pcrm, kidRollCallActor);
         pbrwd = (PBRWD)_pbrwrActr;
@@ -354,9 +370,11 @@ void Studio::ReleaseBrcn(void)
     long ipbrcn;
     PBRCN pbrcn;
 
+    printf("ReleaseBrcn\n");
+    
     if (pvNil == _pglpbrcn)
         return;
-
+    printf("_pglpbrcn\n");
     for (ipbrcn = 0; ipbrcn < _pglpbrcn->IvMac(); ipbrcn++)
     {
         _pglpbrcn->Get(ipbrcn, &pbrcn);

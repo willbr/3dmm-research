@@ -145,6 +145,8 @@ bool ESL::FCmdDismiss(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
+    printf("ESL::FCmdDismiss\n");
+    
     if (pcmd->cid == cidEaselOk)
     {
         bool fDismissEasel = fTrue;

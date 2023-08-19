@@ -123,6 +123,7 @@ class Studio : public Studio_PAR
     bool FCmdCreateTbox(PCMD pcmd);
     bool FCmdActorEaselOpen(PCMD pcmd);
     bool FCmdListenerEaselOpen(PCMD pcmd);
+    bool FCmdEscapeKey(PCMD pcmd);
 
 #ifdef DEBUG
     bool FCmdWriteBmps(PCMD pcmd);

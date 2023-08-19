@@ -551,6 +551,8 @@ bool BRWD::FCmdFwd(PCMD pcmd)
     AssertVarMem(pcmd);
     long cthumAdd;
 
+    printf("FCmdFwd\n");
+
     // Default _cthumScroll -> page scrolling
     if (ivNil == _cthumScroll)
         cthumAdd = _cfrm;
@@ -613,6 +615,8 @@ bool BRWD::FCmdBack(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
+    printf("FCmdBack\n");
+    
     if (_ithumPageFirst == 0)
     {
         if (_fWrapScroll)
@@ -707,7 +711,7 @@ bool BRWD::FCreateAllTgob(void)
  ****************************************************/
 bool BRWD::_FHiliteFrm(long ifrmSelect)
 {
-    AssertThis(0);
+        AssertThis(0);
     AssertIn(ifrmSelect, 0, _cfrm);
     PGraphicsObject pgob;
 
@@ -759,6 +763,8 @@ bool BRWD::FCmdCancel(PCMD pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
+    printf("BRWD::FCmdCancel\n");
+    
     vpsndm->StopAll();
     Release(); // OK/Cancel common cleanup
 
@@ -793,6 +799,8 @@ bool BRWD::FCmdOk(PCMD pcmd)
     long sid;
     long thumSelect;
 
+    printf("BRWD::FCmdOk\n");
+    
     _pstdio->SetDisplayCast(fFalse);
 
     if (ivNil != _ithumSelect)
@@ -3121,6 +3129,8 @@ void BRWR::_ProcessSelection(void)
 
     long thumSelect;
     long sid;
+
+    printf("BRWR::_ProcessSelection\n");
 
     // Get Selection from virtual function
     _GetThumFromIthum(_ithumSelect, &thumSelect, &sid);

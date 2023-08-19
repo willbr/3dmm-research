@@ -55,6 +55,7 @@
 #define cidHelpBook 40040
 #define cidToggleXY 40041
 #define cidMap 40042
+#define cidEscapeKey 40043
 #define IDC_STATIC -1
 
 // Next default values for new objects

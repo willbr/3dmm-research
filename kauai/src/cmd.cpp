@@ -799,6 +799,17 @@ void CEX::EnqueueCmd(PCMD pcmd)
     AssertPo(pcmd, 0);
     Assert(pcmd->cid != cidNil, "why enqueue a nil command?");
 
+    switch (pcmd->cid) {
+        case cidIdle:
+        case cidSelIdle:
+        case cidMouseMove:
+        case cidRollOff:
+        case cidActivateSel:
+            break;
+        default:
+            printf("CEX::EnqueueCmd: %ld\n", pcmd->cid);
+    }
+
     if (!_pglcmd->FEnqueue(pcmd))
     {
         Bug("event queue not big enough");
@@ -1045,6 +1056,27 @@ bool CEX::FDispatchNextCmd(void)
     if (!fHandled && pvNil != _cmdCur.pcmh)
     {
         AssertPo(_cmdCur.pcmh, 0);
+        
+        switch (_cmdCur.cid) {
+            case cidTrackMouse:
+            case cidIdle:
+            case cidSelIdle:
+            case cidMouseMove:
+            case cidRollOff:
+            case cidActivateSel:
+            case cidMouseDown:
+                break;
+            default:
+                printf("FDispatchNextCmd: %ld\n", _cmdCur.cid);
+        }
+        switch (_cmdCur.cid) {
+            case 50015: // cidBrowserCancel
+                /* fall through */
+            case 50027: // cidEaselCancel:
+                printf("%p\n", _cmdCur.pcmh);
+            default:
+                break;
+        }
         fHandled = _FSendCmd(_cmdCur.pcmh);
     }
 

@@ -180,11 +180,12 @@ CREATE_SCRIPT("Scene browser created")
 	// clicked.
 	//	
 	FilterCmdsThis(cidMouseDown, cidNil, kchidScript1);
+	FilterCmdsThis(cidEscapeKey, cidNil, kchidScript1);
 ENDCHUNK
 CHILD_SCRIPT("par / filter cids", kchidScript1)
 	kid = _parm[0];
 	cid = _parm[1];
-
+// Return(fFalse);
 	If(cid == cidMouseDown);
 
 		If(((kid >= kidBrowserFrame) && (kid < kidBrowserFrameLim)) ||
@@ -194,6 +195,10 @@ CHILD_SCRIPT("par / filter cids", kchidScript1)
 		    Return(fFalse);
         End;
 
+	End;
+
+	If(cid == cidEscapeKey);
+		Return(fFalse);
 	End;
 ENDCHUNK
 //
