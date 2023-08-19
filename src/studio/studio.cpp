@@ -2215,8 +2215,7 @@ bool Studio::FCmdListenerEaselOpen(PCMD pcmd)
 ***************************************************************************/
 bool Studio::FCmdEscapeKey(PCMD pcmd)
 {
-    PKidspaceGraphicObject pgok;
-    CMD cmd;
+    PKidspaceGraphicObject pgok = pvNil;
 
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2228,11 +2227,7 @@ bool Studio::FCmdEscapeKey(PCMD pcmd)
 
     if (pgok != pvNil)
     {
-        cmd = _cmd;
-        cmd.cid = cidBrowserCancel;
-        cmd.pcmh = pgok;
-        cmd.rglw[0] = kidBrowserCancel;
-        vpcex->EnqueueCmd(&cmd);
+        vpcex->EnqueueCid(cidBrowserCancel, pgok, pvNil, kidBrowserCancel, 0,0,0);
     }
 
     return fTrue;
