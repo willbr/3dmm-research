@@ -266,7 +266,12 @@ void ApplicationBase::PositionCurs(long xpScreen, long ypScreen)
     AssertThis(0);
 
     // REVIEW shonk: implement on Mac
-    MacWin(RawRtn(), SetCursorPos(xpScreen, ypScreen));
+    #ifdef MAC
+        RawRtn()
+    #elif WIN
+        SetCursorPos(xpScreen, ypScreen);
+        // Sleep(8);
+    #endif
 }
 
 /***************************************************************************
