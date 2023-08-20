@@ -2222,14 +2222,20 @@ bool Studio::FCmdEscapeKey(PCMD pcmd)
 
     printf("Studio::FCmdEscapeKey\n");
 
-    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidRecordGlass);
+    pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidCameraGlass);
 
     if (pgok != pvNil)
     {
         // vpcex->EnqueueCid(cidBrowserCancel, pgok, pvNil, kidBrowserCancel, 0,0,0);
-        vpcex->EnqueueCid(cidEaselCancel, pgok, pvNil, 0, 0,0,0);
+        // vpcex->EnqueueCid(cidEaselCancel, pgok, pvNil, 0, 0,0,0);
     }
 
+    vpcex->EnqueueCid(cidClicked, pvNil, pvNil, 0,0,0,0);
+    vpcex->EnqueueCid(cidBrowserCancel, pvNil,pvNil, kidBrowserCancel, 0,0,0);
+
+    // vpcex->EnqueueCid(cidMouseDown, pvNil,pvNil, kidBrowserCancel, 0,0,0);
+    
+    // vpcex->EnqueueCid(cidEaselCancel, pvNil, pvNil, 0, 0,0,0);
     return fTrue;
 }
 
