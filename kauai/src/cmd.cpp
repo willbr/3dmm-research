@@ -1018,6 +1018,27 @@ bool CEX::FDispatchNextCmd(void)
     bool fHandled;
     bool tRet;
 
+    switch (_cmdCur.cid) {
+        case 0:
+        case cidTrackMouse:
+        case cidIdle:
+        case cidSelIdle:
+        case cidMouseMove:
+        case cidRollOff:
+        case cidActivateSel:
+        case cidMouseDown:
+            break;
+        case cidClicked:
+            printf("clicked\n");
+            break;
+        case 50015: //cidBrowserCancel
+        case 50027: //cidEaselCancel
+            printf("top Cancel Command\n");
+            break;
+        default:
+            printf("FDispatchNextCmd: %ld\n", _cmdCur.cid);
+    }
+
     if (_fDispatching)
     {
         Bug("recursing into FDispatchNextCmd!");
@@ -1050,6 +1071,30 @@ bool CEX::FDispatchNextCmd(void)
         else if (!(cmhe.grfcmm & fcmmOthers))
             continue;
 
+        // switch (cmhe.pcmh.) {
+        //     case cidTrackMouse:
+        //     case cidIdle:
+        //     case cidSelIdle:
+        //     case cidMouseMove:
+        //     case cidRollOff:
+        //     case cidActivateSel:
+        //     case cidMouseDown:
+        //         break;
+        //     case 50015: //cidBrowserCancel
+        //     case 50027: //cidEaselCancel
+        //         printf("Cancel Command\n");
+        //         break;
+        //     default:
+        //         printf("FDispatchNextCmd: %ld\n", _cmdCur.cid);
+        // }
+        // switch (cmhe.cid) {
+        //     case 50015: // cidBrowserCancel
+        //         /* fall through */
+        //     case 50027: // cidEaselCancel:
+        //         printf("%p\n", cmhe.pcmh);
+        //     default:
+        //         break;
+        // }
         fHandled = _FSendCmd(cmhe.pcmh);
     }
 
@@ -1065,6 +1110,10 @@ bool CEX::FDispatchNextCmd(void)
             case cidRollOff:
             case cidActivateSel:
             case cidMouseDown:
+                break;
+            case 50015: //cidBrowserCancel
+            case 50027: //cidEaselCancel
+                printf("bottom Cancel Command\n");
                 break;
             default:
                 printf("FDispatchNextCmd: %ld\n", _cmdCur.cid);

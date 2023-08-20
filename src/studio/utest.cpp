@@ -3313,15 +3313,16 @@ char *LoadGenResource(HINSTANCE hInst, LPCSTR lpResource, LPCSTR lpType)
 ***************************************************************************/
 bool APP::FCmdEscapeKey(PCMD pcmd) {
     printf("APP::FCmdEscapeKey\n");
+    
     if (_pstdio == pvNil) {
         return fTrue;
     }
 
-    printf("cidBrowserCancel\n");
-    vpcex->EnqueueCid(cidBrowserCancel);
+    // printf("cidBrowserCancel\n");
+    // vpcex->EnqueueCid(cidBrowserCancel);
 
-    printf("cidEaselCancel\n");
-    vpcex->EnqueueCid(cidEaselCancel);
+    // printf("cidEaselCancel\n");
+    // vpcex->EnqueueCid(cidEaselCancel);
 
     // vpcex->EnqueueCid(cidBrowserCancel, vpappb->PcmhFromHid(kidBrws), pvNil, cnoDest, sid, 1, 1);
     // vpcex->EnqueueCid(cidBrowserCancel, 0, 0, 0, 0, 0, 0);
