@@ -388,7 +388,8 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     // to the studio.  Otherwise, start the building.
     GetPortfolioDoc(&fniUserDoc);
 
-    if (fniUserDoc.Ftg() == ftgNil)
+    // if (fniUserDoc.Ftg() == ftgNil)
+    if (fFalse)
     {
         // Startup place depends on whether this is the user's first time in.
         if (!FGetProp(kpridFirstTimeUser, &fFirstTimeUser))
@@ -466,6 +467,8 @@ void APP::_CleanupTemp(void)
 {
     Filename fni;
 
+    printf("APP::_CleanupTemp\n");
+    
     /* Attempt to cleanup any leftovers from a previous bad exit */
     vftgTemp = kftgSocTemp;
     if (fni.FGetTemp())
@@ -1084,6 +1087,9 @@ bool APP::_FOpenResourceFile(void)
     Filename fni;
     STN stn;
 
+    _fniProductDir.GetStnPath(&stn);
+    printf("_fniProductDir: %s\n", stn.Psz());
+
     fni = _fniProductDir;
     if (!fni.FSetLeaf(&_stnProductLong, kftgChunky) || tYes != fni.TExists())
     {
@@ -1095,6 +1101,10 @@ bool APP::_FOpenResourceFile(void)
             return fFalse;
         }
     }
+
+    fni.GetStnPath(&stn);
+    printf("_fniProductDir++: %s\n", stn.Psz());
+
     _pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
     if (pvNil == _pcfl)
         return fFalse;
@@ -2375,9 +2385,11 @@ bool APP::_FFindMsKidsDirAt(Filename *path)
         you don't have to reset the dir string before presenting the error
         to the user */
     stn = PszLit("Microsoft Kids"); // REVIEW *****
+    printf("_FFindMsKidsDirAt: %s\n", stn.Psz());
     if (!path->FDownDir(&stn, ffniMoveToDir))
     {
         stn = PszLit("MSKIDS"); // REVIEW *****
+        printf("_FFindMsKidsDirAt: %s\n", stn.Psz());
         if (!path->FDownDir(&stn, ffniMoveToDir))
         {
             return fFalse;
@@ -2419,11 +2431,17 @@ bool APP::_FFindProductDir(PStringTable pgst)
         printf("%ld: %s\n", istn, stn.Psz());
 
         vptagm->SplitString(&stn, &stnLong, &stnShort);
+        printf("SplitString stn=:%s\n", stn.Psz());
+        printf("SplitString stnLong=:%s\n", stnLong.Psz());
+        printf("SplitString stnShort=:%s\n", stnShort.Psz());
         if (_FQueryProductExists(&stnLong, &stnShort, &fni))
         {
+            printf("found stnLong=:%s\n", stnLong.Psz());
             _stnProductLong = stnLong;
             _stnProductShort = stnShort;
             _fniProductDir = fni;
+            fni.GetStnPath(&stn);
+            printf("_fniProductDir: %s\n", stn.Psz());
             return fTrue;
         }
     }

@@ -359,6 +359,10 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl)
     AssertPo(pfni, ffniFile);
     PChunkyFile pcfl;
     ulong grffil;
+    STN stn;
+
+    pfni->GetStnPath(&stn);
+    printf("ChunkyFile::PcflOpen  %s\n", stn.Psz());
 
     Assert(!(grfcfl & fcflTemp), "can't open a file as temp");
     if (pvNil != (pcfl = PcflFromFni(pfni)))

@@ -447,6 +447,8 @@ tribool Filename::TExists(void)
         stn.Delete(cch - 1);
     }
 
+    printf("Filename::TExists %s\n", pstn->Psz());
+
     if (0xFFFFFFFF == (lu = GetFileAttributes(pstn->Psz())))
     {
         /* Any of these are equivalent to "there's no file with that name" */

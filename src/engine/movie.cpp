@@ -6231,7 +6231,7 @@ void MovieView::WarpCursToCenter(void)
 
     PT pt;
 
-    printf("WarpCursToCenter\n");
+    // printf("WarpCursToCenter\n");
 
     _xpPrev = _dxp / 2;
     _ypPrev = _dyp / 2;
@@ -6289,7 +6289,7 @@ void MovieView::AdjustCursor(long xp, long yp)
 
     RC rc;
     
-    printf("AdjustCursor\n");
+    // printf("AdjustCursor\n");
 
     GetRc(&rc, cooLocal);
     rc.Inset(kdpInset, kdpInset); // warp before the cursor gets close to the gob's edge
