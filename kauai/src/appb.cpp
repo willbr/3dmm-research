@@ -1193,6 +1193,8 @@ void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PDynamicArray pglc
     AssertNilOrPo(pglclr, 0);
     AssertPo(&acr, 0);
 
+    return;
+    
     _gft = gft;
     _lwGft = lwGft;
     _dtsGft = dts;
