@@ -81,7 +81,7 @@ void MenuBar::Clean(void)
     ulong grfeds;
     HMENU hmenu;
     long wcid;
-    CMD cmd;
+    Command cmd;
 
     // adjust for the goofy mdi window's menu
     cmnu = GetMenuItemCount(_hmenu);
@@ -135,7 +135,7 @@ void MenuBar::Clean(void)
 ***************************************************************************/
 void MenuBar::EnqueueWcid(long wcid)
 {
-    CMD cmd;
+    Command cmd;
 
     if (_FGetCmdForWcid(wcid, &cmd))
         vpcex->EnqueueCmd(&cmd);
@@ -483,9 +483,9 @@ bool MenuBar::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PST
 }
 
 /***************************************************************************
-    Fill in the CMD structure for the given wcid.
+    Fill in the Command structure for the given wcid.
 ***************************************************************************/
-bool MenuBar::_FGetCmdForWcid(long wcid, PCMD pcmd)
+bool MenuBar::_FGetCmdForWcid(long wcid, PCommand pcmd)
 {
     AssertVarMem(pcmd);
     MLST mlst;

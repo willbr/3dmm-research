@@ -24,7 +24,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new popup menu
 ***************************************************************************/
-PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
+PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCommand pcmd, BWS bws, long ithumSelect, long sidSelect,
                ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);
@@ -165,7 +165,7 @@ long MP::_IthumFromThum(long thumSelect, long sidSelect)
     Do selection idle processing.  Make sure not to change any selection
     states.
 ***************************************************************************/
-bool MP::FCmdSelIdle(PCMD pcmd)
+bool MP::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -210,7 +210,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new font menu
 ***************************************************************************/
-PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long ithumSelect, PStringTable pgst)
+PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable pgst)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
@@ -340,7 +340,7 @@ void MPFNT::_AdjustRc(long cthum, long cfrm)
     Do selection idle processing.  Make sure not to change any selection
     states.
 ***************************************************************************/
-bool MPFNT::FCmdSelIdle(PCMD pcmd)
+bool MPFNT::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

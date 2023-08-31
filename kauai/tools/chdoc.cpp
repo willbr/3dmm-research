@@ -1095,7 +1095,7 @@ void DCD::_HiliteLn(long ln)
 /***************************************************************************
     Reopen the file - nuking all changes since last saved.
 ***************************************************************************/
-bool DCD::FCmdReopen(PCMD pcmd)
+bool DCD::FCmdReopen(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -1264,7 +1264,7 @@ long DCD::_ScvMax(bool fVert)
 /***************************************************************************
     Handle enabling/disabling DCD commands.
 ***************************************************************************/
-bool DCD::FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds)
+bool DCD::FEnableDcdCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1391,7 +1391,7 @@ bool DCD::_FAddChunk(ChunkTag ctgDef, ChunkIdentification *pcki, bool *pfCreated
 /***************************************************************************
     Handle command to add a chunk.
 ***************************************************************************/
-bool DCD::FCmdAddChunk(PCMD pcmd)
+bool DCD::FCmdAddChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1419,7 +1419,7 @@ bool DCD::FCmdAddChunk(PCMD pcmd)
 /***************************************************************************
     Handle command to add a chunk.
 ***************************************************************************/
-bool DCD::FCmdAddPicChunk(PCMD pcmd)
+bool DCD::FCmdAddPicChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1532,7 +1532,7 @@ bool _FDlgMbmp(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Handle command to add Mbmp or chunk.
 ***************************************************************************/
-bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
+bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1618,7 +1618,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
 /***************************************************************************
     Handle command to add a chunk that is a copy of a file's contents.
 ***************************************************************************/
-bool DCD::FCmdAddFileChunk(PCMD pcmd)
+bool DCD::FCmdAddFileChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1788,7 +1788,7 @@ bool DCD::_FEditChunkInfo(ChunkIdentification *pckiOld)
 /**************************************************************************
     Handle command to edit chunk information.
 **************************************************************************/
-bool DCD::FCmdEditChunkInfo(PCMD pcmd)
+bool DCD::FCmdEditChunkInfo(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1819,7 +1819,7 @@ bool DCD::FCmdEditChunkInfo(PCMD pcmd)
 /***************************************************************************
     Handle command to delete a chunk.
 ***************************************************************************/
-bool DCD::FCmdDeleteChunk(PCMD pcmd)
+bool DCD::FCmdDeleteChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1964,7 +1964,7 @@ bool DCD::_FChangeChid(ChunkIdentification *pcki, ChildChunkIdentification *pkid
 /**************************************************************************
     Handle command to change the ChildChunkID.
 **************************************************************************/
-bool DCD::FCmdChangeChid(PCMD pcmd)
+bool DCD::FCmdChangeChid(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2193,7 +2193,7 @@ bool DCD::_FDoAdoptChunkDlg(ChunkIdentification *pcki, ChildChunkIdentification 
 /***************************************************************************
     Handle command to adopt a chunk.
 ***************************************************************************/
-bool DCD::FCmdAdoptChunk(PCMD pcmd)
+bool DCD::FCmdAdoptChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2215,7 +2215,7 @@ bool DCD::FCmdAdoptChunk(PCMD pcmd)
 /***************************************************************************
     Handle command to unadopt a chunk.
 ***************************************************************************/
-bool DCD::FCmdUnadoptChunk(PCMD pcmd)
+bool DCD::FCmdUnadoptChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2238,7 +2238,7 @@ bool DCD::FCmdUnadoptChunk(PCMD pcmd)
 /***************************************************************************
     Handles commands to edit a chunk.
 ***************************************************************************/
-bool DCD::FCmdEditChunk(PCMD pcmd)
+bool DCD::FCmdEditChunk(PCommand pcmd)
 {
     ChunkIdentification cki;
 
@@ -2406,7 +2406,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
 /***************************************************************************
     Handle command to compile and add a script chunk.
 ***************************************************************************/
-bool DCD::FCmdImportScript(PCMD pcmd)
+bool DCD::FCmdImportScript(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2475,7 +2475,7 @@ enum
 /***************************************************************************
     Open a new window and run a script in it.
 ***************************************************************************/
-bool DCD::FCmdTestScript(PCMD pcmd)
+bool DCD::FCmdTestScript(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2518,7 +2518,7 @@ bool DCD::FCmdTestScript(PCMD pcmd)
 /***************************************************************************
     Command handler to Edit a WAVE chunk
 ***************************************************************************/
-bool DCD::FCmdStopSound(PCMD pcmd)
+bool DCD::FCmdStopSound(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2533,7 +2533,7 @@ bool DCD::FCmdStopSound(PCMD pcmd)
     Command handler to pack or unpack (toggle) a chunk.  Also handle just
     toggling the packed flag.
 ***************************************************************************/
-bool DCD::FCmdPack(PCMD pcmd)
+bool DCD::FCmdPack(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2604,7 +2604,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
 /***************************************************************************
     Disassemble a script and display it in a new window.
 ***************************************************************************/
-bool DCD::FCmdDisasmScript(PCMD pcmd)
+bool DCD::FCmdDisasmScript(PCommand pcmd)
 {
     ChunkIdentification cki;
     PScript pscpt;
@@ -2663,7 +2663,7 @@ bool DCD::_FCopySel(PDocumentBase *ppdocb)
 void DCD::_ClearSel(void)
 {
     ulong grfsel;
-    CMD cmd;
+    Command cmd;
 
     grfsel = _sel.GrfselGetCkiKid(pvNil, pvNil);
     if (!(grfsel & fselCki))
@@ -2739,7 +2739,7 @@ bool DCD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 /***************************************************************************
     Use the selected chunk as the current color table.
 ***************************************************************************/
-bool DCD::FCmdSetColorTable(PCMD pcmd)
+bool DCD::FCmdSetColorTable(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2772,7 +2772,7 @@ enum
 /***************************************************************************
     Change the filtering.
 ***************************************************************************/
-bool DCD::FCmdFilterChunk(PCMD pcmd)
+bool DCD::FCmdFilterChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2859,7 +2859,7 @@ LCancel:
 /***************************************************************************
     Clone a chunk and its subgraph
 ***************************************************************************/
-bool DCD::FCmdCloneChunk(PCMD pcmd)
+bool DCD::FCmdCloneChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

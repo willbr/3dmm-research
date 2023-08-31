@@ -1869,7 +1869,7 @@ bool TextDocumentGraphicsObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool TextDocumentGraphicsObject::FCmdSelIdle(PCMD pcmd)
+bool TextDocumentGraphicsObject::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -2164,7 +2164,7 @@ bool TextDocumentGraphicsObject::FCmdKey(PCMD_KEY pcmd)
     long ichLim;
     long cact;
     long dcp, cpT;
-    CMD cmd;
+    Command cmd;
     LIN lin, linT;
     long ilin, ilinT;
     RC rc;
@@ -3071,7 +3071,7 @@ bool RichTextDocumentGraphicsObject::FApplyPap(PPAP ppap, PPAP ppapDiff, bool fE
 /***************************************************************************
     Apply a character or paragraph property
 ***************************************************************************/
-bool RichTextDocumentGraphicsObject::FCmdApplyProperty(PCMD pcmd)
+bool RichTextDocumentGraphicsObject::FCmdApplyProperty(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3237,7 +3237,7 @@ bool RichTextDocumentGraphicsObject::FSetColor(AbstractColor *pacrFore, Abstract
 /***************************************************************************
     Enable, check/uncheck property commands.
 ***************************************************************************/
-bool RichTextDocumentGraphicsObject::FEnablePropCmd(PCMD pcmd, ulong *pgrfeds)
+bool RichTextDocumentGraphicsObject::FEnablePropCmd(PCommand pcmd, ulong *pgrfeds)
 {
     PAP pap;
     bool fCheck;

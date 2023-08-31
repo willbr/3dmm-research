@@ -203,7 +203,7 @@ bool EDCB::FCmdKey(PCMD_KEY pcmd)
     long dich, ichLim;
     long dlnSel, ln, lnMac;
     long cact;
-    CMD cmd;
+    Command cmd;
     achar rgch[kcchInsBuf + 1];
     bool fPage;
 
@@ -235,7 +235,7 @@ bool EDCB::FCmdKey(PCMD_KEY pcmd)
                 break;
             if (!_FFilterCh((achar)pcmd->ch))
             {
-                cmd = *(CMD *)pcmd;
+                cmd = *(Command *)pcmd;
                 cmd.cid = cidBadKey;
                 cmd.pcmh = PgobPar();
                 ((PCMD_BADKEY)&cmd)->hid = Hid();
@@ -390,7 +390,7 @@ LInsert:
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool EDCB::FCmdSelIdle(PCMD pcmd)
+bool EDCB::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -411,7 +411,7 @@ bool EDCB::FCmdSelIdle(PCMD pcmd)
 /***************************************************************************
     Handle an activate sel command.
 ***************************************************************************/
-bool EDCB::FCmdActivateSel(PCMD pcmd)
+bool EDCB::FCmdActivateSel(PCommand pcmd)
 {
     Activate(fTrue);
     return fTrue;

@@ -69,7 +69,7 @@ class MenuBar : public MenuBar_PAR
     bool _FInsertMni(long imnu, long imni, long cid, long lw0, PSTN pstn);
     void _DeleteMni(long imnu, long imni);
     bool _FFindMlst(long imnu, long imni, MLST *pmlst = pvNil, long *pimlst = pvNil);
-    bool _FGetCmdFromCode(long lwCode, CMD *pcmd);
+    bool _FGetCmdFromCode(long lwCode, Command *pcmd);
     void _Free(void);
     bool _FFetchRes(ulong ridMenuBar);
 #endif // MAC
@@ -92,7 +92,7 @@ class MenuBar : public MenuBar_PAR
 
     bool _FInitLists(void);
     bool _FFindMlst(long wcid, MLST *pmlst, long *pimlst = pvNil);
-    bool _FGetCmdForWcid(long wcid, PCMD pcmd);
+    bool _FGetCmdForWcid(long wcid, PCommand pcmd);
 #endif // WIN
 
   protected:

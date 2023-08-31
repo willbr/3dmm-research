@@ -167,7 +167,7 @@ StudioScrollbars::~StudioScrollbars(void)
  *		fTrue if the command was handled
  *
 \*****************************************************************************/
-bool StudioScrollbars::FCmdScroll(PCMD pcmd)
+bool StudioScrollbars::FCmdScroll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

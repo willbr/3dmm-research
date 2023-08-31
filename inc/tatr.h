@@ -49,10 +49,10 @@ class TATR : public TATR_PAR
     static PTATR PtatrNew(long kidParent);
     ~TATR(void);
 
-    bool FCmdLoad(PCMD pcmd);
-    bool FCmdPlay(PCMD pcmd);
-    bool FCmdStop(PCMD pcmd);
-    bool FCmdRewind(PCMD pcmd);
+    bool FCmdLoad(PCommand pcmd);
+    bool FCmdPlay(PCommand pcmd);
+    bool FCmdStop(PCommand pcmd);
+    bool FCmdRewind(PCommand pcmd);
 
     PMovie Pmvie(void)
     {

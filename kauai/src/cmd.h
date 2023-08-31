@@ -39,7 +39,7 @@ const ulong kgrfedsMark = fedsUncheck | fedsCheck | fedsBullet;
 
 // command
 #define kclwCmd 4 // if this ever changes, change the CMD_TYPE macro also
-struct CMD
+struct Command
 {
     ASSERT
 
@@ -48,7 +48,7 @@ struct CMD
     PGeneralGroup pgg;            // additional parameters for the command
     long rglw[kclwCmd]; // standard parameters
 };
-typedef CMD *PCMD;
+typedef Command *PCommand;
 
 // command on file - for saving recorded macros
 struct CommandFile
@@ -63,7 +63,7 @@ struct CommandFile
 /***************************************************************************
     Custom command types
 ***************************************************************************/
-// used to define a new CMD structure.  Needs a trailing semicolon.
+// used to define a new Command structure.  Needs a trailing semicolon.
 #define CMD_TYPE(foo, a, b, c, d)                                                                                      \
     struct CMD_##foo                                                                                                   \
     {                                                                                                                  \
@@ -147,10 +147,10 @@ class CommandHandler : public CommandHandler_PAR
 
   protected:
     // command function
-    typedef bool (CommandHandler::*PFNCMD)(PCMD pcmd);
+    typedef bool (CommandHandler::*PFNCMD)(PCommand pcmd);
 
     // command enabler function
-    typedef bool (CommandHandler::*PFNEDS)(PCMD pcmd, ulong *pgrfeds);
+    typedef bool (CommandHandler::*PFNEDS)(PCommand pcmd, ulong *pgrfeds);
 
     // command map entry
     struct CMME
@@ -178,8 +178,8 @@ class CommandHandler : public CommandHandler_PAR
     ~CommandHandler(void);
 
     // return indicates whether the command was handled, not success
-    virtual bool FDoCmd(PCMD pcmd);
-    virtual bool FEnableCmd(PCMD pcmd, ulong *pgrfeds);
+    virtual bool FDoCmd(PCommand pcmd);
+    virtual bool FEnableCmd(PCommand pcmd, ulong *pgrfeds);
 
     long Hid(void)
     {
@@ -240,10 +240,10 @@ class CEX : public CEX_PAR
     long _icmdf;    // current command for recording or playback
     ChildChunkID _chidLast; // last chid used for recording
     long _cact;     // number of times on this command
-    CMD _cmd;       // previous command recorded or played
+    Command _cmd;       // previous command recorded or played
 
     // dispatching
-    CMD _cmdCur;     // command being dispatched
+    Command _cmdCur;     // command being dispatched
     long _icmheNext; // next command handler to dispatch to
     PGraphicsObject _pgobTrack; // the gob that is tracking the mouse
 #ifdef WIN
@@ -271,10 +271,10 @@ class CEX : public CEX_PAR
     virtual tribool _TGetNextCmd(void);
     virtual bool _FSendCmd(PCommandHandler pcmh);
     virtual void _CleanUpCmd(void);
-    virtual bool _FEnableCmd(PCommandHandler pcmh, PCMD pcmd, ulong *pgrfeds);
+    virtual bool _FEnableCmd(PCommandHandler pcmh, PCommand pcmd, ulong *pgrfeds);
 
     // command recording and playback
-    bool _FReadCmd(PCMD pcmd);
+    bool _FReadCmd(PCommand pcmd);
 
   public:
     static PCEX PcexNew(long ccmdInit, long ccmhInit);
@@ -294,7 +294,7 @@ class CEX : public CEX_PAR
     void StopRecording(void);
     void StopPlaying(void);
 
-    void RecordCmd(PCMD pcmd);
+    void RecordCmd(PCommand pcmd);
 
     // managing the filter list
     virtual bool FAddCmh(PCommandHandler pcmh, long cmhl, ulong grfcmm = fcmmNobody);
@@ -302,19 +302,19 @@ class CEX : public CEX_PAR
     virtual void BuryCmh(PCommandHandler pcmh);
 
     // queueing and dispatching
-    virtual void EnqueueCmd(PCMD pcmd);
-    virtual void PushCmd(PCMD pcmd);
+    virtual void EnqueueCmd(PCommand pcmd);
+    virtual void PushCmd(PCommand pcmd);
     virtual void EnqueueCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                             long lw3 = 0);
     virtual void PushCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                          long lw3 = 0);
     virtual bool FDispatchNextCmd(void);
-    virtual bool FGetNextKey(PCMD pcmd);
+    virtual bool FGetNextKey(PCommand pcmd);
     virtual bool FCidIn(long cid);
     virtual void FlushCid(long cid);
 
     // menu marking
-    virtual ulong GrfedsForCmd(PCMD pcmd);
+    virtual ulong GrfedsForCmd(PCommand pcmd);
     virtual ulong GrfedsForCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                                long lw3 = 0);
 

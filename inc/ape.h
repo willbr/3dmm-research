@@ -91,7 +91,7 @@ class APE : public APE_PAR
     void SetToolIncAccessory(void);
 
     bool FSetAction(long anid);
-    bool FCmdNextCel(PCMD pcmd);
+    bool FCmdNextCel(PCommand pcmd);
 
     void SetCustomView(BRA xa, BRA ya, BRA za);
     void ChangeView(void);

@@ -59,10 +59,10 @@ class SPLOT : public SPLOT_PAR
     ~SPLOT(void);
     static PSPLOT PsplotNew(long hidPar, long hid, PRCA prca);
 
-    bool FCmdInit(PCMD pcmd);
-    bool FCmdSplot(PCMD pcmd);
-    bool FCmdUpdate(PCMD pcmd);
-    bool FCmdDismiss(PCMD pcmd);
+    bool FCmdInit(PCommand pcmd);
+    bool FCmdSplot(PCommand pcmd);
+    bool FCmdUpdate(PCommand pcmd);
+    bool FCmdDismiss(PCommand pcmd);
 
     PMovie Pmvie(void)
     {

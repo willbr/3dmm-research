@@ -282,7 +282,7 @@ bool DCH::FCmdKey(PCMD_KEY pcmd)
     ulong grfcust;
     long dibSel, dibDel, ibLim;
     long cact;
-    CMD cmd;
+    Command cmd;
     byte rgb[64], bT;
     bool fRight = fFalse;
 

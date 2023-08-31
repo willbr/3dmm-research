@@ -84,7 +84,7 @@ PCHTDD CHTDD::PchtddNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfo
 /***************************************************************************
     Compile this text file into a chunky file and open it.
 ***************************************************************************/
-bool CHTDD::FCmdCompileChunky(PCMD pcmd)
+bool CHTDD::FCmdCompileChunky(PCommand pcmd)
 {
     Filename fni;
     PChunkyFile pcfl;
@@ -125,7 +125,7 @@ bool CHTDD::FCmdCompileChunky(PCMD pcmd)
     Compile this text file into a script and put it in a chunky file and
     open it.
 ***************************************************************************/
-bool CHTDD::FCmdCompileScript(PCMD pcmd)
+bool CHTDD::FCmdCompileScript(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

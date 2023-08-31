@@ -55,7 +55,7 @@ class ESL : public ESL_PAR
     static PESL PeslNew(PRCA prca, long kidParent, long hidEasel);
     ~ESL(void);
 
-    bool FCmdDismiss(PCMD pcmd); // Handles both OK and Cancel
+    bool FCmdDismiss(PCommand pcmd); // Handles both OK and Cancel
 };
 
 typedef class ESLT *PESLT; // SNE needs this
@@ -123,12 +123,12 @@ class ESLT : public ESLT_PAR
                           PTAG ptagTdfNew = pvNil);
     ~ESLT(void);
 
-    bool FCmdRotate(PCMD pcmd);
-    bool FCmdTransmogrify(PCMD pcmd);
-    bool FCmdStartPopup(PCMD pcmd);
-    bool FCmdSetFont(PCMD pcmd);
-    bool FCmdSetShape(PCMD pcmd);
-    bool FCmdSetColor(PCMD pcmd);
+    bool FCmdRotate(PCommand pcmd);
+    bool FCmdTransmogrify(PCommand pcmd);
+    bool FCmdStartPopup(PCommand pcmd);
+    bool FCmdSetFont(PCommand pcmd);
+    bool FCmdSetShape(PCommand pcmd);
+    bool FCmdSetColor(PCommand pcmd);
 
     bool FTextChanged(PSTN pstn);
 };
@@ -163,8 +163,8 @@ class ESLA : public ESLA_PAR
     static PESLA PeslaNew(PRCA prca, PMovie pmvie, PActor pactr);
     ~ESLA(void);
 
-    bool FCmdRotate(PCMD pcmd);
-    bool FCmdTool(PCMD pcmd);
+    bool FCmdRotate(PCommand pcmd);
+    bool FCmdTool(PCommand pcmd);
 };
 
 /****************************************
@@ -244,8 +244,8 @@ class ESLL : public ESLL_PAR
     static PESLL PesllNew(PRCA prca, PMovie pmvie, PActor pactr);
     ~ESLL(void);
 
-    bool FCmdVlm(PCMD pcmd);
-    bool FCmdPlay(PCMD pcmd);
+    bool FCmdVlm(PCommand pcmd);
+    bool FCmdPlay(PCommand pcmd);
 };
 
 /****************************************
@@ -283,9 +283,9 @@ class ESLR : public ESLR_PAR
     static PESLR PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PSTN pstnNew);
     ~ESLR(void);
 
-    bool FCmdRecord(PCMD pcmd);
-    bool FCmdPlay(PCMD pcmd);
-    bool FCmdUpdateMeter(PCMD pcmd);
+    bool FCmdRecord(PCommand pcmd);
+    bool FCmdPlay(PCommand pcmd);
+    bool FCmdUpdateMeter(PCommand pcmd);
 };
 
 #endif ESL_H

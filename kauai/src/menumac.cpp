@@ -274,7 +274,7 @@ bool MenuBar::FDoClick(EVT *pevt)
     AssertThis(0);
     AssertVarMem(pevt);
     long lwCode;
-    CMD cmd;
+    Command cmd;
     bool fRet = fFalse;
 
     Clean();
@@ -296,7 +296,7 @@ bool MenuBar::FDoKey(EVT *pevt)
     AssertThis(0);
     AssertVarMem(pevt);
     long lwCode;
-    CMD cmd;
+    Command cmd;
     bool fRet = fFalse;
 
     Clean();
@@ -321,7 +321,7 @@ void MenuBar::Clean(void)
     ulong grfeds;
     MNU mnu;
     MNI mni;
-    CMD cmd;
+    Command cmd;
     achar st[kcbMaxSt];
     long cch;
 
@@ -402,7 +402,7 @@ bool MenuBar::_FFindMlst(long imnu, long imni, MLST *pmlst, long *pimlst)
 /***************************************************************************
     Get a command struct for the command from the Mac menu item code.
 ***************************************************************************/
-bool MenuBar::_FGetCmdFromCode(long lwCode, CMD *pcmd)
+bool MenuBar::_FGetCmdFromCode(long lwCode, Command *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

@@ -235,19 +235,19 @@ class APP : public APP_PAR
 #endif // BUG 1085
 
     // Command processors
-    bool FCmdLoadStudio(PCMD pcmd);
-    bool FCmdLoadBuilding(PCMD pcmd);
-    bool FCmdTheaterOpen(PCMD pcmd);
-    bool FCmdTheaterClose(PCMD pcmd);
-    bool FCmdIdle(PCMD pcmd);
-    bool FCmdInfo(PCMD pcmd);
-    bool FCmdPortfolioClear(PCMD pcmd);
-    bool FCmdPortfolioOpen(PCMD pcmd);
-    bool FCmdDisableAccel(PCMD pcmd);
-    bool FCmdEnableAccel(PCMD pcmd);
-    bool FCmdInvokeSplot(PCMD pcmd);
-    bool FCmdExitStudio(PCMD pcmd);
-    bool FCmdDeactivate(PCMD pcmd);
+    bool FCmdLoadStudio(PCommand pcmd);
+    bool FCmdLoadBuilding(PCommand pcmd);
+    bool FCmdTheaterOpen(PCommand pcmd);
+    bool FCmdTheaterClose(PCommand pcmd);
+    bool FCmdIdle(PCommand pcmd);
+    bool FCmdInfo(PCommand pcmd);
+    bool FCmdPortfolioClear(PCommand pcmd);
+    bool FCmdPortfolioOpen(PCommand pcmd);
+    bool FCmdDisableAccel(PCommand pcmd);
+    bool FCmdEnableAccel(PCommand pcmd);
+    bool FCmdInvokeSplot(PCommand pcmd);
+    bool FCmdExitStudio(PCommand pcmd);
+    bool FCmdDeactivate(PCommand pcmd);
 
     static bool FInsertCD(PSTN pstnTitle);
     void DisplayErrors(void);

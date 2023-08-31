@@ -164,8 +164,8 @@ class TBXG : public TBXG_PAR
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
-    virtual bool FCmdClip(PCMD pcmd);
-    virtual bool FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds);
+    virtual bool FCmdClip(PCommand pcmd);
+    virtual bool FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds);
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual long _DxpDoc(void);
     virtual void _NewRc(void);

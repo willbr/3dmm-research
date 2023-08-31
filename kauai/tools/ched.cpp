@@ -182,7 +182,7 @@ void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGP
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdOpen(PCMD pcmd)
+bool APP::FCmdOpen(PCommand pcmd)
 {
     Filename fni;
     Filename *pfni;

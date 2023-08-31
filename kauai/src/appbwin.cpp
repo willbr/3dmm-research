@@ -196,7 +196,7 @@ void ApplicationBase::_DispatchEvt(PEVT pevt)
     AssertThis(0);
     AssertVarMem(pevt);
 
-    CMD cmd;
+    Command cmd;
 
     if (hNil != vwig.hwndClient && TranslateMDISysAccel(vwig.hwndClient, pevt) ||
         hNil != vwig.haccel && TranslateAccelerator(vwig.hwndApp, vwig.haccel, pevt))
@@ -229,7 +229,7 @@ void ApplicationBase::_DispatchEvt(PEVT pevt)
 }
 
 /***************************************************************************
-    Translate an OS level key down event to a CMD. This returns false if
+    Translate an OS level key down event to a Command. This returns false if
     the key maps to a menu item.
 ***************************************************************************/
 bool ApplicationBase::_FTranslateKeyEvt(PEVT pevt, PCMD_KEY pcmd)

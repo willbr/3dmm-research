@@ -266,14 +266,14 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
 
     // members of GraphicsObject
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdActivateSel(PCMD pcmd);
+    virtual bool FCmdActivateSel(PCommand pcmd);
 
-    virtual bool FCmdScroll(PCMD pcmd);
-    virtual bool FCmdCloseDoc(PCMD pcmd);
-    virtual bool FCmdSave(PCMD pcmd);
-    virtual bool FCmdClip(PCMD pcmd);
-    virtual bool FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdUndo(PCMD pcmd);
+    virtual bool FCmdScroll(PCommand pcmd);
+    virtual bool FCmdCloseDoc(PCommand pcmd);
+    virtual bool FCmdSave(PCommand pcmd);
+    virtual bool FCmdClip(PCommand pcmd);
+    virtual bool FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdUndo(PCommand pcmd);
 };
 
 /***************************************************************************
@@ -301,7 +301,7 @@ class DocumentMDIWindow : public DocumentMDIWindow_PAR
         return _pdocb;
     }
     virtual void ActivateNext(PDocumentDisplayGraphicsObject pddg);
-    virtual bool FCmdCloseWnd(PCMD pcmd);
+    virtual bool FCmdCloseWnd(PCommand pcmd);
 };
 
 /***************************************************************************
@@ -403,7 +403,7 @@ class DSG : public DSG_PAR
     }
 
     virtual void Split(ulong grfdsg, long rel);
-    virtual bool FCmdScroll(PCMD pcmd);
+    virtual bool FCmdScroll(PCommand pcmd);
 };
 
 enum

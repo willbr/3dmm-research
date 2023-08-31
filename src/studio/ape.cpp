@@ -238,7 +238,7 @@ bool APE::FSetAction(long anid)
 /***************************************************************************
     Time to move to the next cel of the action.  Resets alarm
 ***************************************************************************/
-bool APE::FCmdNextCel(PCMD pcmd)
+bool APE::FCmdNextCel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

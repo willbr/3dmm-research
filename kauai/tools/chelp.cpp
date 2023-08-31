@@ -248,7 +248,7 @@ void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGP
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdOpen(PCMD pcmd)
+bool APP::FCmdOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -379,7 +379,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdLoadResFile(PCMD pcmd)
+bool APP::FCmdLoadResFile(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -452,7 +452,7 @@ bool APP::FLoadResFile(PFilename pfni)
 /***************************************************************************
     Check or uncheck the language as appropriate.
 ***************************************************************************/
-bool APP::FEnableChooseLanguage(PCMD pcmd, ulong *pgrfeds)
+bool APP::FEnableChooseLanguage(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -476,7 +476,7 @@ enum
 /***************************************************************************
     Command to choose the language (for spelling).
 ***************************************************************************/
-bool APP::FCmdChooseLanguage(PCMD pcmd)
+bool APP::FCmdChooseLanguage(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -858,7 +858,7 @@ void LIG::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handles a scroll command.
 ***************************************************************************/
-bool LIG::FCmdScroll(PCMD pcmd)
+bool LIG::FCmdScroll(PCommand pcmd)
 {
     long dval, val;
     RC rc, rcT;

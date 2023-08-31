@@ -441,26 +441,26 @@ class DCD : public DCD_PAR
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual bool FCmdKey(PCMD_KEY pcmd);
 
-    virtual bool FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdAddChunk(PCMD pcmd);
-    virtual bool FCmdDeleteChunk(PCMD pcmd);
-    virtual bool FCmdAdoptChunk(PCMD pcmd);
-    virtual bool FCmdUnadoptChunk(PCMD pcmd);
-    virtual bool FCmdEditChunk(PCMD pcmd);
-    virtual bool FCmdAddPicChunk(PCMD pcmd);
-    virtual bool FCmdAddBitmapChunk(PCMD pcmd);
-    virtual bool FCmdImportScript(PCMD pcmd);
-    virtual bool FCmdTestScript(PCMD pcmd);
-    virtual bool FCmdDisasmScript(PCMD pcmd);
-    virtual bool FCmdAddFileChunk(PCMD pcmd);
-    virtual bool FCmdEditChunkInfo(PCMD pcmd);
-    virtual bool FCmdChangeChid(PCMD pcmd);
-    virtual bool FCmdSetColorTable(PCMD pcmd);
-    virtual bool FCmdFilterChunk(PCMD pcmd);
-    virtual bool FCmdPack(PCMD pcmd);
-    virtual bool FCmdStopSound(PCMD pcmd);
-    virtual bool FCmdCloneChunk(PCMD pcmd);
-    virtual bool FCmdReopen(PCMD pcmd);
+    virtual bool FEnableDcdCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdAddChunk(PCommand pcmd);
+    virtual bool FCmdDeleteChunk(PCommand pcmd);
+    virtual bool FCmdAdoptChunk(PCommand pcmd);
+    virtual bool FCmdUnadoptChunk(PCommand pcmd);
+    virtual bool FCmdEditChunk(PCommand pcmd);
+    virtual bool FCmdAddPicChunk(PCommand pcmd);
+    virtual bool FCmdAddBitmapChunk(PCommand pcmd);
+    virtual bool FCmdImportScript(PCommand pcmd);
+    virtual bool FCmdTestScript(PCommand pcmd);
+    virtual bool FCmdDisasmScript(PCommand pcmd);
+    virtual bool FCmdAddFileChunk(PCommand pcmd);
+    virtual bool FCmdEditChunkInfo(PCommand pcmd);
+    virtual bool FCmdChangeChid(PCommand pcmd);
+    virtual bool FCmdSetColorTable(PCommand pcmd);
+    virtual bool FCmdFilterChunk(PCommand pcmd);
+    virtual bool FCmdPack(PCommand pcmd);
+    virtual bool FCmdStopSound(PCommand pcmd);
+    virtual bool FCmdCloneChunk(PCommand pcmd);
+    virtual bool FCmdReopen(PCommand pcmd);
 
     bool FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache = 0x00300000L);
     bool FPlayMidi(ChunkTag ctg, ChunkNumber cno);
@@ -581,10 +581,10 @@ class DCGB : public DCGB_PAR
     virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 
-    virtual bool FEnableDcgbCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdEditItem(PCMD pcmd);
-    virtual bool FCmdDeleteItem(PCMD pcmd);
-    virtual bool FCmdAddItem(PCMD pcmd) = 0;
+    virtual bool FEnableDcgbCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdEditItem(PCommand pcmd);
+    virtual bool FCmdDeleteItem(PCommand pcmd);
+    virtual bool FCmdAddItem(PCommand pcmd) = 0;
 };
 
 /***************************************************************************
@@ -603,7 +603,7 @@ class DCGL : public DCGL_PAR
     static PDCGL PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdAddItem(PCMD pcmd);
+    virtual bool FCmdAddItem(PCommand pcmd);
 };
 
 /***************************************************************************
@@ -622,7 +622,7 @@ class DCGG : public DCGG_PAR
     static PDCGG PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdAddItem(PCMD pcmd);
+    virtual bool FCmdAddItem(PCommand pcmd);
 };
 
 /***************************************************************************
@@ -641,7 +641,7 @@ class DCST : public DCST_PAR
     static PDCST PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdAddItem(PCMD pcmd);
+    virtual bool FCmdAddItem(PCommand pcmd);
 };
 
 /***************************************************************************
@@ -743,8 +743,8 @@ class CHTDD : public CHTDD_PAR
   public:
     static PCHTDD PchtddNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
-    virtual bool FCmdCompileChunky(PCMD pcmd);
-    virtual bool FCmdCompileScript(PCMD pcmd);
+    virtual bool FCmdCompileChunky(PCommand pcmd);
+    virtual bool FCmdCompileScript(PCommand pcmd);
 };
 
 void OpenSinkDoc(PMSFIL pmsfil);

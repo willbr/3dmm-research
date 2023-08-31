@@ -71,7 +71,7 @@ class Clock : public Clock_PAR
     bool FSetAlarm(long dtim, PCommandHandler pcmhNotify = pvNil, long lwUser = 0, bool fAdjustForDelay = fFalse);
 
     // idle handling
-    virtual bool FCmdAll(PCMD pcmd);
+    virtual bool FCmdAll(PCommand pcmd);
 
 #ifdef DEBUG
     static void MarkAllCloks(void);

@@ -92,7 +92,7 @@ PMSCB MSCB::PmscbNew(PMovie pmvie, PGCB pgcb)
  *	fTrue if is processed the command, else fFalse.
  *
  ****************************************************/
-bool MSCB::FCmdScroll(PCMD pcmd)
+bool MSCB::FCmdScroll(PCommand pcmd)
 {
     long hid, val, dval;
     bool fUp, fPage;

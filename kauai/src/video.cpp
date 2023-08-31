@@ -252,7 +252,7 @@ void GVDS::Stop(void)
 /***************************************************************************
     Intercepts all commands, so we get to play our movie no matter what.
 ***************************************************************************/
-bool GVDS::FCmdAll(PCMD pcmd)
+bool GVDS::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

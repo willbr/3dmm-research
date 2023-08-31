@@ -402,7 +402,7 @@ void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
     short in;
     PT pt;
     bool fDown, fLit;
-    CMD cmd;
+    Command cmd;
 
     GraphicsEnvironment gnv(this);
 
@@ -496,7 +496,7 @@ void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
 void SCB::TrackScroll(long sb, long lwVal)
 {
     AssertThis(0);
-    CMD cmd;
+    Command cmd;
     long val;
 
     ClearPb(&cmd, size(cmd));

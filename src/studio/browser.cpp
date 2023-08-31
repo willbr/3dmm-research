@@ -205,7 +205,7 @@ bool BRWD::_FInitGok(PRCA prca, long kid)
  * pcmd->rglw[3] = x,y offsets
  *
  ****************************************************/
-void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
+void BRWD::Init(PCommand pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -234,7 +234,7 @@ void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, 
  * pcmd->rglw[3] = x,y offsets
  *
  ****************************************************/
-void BRWD::_InitStateVars(PCMD pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll)
+void BRWD::_InitStateVars(PCommand pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -263,7 +263,7 @@ void BRWD::_InitStateVars(PCMD pcmd, PStudio pstdio, bool fWrapScroll, long cthu
  *		page displayed
  *
  ****************************************************/
-void BRWD::_InitFromData(PCMD pcmd, long ithumSelect, long ithumDisplay)
+void BRWD::_InitFromData(PCommand pcmd, long ithumSelect, long ithumDisplay)
 {
     AssertThis(0);
     long cthum;
@@ -545,7 +545,7 @@ void BRWD::_SetScrollState(void)
  * Browser Command Handler : Browser Forward
  *
  ****************************************************/
-bool BRWD::FCmdFwd(PCMD pcmd)
+bool BRWD::FCmdFwd(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -580,7 +580,7 @@ bool BRWD::FCmdFwd(PCMD pcmd)
  * rglw[3] -> Update Lists
  *
  ****************************************************/
-bool BRWD::FCmdSelectThum(PCMD pcmd)
+bool BRWD::FCmdSelectThum(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -608,7 +608,7 @@ bool BRWD::FCmdSelectThum(PCMD pcmd)
  * Scroll back one page in the browser
  *
  ****************************************************/
-bool BRWD::FCmdBack(PCMD pcmd)
+bool BRWD::FCmdBack(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -646,7 +646,7 @@ bool BRWD::FCmdBack(PCMD pcmd)
  * pcmd->rglw[0] is browser id of thumb
  *
  ****************************************************/
-bool BRWD::FCmdSelect(PCMD pcmd)
+bool BRWD::FCmdSelect(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -754,7 +754,7 @@ void BRWD::_UnhiliteCurFrm(void)
  * Exit without applying selection
  *
  ****************************************************/
-bool BRWD::FCmdCancel(PCMD pcmd)
+bool BRWD::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -785,7 +785,7 @@ void BRWD::Release(void)
  * Apply selection & exit
  *
  ****************************************************/
-bool BRWD::FCmdOk(PCMD pcmd)
+bool BRWD::FCmdOk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -886,7 +886,7 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWL::FInit(PCommand pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
+bool BRWL::_FInitNew(PCommand pcmd, BWS bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
 {
     AssertThis(0);
 
@@ -1840,7 +1840,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
  * -> BRWL Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWN::FInit(PCommand pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1953,7 +1953,7 @@ bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
  * Apply selection & exit
  *
  ****************************************************/
-bool BRWN::FCmdOk(PCMD pcmd)
+bool BRWN::FCmdOk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2202,7 +2202,7 @@ void BRWM::_ProcessSelection(void)
  * execution
  *
  ****************************************************/
-bool BRWM::FCmdFile(PCMD pcmd)
+bool BRWM::FCmdFile(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2215,7 +2215,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     long ccki;
     STN stn;
     ChunkIdentification cki;
-    CMD cmd;
+    Command cmd;
 
     vapp.GetPortfolioDoc(&fni);
     vpappb->BeginLongOp();
@@ -2337,7 +2337,7 @@ LEnd:
  * Browser Command Handler : (For deleting user snds)
  *
  ****************************************************/
-bool BRWM::FCmdDel(PCMD pcmd)
+bool BRWM::FCmdDel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2465,7 +2465,7 @@ void BRWT::SetGst(PStringTable pgst)
  * Initialize BRWT TGOB & text
  *
  ****************************************************/
-bool BRWT::FInit(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
+bool BRWT::FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2663,7 +2663,7 @@ void BRWA::_ProcessSelection(void)
  * Make button(s) invisible on single cel actions
  *
  ****************************************************/
-bool BRWA::FCmdChangeCel(PCMD pcmd)
+bool BRWA::FCmdChangeCel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2744,7 +2744,7 @@ PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
  * Initialize the BRWI	 (Import Browser)
  *
  **************************************************************************/
-bool BRWI::FInit(PCMD pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
+bool BRWI::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
 {
     AssertBaseThis(0);
 
@@ -2858,7 +2858,7 @@ PBRWB BRWB::PbrwbNew(PRCA prca)
  * Background's virtual FCmdCancel
  *
  ****************************************************/
-bool BRWB::FCmdCancel(PCMD pcmd)
+bool BRWB::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2943,7 +2943,7 @@ PBRWC BRWC::PbrwcNew(PRCA prca)
  * Camera's virtual FCmdCancel
  *
  ****************************************************/
-bool BRWC::FCmdCancel(PCMD pcmd)
+bool BRWC::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2995,7 +2995,7 @@ PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
  * Initialize a BRoWser Roll Call object
  *
  ****************************************************/
-bool BRWR::FInit(PCMD pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pstdio)
+bool BRWR::FInit(PCommand pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pstdio)
 {
     AssertThis(0);
 

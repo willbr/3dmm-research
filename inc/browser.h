@@ -185,8 +185,8 @@ class BRWD : public BRWD_PAR
     long _KidThumFromIfrm(long ifrm);
     void _UnhiliteCurFrm(void);
     bool _FHiliteFrm(long ifrmSelect);
-    void _InitStateVars(PCMD pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll);
-    void _InitFromData(PCMD pcmd, long ithumSelect, long ithumDisplay);
+    void _InitStateVars(PCommand pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll);
+    void _InitFromData(PCommand pcmd, long ithumSelect, long ithumDisplay);
     virtual void _CacheContext(void);
 
   public:
@@ -201,7 +201,7 @@ class BRWD : public BRWD_PAR
     ~BRWD(void);
 
     static PBRWD PbrwdNew(PRCA prca, long kidPar, long kidBrwd);
-    void Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
+    void Init(PCommand pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FDraw(void);
     bool FCreateAllTgob(void); // For any text based browsers
@@ -210,22 +210,22 @@ class BRWD : public BRWD_PAR
     // Command Handlers
     // Selection does not exit the browser
     //
-    bool FCmdFwd(PCMD pcmd);  // Page fwd
-    bool FCmdBack(PCMD pcmd); // Page back
-    bool FCmdSelect(PCMD pcmd);
-    bool FCmdSelectThum(PCMD pcmd); // Set viewing page
+    bool FCmdFwd(PCommand pcmd);  // Page fwd
+    bool FCmdBack(PCommand pcmd); // Page back
+    bool FCmdSelect(PCommand pcmd);
+    bool FCmdSelectThum(PCommand pcmd); // Set viewing page
     virtual void Release(void);
-    virtual bool FCmdCancel(PCMD pcmd); // See brwb
-    virtual bool FCmdDel(PCMD pcmd)
+    virtual bool FCmdCancel(PCommand pcmd); // See brwb
+    virtual bool FCmdDel(PCommand pcmd)
     {
         return fTrue;
     } // See brwm
-    virtual bool FCmdOk(PCMD pcmd);
-    virtual bool FCmdFile(PCMD pcmd)
+    virtual bool FCmdOk(PCommand pcmd);
+    virtual bool FCmdFile(PCommand pcmd)
     {
         return fTrue;
     } // See brwm
-    virtual bool FCmdChangeCel(PCMD pcmd)
+    virtual bool FCmdChangeCel(PCommand pcmd)
     {
         return fTrue;
     } // See brwa
@@ -423,7 +423,7 @@ class BRWL : public BRWL_PAR
 
   protected:
     // BRWL List
-    bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
+    bool _FInitNew(PCommand pcmd, BWS bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
     bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
     virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
@@ -455,7 +455,7 @@ class BRWL : public BRWL_PAR
     ~BRWL(void);
 
     static PBRWL PbrwlNew(PRCA prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCommand pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
@@ -500,7 +500,7 @@ class BRWT : public BRWT_PAR
 
     static PBRWT PbrwtNew(PRCA prca, long kidPar, long kidBrwt);
     void SetGst(PStringTable pgst);
-    bool FInit(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
+    bool FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
 };
 
@@ -534,10 +534,10 @@ class BRWN : public BRWN_PAR
     {
     }
     ~BRWN(void){};
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCommand pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
-    virtual bool FCmdOk(PCMD pcmd);
+    virtual bool FCmdOk(PCommand pcmd);
 };
 
 /************************************
@@ -584,7 +584,7 @@ class BRWA : public BRWA_PAR
     static PBRWA PbrwaNew(PRCA prca);
     bool FBuildApe(PActor pactr);
     bool FBuildGst(PScene pscen);
-    virtual bool FCmdChangeCel(PCMD pcmd);
+    virtual bool FCmdChangeCel(PCommand pcmd);
 };
 
 /************************************
@@ -641,7 +641,7 @@ class BRWB : public BRWB_PAR
     ~BRWB(void){};
 
     static PBRWB PbrwbNew(PRCA prca);
-    virtual bool FCmdCancel(PCMD pcmd);
+    virtual bool FCmdCancel(PCommand pcmd);
 };
 
 /************************************
@@ -674,7 +674,7 @@ class BRWC : public BRWC_PAR
 
     static PBRWC PbrwcNew(PRCA prca);
 
-    virtual bool FCmdCancel(PCMD pcmd);
+    virtual bool FCmdCancel(PCommand pcmd);
 };
 
 /************************************
@@ -711,8 +711,8 @@ class BRWM : public BRWM_PAR
     ~BRWM(void){};
 
     static PBRWM PbrwmNew(PRCA prca, long kidGlass, long sty, PStudio pstdio);
-    virtual bool FCmdFile(PCMD pcmd); // Upon portfolio completion
-    virtual bool FCmdDel(PCMD pcmd);  // Delete user sound
+    virtual bool FCmdFile(PCommand pcmd); // Upon portfolio completion
+    virtual bool FCmdDel(PCommand pcmd);  // Delete user sound
 };
 
 /************************************
@@ -747,7 +747,7 @@ class BRWI : public BRWI_PAR
     ~BRWI(void);
 
     static PBRWI PbrwiNew(PRCA prca, long kidGlass, long sty);
-    bool FInit(PCMD pcmd, ChunkIdentification cki, PStudio pstdio);
+    bool FInit(PCommand pcmd, ChunkIdentification cki, PStudio pstdio);
 };
 
 /************************************
@@ -792,9 +792,9 @@ class BRWR : public BRWR_PAR
     ~BRWR(void);
 
     static PBRWR PbrwrNew(PRCA prca, long kid);
-    void Init(PCMD pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
+    void Init(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
-    bool FInit(PCMD pcmd, ChunkTag ctg, long ithumDisplay, PStudio pstdio);
+    bool FInit(PCommand pcmd, ChunkTag ctg, long ithumDisplay, PStudio pstdio);
     bool FUpdate(long arid, PStudio pstdio);
     bool FApplyingSel(void)
     {

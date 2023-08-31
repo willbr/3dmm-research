@@ -69,14 +69,14 @@ class SCRT : public SCRT_PAR
     static bool FSceneSortMovie(long hid, PMovie pmvie);
 
     /* Command API */
-    bool FCmdInit(PCMD pcmd);
-    bool FCmdSelect(PCMD pcmd);
-    bool FCmdInsert(PCMD pcmd);
-    bool FCmdScroll(PCMD pcmd);
-    bool FCmdNuke(PCMD pcmd);
-    bool FCmdDismiss(PCMD pcmd);
-    bool FCmdPortfolio(PCMD pcmd);
-    bool FCmdTransition(PCMD pcmd);
+    bool FCmdInit(PCommand pcmd);
+    bool FCmdSelect(PCommand pcmd);
+    bool FCmdInsert(PCommand pcmd);
+    bool FCmdScroll(PCommand pcmd);
+    bool FCmdNuke(PCommand pcmd);
+    bool FCmdDismiss(PCommand pcmd);
+    bool FCmdPortfolio(PCommand pcmd);
+    bool FCmdTransition(PCommand pcmd);
 };
 
 /******************************************************************************

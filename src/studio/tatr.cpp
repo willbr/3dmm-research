@@ -77,7 +77,7 @@ TATR::~TATR(void)
 /***************************************************************************
     Load a new movie into the theater
 ***************************************************************************/
-bool TATR::FCmdLoad(PCMD pcmd)
+bool TATR::FCmdLoad(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -158,7 +158,7 @@ LFail:
 /***************************************************************************
     Play the current movie.  Also makes the MovieView visible, if it was hidden.
 ***************************************************************************/
-bool TATR::FCmdPlay(PCMD pcmd)
+bool TATR::FCmdPlay(PCommand pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);
@@ -184,7 +184,7 @@ bool TATR::FCmdPlay(PCMD pcmd)
 /***************************************************************************
     Stop the current movie
 ***************************************************************************/
-bool TATR::FCmdStop(PCMD pcmd)
+bool TATR::FCmdStop(PCommand pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);
@@ -201,7 +201,7 @@ bool TATR::FCmdStop(PCMD pcmd)
 /***************************************************************************
     Rewind the current movie
 ***************************************************************************/
-bool TATR::FCmdRewind(PCMD pcmd)
+bool TATR::FCmdRewind(PCommand pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);

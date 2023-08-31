@@ -553,7 +553,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
         cmd.pcmh = this;
         cmd.grfcust = _grfcust;
         cmd.cact = _cactMouse;
-        vpcex->EnqueueCmd((PCMD)&cmd);
+        vpcex->EnqueueCmd((PCommand)&cmd);
     }
 
     // change the representation
@@ -925,7 +925,7 @@ void KidspaceGraphicObject::Draw(PGNV pgnv, RC *prcClip)
     we advance the animation. Otherwise we run an associated script.
     CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FCmdAlarm(PCMD pcmd)
+bool KidspaceGraphicObject::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -954,7 +954,7 @@ bool KidspaceGraphicObject::FCmdAlarm(PCMD pcmd)
     For command filtering.
     CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FCmdAll(PCMD pcmd)
+bool KidspaceGraphicObject::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -991,7 +991,7 @@ bool KidspaceGraphicObject::FCmdAll(PCMD pcmd)
     is filtered out or the KidspaceGraphicObject goes away, in which case *pfFilter is set
     to whether the command was filtered.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FFilterCmd(PCMD pcmd, ChildChunkID chidScript, bool *pfFilter)
+bool KidspaceGraphicObject::_FFilterCmd(PCommand pcmd, ChildChunkID chidScript, bool *pfFilter)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

@@ -838,7 +838,7 @@ long HEDG::_ScvMax(bool fVert)
 /***************************************************************************
     Handle enabling/disabling HEDG commands.
 ***************************************************************************/
-bool HEDG::FEnableHedgCmd(PCMD pcmd, ulong *pgrfeds)
+bool HEDG::FEnableHedgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -875,7 +875,7 @@ bool HEDG::FEnableHedgCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Handle command to delete a chunk.
 ***************************************************************************/
-bool HEDG::FCmdDeleteTopic(PCMD pcmd)
+bool HEDG::FCmdDeleteTopic(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -887,7 +887,7 @@ bool HEDG::FCmdDeleteTopic(PCMD pcmd)
 /***************************************************************************
     Handles commands to edit a topic.
 ***************************************************************************/
-bool HEDG::FCmdEditTopic(PCMD pcmd)
+bool HEDG::FCmdEditTopic(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -902,7 +902,7 @@ bool HEDG::FCmdEditTopic(PCMD pcmd)
 /***************************************************************************
     Create and edit a new topic in the help file.
 ***************************************************************************/
-bool HEDG::FCmdNewTopic(PCMD pcmd)
+bool HEDG::FCmdNewTopic(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -914,7 +914,7 @@ bool HEDG::FCmdNewTopic(PCMD pcmd)
 /***************************************************************************
     Create and edit a new topic in the help file.
 ***************************************************************************/
-bool HEDG::FCmdExport(PCMD pcmd)
+bool HEDG::FCmdExport(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1142,7 +1142,7 @@ void HEDG::_ScrollDxpDyp(long dxp, long dyp)
 /***************************************************************************
     Do a find in some topics.
 ***************************************************************************/
-bool HEDG::FCmdFind(PCMD pcmd)
+bool HEDG::FCmdFind(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1164,7 +1164,7 @@ bool HEDG::FCmdFind(PCMD pcmd)
 /***************************************************************************
     Print some topics.
 ***************************************************************************/
-bool HEDG::FCmdPrint(PCMD pcmd)
+bool HEDG::FCmdPrint(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1429,7 +1429,7 @@ void HEDG::_StartPage(PGNV pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long on
 /***************************************************************************
     Check spelling in topics from the selected one on.
 ***************************************************************************/
-bool HEDG::FCmdCheckSpelling(PCMD pcmd)
+bool HEDG::FCmdCheckSpelling(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1516,7 +1516,7 @@ bool HEDG::FCmdCheckSpelling(PCMD pcmd)
 /***************************************************************************
     Dump the text of all topics.
 ***************************************************************************/
-bool HEDG::FCmdDump(PCMD pcmd)
+bool HEDG::FCmdDump(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2432,7 +2432,7 @@ bool _FDlgFormatEdit(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Insert a text edit control into the help text document.
 ***************************************************************************/
-bool HETG::FCmdInsertEdit(PCMD pcmd)
+bool HETG::FCmdInsertEdit(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2567,7 +2567,7 @@ enum
 /***************************************************************************
     Handle grouping text.
 ***************************************************************************/
-bool HETG::FCmdGroupText(PCMD pcmd)
+bool HETG::FCmdGroupText(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2643,7 +2643,7 @@ enum
 /***************************************************************************
     Put up the line & paragraph spacing dialog and handle any changes.
 ***************************************************************************/
-bool HETG::FCmdLineSpacing(PCMD pcmd)
+bool HETG::FCmdLineSpacing(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2696,7 +2696,7 @@ bool HETG::FCmdLineSpacing(PCMD pcmd)
 /***************************************************************************
     Handle enabling/disabling HETG commands.
 ***************************************************************************/
-bool HETG::FEnableHetgCmd(PCMD pcmd, ulong *pgrfeds)
+bool HETG::FEnableHetgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2756,7 +2756,7 @@ bool HETG::FEnableHetgCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Allow the user to edit the properties of an embedded picture.
 ***************************************************************************/
-bool HETG::FCmdFormatPicture(PCMD pcmd)
+bool HETG::FCmdFormatPicture(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2821,7 +2821,7 @@ bool HETG::FCmdFormatPicture(PCMD pcmd)
 /***************************************************************************
     Allow the user to edit the properties of an embedded button.
 ***************************************************************************/
-bool HETG::FCmdFormatButton(PCMD pcmd)
+bool HETG::FCmdFormatButton(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2899,7 +2899,7 @@ bool HETG::FCmdFormatButton(PCMD pcmd)
 /***************************************************************************
     Allow the user to edit the properties of an embedded edit control.
 ***************************************************************************/
-bool HETG::FCmdFormatEdit(PCMD pcmd)
+bool HETG::FCmdFormatEdit(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2953,7 +2953,7 @@ bool HETG::FCmdFormatEdit(PCMD pcmd)
 /***************************************************************************
     Edit the topic info.
 ***************************************************************************/
-bool HETG::FCmdEditHtop(PCMD pcmd)
+bool HETG::FCmdEditHtop(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2965,7 +2965,7 @@ bool HETG::FCmdEditHtop(PCMD pcmd)
 /***************************************************************************
     Open the next or previous topic.
 ***************************************************************************/
-bool HETG::FCmdNextTopic(PCMD pcmd)
+bool HETG::FCmdNextTopic(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3013,7 +3013,7 @@ bool HETG::FCmdNextTopic(PCMD pcmd)
 /***************************************************************************
     Handle cidFind and cidFindAgain.  Search for some text.
 ***************************************************************************/
-bool HETG::FCmdFind(PCMD pcmd)
+bool HETG::FCmdFind(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3069,7 +3069,7 @@ bool HETG::FCmdFind(PCMD pcmd)
 /***************************************************************************
     Handle printing of a topic.
 ***************************************************************************/
-bool HETG::FCmdPrint(PCMD pcmd)
+bool HETG::FCmdPrint(PCommand pcmd)
 {
 #ifdef WIN
     PRINTDLG pd;
@@ -3159,7 +3159,7 @@ enum
 /***************************************************************************
     Spell check the topic.
 ***************************************************************************/
-bool HETG::FCmdCheckSpelling(PCMD pcmd)
+bool HETG::FCmdCheckSpelling(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3614,7 +3614,7 @@ enum
 /***************************************************************************
     Give the fonts in a dialog.
 ***************************************************************************/
-bool HETG::FCmdFontDialog(PCMD pcmd)
+bool HETG::FCmdFontDialog(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

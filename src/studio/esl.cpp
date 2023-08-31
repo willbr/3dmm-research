@@ -140,7 +140,7 @@ ESL::~ESL(void)
 /***************************************************************************
     Dismiss and delete this easel
 ***************************************************************************/
-bool ESL::FCmdDismiss(PCMD pcmd)
+bool ESL::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -341,7 +341,7 @@ ESLT::~ESLT(void)
 /***************************************************************************
     Handle a rotate command
 ***************************************************************************/
-bool ESLT::FCmdRotate(PCMD pcmd)
+bool ESLT::FCmdRotate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -354,7 +354,7 @@ bool ESLT::FCmdRotate(PCMD pcmd)
 /***************************************************************************
     Handle a transmogrify command (pick a random shape, font, and material)
 ***************************************************************************/
-bool ESLT::FCmdTransmogrify(PCMD pcmd)
+bool ESLT::FCmdTransmogrify(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -417,7 +417,7 @@ bool ESLT::FCmdTransmogrify(PCMD pcmd)
 /***************************************************************************
     Start a popup
 ***************************************************************************/
-bool ESLT::FCmdStartPopup(PCMD pcmd)
+bool ESLT::FCmdStartPopup(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -476,7 +476,7 @@ bool ESLT::FCmdStartPopup(PCMD pcmd)
 /***************************************************************************
     Handle a command to change the font
 ***************************************************************************/
-bool ESLT::FCmdSetFont(PCMD pcmd)
+bool ESLT::FCmdSetFont(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -503,7 +503,7 @@ bool ESLT::FCmdSetFont(PCMD pcmd)
 /***************************************************************************
     Handle a command to change the shape
 ***************************************************************************/
-bool ESLT::FCmdSetShape(PCMD pcmd)
+bool ESLT::FCmdSetShape(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -522,7 +522,7 @@ bool ESLT::FCmdSetShape(PCMD pcmd)
 /***************************************************************************
     Handle a command to change the color
 ***************************************************************************/
-bool ESLT::FCmdSetColor(PCMD pcmd)
+bool ESLT::FCmdSetColor(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -917,7 +917,7 @@ ESLA::~ESLA(void)
 /***************************************************************************
     Handle a rotate command
 ***************************************************************************/
-bool ESLA::FCmdRotate(PCMD pcmd)
+bool ESLA::FCmdRotate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -930,7 +930,7 @@ bool ESLA::FCmdRotate(PCMD pcmd)
 /***************************************************************************
     Handle a tool change command
 ***************************************************************************/
-bool ESLA::FCmdTool(PCMD pcmd)
+bool ESLA::FCmdTool(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1241,7 +1241,7 @@ ESLL::~ESLL(void)
 /***************************************************************************
     Handle a Listener volume change command
 ***************************************************************************/
-bool ESLL::FCmdVlm(PCMD pcmd)
+bool ESLL::FCmdVlm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1277,7 +1277,7 @@ bool ESLL::FCmdVlm(PCMD pcmd)
 /***************************************************************************
     Handle a Listener play command
 ***************************************************************************/
-bool ESLL::FCmdPlay(PCMD pcmd)
+bool ESLL::FCmdPlay(PCommand pcmd)
 {
     AssertVarMem(pcmd);
     AssertNilOrPo(_pactr, 0);
@@ -1757,7 +1757,7 @@ void ESLR::_UpdateMeter(void)
 /***************************************************************************
     Start or stop recording
 ***************************************************************************/
-bool ESLR::FCmdRecord(PCMD pcmd)
+bool ESLR::FCmdRecord(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1796,7 +1796,7 @@ bool ESLR::FCmdRecord(PCMD pcmd)
 /***************************************************************************
     Time to update the meter that shows how long we've been recording.
 ***************************************************************************/
-bool ESLR::FCmdUpdateMeter(PCMD pcmd)
+bool ESLR::FCmdUpdateMeter(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1823,7 +1823,7 @@ bool ESLR::FCmdUpdateMeter(PCMD pcmd)
 /***************************************************************************
     Play the sound that was recorded
 ***************************************************************************/
-bool ESLR::FCmdPlay(PCMD pcmd)
+bool ESLR::FCmdPlay(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

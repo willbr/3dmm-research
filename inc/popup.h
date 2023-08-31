@@ -43,10 +43,10 @@ class MP : public MP_PAR
     bool _FInit(PRCA prca);
 
   public:
-    static PMP PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
+    static PMP PmpNew(long kidParent, long kidMenu, PRCA prca, PCommand pcmd, BWS bws, long ithumSelect, long sidSelect,
                       ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop);
 
-    virtual bool FCmdSelIdle(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
 };
 
 /************************************
@@ -72,9 +72,9 @@ class MPFNT : public MPFNT_PAR
     }
 
   public:
-    static PMPFNT PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long ithumSelect, PStringTable pgst);
+    static PMPFNT PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable pgst);
 
-    virtual bool FCmdSelIdle(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
 };
 
 #endif // POPUP_H

@@ -278,31 +278,31 @@ class GraphicsObject : public GraphicsObject_PAR
 #endif // MAC
 
     // command functions
-    virtual bool FCmdCloseWnd(PCMD pcmd);
+    virtual bool FCmdCloseWnd(PCommand pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
-    bool FCmdTrackMouseCore(PCMD pcmd)
+    bool FCmdTrackMouseCore(PCommand pcmd)
     {
         return FCmdTrackMouse((PCMD_MOUSE)pcmd);
     }
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
-    bool FCmdMouseMoveCore(PCMD pcmd)
+    bool FCmdMouseMoveCore(PCommand pcmd)
     {
         return FCmdMouseMove((PCMD_MOUSE)pcmd);
     }
 
     // key commands
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    bool FCmdKeyCore(PCMD pcmd)
+    bool FCmdKeyCore(PCommand pcmd)
     {
         return FCmdKey((PCMD_KEY)pcmd);
     }
     virtual bool FCmdBadKey(PCMD_BADKEY pcmd);
-    bool FCmdBadKeyCore(PCMD pcmd)
+    bool FCmdBadKeyCore(PCommand pcmd)
     {
         return FCmdBadKey((PCMD_BADKEY)pcmd);
     }
-    virtual bool FCmdSelIdle(PCMD pcmd);
-    virtual bool FCmdActivateSel(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
+    virtual bool FCmdActivateSel(PCommand pcmd);
 
     // tool tips
     virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);

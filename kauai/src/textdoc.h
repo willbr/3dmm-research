@@ -144,7 +144,7 @@ class TXDD : public TXDD_PAR
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    virtual bool FCmdSelIdle(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
 
     void SetSel(long ichAnchor, long ichOther, bool fDraw);
     void ShowSel(bool fDraw);

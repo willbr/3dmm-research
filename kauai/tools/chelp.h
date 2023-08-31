@@ -57,10 +57,10 @@ class APP : public APP_PAR
     virtual void GetStnAppName(PSTN pstn);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
 
-    virtual bool FCmdOpen(PCMD pcmd);
-    virtual bool FCmdLoadResFile(PCMD pcmd);
-    virtual bool FCmdChooseLanguage(PCMD pcmd);
-    virtual bool FEnableChooseLanguage(PCMD pcmd, ulong *pgrfeds);
+    virtual bool FCmdOpen(PCommand pcmd);
+    virtual bool FCmdLoadResFile(PCommand pcmd);
+    virtual bool FCmdChooseLanguage(PCommand pcmd);
+    virtual bool FEnableChooseLanguage(PCommand pcmd, ulong *pgrfeds);
 
     PLIG PligNew(bool fButton, PGCB pgcb, PTextDocument ptxhd);
     bool FLoadResFile(PFilename pfni);
@@ -137,7 +137,7 @@ class LIG : public LIG_PAR
     void Refresh(void);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdScroll(PCMD pcmd);
+    virtual bool FCmdScroll(PCommand pcmd);
 };
 
 /***************************************************************************
@@ -337,15 +337,15 @@ class HEDG : public HEDG_PAR
     virtual bool FCmdKey(PCMD_KEY pcmd);
 
     virtual void InvalCno(ChunkNumber cno);
-    virtual bool FEnableHedgCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdNewTopic(PCMD pcmd);
-    virtual bool FCmdEditTopic(PCMD pcmd);
-    virtual bool FCmdDeleteTopic(PCMD pcmd);
-    virtual bool FCmdExport(PCMD pcmd);
-    virtual bool FCmdFind(PCMD pcmd);
-    virtual bool FCmdPrint(PCMD pcmd);
-    virtual bool FCmdCheckSpelling(PCMD pcmd);
-    virtual bool FCmdDump(PCMD pcmd);
+    virtual bool FEnableHedgCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdNewTopic(PCommand pcmd);
+    virtual bool FCmdEditTopic(PCommand pcmd);
+    virtual bool FCmdDeleteTopic(PCommand pcmd);
+    virtual bool FCmdExport(PCommand pcmd);
+    virtual bool FCmdFind(PCommand pcmd);
+    virtual bool FCmdPrint(PCommand pcmd);
+    virtual bool FCmdCheckSpelling(PCommand pcmd);
+    virtual bool FCmdDump(PCommand pcmd);
 
     PHEDO Phedo(void)
     {
@@ -441,19 +441,19 @@ class HETG : public HETG_PAR
     virtual bool FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
     virtual bool FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
-    virtual bool FCmdGroupText(PCMD pcmd);
-    virtual bool FCmdFormatPicture(PCMD pcmd);
-    virtual bool FCmdFormatButton(PCMD pcmd);
-    virtual bool FEnableHetgCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdEditHtop(PCMD pcmd);
-    virtual bool FCmdInsertEdit(PCMD pcmd);
-    virtual bool FCmdFormatEdit(PCMD pcmd);
-    virtual bool FCmdFind(PCMD pcmd);
-    virtual bool FCmdPrint(PCMD pcmd);
-    virtual bool FCmdLineSpacing(PCMD pcmd);
-    virtual bool FCmdNextTopic(PCMD pcmd);
-    virtual bool FCmdCheckSpelling(PCMD pcmd);
-    virtual bool FCmdFontDialog(PCMD pcmd);
+    virtual bool FCmdGroupText(PCommand pcmd);
+    virtual bool FCmdFormatPicture(PCommand pcmd);
+    virtual bool FCmdFormatButton(PCommand pcmd);
+    virtual bool FEnableHetgCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdEditHtop(PCommand pcmd);
+    virtual bool FCmdInsertEdit(PCommand pcmd);
+    virtual bool FCmdFormatEdit(PCommand pcmd);
+    virtual bool FCmdFind(PCommand pcmd);
+    virtual bool FCmdPrint(PCommand pcmd);
+    virtual bool FCmdLineSpacing(PCommand pcmd);
+    virtual bool FCmdNextTopic(PCommand pcmd);
+    virtual bool FCmdCheckSpelling(PCommand pcmd);
+    virtual bool FCmdFontDialog(PCommand pcmd);
 
     virtual bool FCheckSpelling(long *pcactChanges);
 

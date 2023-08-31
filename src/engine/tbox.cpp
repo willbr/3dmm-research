@@ -1397,7 +1397,7 @@ void TBXG::_NewRc(void)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdClip(PCMD pcmd)
+bool TBXG::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1413,7 +1413,7 @@ bool TBXG::FCmdClip(PCMD pcmd)
 
     if (((pcmd->cid == cidPaste) || (pcmd->cid == cidPasteTool)) && vpclip->FGetFormat(kclsACLP, &pdocb))
     {
-        CMD cmd;
+        Command cmd;
 
         if (((PACLP)pdocb)->FRouteOnly())
         {
@@ -1466,7 +1466,7 @@ bool TBXG::FCmdClip(PCMD pcmd)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
+bool TBXG::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1528,7 +1528,7 @@ bool TBXG::_FDoClip(long tool)
     PTBOX ptbox = (PTBOX)_pdocb;
     PTBOX ptboxDup;
     PTCLP ptclp;
-    CMD cmd;
+    Command cmd;
 
     AssertPo(ptbox, 0);
 
@@ -1539,7 +1539,7 @@ bool TBXG::_FDoClip(long tool)
 
         if (FTextSelected())
         {
-            ClearPb(&cmd, size(CMD));
+            ClearPb(&cmd, size(Command));
             cmd.cid = (tool == toolCutText) ? cidCut : cidCopy;
             ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
             if (!TBXG_PAR::FCmdClip(&cmd))
@@ -1554,7 +1554,7 @@ bool TBXG::_FDoClip(long tool)
 
         if (!vpclip->FGetFormat(kclsACLP) && !vpclip->FGetFormat(kclsTCLP))
         {
-            ClearPb(&cmd, size(CMD));
+            ClearPb(&cmd, size(Command));
             cmd.cid = cidPaste;
             ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
             return (TBXG_PAR::FCmdClip(&cmd));

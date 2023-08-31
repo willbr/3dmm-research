@@ -70,7 +70,7 @@ ASSERTNAME
  **************************************************************************/
 const long kglpbrcnGrow = 5;
 
-bool Studio::FCmdBrowserReady(PCMD pcmd)
+bool Studio::FCmdBrowserReady(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -421,7 +421,7 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
     AssertThis(0);
 
     TAG tag;
-    CMD cmd;
+    Command cmd;
     PMovieView pmvu;
 
     tag.sid = sid;

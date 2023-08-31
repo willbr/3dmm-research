@@ -113,8 +113,8 @@ class EDCB : public EDCB_PAR
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    virtual bool FCmdSelIdle(PCMD pcmd);
-    virtual bool FCmdActivateSel(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
+    virtual bool FCmdActivateSel(PCommand pcmd);
     virtual void Activate(bool fActive);
 
     long IchAnchor(void)

@@ -35,25 +35,25 @@ class FrameTesterApp : public FrameTesterApp_PAR
 
   public:
     virtual void GetStnAppName(PSTN pstn);
-    bool FCmdTestSuite(PCMD pcmd);
-    bool FCmdNewTestWnd(PCMD pcmd);
-    bool FCmdTextTestWnd(PCMD pcmd);
-    bool FCmdTimeTestRc(PCMD pcmd);
-    bool FCmdMacro(PCMD pcmd);
+    bool FCmdTestSuite(PCommand pcmd);
+    bool FCmdNewTestWnd(PCommand pcmd);
+    bool FCmdTextTestWnd(PCommand pcmd);
+    bool FCmdTimeTestRc(PCommand pcmd);
+    bool FCmdMacro(PCommand pcmd);
 
-    bool FCmdTestPerspective(PCMD pcmd);
-    bool FCmdTestPictures(PCMD pcmd);
-    bool FCmdTestMbmps(PCMD pcmd);
-    bool FCmdFastUpdate(PCMD pcmd);
-    bool FCmdTextEdit(PCMD pcmd);
+    bool FCmdTestPerspective(PCommand pcmd);
+    bool FCmdTestPictures(PCommand pcmd);
+    bool FCmdTestMbmps(PCommand pcmd);
+    bool FCmdFastUpdate(PCommand pcmd);
+    bool FCmdTextEdit(PCommand pcmd);
 #ifdef WIN
-    bool FCmdTestFni(PCMD pcmd);
+    bool FCmdTestFni(PCommand pcmd);
 #endif // WIN
 #ifdef MAC
-    bool FCmdSetScreen(PCMD pcmd);
-    bool FEnableScreen(PCMD pcmd, ulong *pgrfeds);
+    bool FCmdSetScreen(PCommand pcmd);
+    bool FEnableScreen(PCommand pcmd, ulong *pgrfeds);
 #endif // MAC
-    bool FEnableMacro(PCMD pcmd, ulong *pgrfeds);
+    bool FEnableMacro(PCommand pcmd, ulong *pgrfeds);
 };
 
 BEGIN_CMD_MAP(FrameTesterApp, ApplicationBase)
@@ -145,7 +145,7 @@ void CheckForLostMem(BASE *po)
 /***************************************************************************
     Test the util code.
 ***************************************************************************/
-bool FrameTesterApp::FCmdTestSuite(PCMD pcmd)
+bool FrameTesterApp::FCmdTestSuite(PCommand pcmd)
 {
     TestUtil();
     return fTrue;
@@ -484,7 +484,7 @@ class DWN : public DWN_PAR
   public:
     static DWN *PdwnNew(void);
 
-    virtual bool FCmdScroll(PCMD pcmd);
+    virtual bool FCmdScroll(PCommand pcmd);
 };
 
 BEGIN_CMD_MAP(DWN, GraphicsObject)
@@ -596,7 +596,7 @@ DWN *DWN::PdwnNew(void)
 /***************************************************************************
     Handles scrolling.
 ***************************************************************************/
-bool DWN::FCmdScroll(PCMD pcmd)
+bool DWN::FCmdScroll(PCommand pcmd)
 {
     long hid, val, dval;
     PSCB pscb;
@@ -834,7 +834,7 @@ class DOC : public DocumentBase
 /******************************************************************************
     Test the gob code
 ******************************************************************************/
-bool FrameTesterApp::FCmdNewTestWnd(PCMD pcmd)
+bool FrameTesterApp::FCmdNewTestWnd(PCommand pcmd)
 {
     long idit;
     long lw;
@@ -889,7 +889,7 @@ LFail:
 /******************************************************************************
     Test the gob code
 ******************************************************************************/
-bool FrameTesterApp::FCmdTextTestWnd(PCMD pcmd)
+bool FrameTesterApp::FCmdTextTestWnd(PCommand pcmd)
 {
     TTW::PttwNew();
     return fTrue;
@@ -898,7 +898,7 @@ bool FrameTesterApp::FCmdTextTestWnd(PCMD pcmd)
 /******************************************************************************
     Test rectangle framing speed.
 ******************************************************************************/
-bool FrameTesterApp::FCmdTimeTestRc(PCMD pcmd)
+bool FrameTesterApp::FCmdTimeTestRc(PCommand pcmd)
 {
     RTW::PrtwNew();
     return fTrue;
@@ -1038,7 +1038,7 @@ long _LwSqrt(long lw)
 /***************************************************************************
     Command function to handle macro recording and playback.
 ***************************************************************************/
-bool FrameTesterApp::FCmdMacro(PCMD pcmd)
+bool FrameTesterApp::FCmdMacro(PCommand pcmd)
 {
     Filename fni;
     PChunkyFile pcfl;
@@ -1078,7 +1078,7 @@ bool FrameTesterApp::FCmdMacro(PCMD pcmd)
 /***************************************************************************
     Handles enabling of macro recording and playback commands.
 ***************************************************************************/
-bool FrameTesterApp::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
+bool FrameTesterApp::FEnableMacro(PCommand pcmd, ulong *pgrfeds)
 {
     if (vpcex->FRecording() || vpcex->FPlaying())
         *pgrfeds = fedsDisable;
@@ -1091,7 +1091,7 @@ bool FrameTesterApp::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
 /******************************************************************************
     Test windows fni code to build an fni from a path
 ******************************************************************************/
-bool FrameTesterApp::FCmdTestFni(PCMD pcmd)
+bool FrameTesterApp::FCmdTestFni(PCommand pcmd)
 {
     long idit;
     STN stn, stnT;
@@ -1375,7 +1375,7 @@ void DDP::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Create a new perspective doc and window.
 ***************************************************************************/
-bool FrameTesterApp::FCmdTestPerspective(PCMD pcmd)
+bool FrameTesterApp::FCmdTestPerspective(PCommand pcmd)
 {
     DOCP *pdocp;
 
@@ -1607,7 +1607,7 @@ void DDPIC::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Create a new picture doc and window.
 ***************************************************************************/
-bool FrameTesterApp::FCmdTestPictures(PCMD pcmd)
+bool FrameTesterApp::FCmdTestPictures(PCommand pcmd)
 {
     DOCPIC *pdocpic;
 
@@ -1873,7 +1873,7 @@ void DDGPT::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Create a new mbmp and window.
 ***************************************************************************/
-bool FrameTesterApp::FCmdTestMbmps(PCMD pcmd)
+bool FrameTesterApp::FCmdTestMbmps(PCommand pcmd)
 {
     DOCGPT *pdocgpt;
 
@@ -1889,7 +1889,7 @@ bool FrameTesterApp::FCmdTestMbmps(PCMD pcmd)
 /***************************************************************************
     Set the main screen as indicated.
 ***************************************************************************/
-bool FrameTesterApp::FCmdSetScreen(PCMD pcmd)
+bool FrameTesterApp::FCmdSetScreen(PCommand pcmd)
 {
     bool tColor = tMaybe;
     long cbit = 0;
@@ -1931,7 +1931,7 @@ bool FrameTesterApp::FCmdSetScreen(PCMD pcmd)
 /***************************************************************************
     Set the menu stuff for the screen resolutions.
 ***************************************************************************/
-bool FrameTesterApp::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
+bool FrameTesterApp::FEnableScreen(PCommand pcmd, ulong *pgrfeds)
 {
     long cbitPixel;
     bool fColor;
@@ -1999,7 +1999,7 @@ class TAN : public TAN_PAR
     static PTAN PtanNew(void);
 
     virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdAlarm(PCMD pcmd);
+    virtual bool FCmdAlarm(PCommand pcmd);
 };
 
 BEGIN_CMD_MAP(TAN, GraphicsObject)
@@ -2011,7 +2011,7 @@ long TAN::_cact = 0;
 /***************************************************************************
     Create a new picture doc and window.
 ***************************************************************************/
-bool FrameTesterApp::FCmdFastUpdate(PCMD pcmd)
+bool FrameTesterApp::FCmdFastUpdate(PCommand pcmd)
 {
     TAN::PtanNew();
     return fTrue;
@@ -2059,7 +2059,7 @@ PTAN TAN::PtanNew(void)
 /***************************************************************************
     Alarm handler for a TAN.
 ***************************************************************************/
-bool TAN::FCmdAlarm(PCMD pcmd)
+bool TAN::FCmdAlarm(PCommand pcmd)
 {
     if (pcmd->rglw[0] != vclok.Hid())
         return fFalse; // wrong clock
@@ -2121,7 +2121,7 @@ class TED : public TED_PAR
 /***************************************************************************
     Create a new window containing a bunch of edit controls.
 ***************************************************************************/
-bool FrameTesterApp::FCmdTextEdit(PCMD pcmd)
+bool FrameTesterApp::FCmdTextEdit(PCommand pcmd)
 {
     TED::PtedNew();
     return fTrue;

@@ -332,7 +332,7 @@ long ApplicationBase::DypTextDef(void)
 /***************************************************************************
     Quit the app (don't force it).
 ***************************************************************************/
-bool ApplicationBase::FCmdQuit(PCMD pcmd)
+bool ApplicationBase::FCmdQuit(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -344,7 +344,7 @@ bool ApplicationBase::FCmdQuit(PCMD pcmd)
 /***************************************************************************
     Open a window onto the clipboard, if it exists.
 ***************************************************************************/
-bool ApplicationBase::FCmdShowClipboard(PCMD pcmd)
+bool ApplicationBase::FCmdShowClipboard(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -356,7 +356,7 @@ bool ApplicationBase::FCmdShowClipboard(PCMD pcmd)
 /***************************************************************************
     Handles an idle command.
 ***************************************************************************/
-bool ApplicationBase::FCmdIdle(PCMD pcmd)
+bool ApplicationBase::FCmdIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -420,7 +420,7 @@ bool ApplicationBase::FCmdIdle(PCMD pcmd)
             cmd.xp = pt.xp;
             cmd.yp = pt.yp;
             cmd.grfcust = grfcust;
-            vpcex->EnqueueCmd((PCMD)&cmd);
+            vpcex->EnqueueCmd((PCommand)&cmd);
         }
 
         // adjust tool tips
@@ -497,7 +497,7 @@ void ApplicationBase::ResetToolTip(void)
 /***************************************************************************
     Enable app level commands
 ***************************************************************************/
-bool ApplicationBase::FEnableAppCmd(PCMD pcmd, ulong *pgrfeds)
+bool ApplicationBase::FEnableAppCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -531,7 +531,7 @@ bool ApplicationBase::FEnableAppCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Respond to a cidChooseWnd command.
 ***************************************************************************/
-bool ApplicationBase::FCmdChooseWnd(PCMD pcmd)
+bool ApplicationBase::FCmdChooseWnd(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1633,7 +1633,7 @@ void ApplicationBase::PopModal(void)
 /***************************************************************************
     End the topmost modal loop.
 ***************************************************************************/
-bool ApplicationBase::FCmdEndModal(PCMD pcmd)
+bool ApplicationBase::FCmdEndModal(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1649,7 +1649,7 @@ bool ApplicationBase::FCmdEndModal(PCMD pcmd)
     Handle any bad modal commands. Default is to put the command in the
     next modal context's CEX.
 ***************************************************************************/
-void ApplicationBase::BadModalCmd(PCMD pcmd)
+void ApplicationBase::BadModalCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);

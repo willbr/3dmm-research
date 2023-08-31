@@ -283,7 +283,7 @@ LFail:
 /***************************************************************************
     Set the portfolio doc from one of Melanie's project documents
 ***************************************************************************/
-bool Studio::FCmdLoadProjectMovie(PCMD pcmd)
+bool Studio::FCmdLoadProjectMovie(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -557,7 +557,7 @@ LFail:
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdXYAxis(PCMD pcmd)
+bool Studio::FCmdXYAxis(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -593,7 +593,7 @@ bool Studio::FCmdXYAxis(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdXZAxis(PCMD pcmd)
+bool Studio::FCmdXZAxis(PCommand pcmd)
 {
     AssertThis(0);
     PMovieView pmvu;
@@ -627,7 +627,7 @@ bool Studio::FCmdXZAxis(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdSetTool(PCMD pcmd)
+bool Studio::FCmdSetTool(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -769,7 +769,7 @@ bool Studio::FCmdSetTool(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdPlay(PCMD pcmd)
+bool Studio::FCmdPlay(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -835,7 +835,7 @@ bool Studio::FCmdPlay(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdNewScene(PCMD pcmd)
+bool Studio::FCmdNewScene(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -875,7 +875,7 @@ bool Studio::FCmdNewScene(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdRespectGround(PCMD pcmd)
+bool Studio::FCmdRespectGround(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -905,7 +905,7 @@ bool Studio::FCmdRespectGround(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdPause(PCMD pcmd)
+bool Studio::FCmdPause(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -939,7 +939,7 @@ bool Studio::FCmdPause(PCMD pcmd)
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool Studio::FCmdOpen(PCMD pcmd)
+bool Studio::FCmdOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -996,7 +996,7 @@ bool Studio::FCmdOpen(PCMD pcmd)
     Returns: nothing
 
 ******************************************************************************/
-bool Studio::FCmdScroll(PCMD pcmd)
+bool Studio::FCmdScroll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1018,7 +1018,7 @@ bool Studio::FCmdScroll(PCMD pcmd)
     returns fTrue.
 
 ******************************************************************************/
-bool Studio::FCmdSooner(PCMD pcmd)
+bool Studio::FCmdSooner(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1050,7 +1050,7 @@ bool Studio::FCmdSooner(PCMD pcmd)
     returns fTrue.
 
 ******************************************************************************/
-bool Studio::FCmdLater(PCMD pcmd)
+bool Studio::FCmdLater(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1082,7 +1082,7 @@ bool Studio::FCmdLater(PCMD pcmd)
     returns fTrue.
 
 ******************************************************************************/
-bool Studio::FCmdNewSpletter(PCMD pcmd)
+bool Studio::FCmdNewSpletter(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1125,7 +1125,7 @@ bool Studio::FCmdNewSpletter(PCMD pcmd)
 /******************************************************************************
     Start the sound recording easel
 ******************************************************************************/
-bool Studio::FCmdOpenSoundRecord(PCMD pcmd)
+bool Studio::FCmdOpenSoundRecord(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1168,7 +1168,7 @@ void Studio::SceneChange(void)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdCreatePopup(PCMD pcmd)
+bool Studio::FCmdCreatePopup(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1271,7 +1271,7 @@ bool Studio::FCmdCreatePopup(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdTextSetBkgdColor(PCMD pcmd)
+bool Studio::FCmdTextSetBkgdColor(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1301,7 +1301,7 @@ bool Studio::FCmdTextSetBkgdColor(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool Studio::FCmdTextSetColor(PCMD pcmd)
+bool Studio::FCmdTextSetColor(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1325,12 +1325,12 @@ bool Studio::FCmdTextSetColor(PCMD pcmd)
         Command handler to set the font size for the active textbox
 
     Arguments:
-        PCMD pcmd  --  rglw[0] holds the new size
+        PCommand pcmd  --  rglw[0] holds the new size
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ PETED ***********/
-bool Studio::FCmdTextSetSize(PCMD pcmd)
+bool Studio::FCmdTextSetSize(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1349,14 +1349,14 @@ bool Studio::FCmdTextSetSize(PCMD pcmd)
         Command handler to set the font Style for the active textbox
 
     Arguments:
-        PCMD pcmd  --
+        PCommand pcmd  --
             rglw[0] holds the mask for the new style bits
             rglw[1] holds the new style bits
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ PETED ***********/
-bool Studio::FCmdTextSetStyle(PCMD pcmd)
+bool Studio::FCmdTextSetStyle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1380,12 +1380,12 @@ bool Studio::FCmdTextSetStyle(PCMD pcmd)
         Command handler to set the font face for the active textbox
 
     Arguments:
-        PCMD pcmd  --  rglw[0] holds the new face
+        PCommand pcmd  --  rglw[0] holds the new face
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ PETED ***********/
-bool Studio::FCmdTextSetFont(PCMD pcmd)
+bool Studio::FCmdTextSetFont(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1866,7 +1866,7 @@ void Studio::ActorEasel(bool *pfActrChanged)
     Put up the costume changer / 3-D Text easel.  Returns fTrue if user
     made changes, else fFalse.
 ***************************************************************************/
-bool Studio::FCmdActorEaselOpen(PCMD pcmd)
+bool Studio::FCmdActorEaselOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2167,7 +2167,7 @@ void Studio::StartActionBrowser(void)
     AssertPo(_pmvie->Pscen()->PactrSelected(), 0);
 
     PKidspaceGraphicObject pgok;
-    CMD cmd;
+    Command cmd;
 
     pgok = (PKidspaceGraphicObject)((APP *)vpappb)->Pkwa()->PgobFromHid(kidBackground);
 
@@ -2194,7 +2194,7 @@ void Studio::StartListenerEasel(void)
 /***************************************************************************
     Start the listener easel
 ***************************************************************************/
-bool Studio::FCmdListenerEaselOpen(PCMD pcmd)
+bool Studio::FCmdListenerEaselOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2503,12 +2503,12 @@ void Studio::GetStnMisc(long ids, PSTN pstn)
         Command handler to toggle the XY button setting in the studio
 
     Arguments:
-        PCMD pcmd  --  the command to process
+        PCommand pcmd  --  the command to process
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool Studio::FCmdToggleXY(PCMD pcmd)
+bool Studio::FCmdToggleXY(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2530,12 +2530,12 @@ bool Studio::FCmdToggleXY(PCMD pcmd)
         Command handler to bring up the help book
 
     Arguments:
-        PCMD pcmd  --  the command to process
+        PCommand pcmd  --  the command to process
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool Studio::FCmdHelpBook(PCMD pcmd)
+bool Studio::FCmdHelpBook(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2558,12 +2558,12 @@ bool Studio::FCmdHelpBook(PCMD pcmd)
         Command handler to force the movie to a specific scene and frame number
 
     Arguments:
-        PCMD pcmd  --  the command to process
+        PCommand pcmd  --  the command to process
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool Studio::FCmdMovieGoto(PCMD pcmd)
+bool Studio::FCmdMovieGoto(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2578,12 +2578,12 @@ bool Studio::FCmdMovieGoto(PCMD pcmd)
         Command handler to enabled/disable movie sounds.
 
     Arguments:
-        PCMD pcmd  --  the command to process
+        PCommand pcmd  --  the command to process
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool Studio::FCmdSoundsEnabled(PCMD pcmd)
+bool Studio::FCmdSoundsEnabled(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2596,12 +2596,12 @@ bool Studio::FCmdSoundsEnabled(PCMD pcmd)
         Command handler to create a textbox.
 
     Arguments:
-        PCMD pcmd  --  the command to process
+        PCommand pcmd  --  the command to process
 
     Returns:  fTrue; always handles the command
 
 ************************************************************ SEANSE ***********/
-bool Studio::FCmdCreateTbox(PCMD pcmd)
+bool Studio::FCmdCreateTbox(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2663,7 +2663,7 @@ void Studio::UpdateTitle(PSTN pstnTitle)
 /******************************************************************************
         Tells the movie to write bitmaps as it plays, and plays the movie.
 ************************************************************ PETED ***********/
-bool Studio::FCmdWriteBmps(PCMD pcmd)
+bool Studio::FCmdWriteBmps(PCommand pcmd)
 {
     if (_pmvie != pvNil)
     {

@@ -649,7 +649,7 @@ void DCGB::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Handle enabling/disabling commands.
 ***************************************************************************/
-bool DCGB::FEnableDcgbCmd(PCMD pcmd, ulong *pgrfeds)
+bool DCGB::FEnableDcgbCmd(PCommand pcmd, ulong *pgrfeds)
 {
     bool fT;
 
@@ -678,7 +678,7 @@ bool DCGB::FEnableDcgbCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Handles commands to edit the current line of the group.
 ***************************************************************************/
-bool DCGB::FCmdEditItem(PCMD pcmd)
+bool DCGB::FCmdEditItem(PCommand pcmd)
 {
     if (ivNil == _ivCur)
         return fFalse;
@@ -704,7 +704,7 @@ void DCGB::_EditIvDln(long iv, long dln)
 /***************************************************************************
     Handle cidDeleteItem.
 ***************************************************************************/
-bool DCGB::FCmdDeleteItem(PCMD pcmd)
+bool DCGB::FCmdDeleteItem(PCommand pcmd)
 {
     _DeleteIv(_ivCur);
     return fTrue;
@@ -876,7 +876,7 @@ void DCGL::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle cidAddItem and cidInsertItem.
 ***************************************************************************/
-bool DCGL::FCmdAddItem(PCMD pcmd)
+bool DCGL::FCmdAddItem(PCommand pcmd)
 {
     HQ hq;
     long cb;
@@ -1060,7 +1060,7 @@ void DCGG::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle cidAddItem and cidInsertItem.
 ***************************************************************************/
-bool DCGG::FCmdAddItem(PCMD pcmd)
+bool DCGG::FCmdAddItem(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1247,7 +1247,7 @@ void DCST::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle cidAddItem and cidInsertItem.
 ***************************************************************************/
-bool DCST::FCmdAddItem(PCMD pcmd)
+bool DCST::FCmdAddItem(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

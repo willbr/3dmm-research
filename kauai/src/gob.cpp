@@ -1267,7 +1267,7 @@ void GraphicsObject::MouseDown(long xp, long yp, long cact, ulong grfcust)
     cmd.yp = yp;
     cmd.grfcust = grfcust;
     cmd.cact = cact;
-    vpcex->EnqueueCmd((PCMD)&cmd);
+    vpcex->EnqueueCmd((PCommand)&cmd);
 }
 
 /***************************************************************************
@@ -1560,7 +1560,7 @@ PGraphicsObject GraphicsObject::PgobFromGrid(long grid)
 /***************************************************************************
     Handles a close command.
 ***************************************************************************/
-bool GraphicsObject::FCmdCloseWnd(PCMD pcmd)
+bool GraphicsObject::FCmdCloseWnd(PCommand pcmd)
 {
     AssertThis(0);
     Release();
@@ -1598,7 +1598,7 @@ bool GraphicsObject::FCmdBadKey(PCMD_BADKEY pcmd)
     according to rglw[0] (non-zero means on) and set rglw[0] to false.
     Always return false.
 ***************************************************************************/
-bool GraphicsObject::FCmdSelIdle(PCMD pcmd)
+bool GraphicsObject::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1609,7 +1609,7 @@ bool GraphicsObject::FCmdSelIdle(PCMD pcmd)
 /***************************************************************************
     Activate the selection.  Default does nothing.
 ***************************************************************************/
-bool GraphicsObject::FCmdActivateSel(PCMD pcmd)
+bool GraphicsObject::FCmdActivateSel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

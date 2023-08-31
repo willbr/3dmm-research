@@ -66,7 +66,7 @@ class Studio : public Studio_PAR
     PDynamicArray _pglclr;        // Color table for common palette
     bool _fDisplayCast; // Display movie's cast
 
-    CMD _cmd;
+    Command _cmd;
     long _dtimToolTipDelay;
     bool _fStopUISound;
     PTGOB _ptgobTitle;
@@ -92,40 +92,40 @@ class Studio : public Studio_PAR
     //
     // Command functions for getting from scripts to here.
     //
-    bool FCmdXYAxis(PCMD pcmd);
-    bool FCmdXZAxis(PCMD pcmd);
-    bool FCmdRecordPath(PCMD pcmd);
-    bool FCmdRerecordPath(PCMD pcmd);
-    bool FCmdSetTool(PCMD pcmd);
-    bool FCmdPlay(PCMD pcmd);
-    bool FCmdNewScene(PCMD pcmd);
-    bool FCmdRespectGround(PCMD pcmd);
-    bool FCmdPause(PCMD pcmd);
-    bool FCmdOpen(PCMD pcmb);
-    bool FCmdBrowserReady(PCMD pcmd);
-    bool FCmdScroll(PCMD pcmd);
-    bool FCmdSooner(PCMD pcmd);
-    bool FCmdLater(PCMD pcmd);
-    bool FCmdNewSpletter(PCMD pcmd);
-    bool FCmdCreatePopup(PCMD pcmd);
-    bool FCmdTextSetColor(PCMD pcmd);
-    bool FCmdTextSetBkgdColor(PCMD pcmd);
-    bool FCmdTextSetFont(PCMD pcmd);
-    bool FCmdTextSetStyle(PCMD pcmd);
-    bool FCmdTextSetSize(PCMD pcmd);
-    bool FCmdOpenSoundRecord(PCMD pcmd);
+    bool FCmdXYAxis(PCommand pcmd);
+    bool FCmdXZAxis(PCommand pcmd);
+    bool FCmdRecordPath(PCommand pcmd);
+    bool FCmdRerecordPath(PCommand pcmd);
+    bool FCmdSetTool(PCommand pcmd);
+    bool FCmdPlay(PCommand pcmd);
+    bool FCmdNewScene(PCommand pcmd);
+    bool FCmdRespectGround(PCommand pcmd);
+    bool FCmdPause(PCommand pcmd);
+    bool FCmdOpen(PCommand pcmb);
+    bool FCmdBrowserReady(PCommand pcmd);
+    bool FCmdScroll(PCommand pcmd);
+    bool FCmdSooner(PCommand pcmd);
+    bool FCmdLater(PCommand pcmd);
+    bool FCmdNewSpletter(PCommand pcmd);
+    bool FCmdCreatePopup(PCommand pcmd);
+    bool FCmdTextSetColor(PCommand pcmd);
+    bool FCmdTextSetBkgdColor(PCommand pcmd);
+    bool FCmdTextSetFont(PCommand pcmd);
+    bool FCmdTextSetStyle(PCommand pcmd);
+    bool FCmdTextSetSize(PCommand pcmd);
+    bool FCmdOpenSoundRecord(PCommand pcmd);
     bool FBuildActorMenu(void);
-    bool FCmdToggleXY(PCMD pcmd);
-    bool FCmdHelpBook(PCMD pcmd);
-    bool FCmdMovieGoto(PCMD pcmd);
-    bool FCmdLoadProjectMovie(PCMD pcmd);
-    bool FCmdSoundsEnabled(PCMD pcmd);
-    bool FCmdCreateTbox(PCMD pcmd);
-    bool FCmdActorEaselOpen(PCMD pcmd);
-    bool FCmdListenerEaselOpen(PCMD pcmd);
+    bool FCmdToggleXY(PCommand pcmd);
+    bool FCmdHelpBook(PCommand pcmd);
+    bool FCmdMovieGoto(PCommand pcmd);
+    bool FCmdLoadProjectMovie(PCommand pcmd);
+    bool FCmdSoundsEnabled(PCommand pcmd);
+    bool FCmdCreateTbox(PCommand pcmd);
+    bool FCmdActorEaselOpen(PCommand pcmd);
+    bool FCmdListenerEaselOpen(PCommand pcmd);
 
 #ifdef DEBUG
-    bool FCmdWriteBmps(PCMD pcmd);
+    bool FCmdWriteBmps(PCommand pcmd);
 #endif // DEBUG
 
     //

@@ -9,12 +9,12 @@
 
     Basic command classes: CEX (command dispatcher), CommandHandler (command handler).
 
-    The command dispatcher (CEX) has a command (CMD) queue and a list of
+    The command dispatcher (CEX) has a command (Command) queue and a list of
     command handlers (CommandHandler). During normal operation (CEX::FDispatchNextCmd),
-    the CEX takes the next CMD from the queue, passes it to each CommandHandler in its
+    the CEX takes the next Command from the queue, passes it to each CommandHandler in its
     list (by calling CommandHandler::FDoCmd) until one of the handlers returns true.
     If none of the handlers in the list returns true, the command is passed
-    to the handler specified in the CMD itself (cmd.pcmh, if not nil).
+    to the handler specified in the Command itself (cmd.pcmh, if not nil).
 
     A CommandHandler is placed in the handler list by a call to CEX::FAddCmh. The
     cmhl parameter determines the order of CommandHandler's in the list. The grfcmm
@@ -38,9 +38,9 @@ long CommandHandler::_hidLast;
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CMD.
+    Assert the validity of a Command.
 ***************************************************************************/
-void CMD::AssertValid(ulong grf)
+void Command::AssertValid(ulong grf)
 {
     AssertThisMem();
     AssertNilOrPo(pgg, 0);
@@ -164,7 +164,7 @@ bool CommandHandler::_FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme)
     success/failure of the execution of the command. Do not return false
     to indicate that command execution failed.
 ***************************************************************************/
-bool CommandHandler::FDoCmd(PCMD pcmd)
+bool CommandHandler::FDoCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -189,7 +189,7 @@ bool CommandHandler::FDoCmd(PCMD pcmd)
     doesn't normally handle the command, this returns false (and does
     nothing else). Otherwise sets the grfeds and returns true.
 ***************************************************************************/
-bool CommandHandler::FEnableCmd(PCMD pcmd, ulong *pgrfeds)
+bool CommandHandler::FEnableCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -233,7 +233,7 @@ CEX::CEX(void)
 CEX::~CEX(void)
 {
     AssertBaseThis(0);
-    CMD cmd;
+    Command cmd;
     long icmd;
 
     if (pvNil != _pglcmd)
@@ -280,7 +280,7 @@ bool CEX::_FInit(long ccmdInit, long ccmhInit)
     AssertIn(ccmdInit, 0, kcbMax);
     AssertIn(ccmhInit, 0, kcbMax);
 
-    if (pvNil == (_pglcmd = DynamicArray::PglNew(size(CMD), ccmdInit)) || pvNil == (_pglcmhe = DynamicArray::PglNew(size(CMHE), ccmhInit)))
+    if (pvNil == (_pglcmd = DynamicArray::PglNew(size(Command), ccmdInit)) || pvNil == (_pglcmhe = DynamicArray::PglNew(size(CMHE), ccmhInit)))
     {
         return fFalse;
     }
@@ -384,7 +384,7 @@ void CEX::StopRecording(void)
 /***************************************************************************
     Record a command.
 ***************************************************************************/
-void CEX::RecordCmd(PCMD pcmd)
+void CEX::RecordCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -520,7 +520,7 @@ void CEX::StopPlaying(void)
 /***************************************************************************
     Read the next command.
 ***************************************************************************/
-bool CEX::_FReadCmd(PCMD pcmd)
+bool CEX::_FReadCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -679,7 +679,7 @@ void CEX::BuryCmh(PCommandHandler pcmh)
     Assert(pcmh != pvNil, 0);
     long icmhe, icmd;
     CMHE cmhe;
-    CMD cmd;
+    Command cmd;
 
     if (_pgobModal == pcmh)
         _pgobModal = pvNil;
@@ -756,7 +756,7 @@ void CEX::EnqueueCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
     AssertNilOrPo(pgg, 0);
-    CMD cmd;
+    Command cmd;
 
     cmd.cid = cid;
     cmd.pcmh = pcmh;
@@ -776,7 +776,7 @@ void CEX::PushCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, l
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
     AssertNilOrPo(pgg, 0);
-    CMD cmd;
+    Command cmd;
 
     cmd.cid = cid;
     cmd.pcmh = pcmh;
@@ -793,7 +793,7 @@ void CEX::PushCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, l
     it to the queue. Clients should make sure that the value of ccmdInit
     passed to PcexNew is large enough to handle the busiest session.
 ***************************************************************************/
-void CEX::EnqueueCmd(PCMD pcmd)
+void CEX::EnqueueCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -815,7 +815,7 @@ void CEX::EnqueueCmd(PCMD pcmd)
     add it to the queue. Clients should make sure that the value of ccmdInit
     passed to PcexNew is large enough to handle the busiest session.
 ***************************************************************************/
-void CEX::PushCmd(PCMD pcmd)
+void CEX::PushCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -841,7 +841,7 @@ bool CEX::FCidIn(long cid)
     Assert(cid != cidNil, "why check for a nil command?");
 
     long icmd;
-    CMD cmd;
+    Command cmd;
 
     for (icmd = _pglcmd->IvMac(); icmd-- > 0;)
     {
@@ -862,7 +862,7 @@ void CEX::FlushCid(long cid)
     Assert(cid != cidNil, "why flush a nil command?");
 
     long icmd;
-    CMD cmd;
+    Command cmd;
 
     for (icmd = _pglcmd->IvMac(); icmd-- > 0;)
     {
@@ -1057,7 +1057,7 @@ bool CEX::FDispatchNextCmd(void)
 /***************************************************************************
     Give the handler a crack at enabling/disabling the command.
 ***************************************************************************/
-bool CEX::_FEnableCmd(PCommandHandler pcmh, PCMD pcmd, ulong *pgrfeds)
+bool CEX::_FEnableCmd(PCommandHandler pcmh, PCommand pcmd, ulong *pgrfeds)
 {
     AssertPo(pcmh, 0);
     AssertPo(pcmd, 0);
@@ -1073,7 +1073,7 @@ bool CEX::_FEnableCmd(PCommandHandler pcmh, PCMD pcmd, ulong *pgrfeds)
     Determines whether the given command is currently enabled. This is
     normally used for menu graying/checking etc and toolbar enabling/status.
 ***************************************************************************/
-ulong CEX::GrfedsForCmd(PCMD pcmd)
+ulong CEX::GrfedsForCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -1127,7 +1127,7 @@ ulong CEX::GrfedsForCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long 
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
     AssertNilOrPo(pgg, 0);
-    CMD cmd;
+    Command cmd;
 
     cmd.cid = cid;
     cmd.pcmh = pcmh;
@@ -1143,7 +1143,7 @@ ulong CEX::GrfedsForCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long 
     See if the next command is a key command and if so, put it in *pcmd
     (and remove it from the queue).
 ***************************************************************************/
-bool CEX::FGetNextKey(PCMD pcmd)
+bool CEX::FGetNextKey(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1262,7 +1262,7 @@ void CEX::AssertValid(ulong grf)
 void CEX::MarkMem(void)
 {
     AssertThis(0);
-    CMD cmd;
+    Command cmd;
     long icmd;
 
     CEX_PAR::MarkMem();

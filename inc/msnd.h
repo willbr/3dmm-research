@@ -230,7 +230,7 @@ class MSQ : public MSQ_PAR
                   ulong dtsStart = 0, bool fLowPri = fFalse);
     void PlayMsq(void);  // Destroys queue as it plays
     void FlushMsq(void); // Without playing the sounds
-    bool FCmdAlarm(PCMD pcmd);
+    bool FCmdAlarm(PCommand pcmd);
 
     // Sound on/off & duration control
     void SndOff(void)

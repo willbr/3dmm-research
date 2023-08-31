@@ -242,12 +242,12 @@ bool Clock::FSetAlarm(long dtim, PCommandHandler pcmhNotify, long lwUser, bool f
     Advance the clock and sound an alarm if one is due to go off.  This
     actually gets called every time through the command loop.
 ***************************************************************************/
-bool Clock::FCmdAll(PCMD pcmd)
+bool Clock::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    CMD cmd;
+    Command cmd;
     long ialad;
     ALAD alad;
     ulong tsCur, timCur;
@@ -313,7 +313,7 @@ bool Clock::FCmdAll(PCMD pcmd)
         }
 
         // send the alarm
-        ClearPb(&cmd, size(CMD));
+        ClearPb(&cmd, size(Command));
         cmd.cid = cidAlarm;
         cmd.pcmh = alad.pcmh;
         cmd.rglw[0] = Hid();

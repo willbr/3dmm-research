@@ -372,7 +372,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual PGORP _PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
-    bool _FFilterCmd(PCMD pcmd, ChildChunkID chidScript, bool *pfFilter);
+    bool _FFilterCmd(PCommand pcmd, ChildChunkID chidScript, bool *pfFilter);
     void _PlayMouseSound(ChildChunkID chid);
     ChunkNumber _CnoToolTip(void);
     ChildChunkID _ChidMouse(void);
@@ -405,14 +405,14 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool FPtInBounds(long xp, long yp);
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
-    virtual bool FCmdAlarm(PCMD pcmd);
+    virtual bool FCmdAlarm(PCommand pcmd);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdClicked(PCMD_MOUSE pcmd);
-    bool FCmdClickedCore(PCMD pcmd)
+    bool FCmdClickedCore(PCommand pcmd)
     {
         return FCmdClicked((PCMD_MOUSE)pcmd);
     }
-    virtual bool FCmdAll(PCMD pcmd);
+    virtual bool FCmdAll(PCommand pcmd);
     virtual bool FFilterCidHid(long cid, long hid, ChildChunkID chidScript);
 
     virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);

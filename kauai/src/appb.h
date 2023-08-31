@@ -264,13 +264,13 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual tribool TGiveAlertSz(PSZ psz, long bk, long cok);
 
     // common commands
-    virtual bool FCmdQuit(PCMD pcmd);
-    virtual bool FCmdShowClipboard(PCMD pcmd);
-    virtual bool FEnableAppCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdIdle(PCMD pcmd);
-    virtual bool FCmdChooseWnd(PCMD pcmd);
+    virtual bool FCmdQuit(PCommand pcmd);
+    virtual bool FCmdShowClipboard(PCommand pcmd);
+    virtual bool FEnableAppCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdIdle(PCommand pcmd);
+    virtual bool FCmdChooseWnd(PCommand pcmd);
 #ifdef MAC
-    virtual bool FCmdOpenDA(PCMD pcmd);
+    virtual bool FCmdOpenDA(PCommand pcmd);
 #endif // MAC
 
 #ifdef DEBUG
@@ -305,12 +305,12 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual bool FModalLoop(long *plwRet);
     virtual void EndModal(long lwRet);
     virtual void PopModal(void);
-    virtual bool FCmdEndModal(PCMD pcmd);
+    virtual bool FCmdEndModal(PCommand pcmd);
     long CactModal(void)
     {
         return _cactModal;
     }
-    virtual void BadModalCmd(PCMD pcmd);
+    virtual void BadModalCmd(PCommand pcmd);
 
     // Query save changes for a document
     virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);

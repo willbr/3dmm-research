@@ -222,13 +222,13 @@ class MovieView : public MovieView_PAR
     //
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
-    virtual bool FCmdClip(CMD *pcmd);
-    virtual bool FCmdUndo(PCMD pcmd);
+    virtual bool FCmdClip(Command *pcmd);
+    virtual bool FCmdUndo(PCommand pcmd);
     virtual bool FCloseDoc(bool fAssumeYes, bool fSaveDDG = fFalse);
-    virtual bool FCmdSave(PCMD pcmd);
+    virtual bool FCmdSave(PCommand pcmd);
     bool FDoClip(long tool);
-    bool FCmdIdle(CMD *pcmd); // Called whenever an idle loop is seen.
-    bool FCmdRollOff(CMD *pcmd);
+    bool FCmdIdle(Command *pcmd); // Called whenever an idle loop is seen.
+    bool FCmdRollOff(Command *pcmd);
 
     //
     // View specific functions.
@@ -828,8 +828,8 @@ class Movie : public Movie_PAR
     //
     // Command handlers
     //
-    bool FCmdAlarm(CMD *pcmd);  // Called at timer expiration (playback).
-    bool FCmdRender(CMD *pcmd); // Called to render a frame during playback.
+    bool FCmdAlarm(Command *pcmd);  // Called at timer expiration (playback).
+    bool FCmdRender(Command *pcmd); // Called to render a frame during playback.
 
     //
     // Automated test APIs

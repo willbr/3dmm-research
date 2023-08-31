@@ -864,7 +864,7 @@ void MSQ::FlushMsq(void)
     FCmdAlarm - Timeout has elapsed.  Stop all sounds
 
 ***************************************************************************/
-bool MSQ::FCmdAlarm(PCMD pcmd)
+bool MSQ::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

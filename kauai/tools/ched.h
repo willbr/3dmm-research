@@ -35,7 +35,7 @@ class APP : public APP_PAR
     virtual void GetStnAppName(PSTN pstn);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
 
-    virtual bool FCmdOpen(PCMD pcmd);
+    virtual bool FCmdOpen(PCommand pcmd);
 };
 
 #endif //! CHED_H

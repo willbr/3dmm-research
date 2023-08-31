@@ -4103,19 +4103,19 @@ void Movie::Play()
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
-bool Movie::FCmdAlarm(PCMD pcmd)
+bool Movie::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    CMD cmd;
+    Command cmd;
 
     if (FIdleSeen() || vpcex->PgobTracking() != pvNil)
     {
 
         SetFIdleSeen(fFalse);
 
-        ClearPb(&cmd, size(CMD));
+        ClearPb(&cmd, size(Command));
 
         cmd.pcmh = this;
         cmd.cid = cidRender;
@@ -4189,7 +4189,7 @@ bool Movie::FCmdAlarm(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
-bool Movie::FCmdRender(PCMD pcmd)
+bool Movie::FCmdRender(PCommand pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
@@ -7698,7 +7698,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         //
         if (!pmvie->Pclok()->FSetAlarm(0, pmvie))
         {
-            CMD cmd;
+            Command cmd;
 
             pmvie->SetFStopPlaying(fTrue);
             cmd.pcmh = pmvie;
@@ -7961,7 +7961,7 @@ LEndTracking:
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MovieView::FCmdClip(PCMD pcmd)
+bool MovieView::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -7969,7 +7969,7 @@ bool MovieView::FCmdClip(PCMD pcmd)
     PTBOX ptbox;
     PDocumentBase pdocb;
     bool fOV = fFalse;
-    CMD cmd;
+    Command cmd;
 
     //
     // Check for O-V model for text in text box.
@@ -8004,7 +8004,7 @@ bool MovieView::FCmdClip(PCMD pcmd)
         {
             if (ptbox != pvNil)
             {
-                CMD cmd = *pcmd;
+                Command cmd = *pcmd;
 
                 cmd.pcmh = ptbox->PddgGet(0);
                 vpcex->EnqueueCmd(&cmd);
@@ -8187,7 +8187,7 @@ bool MovieView::FDoClip(long tool)
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MovieView::FCmdUndo(PCMD pcmd)
+bool MovieView::FCmdUndo(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8466,7 +8466,7 @@ LSaved:
  *  fTrue.
  *
  **************************************************************************/
-bool MovieView::FCmdSave(PCMD pcmd)
+bool MovieView::FCmdSave(PCommand pcmd)
 {
     if (Pmvie()->Cscen() < 1)
     {
@@ -8491,7 +8491,7 @@ bool MovieView::FCmdSave(PCMD pcmd)
  *  fFalse.
  *
  ***************************************************************************/
-bool MovieView::FCmdIdle(PCMD pcmd)
+bool MovieView::FCmdIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8511,7 +8511,7 @@ bool MovieView::FCmdIdle(PCMD pcmd)
  *  fFalse.
  *
  ***************************************************************************/
-bool MovieView::FCmdRollOff(PCMD pcmd)
+bool MovieView::FCmdRollOff(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

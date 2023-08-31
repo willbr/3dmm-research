@@ -104,7 +104,7 @@ bool ApplicationBase::_FInitOS(void)
 /***************************************************************************
     Open a desk accessory.
 ***************************************************************************/
-bool ApplicationBase::FCmdOpenDA(PCMD pcmd)
+bool ApplicationBase::FCmdOpenDA(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -218,7 +218,7 @@ void ApplicationBase::_DispatchEvt(EVT *pevt)
     AssertThis(0);
     AssertVarMem(pevt);
 
-    CMD cmd;
+    Command cmd;
 
     switch (pevt->what)
     {
@@ -353,7 +353,7 @@ void ApplicationBase::_MouseUpEvt(EVT *pevt)
 }
 
 /***************************************************************************
-    Translate an OS level key down event to a CMD.  This returns false if
+    Translate an OS level key down event to a Command.  This returns false if
     the key maps to a menu item.
     //REVIEW shonk: resolve (ch, vk) differences between Mac and Win
 ***************************************************************************/

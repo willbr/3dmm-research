@@ -84,7 +84,7 @@ class StudioScrollbars : public StudioScrollbars_PAR
     //
     //	Event handling
     //
-    bool FCmdScroll(PCMD pcmd);
+    bool FCmdScroll(PCommand pcmd);
 };
 
 #endif // STDIOSCB_H

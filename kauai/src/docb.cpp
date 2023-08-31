@@ -1059,7 +1059,7 @@ void DocumentDisplayGraphicsObject::_Activate(bool fActive)
 /***************************************************************************
     Handles enabling/disabling of common Ddg commands.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
+bool DocumentDisplayGraphicsObject::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
 
@@ -1108,7 +1108,7 @@ bool DocumentDisplayGraphicsObject::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Handles the Cut, Copy, Paste and Clear commands.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FCmdClip(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdClip(PCommand pcmd)
 {
     AssertThis(fobjAssertFull);
     AssertVarMem(pcmd);
@@ -1171,7 +1171,7 @@ bool DocumentDisplayGraphicsObject::_FPaste(PClipboardObject pclip, bool fDoIt, 
 /***************************************************************************
     Handle a close command.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FCmdCloseDoc(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdCloseDoc(PCommand pcmd)
 {
     if (_pdocb->FQueryClose(pcmd->cid == cidSaveAndClose ? fdocAssumeYes : fdocNil))
         _pdocb->CloseAllDdg();
@@ -1181,7 +1181,7 @@ bool DocumentDisplayGraphicsObject::FCmdCloseDoc(PCMD pcmd)
 /***************************************************************************
     Handle a save, save as or save a copy command.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FCmdSave(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdSave(PCommand pcmd)
 {
     _pdocb->FSave(pcmd->cid);
     return fTrue;
@@ -1190,7 +1190,7 @@ bool DocumentDisplayGraphicsObject::FCmdSave(PCMD pcmd)
 /***************************************************************************
     Handle a save, save as or save a copy command.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FCmdUndo(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdUndo(PCommand pcmd)
 {
     if (pcmd->cid == cidUndo)
         _pdocb->FUndo();
@@ -1211,7 +1211,7 @@ void DocumentDisplayGraphicsObject::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Activate the selection.  Default activates the DocumentDisplayGraphicsObject.
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FCmdActivateSel(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdActivateSel(PCommand pcmd)
 {
     Activate(fTrue);
     return fTrue;
@@ -1220,7 +1220,7 @@ bool DocumentDisplayGraphicsObject::FCmdActivateSel(PCMD pcmd)
 /***************************************************************************
     Scroll the DCD
 ***************************************************************************/
-bool DocumentDisplayGraphicsObject::FCmdScroll(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdScroll(PCommand pcmd)
 {
     bool fVert;
     long scv;
@@ -1425,7 +1425,7 @@ void DocumentMDIWindow::_ActivateHwnd(bool fActive)
 /***************************************************************************
     Handles cidCloseWnd.
 ***************************************************************************/
-bool DocumentMDIWindow::FCmdCloseWnd(PCMD pcmd)
+bool DocumentMDIWindow::FCmdCloseWnd(PCommand pcmd)
 {
     // ask the user about saving the doc
     if (!_pdocb->FQueryCloseDmd(this))
@@ -2213,11 +2213,11 @@ void DSG::Split(ulong grfdsg, long rel)
 /***************************************************************************
     A scroll bar has been hit.  Do the scroll.
 ***************************************************************************/
-bool DSG::FCmdScroll(PCMD pcmd)
+bool DSG::FCmdScroll(PCommand pcmd)
 {
     // just pass it on to the DocumentDisplayGraphicsObject
     AssertThis(0);
-    CMD cmd = *pcmd;
+    Command cmd = *pcmd;
 
     cmd.pcmh = _pddg;
     cmd.pgg = pvNil;

@@ -83,13 +83,13 @@ LFail:
         the user removed a CD or something during the splot machine).
 
     Arguments:
-        PCMD pcmd
+        PCommand pcmd
             rglw[0]  --  the kid of the parent frame to show the movie in
 
     Returns:  fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdInit(PCMD pcmd)
+bool SPLOT::FCmdInit(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_pmvie == pvNil, "Already Inited the Splot Machine");
@@ -134,7 +134,7 @@ LFail:
         anyway, so it's cleaner to just always do it here.
 
     Arguments:
-        PCMD pcmd
+        PCommand pcmd
             rglw[0]  --  1 if the background should be randomized
             rglw[1]  --  1 if the camera should be
             rglw[2]  --  1 if the actors/props should be
@@ -143,7 +143,7 @@ LFail:
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdSplot(PCMD pcmd)
+bool SPLOT::FCmdSplot(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -265,12 +265,12 @@ LFail:
         Show the new movie on the screen.
 
     Arguments:
-        PCMD pcmd  --  no additional parameters
+        PCommand pcmd  --  no additional parameters
 
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdUpdate(PCMD pcmd)
+bool SPLOT::FCmdUpdate(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -364,12 +364,12 @@ LFail:
         Okays or Cancels the Splot Machine.
 
     Arguments:
-        PCMD pcmd  --  no additional parameters
+        PCommand pcmd  --  no additional parameters
 
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdDismiss(PCMD pcmd)
+bool SPLOT::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
 

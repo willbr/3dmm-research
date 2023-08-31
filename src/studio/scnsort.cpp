@@ -182,7 +182,7 @@ void SCRT::_ErrorExit(void)
         in kidspace.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- kid of the first thumbnail frame KidspaceGraphicObject
             rglw[1] -- kid of the first scrollbar KidspaceGraphicObject button (scroll up)
             rglw[2] -- number of GOKs in a single frame
@@ -190,7 +190,7 @@ void SCRT::_ErrorExit(void)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdInit(PCMD pcmd)
+bool SCRT::FCmdInit(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -247,13 +247,13 @@ LFail:
         Selects the scene corresponding to the given thumbnail frame.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- the kid of the thumbnail frame
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdSelect(PCMD pcmd)
+bool SCRT::FCmdSelect(PCommand pcmd)
 {
     AssertThis(0);
     Assert(pcmd->rglw[0] - _kidFrameMin < _cfrmPage * _cgokFrame, "Bogus kid for select");
@@ -284,13 +284,13 @@ bool SCRT::FCmdSelect(PCMD pcmd)
         inserted after the last scene visible on the easel.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- the kid of the frame to insert the scene before
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdInsert(PCMD pcmd)
+bool SCRT::FCmdInsert(PCommand pcmd)
 {
     AssertThis(0);
     Assert(pcmd->rglw[0] - _kidFrameMin <= _cfrmPage * _cgokFrame, "Bogus kid for insert");
@@ -322,14 +322,14 @@ bool SCRT::FCmdInsert(PCMD pcmd)
         if we're not drag & drop, or to kstBrowserScrollingSel if we are.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- the number of frames to scroll
             rglw[1] -- non-zero if we're scrolling during drag & drop
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdScroll(PCMD pcmd)
+bool SCRT::FCmdScroll(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -398,12 +398,12 @@ void SCRT::_EnableScroll(void)
         scene is the new currently selected scene.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  No additional parameters.
+        PCommand pcmd -- pointer to the Command data.  No additional parameters.
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdNuke(PCMD pcmd)
+bool SCRT::FCmdNuke(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't nuke a scene from an empty movie");
@@ -433,12 +433,12 @@ bool SCRT::FCmdNuke(PCMD pcmd)
         to the movie.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Checks cid to determine ok/cancel
+        PCommand pcmd -- pointer to the Command data.  Checks cid to determine ok/cancel
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdDismiss(PCMD pcmd)
+bool SCRT::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -478,12 +478,12 @@ bool SCRT::FCmdDismiss(PCMD pcmd)
         Brings up the portfolio so that the user can append movies from file.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  No additional parameters.
+        PCommand pcmd -- pointer to the Command data.  No additional parameters.
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdPortfolio(PCMD pcmd)
+bool SCRT::FCmdPortfolio(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -517,14 +517,14 @@ LFail:
         Sets the transition for the scene corresponding to the given frame.
 
     Arguments:
-        PCMD pcmd -- pointer to command data.  Extra parms are as follows:
+        PCommand pcmd -- pointer to command data.  Extra parms are as follows:
             rglw[0] -- KidspaceGraphicObject id of the frame
             rglw[1] -- which transition to use
 
     Returns: fTrue if the command was handled by this routine
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdTransition(PCMD pcmd)
+bool SCRT::FCmdTransition(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't set transition when movie is empty");

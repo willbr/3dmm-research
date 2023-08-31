@@ -2564,7 +2564,7 @@ void APP::_Activate(bool fActive)
 /***************************************************************************
     Deactivate the app
 ***************************************************************************/
-bool APP::FCmdDeactivate(PCMD pcmd)
+bool APP::FCmdDeactivate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2608,7 +2608,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
         {
             cmd.grfcust &= ~fcustMouse;
         }
-        vpcex->EnqueueCmd((PCMD)&cmd);
+        vpcex->EnqueueCmd((PCommand)&cmd);
         vpcex->EnqueueCid(cidDeactivate);
         _fDown = !_fDown;
         _cactToggle++;
@@ -2771,7 +2771,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
 /***************************************************************************
     Load the Studio
 ***************************************************************************/
-bool APP::FCmdLoadStudio(PCMD pcmd)
+bool APP::FCmdLoadStudio(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2818,7 +2818,7 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
 /***************************************************************************
     Load the Building
 ***************************************************************************/
-bool APP::FCmdLoadBuilding(PCMD pcmd)
+bool APP::FCmdLoadBuilding(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2845,7 +2845,7 @@ bool APP::FCmdLoadBuilding(PCMD pcmd)
 /***************************************************************************
     Exit the studio
 ***************************************************************************/
-bool APP::FCmdExitStudio(PCMD pcmd)
+bool APP::FCmdExitStudio(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2890,7 +2890,7 @@ bool APP::FCmdExitStudio(PCMD pcmd)
 /***************************************************************************
     Load the Theater
 ***************************************************************************/
-bool APP::FCmdTheaterOpen(PCMD pcmd)
+bool APP::FCmdTheaterOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2915,7 +2915,7 @@ bool APP::FCmdTheaterOpen(PCMD pcmd)
 /***************************************************************************
     Close the Theater
 ***************************************************************************/
-bool APP::FCmdTheaterClose(PCMD pcmd)
+bool APP::FCmdTheaterClose(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2929,7 +2929,7 @@ bool APP::FCmdTheaterClose(PCMD pcmd)
 /***************************************************************************
     Clear the portfolio doc
 ***************************************************************************/
-bool APP::FCmdPortfolioClear(PCMD pcmd)
+bool APP::FCmdPortfolioClear(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2942,7 +2942,7 @@ bool APP::FCmdPortfolioClear(PCMD pcmd)
 /***************************************************************************
     Display the customized open file common dlg.
 ***************************************************************************/
-bool APP::FCmdPortfolioOpen(PCMD pcmd)
+bool APP::FCmdPortfolioOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3275,7 +3275,7 @@ char *LoadGenResource(HINSTANCE hInst, LPCSTR lpResource, LPCSTR lpType)
 /***************************************************************************
     Put up info dialog
 ***************************************************************************/
-bool APP::FCmdInfo(PCMD pcmd)
+bool APP::FCmdInfo(PCommand pcmd)
 {
     AssertThis(0);
     PMovie pmvie = pvNil;
@@ -3991,7 +3991,7 @@ void APP::DisplayErrors(void)
 /***************************************************************************
     Idle routine.  Do ApplicationBase idle stuff, then report any runtime errors.
 ***************************************************************************/
-bool APP::FCmdIdle(PCMD pcmd)
+bool APP::FCmdIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -4416,7 +4416,7 @@ void APP::EnableAccel(void)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool APP::FCmdDisableAccel(PCMD pcmd)
+bool APP::FCmdDisableAccel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -4435,7 +4435,7 @@ bool APP::FCmdDisableAccel(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool APP::FCmdEnableAccel(PCMD pcmd)
+bool APP::FCmdEnableAccel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -4448,14 +4448,14 @@ bool APP::FCmdEnableAccel(PCMD pcmd)
         Invokes the splot machine.
 
     Arguments:
-        PCMD pcmd
+        PCommand pcmd
             rglw[0]  --  contains the GraphicsObject id of the parent of the Splot machine
             rglw[1]  --  contains the GraphicsObject id of the Splot machine itself
 
     Returns: fTrue always
 
 ************************************************************ PETED ***********/
-bool APP::FCmdInvokeSplot(PCMD pcmd)
+bool APP::FCmdInvokeSplot(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);

@@ -509,7 +509,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     virtual void Draw(PGNV pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    virtual bool FCmdSelIdle(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
     virtual void HideSel(void);
@@ -604,8 +604,8 @@ class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
     virtual bool FApplyChp(PCHP pchp, PCHP pchpDiff = pvNil);
     virtual bool FApplyPap(PPAP ppap, PPAP ppapDiff = pvNil, bool fExpand = fTrue);
 
-    virtual bool FCmdApplyProperty(PCMD pcmd);
-    virtual bool FEnablePropCmd(PCMD pcmd, ulong *pgrfeds);
+    virtual bool FCmdApplyProperty(PCommand pcmd);
+    virtual bool FEnablePropCmd(PCommand pcmd, ulong *pgrfeds);
     bool FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack);
 
     virtual void SetDxpTab(long dxp);

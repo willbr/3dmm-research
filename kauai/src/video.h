@@ -101,7 +101,7 @@ class GVDS : public GVDS_PAR
     virtual void GetRc(RC *prc);
     virtual void SetRcPlay(RC *prc);
 
-    virtual bool FCmdAll(PCMD pcmd);
+    virtual bool FCmdAll(PCommand pcmd);
 };
 
 /****************************************

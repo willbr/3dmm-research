@@ -877,7 +877,7 @@ void TXDD::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool TXDD::FCmdSelIdle(PCMD pcmd)
+bool TXDD::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -1415,7 +1415,7 @@ bool TXDD::FCmdKey(PCMD_KEY pcmd)
     long dich, dln, ichLim, ichT, ichMin;
     achar ch;
     long cact;
-    CMD cmd;
+    Command cmd;
     achar rgch[kcchInsBuf + 1];
 
     // keep fetching characters until we get a cursor key, delete key or

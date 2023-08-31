@@ -157,7 +157,7 @@ short GraphicsObjectInterpreter::_SwMin(void)
 ***************************************************************************/
 bool GraphicsObjectInterpreter::_FExecOp(long op)
 {
-    CMD cmd;
+    Command cmd;
     PGraphicsObject pgob;
     PClock pclok;
     long hid;
