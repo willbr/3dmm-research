@@ -5058,7 +5058,7 @@ void Scene::SetMvie(PMovie pmvie)
  *  fFalse if an error occurred, else fTrue
  *
  ****************************************************/
-bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTAGL ptagl)
+bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);

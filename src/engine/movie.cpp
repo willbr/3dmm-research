@@ -261,7 +261,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     PMovie pmvie;
     ChildChunkIdentification kid;
     ChildChunkID chid;
-    TAGL *ptagl;
+    TagList *ptagl;
     PChunkyFile pcfl = pvNil;
     DataBlock blck;
     short bo;
@@ -715,19 +715,19 @@ void Movie::AssertValid(ulong grf)
  *	None.
  *
  * Returns:
- *  A TAGL (list of tags that the movie uses)
+ *  A TagList (list of tags that the movie uses)
  *
  **************************************************************************/
-PTAGL Movie::_PtaglFetch(void)
+PTagList Movie::_PtaglFetch(void)
 {
     AssertThis(0);
     Assert(_pcrfAutoSave != pvNil, "need pcrfAutosave");
 
-    PTAGL ptagl;
+    PTagList ptagl;
     ChildChunkIdentification kid;
     ChildChunkID chid;
 
-    ptagl = TAGL::PtaglNew();
+    ptagl = TagList::PtaglNew();
     if (pvNil == ptagl)
         return pvNil;
 
@@ -2776,7 +2776,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    PTAGL ptagl = pvNil;
+    PTagList ptagl = pvNil;
     long itag;
     TAG tag;
     long icki1 = 0;

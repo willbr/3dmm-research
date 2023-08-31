@@ -134,7 +134,7 @@ class Background : public Background_PAR
     void _SetupLights(PDynamicArray pgllite);
 
   public:
-    static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
+    static bool FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
     static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~Background(void);

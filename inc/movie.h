@@ -600,7 +600,7 @@ class Movie : public Movie_PAR
 
   private:
     Movie(void);
-    PTAGL _PtaglFetch(void);                      // Returns a list of all tags used in movie
+    PTagList _PtaglFetch(void);                      // Returns a list of all tags used in movie
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.

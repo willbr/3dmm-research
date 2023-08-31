@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> TAGL
+    BASE ---> TagList
 
 ***************************************************************************/
 #ifndef TAGL_H
@@ -17,10 +17,10 @@
 /****************************************
     The tag list class
 ****************************************/
-typedef class TAGL *PTAGL;
-#define TAGL_PAR BASE
-#define kclsTAGL 'TAGL'
-class TAGL : public TAGL_PAR
+typedef class TagList *PTagList;
+#define TagList_PAR BASE
+#define kclsTagList 'TAGL'
+class TagList : public TagList_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -34,8 +34,8 @@ class TAGL : public TAGL_PAR
     bool _FFindTag(PTAG ptag, long *pitag);
 
   public:
-    static PTAGL PtaglNew(void);
-    ~TAGL(void);
+    static PTagList PtaglNew(void);
+    ~TagList(void);
 
     long Ctag(void);
     void GetTag(long itag, PTAG ptag);

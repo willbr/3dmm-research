@@ -51,7 +51,7 @@ const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 /***************************************************************************
     Add the background's chunks (excluding camera views) to the tag list
 ***************************************************************************/
-bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl)
+bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
 {
     AssertVarMem(ptagBkgd);
     AssertPo(ptagl, 0);

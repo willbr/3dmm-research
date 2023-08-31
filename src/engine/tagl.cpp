@@ -15,7 +15,7 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TAGL)
+RTCLASS(TagList)
 
 /****************************************
     TAGF, or "tag-flag" struct, stores
@@ -42,13 +42,13 @@ struct CC
 };
 
 /***************************************************************************
-    Create a new TAGL
+    Create a new TagList
 ***************************************************************************/
-PTAGL TAGL::PtaglNew(void)
+PTagList TagList::PtaglNew(void)
 {
-    PTAGL ptagl;
+    PTagList ptagl;
 
-    ptagl = NewObj TAGL;
+    ptagl = NewObj TagList;
     if (pvNil == ptagl)
         return pvNil;
     if (!ptagl->_FInit())
@@ -61,9 +61,9 @@ PTAGL TAGL::PtaglNew(void)
 }
 
 /***************************************************************************
-    Initialize the TAGL
+    Initialize the TagList
 ***************************************************************************/
-bool TAGL::_FInit(void)
+bool TagList::_FInit(void)
 {
     AssertBaseThis(0);
 
@@ -76,16 +76,16 @@ bool TAGL::_FInit(void)
 /***************************************************************************
     Clean up and delete this tag list
 ***************************************************************************/
-TAGL::~TAGL(void)
+TagList::~TagList(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pggtagf);
 }
 
 /***************************************************************************
-    Return the count of tags in the TAGL
+    Return the count of tags in the TagList
 ***************************************************************************/
-long TAGL::Ctag(void)
+long TagList::Ctag(void)
 {
     AssertThis(0);
 
@@ -93,9 +93,9 @@ long TAGL::Ctag(void)
 }
 
 /***************************************************************************
-    Get the itag'th tag from the TAGL
+    Get the itag'th tag from the TagList
 ***************************************************************************/
-void TAGL::GetTag(long itag, PTAG ptag)
+void TagList::GetTag(long itag, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(itag, 0, Ctag());
@@ -108,13 +108,13 @@ void TAGL::GetTag(long itag, PTAG ptag)
 }
 
 /***************************************************************************
-    Find ptag in the TAGL.  If the tag is found, the function returns
+    Find ptag in the TagList.  If the tag is found, the function returns
     fTrue and *pitag is the location of the tag in the GeneralGroup.  If the tag
     is not found, the function returns fFalse and *pitag is the location
     at which the tag should be inserted into the GeneralGroup to maintain correct
     sorting order in the GeneralGroup.
 ***************************************************************************/
-bool TAGL::_FFindTag(PTAG ptag, long *pitag)
+bool TagList::_FFindTag(PTAG ptag, long *pitag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -162,9 +162,9 @@ bool TAGL::_FFindTag(PTAG ptag, long *pitag)
 }
 
 /***************************************************************************
-    Insert the given tag into the TAGL, if it isn't already in there.
+    Insert the given tag into the TagList, if it isn't already in there.
 ***************************************************************************/
-bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
+bool TagList::FInsertTag(PTAG ptag, bool fCacheChildren)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -194,9 +194,9 @@ bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
 }
 
 /***************************************************************************
-    Insert a TAG child into the TAGL
+    Insert a TAG child into the TagList
 ***************************************************************************/
-bool TAGL::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTag ctg)
+bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTag ctg)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -243,9 +243,9 @@ bool TAGL::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTag ctg)
 }
 
 /***************************************************************************
-    Cache all the tags and child tags in TAGL
+    Cache all the tags and child tags in TagList
 ***************************************************************************/
-bool TAGL::FCacheTags(void)
+bool TagList::FCacheTags(void)
 {
     AssertThis(0);
 
@@ -283,21 +283,21 @@ bool TAGL::FCacheTags(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TAGL.
+    Assert the validity of the TagList.
 ***************************************************************************/
-void TAGL::AssertValid(ulong grf)
+void TagList::AssertValid(ulong grf)
 {
-    TAGL_PAR::AssertValid(fobjAllocated);
+    TagList_PAR::AssertValid(fobjAllocated);
     AssertPo(_pggtagf, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the TAGL
+    Mark memory used by the TagList
 ***************************************************************************/
-void TAGL::MarkMem(void)
+void TagList::MarkMem(void)
 {
     AssertThis(0);
-    TAGL_PAR::MarkMem();
+    TagList_PAR::MarkMem();
     MarkMemObj(_pggtagf);
 }
 #endif // DEBUG
