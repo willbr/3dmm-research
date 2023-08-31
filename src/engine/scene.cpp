@@ -99,12 +99,12 @@ struct SCENH
 
 const auto kbomScenh = 0x5FC00000;
 /****************************************
-    TAGC - Tag,Chid combo
+    TagChildPair - Tag,Chid combo
 ****************************************/
 const ByteOrderMask kbomChid = 0xC0000000;
 const ByteOrderMask kbomTagc = kbomChid | (kbomTag >> 2);
-typedef struct TAGC *PTAGC;
-struct TAGC
+typedef struct TagChildPair *PTagChildPair;
+struct TagChildPair
 {
     ChildChunkID chid;
     TAG tag;
@@ -121,33 +121,33 @@ struct SSE
     long sty; // sound type
     bool fLoop;
     long ctagc;
-    //	TAGC _rgtagcSnd[_ctagc]; // variable array of tagcs follows SSE
+    //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SSE
 
   protected:
     static long _Cb(long ctagc)
     {
-        return size(SSE) + LwMul(ctagc, size(TAGC));
+        return size(SSE) + LwMul(ctagc, size(TagChildPair));
     }
     SSE(void){};
 
   public:
     static PSSE PsseNew(long ctagc);
-    static PSSE PsseNew(long vlm, long sty, bool fLoop, long ctagc, TAGC *prgtagc);
+    static PSSE PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc);
     static PSSE PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags = fTrue);
 
     PTAG Ptag(long itagc)
     {
-        PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SSE));
         return &(prgtagc[itagc].tag);
     }
-    PTAGC Ptagc(long itagc)
+    PTagChildPair Ptagc(long itagc)
     {
-        PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SSE));
         return &(prgtagc[itagc]);
     }
     ChildChunkID *Pchid(long itagc)
     {
-        PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SSE));
         return &(prgtagc[itagc].chid);
     }
     PSSE PsseAddTagChid(PTAG ptag, long chid);
@@ -166,7 +166,7 @@ struct SSE
     }
     long Cb(void)
     {
-        return size(SSE) + LwMul(ctagc, size(TAGC));
+        return size(SSE) + LwMul(ctagc, size(TagChildPair));
     }
 };
 void ReleasePpsse(PSSE *ppsse);
@@ -1705,10 +1705,10 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
 
     if (!fQueue)
     {
-        PTAGC prgtagc;
+        PTagChildPair prgtagc;
         long itagc;
 
-        if (!FAllocPv((void **)&prgtagc, LwMul(size(TAGC), ctag), fmemClear, mprNormal))
+        if (!FAllocPv((void **)&prgtagc, LwMul(size(TagChildPair), ctag), fmemClear, mprNormal))
             return fFalse;
         for (itagc = 0; itagc < ctag; itagc++)
         {
@@ -1842,10 +1842,10 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTAGC prgtagc)
+bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTagChildPair prgtagc)
 {
     AssertThis(0);
-    AssertPvCb(prgtagc, LwMul(ctagc, size(TAGC)));
+    AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
     Assert(!fQueue || (ctagc == 1), "if fQueue'ing, you should only be adding one sound");
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
@@ -7161,10 +7161,10 @@ PSSE SSE::PsseNew(long ctag)
 /***************************************************************************
     Creates a new SSE
 ***************************************************************************/
-PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TAGC *prgtagc)
+PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc)
 {
     Assert(ctagc > 0, 0);
-    AssertPvCb(prgtagc, LwMul(ctagc, size(TAGC)));
+    AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
     PSSE psse;
     long itagc;
 
@@ -7256,7 +7256,7 @@ PSSE SSE::PsseAddTagChid(PTAG ptag, long chid)
     AssertVarMem(ptag);
 
     PSSE psseNew;
-    TAGC tagc;
+    TagChildPair tagc;
 
     tagc.tag = *ptag;
     tagc.chid = chid;
@@ -7280,11 +7280,11 @@ PSSE SSE::PsseDup(void)
     PSSE psse;
     long itagc;
 
-    if (!FAllocPv((void **)&psse, size(SSE) + LwMul(ctagc, size(TAGC)), fmemNil, mprNormal))
+    if (!FAllocPv((void **)&psse, size(SSE) + LwMul(ctagc, size(TagChildPair)), fmemNil, mprNormal))
     {
         return pvNil;
     }
-    CopyPb(this, psse, size(SSE) + LwMul(ctagc, size(TAGC)));
+    CopyPb(this, psse, size(SSE) + LwMul(ctagc, size(TagChildPair)));
     for (itagc = 0; itagc < psse->ctagc; itagc++)
         TAGM::DupTag(psse->Ptag(itagc));
     return psse;

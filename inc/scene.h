@@ -94,7 +94,7 @@ enum
 };
 
 typedef struct SSE *PSSE;
-typedef struct TAGC *PTAGC;
+typedef struct TagChildPair *PTagChildPair;
 
 typedef class Scene *PScene;
 
@@ -309,7 +309,7 @@ class Scene : public Scene_PAR
     //
     bool FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag,
                      PTAG prgtag); // Adds a sound to the current frame.
-    bool FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTAGC prgtagc);
+    bool FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTagChildPair prgtagc);
     bool FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty); // Adds a sound to the current frame, and undo
     void RemSndCore(long sty);                                            // Removes the sound from current frame.
     bool FRemSnd(long sty);                             // Removes the sound from current frame, and undo
