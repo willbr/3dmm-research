@@ -14,7 +14,7 @@
 ASSERTNAME
 
 RTCLASS(Region)
-RTCLASS(REGSC)
+RTCLASS(RegionScanner)
 
 long const kcdxpBlock = 100;
 
@@ -228,7 +228,7 @@ PDynamicArray REGBL::PglxpFree(RC *prc, long *pdxp)
 /***************************************************************************
     Constructor for the region scanner class.
 ***************************************************************************/
-REGSC::REGSC(void)
+RegionScanner::RegionScanner(void)
 {
     _pglxpSrc = pvNil;
 }
@@ -236,7 +236,7 @@ REGSC::REGSC(void)
 /***************************************************************************
     Destructor for the region scanner class.
 ***************************************************************************/
-REGSC::~REGSC(void)
+RegionScanner::~RegionScanner(void)
 {
     Free();
 }
@@ -244,7 +244,7 @@ REGSC::~REGSC(void)
 /***************************************************************************
     Release our hold on any memory.
 ***************************************************************************/
-void REGSC::Free(void)
+void RegionScanner::Free(void)
 {
     if (pvNil != _pglxpSrc)
     {
@@ -257,7 +257,7 @@ void REGSC::Free(void)
     Initializes a region scanner.  The scanner implicitly intersects the
     region with *prcRel and returns xp values relative to prcRel->xpLeft.
 ***************************************************************************/
-void REGSC::Init(PRegion pregn, RC *prcRel)
+void RegionScanner::Init(PRegion pregn, RC *prcRel)
 {
     RC rc = pregn->_rc;
     rc.Offset(pregn->_dxp, 0);
@@ -267,7 +267,7 @@ void REGSC::Init(PRegion pregn, RC *prcRel)
 /***************************************************************************
     Initializes a region scanner with the given rectangle.
 ***************************************************************************/
-void REGSC::InitRc(RC *prc, RC *prcRel)
+void RegionScanner::InitRc(RC *prc, RC *prcRel)
 {
     _InitCore(pvNil, prc, prcRel);
 }
@@ -276,7 +276,7 @@ void REGSC::InitRc(RC *prc, RC *prcRel)
     Initializes a region scanner.  The scanner implicitly intersects the
     region with *prcRel and returns xp values relative to prcRel->xpLeft.
 ***************************************************************************/
-void REGSC::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
+void RegionScanner::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
 {
     Free();
 
@@ -313,7 +313,7 @@ void REGSC::_InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel)
 /***************************************************************************
     Scan the next horizontal strip of the region.
 ***************************************************************************/
-void REGSC::_ScanNextCore(void)
+void RegionScanner::_ScanNextCore(void)
 {
     long dxpT;
 
@@ -528,7 +528,7 @@ void Region::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
         return;
     }
 
-    REGSC regsc;
+    RegionScanner regsc;
     REGBL regbl;
 
     regsc.Init(this, &_rc);
@@ -607,8 +607,8 @@ bool Region::FUnion(PRegion pregn1, PRegion pregn2)
     AssertThis(0);
     AssertPo(pregn1, 0);
     AssertNilOrPo(pregn2, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
 
     if (pvNil == pregn2)
@@ -640,8 +640,8 @@ bool Region::FUnionRc(RC *prc, PRegion pregn)
     AssertThis(0);
     AssertVarMem(prc);
     AssertNilOrPo(pregn, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
 
     if (pvNil == pregn)
@@ -672,7 +672,7 @@ bool Region::FUnionRc(RC *prc, PRegion pregn)
 /***************************************************************************
     Core union routine.
 ***************************************************************************/
-bool Region::_FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
+bool Region::_FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
 {
     AssertThis(0);
     AssertPo(pregsc1, 0);
@@ -698,7 +698,7 @@ bool Region::_FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
                 // swap them
                 pvSwap = pregsc1;
                 pregsc1 = pregsc2;
-                pregsc2 = (PREGSC)pvSwap;
+                pregsc2 = (PRegionScanner)pvSwap;
             }
             if (pregsc2->XpCur() == klwMax)
                 break;
@@ -767,8 +767,8 @@ bool Region::FIntersect(PRegion pregn1, PRegion pregn2)
     AssertThis(0);
     AssertPo(pregn1, 0);
     AssertNilOrPo(pregn2, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
 
     if (pvNil == pregn2)
@@ -806,8 +806,8 @@ bool Region::FIntersectRc(RC *prc, PRegion pregn)
     AssertThis(0);
     AssertVarMem(prc);
     AssertNilOrPo(pregn, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
 
     if (pvNil == pregn)
@@ -838,7 +838,7 @@ bool Region::FIntersectRc(RC *prc, PRegion pregn)
 /***************************************************************************
     Core intersect routine.
 ***************************************************************************/
-bool Region::_FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
+bool Region::_FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
 {
     AssertThis(0);
     AssertPo(pregsc1, 0);
@@ -864,7 +864,7 @@ bool Region::_FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
                 // swap them
                 pvSwap = pregsc1;
                 pregsc1 = pregsc2;
-                pregsc2 = (PREGSC)pvSwap;
+                pregsc2 = (PRegionScanner)pvSwap;
             }
 
             // NOTE: this is pretty much the adjoint of what's in _FUnionCore - ie,
@@ -923,8 +923,8 @@ bool Region::FDiff(PRegion pregn1, PRegion pregn2)
     AssertThis(0);
     AssertPo(pregn1, 0);
     AssertNilOrPo(pregn2, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc, rcT;
 
     if (pvNil == pregn2)
@@ -957,8 +957,8 @@ bool Region::FDiffRc(RC *prc, PRegion pregn)
     AssertThis(0);
     AssertVarMem(prc);
     AssertNilOrPo(pregn, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
 
     if (pvNil == pregn)
@@ -991,8 +991,8 @@ bool Region::FDiffFromRc(RC *prc, PRegion pregn)
     AssertThis(0);
     AssertVarMem(prc);
     AssertNilOrPo(pregn, 0);
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
 
     if (pvNil == pregn)
@@ -1020,7 +1020,7 @@ bool Region::FDiffFromRc(RC *prc, PRegion pregn)
 /***************************************************************************
     Core diff routine.  Compute pregsc1 minus pregsc2.
 ***************************************************************************/
-bool Region::_FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
+bool Region::_FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
 {
     AssertThis(0);
     AssertPo(pregsc1, 0);
@@ -1110,7 +1110,7 @@ HRGN Region::HrgnCreate(void)
 #ifdef WIN
     RGNDATAHEADER *prd;
     RCS *prcs;
-    REGSC regsc;
+    RegionScanner regsc;
     long crcMac, crc;
     HRGN hrgn;
     long yp, dyp;
@@ -1170,8 +1170,8 @@ HRGN Region::HrgnCreate(void)
         return hrgn;
     }
 
-    REGSC regsc1;
-    REGSC regsc2;
+    RegionScanner regsc1;
+    RegionScanner regsc2;
     RC rc;
     long yp;
     long cb;

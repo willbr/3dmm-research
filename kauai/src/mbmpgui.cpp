@@ -41,7 +41,7 @@ void MBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, 
     short *qcb;
     byte bFill;
     long lwFill;
-    REGSC regsc;
+    RegionScanner regsc;
     RC rcClip(0, 0, cbRow, dyp);
     MBMPH *qmbmph = _Qmbmph();
     RC rcMbmp = qmbmph->rc;
@@ -291,7 +291,7 @@ LFill:
     byte *qbRowSrc, *qbSrc, *qbLastSrc;
     byte *pbOn, *pbOff, *pbDst;
     short *qcb;
-    REGSC regsc;
+    RegionScanner regsc;
     RC rcClip(0, 0, cbRow, dyp);
     MBMPH *qmbmph = _Qmbmph();
     RC rcMbmp = qmbmph->rc;

@@ -2437,7 +2437,7 @@ void DoubleStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *
 
     long xpOn, xpOff, dypAdvance, dxpBase, yp;
     bool fSecondRow;
-    REGSC regsc;
+    RegionScanner regsc;
     RC rcT(xpDst, ypDst, xpDst + 2 * prcSrc->Dxp(), ypDst + 2 * prcSrc->Dyp());
     RC rcClip(0, 0, cbRowDst, dypDst);
 
@@ -2749,7 +2749,7 @@ void DoubleVertStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, by
 
     long xpOn, xpOff, dypAdvance, dxpBase, yp;
     bool fSecondRow;
-    REGSC regsc;
+    RegionScanner regsc;
     RC rcT(xpDst, ypDst, xpDst + prcSrc->Dxp(), ypDst + 2 * prcSrc->Dyp());
     RC rcClip(0, 0, cbRowDst, dypDst);
 

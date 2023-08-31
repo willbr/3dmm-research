@@ -16,7 +16,7 @@
 #ifndef REGION_H
 #define REGION_H
 
-typedef class REGSC *PREGSC;
+typedef class RegionScanner *PRegionScanner;
 
 /***************************************************************************
     The region class.
@@ -31,7 +31,7 @@ class Region : public Region_PAR
     MARKMEM
 
   protected:
-    friend class REGSC;
+    friend class RegionScanner;
 
     // The _pglxp contains a bunch of rows.  Each row consists of:
     // dyp, xp0, xp1, ..., klwMax.
@@ -48,9 +48,9 @@ class Region : public Region_PAR
     {
     }
 
-    bool _FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
-    bool _FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
-    bool _FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
+    bool _FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
+    bool _FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
+    bool _FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
 
   public:
     static PRegion PregnNew(RC *prc = pvNil);
@@ -77,9 +77,9 @@ class Region : public Region_PAR
 /***************************************************************************
     Region scanner class.
 ***************************************************************************/
-#define REGSC_PAR BASE
-#define kclsREGSC 'rgsc'
-class REGSC : public REGSC_PAR
+#define RegionScanner_PAR BASE
+#define kclsRegionScanner 'rgsc'
+class RegionScanner : public RegionScanner_PAR
 {
     RTCLASS_DEC
 
@@ -110,8 +110,8 @@ class REGSC : public REGSC_PAR
     void _ScanNextCore(void);
 
   public:
-    REGSC(void);
-    ~REGSC(void);
+    RegionScanner(void);
+    ~RegionScanner(void);
     void Free(void);
 
     void Init(PRegion pregn, RC *prcRel);

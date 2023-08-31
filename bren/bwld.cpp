@@ -570,7 +570,7 @@ void World::_CleanWorkingBuffers(void)
 {
     AssertThis(0);
 
-    REGSC regsc;
+    RegionScanner regsc;
     long yp;
     long xpLeft;
     RC rcRegnBounds;

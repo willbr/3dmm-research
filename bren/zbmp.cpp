@@ -150,7 +150,7 @@ void ZBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, 
     long cbRowCopy;
     byte *pbSrc;
     byte *pbDst;
-    REGSC regsc;
+    RegionScanner regsc;
     RC rcZbmp = _rc;
     RC rcRegnBounds;
     RC rcClippedRegnBounds;
@@ -211,7 +211,7 @@ void ZBMP::DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypR
     long cbRowCopy;
     byte *pbSrc;
     byte *pbDst;
-    REGSC regsc;
+    RegionScanner regsc;
     RC rcZbmp = _rc;
     RC rcRegnBounds;
     RC rcClippedRegnBounds;
