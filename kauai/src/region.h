@@ -21,10 +21,10 @@ typedef class REGSC *PREGSC;
 /***************************************************************************
     The region class.
 ***************************************************************************/
-typedef class REGN *PREGN;
-#define REGN_PAR BASE
-#define kclsREGN 'REGN'
-class REGN : public REGN_PAR
+typedef class Region *PRegion;
+#define Region_PAR BASE
+#define kclsRegion 'REGN'
+class Region : public Region_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -44,7 +44,7 @@ class REGN : public REGN_PAR
     HRGN _hrgn; // for HrgnEnsure
     PT _dptRgn; // offset of _hrgn relative to this region
 
-    REGN(void)
+    Region(void)
     {
     }
 
@@ -53,8 +53,8 @@ class REGN : public REGN_PAR
     bool _FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
 
   public:
-    static PREGN PregnNew(RC *prc = pvNil);
-    ~REGN(void);
+    static PRegion PregnNew(RC *prc = pvNil);
+    ~Region(void);
 
     void SetRc(RC *prc = pvNil);
     void Offset(long xp, long yp);
@@ -62,13 +62,13 @@ class REGN : public REGN_PAR
     bool FIsRc(RC *prc = pvNil);
     void Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY);
 
-    bool FUnion(PREGN pregn1, PREGN pregn2 = pvNil);
-    bool FUnionRc(RC *prc, PREGN pregn2 = pvNil);
-    bool FIntersect(PREGN pregn1, PREGN pregn2 = pvNil);
-    bool FIntersectRc(RC *prc, PREGN pregn = pvNil);
-    bool FDiff(PREGN pregn1, PREGN pregn2 = pvNil);
-    bool FDiffRc(RC *prc, PREGN pregn = pvNil);
-    bool FDiffFromRc(RC *prc, PREGN pregn = pvNil);
+    bool FUnion(PRegion pregn1, PRegion pregn2 = pvNil);
+    bool FUnionRc(RC *prc, PRegion pregn2 = pvNil);
+    bool FIntersect(PRegion pregn1, PRegion pregn2 = pvNil);
+    bool FIntersectRc(RC *prc, PRegion pregn = pvNil);
+    bool FDiff(PRegion pregn1, PRegion pregn2 = pvNil);
+    bool FDiffRc(RC *prc, PRegion pregn = pvNil);
+    bool FDiffFromRc(RC *prc, PRegion pregn = pvNil);
 
     HRGN HrgnCreate(void);
     HRGN HrgnEnsure(void);
@@ -114,7 +114,7 @@ class REGSC : public REGSC_PAR
     ~REGSC(void);
     void Free(void);
 
-    void Init(PREGN pregn, RC *prcRel);
+    void Init(PRegion pregn, RC *prcRel);
     void InitRc(RC *prc, RC *prcRel);
     void ScanNext(long dyp)
     {

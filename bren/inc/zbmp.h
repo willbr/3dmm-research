@@ -66,9 +66,9 @@ class ZBMP : public ZBMP_PAR
     }
 
     void Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
-              PREGN pregnClip = pvNil);
+              PRegion pregnClip = pvNil);
     void DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
-                  PREGN pregnClip = pvNil);
+                  PRegion pregnClip = pvNil);
 
     bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
 };

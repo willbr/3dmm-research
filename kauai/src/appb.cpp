@@ -862,7 +862,7 @@ void ApplicationBase::MarkRc(RC *prc, PGraphicsObject pgobCoo)
 /***************************************************************************
     Mark a region dirty.
 ***************************************************************************/
-void ApplicationBase::MarkRegn(PREGN pregn, PGraphicsObject pgobCoo)
+void ApplicationBase::MarkRegn(PRegion pregn, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -876,7 +876,7 @@ void ApplicationBase::MarkRegn(PREGN pregn, PGraphicsObject pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void ApplicationBase::_MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo)
+void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -943,7 +943,7 @@ void ApplicationBase::_MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo)
 
     // create a new entry
     mkrgn.hwnd = hwnd;
-    if (pvNil == (mkrgn.pregn = REGN::PregnNew(prc)) || pvNil != pregn && !mkrgn.pregn->FUnion(pregn) ||
+    if (pvNil == (mkrgn.pregn = Region::PregnNew(prc)) || pvNil != pregn && !mkrgn.pregn->FUnion(pregn) ||
         !_pglmkrgn->FPush(&mkrgn))
     {
         ReleasePpo(&mkrgn.pregn);
@@ -975,7 +975,7 @@ void ApplicationBase::UnmarkRc(RC *prc, PGraphicsObject pgobCoo)
 /***************************************************************************
     Mark a region clean.
 ***************************************************************************/
-void ApplicationBase::UnmarkRegn(PREGN pregn, PGraphicsObject pgobCoo)
+void ApplicationBase::UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -989,7 +989,7 @@ void ApplicationBase::UnmarkRegn(PREGN pregn, PGraphicsObject pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void ApplicationBase::_UnmarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo)
+void ApplicationBase::_UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertNilOrPo(pregn, 0);
     AssertNilOrVarMem(prc);
@@ -1141,7 +1141,7 @@ void ApplicationBase::UpdateMarked(void)
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGPT pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);

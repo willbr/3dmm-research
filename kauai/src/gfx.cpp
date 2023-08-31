@@ -1863,13 +1863,13 @@ void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill
     PT pt, ptBase;
     long cact;
     bool fOpen;
-    PREGN pregn, pregnClip;
+    PRegion pregn, pregnClip;
     PDynamicArray pglclrOld = pvNil;
     PDynamicArray pglclrTrans = pvNil;
 
     GraphicsPort::Flush();
 
-    if (pvNil == (pregn = REGN::PregnNew(prcDst)))
+    if (pvNil == (pregn = Region::PregnNew(prcDst)))
         goto LFail;
 
     if (!FIn(dts, 1, kdtsMaxTrans))
@@ -2064,7 +2064,7 @@ void GraphicsEnvironment::Restore(void)
     clip region (may be pvNil).  The GraphicsPort takes over ownership of the region
     and relinquishes ownership of the old region.
 ***************************************************************************/
-void GraphicsPort::ClipToRegn(PREGN *ppregn)
+void GraphicsPort::ClipToRegn(PRegion *ppregn)
 {
     if (_ptBase.xp != 0 || _ptBase.yp != 0)
     {
@@ -2425,7 +2425,7 @@ OGN::OGN(void) : DynamicArray(size(PT))
     clipping is expressed in destination coordinates.
 ***************************************************************************/
 void DoubleStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *prgbDst, long cbRowDst, long dypDst,
-                   long xpDst, long ypDst, RC *prcClip, PREGN pregnClip)
+                   long xpDst, long ypDst, RC *prcClip, PRegion pregnClip)
 {
     AssertPvCb(prgbSrc, LwMul(cbRowSrc, dypSrc));
     AssertPvCb(prgbDst, LwMul(cbRowDst, dypDst));
@@ -2737,7 +2737,7 @@ LDone1:
     and pregnClip. The clipping is expressed in destination coordinates.
 ***************************************************************************/
 void DoubleVertStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *prgbDst, long cbRowDst, long dypDst,
-                       long xpDst, long ypDst, RC *prcClip, PREGN pregnClip)
+                       long xpDst, long ypDst, RC *prcClip, PRegion pregnClip)
 {
     AssertPvCb(prgbSrc, LwMul(cbRowSrc, dypSrc));
     AssertPvCb(prgbDst, LwMul(cbRowDst, dypDst));

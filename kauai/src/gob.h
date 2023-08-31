@@ -260,7 +260,7 @@ class GraphicsObject : public GraphicsObject_PAR
 
     virtual void Clean(void);
     virtual void DrawTree(PGPT pgpt, RC *prc, RC *prcUpdate, ulong grfgob);
-    virtual void DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob);
+    virtual void DrawTreeRgn(PGPT pgpt, RC *prc, Region *pregn, ulong grfgob);
     virtual void Draw(PGNV pgnv, RC *prcClip);
 
     // mouse handling and hit testing

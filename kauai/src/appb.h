@@ -73,7 +73,7 @@ class ApplicationBase : public ApplicationBase_PAR
     struct MKRGN
     {
         HWND hwnd;
-        PREGN pregn;
+        PRegion pregn;
     };
 
     // map from a property id to its value
@@ -171,10 +171,10 @@ class ApplicationBase : public ApplicationBase_PAR
 #endif
 
     // fast updating
-    virtual void _FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
     virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
-    void _MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo);
-    void _UnmarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo);
+    void _MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
+    void _UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
 
     // to borrow the common offscreen GraphicsPort
     virtual PGPT _PgptEnsure(RC *prc);
@@ -247,9 +247,9 @@ class ApplicationBase : public ApplicationBase_PAR
     // drawing
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
     virtual void MarkRc(RC *prc, PGraphicsObject pgobCoo);
-    virtual void MarkRegn(PREGN pregn, PGraphicsObject pgobCoo);
+    virtual void MarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
     virtual void UnmarkRc(RC *prc, PGraphicsObject pgobCoo);
-    virtual void UnmarkRegn(PREGN pregn, PGraphicsObject pgobCoo);
+    virtual void UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
     virtual bool FGetMarkedRc(HWND hwnd, RC *prc);
     virtual void UpdateMarked(void);
     virtual void InvalMarked(HWND hwnd);

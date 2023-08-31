@@ -96,10 +96,10 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
     BrActorAdd(&_bactWorld, &_bactCamera);
 
     // Set up dirty region stuff
-    _pregnDirtyWorking = REGN::PregnNew(&_rcBuffer);
+    _pregnDirtyWorking = Region::PregnNew(&_rcBuffer);
     if (pvNil == _pregnDirtyWorking)
         return fFalse;
-    _pregnDirtyScreen = REGN::PregnNew(pvNil);
+    _pregnDirtyScreen = Region::PregnNew(pvNil);
     if (pvNil == _pregnDirtyScreen)
         return fFalse;
 

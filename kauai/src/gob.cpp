@@ -750,7 +750,7 @@ void GraphicsObject::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
     rectangle based at (0, 0).  Only GraphicsObject's that intersect pregn will be
     drawn.  pregn is in the GraphicsObject's local coordinates.
 ***************************************************************************/
-void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob)
+void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, Region *pregn, ulong grfgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgpt, 0);
@@ -782,10 +782,10 @@ void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob)
     GTE gte;
     ulong grfgte, grfgteIn;
     PGraphicsObject pgob;
-    PREGN pregnClip;
-    PREGN pregnClipGob = pvNil;
+    PRegion pregnClip;
+    PRegion pregnClipGob = pvNil;
 
-    if (pvNil == (pregnClip = REGN::PregnNew(&rcSrc)) || pvNil == (pregnClipGob = REGN::PregnNew()) ||
+    if (pvNil == (pregnClip = Region::PregnNew(&rcSrc)) || pvNil == (pregnClipGob = Region::PregnNew()) ||
         !pregnClip->FIntersect(pregn))
     {
         goto LFail;

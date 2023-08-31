@@ -583,7 +583,7 @@ class GraphicsPort : public GraphicsPort_PAR
     MARKMEM
 
   private:
-    PREGN _pregnClip;
+    PRegion _pregnClip;
     RC _rcClip;
     PT _ptBase; // coordinates assigned to top-left of the GraphicsPort
 
@@ -725,7 +725,7 @@ class GraphicsPort : public GraphicsPort_PAR
     PPIC PpicRelease(void);
     void SetOffscreenColors(PDynamicArray pglclr = pvNil);
 
-    void ClipToRegn(PREGN *ppregn);
+    void ClipToRegn(PRegion *ppregn);
     void SetPtBase(PT *ppt);
     void GetPtBase(PT *ppt);
 
@@ -770,11 +770,11 @@ bool FInitGfx(void);
 
 // stretch by a factor of 2 in each dimension.
 void DoubleStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *prgbDst, long cbRowDst, long dypDst,
-                   long xpDst, long ypDst, RC *prcClip, PREGN pregnClip);
+                   long xpDst, long ypDst, RC *prcClip, PRegion pregnClip);
 
 // stretch by a factor of 2 in vertical direction only.
 void DoubleVertStretch(byte *prgbSrc, long cbRowSrc, long dypSrc, RC *prcSrc, byte *prgbDst, long cbRowDst, long dypDst,
-                       long xpDst, long ypDst, RC *prcClip, PREGN pregnClip);
+                       long xpDst, long ypDst, RC *prcClip, PRegion pregnClip);
 
 // Number of times that the palette has changed (via a call to CclrSetPalette
 // or SetActiveColors). This can be used by other modules to detect a palette

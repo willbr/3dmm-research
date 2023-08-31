@@ -13,7 +13,7 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(REGN)
+RTCLASS(Region)
 RTCLASS(REGSC)
 
 long const kcdxpBlock = 100;
@@ -257,7 +257,7 @@ void REGSC::Free(void)
     Initializes a region scanner.  The scanner implicitly intersects the
     region with *prcRel and returns xp values relative to prcRel->xpLeft.
 ***************************************************************************/
-void REGSC::Init(PREGN pregn, RC *prcRel)
+void REGSC::Init(PRegion pregn, RC *prcRel)
 {
     RC rc = pregn->_rc;
     rc.Offset(pregn->_dxp, 0);
@@ -420,11 +420,11 @@ LFindLim:
 /***************************************************************************
     Static method to create a new region and set it to a rectangle.
 ***************************************************************************/
-PREGN REGN::PregnNew(RC *prc)
+PRegion Region::PregnNew(RC *prc)
 {
-    PREGN pregn;
+    PRegion pregn;
 
-    if (pvNil == (pregn = NewObj REGN))
+    if (pvNil == (pregn = NewObj Region))
         return pvNil;
     if (pvNil != prc)
         pregn->_rc = *prc;
@@ -435,7 +435,7 @@ PREGN REGN::PregnNew(RC *prc)
 /***************************************************************************
     Destructor for a region.
 ***************************************************************************/
-REGN::~REGN(void)
+Region::~Region(void)
 {
     ReleasePpo(&_pglxp);
     FreePhrgn(&_hrgn);
@@ -444,7 +444,7 @@ REGN::~REGN(void)
 /***************************************************************************
     Make the region rectangular.
 ***************************************************************************/
-void REGN::SetRc(RC *prc)
+void Region::SetRc(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -462,7 +462,7 @@ void REGN::SetRc(RC *prc)
 /***************************************************************************
     Offset the region.
 ***************************************************************************/
-void REGN::Offset(long xp, long yp)
+void Region::Offset(long xp, long yp)
 {
     AssertThis(0);
     _rc.Offset(xp, yp);
@@ -473,7 +473,7 @@ void REGN::Offset(long xp, long yp)
     Return whether the region is empty and if prc is not nil, fill in *prc
     with the region's bounding rectangle.
 ***************************************************************************/
-bool REGN::FEmpty(RC *prc)
+bool Region::FEmpty(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -487,7 +487,7 @@ bool REGN::FEmpty(RC *prc)
     Return whether the region is rectangular and if prc is not nil, fill in
     *prc with the region's bounding rectangle.
 ***************************************************************************/
-bool REGN::FIsRc(RC *prc)
+bool Region::FIsRc(RC *prc)
 {
     AssertThis(0);
     if (pvNil != prc)
@@ -498,7 +498,7 @@ bool REGN::FIsRc(RC *prc)
 /***************************************************************************
     Scale the x values of the region by the given amount.
 ***************************************************************************/
-void REGN::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
+void Region::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
 {
     AssertThis(0);
     Assert(lwDenX > 0 && lwNumX >= 0, "bad X scaling");
@@ -602,7 +602,7 @@ void REGN::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
     Union the two regions and leave the result in this one.  If pregn2 is
     nil, this region is used for pregn2.
 ***************************************************************************/
-bool REGN::FUnion(PREGN pregn1, PREGN pregn2)
+bool Region::FUnion(PRegion pregn1, PRegion pregn2)
 {
     AssertThis(0);
     AssertPo(pregn1, 0);
@@ -635,7 +635,7 @@ bool REGN::FUnion(PREGN pregn1, PREGN pregn2)
     Union the given rectangle and region and leave the result in this region.
     If pregn is nil, this region is used for pregn.
 ***************************************************************************/
-bool REGN::FUnionRc(RC *prc, PREGN pregn)
+bool Region::FUnionRc(RC *prc, PRegion pregn)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -672,7 +672,7 @@ bool REGN::FUnionRc(RC *prc, PREGN pregn)
 /***************************************************************************
     Core union routine.
 ***************************************************************************/
-bool REGN::_FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
+bool Region::_FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
 {
     AssertThis(0);
     AssertPo(pregsc1, 0);
@@ -762,7 +762,7 @@ bool REGN::_FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
     Intersect the two regions and leave the result in this one.  If pregn2
     is nil, this region is used for pregn2.
 ***************************************************************************/
-bool REGN::FIntersect(PREGN pregn1, PREGN pregn2)
+bool Region::FIntersect(PRegion pregn1, PRegion pregn2)
 {
     AssertThis(0);
     AssertPo(pregn1, 0);
@@ -801,7 +801,7 @@ bool REGN::FIntersect(PREGN pregn1, PREGN pregn2)
     Intersect the given rectangle and region and leave the result in this
     region.  If pregn is nil, this region is used for pregn.
 ***************************************************************************/
-bool REGN::FIntersectRc(RC *prc, PREGN pregn)
+bool Region::FIntersectRc(RC *prc, PRegion pregn)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -838,7 +838,7 @@ bool REGN::FIntersectRc(RC *prc, PREGN pregn)
 /***************************************************************************
     Core intersect routine.
 ***************************************************************************/
-bool REGN::_FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
+bool Region::_FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
 {
     AssertThis(0);
     AssertPo(pregsc1, 0);
@@ -918,7 +918,7 @@ bool REGN::_FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
     Compute regn2 minus regn1 and put the result in this region.  If
     pregn2 is nil, this region is used.
 ***************************************************************************/
-bool REGN::FDiff(PREGN pregn1, PREGN pregn2)
+bool Region::FDiff(PRegion pregn1, PRegion pregn2)
 {
     AssertThis(0);
     AssertPo(pregn1, 0);
@@ -952,7 +952,7 @@ bool REGN::FDiff(PREGN pregn1, PREGN pregn2)
     Compute regn minus the given rectangle and put the result in this region.
     If pregn is nil, this region is used.
 ***************************************************************************/
-bool REGN::FDiffRc(RC *prc, PREGN pregn)
+bool Region::FDiffRc(RC *prc, PRegion pregn)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -986,7 +986,7 @@ bool REGN::FDiffRc(RC *prc, PREGN pregn)
     Compute *prc minus the given region and put the result in this region.
     If pregn is nil, this region is used.
 ***************************************************************************/
-bool REGN::FDiffFromRc(RC *prc, PREGN pregn)
+bool Region::FDiffFromRc(RC *prc, PRegion pregn)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1020,7 +1020,7 @@ bool REGN::FDiffFromRc(RC *prc, PREGN pregn)
 /***************************************************************************
     Core diff routine.  Compute pregsc1 minus pregsc2.
 ***************************************************************************/
-bool REGN::_FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
+bool Region::_FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
 {
     AssertThis(0);
     AssertPo(pregsc1, 0);
@@ -1105,7 +1105,7 @@ bool REGN::_FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2)
 /***************************************************************************
     Create a system region that is equivalent to the given region.
 ***************************************************************************/
-HRGN REGN::HrgnCreate(void)
+HRGN Region::HrgnCreate(void)
 {
 #ifdef WIN
     RGNDATAHEADER *prd;
@@ -1272,7 +1272,7 @@ HRGN REGN::HrgnCreate(void)
     If we don't have a cached HRGN equivalent of this region, create one.
     In either case return it.
 ***************************************************************************/
-HRGN REGN::HrgnEnsure(void)
+HRGN Region::HrgnEnsure(void)
 {
     if (hNil != _hrgn)
     {
@@ -1291,24 +1291,24 @@ HRGN REGN::HrgnEnsure(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a REGN.
+    Assert the validity of a Region.
 ***************************************************************************/
-void REGN::AssertValid(ulong grf)
+void Region::AssertValid(ulong grf)
 {
-    REGN_PAR::AssertValid(0);
+    Region_PAR::AssertValid(0);
     AssertNilOrPo(_pglxp, 0);
     Assert(_dxp <= 0, "bad _dxp");
     Assert(_dxp == 0 || _pglxp != pvNil, "_dxp should be zero");
-    // REVIEW shonk: REGN::AssertValid: fill this in
+    // REVIEW shonk: Region::AssertValid: fill this in
 }
 
 /***************************************************************************
-    Mark memory for the REGN.
+    Mark memory for the Region.
 ***************************************************************************/
-void REGN::MarkMem(void)
+void Region::MarkMem(void)
 {
     AssertValid(0);
-    REGN_PAR::MarkMem();
+    Region_PAR::MarkMem();
     MarkMemObj(_pglxp);
 }
 #endif // DEBUG

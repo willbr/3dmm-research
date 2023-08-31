@@ -96,7 +96,7 @@ class MBMP : public MBMP_PAR
 
     void GetRc(RC *prc);
     void Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
-              PREGN pregnClip = pvNil);
+              PRegion pregnClip = pvNil);
     void DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil);
     bool FPtIn(long xp, long yp);
 
