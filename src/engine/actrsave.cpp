@@ -427,7 +427,7 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     long iaev = 0;
     PTAG ptag;
 
-    if (!TAGM::FOpenTag(&_tagTmpl, pcrf))
+    if (!TagManager::FOpenTag(&_tagTmpl, pcrf))
         goto LFail;
 
     _pggaev->Lock();
@@ -435,7 +435,7 @@ bool Actor::_FOpenTags(PChunkyResourceFile pcrf)
     {
         if (_FIsIaevTag(_pggaev, iaev, &ptag))
         {
-            if (!TAGM::FOpenTag(ptag, pcrf))
+            if (!TagManager::FOpenTag(ptag, pcrf))
                 goto LFail;
         }
     }
@@ -446,7 +446,7 @@ LFail:
     while (--iaev >= 0)
     {
         if (_FIsIaevTag(_pggaev, iaev, &ptag))
-            TAGM::CloseTag(ptag);
+            TagManager::CloseTag(ptag);
     }
     _pggaev->Unlock();
     return fFalse;
@@ -462,7 +462,7 @@ void Actor::_CloseTags(void)
     long iaev;
     PTAG ptag;
 
-    TAGM::CloseTag(&_tagTmpl);
+    TagManager::CloseTag(&_tagTmpl);
 
     if (pvNil == _pggaev)
         return;
@@ -471,7 +471,7 @@ void Actor::_CloseTags(void)
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
     {
         if (_FIsIaevTag(_pggaev, iaev, &ptag))
-            TAGM::CloseTag(ptag);
+            TagManager::CloseTag(ptag);
     }
     _pggaev->Unlock();
     return;

@@ -1096,12 +1096,12 @@ bool Movie::FAddToRollCall(Actor *pactr, PSTN pstn)
                 mactr.cactRef++;
                 // TDTs sometimes need to update tagTmpl
                 pactr->GetTagTmpl(&tagTmpl);
-                if (fcmpEq != TAGM::FcmpCompareTags(&mactr.tagTmpl, &tagTmpl))
+                if (fcmpEq != TagManager::FcmpCompareTags(&mactr.tagTmpl, &tagTmpl))
                 {
-                    TAGM::CloseTag(&mactr.tagTmpl);
+                    TagManager::CloseTag(&mactr.tagTmpl);
                     mactr.tagTmpl = tagTmpl;
                     // Actor::GetTagTmpl doesn't AddRef the pcrf, so do it here:
-                    TAGM::DupTag(&tagTmpl);
+                    TagManager::DupTag(&tagTmpl);
                 }
                 _pgstmactr->PutExtra(imactr, &mactr);
                 Pmcc()->UpdateRollCall();
@@ -1539,9 +1539,9 @@ bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PC
         // As the pcrf has not changed, it is not essential
         // to close & open the respective tags.
         tagNew.cno = kid.cki.cno;
-        if (!TAGM::FOpenTag(&tagNew, pcrf))
+        if (!TagManager::FOpenTag(&tagNew, pcrf))
             return fFalse;
-        TAGM::CloseTag(ptag);
+        TagManager::CloseTag(ptag);
         *ptag = tagNew;
     }
     return fTrue;
@@ -2053,7 +2053,7 @@ bool Movie::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
     ptag->ctg = kctgMtrl;
     ptag->cno = cno;
 
-    if (!TAGM::FOpenTag(ptag, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(ptag, _pcrfAutoSave))
     {
         return fFalse;
     }
@@ -2152,7 +2152,7 @@ bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
     tagTdt.ctg = kctgTmpl;
     tagTdt.cno = cno;
 
-    if (!TAGM::FOpenTag(&tagTdt, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(&tagTdt, _pcrfAutoSave))
     {
         return fFalse;
     }
@@ -2160,7 +2160,7 @@ bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
     if (!FInsActr(&tagTdt))
         return fFalse;
 
-    TAGM::CloseTag(&tagTdt);
+    TagManager::CloseTag(&tagTdt);
 
     return fTrue;
 }
@@ -2243,20 +2243,20 @@ bool Movie::FChangeActrTdt(PActor pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     tagTdtNew.ctg = kctgTmpl;
     tagTdtNew.cno = cno;
 
-    if (!TAGM::FOpenTag(&tagTdtNew, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(&tagTdtNew, _pcrfAutoSave))
     {
         return fFalse;
     }
 
     if (!pactr->FDup(&pactrDup))
     {
-        TAGM::CloseTag(&tagTdtNew);
+        TagManager::CloseTag(&tagTdtNew);
         return fFalse;
     }
 
     if (!pactr->FChangeTagTmpl(&tagTdtNew))
     {
-        TAGM::CloseTag(&tagTdtNew);
+        TagManager::CloseTag(&tagTdtNew);
         ReleasePpo(&pactrDup);
         return fFalse;
     }
@@ -2269,13 +2269,13 @@ bool Movie::FChangeActrTdt(PActor pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     {
         pactr->Restore(pactrDup);
         ReleasePpo(&pactrDup);
-        TAGM::CloseTag(&tagTdtNew);
+        TagManager::CloseTag(&tagTdtNew);
         return fFalse;
     }
     RemFromRollCall(pactrDup);
     ReleasePpo(&pactrDup);
 
-    TAGM::CloseTag(&tagTdtNew);
+    TagManager::CloseTag(&tagTdtNew);
     SetDirty();
 
     return fTrue;
@@ -5815,7 +5815,7 @@ RTCLASS(MovieView)
 MovieView::~MovieView(void)
 {
     if (_tagTool.sid != ksidInvalid)
-        TAGM::CloseTag(&_tagTool);
+        TagManager::CloseTag(&_tagTool);
 }
 
 /***************************************************************************
@@ -6130,7 +6130,7 @@ void MovieView::SetTagTool(PTAG ptag)
 
     if (_tagTool.sid != ksidInvalid)
     {
-        TAGM::CloseTag(&_tagTool);
+        TagManager::CloseTag(&_tagTool);
     }
 
 #ifdef DEBUG
@@ -6143,7 +6143,7 @@ void MovieView::SetTagTool(PTAG ptag)
 
     _tagTool = *ptag;
     if (_tagTool.sid != ksidInvalid)
-        TAGM::DupTag(ptag);
+        TagManager::DupTag(ptag);
 }
 
 /***************************************************************************

@@ -282,7 +282,7 @@ bool Actor::FDup(PActor *ppactr, bool fReset)
     if (pvNil != _pbody)
         _pbody->AddRef();
     _ptmpl->AddRef();
-    TAGM::DupTag(&_tagTmpl);
+    TagManager::DupTag(&_tagTmpl);
 
     // Copy over all members
     // Note that both copies will point to the same *_pbody & *_ptmpl
@@ -413,7 +413,7 @@ bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
             PTAG ptag;
 
             if (_FIsIaevTag(_pggaev, iaev, &ptag))
-                TAGM::DupTag(ptag);
+                TagManager::DupTag(ptag);
         }
         _pggaev->Unlock();
     }
@@ -766,23 +766,23 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
             // Need to save this actor's tagTmpl in this movie because it came from another movie
 
             tag = _tagTmpl;
-            TAGM::DupTag(&tag);
+            TagManager::DupTag(&tag);
             // Save the tag to the movie's _pcrfAutosave.  The tag now
             // points to the copy in this movie.
-            if (!TAGM::FSaveTag(&tag, pcrf, fTrue))
+            if (!TagManager::FSaveTag(&tag, pcrf, fTrue))
             {
-                TAGM::CloseTag(&tag);
+                TagManager::CloseTag(&tag);
                 return fFalse;
             }
             // Get a template based on the new tag
             ptmpl = (PTMPL)vptagm->PbacoFetch(&tag, TMPL::FReadTmpl);
             if (pvNil == ptmpl)
             {
-                TAGM::CloseTag(&tag);
+                TagManager::CloseTag(&tag);
                 return fFalse;
             }
             // Change the actor to use the new tag and template
-            TAGM::CloseTag(&_tagTmpl);
+            TagManager::CloseTag(&_tagTmpl);
             _tagTmpl = tag;
             ReleasePpo(&_ptmpl);
             _ptmpl = ptmpl;

@@ -740,7 +740,7 @@ class Movie : public Movie_PAR
     bool FAutoSave(PFilename pfni = pvNil, bool fCleanRollCall = fFalse); // Save movie in temp file
     bool FSaveTagSnd(TAG *ptag)
     {
-        return TAGM::FSaveTag(ptag, _pcrfAutoSave, fTrue);
+        return TagManager::FSaveTag(ptag, _pcrfAutoSave, fTrue);
     }
     bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);

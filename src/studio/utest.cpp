@@ -46,7 +46,7 @@ const ulong kdtsSplashScreen = 4 * kdtsSecond;
 // Duration before res-switch dialog cancels itself
 const ulong kdtsMaxResSwitchDlg = 15 * kdtsSecond;
 
-// 2MB cache per source for TAGM
+// 2MB cache per source for TagManager
 const ulong kcbCacheTagm = 2048 * 1024;
 
 static PSZ kpszAppWndCls = PszLit("3DMOVIE");
@@ -70,7 +70,7 @@ ON_CID_GEN(cidDeactivate, &APP::FCmdDeactivate, pvNil)
 END_CMD_MAP_NIL()
 
 APP vapp;
-PTAGM vptagm;
+PTagManager vptagm;
 
 RTCLASS(APP)
 RTCLASS(KWA)
@@ -1521,10 +1521,10 @@ bool APP::_FInitProductNames(void)
 
     // Use kcbCacheTagm of cache per source, don't cache on CD
 
-    vptagm = TAGM::PtagmNew(&_fniMsKidsDir, APP::FInsertCD, kcbCacheTagm);
+    vptagm = TagManager::PtagmNew(&_fniMsKidsDir, APP::FInsertCD, kcbCacheTagm);
     if (vptagm == pvNil)
     {
-        _FGenericError(PszLit("_FInitProductNames: TAGM::PtagmNew"));
+        _FGenericError(PszLit("_FInitProductNames: TagManager::PtagmNew"));
         return fFalse;
     }
 

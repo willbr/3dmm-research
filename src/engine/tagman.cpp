@@ -3,26 +3,26 @@
 
 /***************************************************************************
 
-    tagman.cpp: Tag Manager class (TAGM)
+    tagman.cpp: Tag Manager class (TagManager)
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     It is important to keep in mind that there are two layers of caching
-    going on in TAGM: Caching content from the CD (or other slow source)
+    going on in TagManager: Caching content from the CD (or other slow source)
     to the local hard disk, and caching resources in RAM using chunky
     resources (the ChunkyResourceFile and ChunkyResourceManager classes).
 
-    For each source, TAGM maintains (in an SFS) a ChunkyResourceManager (Chunky Resource
+    For each source, TagManager maintains (in an SFS) a ChunkyResourceManager (Chunky Resource
     Manager) of all the content	files on the source and a ChunkyResourceFile (Chunky
     Resource File), which is a single file on the HD which can be used
     for faster access to the source.  Both CRFs and CRMs can cache
     resources in RAM.  Since Socrates copies *all* content from the CD
     to the cache file, the ChunkyResourceManager is told not to cache its resources in
-    RAM.  However, if the source is actually on the HD, TAGM notices and
+    RAM.  However, if the source is actually on the HD, TagManager notices and
     doesn't copy any content to a cache file, since that would be a waste
     of time.  Instead, the content is read directly from the ChunkyResourceManager.  In this
-    case, TAGM does tell the ChunkyResourceManager to cache its resources in RAM.
+    case, TagManager does tell the ChunkyResourceManager to cache its resources in RAM.
 
     Source names: every source has a long and short name.  This is so we
     can use long names for the source directory on the HD (e.g., "3D Movie
@@ -41,7 +41,7 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TAGM)
+RTCLASS(TagManager)
 
 const ByteOrderMask kbomSid = 0xc0000000;
 
@@ -69,15 +69,15 @@ struct SFS
 /***************************************************************************
     Initialize the tag manager
 ***************************************************************************/
-PTAGM TAGM::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache)
+PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache)
 {
     AssertPo(pfniHDRoot, ffniDir);
     Assert(pvNil != pfninscd, "bad pfninscd");
     AssertIn(cbCache, 0, kcbMax);
 
-    PTAGM ptagm;
+    PTagManager ptagm;
 
-    ptagm = NewObj TAGM;
+    ptagm = NewObj TagManager;
     if (pvNil == ptagm)
         goto LFail;
 
@@ -103,7 +103,7 @@ LFail:
 /***************************************************************************
     Tag Manager destructor
 ***************************************************************************/
-TAGM::~TAGM(void)
+TagManager::~TagManager(void)
 {
     AssertBaseThis(0);
 
@@ -125,7 +125,7 @@ TAGM::~TAGM(void)
 /***************************************************************************
     Split a merged string into its long and short components
 ***************************************************************************/
-void TAGM::SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort)
+void TagManager::SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort)
 {
     AssertPo(pstnMerged, 0);
     AssertVarMem(pstnLong);
@@ -151,7 +151,7 @@ void TAGM::SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort)
 /***************************************************************************
     Return source title string table so it can be embedded in documents
 ***************************************************************************/
-PStringTable TAGM::PgstSource(void)
+PStringTable TagManager::PgstSource(void)
 {
     AssertThis(0);
     return _pgstSource;
@@ -161,7 +161,7 @@ PStringTable TAGM::PgstSource(void)
     If there is an stn for the given sid in _pgstSource, return the
     location of the stn.
 ***************************************************************************/
-bool TAGM::_FFindSid(long sid, long *pistn)
+bool TagManager::_FFindSid(long sid, long *pistn)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -188,7 +188,7 @@ bool TAGM::_FFindSid(long sid, long *pistn)
     Add source title string table entries to tag manager, if it doesn't
     already know them.
 ***************************************************************************/
-bool TAGM::FMergeGstSource(PStringTable pgst, short bo, short osk)
+bool TagManager::FMergeGstSource(PStringTable pgst, short bo, short osk)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -214,7 +214,7 @@ bool TAGM::FMergeGstSource(PStringTable pgst, short bo, short osk)
 /***************************************************************************
     Add source title string to tag manager, if it's not already there
 ***************************************************************************/
-bool TAGM::FAddStnSource(PSTN pstn, long sid)
+bool TagManager::FAddStnSource(PSTN pstn, long sid)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -230,7 +230,7 @@ bool TAGM::FAddStnSource(PSTN pstn, long sid)
     Find the sid with the given string as its source name.  pstn can be
     the merged name, the short name, or the long name.
 ***************************************************************************/
-bool TAGM::FGetSid(PSTN pstn, long *psid)
+bool TagManager::FGetSid(PSTN pstn, long *psid)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -262,7 +262,7 @@ bool TAGM::FGetSid(PSTN pstn, long *psid)
 /***************************************************************************
     Find the string of the source with the given sid
 ***************************************************************************/
-bool TAGM::_FGetStnMergedOfSid(long sid, PSTN pstn)
+bool TagManager::_FGetStnMergedOfSid(long sid, PSTN pstn)
 {
     AssertThis(0);
     AssertVarMem(pstn);
@@ -283,7 +283,7 @@ bool TAGM::_FGetStnMergedOfSid(long sid, PSTN pstn)
 /***************************************************************************
     Find the string of the source with the given sid
 ***************************************************************************/
-bool TAGM::_FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort)
+bool TagManager::_FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort)
 {
     AssertThis(0);
     AssertVarMem(pstnLong);
@@ -304,7 +304,7 @@ bool TAGM::_FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort)
     - If we find the fniHD, put it in *pfniHD, set *pfExists to fTrue,
       and return fTrue
 ***************************************************************************/
-bool TAGM::_FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists)
+bool TagManager::_FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -334,7 +334,7 @@ bool TAGM::_FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists)
 /***************************************************************************
     See if there are any content files in the directory specified by pfni
 ***************************************************************************/
-bool TAGM::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
+bool TagManager::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniDir);
@@ -358,7 +358,7 @@ bool TAGM::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
     think it does.  Or, if pstn is non-nil, try to go down from pfniCD
     to pstn.
 ***************************************************************************/
-bool TAGM::_FEnsureFniCD(long sid, Filename *pfniCD, PSTN pstn)
+bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PSTN pstn)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -398,7 +398,7 @@ bool TAGM::_FEnsureFniCD(long sid, Filename *pfniCD, PSTN pstn)
     looking for this source, pass in any Filename with a FileType of ftgNil.	If it
     can't find the CD directory, it returns fFalse with pfniInfo untouched.
 ***************************************************************************/
-bool TAGM::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
+bool TagManager::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -459,7 +459,7 @@ bool TAGM::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
     the source named stn cannot be found.  Returns fTrue if the user wants
     to retry, else fFalse.
 ***************************************************************************/
-bool TAGM::_FRetry(long sid)
+bool TagManager::_FRetry(long sid)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -479,7 +479,7 @@ bool TAGM::_FRetry(long sid)
     Builds the ChunkyResourceManager for the given sid's source.  pfniDir tells where the
     content files are.
 ***************************************************************************/
-PChunkyResourceManager TAGM::_PcrmSourceNew(long sid, PFilename pfniDir)
+PChunkyResourceManager TagManager::_PcrmSourceNew(long sid, PFilename pfniDir)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -520,7 +520,7 @@ LFail:
     new one if there isn't one already.  It verifies that the CD is still
     in the drive, unless fDontHitCD is fTrue.
 ***************************************************************************/
-PChunkyResourceManager TAGM::_PcrmSourceGet(long sid, bool fDontHitCD)
+PChunkyResourceManager TagManager::_PcrmSourceGet(long sid, bool fDontHitCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -612,7 +612,7 @@ LSetupSfs:
     HD!)  Note that the function return value is whether the function
     completed without error, not whether the source is on HD.
 ***************************************************************************/
-bool TAGM::_FDetermineIfSourceHD(long sid, bool *pfIsOnHD)
+bool TagManager::_FDetermineIfSourceHD(long sid, bool *pfIsOnHD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -660,7 +660,7 @@ LSetupSfs:
 /***************************************************************************
     Get the Filename for the HD directory
 ***************************************************************************/
-bool TAGM::_FGetFniHD(long sid, PFilename pfniHD)
+bool TagManager::_FGetFniHD(long sid, PFilename pfniHD)
 {
     AssertThis(0);
     AssertVarMem(pfniHD);
@@ -694,7 +694,7 @@ LSetupSFS:
 /***************************************************************************
     Get the Filename for the CD directory
 ***************************************************************************/
-bool TAGM::_FGetFniCD(long sid, PFilename pfniCD, bool fAskForCD)
+bool TagManager::_FGetFniCD(long sid, PFilename pfniCD, bool fAskForCD)
 {
     AssertThis(0);
     AssertVarMem(pfniCD);
@@ -731,7 +731,7 @@ LSetupSFS:
 /***************************************************************************
     Finds the file with name pstn on the HD or CD.
 ***************************************************************************/
-bool TAGM::FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD)
+bool TagManager::FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -764,7 +764,7 @@ bool TAGM::FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD)
     Build a tag for a child of another tag.  Note that this may hit the
     CD if _PcrmSourceGet has not yet been called for ptagPar->sid.
 ***************************************************************************/
-bool TAGM::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild)
+bool TagManager::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild)
 {
     AssertThis(0);
     AssertVarMem(ptagPar);
@@ -811,7 +811,7 @@ bool TAGM::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PT
 /***************************************************************************
     Put specified chunk in cache file, if it's not there yet
 ***************************************************************************/
-bool TAGM::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
+bool TagManager::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -876,7 +876,7 @@ LFail:
     Resolve the TAG to a BaseCacheableObject.  Only use HD cache files, unless fUseCD is
     fTrue.
 ***************************************************************************/
-PBaseCacheableObject TAGM::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
+PBaseCacheableObject TagManager::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
 {
     AssertThis(0);
     AssertVarMem(ptag);
@@ -906,7 +906,7 @@ PBaseCacheableObject TAGM::PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD)
 /***************************************************************************
     Clear the cache for source sid.  If sid is sidNil, clear all caches.
 ***************************************************************************/
-void TAGM::ClearCache(long sid, ulong grftagm)
+void TagManager::ClearCache(long sid, ulong grftagm)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -975,7 +975,7 @@ void TAGM::ClearCache(long sid, ulong grftagm)
     calling FOpenTag().  If you FOpenTag() a tag, you must CloseTag() it
     when you're done with it.
 ***************************************************************************/
-bool TAGM::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc)
+bool TagManager::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc)
 {
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
@@ -1004,7 +1004,7 @@ bool TAGM::FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc
     Save tag's data in the given ChunkyResourceFile.  If fRedirect, the tag now points
     to the copy in the ChunkyResourceFile.
 ***************************************************************************/
-bool TAGM::FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect)
+bool TagManager::FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect)
 {
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
@@ -1037,7 +1037,7 @@ bool TAGM::FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect)
     Call this for each tag when you're duplicating it.  Increments
     refcount on the tag's ChunkyResourceFile.
 ***************************************************************************/
-void TAGM::DupTag(PTAG ptag)
+void TagManager::DupTag(PTAG ptag)
 {
     AssertVarMem(ptag);
     Assert(ptag->sid >= 0, "Invalid sid");
@@ -1052,7 +1052,7 @@ void TAGM::DupTag(PTAG ptag)
 /***************************************************************************
     Close the tag
 ***************************************************************************/
-void TAGM::CloseTag(PTAG ptag)
+void TagManager::CloseTag(PTAG ptag)
 {
     AssertVarMem(ptag);
     // Client destructors often call CloseTag on an uninitialized tag, so
@@ -1069,7 +1069,7 @@ void TAGM::CloseTag(PTAG ptag)
 /***************************************************************************
     Compare two tags.  Tags are sorted first by sid, then ChunkTag, then ChunkNumber.
 ***************************************************************************/
-ulong TAGM::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
+ulong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 {
     AssertVarMem(ptag1);
     Assert(ptag1->sid >= 0, "Invalid sid");
@@ -1101,14 +1101,14 @@ ulong TAGM::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TAGM.
+    Assert the validity of the TagManager.
 ***************************************************************************/
-void TAGM::AssertValid(ulong grf)
+void TagManager::AssertValid(ulong grf)
 {
     long isfs;
     SFS sfs;
 
-    TAGM_PAR::AssertValid(fobjAllocated);
+    TagManager_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglsfs, 0);
     AssertPo(_pgstSource, 0);
     Assert(pvNil != _pfninscd, "bad _pfninscd");
@@ -1123,16 +1123,16 @@ void TAGM::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the TAGM.
+    Mark memory used by the TagManager.
 ***************************************************************************/
-void TAGM::MarkMem(void)
+void TagManager::MarkMem(void)
 {
     AssertThis(0);
 
     long isfs;
     SFS sfs;
 
-    TAGM_PAR::MarkMem();
+    TagManager_PAR::MarkMem();
     MarkMemObj(_pglsfs);
     MarkMemObj(_pgstSource);
     for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)

@@ -3,16 +3,16 @@
 
 /*************************************************************************
 
-    tagman.h: Tag Manager class (TAGM)
+    tagman.h: Tag Manager class (TagManager)
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> TAGM
+    BASE ---> TagManager
 
     A TAG is a reference to a piece of content: a background, actor
     template, sound, etc.  In addition to a ChunkTag and ChunkNumber, a TAG specifies
-    a SID, or source ID, that helps TAGM find the content.
+    a SID, or source ID, that helps TagManager find the content.
 
     A source (identified by a SID) is a group of chunky files (managed
     by a ChunkyResourceManager) in one directory of one disk whose chunks all have unique
@@ -25,7 +25,7 @@
     callback should put up an alert saying (for example) "The source
     *Socrates* cannot be found...please insert the CD."
 
-    TAGM supports caching chunks to the local hard disk.  In Socrates,
+    TagManager supports caching chunks to the local hard disk.  In Socrates,
     the studio should call FCacheTagToHD as soon as the chunk is
     requested by the kid, and when the tag is resolved to a BaseCacheableObject, the
     HD copy is used.  This reduces headaches about dealing with a missing
@@ -77,10 +77,10 @@ enum
 /****************************************
     Tag Manager class
 ****************************************/
-typedef class TAGM *PTAGM;
-#define TAGM_PAR BASE
-#define kclsTAGM 'TAGM'
-class TAGM : public TAGM_PAR
+typedef class TagManager *PTagManager;
+#define TagManager_PAR BASE
+#define kclsTagManager 'TAGM'
+class TagManager : public TagManager_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -94,7 +94,7 @@ class TAGM : public TAGM_PAR
     PFNINSCD _pfninscd; // Function to call when source is not found
 
   protected:
-    TAGM(void)
+    TagManager(void)
     {
     }
     bool _FFindSid(long sid, long *pistn = pvNil);
@@ -115,8 +115,8 @@ class TAGM : public TAGM_PAR
     PChunkyFile _PcflFindTag(PTAG ptag);
 
   public:
-    static PTAGM PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache);
-    ~TAGM(void);
+    static PTagManager PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long cbCache);
+    ~TagManager(void);
 
     // GstSource stuff:
     PStringTable PgstSource(void);

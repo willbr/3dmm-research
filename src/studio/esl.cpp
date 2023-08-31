@@ -621,7 +621,7 @@ bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
         // first apply TDT changes
         ptdtOld->GetInfo(&stnOld, &tdtsOld, &tagTdfOld);
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
-        if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TAGM::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
+        if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TagManager::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
         {
             if (!_pmvie->FChangeActrTdt(_pactr, &stnNew, tdtsNew, &tagTdfNew))
                 goto LFail;

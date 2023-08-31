@@ -582,7 +582,7 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     }
 
     pmvu->SetTagTool(&tag);
-    TAGM::CloseTag(&tag);
+    TagManager::CloseTag(&tag);
     return;
 }
 

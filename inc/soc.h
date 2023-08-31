@@ -102,6 +102,6 @@
 #define ksz3mm PszLit("3mm")
 
 // Global variables
-extern PTAGM vptagm;
+extern PTagManager vptagm;
 
 #endif !SOC_H

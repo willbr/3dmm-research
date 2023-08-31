@@ -166,7 +166,7 @@ bool Actor::_FInit(TAG *ptagTmpl)
 
     AssertPo(_ptmpl, 0);
     _tagTmpl = *ptagTmpl;
-    TAGM::DupTag(&_tagTmpl);
+    TagManager::DupTag(&_tagTmpl);
 
     if (!_FCreateGroups())
         return fFalse;
@@ -3117,7 +3117,7 @@ bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUp
         // Increment tag count
         _pggaev->Lock();
         if (_FIsIaevTag(_pggaev, iaev, &ptag))
-            TAGM::DupTag(ptag);
+            TagManager::DupTag(ptag);
         _pggaev->Unlock();
 
         if (fUpdateState)
@@ -3153,7 +3153,7 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
     // First, close tags
     _pggaev->Lock();
     if (_FIsIaevTag(_pggaev, iaev, &ptag, &qaev))
-        TAGM::CloseTag(ptag);
+        TagManager::CloseTag(ptag);
 
     /* Don't bother updating the frame sound indicator if we didn't change
         an event in the scene's current frame */
@@ -5451,9 +5451,9 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     _PositionBody(&_xyzCur);
     ReleasePpo(&_ptmpl);
     _ptmpl = ptmpl;
-    TAGM::CloseTag(&_tagTmpl);
+    TagManager::CloseTag(&_tagTmpl);
     _tagTmpl = *ptagTmplNew;
-    TAGM::DupTag(ptagTmplNew);
+    TagManager::DupTag(ptagTmplNew);
 
     // If the new TMPL is not a TDT, we're done...although currently this
     // function should only be called with ptagTmplNew being a TDT

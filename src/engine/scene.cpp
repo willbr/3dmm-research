@@ -640,7 +640,7 @@ Scene::~Scene(void)
                 psse = (PSSE)_pggsevFrm->QvGet(isev);
                 for (itagc = 0; itagc < psse->ctagc; itagc++)
                 {
-                    TAGM::CloseTag(psse->Ptag(itagc));
+                    TagManager::CloseTag(psse->Ptag(itagc));
                 }
                 break;
             }
@@ -1748,7 +1748,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
             psse = (PSSE)_pggsevFrm->QvGet(isevSnd);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
-                TAGM::CloseTag(psse->Ptag(itagc));
+                TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isevSnd);
             _isevFrmLim--;
@@ -1903,7 +1903,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
             psse = (PSSE)_pggsevFrm->QvGet(isevSnd);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
-                TAGM::CloseTag(psse->Ptag(itagc));
+                TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isevSnd);
             _isevFrmLim--;
@@ -2038,7 +2038,7 @@ void Scene::RemSndCore(long sty)
             psse = (PSSE)_pggsevFrm->QvGet(isev);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
-                TAGM::CloseTag(psse->Ptag(itagc));
+                TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isev);
             _isevFrmLim--;
@@ -3897,10 +3897,10 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
 
             for (itag = 0; itag < psse->ctagc; itag++)
             {
-                if (!TAGM::FOpenTag(psse->Ptag(itag), pcrf, pcfl))
+                if (!TagManager::FOpenTag(psse->Ptag(itag), pcrf, pcfl))
                 {
                     while (itag-- > 0)
-                        TAGM::CloseTag(psse->Ptag(itag));
+                        TagManager::CloseTag(psse->Ptag(itag));
                     FreePpv((void **)&psse); // don't ReleasePpsse...tags are already closed
                     goto LFail1;
                 }
@@ -4089,7 +4089,7 @@ LFail1:
             for (itag = 0; itag < qsse->ctagc; itag++)
             {
                 qsse = (PSSE)pscen->_pggsevFrm->QvGet(isevFrm);
-                TAGM::CloseTag(qsse->Ptag(itag));
+                TagManager::CloseTag(qsse->Ptag(itag));
             }
             break;
 
@@ -4339,7 +4339,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
             break;
 
         case sevtSetBkgd:
-            if (!TAGM::FSaveTag((PTAG)_pggsevStart->QvGet(isevStart), pcrf, fFalse))
+            if (!TagManager::FSaveTag((PTAG)_pggsevStart->QvGet(isevStart), pcrf, fFalse))
             {
                 goto LFail;
             }
@@ -7178,7 +7178,7 @@ PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgt
     for (itagc = 0; itagc < ctagc; itagc++)
     {
         *psse->Ptagc(itagc) = prgtagc[itagc];
-        TAGM::DupTag(psse->Ptag(itagc));
+        TagManager::DupTag(psse->Ptag(itagc));
     }
     return psse;
 }
@@ -7202,7 +7202,7 @@ void ReleasePpsse(PSSE *ppsse)
     for (itagc = 0; itagc < psse->ctagc; itagc++)
     {
         if (psse->Ptag(itagc)->pcrf != pvNil)
-            TAGM::CloseTag(psse->Ptag(itagc));
+            TagManager::CloseTag(psse->Ptag(itagc));
     }
 
     FreePpv((void **)ppsse);
@@ -7235,7 +7235,7 @@ PSSE SSE::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
             if (psse->Ptag(itagc)->sid == ksidUseCrf)
             {
                 AssertPo(psse->Ptag(itagc)->pcrf, 0);
-                TAGM::DupTag(psse->Ptag(itagc));
+                TagManager::DupTag(psse->Ptag(itagc));
             }
         }
         else
@@ -7268,7 +7268,7 @@ PSSE SSE::PsseAddTagChid(PTAG ptag, long chid)
     CopyPb(this, psseNew, Cb());
     *psseNew->Ptagc(psseNew->ctagc) = tagc;
     psseNew->ctagc++;
-    TAGM::DupTag(ptag);
+    TagManager::DupTag(ptag);
     return psseNew;
 }
 
@@ -7286,7 +7286,7 @@ PSSE SSE::PsseDup(void)
     }
     CopyPb(this, psse, size(SSE) + LwMul(ctagc, size(TagChildPair)));
     for (itagc = 0; itagc < psse->ctagc; itagc++)
-        TAGM::DupTag(psse->Ptag(itagc));
+        TagManager::DupTag(psse->Ptag(itagc));
     return psse;
 }
 
