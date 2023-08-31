@@ -10,7 +10,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    GFX classes: graphics port (GPT), graphics environment (GraphicsEnvironment)
+    GFX classes: graphics port (GraphicsPort), graphics environment (GraphicsEnvironment)
 
 ***************************************************************************/
 #ifndef GFX_H
@@ -157,7 +157,7 @@ const ulong kluAcrClear = 0xFFFFFFFFL;
 // Abstract ColoR
 class AbstractColor
 {
-    friend class GPT;
+    friend class GraphicsPort;
     ASSERT
 
   private:
@@ -384,7 +384,7 @@ long IptFindLeftmost(PT *prgpt, long cpt, long dxp, long dyp);
 
 /****************************************
     Graphics drawing data - a parameter
-    to drawing apis in the GPT class
+    to drawing apis in the GraphicsPort class
 ****************************************/
 enum
 {
@@ -435,7 +435,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     FontDescription _dsf;
 
     // contains the current pen size and prcsClip
-    // this is passed to the GPT
+    // this is passed to the GraphicsPort
     GDD _gdd;
 
     void _Init(PGPT pgpt);
@@ -574,9 +574,9 @@ enum
 /****************************************
     Graphics port
 ****************************************/
-#define GPT_PAR BASE
-#define kclsGPT 'GPT'
-class GPT : public GPT_PAR
+#define GraphicsPort_PAR BASE
+#define kclsGraphicsPort 'GPT'
+class GraphicsPort : public GraphicsPort_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -585,7 +585,7 @@ class GPT : public GPT_PAR
   private:
     PREGN _pregnClip;
     RC _rcClip;
-    PT _ptBase; // coordinates assigned to top-left of the GPT
+    PT _ptBase; // coordinates assigned to top-left of the GraphicsPort
 
 #ifdef WIN
 #ifdef DEBUG
@@ -668,7 +668,7 @@ class GPT : public GPT_PAR
     bool _fNoClip : 1;
     bool _fNewClip : 1; //_pregnClip is new
 
-    // for picture based GPT's
+    // for picture based GraphicsPort's
     RC _rcOff; // also valid for offscreen GPTs
     HPIC _hpic;
 
@@ -684,13 +684,13 @@ class GPT : public GPT_PAR
 #endif // MAC
 
     // low level draw routine
-    typedef void (GPT::*PFNDRW)(void *);
+    typedef void (GraphicsPort::*PFNDRW)(void *);
     void _Fill(void *pv, GDD *pgdd, PFNDRW pfn);
 
-    GPT(void)
+    GraphicsPort(void)
     {
     }
-    ~GPT(void);
+    ~GraphicsPort(void);
 
   public:
 #ifdef WIN

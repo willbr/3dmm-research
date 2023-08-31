@@ -44,7 +44,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
         goto LFail;
     }
 
-    pglclr = GPT::PglclrGetPalette();
+    pglclr = GraphicsPort::PglclrGetPalette();
     if (pglclr == pvNil)
         goto LFail;
 
@@ -411,7 +411,7 @@ SPLOT::~SPLOT(void)
     if (_pglclrSav != pvNil)
     {
         vapp.UpdateMarked();
-        GPT::SetActiveColors(_pglclrSav, fpalIdentity);
+        GraphicsPort::SetActiveColors(_pglclrSav, fpalIdentity);
         ReleasePpo(&_pglclrSav);
     }
 

@@ -2753,7 +2753,7 @@ bool DCD::FCmdSetColorTable(PCMD pcmd)
         return fFalse;
 
     if (pvNil != (pglclr = DynamicArray::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
-        GPT::SetActiveColors(pglclr, fpalIdentity);
+        GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
 
     ReleasePpo(&pglclr);
     return fTrue;

@@ -16,16 +16,16 @@ ASSERTNAME
 const SCR kscrBlack = PALETTERGB(0, 0, 0);
 const SCR kscrWhite = PALETTERGB(0xFF, 0xFF, 0xFF);
 
-HPAL GPT::_hpal = hNil;
-HPAL GPT::_hpalIdentity = hNil;
-long GPT::_cclrPal = 0;
-Color *GPT::_prgclr = pvNil;
-long GPT::_cactPalCur = 0;
-long GPT::_cactFlush = 1;
-bool GPT::_fPalettized = fFalse;
+HPAL GraphicsPort::_hpal = hNil;
+HPAL GraphicsPort::_hpalIdentity = hNil;
+long GraphicsPort::_cclrPal = 0;
+Color *GraphicsPort::_prgclr = pvNil;
+long GraphicsPort::_cactPalCur = 0;
+long GraphicsPort::_cactFlush = 1;
+bool GraphicsPort::_fPalettized = fFalse;
 
 #ifdef DEBUG
-bool GPT::_fFlushGdi;
+bool GraphicsPort::_fFlushGdi;
 #define _Flush()                                                                                                       \
     if (_fFlushGdi)                                                                                                    \
         Flush();                                                                                                       \
@@ -78,7 +78,7 @@ void GraphicsEnvironment::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RC *prc)
 /***************************************************************************
     Static method to flush any pending graphics operations.
 ***************************************************************************/
-void GPT::Flush(void)
+void GraphicsPort::Flush(void)
 {
     GdiFlush();
     _cactFlush++;
@@ -114,7 +114,7 @@ static PALETTEENTRY _rgpe[20] = {
     fpalAnimate means animate the palette with the new colors, don't do
         a normal palette set.
 ***************************************************************************/
-void GPT::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
+void GraphicsPort::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
 {
     AssertNilOrPo(pglclr, 0);
     Assert(pvNil == pglclr || pglclr->CbEntry() == size(Color), "wrong CbEntry");
@@ -281,7 +281,7 @@ LDone:
 /***************************************************************************
     Static method to create a new pglclr containing the current palette.
 ***************************************************************************/
-PDynamicArray GPT::PglclrGetPalette(void)
+PDynamicArray GraphicsPort::PglclrGetPalette(void)
 {
     PDynamicArray pglclr;
 
@@ -297,7 +297,7 @@ PDynamicArray GPT::PglclrGetPalette(void)
     We've gotten a WM_QUERYNEWPALETTE or WM_PALETTECHANGED message, so
     select and realize our palette.
 ***************************************************************************/
-long GPT::CclrSetPalette(HWND hwnd, bool fInval)
+long GraphicsPort::CclrSetPalette(HWND hwnd, bool fInval)
 {
     HDC hdc;
     long lwRet;
@@ -339,14 +339,14 @@ long GPT::CclrSetPalette(HWND hwnd, bool fInval)
 }
 
 /***************************************************************************
-    Static method to create a new GPT for an HDC.
+    Static method to create a new GraphicsPort for an HDC.
 ***************************************************************************/
-PGPT GPT::PgptNew(HDC hdc)
+PGPT GraphicsPort::PgptNew(HDC hdc)
 {
     Assert(hNil != hdc, "Null hdc");
     PGPT pgpt;
 
-    if (hNil == hdc || pvNil == (pgpt = NewObj GPT))
+    if (hNil == hdc || pvNil == (pgpt = NewObj GraphicsPort))
         return pvNil;
 
     if (!pgpt->_FInit(hdc))
@@ -357,9 +357,9 @@ PGPT GPT::PgptNew(HDC hdc)
 }
 
 /***************************************************************************
-    Static method to create a new GPT for a window.
+    Static method to create a new GraphicsPort for a window.
 ***************************************************************************/
-PGPT GPT::PgptNewHwnd(HWND hwnd)
+PGPT GraphicsPort::PgptNewHwnd(HWND hwnd)
 {
     Assert(hNil != hwnd, "Null hwnd");
     HDC hdc;
@@ -383,9 +383,9 @@ PGPT GPT::PgptNewHwnd(HWND hwnd)
 }
 
 /***************************************************************************
-    Initialize the GPT.
+    Initialize the GraphicsPort.
 ***************************************************************************/
-bool GPT::_FInit(HDC hdc)
+bool GraphicsPort::_FInit(HDC hdc)
 {
     Assert(hNil != hdc, "Null hdc");
     HPEN hpen;
@@ -421,7 +421,7 @@ bool GPT::_FInit(HDC hdc)
 /***************************************************************************
     Destructor for a port.
 ***************************************************************************/
-GPT::~GPT(void)
+GraphicsPort::~GraphicsPort(void)
 {
     Assert(_cactLock == 0, "pixels are still locked!");
     if (_fMetaFile)
@@ -456,7 +456,7 @@ GPT::~GPT(void)
 /***************************************************************************
     Get the system color for this abstract color.
 ***************************************************************************/
-SCR GPT::_Scr(AbstractColor acr)
+SCR GraphicsPort::_Scr(AbstractColor acr)
 {
     SCR scr;
     long iclr;
@@ -479,7 +479,7 @@ SCR GPT::_Scr(AbstractColor acr)
 /***************************************************************************
     Static method to create an offscreen port.
 ***************************************************************************/
-PGPT GPT::PgptNewOffscreen(RC *prc, long cbitPixel)
+PGPT GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
 {
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rectangle for offscreen");
@@ -630,9 +630,9 @@ PGPT GPT::PgptNewOffscreen(RC *prc, long cbitPixel)
 }
 
 /***************************************************************************
-    Set the color table of an offscreen GPT.
+    Set the color table of an offscreen GraphicsPort.
 ***************************************************************************/
-void GPT::SetOffscreenColors(PDynamicArray pglclr)
+void GraphicsPort::SetOffscreenColors(PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertNilOrPo(pglclr, 0);
@@ -665,7 +665,7 @@ void GPT::SetOffscreenColors(PDynamicArray pglclr)
     If this is an offscreen bitmap, return the pointer to the pixels and
     optionally get the bounds. Must balance with a call to Unlock().
 ***************************************************************************/
-byte *GPT::PrgbLockPixels(RC *prc)
+byte *GraphicsPort::PrgbLockPixels(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -687,7 +687,7 @@ byte *GPT::PrgbLockPixels(RC *prc)
 /***************************************************************************
     If this is an offscreen bitmap, return the number of bytes per row.
 ***************************************************************************/
-long GPT::CbRow(void)
+long GraphicsPort::CbRow(void)
 {
     AssertThis(0);
 
@@ -697,9 +697,9 @@ long GPT::CbRow(void)
 }
 
 /***************************************************************************
-    Return the number of bits per pixel for the GPT.
+    Return the number of bits per pixel for the GraphicsPort.
 ***************************************************************************/
-long GPT::CbitPixel(void)
+long GraphicsPort::CbitPixel(void)
 {
     AssertThis(0);
 
@@ -715,7 +715,7 @@ long GPT::CbitPixel(void)
     Lock the pixels if this is an offscreen bitmap. Must be balanced by a
     call to Unlock.
 ***************************************************************************/
-void GPT::Lock(void)
+void GraphicsPort::Lock(void)
 {
     AssertThis(0);
     _cactLock++;
@@ -724,7 +724,7 @@ void GPT::Lock(void)
 /***************************************************************************
     Unlock the pixels if this is an offscreen bitmap.
 ***************************************************************************/
-void GPT::Unlock(void)
+void GraphicsPort::Unlock(void)
 {
     if (--_cactLock < 0)
     {
@@ -734,13 +734,13 @@ void GPT::Unlock(void)
 }
 
 /***************************************************************************
-    Static method to create a metafile dc and its an associated GPT.
+    Static method to create a metafile dc and its an associated GraphicsPort.
     This should be balanced with a call to PpicRelease().
 ***************************************************************************/
-PGPT GPT::PgptNewPic(RC *prc)
+PGPT GraphicsPort::PgptNewPic(RC *prc)
 {
     AssertVarMem(prc);
-    Assert(!prc->FEmpty(), "empty rectangle for metafile GPT");
+    Assert(!prc->FEmpty(), "empty rectangle for metafile GraphicsPort");
     PGPT pgpt;
     RCS rcs;
     HDC hdc;
@@ -774,10 +774,10 @@ PGPT GPT::PgptNewPic(RC *prc)
 }
 
 /***************************************************************************
-    Closes a metafile based GPT and returns the picture produced from
-    drawing into the GPT.
+    Closes a metafile based GraphicsPort and returns the picture produced from
+    drawing into the GraphicsPort.
 ***************************************************************************/
-PPIC GPT::PpicRelease(void)
+PPIC GraphicsPort::PpicRelease(void)
 {
     AssertThis(0);
     PPIC ppic;
@@ -785,7 +785,7 @@ PPIC GPT::PpicRelease(void)
 
     if (!_fMetaFile)
     {
-        Bug("not a MetaFile GPT");
+        Bug("not a MetaFile GraphicsPort");
         goto LFail;
     }
     if (hNil == _hdc)
@@ -812,7 +812,7 @@ PPIC GPT::PpicRelease(void)
 /***************************************************************************
     Hilites the rectangle by inverting.
 ***************************************************************************/
-void GPT::HiliteRcs(RCS *prcs, GDD *pgdd)
+void GraphicsPort::HiliteRcs(RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     _SetClip(pgdd->prcsClip);
@@ -823,7 +823,7 @@ void GPT::HiliteRcs(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Fill/frame a rectangle with a 2-color pattern or solid color.
 ***************************************************************************/
-void GPT::DrawRcs(RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawRcs(RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -832,7 +832,7 @@ void GPT::DrawRcs(RCS *prcs, GDD *pgdd)
         pgdd->dypPen * 2 >= prcs->bottom - prcs->top)
     {
         // just fill it
-        _Fill(prcs, pgdd, (PFNDRW)&GPT::_FillRcs);
+        _Fill(prcs, pgdd, (PFNDRW)&GraphicsPort::_FillRcs);
     }
     else
         _FrameRcsOval(prcs, pgdd, fFalse);
@@ -841,7 +841,7 @@ void GPT::DrawRcs(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Fill/frame a rectangle with a 2-color pattern or solid color.
 ***************************************************************************/
-void GPT::DrawOval(RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawOval(RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -850,7 +850,7 @@ void GPT::DrawOval(RCS *prcs, GDD *pgdd)
         pgdd->dypPen * 2 >= prcs->bottom - prcs->top)
     {
         // just fill it
-        _Fill(prcs, pgdd, (PFNDRW)&GPT::_FillOval);
+        _Fill(prcs, pgdd, (PFNDRW)&GraphicsPort::_FillOval);
     }
     else
         _FrameRcsOval(prcs, pgdd, fTrue);
@@ -860,7 +860,7 @@ void GPT::DrawOval(RCS *prcs, GDD *pgdd)
     Frames either an RCS or an oval.  Client should have already handled
     the case when the pen is big enough to fill the entire rcs/oval.
 ***************************************************************************/
-void GPT::_FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval)
+void GraphicsPort::_FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval)
 {
     Assert((pgdd->grfgdd & fgddFrame) && pgdd->dxpPen * 2 < prcs->right - prcs->left &&
                pgdd->dypPen * 2 < prcs->bottom - prcs->top,
@@ -882,7 +882,7 @@ void GPT::_FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval)
     switch (CombineRgn(hrgnOutside, hrgnInside, hrgnOutside, RGN_XOR))
     {
     default:
-        _Fill(&hrgnOutside, pgdd, (PFNDRW)&GPT::_FillRgn);
+        _Fill(&hrgnOutside, pgdd, (PFNDRW)&GraphicsPort::_FillRgn);
         break;
 
     case NULLREGION:
@@ -904,20 +904,20 @@ void GPT::_FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval)
 /***************************************************************************
     Fill/frame a polygon with a 2-color pattern or solid color.
 ***************************************************************************/
-void GPT::DrawPoly(HQ hqoly, GDD *pgdd)
+void GraphicsPort::DrawPoly(HQ hqoly, GDD *pgdd)
 {
     AssertThis(0);
     AssertHq(hqoly);
     AssertVarMem(pgdd);
 
-    _Fill(PvLockHq(hqoly), pgdd, (PFNDRW)&GPT::_FillPoly);
+    _Fill(PvLockHq(hqoly), pgdd, (PFNDRW)&GraphicsPort::_FillPoly);
     UnlockHq(hqoly);
 }
 
 /***************************************************************************
     Draw a line.
 ***************************************************************************/
-void GPT::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
+void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(ppts1);
@@ -975,14 +975,14 @@ void GPT::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
     }
     Assert(pptsDst == &poly->rgpts[4], "wrote off end of OLY");
 
-    _Fill(poly, pgdd, (PFNDRW)&GPT::_FillPoly);
+    _Fill(poly, pgdd, (PFNDRW)&GraphicsPort::_FillPoly);
 }
 
 /***************************************************************************
     Low level call back to fill a rectangle.  Assumes the current pen
     is NULL and the brush is set as desired.
 ***************************************************************************/
-void GPT::_FillRcs(RCS *prcs)
+void GraphicsPort::_FillRcs(RCS *prcs)
 {
     AssertVarMem(prcs);
 
@@ -994,7 +994,7 @@ void GPT::_FillRcs(RCS *prcs)
     Low level call back to fill an oval (ellipse).  Assumes the current
     pen is NULL and the brush is set as desired.
 ***************************************************************************/
-void GPT::_FillOval(RCS *prcs)
+void GraphicsPort::_FillOval(RCS *prcs)
 {
     AssertVarMem(prcs);
 
@@ -1006,7 +1006,7 @@ void GPT::_FillOval(RCS *prcs)
     Low level call back to fill a region.  Assumes the current pen is
     NULL and the brush is set as desired.
 ***************************************************************************/
-void GPT::_FillRgn(HRGN *phrgn)
+void GraphicsPort::_FillRgn(HRGN *phrgn)
 {
     AssertVarMem(phrgn);
 
@@ -1018,7 +1018,7 @@ void GPT::_FillRgn(HRGN *phrgn)
     Low level call back to fill a polygon.  Assumes the current pen is
     NULL and the brush is set as desired.
 ***************************************************************************/
-void GPT::_FillPoly(OLY *poly)
+void GraphicsPort::_FillPoly(OLY *poly)
 {
     AssertVarMem(poly);
 
@@ -1030,7 +1030,7 @@ void GPT::_FillPoly(OLY *poly)
     Make sure the clipping is set to this rectangle and make sure the
     palette is selected.
 ***************************************************************************/
-void GPT::_SetClip(RCS *prcsClip)
+void GraphicsPort::_SetClip(RCS *prcsClip)
 {
     AssertNilOrVarMem(prcsClip);
     RC rc, rcT;
@@ -1042,7 +1042,7 @@ void GPT::_SetClip(RCS *prcsClip)
 
     if (_fMetaFile)
     {
-        // in a metafile GPT, clip to the bounding rectangle
+        // in a metafile GraphicsPort, clip to the bounding rectangle
         rc.FIntersect(&_rcOff);
     }
 
@@ -1082,9 +1082,9 @@ void GPT::_SetClip(RCS *prcsClip)
 }
 
 /***************************************************************************
-    Make sure the palette is set up correctly in this GPT.
+    Make sure the palette is set up correctly in this GraphicsPort.
 ***************************************************************************/
-void GPT::_EnsurePalette(void)
+void GraphicsPort::_EnsurePalette(void)
 {
     if (_cactPal == _cactPalCur || pvNil == _prgclr)
         return;
@@ -1109,7 +1109,7 @@ void GPT::_EnsurePalette(void)
 /***************************************************************************
     Low level routine to fill an object with a color.
 ***************************************************************************/
-void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
+void GraphicsPort::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
 {
     AbstractColor acrFore;
 
@@ -1210,7 +1210,7 @@ void GPT::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
 /***************************************************************************
     Scroll a rectangle.
 ***************************************************************************/
-void GPT::ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd)
+void GraphicsPort::ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -1224,7 +1224,7 @@ void GPT::ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd)
 /***************************************************************************
     Draw some text.
 ***************************************************************************/
-void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf)
+void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1295,7 +1295,7 @@ void GPT::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *
 /***************************************************************************
     Get the bounding text rectangle.
 ***************************************************************************/
-void GPT::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
+void GraphicsPort::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -1362,7 +1362,7 @@ void GPT::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescrip
 /***************************************************************************
     Select a monochrome patterned brush corresponding to the AbstractPattern.
 ***************************************************************************/
-void GPT::_SetAptBrush(AbstractPattern *papt)
+void GraphicsPort::_SetAptBrush(AbstractPattern *papt)
 {
     AssertVarMem(papt);
     short rgw[8];
@@ -1399,7 +1399,7 @@ void GPT::_SetAptBrush(AbstractPattern *papt)
 /***************************************************************************
     Select a solid brush corresponding to the acr.
 ***************************************************************************/
-void GPT::_SetAcrBrush(AbstractColor acr)
+void GraphicsPort::_SetAcrBrush(AbstractColor acr)
 {
     HBRUSH hbr;
 
@@ -1425,7 +1425,7 @@ void GPT::_SetAcrBrush(AbstractColor acr)
 /***************************************************************************
     Select a stock brush.
 ***************************************************************************/
-void GPT::_SetStockBrush(int wType)
+void GraphicsPort::_SetStockBrush(int wType)
 {
     HBRUSH hbr;
 
@@ -1452,7 +1452,7 @@ void GPT::_SetStockBrush(int wType)
     Select a font corresponding to the FontDescription.  Also, set the alignment as
     specified in the FontDescription.
 ***************************************************************************/
-void GPT::_SetTextProps(FontDescription *pdsf)
+void GraphicsPort::_SetTextProps(FontDescription *pdsf)
 {
     AssertPo(pdsf, 0);
     static int _mptahw[] = {
@@ -1501,9 +1501,9 @@ LSetAlignment:
 }
 
 /***************************************************************************
-    Copy bits from pgptSrc to this GPT.
+    Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GPT::CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
+void GraphicsPort::CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pgptSrc, 0);
@@ -1620,7 +1620,7 @@ void GPT::CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GPT::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(ppic, 0);
@@ -1644,7 +1644,7 @@ void GPT::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
     Draw the masked bitmap in the given rectangle.  pgdd->prcsClip is the
     clipping rectangle.
 ***************************************************************************/
-void GPT::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1682,9 +1682,9 @@ void GPT::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
     }
     else
     {
-        // need to create a temporary offscreen GPT for the Mask, set the Mask
-        // area to white in this GPT, then create an offscreen GPT for the
-        // actual MBMP graphic, then blt to this GPT.
+        // need to create a temporary offscreen GraphicsPort for the Mask, set the Mask
+        // area to white in this GraphicsPort, then create an offscreen GraphicsPort for the
+        // actual MBMP graphic, then blt to this GraphicsPort.
         PT ptSrc;
         PGPT pgpt;
 
@@ -1693,7 +1693,7 @@ void GPT::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
 
         ptSrc = rcSrc.PtTopLeft();
         rcSrc.OffsetToOrigin();
-        if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rcSrc, 1)))
+        if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rcSrc, 1)))
         {
             Warn("Drawing MBMP failed");
             return;
@@ -1707,7 +1707,7 @@ void GPT::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
                    rcSrc.Dyp(), SRCPAINT);
         ReleasePpo(&pgpt);
 
-        if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rcSrc, 8)))
+        if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rcSrc, 8)))
         {
             Warn("Drawing MBMP failed");
             return;
@@ -1727,7 +1727,7 @@ void GPT::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Draw a dib using DrawDibDraw.
 ***************************************************************************/
-void GPT::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(pbi);
@@ -1747,9 +1747,9 @@ void GPT::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Test the validity of the port.
 ***************************************************************************/
-void GPT::AssertValid(ulong grf)
+void GraphicsPort::AssertValid(ulong grf)
 {
-    GPT_PAR::AssertValid(0);
+    GraphicsPort_PAR::AssertValid(0);
     HBRUSH hbr;
     HFONT hfnt;
 
@@ -1778,9 +1778,9 @@ void GPT::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Static method to mark static GPT memory.
+    Static method to mark static GraphicsPort memory.
 ***************************************************************************/
-void GPT::MarkStaticMem(void)
+void GraphicsPort::MarkStaticMem(void)
 {
     MarkPv(_prgclr);
 }

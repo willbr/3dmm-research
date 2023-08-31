@@ -1486,10 +1486,10 @@ DOCPIC *DOCPIC::PdocpicNew(void)
         pglclr->FPush(&clr);
         _cact = (_cact + 1) % 3;
     }
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
-    if (pvNil == (pgpt = GPT::PgptNewPic(&rc)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNewPic(&rc)))
         return pvNil;
     if (pvNil != (pgnv = NewObj GraphicsEnvironment(pgpt)))
     {
@@ -1619,7 +1619,7 @@ bool FrameTesterApp::FCmdTestPictures(PCMD pcmd)
     return fTrue;
 }
 
-// GPT Document.
+// GraphicsPort Document.
 #define DOCGPT_PAR DocumentBase
 class DOCGPT : public DOCGPT_PAR
 {
@@ -1641,7 +1641,7 @@ class DOCGPT : public DOCGPT_PAR
     }
 };
 
-// GPT display class.
+// GraphicsPort display class.
 #define DDGPT_PAR DocumentDisplayGraphicsObject
 class DDGPT : public DDGPT_PAR
 {
@@ -1727,7 +1727,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
         pglclr->FPush(&clr);
         _cact = (_cact + 1) % 3;
     }
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
     pdocgpt = pvNil;
@@ -1736,7 +1736,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     pgnv = pvNil;
 
     // Create the gpt
-    if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rc, 8)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rc, 8)))
         goto LFail;
 
     if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
@@ -1924,7 +1924,7 @@ bool FrameTesterApp::FCmdSetScreen(PCMD pcmd)
         cbit = 32;
         break;
     }
-    GPT::FSetScreenState(cbit, tColor);
+    GraphicsPort::FSetScreenState(cbit, tColor);
     return fTrue;
 }
 
@@ -1939,7 +1939,7 @@ bool FrameTesterApp::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
     bool fEnable;
     long cbit;
 
-    GPT::GetScreenState(&cbitPixel, &fColor);
+    GraphicsPort::GetScreenState(&cbitPixel, &fColor);
     switch (pcmd->cid)
     {
     default:
@@ -1947,11 +1947,11 @@ bool FrameTesterApp::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
 
     case cidSetColor:
         fCheck = fColor;
-        fEnable = fCheck || GPT::FCanScreen(cbitPixel, fTrue);
+        fEnable = fCheck || GraphicsPort::FCanScreen(cbitPixel, fTrue);
         break;
     case cidSetGrayScale:
         fCheck = !fColor;
-        fEnable = fCheck || GPT::FCanScreen(cbitPixel, fFalse);
+        fEnable = fCheck || GraphicsPort::FCanScreen(cbitPixel, fFalse);
         break;
     case cidSetDepth1:
         cbit = 1;
@@ -1972,7 +1972,7 @@ bool FrameTesterApp::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
         cbit = 32;
     LAll:
         fCheck = cbit == cbitPixel;
-        fEnable = fCheck || GPT::FCanScreen(cbit, fColor);
+        fEnable = fCheck || GraphicsPort::FCanScreen(cbit, fColor);
         break;
     }
 

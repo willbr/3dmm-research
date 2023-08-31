@@ -1173,7 +1173,7 @@ void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong g
         pgptDst->ClipToRegn(&pregnClip);
         _CopyPixels(&gnvOff, &rc, &gnv, &rc);
         pgptDst->ClipToRegn(&pregnClip);
-        GPT::Flush();
+        GraphicsPort::Flush();
     }
 }
 
@@ -1258,9 +1258,9 @@ void ApplicationBase::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *pr
 }
 
 /***************************************************************************
-    Get an offscreen GPT big enough to enclose the given rectangle.
+    Get an offscreen GraphicsPort big enough to enclose the given rectangle.
     Should minimize reallocations.  Doesn't increment a ref count.
-    ApplicationBase maintains ownership of the GPT.
+    ApplicationBase maintains ownership of the GraphicsPort.
 ***************************************************************************/
 PGPT ApplicationBase::_PgptEnsure(RC *prc)
 {
@@ -1273,7 +1273,7 @@ PGPT ApplicationBase::_PgptEnsure(RC *prc)
     {
         ReleasePpo(&_pgptOff);
         rc.Set(0, 0, LwMax(prc->Dxp(), _dxpOff), LwMax(prc->Dyp(), _dypOff));
-        _pgptOff = GPT::PgptNewOffscreen(&rc, 8);
+        _pgptOff = GraphicsPort::PgptNewOffscreen(&rc, 8);
         if (pvNil != _pgptOff)
         {
             _dxpOff = rc.Dxp();
@@ -1759,7 +1759,7 @@ void ApplicationBase::MarkMem(void)
         }
     }
 
-    GPT::MarkStaticMem();
+    GraphicsPort::MarkStaticMem();
     CLOK::MarkAllCloks();
     if ((pgob = GraphicsObject::PgobScreen()) != pvNil)
         pgob->MarkGobTree();

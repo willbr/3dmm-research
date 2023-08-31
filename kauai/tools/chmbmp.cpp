@@ -159,7 +159,7 @@ void DCMBMP::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->FillRcApt(&rcMbmp, &vaptLtGray, kacrLtGray, kacrWhite);
 
-    // draw mbmp in GPT
+    // draw mbmp in GraphicsPort
     pgnv->DrawMbmp(_pmbmp, &rcMbmp);
 }
 

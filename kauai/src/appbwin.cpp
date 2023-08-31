@@ -425,7 +425,7 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
             return fTrue;
         // fall thru
     case WM_QUERYNEWPALETTE:
-        *plwRet = GPT::CclrSetPalette(hwnd, fTrue) > 0;
+        *plwRet = GraphicsPort::CclrSetPalette(hwnd, fTrue) > 0;
         return fTrue;
 
     case WM_GETMINMAXINFO:
@@ -661,7 +661,7 @@ bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM 
         // make sure the palette is selected and realized....
         // theoretically, we shouldn't have to do this, but because
         // of past and present Win bugs, we do it to be safe.
-        GPT::CclrSetPalette(hwnd, fFalse);
+        GraphicsPort::CclrSetPalette(hwnd, fFalse);
 
         // invalidate stuff that we have marked internally (may as well
         // draw everything that needs drawn).

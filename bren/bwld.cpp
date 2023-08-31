@@ -149,7 +149,7 @@ bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
 
     // Set up background RGB buffer
     ReleasePpo(&_pgptBackground);
-    _pgptBackground = GPT::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
+    _pgptBackground = GraphicsPort::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
     if (pvNil == _pgptBackground)
         return fFalse;
 
@@ -159,7 +159,7 @@ bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
         _pgptWorking->Unlock();
         ReleasePpo(&_pgptWorking);
     }
-    _pgptWorking = GPT::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
+    _pgptWorking = GraphicsPort::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
     if (pvNil == _pgptWorking)
         return fFalse;
     Assert(kcbitPixelRGB == 8, "change _bpmpRGB.type");
@@ -176,7 +176,7 @@ bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
     ReleasePpo(&_pgptStretch);
     if (!_fHalfX && _fHalfY)
     {
-        _pgptStretch = GPT::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
+        _pgptStretch = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
         if (pvNil == _pgptStretch)
             return fFalse;
     }
@@ -363,7 +363,7 @@ bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumbe
         byte *pbDst;
         long cbRowSrc;
         long cbRowDst;
-        pgptFull = GPT::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
+        pgptFull = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
         if (pvNil == _pgptBackground)
         {
             ReleasePpo(&pmbmpNew);
@@ -546,7 +546,7 @@ void World::Prerender(void)
 
     // Need to ensure that the current contents of _pgptWorking (just the
     // prerenderable actors) go into _pgptBackground
-    GPT::Flush();
+    GraphicsPort::Flush();
 }
 
 /***************************************************************************
@@ -799,7 +799,7 @@ bool World::FWriteBmp(PFilename pfni)
     bool fRet;
     RC rc;
 
-    fRet = FWriteBitmap(pfni, _pgptWorking->PrgbLockPixels(&rc), GPT::PglclrGetPalette(), _rcBuffer.Dxp(),
+    fRet = FWriteBitmap(pfni, _pgptWorking->PrgbLockPixels(&rc), GraphicsPort::PglclrGetPalette(), _rcBuffer.Dxp(),
                         _rcBuffer.Dyp());
     _pgptWorking->Unlock();
     return fRet;

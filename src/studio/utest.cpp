@@ -1492,7 +1492,7 @@ bool APP::_FDisplayHomeLogo(bool fSkipSplashScreen)
     pglclr = DynamicArray::PglRead(&blck, &bo, &osk);
     if (pvNil == pglclr)
         return fFalse;
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
     if (!fSkipSplashScreen) {
@@ -2059,10 +2059,10 @@ bool APP::_FDetermineIfSlowCPU(void)
     // then blit it back to the window 100 times.
     rc1.Set(0, 0, 300, 300);
     rc2.Set(0, 0, 300, 300);
-    pgptWnd = GPT::PgptNewHwnd(vwig.hwndApp);
+    pgptWnd = GraphicsPort::PgptNewHwnd(vwig.hwndApp);
     if (pvNil == pgptWnd)
         goto LFail;
-    pgptOff = GPT::PgptNewOffscreen(&rc1, 8); // World RGB buffer is 8-bit
+    pgptOff = GraphicsPort::PgptNewOffscreen(&rc1, 8); // World RGB buffer is 8-bit
     if (pvNil == pgptOff)
     {
         goto LFail;

@@ -20,7 +20,7 @@
 #include "util.h"
 #include "keys.h"
 
-class GPT;  // graphics port
+class GraphicsPort;  // graphics port
 class GraphicsEnvironment;  // graphics environment
 class CMH;  // command handler
 class GraphicsObject;  // graphic object
@@ -32,7 +32,7 @@ class DSG;  // document scroll gob
 class DocumentDisplayGraphicsObject;  // document display gob
 class SNDM; // sound manager
 
-typedef class GPT *PGPT;
+typedef class GraphicsPort *PGPT;
 typedef class GraphicsEnvironment *PGNV;
 typedef class CMH *PCMH;
 typedef class GraphicsObject *PGraphicsObject;

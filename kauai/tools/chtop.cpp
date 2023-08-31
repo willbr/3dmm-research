@@ -1208,7 +1208,7 @@ bool HEDG::FCmdPrint(PCMD pcmd)
     if (!(GetDeviceCaps(pd.hDC, RASTERCAPS) & RC_BITBLT))
         goto LFail;
 
-    if (pvNil == (pgpt = GPT::PgptNew(pd.hDC)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNew(pd.hDC)))
         goto LFail;
     if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
         goto LFail;
@@ -3092,7 +3092,7 @@ bool HETG::FCmdPrint(PCMD pcmd)
     if (!(GetDeviceCaps(pd.hDC, RASTERCAPS) & RC_BITBLT))
         goto LFail;
 
-    if (pvNil == (pgpt = GPT::PgptNew(pd.hDC)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNew(pd.hDC)))
         goto LFail;
     if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
         goto LFail;

@@ -5495,7 +5495,7 @@ void Movie::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
     PDynamicArray pglclrBkgd = pvNil;
     long iclrMin;
 
-    pglclrSystem = GPT::PglclrGetPalette();
+    pglclrSystem = GraphicsPort::PglclrGetPalette();
     if (Pscen() == pvNil || !Pscen()->Pbkgd()->FGetPalette(&pglclrBkgd, &iclrMin))
     {
         pglclrBkgd = pvNil;
@@ -5526,7 +5526,7 @@ void Movie::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
 
     case transCut:
         pgnvDst->FillRc(prcDst, kacrBlack);
-        GPT::SetActiveColors(pglclrSystem, fpalIdentity);
+        GraphicsPort::SetActiveColors(pglclrSystem, fpalIdentity);
         pgnvDst->CopyPixels(pgnvSrc, prcSrc, prcDst);
         break;
 

@@ -61,7 +61,7 @@ bool GraphicsObject::FAttachHwnd(HWND hwnd)
     }
     if (hwnd != hNil)
     {
-        if ((_pgpt = GPT::PgptNew(&hwnd->port)) == pvNil)
+        if ((_pgpt = GraphicsPort::PgptNew(&hwnd->port)) == pvNil)
             return fFalse;
         _hwnd = hwnd;
         if (_hwnd->windowKind != dialogKind)

@@ -102,7 +102,7 @@ bool EDCB::_FInit(void)
     {
         RC rc(0, 0, 1, 1);
 
-        if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rc, 8)))
+        if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rc, 8)))
             return fFalse;
     }
     else

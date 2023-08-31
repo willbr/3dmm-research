@@ -56,7 +56,7 @@ bool GraphicsObject::FAttachHwnd(HWND hwnd)
     }
     if (hwnd != hNil)
     {
-        if (pvNil == (_pgpt = GPT::PgptNewHwnd(hwnd)))
+        if (pvNil == (_pgpt = GraphicsPort::PgptNewHwnd(hwnd)))
             return fFalse;
         _hwnd = hwnd;
         SetRcFromHwnd();

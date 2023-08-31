@@ -20,7 +20,7 @@ AbstractPattern vaptDkGray = {0xDD, 0x77, 0xBB, 0xEE, 0xDD, 0x77, 0xBB, 0xEE};
 NTL vntl;
 
 RTCLASS(GraphicsEnvironment)
-RTCLASS(GPT)
+RTCLASS(GraphicsPort)
 RTCLASS(NTL)
 RTCLASS(OGN)
 
@@ -112,7 +112,7 @@ void AbstractPattern::MoveOrigin(long dxp, long dyp)
 /***************************************************************************
     Constructor for Graphics environment.
 ***************************************************************************/
-GraphicsEnvironment::GraphicsEnvironment(GPT *pgpt)
+GraphicsEnvironment::GraphicsEnvironment(GraphicsPort *pgpt)
 {
     AssertPo(pgpt, 0);
 
@@ -1167,17 +1167,17 @@ bool GraphicsEnvironment::_FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray
     *ppglclrTrans = pvNil;
 
     // get the current palette and set up the temporary transitionary palette
-    if (0 != cbitPixel && _pgpt->CbitPixel() != cbitPixel || pvNil == (*ppglclrOld = GPT::PglclrGetPalette()) ||
+    if (0 != cbitPixel && _pgpt->CbitPixel() != cbitPixel || pvNil == (*ppglclrOld = GraphicsPort::PglclrGetPalette()) ||
         0 == (cclr = LwMin((*ppglclrOld)->IvMac(), cclr)) || pvNil == (*ppglclrTrans = DynamicArray::PglNew(size(Color), cclr)))
     {
         ReleasePpo(ppglclrOld);
         if (pvNil != pglclr)
-            GPT::SetActiveColors(pglclr, fpalIdentity);
+            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
         return fFalse;
     }
 
     AssertDo((*ppglclrTrans)->FSetIvMac(cclr), 0);
-    GPT::SetActiveColors(*ppglclrOld, fpalIdentity | fpalInitAnim);
+    GraphicsPort::SetActiveColors(*ppglclrOld, fpalIdentity | fpalInitAnim);
     return fTrue;
 }
 
@@ -1222,7 +1222,7 @@ void GraphicsEnvironment::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray p
         pglclrTrans->Put(iclr, &clrOld);
     }
 
-    GPT::SetActiveColors(pglclrTrans, fpalIdentity | fpalAnimate);
+    GraphicsPort::SetActiveColors(pglclrTrans, fpalIdentity | fpalAnimate);
 }
 
 /***************************************************************************
@@ -1234,7 +1234,7 @@ bool GraphicsEnvironment::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
     PGPT pgpt;
     PGNV pgnv;
 
-    if (pvNil == (pgpt = GPT::PgptNewOffscreen(prc, 8)) || pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(prc, 8)) || pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
     {
         ReleasePpo(&pgpt);
         *ppgnv = pvNil;
@@ -1243,7 +1243,7 @@ bool GraphicsEnvironment::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
 
     ReleasePpo(&pgpt);
     pgnv->CopyPixels(this, prc, prc);
-    GPT::Flush();
+    GraphicsPort::Flush();
     *ppgnv = pgnv;
     return fTrue;
 }
@@ -1274,7 +1274,7 @@ void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC
 
     Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");
 
-    GPT::Flush();
+    GraphicsPort::Flush();
     if (!FIn(dts, 1, kdtsMaxTrans))
         dts = kdtsSecond;
 
@@ -1322,14 +1322,14 @@ void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC
                     FillRc(&rc2, acrFill);
                 else
                     CopyPixels(pgnvSrc, &rc1, &rc2);
-                GPT::Flush();
+                GraphicsPort::Flush();
             }
         }
 
         if (pvNil != pglclr)
         {
             // set the palette
-            GPT::SetActiveColors(pglclr, fpalIdentity);
+            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
             pglclr = pvNil; // so we don't transition during the second wipe
         }
     }
@@ -1368,9 +1368,9 @@ void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, R
     if (!_FEnsureTempGnv(&pgnv, prcDst))
     {
         if (pvNil != pglclr)
-            GPT::SetActiveColors(pglclr, fpalIdentity);
+            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
         CopyPixels(pgnvSrc, prcSrc, prcDst);
-        GPT::Flush();
+        GraphicsPort::Flush();
         return;
     }
 
@@ -1434,21 +1434,21 @@ void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, R
             {
                 // copy the result to the destination
                 CopyPixels(pgnv, prcDst, prcDst);
-                GPT::Flush();
+                GraphicsPort::Flush();
             }
         }
 
         if (pvNil != pglclr)
         {
             // set the palette
-            GPT::SetActiveColors(pglclr, fpalIdentity);
+            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
 
             // if we're not in 8 bit and cact is 1, copy the pixels so we
             // make sure we've drawn the picture after the last palette change
             if (1 == cact && _pgpt->CbitPixel() != 8)
             {
                 CopyPixels(pgnv, prcDst, prcDst);
-                GPT::Flush();
+                GraphicsPort::Flush();
             }
             pglclr = pvNil; // so we don't transition during the second wipe
         }
@@ -1548,7 +1548,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
             pgptSrc = pgnvSrc->Pgpt();
             if (pgptSrc->CbitPixel() != 8 || pvNil == (prgbSrc = pgptSrc->PrgbLockPixels(&rc2)))
             {
-                Bug("Can't dissolve from this GPT");
+                Bug("Can't dissolve from this GraphicsPort");
                 goto LFail;
             }
             rc1 = *prcSrc;
@@ -1569,12 +1569,12 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
                 pgnvSrc->Pgpt()->Unlock();
 
             if (pvNil != pglclr)
-                GPT::SetActiveColors(pglclr, fpalIdentity);
+                GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
             if (pvNil != pgnvSrc)
                 CopyPixels(pgnvSrc, prcSrc, prcDst);
             else
                 FillRc(prcDst, acrFill);
-            GPT::Flush();
+            GraphicsPort::Flush();
             return;
         }
         prgbDst = pgnv->Pgpt()->PrgbLockPixels();
@@ -1587,7 +1587,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
 
             rc1.Set(prcDst->xpLeft, prcDst->ypTop, prcDst->xpLeft + 1, prcDst->ypTop + 1);
             pgnv->FillRc(&rc1, acrFill);
-            GPT::Flush();
+            GraphicsPort::Flush();
             bFill = prgbDst[0];
             prgbDst[0] = bT;
         }
@@ -1743,7 +1743,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
 
         LBlastToScreen:
             CopyPixels(pgnv, prcDst, prcDst);
-            GPT::Flush();
+            GraphicsPort::Flush();
 
         LPaletteTrans:
             if (cact == 1 && pglclr != pvNil)
@@ -1754,14 +1754,14 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
         if (pvNil != pglclr)
         {
             // set the palette
-            GPT::SetActiveColors(pglclr, fpalIdentity);
+            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
 
             // if we're not in 8 bit and cact is 1, copy the pixels so we
             // make sure we've drawn the picture after the last palette change
             if (pvNil != pgnv && 1 == cact && _pgpt->CbitPixel() != 8)
             {
                 CopyPixels(pgnv, prcDst, prcDst);
-                GPT::Flush();
+                GraphicsPort::Flush();
             }
             pglclr = pvNil; // so we don't transition during the second wipe
         }
@@ -1804,11 +1804,11 @@ void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc
     if (!_FInitPaletteTrans(pglclr, &pglclrOld, &pglclrTrans, 8))
     {
         CopyPixels(pgnvSrc, prcSrc, prcDst);
-        GPT::Flush();
+        GraphicsPort::Flush();
         return;
     }
 
-    GPT::Flush();
+    GraphicsPort::Flush();
 
     if (!FIn(dts, 1, kdtsMaxTrans))
         dts = kdtsSecond;
@@ -1825,7 +1825,7 @@ void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc
     }
 
     CopyPixels(pgnvSrc, prcSrc, prcDst);
-    GPT::Flush();
+    GraphicsPort::Flush();
 
     if (pvNil == pglclr)
         pglclr = pglclrOld;
@@ -1839,7 +1839,7 @@ void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc
             _PaletteTrans(pvNil, pglclr, cact, cactMax, pglclrTrans, &clr);
     }
 
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclrOld);
     ReleasePpo(&pglclrTrans);
 }
@@ -1867,7 +1867,7 @@ void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill
     PDynamicArray pglclrOld = pvNil;
     PDynamicArray pglclrTrans = pvNil;
 
-    GPT::Flush();
+    GraphicsPort::Flush();
 
     if (pvNil == (pregn = REGN::PregnNew(prcDst)))
         goto LFail;
@@ -1932,7 +1932,7 @@ void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill
                 ReleasePpo(&pregn);
             LFail:
                 if (pvNil != pglclr)
-                    GPT::SetActiveColors(pglclr, fpalIdentity);
+                    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
                 CopyPixels(pgnvSrc, prcSrc, prcDst);
                 return;
             }
@@ -1943,14 +1943,14 @@ void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill
                 FillRc(prcDst, acrFill);
             else
                 CopyPixels(pgnvSrc, prcSrc, prcDst);
-            GPT::Flush();
+            GraphicsPort::Flush();
             _pgpt->ClipToRegn(&pregn);
         }
 
         if (pvNil != pglclr)
         {
             // set the palette
-            GPT::SetActiveColors(pglclr, fpalIdentity);
+            GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
             pglclr = pvNil; // so we don't transition during the second iris
         }
     }
@@ -2061,10 +2061,10 @@ void GraphicsEnvironment::Restore(void)
 
 /***************************************************************************
     Clip to the region specified by *ppregn.  *ppregn is set to the previous
-    clip region (may be pvNil).  The GPT takes over ownership of the region
+    clip region (may be pvNil).  The GraphicsPort takes over ownership of the region
     and relinquishes ownership of the old region.
 ***************************************************************************/
-void GPT::ClipToRegn(PREGN *ppregn)
+void GraphicsPort::ClipToRegn(PREGN *ppregn)
 {
     if (_ptBase.xp != 0 || _ptBase.yp != 0)
     {
@@ -2078,10 +2078,10 @@ void GPT::ClipToRegn(PREGN *ppregn)
 }
 
 /***************************************************************************
-    Set the base PT for the GPT.  This affects the mapping of any attached
+    Set the base PT for the GraphicsPort.  This affects the mapping of any attached
     GNVs.
 ***************************************************************************/
-void GPT::SetPtBase(PT *ppt)
+void GraphicsPort::SetPtBase(PT *ppt)
 {
     AssertThis(0);
     AssertVarMem(ppt);
@@ -2089,9 +2089,9 @@ void GPT::SetPtBase(PT *ppt)
 }
 
 /***************************************************************************
-    Get the base PT for the GPT.
+    Get the base PT for the GraphicsPort.
 ***************************************************************************/
-void GPT::GetPtBase(PT *ppt)
+void GraphicsPort::GetPtBase(PT *ppt)
 {
     AssertThis(0);
     AssertVarMem(ppt);
@@ -2100,12 +2100,12 @@ void GPT::GetPtBase(PT *ppt)
 
 #ifdef DEBUG
 /***************************************************************************
-    Mark memory for the GPT.
+    Mark memory for the GraphicsPort.
 ***************************************************************************/
-void GPT::MarkMem(void)
+void GraphicsPort::MarkMem(void)
 {
     AssertValid(0);
-    GPT_PAR::MarkMem();
+    GraphicsPort_PAR::MarkMem();
     MarkMemObj(_pregnClip);
 }
 

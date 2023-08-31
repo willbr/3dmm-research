@@ -107,8 +107,8 @@ class ApplicationBase : public ApplicationBase_PAR
     PDynamicArray _pglmkrgn;        // list of marked regions for fast updating
     long _onnDefFixed;    // default fixed pitch font
     long _onnDefVariable; // default variable pitched font
-    PGPT _pgptOff;        // cached offscreen GPT for offscreen updates
-    long _dxpOff;         // size of the offscreen GPT
+    PGPT _pgptOff;        // cached offscreen GraphicsPort for offscreen updates
+    long _dxpOff;         // size of the offscreen GraphicsPort
     long _dypOff;
 
     long _xpMouse; // location of mouse on last reported mouse move
@@ -176,7 +176,7 @@ class ApplicationBase : public ApplicationBase_PAR
     void _MarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo);
     void _UnmarkRegnRc(PREGN pregn, RC *prc, PGraphicsObject pgobCoo);
 
-    // to borrow the common offscreen GPT
+    // to borrow the common offscreen GraphicsPort
     virtual PGPT _PgptEnsure(RC *prc);
 
     // property list management

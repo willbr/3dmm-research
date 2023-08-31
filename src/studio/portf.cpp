@@ -744,7 +744,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 Assert(hfnt != hNil, "Portfolio - draw items GetStockObject(SYSTEM_FONT) failed");
                 hfntold = (HFONT)SelectObject(pDrawItem->hDC, hfnt);
 
-                if ((pgpt = GPT::PgptNew(pDrawItem->hDC)) != pvNil)
+                if ((pgpt = GraphicsPort::PgptNew(pDrawItem->hDC)) != pvNil)
                 {
                     GraphicsEnvironment gnv(pgpt);
                     PGNV pgnvOff;
@@ -755,14 +755,14 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                     // to dlg on screen. If we blit straight from mbmp to screen,
                     // then screen flashes. (Due to white fillrect).
 
-                    if ((pgptOff = GPT::PgptNewOffscreen(&rcItem, 8)) != pvNil)
+                    if ((pgptOff = GraphicsPort::PgptNewOffscreen(&rcItem, 8)) != pvNil)
                     {
                         if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                         {
                             pgnvOff->DrawMbmp(pmbmp, rcItem.xpLeft, rcItem.ypTop);
 
                             gnv.CopyPixels(pgnvOff, &rcItem, &rcItem);
-                            GPT::Flush();
+                            GraphicsPort::Flush();
 
                             ReleasePpo(&pgnvOff);
                         }
@@ -1058,7 +1058,7 @@ void RepaintPortfolio(HWND hwndCustom)
         Assert(hfnt != hNil, "Portfolio - draw background GetStockObject(SYSTEM_FONT) failed");
         hfntold = (HFONT)SelectObject(ps.hdc, hfnt);
 
-        if ((pgpt = GPT::PgptNew(ps.hdc)) != pvNil)
+        if ((pgpt = GraphicsPort::PgptNew(ps.hdc)) != pvNil)
         {
             RC rcDisplay;
             RCS rcsPort, rcsPreview;
@@ -1076,7 +1076,7 @@ void RepaintPortfolio(HWND hwndCustom)
             // Must create offscreen dc and blit into that. Then blit that to dlg on screen.
             // If we blit straight from	mbmp to screen, then screen flashes. (Due to white FILLRECT).
 
-            if ((pgptOff = GPT::PgptNewOffscreen(&rcDisplay, 8)) != pvNil)
+            if ((pgptOff = GraphicsPort::PgptNewOffscreen(&rcDisplay, 8)) != pvNil)
             {
                 if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                 {
@@ -1173,7 +1173,7 @@ void RepaintPortfolio(HWND hwndCustom)
 
                     // Now finally blit our portfolio image to the screen.
                     gnv.CopyPixels(pgnvOff, &rcDisplay, &rcDisplay);
-                    GPT::Flush();
+                    GraphicsPort::Flush();
 
                     ReleasePpo(&pgnvOff);
                 }
@@ -1382,14 +1382,14 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
         Assert(hfnt != hNil, "Portfolio - draw Preview GetStockObject(SYSTEM_FONT) failed");
         hfntold = (HFONT)SelectObject(ps.hdc, hfnt);
 
-        if ((pgpt = GPT::PgptNew(ps.hdc)) != pvNil)
+        if ((pgpt = GraphicsPort::PgptNew(ps.hdc)) != pvNil)
         {
             GraphicsEnvironment gnv(pgpt);
 
             GetClientRect(hwndPreview, &rcsPreview);
             rcPreview = rcsPreview;
 
-            if ((pgptOff = GPT::PgptNewOffscreen(&rcPreview, 8)) != pvNil)
+            if ((pgptOff = GraphicsPort::PgptNewOffscreen(&rcPreview, 8)) != pvNil)
             {
                 if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                 {
@@ -1398,7 +1398,7 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
 
                     // Now update the screen.
                     gnv.CopyPixels(pgnvOff, &rcPreview, &rcPreview);
-                    GPT::Flush();
+                    GraphicsPort::Flush();
 
                     ReleasePpo(&pgnvOff);
                 }

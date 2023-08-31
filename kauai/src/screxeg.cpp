@@ -1187,7 +1187,7 @@ void GraphicsObjectInterpreter::_SetColorTable(ChunkNumber cno)
     if (pvNil == (pglclr = _PglclrGet(cno)))
         return;
 
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 }
 
