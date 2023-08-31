@@ -23,15 +23,15 @@ enum
     fclokNoSlip = 2,
 };
 
-typedef class CLOK *PCLOK;
-#define CLOK_PAR CMH
-#define kclsCLOK 'CLOK'
-class CLOK : public CLOK_PAR
+typedef class Clock *PClock;
+#define Clock_PAR CMH
+#define kclsClock 'CLOK'
+class Clock : public Clock_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(CLOK)
+    CMD_MAP_DEC(Clock)
 
   protected:
     // alarm descriptor
@@ -42,9 +42,9 @@ class CLOK : public CLOK_PAR
         long lw;
     };
 
-    static PCLOK _pclokFirst;
+    static PClock _pclokFirst;
 
-    PCLOK _pclokNext;
+    PClock _pclokNext;
     ulong _tsBase;
     ulong _timBase;
     ulong _timCur;    // current time
@@ -54,9 +54,9 @@ class CLOK : public CLOK_PAR
     PDynamicArray _pglalad; // the registered alarms
 
   public:
-    CLOK(long hid, ulong grfclok = fclokNil);
-    ~CLOK(void);
-    static PCLOK PclokFromHid(long hid);
+    Clock(long hid, ulong grfclok = fclokNil);
+    ~Clock(void);
+    static PClock PclokFromHid(long hid);
     static void BuryCmh(PCMH pcmh);
     void RemoveCmh(PCMH pcmh);
 

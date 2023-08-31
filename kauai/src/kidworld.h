@@ -124,10 +124,10 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     StringRegistry _strg;
     ulong _grfcust;
 
-    CLOK _clokAnim;
-    CLOK _clokNoSlip;
-    CLOK _clokGen;
-    CLOK _clokReset;
+    Clock _clokAnim;
+    Clock _clokNoSlip;
+    Clock _clokGen;
+    Clock _clokReset;
 
   public:
     WorldOfKidspace(GraphicsObjectBlock *pgcb, PStringRegistry pstrg = pvNil);
@@ -154,23 +154,23 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual ulong GrfcustAdjust(ulong grfcust);
 
     virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
-    virtual PCLOK PclokAnim(void)
+    virtual PClock PclokAnim(void)
     {
         return &_clokAnim;
     }
-    virtual PCLOK PclokNoSlip(void)
+    virtual PClock PclokNoSlip(void)
     {
         return &_clokNoSlip;
     }
-    virtual PCLOK PclokGen(void)
+    virtual PClock PclokGen(void)
     {
         return &_clokGen;
     }
-    virtual PCLOK PclokReset(void)
+    virtual PClock PclokReset(void)
     {
         return &_clokReset;
     }
-    virtual PCLOK PclokFromHid(long hid);
+    virtual PClock PclokFromHid(long hid);
 };
 
 #endif //! KIDWORLD_H

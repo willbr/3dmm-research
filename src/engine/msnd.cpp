@@ -720,7 +720,7 @@ PMSQ MSQ::PmsqNew(void)
         return pvNil;
     }
 
-    if (pvNil == (pmsq->_pclok = NewObj CLOK(khidMsqClock)))
+    if (pvNil == (pmsq->_pclok = NewObj Clock(khidMsqClock)))
     {
         ReleasePpo(&pmsq);
         return pvNil;

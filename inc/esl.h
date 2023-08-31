@@ -266,7 +266,7 @@ class ESLR : public ESLR_PAR
     bool _fSpeech;     // Recording Speech or SFX?
     PEDSL _pedsl;      // Single-line edit control for sound name
     PSREC _psrec;      // Sound recording object
-    CLOK _clok;        // Clock to limit sound length
+    Clock _clok;        // Clock to limit sound length
     bool _fRecording;  // Are we recording right now?
     bool _fPlaying;    // Are we playing back the recording?
     ulong _tsStartRec; // Time at which we started recording

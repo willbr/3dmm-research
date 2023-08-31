@@ -216,7 +216,7 @@ class MSQ : public MSQ_PAR
   protected:
     PDynamicArray _pglsqe; // Sound queue entries
     long _dtim;  // Time sound allowed to play
-    PCLOK _pclok;
+    PClock _pclok;
 
   public:
     MSQ(long hid) : MSQ_PAR(hid)

@@ -60,7 +60,7 @@ class APE : public APE_PAR
     APET _apet;         // Currently selected tool
     PDynamicArray _pglgms;        // What materials are attached to what body part sets
     long _celn;         // Current cel of action
-    CLOK _clok;         // To time cel cycling
+    Clock _clok;         // To time cel cycling
     BLIT _blit;         // BRender light data
     BACT _bact;         // BRender light actor
     long _anid;         // Current action ID

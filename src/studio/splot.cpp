@@ -36,7 +36,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
     PGraphicsObject pgobPar;
     RC rcRel;
     GraphicsObjectBlock gcb;
-    CLOK clok(CMH::HidUnique());
+    Clock clok(CMH::HidUnique());
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(hidPar)) == pvNil)
     {

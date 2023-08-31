@@ -159,7 +159,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
 {
     CMD cmd;
     PGraphicsObject pgob;
-    PCLOK pclok;
+    PClock pclok;
     long hid;
     long dtim;
     long dxp, dyp;
@@ -507,7 +507,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         {
             if (hidNil == hid)
                 hid = CMH::HidUnique();
-            if (pvNil == NewObj CLOK(hid))
+            if (pvNil == NewObj Clock(hid))
                 hid = hidNil;
         }
         _Push(hid);

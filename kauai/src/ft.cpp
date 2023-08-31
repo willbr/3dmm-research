@@ -84,7 +84,7 @@ ON_CID_GEN(cidSetDepth32, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnabl
 END_CMD_MAP_NIL()
 
 FrameTesterApp vapp;
-CLOK vclok(10000);
+Clock vclok(10000);
 RND vrnd;
 
 AbstractColor _rgacr[] = {kacrBlack,   kacrBlue,   kacrGreen, kacrCyan,  kacrRed,

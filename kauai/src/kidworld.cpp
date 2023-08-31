@@ -359,7 +359,7 @@ PCMH WorldOfKidspace::PcmhFromHid(long hid)
 /***************************************************************************
     Get the clock having the given hid.
 ***************************************************************************/
-PCLOK WorldOfKidspace::PclokFromHid(long hid)
+PClock WorldOfKidspace::PclokFromHid(long hid)
 {
     AssertThis(0);
 
@@ -368,7 +368,7 @@ PCLOK WorldOfKidspace::PclokFromHid(long hid)
     if (khidClokGokReset == hid)
         return &_clokReset;
 
-    return CLOK::PclokFromHid(hid);
+    return Clock::PclokFromHid(hid);
 }
 
 /***************************************************************************

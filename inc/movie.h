@@ -579,7 +579,7 @@ class Movie : public Movie_PAR
 
     PWorld _pbwld;   // The brender world for this movie
     PMSQ _pmsq;     // Message Sound Queue
-    CLOK _clok;     // Clock for playing the film
+    Clock _clok;     // Clock for playing the film
     ulong _tsStart; // Time last play started.
     long _cnfrm;    // Number of frames since last play started.
 
@@ -929,7 +929,7 @@ class Movie : public Movie_PAR
     {
         return _fPlaying;
     } // Query the playing flag.
-    PCLOK Pclok()
+    PClock Pclok()
     {
         return &_clok;
     } // For getting the clock for playing

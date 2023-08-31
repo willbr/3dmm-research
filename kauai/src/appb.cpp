@@ -807,7 +807,7 @@ PCMH ApplicationBase::PcmhFromHid(long hid)
         return this;
     }
 
-    if (pvNil != (pcmh = CLOK::PclokFromHid(hid)))
+    if (pvNil != (pcmh = Clock::PclokFromHid(hid)))
         return pcmh;
     return GraphicsObject::PgobFromHidScr(hid);
 }
@@ -837,7 +837,7 @@ void ApplicationBase::BuryCmh(PCMH pcmh)
         }
     }
 
-    CLOK::BuryCmh(pcmh);
+    Clock::BuryCmh(pcmh);
     if (pcmh == _pgobMouse)
     {
         _pgobMouse = pvNil;
@@ -1760,7 +1760,7 @@ void ApplicationBase::MarkMem(void)
     }
 
     GraphicsPort::MarkStaticMem();
-    CLOK::MarkAllCloks();
+    Clock::MarkAllCloks();
     if ((pgob = GraphicsObject::PgobScreen()) != pvNil)
         pgob->MarkGobTree();
 }
