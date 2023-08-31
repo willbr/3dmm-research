@@ -107,7 +107,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     AssertPo(pcflDst, 0);
 
     FileType ftgDat = MacWin('bdat', 'DAT');
-    FNE fne;
+    FileNameEnumerator fne;
     Filename fni;
     STN stn;
     STN stn2;

@@ -340,7 +340,7 @@ bool TagManager::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
     AssertPo(pfni, ffniDir);
     AssertVarMem(pfContentOnFni);
 
-    FNE fne;
+    FileNameEnumerator fne;
     FileType ftgContent = kftgContent;
     Filename fni;
 
@@ -405,7 +405,7 @@ bool TagManager::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
     AssertPo(pfniCD, ffniEmpty | ffniDir); // could be a blank Filename
     AssertVarMem(pfFniChanged);
 
-    FNE fne;
+    FileNameEnumerator fne;
     Filename fni;
     STN stnLong;
     STN stnShort;
@@ -488,7 +488,7 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(long sid, PFilename pfniDir)
     STN stn;
     Filename fni;
     PChunkyResourceManager pcrmSource = pvNil;
-    FNE fne;
+    FileNameEnumerator fne;
     FileType ftgChk = kftgContent;
     PChunkyFile pcfl = pvNil;
 

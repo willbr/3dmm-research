@@ -29,7 +29,7 @@ priv void _CleanFtg(FileType *pftg, PSTN pstnExt = pvNil);
 Filename _fniTemp;
 
 RTCLASS(Filename)
-RTCLASS(FNE)
+RTCLASS(FileNameEnumerator)
 
 /***************************************************************************
     Sets the fni to nil values.
@@ -803,7 +803,7 @@ priv void _CleanFtg(FileType *pftg, PSTN pstnExt)
 /***************************************************************************
     Constructor for a File Name Enumerator.
 ***************************************************************************/
-FNE::FNE(void)
+FileNameEnumerator::FileNameEnumerator(void)
 {
     AssertBaseThis(0);
     _prgftg = _rgftg;
@@ -814,18 +814,18 @@ FNE::FNE(void)
 }
 
 /***************************************************************************
-    Destructor for an FNE.
+    Destructor for an FileNameEnumerator.
 ***************************************************************************/
-FNE::~FNE(void)
+FileNameEnumerator::~FileNameEnumerator(void)
 {
     AssertBaseThis(0);
     _Free();
 }
 
 /***************************************************************************
-    Free all the memory associated with the FNE.
+    Free all the memory associated with the FileNameEnumerator.
 ***************************************************************************/
-void FNE::_Free(void)
+void FileNameEnumerator::_Free(void)
 {
     if (_prgftg != _rgftg)
     {
@@ -846,7 +846,7 @@ void FNE::_Free(void)
 /***************************************************************************
     Initialize the fne to do an enumeration.
 ***************************************************************************/
-bool FNE::FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne)
+bool FileNameEnumerator::FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfniDir);
@@ -907,7 +907,7 @@ bool FNE::FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne)
 /***************************************************************************
     Get the next Filename in the enumeration.
 ***************************************************************************/
-bool FNE::FNextFni(Filename *pfni, ulong *pgrffneOut, ulong grffneIn)
+bool FileNameEnumerator::FNextFni(Filename *pfni, ulong *pgrffneOut, ulong grffneIn)
 {
     AssertThis(0);
     AssertVarMem(pfni);
@@ -920,7 +920,7 @@ bool FNE::FNextFni(Filename *pfni, ulong *pgrffneOut, ulong grffneIn)
 
     if (!_fInited)
     {
-        Bug("must initialize the FNE before using it!");
+        Bug("must initialize the FileNameEnumerator before using it!");
         return fFalse;
     }
 
@@ -1051,9 +1051,9 @@ LGotOne:
 }
 
 /***************************************************************************
-    Pop a state in the FNE.
+    Pop a state in the FileNameEnumerator.
 ***************************************************************************/
-bool FNE::_FPop(void)
+bool FileNameEnumerator::_FPop(void)
 {
     AssertBaseThis(0);
     if (hBadWin != _fesCur.hn)
@@ -1066,11 +1066,11 @@ bool FNE::_FPop(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a FNE.
+    Assert the validity of a FileNameEnumerator.
 ***************************************************************************/
-void FNE::AssertValid(ulong grf)
+void FileNameEnumerator::AssertValid(ulong grf)
 {
-    FNE_PAR::AssertValid(0);
+    FileNameEnumerator_PAR::AssertValid(0);
     if (_fInited)
     {
         AssertNilOrPo(_pglfes, 0);
@@ -1083,12 +1083,12 @@ void FNE::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the FNE.
+    Mark memory for the FileNameEnumerator.
 ***************************************************************************/
-void FNE::MarkMem(void)
+void FileNameEnumerator::MarkMem(void)
 {
     AssertValid(0);
-    FNE_PAR::MarkMem();
+    FileNameEnumerator_PAR::MarkMem();
     if (_prgftg != _rgftg)
         MarkPv(_prgftg);
     MarkMemObj(_pglfes);

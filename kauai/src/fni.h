@@ -67,7 +67,7 @@ class Filename : public Filename_PAR
     ASSERT
 
     friend class FIL;
-    friend class FNE;
+    friend class FileNameEnumerator;
 
   private:
     FileType _ftg;
@@ -146,14 +146,14 @@ enum
     ffneSkipDir = 0x80,
 };
 
-#define FNE_PAR BASE
-#define kclsFNE 'FNE'
-class FNE : public FNE_PAR
+#define FileNameEnumerator_PAR BASE
+#define kclsFileNameEnumerator 'FNE'
+class FileNameEnumerator : public FileNameEnumerator_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(FNE)
+    NOCOPY(FileNameEnumerator)
 
   private:
     // file enumeration state
@@ -187,8 +187,8 @@ class FNE : public FNE_PAR
 #endif // WIN
 
   public:
-    FNE(void);
-    ~FNE(void);
+    FileNameEnumerator(void);
+    ~FileNameEnumerator(void);
 
     bool FInit(Filename *pfniDir, FileType *prgftg, long cftg, ulong grffne = ffneNil);
     bool FNextFni(Filename *pfni, ulong *pgrffneOut = pvNil, ulong grffneIn = ffneNil);

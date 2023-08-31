@@ -825,8 +825,8 @@ class FNET : public FNET_PAR
 
   protected:
     bool _fInitMSKDir;
-    FNE _fne;
-    FNE _fneDir;
+    FileNameEnumerator _fne;
+    FileNameEnumerator _fneDir;
     Filename _fniDirMSK;
     Filename _fniDir;
     Filename _fniDirProduct;

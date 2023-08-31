@@ -469,7 +469,7 @@ void APP::_CleanupTemp(void)
     if (fni.FGetTemp())
     {
         FileType ftgTmp = vftgTemp;
-        FNE fne;
+        FileNameEnumerator fne;
 
         if (fne.FInit(&fni, &ftgTmp, 1))
         {
