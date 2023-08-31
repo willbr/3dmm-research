@@ -61,7 +61,7 @@ SCR AbstractColor::_Scr(void)
 /***************************************************************************
     Draw a DIB using DrawDibDraw.
 ***************************************************************************/
-void GNV::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RC *prc)
+void GraphicsEnvironment::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RC *prc)
 {
     AssertThis(0);
     AssertVarMem(pbi);

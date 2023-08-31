@@ -537,7 +537,7 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
     ScrollWindowEx(pgob->_hwnd, dxp, dyp, pvNil, &rcs, hNil, pvNil, SW_INVALIDATE);
 
     // compute the bad rectangles
-    GNV::GetBadRcForScroll(&rc, dxp, dyp, &rcBad1, &rcBad2);
+    GraphicsEnvironment::GetBadRcForScroll(&rc, dxp, dyp, &rcBad1, &rcBad2);
 
     if (pvNil != prcBad1)
         prcBad1->OffsetCopy(&rcBad1, -dpt.xp, -dpt.yp);
@@ -590,7 +590,7 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
     }
     FreePhrgn(&hrgn);
 
-    GNV gnv(pgob);
+    GraphicsEnvironment gnv(pgob);
     gnv.ScrollRc(&rc, dxp, dyp, &rcBad1, &rcBad2);
 
     // translate any invalid area
@@ -673,7 +673,7 @@ void GraphicsObject::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
     else if (!rcClip.FIntersect(prcClip, &rcSrc))
         return;
 
-    GNV gnv(pgpt);
+    GraphicsEnvironment gnv(pgpt);
     GTE gte;
     ulong grfgte, grfgteIn;
     PGraphicsObject pgob;
@@ -778,7 +778,7 @@ void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob)
     if (rcSrc.FEmpty())
         return;
 
-    GNV gnv(pgpt);
+    GraphicsEnvironment gnv(pgpt);
     GTE gte;
     ulong grfgte, grfgteIn;
     PGraphicsObject pgob;
@@ -883,7 +883,7 @@ LFail:
 
 /***************************************************************************
     Draw the GraphicsObject into the given graphics environment.  On entry, the source
-    rectangle of the GNV is set to (0, 0, dxp, dyp), where dxp and dyp are
+    rectangle of the GraphicsEnvironment is set to (0, 0, dxp, dyp), where dxp and dyp are
     the width and height of the gob.  The gob is free to change the source
     rectangle, but should not touch the destination rectangle.
 ***************************************************************************/
@@ -1639,7 +1639,7 @@ long GraphicsObject::ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpL
     RC rcBound, rcActive;
     PT pt, dpt;
     bool fActive, fActiveNew, fDown;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     if (fVert)
     {

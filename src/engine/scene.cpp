@@ -4737,8 +4737,8 @@ void Scene::_UpdateThumbnail(void)
 
     BLOCK
     {
-        GNV gnv(pgpt);
-        GNV gnvThumb(pgptThumb);
+        GraphicsEnvironment gnv(pgpt);
+        GraphicsEnvironment gnvThumb(pgptThumb);
         gnvThumb.CopyPixels(&gnv, &rc, &rcThumb);
 
         ReleasePpo(&_pmbmp);

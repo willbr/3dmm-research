@@ -327,7 +327,7 @@ void Dialog::_SetRadioGroup(long idit, long lw)
     Assert(dit.ditk == ditkRadioGroup, "not a radio group!");
     AssertIn(lw, 0, dit.sitLim - dit.sitMin);
 
-    GNV gnv(_pgob);
+    GraphicsEnvironment gnv(_pgob);
     gnv.Set();
     for (sit = dit.sitMin; sit < dit.sitLim; sit++)
     {
@@ -398,7 +398,7 @@ void Dialog::_SetCheckBox(long idit, bool fOn)
     Assert(dit.ditk == ditkCheckBox, "not a check box!");
     Assert(dit.sitLim == dit.sitMin + 1, "wrong lim on check box");
 
-    GNV gnv(_pgob);
+    GraphicsEnvironment gnv(_pgob);
     gnv.Set();
     GetDialogItem(hdlg, (short)dit.sitMin, &sitk, (HN *)&hctl, &rcs);
     Assert(sitk == (chkCtrl + ctrlItem), "not a check box!");
@@ -448,7 +448,7 @@ void Dialog::_SetEditText(long idit, PSTZ pstz)
     Assert(dit.ditk == ditkEditText, "not edit item!");
     Assert(dit.sitLim == dit.sitMin + 1, "wrong lim on edit item");
 
-    GNV gnv(_pgob);
+    GraphicsEnvironment gnv(_pgob);
     gnv.Set();
     GetDialogItem(hdlg, (short)dit.sitMin, &sitk, &hn, &rcs);
     AssertVar(sitk == editText, "not an edit item!", &sitk);

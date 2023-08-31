@@ -111,7 +111,7 @@ bool EDCB::_FInit(void)
         pgpt->AddRef();
     }
 
-    _pgnv = NewObj GNV(this, pgpt);
+    _pgnv = NewObj GraphicsEnvironment(this, pgpt);
     ReleasePpo(&pgpt);
 
     return pvNil != _pgnv;
@@ -440,7 +440,7 @@ void EDCB::_GetRcContent(RC *prc)
 }
 
 /***************************************************************************
-    Set the vis for the GNV to be the intersection of the GraphicsObject's vis and
+    Set the vis for the GraphicsEnvironment to be the intersection of the GraphicsObject's vis and
     the content rc.
 ***************************************************************************/
 void EDCB::_InitGnv(PGNV pgnv)
@@ -1016,7 +1016,7 @@ long EDPL::_IchFromLnXp(long ln, long xp, bool fClosest)
 }
 
 /***************************************************************************
-    Draw the given line in the given GNV.
+    Draw the given line in the given GraphicsEnvironment.
 ***************************************************************************/
 void EDPL::_DrawLine(PGNV pgnv, long ln)
 {

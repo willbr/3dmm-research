@@ -539,7 +539,7 @@ void DCH::_SwitchSel(bool fOn)
 {
     if (FPure(fOn) != FPure(_fSelOn))
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
         _InvertSel(&gnv);
         _fSelOn = FPure(fOn);
     }
@@ -723,7 +723,7 @@ void DCH::_SetHalfSel(long ib)
         return;
     }
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     if (_fSelOn)
     {
         // turn off the sel
@@ -746,7 +746,7 @@ void DCH::_SetHalfSel(long ib)
 void DCH::_SetSel(long ibAnchor, long ibOther, bool fRight)
 {
     long ibMac = _pbsf->IbMac();
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     if (_fFixed && ibMac > 0)
     {
@@ -810,7 +810,7 @@ void DCH::_SetHexSel(bool fHex)
         return;
     _fHexSel = FPure(fHex);
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     _DrawHeader(&gnv);
 }
 

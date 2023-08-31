@@ -783,8 +783,8 @@ void ApplicationBase::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     if (pvNil != pgpt)
     {
         // put the image on the screen
-        GNV gnv(pgob);
-        GNV gnvSrc(pgpt);
+        GraphicsEnvironment gnv(pgob);
+        GraphicsEnvironment gnvSrc(pgpt);
 
         gnv.CopyPixels(&gnvSrc, prc, prc);
     }
@@ -1166,8 +1166,8 @@ void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PREGN pregnClip, ulong g
     if (fOffscreen)
     {
         // copy the stuff to the screen
-        GNV gnvOff(pgpt);
-        GNV gnv(pgob);
+        GraphicsEnvironment gnvOff(pgpt);
+        GraphicsEnvironment gnv(pgob);
         PGPT pgptDst = pgob->Pgpt();
 
         pgptDst->ClipToRegn(&pregnClip);

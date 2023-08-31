@@ -419,7 +419,7 @@ void DCGB::_Activate(bool fActive)
     AssertThis(0);
     DocumentDisplayGraphicsObject::_Activate(fActive);
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     _DrawSel(&gnv);
 }
 
@@ -467,7 +467,7 @@ void DCGB::_SetSel(long ln)
 
     if (_fActive)
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         // erase the old sel
         if (_fActive)

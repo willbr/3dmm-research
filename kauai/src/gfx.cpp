@@ -7,7 +7,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    GFX classes: graphics device (GDV), graphics environment (GNV)
+    GFX classes: graphics device (GDV), graphics environment (GraphicsEnvironment)
 
 ***************************************************************************/
 #include "frame.h"
@@ -19,7 +19,7 @@ AbstractPattern vaptDkGray = {0xDD, 0x77, 0xBB, 0xEE, 0xDD, 0x77, 0xBB, 0xEE};
 
 NTL vntl;
 
-RTCLASS(GNV)
+RTCLASS(GraphicsEnvironment)
 RTCLASS(GPT)
 RTCLASS(NTL)
 RTCLASS(OGN)
@@ -112,7 +112,7 @@ void AbstractPattern::MoveOrigin(long dxp, long dyp)
 /***************************************************************************
     Constructor for Graphics environment.
 ***************************************************************************/
-GNV::GNV(GPT *pgpt)
+GraphicsEnvironment::GraphicsEnvironment(GPT *pgpt)
 {
     AssertPo(pgpt, 0);
 
@@ -123,7 +123,7 @@ GNV::GNV(GPT *pgpt)
 /***************************************************************************
     Constructor for Graphics environment based on a pgob.
 ***************************************************************************/
-GNV::GNV(PGraphicsObject pgob)
+GraphicsEnvironment::GraphicsEnvironment(PGraphicsObject pgob)
 {
     AssertPo(pgob, 0);
 
@@ -135,7 +135,7 @@ GNV::GNV(PGraphicsObject pgob)
 /***************************************************************************
     Constructor for Graphics environment based on both a port and a pgob.
 ***************************************************************************/
-GNV::GNV(PGraphicsObject pgob, PGPT pgpt)
+GraphicsEnvironment::GraphicsEnvironment(PGraphicsObject pgob, PGPT pgpt)
 {
     AssertPo(pgpt, 0);
     AssertPo(pgob, 0);
@@ -146,9 +146,9 @@ GNV::GNV(PGraphicsObject pgob, PGPT pgpt)
 }
 
 /***************************************************************************
-    Destructor for the GNV.
+    Destructor for the GraphicsEnvironment.
 ***************************************************************************/
-GNV::~GNV(void)
+GraphicsEnvironment::~GraphicsEnvironment(void)
 {
     AssertThis(0);
     Mac(_pgpt->Unlock();) ReleasePpo(&_pgpt);
@@ -157,7 +157,7 @@ GNV::~GNV(void)
 /***************************************************************************
     Fill in all fields of the gnv with default values.
 ***************************************************************************/
-void GNV::_Init(PGPT pgpt)
+void GraphicsEnvironment::_Init(PGPT pgpt)
 {
     PT pt;
 
@@ -182,7 +182,7 @@ void GNV::_Init(PGPT pgpt)
 /***************************************************************************
     Set the mapping and vis according to the gob.
 ***************************************************************************/
-void GNV::SetGobRc(PGraphicsObject pgob)
+void GraphicsEnvironment::SetGobRc(PGraphicsObject pgob)
 {
     RC rc;
 
@@ -199,9 +199,9 @@ void GNV::SetGobRc(PGraphicsObject pgob)
 /***************************************************************************
     Assert the validity of the gnv
 ***************************************************************************/
-void GNV::AssertValid(ulong grf)
+void GraphicsEnvironment::AssertValid(ulong grf)
 {
-    GNV_PAR::AssertValid(0);
+    GraphicsEnvironment_PAR::AssertValid(0);
     AssertPo(_pgpt, 0);
     AssertPo(&_dsf, 0);
     Assert(!_rcSrc.FEmpty(), "empty src rectangle");
@@ -210,12 +210,12 @@ void GNV::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the GNV.
+    Mark memory for the GraphicsEnvironment.
 ***************************************************************************/
-void GNV::MarkMem(void)
+void GraphicsEnvironment::MarkMem(void)
 {
     AssertValid(0);
-    GNV_PAR::MarkMem();
+    GraphicsEnvironment_PAR::MarkMem();
     MarkMemObj(_pgpt);
 }
 #endif // DEBUG
@@ -223,7 +223,7 @@ void GNV::MarkMem(void)
 /***************************************************************************
     Fill a rectangle with a two color pattern.
 ***************************************************************************/
-void GNV::FillRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FillRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -248,7 +248,7 @@ void GNV::FillRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, Abstr
 /***************************************************************************
     Fill a rectangle with a color.
 ***************************************************************************/
-void GNV::FillRc(RC *prc, AbstractColor acr)
+void GraphicsEnvironment::FillRc(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -268,7 +268,7 @@ void GNV::FillRc(RC *prc, AbstractColor acr)
 /***************************************************************************
     Frame a rectangle with a two color pattern.
 ***************************************************************************/
-void GNV::FrameRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FrameRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -293,7 +293,7 @@ void GNV::FrameRcApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, Abst
 /***************************************************************************
     Frame a rectangle with a color.
 ***************************************************************************/
-void GNV::FrameRc(RC *prc, AbstractColor acr)
+void GraphicsEnvironment::FrameRc(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -314,7 +314,7 @@ void GNV::FrameRc(RC *prc, AbstractColor acr)
     For hilighting text.  On mac, interchanges the system hilite color and
     the background color.  On Win, just inverts.
 ***************************************************************************/
-void GNV::HiliteRc(RC *prc, AbstractColor acrBack)
+void GraphicsEnvironment::HiliteRc(RC *prc, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -330,7 +330,7 @@ void GNV::HiliteRc(RC *prc, AbstractColor acrBack)
 /***************************************************************************
     Fill an oval with a two color pattern.
 ***************************************************************************/
-void GNV::FillOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FillOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -355,7 +355,7 @@ void GNV::FillOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, Abs
 /***************************************************************************
     Fill an oval with a color.
 ***************************************************************************/
-void GNV::FillOval(RC *prc, AbstractColor acr)
+void GraphicsEnvironment::FillOval(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -375,7 +375,7 @@ void GNV::FillOval(RC *prc, AbstractColor acr)
 /***************************************************************************
     Frame an oval with a two color pattern.
 ***************************************************************************/
-void GNV::FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -400,7 +400,7 @@ void GNV::FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, Ab
 /***************************************************************************
     Frame an oval with a color.
 ***************************************************************************/
-void GNV::FrameOval(RC *prc, AbstractColor acr)
+void GraphicsEnvironment::FrameOval(RC *prc, AbstractColor acr)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -420,7 +420,7 @@ void GNV::FrameOval(RC *prc, AbstractColor acr)
 /***************************************************************************
     Draw a line with a pattern.  Sets the pen position to (xp2, yp2).
 ***************************************************************************/
-void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::LineApt(long xp1, long yp1, long xp2, long yp2, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertVarMem(papt);
@@ -447,7 +447,7 @@ void GNV::LineApt(long xp1, long yp1, long xp2, long yp2, AbstractPattern *papt,
 /***************************************************************************
     Draw a line in a solid color.  Sets the pen position to (xp2, yp2).
 ***************************************************************************/
-void GNV::Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr)
+void GraphicsEnvironment::Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(&acr, 0);
@@ -469,7 +469,7 @@ void GNV::Line(long xp1, long yp1, long xp2, long yp2, AbstractColor acr)
 /***************************************************************************
     Fill a polygon with a pattern.
 ***************************************************************************/
-void GNV::FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -497,7 +497,7 @@ void GNV::FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, Ab
 /***************************************************************************
     Fill a polygon with a color.
 ***************************************************************************/
-void GNV::FillOgn(POGN pogn, AbstractColor acr)
+void GraphicsEnvironment::FillOgn(POGN pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -522,7 +522,7 @@ void GNV::FillOgn(POGN pogn, AbstractColor acr)
     NOTE: Using kacrInvert produces slightly different results on the Mac.
     (Mac only does alternate winding).
 ***************************************************************************/
-void GNV::FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -554,7 +554,7 @@ void GNV::FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, A
     Frame a polygon with a color.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FrameOgn(POGN pogn, AbstractColor acr)
+void GraphicsEnvironment::FrameOgn(POGN pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -581,7 +581,7 @@ void GNV::FrameOgn(POGN pogn, AbstractColor acr)
     Frame a poly-line with a pattern.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -613,7 +613,7 @@ void GNV::FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFo
     Frame a poly-line with a color.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GNV::FramePolyLine(POGN pogn, AbstractColor acr)
+void GraphicsEnvironment::FramePolyLine(POGN pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -640,7 +640,7 @@ void GNV::FramePolyLine(POGN pogn, AbstractColor acr)
     Convert an OGN into a polygon record (hqoly).  This maps the points and
     optionally closes the polygon and/or calculates the bounds (Mac only).
 ***************************************************************************/
-HQ GNV::_HqolyCreate(POGN pogn, ulong grfogn)
+HQ GraphicsEnvironment::_HqolyCreate(POGN pogn, ulong grfogn)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -707,7 +707,7 @@ HQ GNV::_HqolyCreate(POGN pogn, ulong grfogn)
     path (which we'll tell GDI to fill).  On the Mac, this just calls
     _HqolyCreate.
 ***************************************************************************/
-HQ GNV::_HqolyFrame(POGN pogn, ulong grfogn)
+HQ GraphicsEnvironment::_HqolyFrame(POGN pogn, ulong grfogn)
 {
 #ifdef WIN
     AssertThis(0);
@@ -742,7 +742,7 @@ HQ GNV::_HqolyFrame(POGN pogn, ulong grfogn)
     with the first uncovered rectangle.  If prc2 is not nil fill it
     with the second uncovered rectangle (if there is one).
 ***************************************************************************/
-void GNV::ScrollRc(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2)
+void GraphicsEnvironment::ScrollRc(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -772,7 +772,7 @@ void GNV::ScrollRc(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2)
     Static method to get the RC's that are uncovered during a scroll
     operation.
 ***************************************************************************/
-void GNV::GetBadRcForScroll(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2)
+void GraphicsEnvironment::GetBadRcForScroll(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2)
 {
     AssertNilOrVarMem(prc1);
     AssertNilOrVarMem(prc2);
@@ -814,7 +814,7 @@ void GNV::GetBadRcForScroll(RC *prc, long dxp, long dyp, RC *prc1, RC *prc2)
 /***************************************************************************
     Get the source rectangle.
 ***************************************************************************/
-void GNV::GetRcSrc(RC *prc)
+void GraphicsEnvironment::GetRcSrc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -824,7 +824,7 @@ void GNV::GetRcSrc(RC *prc)
 /***************************************************************************
     Set the source rectangle.
 ***************************************************************************/
-void GNV::SetRcSrc(RC *prc)
+void GraphicsEnvironment::SetRcSrc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -841,7 +841,7 @@ void GNV::SetRcSrc(RC *prc)
 /***************************************************************************
     Get the destination rectangle.
 ***************************************************************************/
-void GNV::GetRcDst(RC *prc)
+void GraphicsEnvironment::GetRcDst(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -856,7 +856,7 @@ void GNV::GetRcDst(RC *prc)
     Set the destination rectangle.  Also opens up the vis rc and clipping
     and sets default font and pen values.
 ***************************************************************************/
-void GNV::SetRcDst(RC *prc)
+void GraphicsEnvironment::SetRcDst(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -890,7 +890,7 @@ void GNV::SetRcDst(RC *prc)
     SetRcDst, since SetRcDst opens up the vis rc.  This also opens the
     clipping to the vis rc.
 ***************************************************************************/
-void GNV::SetRcVis(RC *prc)
+void GraphicsEnvironment::SetRcVis(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -915,7 +915,7 @@ void GNV::SetRcVis(RC *prc)
     that the new vis rectangle.  Opens the clipping to the vis rectangle
     also.
 ***************************************************************************/
-void GNV::IntersectRcVis(RC *prc)
+void GraphicsEnvironment::IntersectRcVis(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -934,7 +934,7 @@ void GNV::IntersectRcVis(RC *prc)
     the clipping (to the vis rectangle).  Otherwise, sets the clipping
     to the intersection of the vis rectangle and *prc.
 ***************************************************************************/
-void GNV::ClipRc(RC *prc)
+void GraphicsEnvironment::ClipRc(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -966,7 +966,7 @@ void GNV::ClipRc(RC *prc)
 /***************************************************************************
     Clip to the source rectangle.
 ***************************************************************************/
-void GNV::ClipToSrc(void)
+void GraphicsEnvironment::ClipToSrc(void)
 {
     AssertThis(0);
     ClipRc(&_rcSrc);
@@ -975,7 +975,7 @@ void GNV::ClipToSrc(void)
 /***************************************************************************
     Set the pen size (in source coordinates).
 ***************************************************************************/
-void GNV::SetPenSize(long dxpPen, long dypPen)
+void GraphicsEnvironment::SetPenSize(long dxpPen, long dypPen)
 {
     AssertThis(0);
     AssertIn(dxpPen, 0, kswMax);
@@ -987,7 +987,7 @@ void GNV::SetPenSize(long dxpPen, long dypPen)
 /***************************************************************************
     Set the current font info.
 ***************************************************************************/
-void GNV::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav)
+void GraphicsEnvironment::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav)
 {
     AssertThis(0);
     _dsf.onn = onn;
@@ -1001,7 +1001,7 @@ void GNV::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav)
 /***************************************************************************
     Set the current font.
 ***************************************************************************/
-void GNV::SetOnn(long onn)
+void GraphicsEnvironment::SetOnn(long onn)
 {
     AssertThis(0);
     _dsf.onn = onn;
@@ -1011,7 +1011,7 @@ void GNV::SetOnn(long onn)
 /***************************************************************************
     Set the current font style.
 ***************************************************************************/
-void GNV::SetFontStyle(ulong grfont)
+void GraphicsEnvironment::SetFontStyle(ulong grfont)
 {
     AssertThis(0);
     _dsf.grfont = grfont;
@@ -1021,7 +1021,7 @@ void GNV::SetFontStyle(ulong grfont)
 /***************************************************************************
     Set the current font size.
 ***************************************************************************/
-void GNV::SetFontSize(long dyp)
+void GraphicsEnvironment::SetFontSize(long dyp)
 {
     AssertThis(0);
     _dsf.dyp = LwMulDivAway(dyp, _rcDst.Dyp(), _rcSrc.Dyp());
@@ -1031,7 +1031,7 @@ void GNV::SetFontSize(long dyp)
 /***************************************************************************
     Set the current font alignment.
 ***************************************************************************/
-void GNV::SetFontAlign(long tah, long tav)
+void GraphicsEnvironment::SetFontAlign(long tah, long tav)
 {
     AssertThis(0);
     _dsf.tah = tah;
@@ -1042,7 +1042,7 @@ void GNV::SetFontAlign(long tah, long tav)
 /******************************************************************************
     Set the current font.  Font size must be specified in Dst units.
 ******************************************************************************/
-void GNV::SetDsf(FontDescription *pdsf)
+void GraphicsEnvironment::SetDsf(FontDescription *pdsf)
 {
     AssertThis(0);
     AssertPo(pdsf, 0);
@@ -1054,7 +1054,7 @@ void GNV::SetDsf(FontDescription *pdsf)
 /******************************************************************************
     Get the current font.  Font size is specified in Dst units.
 ******************************************************************************/
-void GNV::GetDsf(FontDescription *pdsf)
+void GraphicsEnvironment::GetDsf(FontDescription *pdsf)
 {
     AssertThis(0);
     AssertVarMem(pdsf);
@@ -1064,7 +1064,7 @@ void GNV::GetDsf(FontDescription *pdsf)
 /******************************************************************************
     Draw some text.
 ******************************************************************************/
-void GNV::DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1086,7 +1086,7 @@ void GNV::DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFo
 /***************************************************************************
     Draw the given string.
 ***************************************************************************/
-void GNV::DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1097,10 +1097,10 @@ void GNV::DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore, AbstractCo
 }
 
 /******************************************************************************
-    Return the bounding box of the text.  If the GNV has any scaling, this
+    Return the bounding box of the text.  If the GraphicsEnvironment has any scaling, this
     is approximate.  This even works if cch is 0 (just gives the height).
 ******************************************************************************/
-void GNV::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp, long yp)
+void GraphicsEnvironment::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp, long yp)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1117,10 +1117,10 @@ void GNV::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp, long yp)
 }
 
 /******************************************************************************
-    Return the bounding box of the text.  If the GNV has any scaling, this
+    Return the bounding box of the text.  If the GraphicsEnvironment has any scaling, this
     is approximate.  This even works if the string is empty (gives the height).
 ******************************************************************************/
-void GNV::GetRcFromStn(RC *prc, PSTN pstn, long xp, long yp)
+void GraphicsEnvironment::GetRcFromStn(RC *prc, PSTN pstn, long xp, long yp)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1130,9 +1130,9 @@ void GNV::GetRcFromStn(RC *prc, PSTN pstn, long xp, long yp)
 }
 
 /***************************************************************************
-    Copy bits from a GNV to this one.
+    Copy bits from a GraphicsEnvironment to this one.
 ***************************************************************************/
-void GNV::CopyPixels(PGNV pgnvSrc, RC *prcSrc, RC *prcDst)
+void GraphicsEnvironment::CopyPixels(PGNV pgnvSrc, RC *prcSrc, RC *prcDst)
 {
     AssertThis(0);
     AssertPo(pgnvSrc, 0);
@@ -1156,7 +1156,7 @@ ulong _mpgfdgrfptInv[4] = {fptNegateXp, fptNil, fptNegateXp | fptTranspose, fptT
     If cbitPixel is not zero and not the depth of this device, this sets
     the palette and returns false.
 ***************************************************************************/
-bool GNV::_FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel)
+bool GraphicsEnvironment::_FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel)
 {
     AssertNilOrPo(pglclr, 0);
     AssertVarMem(ppglclrOld);
@@ -1186,7 +1186,7 @@ bool GNV::_FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PD
     and animate the palette to pglclrTrans.  If either source palette is nil,
     *pclrSub is used in place of the nil palette.  acrSub must be an RGB color.
 ***************************************************************************/
-void GNV::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub)
+void GraphicsEnvironment::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub)
 {
     AssertNilOrPo(pglclrOld, 0);
     AssertNilOrPo(pglclrNew, 0);
@@ -1226,15 +1226,15 @@ void GNV::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long l
 }
 
 /***************************************************************************
-    Create a temporary GNV that is a copy of the given rectangle in this
-    GNV.  This is used for several transitions.
+    Create a temporary GraphicsEnvironment that is a copy of the given rectangle in this
+    GraphicsEnvironment.  This is used for several transitions.
 ***************************************************************************/
-bool GNV::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
+bool GraphicsEnvironment::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
 {
     PGPT pgpt;
     PGNV pgnv;
 
-    if (pvNil == (pgpt = GPT::PgptNewOffscreen(prc, 8)) || pvNil == (pgnv = NewObj GNV(pgpt)))
+    if (pvNil == (pgpt = GPT::PgptNewOffscreen(prc, 8)) || pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
     {
         ReleasePpo(&pgpt);
         *ppgnv = pvNil;
@@ -1254,7 +1254,7 @@ bool GNV::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
     size.  gfd indicates which direction the wipe is.  If pglclr is not
     nil and acrFill is clear, the palette transition is gradual.
 ***************************************************************************/
-void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1342,7 +1342,7 @@ void GNV::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *pr
     Slide the source gnv onto this one.  The source and destination
     rectangles must be the same size.
 ***************************************************************************/
-void GNV::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1503,7 +1503,7 @@ inline long _LwNextDissolve(long lw)
     and destination rectangles must be the same size.  If pgnvSrc is nil,
     just dissolve into the solid color.  Each portion is done in dts time.
 ***************************************************************************/
-void GNV::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
                    PDynamicArray pglclr)
 {
     AssertThis(0);
@@ -1783,7 +1783,7 @@ void GNV::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pg
     the maximum number of palette interpolations to do.  It doesn't make
     sense for this to be bigger than 256.  If it's zero, we'll use 256.
 ***************************************************************************/
-void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertIn(cactMax, 0, 257);
@@ -1849,7 +1849,7 @@ void GNV::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC
     intermediate color of acrFill (if not clear).  xp, yp are the focus
     point of the iris (in destination coordinates).
 ***************************************************************************/
-void GNV::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1963,7 +1963,7 @@ void GNV::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, 
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GNV::DrawPic(PPIC ppic, RC *prc)
+void GraphicsEnvironment::DrawPic(PPIC ppic, RC *prc)
 {
     AssertThis(0);
     AssertPo(ppic, 0);
@@ -1978,7 +1978,7 @@ void GNV::DrawPic(PPIC ppic, RC *prc)
 /***************************************************************************
     Draw the mbmp with reference point at the given point.
 ***************************************************************************/
-void GNV::DrawMbmp(PMBMP pmbmp, long xp, long yp)
+void GraphicsEnvironment::DrawMbmp(PMBMP pmbmp, long xp, long yp)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1995,7 +1995,7 @@ void GNV::DrawMbmp(PMBMP pmbmp, long xp, long yp)
 /***************************************************************************
     Draw the mbmp in the given rectangle.
 ***************************************************************************/
-void GNV::DrawMbmp(PMBMP pmbmp, RC *prc)
+void GraphicsEnvironment::DrawMbmp(PMBMP pmbmp, RC *prc)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -2011,7 +2011,7 @@ void GNV::DrawMbmp(PMBMP pmbmp, RC *prc)
     Map a rectangle to a system rectangle.  Return true iff the result
     is non-empty.
 ***************************************************************************/
-bool GNV::_FMapRcRcs(RC *prc, RCS *prcs)
+bool GraphicsEnvironment::_FMapRcRcs(RC *prc, RCS *prcs)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2026,7 +2026,7 @@ bool GNV::_FMapRcRcs(RC *prc, RCS *prcs)
 /***************************************************************************
     Map an (xp, yp) pair to a system point.
 ***************************************************************************/
-void GNV::_MapPtPts(long xp, long yp, PTS *ppts)
+void GraphicsEnvironment::_MapPtPts(long xp, long yp, PTS *ppts)
 {
     AssertThis(0);
     AssertVarMem(ppts);
@@ -2038,10 +2038,10 @@ void GNV::_MapPtPts(long xp, long yp, PTS *ppts)
 
 #ifdef MAC
 /***************************************************************************
-    Set the port associated with the GNV as the current port and set the
-    clipping as in the GNV and set the pen and fore/back color to defaults.
+    Set the port associated with the GraphicsEnvironment as the current port and set the
+    clipping as in the GraphicsEnvironment and set the pen and fore/back color to defaults.
 ***************************************************************************/
-void GNV::Set(void)
+void GraphicsEnvironment::Set(void)
 {
     AssertThis(0);
     _pgpt->Set(_gdd.prcsClip);
@@ -2051,9 +2051,9 @@ void GNV::Set(void)
 }
 
 /***************************************************************************
-    Restore the port.  Balances a call to GNV::Set.
+    Restore the port.  Balances a call to GraphicsEnvironment::Set.
 ***************************************************************************/
-void GNV::Restore(void)
+void GraphicsEnvironment::Restore(void)
 {
     _pgpt->Restore();
 }

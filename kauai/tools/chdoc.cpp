@@ -511,7 +511,7 @@ DCLB::DCLB(PDocumentBase pdocb, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb
 {
     achar ch;
     RC rc;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     _dypHeader = 0;
     _onn = vpappb->OnnDefFixed();
@@ -693,7 +693,7 @@ void DCD::_Activate(bool fActive)
     AssertThis(0);
     DocumentDisplayGraphicsObject::_Activate(fActive);
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     _DrawSel(&gnv);
 }
 
@@ -916,7 +916,7 @@ void DCD::_SetSel(long ln, ChunkIdentification *pcki, ChildChunkIdentification *
     if (_sel.Ln() == sel.Ln())
         return;
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     // erase the old sel
     if (_fActive)
@@ -1083,7 +1083,7 @@ void DCD::_HiliteLn(long ln)
 {
     AssertThis(0);
     RC rc;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     gnv.GetRcSrc(&rc);
     rc.ypTop = _YpFromLn(ln);

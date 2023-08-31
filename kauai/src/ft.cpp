@@ -310,7 +310,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
         if (FPure(_fLit) != FPure(fLitNew))
         {
             // invert it
-            GNV gnv(this);
+            GraphicsEnvironment gnv(this);
             RC rc;
 
             gnv.GetRcSrc(&rc);
@@ -324,7 +324,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
         if (_fLit)
         {
             // turn it off and push a close command
-            GNV gnv(this);
+            GraphicsEnvironment gnv(this);
             RC rc;
 
             gnv.GetRcSrc(&rc);
@@ -772,7 +772,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
 void TTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     RC rc;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     _cact++;
     GetRc(&rc, cooLocal);
@@ -909,7 +909,7 @@ bool FrameTesterApp::FCmdTimeTestRc(PCMD pcmd)
 ******************************************************************************/
 void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     long iact;
     RC rc;
     PT *qrgpt;
@@ -1301,7 +1301,7 @@ void DDP::DrawRc(PGNV pgnv)
 }
 
 /***************************************************************************
-    Draw the coordinates in the GNV.
+    Draw the coordinates in the GraphicsEnvironment.
 ***************************************************************************/
 void DDP::DrawNumbers(PGNV pgnv)
 {
@@ -1491,7 +1491,7 @@ DOCPIC *DOCPIC::PdocpicNew(void)
 
     if (pvNil == (pgpt = GPT::PgptNewPic(&rc)))
         return pvNil;
-    if (pvNil != (pgnv = NewObj GNV(pgpt)))
+    if (pvNil != (pgnv = NewObj GraphicsEnvironment(pgpt)))
     {
         rc.Offset(rc.Dxp() / 2, 0);
         pgnv->FillOval(&rc, kacrMagenta);
@@ -1739,7 +1739,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rc, 8)))
         goto LFail;
 
-    if (pvNil == (pgnv = NewObj GNV(pgpt)))
+    if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
         goto LFail;
 
     // The color mapped to 100 is the transparent pixel value for
@@ -1862,7 +1862,7 @@ void DDGPT::Draw(PGNV pgnv, RC *prcClip)
     RC rc(0, 0, 256, 256);
     RC rcT;
 
-    if (pvNil == (pgnvT = NewObj GNV(pdocgpt->Pgpt())))
+    if (pvNil == (pgnvT = NewObj GraphicsEnvironment(pdocgpt->Pgpt())))
         return;
     GetRc(&rcT, cooLocal);
     pgnv->CopyPixels(pgnvT, &rc, &rcT);

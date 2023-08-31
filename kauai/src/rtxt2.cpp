@@ -544,7 +544,7 @@ bool TextDocumentGraphicsObject::_FInit(void)
     if (pvNil == (_pgllin = DynamicArray::PglNew(size(LIN))))
         return fFalse;
 
-    // Allocate the GNV for formatting. Use an offscreen one iff _fMark
+    // Allocate the GraphicsEnvironment for formatting. Use an offscreen one iff _fMark
     // is set.
     if (_fMark)
     {
@@ -559,7 +559,7 @@ bool TextDocumentGraphicsObject::_FInit(void)
         pgpt->AddRef();
     }
 
-    _pgnv = NewObj GNV(this, pgpt);
+    _pgnv = NewObj GraphicsEnvironment(this, pgpt);
     ReleasePpo(&pgpt);
 
     if (pvNil == _pgnv)
@@ -2511,7 +2511,7 @@ LineTextGraphicsDocument::LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGCB
 {
     RC rc;
     achar ch = kchSpace;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     gnv.SetFont(onn, fontNil, dypFont);
     gnv.GetRcFromRgch(&rc, &ch, 1);

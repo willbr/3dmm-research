@@ -21,7 +21,7 @@
 #include "keys.h"
 
 class GPT;  // graphics port
-class GNV;  // graphics environment
+class GraphicsEnvironment;  // graphics environment
 class CMH;  // command handler
 class GraphicsObject;  // graphic object
 class MenuBar;  // menu bar
@@ -33,7 +33,7 @@ class DocumentDisplayGraphicsObject;  // document display gob
 class SNDM; // sound manager
 
 typedef class GPT *PGPT;
-typedef class GNV *PGNV;
+typedef class GraphicsEnvironment *PGNV;
 typedef class CMH *PCMH;
 typedef class GraphicsObject *PGraphicsObject;
 typedef class MenuBar *PMenuBar;

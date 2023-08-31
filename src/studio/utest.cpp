@@ -2069,8 +2069,8 @@ bool APP::_FDetermineIfSlowCPU(void)
     }
     // BLOCK
     {
-        GNV gnvWnd(pgptWnd);
-        GNV gnvOff(pgptOff);
+        GraphicsEnvironment gnvWnd(pgptWnd);
+        GraphicsEnvironment gnvOff(pgptOff);
         gnvOff.CopyPixels(&gnvWnd, &rc1, &rc1);
         ts = TsCurrent();
         for (i = 0; i < 100; i++)

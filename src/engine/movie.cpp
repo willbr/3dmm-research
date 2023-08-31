@@ -301,7 +301,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Create the brender world
     //
-    pmvie->_pbwld = World::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fFalse, fHalfMode);
+    pmvie->_pbwld = World::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fHalfMode, fHalfMode);
     if (pvNil == pmvie->_pbwld)
     {
         goto LFail;
@@ -5474,8 +5474,8 @@ const long kdtsTrans = 4 * kdtsSecond;
  * until every number is hit.  This fact is used to create the dissolve effect.
  *
  * Parameters:
- *	pgnvDst - The destination GNV.
- *	pgnvSrc - The source GNV.
+ *	pgnvDst - The destination GraphicsEnvironment.
+ *	pgnvSrc - The source GraphicsEnvironment.
  *	prcDst - The clipping rectangle in the destination.
  *	prcSrc - The clipping rectangle in the source.
  *

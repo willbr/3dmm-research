@@ -525,7 +525,7 @@ HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb) : DocumentDisplayGraphicsOb
     AssertPo(pcfl, 0);
     RC rc;
     achar ch = kchSpace;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     _pcfl = pcfl;
 
@@ -567,7 +567,7 @@ void HEDG::_Activate(bool fActive)
     AssertThis(0);
     DocumentDisplayGraphicsObject::_Activate(fActive);
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     _DrawSel(&gnv);
 }
 
@@ -688,7 +688,7 @@ void HEDG::_SetSel(long icki, ChunkNumber cno)
     if (_tsel.Icki() == icki)
         return;
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     // erase the old sel
     if (_fActive)
@@ -1210,7 +1210,7 @@ bool HEDG::FCmdPrint(PCMD pcmd)
 
     if (pvNil == (pgpt = GPT::PgptNew(pd.hDC)))
         goto LFail;
-    if (pvNil == (pgnv = NewObj GNV(pgpt)))
+    if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
         goto LFail;
 
     rcDst.Zero();
@@ -3094,7 +3094,7 @@ bool HETG::FCmdPrint(PCMD pcmd)
 
     if (pvNil == (pgpt = GPT::PgptNew(pd.hDC)))
         goto LFail;
-    if (pvNil == (pgnv = NewObj GNV(pgpt)))
+    if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
         goto LFail;
 
     rc.Zero();

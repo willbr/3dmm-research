@@ -10,7 +10,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    GFX classes: graphics port (GPT), graphics environment (GNV)
+    GFX classes: graphics port (GPT), graphics environment (GraphicsEnvironment)
 
 ***************************************************************************/
 #ifndef GFX_H
@@ -410,9 +410,9 @@ struct GDD
 /****************************************
     Graphics environment
 ****************************************/
-#define GNV_PAR BASE
-#define kclsGNV 'GNV'
-class GNV : public GNV_PAR
+#define GraphicsEnvironment_PAR BASE
+#define kclsGraphicsEnvironment 'GNV'
+class GraphicsEnvironment : public GraphicsEnvironment_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -450,10 +450,10 @@ class GNV : public GNV_PAR
     bool _FEnsureTempGnv(PGNV *ppgnv, RC *prc);
 
   public:
-    GNV(PGPT pgpt);
-    GNV(PGraphicsObject pgob);
-    GNV(PGraphicsObject pgob, PGPT pgpt);
-    ~GNV(void);
+    GraphicsEnvironment(PGPT pgpt);
+    GraphicsEnvironment(PGraphicsObject pgob);
+    GraphicsEnvironment(PGraphicsObject pgob, PGPT pgpt);
+    ~GraphicsEnvironment(void);
 
     void SetGobRc(PGraphicsObject pgob);
     PGPT Pgpt(void)

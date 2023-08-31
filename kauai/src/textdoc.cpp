@@ -212,7 +212,7 @@ TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong
     // get the _dypLine and _dxpTab values
     RC rc;
     achar ch = kchSpace;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     gnv.SetFont(_onn, _grfont, _dypFont);
     gnv.GetRcFromRgch(&rc, &ch, 1, 0, 0);
@@ -680,7 +680,7 @@ void TXDD::_FetchLineIch(long ich, achar *prgch, long cchMax, long *pcch, long *
 }
 
 /***************************************************************************
-    Draw the line in the given GNV.
+    Draw the line in the given GraphicsEnvironment.
 ***************************************************************************/
 void TXDD::_DrawLine(PGNV pgnv, RC *prcClip, long yp, achar *prgch, long cch)
 {
@@ -911,7 +911,7 @@ void TXDD::SetSel(long ichAnchor, long ichOther, bool fDraw)
 
     if (_fSelOn)
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         if (_ichAnchor != ichAnchor || _ichAnchor == _ichOther || ichAnchor == ichOther)
         {
@@ -944,7 +944,7 @@ void TXDD::_SwitchSel(bool fOn, bool fDraw)
     AssertThis(0);
     if (FPure(fOn) != FPure(_fSelOn))
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         _InvertSel(&gnv, fDraw);
         _fSelOn = FPure(fOn);
@@ -1137,7 +1137,7 @@ long TXDD::_XpFromIch(long ich)
     if (!_FFindLineStartCached(ich, &ichMin))
         return 0;
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     cch = LwMin(size(rgch), ich - ichMin);
     _pbsf->FetchRgb(ichMin, cch, rgch);
@@ -1239,7 +1239,7 @@ long TXDD::_IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp)
     AssertThis(0);
     long xpT;
     long ich, ichMin, ichLim;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     while (cch > 0 && (prgch[cch - 1] == kchReturn || prgch[cch - 1] == kchLineFeed))
         cch--;

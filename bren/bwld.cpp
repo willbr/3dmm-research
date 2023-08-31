@@ -370,8 +370,8 @@ bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumbe
             ReleasePpo(&pzbmpNew);
             return fFalse;
         }
-        GNV gnvFull(pgptFull);
-        GNV gnvHalf(_pgptBackground);
+        GraphicsEnvironment gnvFull(pgptFull);
+        GraphicsEnvironment gnvHalf(_pgptBackground);
 
         gnvFull.DrawMbmp(pmbmpNew, 0, 0);
         ReleasePpo(&pmbmpNew);
@@ -398,7 +398,7 @@ bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumbe
     }
     else // not in half mode
     {
-        GNV gnv(_pgptBackground);
+        GraphicsEnvironment gnv(_pgptBackground);
         gnv.DrawMbmp(pmbmpNew, 0, 0);
         ReleasePpo(&pmbmpNew);
 
@@ -530,8 +530,8 @@ void World::Prerender(void)
 {
     AssertThis(0);
 
-    GNV gnvBackground(_pgptBackground);
-    GNV gnvWorking(_pgptWorking);
+    GraphicsEnvironment gnvBackground(_pgptBackground);
+    GraphicsEnvironment gnvWorking(_pgptWorking);
 
     Render();
 
@@ -662,7 +662,7 @@ void World::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
     AssertVarMem(prcClip);
 
     RC rc;
-    GNV gnvTemp(_pgptWorking);
+    GraphicsEnvironment gnvTemp(_pgptWorking);
 
     rc.OffsetCopy(&_rcView, -dxp, -dyp);
     pgnv->CopyPixels(&gnvTemp, &_rcBuffer, &rc);

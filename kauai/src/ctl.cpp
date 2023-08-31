@@ -41,7 +41,7 @@ CTL::~CTL(void)
     {
 #ifdef MAC
         RC rc;
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         rc.Zero();
         gnv.ClipRc(&rc);
@@ -113,7 +113,7 @@ void CTL::_NewRc(void)
 
     if (!EqualRect(&rcs, &rcsOld))
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         // clip out everything - hide it, then move and size it
         // don't make it visible again - we do that in the Draw
@@ -153,7 +153,7 @@ void CTL::Draw(PGNV pgnv, RC *prcClip)
     else
     {
         RC rc;
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         gnv.Set();
         if (!(*_hctl)->contrlVis)
@@ -287,7 +287,7 @@ bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
     rcs = RCS(rc);
 
 #ifdef MAC
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     gnv.Set();
     hctl = NewControl(&hwnd->port, &rcs, (byte *)"\p", fTrue, 0, 0, 0, scrollBarProc, 0);
     gnv.Restore();
@@ -323,7 +323,7 @@ void SCB::SetVal(long val, bool fRedraw)
 
 #ifdef MAC
     // REVIEW shonk: Mac: implement fRedraw false
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     gnv.Set();
     SetCtlValue(_Hctl(), (short)lwCur);
     gnv.Restore();
@@ -352,7 +352,7 @@ void SCB::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
 
 #ifdef MAC
     // REVIEW shonk: Mac: implement fRedraw false
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     gnv.Set();
     if (_valMax == _valMin)
         SetCtlMax(_Hctl(), 0);
@@ -374,7 +374,7 @@ void SCB::_ActivateHwnd(bool fActive)
 {
     if (_valMin < _valMax)
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
         long lwCur;
 
         gnv.Set();
@@ -404,7 +404,7 @@ void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
     bool fDown, fLit;
     CMD cmd;
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     pts.h = (short)xp + (*_Hctl())->contrlRect.left;
     pts.v = (short)yp + (*_Hctl())->contrlRect.top;
@@ -627,7 +627,7 @@ void WSB::Draw(PGNV pgnv, RC *prcClip)
     }
     else
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         gnv.ClipRc(&rc);
         gnv.Set();

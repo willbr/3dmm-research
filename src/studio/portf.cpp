@@ -746,7 +746,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
 
                 if ((pgpt = GPT::PgptNew(pDrawItem->hDC)) != pvNil)
                 {
-                    GNV gnv(pgpt);
+                    GraphicsEnvironment gnv(pgpt);
                     PGNV pgnvOff;
                     PGPT pgptOff;
                     RC rcItem(pDrawItem->rcItem);
@@ -757,7 +757,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
 
                     if ((pgptOff = GPT::PgptNewOffscreen(&rcItem, 8)) != pvNil)
                     {
-                        if ((pgnvOff = NewObj GNV(pgptOff)) != pvNil)
+                        if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                         {
                             pgnvOff->DrawMbmp(pmbmp, rcItem.xpLeft, rcItem.ypTop);
 
@@ -1062,7 +1062,7 @@ void RepaintPortfolio(HWND hwndCustom)
         {
             RC rcDisplay;
             RCS rcsPort, rcsPreview;
-            GNV gnv(pgpt);
+            GraphicsEnvironment gnv(pgpt);
             PGNV pgnvOff;
             PGPT pgptOff;
             HWND hwndPreview;
@@ -1078,7 +1078,7 @@ void RepaintPortfolio(HWND hwndCustom)
 
             if ((pgptOff = GPT::PgptNewOffscreen(&rcDisplay, 8)) != pvNil)
             {
-                if ((pgnvOff = NewObj GNV(pgptOff)) != pvNil)
+                if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                 {
                     RC rcOrgPort(pdiPortfolio->rcsDlg);
                     RC rcClip(ps.rcPaint);
@@ -1384,14 +1384,14 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
 
         if ((pgpt = GPT::PgptNew(ps.hdc)) != pvNil)
         {
-            GNV gnv(pgpt);
+            GraphicsEnvironment gnv(pgpt);
 
             GetClientRect(hwndPreview, &rcsPreview);
             rcPreview = rcsPreview;
 
             if ((pgptOff = GPT::PgptNewOffscreen(&rcPreview, 8)) != pvNil)
             {
-                if ((pgnvOff = NewObj GNV(pgptOff)) != pvNil)
+                if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                 {
                     // Get the preview image into our offscreen dc.
                     OpenPreview(GetParent(hwndPreview), pgnvOff, &rcsPreview);
