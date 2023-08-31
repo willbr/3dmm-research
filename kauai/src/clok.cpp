@@ -86,7 +86,7 @@ PClock Clock::_pclokFirst;
     that this clock should reset itself to zero on key or mouse input.
     fclokNoSlip specifies that the clok should not let time slip.
 ***************************************************************************/
-Clock::Clock(long hid, ulong grfclok) : CMH(hid)
+Clock::Clock(long hid, ulong grfclok) : CommandHandler(hid)
 {
     _pclokNext = _pclokFirst;
     _pclokFirst = this;
@@ -133,10 +133,10 @@ PClock Clock::PclokFromHid(long hid)
 }
 
 /***************************************************************************
-    Static method to remove all references to the given CMH from the clok
+    Static method to remove all references to the given CommandHandler from the clok
     ALAD lists.
 ***************************************************************************/
-void Clock::BuryCmh(PCMH pcmh)
+void Clock::BuryCmh(PCommandHandler pcmh)
 {
     PClock pclok;
 
@@ -145,9 +145,9 @@ void Clock::BuryCmh(PCMH pcmh)
 }
 
 /***************************************************************************
-    Remove any alarms set by the given CMH.
+    Remove any alarms set by the given CommandHandler.
 ***************************************************************************/
-void Clock::RemoveCmh(PCMH pcmh)
+void Clock::RemoveCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     ALAD *qalad;
@@ -208,7 +208,7 @@ ulong Clock::TimCur(bool fAdjustForDelay)
     Set an alarm for the given time and for the given command handler.
     Alarms are sorted in _decreasing_ order.
 ***************************************************************************/
-bool Clock::FSetAlarm(long dtim, PCMH pcmhNotify, long lwUser, bool fAdjustForDelay)
+bool Clock::FSetAlarm(long dtim, PCommandHandler pcmhNotify, long lwUser, bool fAdjustForDelay)
 {
     AssertThis(0);
     AssertIn(dtim, 0, kcbMax);
@@ -322,7 +322,7 @@ bool Clock::FCmdAll(PCMD pcmd)
 
         if (pvNil != alad.pcmh)
         {
-            // tell the CMH that the alarm went off
+            // tell the CommandHandler that the alarm went off
             AddRef();
             Assert(_cactRef > 1, 0);
             _dtimAlarm = timCur - _timCur;

@@ -1727,7 +1727,7 @@ bool APP::_FInitKidworld(void)
     AssertBaseThis(0);
 
     RC rcRel(0, 0, krelOne, krelOne);
-    GraphicsObjectBlock gcb(CMH::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
+    GraphicsObjectBlock gcb(CommandHandler::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
 
     _pkwa = NewObj KWA(&gcb);
     if (pvNil == _pkwa)
@@ -2626,7 +2626,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
 
     if (FPushModal())
     {
-        gcb.Set(CMH::HidUnique(), Pkwa(), fgobNil, kginMark);
+        gcb.Set(CommandHandler::HidUnique(), Pkwa(), fgobNil, kginMark);
         gcb._rcRel.Set(0, 0, krelOne, krelOne);
 
         _pcex = vpcex;

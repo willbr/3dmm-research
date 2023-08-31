@@ -25,7 +25,7 @@ END_CMD_MAP_NIL()
     Create a new popup menu
 ***************************************************************************/
 PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
-               ChunkIdentification ckiRoot, ChunkTag ctg, PCMH pcmh, long cid, bool fMoveTop)
+               ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
@@ -58,7 +58,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long
     }
 
     //
-    // Add ourselves as a CMH with a high priority so that we can
+    // Add ourselves as a CommandHandler with a high priority so that we can
     // filter out SelIdle messages
     //
     if (!vpcex->FAddCmh(pmp, -1000))
@@ -249,7 +249,7 @@ PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long
         goto LFail;
 
     //
-    // Add ourselves as a CMH with a high priority so that we can
+    // Add ourselves as a CommandHandler with a high priority so that we can
     // filter out SelIdle messages
     //
     if (!vpcex->FAddCmh(pmpfnt, -1000))

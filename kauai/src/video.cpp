@@ -146,7 +146,7 @@ PGVDS GVDS::PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid)
     PGVDS pgvds;
 
     if (hid == hidNil)
-        hid = CMH::HidUnique();
+        hid = CommandHandler::HidUnique();
 
     if (pvNil == (pgvds = NewObj GVDS(hid)))
         return pvNil;
@@ -337,7 +337,7 @@ PGVDW GVDW::PgvdwNew(PFilename pfni, PGraphicsObject pgobBase, long hid)
     PGVDW pgvdw;
 
     if (hid == hidNil)
-        hid = CMH::HidUnique();
+        hid = CommandHandler::HidUnique();
 
     if (pvNil == (pgvdw = NewObj GVDW(hid)))
         return pvNil;

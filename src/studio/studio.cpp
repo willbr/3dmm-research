@@ -17,7 +17,7 @@ ASSERTNAME
 RTCLASS(Studio)
 RTCLASS(StudioClientCallbacks)
 
-BEGIN_CMD_MAP(Studio, CMH)
+BEGIN_CMD_MAP(Studio, CommandHandler)
 ON_CID_GEN(cidNew, &Studio::FCmdOpen, pvNil)
 ON_CID_GEN(cidOpen, &Studio::FCmdOpen, pvNil)
 ON_CID_GEN(cidXYAxis, &Studio::FCmdXYAxis, pvNil)

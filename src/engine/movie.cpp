@@ -132,7 +132,7 @@ RTCLASS(Movie)
 RTCLASS(MovieUndo)
 RTCLASS(MUNS)
 
-BEGIN_CMD_MAP(Movie, CMH)
+BEGIN_CMD_MAP(Movie, CommandHandler)
 ON_CID_ME(cidAlarm, &Movie::FCmdAlarm, pvNil)
 ON_CID_ME(cidRender, &Movie::FCmdRender, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)

@@ -7,18 +7,18 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Basic command classes: CEX (command dispatcher), CMH (command handler).
+    Basic command classes: CEX (command dispatcher), CommandHandler (command handler).
 
     The command dispatcher (CEX) has a command (CMD) queue and a list of
-    command handlers (CMH). During normal operation (CEX::FDispatchNextCmd),
-    the CEX takes the next CMD from the queue, passes it to each CMH in its
-    list (by calling CMH::FDoCmd) until one of the handlers returns true.
+    command handlers (CommandHandler). During normal operation (CEX::FDispatchNextCmd),
+    the CEX takes the next CMD from the queue, passes it to each CommandHandler in its
+    list (by calling CommandHandler::FDoCmd) until one of the handlers returns true.
     If none of the handlers in the list returns true, the command is passed
     to the handler specified in the CMD itself (cmd.pcmh, if not nil).
 
-    A CMH is placed in the handler list by a call to CEX::FAddCmh. The
-    cmhl parameter determines the order of CMH's in the list. The grfcmm
-    parameter indicates which targets the CMH wants to see commands for.
+    A CommandHandler is placed in the handler list by a call to CEX::FAddCmh. The
+    cmhl parameter determines the order of CommandHandler's in the list. The grfcmm
+    parameter indicates which targets the CommandHandler wants to see commands for.
     The options are fcmmThis, fcmmNobody, fcmmOthers.
 
     The CEX class supports command stream recording and playback.
@@ -28,13 +28,13 @@
 ASSERTNAME
 
 // command map shared by every command handler
-BEGIN_CMD_MAP_BASE(CMH)
+BEGIN_CMD_MAP_BASE(CommandHandler)
 END_CMD_MAP_NIL()
 
-RTCLASS(CMH)
+RTCLASS(CommandHandler)
 RTCLASS(CEX)
 
-long CMH::_hidLast;
+long CommandHandler::_hidLast;
 
 #ifdef DEBUG
 /***************************************************************************
@@ -60,7 +60,7 @@ void CMD::AssertValid(ulong grf)
     means that the returned hid is only unique over handlers that the
     application class knows about.
 ***************************************************************************/
-long CMH::HidUnique(long ccmh)
+long CommandHandler::HidUnique(long ccmh)
 {
     AssertIn(ccmh, 1, 1000);
     long ccmhT;
@@ -85,7 +85,7 @@ long CMH::HidUnique(long ccmh)
 /***************************************************************************
     Constructor for a command handler - set the handler id.
 ***************************************************************************/
-CMH::CMH(long hid)
+CommandHandler::CommandHandler(long hid)
 {
     AssertBaseThis(0);
     Assert(hid != hidNil, "bad hid");
@@ -96,7 +96,7 @@ CMH::CMH(long hid)
     Destructor for a command handler - purge any global references to it
     from the app. The app purges it from the command dispatcher.
 ***************************************************************************/
-CMH::~CMH(void)
+CommandHandler::~CommandHandler(void)
 {
     AssertThis(0);
     if (pvNil != vpappb)
@@ -105,11 +105,11 @@ CMH::~CMH(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CMH.
+    Assert the validity of a CommandHandler.
 ***************************************************************************/
-void CMH::AssertValid(ulong grf)
+void CommandHandler::AssertValid(ulong grf)
 {
-    CMH_PAR::AssertValid(0);
+    CommandHandler_PAR::AssertValid(0);
     Assert(_hid != hidNil, 0);
 }
 #endif // DEBUG
@@ -118,7 +118,7 @@ void CMH::AssertValid(ulong grf)
     Protected virtual function to find a CMME (command map entry) for the
     given command id.
 ***************************************************************************/
-bool CMH::_FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme)
+bool CommandHandler::_FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme)
 {
     AssertThis(0);
     AssertVarMem(pcmme);
@@ -164,7 +164,7 @@ bool CMH::_FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme)
     success/failure of the execution of the command. Do not return false
     to indicate that command execution failed.
 ***************************************************************************/
-bool CMH::FDoCmd(PCMD pcmd)
+bool CommandHandler::FDoCmd(PCMD pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -189,7 +189,7 @@ bool CMH::FDoCmd(PCMD pcmd)
     doesn't normally handle the command, this returns false (and does
     nothing else). Otherwise sets the grfeds and returns true.
 ***************************************************************************/
-bool CMH::FEnableCmd(PCMD pcmd, ulong *pgrfeds)
+bool CommandHandler::FEnableCmd(PCMD pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -583,11 +583,11 @@ LStop:
 }
 
 /***************************************************************************
-    Determine whether it's OK to communicate with the CMH. Default is to
+    Determine whether it's OK to communicate with the CommandHandler. Default is to
     return true iff there is no current modal gob or the cmh is not a gob
     or it is a gob in the tree of the modal gob.
 ***************************************************************************/
-bool CEX::_FCmhOk(PCMH pcmh)
+bool CEX::_FCmhOk(PCommandHandler pcmh)
 {
     AssertNilOrPo(pcmh, 0);
     PGraphicsObject pgob;
@@ -613,7 +613,7 @@ bool CEX::_FCmhOk(PCMH pcmh)
     get first crack at commands. It is legal for a handler to be in the
     list more than once (even with the same cmhl value).
 ***************************************************************************/
-bool CEX::FAddCmh(PCMH pcmh, long cmhl, ulong grfcmm)
+bool CEX::FAddCmh(PCommandHandler pcmh, long cmhl, ulong grfcmm)
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
@@ -644,7 +644,7 @@ bool CEX::FAddCmh(PCMH pcmh, long cmhl, ulong grfcmm)
 /***************************************************************************
     Removes the the handler (at the given cmhl level) from the handler list.
 ***************************************************************************/
-void CEX::RemoveCmh(PCMH pcmh, long cmhl)
+void CEX::RemoveCmh(PCommandHandler pcmh, long cmhl)
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
@@ -673,7 +673,7 @@ void CEX::RemoveCmh(PCMH pcmh, long cmhl)
     Remove all references to the handler from the command dispatcher,
     including from the handler list and the command queue.
 ***************************************************************************/
-void CEX::BuryCmh(PCMH pcmh)
+void CEX::BuryCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     Assert(pcmh != pvNil, 0);
@@ -751,7 +751,7 @@ bool CEX::_FFindCmhl(long cmhl, long *picmhe)
 /***************************************************************************
     Adds a command to the tail of the queue.
 ***************************************************************************/
-void CEX::EnqueueCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
+void CEX::EnqueueCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
 {
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
@@ -771,7 +771,7 @@ void CEX::EnqueueCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1,
 /***************************************************************************
     Pushes a command onto the head of the queue.
 ***************************************************************************/
-void CEX::PushCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
+void CEX::PushCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
 {
     Assert(cid != cidNil, 0);
     AssertNilOrPo(pcmh, 0);
@@ -949,7 +949,7 @@ tribool CEX::_TGetNextCmd(void)
 /***************************************************************************
     Send the command (_cmdCur) to the given command handler.
 ***************************************************************************/
-bool CEX::_FSendCmd(PCMH pcmh)
+bool CEX::_FSendCmd(PCommandHandler pcmh)
 {
     AssertPo(pcmh, 0);
 
@@ -996,7 +996,7 @@ void CEX::_CleanUpCmd(void)
     false. If a gob is tracking the mouse and the queue is empty, a
     cidTrackMouse command is generated and dispatched to the gob.
 
-    NOTE: care has to be taken here because a CMH may go away while
+    NOTE: care has to be taken here because a CommandHandler may go away while
     dispatching the command. That's why _cmdCur and _icmheNext are
     member variables - so BuryCmh can adjust them if needed.
 ***************************************************************************/
@@ -1057,7 +1057,7 @@ bool CEX::FDispatchNextCmd(void)
 /***************************************************************************
     Give the handler a crack at enabling/disabling the command.
 ***************************************************************************/
-bool CEX::_FEnableCmd(PCMH pcmh, PCMD pcmd, ulong *pgrfeds)
+bool CEX::_FEnableCmd(PCommandHandler pcmh, PCMD pcmd, ulong *pgrfeds)
 {
     AssertPo(pcmh, 0);
     AssertPo(pcmd, 0);
@@ -1121,7 +1121,7 @@ LDone:
     Determines whether the given command is currently enabled. This is
     normally used for menu graying/checking etc and toolbar enabling/status.
 ***************************************************************************/
-ulong CEX::GrfedsForCid(long cid, PCMH pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
+ulong CEX::GrfedsForCid(long cid, PCommandHandler pcmh, PGeneralGroup pgg, long lw0, long lw1, long lw2, long lw3)
 {
     AssertThis(0);
     Assert(cid != cidNil, 0);

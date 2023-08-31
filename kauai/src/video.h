@@ -20,7 +20,7 @@
     (video stream) and GVDW (video window) classes.
 ***************************************************************************/
 typedef class GVID *PGVID;
-#define GVID_PAR CMH
+#define GVID_PAR CommandHandler
 #define kclsGVID 'GVID'
 class GVID : public GVID_PAR
 {

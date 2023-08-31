@@ -506,7 +506,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         else
         {
             if (hidNil == hid)
-                hid = CMH::HidUnique();
+                hid = CommandHandler::HidUnique();
             if (pvNil == NewObj Clock(hid))
                 hid = hidNil;
         }
@@ -586,7 +586,7 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
         break;
 
     case kopGidUnique:
-        _Push(CMH::HidUnique());
+        _Push(CommandHandler::HidUnique());
         break;
 
     case kopXGob:

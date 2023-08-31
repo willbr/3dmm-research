@@ -721,7 +721,7 @@ bool TopicGraphicsObject::_FInit(void)
     _hidBase = 0;
     if (lwMax > 0)
     {
-        _hidBase = CMH::HidUnique(lwMax) - 1;
+        _hidBase = CommandHandler::HidUnique(lwMax) - 1;
         stn = PszLit("_gidBase");
         rtvn.SetFromStn(&stn);
         if (!FAssignRtvm(PgobPar()->Ppglrtvm(), &rtvn, _hidBase))
@@ -757,7 +757,7 @@ bool TopicGraphicsObject::_FInit(void)
             Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup);
             if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _hidBase + bGroup) != pvNil)
             {
-                hid = CMH::HidUnique();
+                hid = CommandHandler::HidUnique();
             }
             if (chp.acrBack == kacrClear)
                 chp.acrBack = kacrWhite;
@@ -780,7 +780,7 @@ bool TopicGraphicsObject::_FInit(void)
             Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup, cnoTopic == cnoNil ? &cnoTopic : pvNil);
             if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _hidBase + bGroup) != pvNil)
             {
-                hid = CMH::HidUnique();
+                hid = CommandHandler::HidUnique();
             }
             if (pvNil == BalloonButton::PhbtnNew(_pwoks, this, hid, cno, prca, bGroup, cnoTopic, xp, ypBase + chp.dypOffset))
             {
@@ -1054,7 +1054,7 @@ PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA
     }
 
     if (htop.hidThis == hidNil)
-        htop.hidThis = CMH::HidUnique();
+        htop.hidThis = CommandHandler::HidUnique();
     else if (pvNil != (phbal = (PBalloon)pwoks->PcmhFromHid(htop.hidThis)))
     {
         if (!phbal->FIs(kclsBalloon))
@@ -1166,7 +1166,7 @@ bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca)
     PTopicGraphicsObject ptxhgSave = _ptxhg;
 
     // create the topic DocumentDisplayGraphicsObject.
-    gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
+    gcb.Set(CommandHandler::HidUnique(), this, fgobNil, kginMark);
     if (pvNil == (_ptxhg = TopicGraphicsObject::PtxhgNew(_pwoks, ptxhd, &gcb)))
         goto LFail;
 

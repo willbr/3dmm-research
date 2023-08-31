@@ -112,7 +112,7 @@ typedef GraphicsObjectBlock *PGCB;
 /****************************************
     Graphics object
 ****************************************/
-#define GraphicsObject_PAR CMH
+#define GraphicsObject_PAR CommandHandler
 #define kclsGraphicsObject 'GOB'
 class GraphicsObject : public GraphicsObject_PAR
 {

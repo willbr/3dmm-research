@@ -22,8 +22,8 @@
 ***************************************************************************/
 
 // command handler forward declaration
-class CMH;
-typedef CMH *PCMH;
+class CommandHandler;
+typedef CommandHandler *PCommandHandler;
 
 // command enable-disable status flags
 enum
@@ -43,7 +43,7 @@ struct CMD
 {
     ASSERT
 
-    PCMH pcmh;          // the target of the command - may be nil
+    PCommandHandler pcmh;          // the target of the command - may be nil
     long cid;           // the command id
     PGeneralGroup pgg;            // additional parameters for the command
     long rglw[kclwCmd]; // standard parameters
@@ -67,7 +67,7 @@ struct CommandFile
 #define CMD_TYPE(foo, a, b, c, d)                                                                                      \
     struct CMD_##foo                                                                                                   \
     {                                                                                                                  \
-        PCMH pcmh;                                                                                                     \
+        PCommandHandler pcmh;                                                                                                     \
         long cid;                                                                                                      \
         PGeneralGroup pgg;                                                                                                       \
         long a, b, c, d;                                                                                               \
@@ -79,7 +79,7 @@ CMD_TYPE(BADKEY, ch, vk, grfcust, hid); // defines CMD_BADKEY and PCMD_BADKEY
 CMD_TYPE(MOUSE, xp, yp, grfcust, cact); // defines CMD_MOUSE and PCMD_MOUSE
 
 /***************************************************************************
-    Command Map stuff.  To attach a command map to a subclass of CMH,
+    Command Map stuff.  To attach a command map to a subclass of CommandHandler,
     put a CMD_MAP_DEC(cls) in the definition of the class.  Then in the
     .cpp file, use BEGIN_CMD_MAP, ON_CID and END_CMD_MAP to define the
     command map.  This architecture was borrowed from MFC.
@@ -134,9 +134,9 @@ const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 /***************************************************************************
     Command handler class
 ***************************************************************************/
-#define CMH_PAR BASE
-#define kclsCMH 'CMH'
-class CMH : public CMH_PAR
+#define CommandHandler_PAR BASE
+#define kclsCommandHandler 'CMH'
+class CommandHandler : public CommandHandler_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -147,10 +147,10 @@ class CMH : public CMH_PAR
 
   protected:
     // command function
-    typedef bool (CMH::*PFNCMD)(PCMD pcmd);
+    typedef bool (CommandHandler::*PFNCMD)(PCMD pcmd);
 
     // command enabler function
-    typedef bool (CMH::*PFNEDS)(PCMD pcmd, ulong *pgrfeds);
+    typedef bool (CommandHandler::*PFNEDS)(PCMD pcmd, ulong *pgrfeds);
 
     // command map entry
     struct CMME
@@ -168,14 +168,14 @@ class CMH : public CMH_PAR
         CMME *prgcmme;
     };
 
-    CMD_MAP_DEC(CMH)
+    CMD_MAP_DEC(CommandHandler)
 
   protected:
     virtual bool _FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme);
 
   public:
-    CMH(long hid);
-    ~CMH(void);
+    CommandHandler(long hid);
+    ~CommandHandler(void);
 
     // return indicates whether the command was handled, not success
     virtual bool FDoCmd(PCMD pcmd);
@@ -217,7 +217,7 @@ class CEX : public CEX_PAR
     // an entry in the command handler list
     struct CMHE
     {
-        PCMH pcmh;
+        PCommandHandler pcmh;
         long cmhl;
         ulong grfcmm;
     };
@@ -267,11 +267,11 @@ class CEX : public CEX_PAR
     virtual bool _FInit(long ccmdInit, long ccmhInit);
     virtual bool _FFindCmhl(long cmhl, long *picmhe);
 
-    virtual bool _FCmhOk(PCMH pcmh);
+    virtual bool _FCmhOk(PCommandHandler pcmh);
     virtual tribool _TGetNextCmd(void);
-    virtual bool _FSendCmd(PCMH pcmh);
+    virtual bool _FSendCmd(PCommandHandler pcmh);
     virtual void _CleanUpCmd(void);
-    virtual bool _FEnableCmd(PCMH pcmh, PCMD pcmd, ulong *pgrfeds);
+    virtual bool _FEnableCmd(PCommandHandler pcmh, PCMD pcmd, ulong *pgrfeds);
 
     // command recording and playback
     bool _FReadCmd(PCMD pcmd);
@@ -297,16 +297,16 @@ class CEX : public CEX_PAR
     void RecordCmd(PCMD pcmd);
 
     // managing the filter list
-    virtual bool FAddCmh(PCMH pcmh, long cmhl, ulong grfcmm = fcmmNobody);
-    virtual void RemoveCmh(PCMH pcmh, long cmhl);
-    virtual void BuryCmh(PCMH pcmh);
+    virtual bool FAddCmh(PCommandHandler pcmh, long cmhl, ulong grfcmm = fcmmNobody);
+    virtual void RemoveCmh(PCommandHandler pcmh, long cmhl);
+    virtual void BuryCmh(PCommandHandler pcmh);
 
     // queueing and dispatching
     virtual void EnqueueCmd(PCMD pcmd);
     virtual void PushCmd(PCMD pcmd);
-    virtual void EnqueueCid(long cid, PCMH pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual void EnqueueCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                             long lw3 = 0);
-    virtual void PushCid(long cid, PCMH pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual void PushCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                          long lw3 = 0);
     virtual bool FDispatchNextCmd(void);
     virtual bool FGetNextKey(PCMD pcmd);
@@ -315,7 +315,7 @@ class CEX : public CEX_PAR
 
     // menu marking
     virtual ulong GrfedsForCmd(PCMD pcmd);
-    virtual ulong GrfedsForCid(long cid, PCMH pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual ulong GrfedsForCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                                long lw3 = 0);
 
     // mouse tracking

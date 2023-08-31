@@ -22,7 +22,7 @@
 
 class GraphicsPort;  // graphics port
 class GraphicsEnvironment;  // graphics environment
-class CMH;  // command handler
+class CommandHandler;  // command handler
 class GraphicsObject;  // graphic object
 class MenuBar;  // menu bar
 class DocumentBase; // base document
@@ -34,7 +34,7 @@ class SNDM; // sound manager
 
 typedef class GraphicsPort *PGPT;
 typedef class GraphicsEnvironment *PGNV;
-typedef class CMH *PCMH;
+typedef class CommandHandler *PCommandHandler;
 typedef class GraphicsObject *PGraphicsObject;
 typedef class MenuBar *PMenuBar;
 typedef class DocumentBase *PDocumentBase;

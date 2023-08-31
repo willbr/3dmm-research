@@ -18,7 +18,7 @@ PCEX vpcex;
 PSNDM vpsndm;
 
 // basic commands common to most apps
-BEGIN_CMD_MAP(ApplicationBase, CMH)
+BEGIN_CMD_MAP(ApplicationBase, CommandHandler)
 ON_CID_GEN(cidQuit, &ApplicationBase::FCmdQuit, pvNil)
 ON_CID_GEN(cidShowClipboard, &ApplicationBase::FCmdShowClipboard, &ApplicationBase::FEnableAppCmd)
 ON_CID_GEN(cidChooseWnd, &ApplicationBase::FCmdChooseWnd, &ApplicationBase::FEnableAppCmd)
@@ -36,7 +36,7 @@ RTCLASS(ApplicationBase)
     zeroed.  This implies that the block has to either be allocated
     (using NewObj) or a global.
 ***************************************************************************/
-ApplicationBase::ApplicationBase(void) : CMH(khidApp)
+ApplicationBase::ApplicationBase(void) : CommandHandler(khidApp)
 {
     AssertBaseThis(0);
 
@@ -793,10 +793,10 @@ void ApplicationBase::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 /***************************************************************************
     Map a handler id to a handler.
 ***************************************************************************/
-PCMH ApplicationBase::PcmhFromHid(long hid)
+PCommandHandler ApplicationBase::PcmhFromHid(long hid)
 {
     AssertThis(0);
-    PCMH pcmh;
+    PCommandHandler pcmh;
 
     switch (hid)
     {
@@ -815,7 +815,7 @@ PCMH ApplicationBase::PcmhFromHid(long hid)
 /***************************************************************************
     The command handler is dying - take it out of any lists it's in.
 ***************************************************************************/
-void ApplicationBase::BuryCmh(PCMH pcmh)
+void ApplicationBase::BuryCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     long imodcx;

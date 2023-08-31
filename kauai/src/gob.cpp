@@ -13,7 +13,7 @@
 #include "frame.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(GraphicsObject, CMH)
+BEGIN_CMD_MAP(GraphicsObject, CommandHandler)
 ON_CID_GEN(cidKey, &GraphicsObject::FCmdKeyCore, pvNil)
 ON_CID_GEN(cidSelIdle, &GraphicsObject::FCmdSelIdle, pvNil)
 ON_CID_ME(cidActivateSel, &GraphicsObject::FCmdActivateSel, pvNil)
@@ -70,7 +70,7 @@ void GraphicsObject::ShutDown(void)
     Constructor for a graphics object.  pgob is either the parent of the new
     gob or a sibling, according to (grfgob & fgobSibling).
 ***************************************************************************/
-GraphicsObject::GraphicsObject(PGCB pgcb) : CMH(pgcb->_hid)
+GraphicsObject::GraphicsObject(PGCB pgcb) : CommandHandler(pgcb->_hid)
 {
     _Init(pgcb);
 }
@@ -118,7 +118,7 @@ void GraphicsObject::_Init(PGCB pgcb)
 /***************************************************************************
     Constructor for GraphicsObject.
 ***************************************************************************/
-GraphicsObject::GraphicsObject(long hid) : CMH(hid)
+GraphicsObject::GraphicsObject(long hid) : CommandHandler(hid)
 {
     GraphicsObjectBlock gcb(hid, GraphicsObject::PgobScreen());
     _Init(&gcb);

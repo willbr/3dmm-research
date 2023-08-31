@@ -19,7 +19,7 @@ RTCLASS(TATR)
 
 const long kcmhlTheater = 0x10000;
 
-BEGIN_CMD_MAP(TATR, CMH)
+BEGIN_CMD_MAP(TATR, CommandHandler)
 ON_CID_GEN(cidTheaterLoad, &TATR::FCmdLoad, pvNil)
 ON_CID_GEN(cidTheaterPlay, &TATR::FCmdPlay, pvNil)
 ON_CID_GEN(cidTheaterStop, &TATR::FCmdStop, pvNil)

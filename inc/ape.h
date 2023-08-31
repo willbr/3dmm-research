@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GraphicsObject ---> APE
+    BASE ---> CommandHandler ---> GraphicsObject ---> APE
 
 ***************************************************************************/
 #ifndef APE_H
@@ -70,7 +70,7 @@ class APE : public APE_PAR
     long _ibsetOnlyAcc; // ibset of accessory, if only one (else ivNil)
 
   protected:
-    APE(PGCB pgcb) : GraphicsObject(pgcb), _clok(CMH::HidUnique())
+    APE(PGCB pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
     bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca);

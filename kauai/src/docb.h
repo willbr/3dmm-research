@@ -52,7 +52,7 @@ enum
     fdocInval = 16, // invalidate associated DDGs
 };
 
-#define DocumentBase_PAR CMH
+#define DocumentBase_PAR CommandHandler
 #define kclsDocumentBase 'DOCB'
 class DocumentBase : public DocumentBase_PAR
 {

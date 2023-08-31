@@ -9,7 +9,7 @@
     Status:  Reviewed
 
     BASE ---> BaseCacheableObject ---> MovieSoundMSND
-    BASE ---> CMH  ---> MSQ
+    BASE ---> CommandHandler  ---> MSQ
 
     NOTE: when the MSQ stops sounds, it does it based on sound class (scl)
     and not sound queue (sqn).  This is slightly less efficient, because the
@@ -188,7 +188,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
 
 ****************************************/
 typedef class MSQ *PMSQ;
-#define MSQ_PAR CMH
+#define MSQ_PAR CommandHandler
 #define kclsMSQ 'MSQ'
 
 const long kcsqeGrow = 10; // quantum growth for sqe

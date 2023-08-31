@@ -45,7 +45,7 @@ RTCLASS(UndoBase)
 /***************************************************************************
     Constructor for DocumentBase
 ***************************************************************************/
-DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CMH(khidDoc)
+DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CommandHandler(khidDoc)
 {
     _pdocbChd = pvNil;
     if (pvNil == pdocb)

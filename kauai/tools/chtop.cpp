@@ -1892,7 +1892,7 @@ PDocumentMDIWindow HETD::PdmdNew(void)
     rcAbs.xpLeft = rcAbs.xpRight - kdxpCcg;
     rcAbs.ypTop = 0;
     rcAbs.ypBottom = kdxpFrameCcg / 2;
-    gcb.Set(CMH::HidUnique(), pgob, fgobSibling, kginDefault, &rcAbs, &rcRel);
+    gcb.Set(CommandHandler::HidUnique(), pgob, fgobSibling, kginDefault, &rcAbs, &rcRel);
     if (pvNil == NewObj CCG(&gcb, this, fTrue))
         goto LFail;
 
@@ -1912,7 +1912,7 @@ PDocumentMDIWindow HETD::PdmdNew(void)
 
     rcAbs.xpLeft = rcAbs.xpRight;
     rcAbs.xpRight = rcAbs.xpLeft + kdxpCcg;
-    gcb.Set(CMH::HidUnique(), pgob, fgobSibling, kginDefault, &rcAbs, &rcRel);
+    gcb.Set(CommandHandler::HidUnique(), pgob, fgobSibling, kginDefault, &rcAbs, &rcRel);
     if (pvNil == NewObj CCG(&gcb, this, fFalse))
     {
     LFail:

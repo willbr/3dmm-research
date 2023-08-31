@@ -9,7 +9,7 @@
              MPFNT: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GraphicsObject ---> KidspaceGraphicObject ---> BRWD ---> BRWL ---> MP
+    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BRWD ---> BRWL ---> MP
                                           |
                                           +------> BRWT ---> MPFNT
 
@@ -32,7 +32,7 @@ class MP : public MP_PAR
 
   protected:
     long _cid;  // cid to enqueue to apply selection
-    PCMH _pcmh; // command handler to enqueue command to
+    PCommandHandler _pcmh; // command handler to enqueue command to
 
   protected:
     virtual void _ApplySelection(long ithumSelect, long sid);
@@ -44,7 +44,7 @@ class MP : public MP_PAR
 
   public:
     static PMP PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
-                      ChunkIdentification ckiRoot, ChunkTag ctg, PCMH pcmh, long cid, bool fMoveTop);
+                      ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop);
 
     virtual bool FCmdSelIdle(PCMD pcmd);
 };

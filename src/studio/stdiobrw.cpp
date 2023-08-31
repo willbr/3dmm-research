@@ -15,7 +15,7 @@
     and applies browser selections.
 
     Studio Independent Browsers:
-    BASE --> CMH --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
+    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
     BRWD --> BRWL  (Browser list class; chunky based)
     BRWD --> BRWT  (Browser text class)
     BRWD --> BRWL --> BRWN  (Browser named list class)

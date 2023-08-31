@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GraphicsObject ---> KidspaceGraphicObject ---> ESL (generic easel)
+    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> ESL (generic easel)
                                           |
                                           +---> ESLT (text easel)
                                           |

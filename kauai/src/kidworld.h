@@ -143,7 +143,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca);
     virtual PGraphicsObjectInterpreter PscegNew(PRCA prca, PGraphicsObject pgob);
     virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);
-    virtual PCMH PcmhFromHid(long hid);
+    virtual PCommandHandler PcmhFromHid(long hid);
     virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);
     virtual bool FFindFile(PSTN pstnSrc, PFilename pfni);
     virtual tribool TGiveAlert(PSTN pstn, long bk, long cok);

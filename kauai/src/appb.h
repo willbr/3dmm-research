@@ -59,7 +59,7 @@ enum
 };
 
 typedef class ApplicationBase *PApplicationBase;
-#define ApplicationBase_PAR CMH
+#define ApplicationBase_PAR CommandHandler
 #define kclsApplicationBase 'APPB'
 class ApplicationBase : public ApplicationBase_PAR
 {
@@ -241,8 +241,8 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void GetStnAppName(PSTN pstn);
 
     // command handler stuff
-    virtual void BuryCmh(PCMH pcmh);
-    virtual PCMH PcmhFromHid(long hid);
+    virtual void BuryCmh(PCommandHandler pcmh);
+    virtual PCommandHandler PcmhFromHid(long hid);
 
     // drawing
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);

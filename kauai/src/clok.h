@@ -24,7 +24,7 @@ enum
 };
 
 typedef class Clock *PClock;
-#define Clock_PAR CMH
+#define Clock_PAR CommandHandler
 #define kclsClock 'CLOK'
 class Clock : public Clock_PAR
 {
@@ -37,7 +37,7 @@ class Clock : public Clock_PAR
     // alarm descriptor
     struct ALAD
     {
-        PCMH pcmh;
+        PCommandHandler pcmh;
         ulong tim;
         long lw;
     };
@@ -57,8 +57,8 @@ class Clock : public Clock_PAR
     Clock(long hid, ulong grfclok = fclokNil);
     ~Clock(void);
     static PClock PclokFromHid(long hid);
-    static void BuryCmh(PCMH pcmh);
-    void RemoveCmh(PCMH pcmh);
+    static void BuryCmh(PCommandHandler pcmh);
+    void RemoveCmh(PCommandHandler pcmh);
 
     void Start(ulong tim);
     void Stop(void);
@@ -68,7 +68,7 @@ class Clock : public Clock_PAR
         return _dtimAlarm;
     }
 
-    bool FSetAlarm(long dtim, PCMH pcmhNotify = pvNil, long lwUser = 0, bool fAdjustForDelay = fFalse);
+    bool FSetAlarm(long dtim, PCommandHandler pcmhNotify = pvNil, long lwUser = 0, bool fAdjustForDelay = fFalse);
 
     // idle handling
     virtual bool FCmdAll(PCMD pcmd);

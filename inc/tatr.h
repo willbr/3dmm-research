@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> CMH ---> TATR
+    BASE ---> BaseCacheableObject ---> CommandHandler ---> TATR
 
 ***************************************************************************/
 #ifndef TATR_H
@@ -26,7 +26,7 @@ enum
     The theater class
 ****************************************/
 typedef class TATR *PTATR;
-#define TATR_PAR CMH
+#define TATR_PAR CommandHandler
 #define kclsTATR 'TATR'
 class TATR : public TATR_PAR
 {
@@ -40,7 +40,7 @@ class TATR : public TATR_PAR
     PMovie _pmvie;    // Currently loaded movie
 
   protected:
-    TATR(long hid) : CMH(hid)
+    TATR(long hid) : CommandHandler(hid)
     {
     }
     bool _FInit(long kidParent);

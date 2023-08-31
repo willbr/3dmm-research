@@ -190,8 +190,8 @@ void KidspaceGraphicObjectDescriptorLocation::GetLop(long hidPar, LOP *plop)
     Constructor for a World of Kidspace GraphicsObject.
 ***************************************************************************/
 WorldOfKidspace::WorldOfKidspace(GraphicsObjectBlock *pgcb, PStringRegistry pstrg)
-    : WorldOfKidspace_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
-      _clokGen(CMH::HidUnique()), _clokReset(CMH::HidUnique(), fclokReset)
+    : WorldOfKidspace_PAR(pgcb), _clokAnim(CommandHandler::HidUnique()), _clokNoSlip(CommandHandler::HidUnique(), fclokNoSlip),
+      _clokGen(CommandHandler::HidUnique()), _clokReset(CommandHandler::HidUnique(), fclokReset)
 {
     AssertThis(0);
     AssertNilOrPo(pstrg, 0);
@@ -284,7 +284,7 @@ PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hi
     }
 
     if (hidNil == hid)
-        hid = CMH::HidUnique();
+        hid = CommandHandler::HidUnique();
     else if (pvNil != PcmhFromHid(hid))
     {
         BugVar("command handler with this ID already exists", &hid);
@@ -337,10 +337,10 @@ PBalloon WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumb
 /***************************************************************************
     Get the command handler for this hid.
 ***************************************************************************/
-PCMH WorldOfKidspace::PcmhFromHid(long hid)
+PCommandHandler WorldOfKidspace::PcmhFromHid(long hid)
 {
     AssertThis(0);
-    PCMH pcmh;
+    PCommandHandler pcmh;
 
     switch (hid)
     {
@@ -489,7 +489,7 @@ bool WorldOfKidspace::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
 
     if (vpappb->FPushModal())
     {
-        gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
+        gcb.Set(CommandHandler::HidUnique(), this, fgobNil, kginMark);
         gcb._rcRel.Set(0, 0, krelOne, krelOne);
 
         if (pvNil != (pwoksModal = NewObj WorldOfKidspace(&gcb, _pstrg)))

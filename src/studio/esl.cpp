@@ -262,7 +262,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pst
 
     if (!ESLT_PAR::_FInit(prca, kidEasel))
         return fFalse;
-    if (!FBuildGcb(&gcb, kidSpltPreviewFrame, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidSpltPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
 
     _psflTdts = NewObj SFL;
@@ -309,7 +309,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pst
     }
 
     // Set up the edit box
-    if (!FBuildGcb(&gcb, kidSpltEditBox, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidSpltEditBox, CommandHandler::HidUnique()))
         return fFalse;
     EDPAR edpar(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
                 vpappb->DypTextDef(), tahLeft, tavCenter);
@@ -879,14 +879,14 @@ bool ESLA::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
         return fFalse;
     if (!cost.FGet(pactr->Pbody()))
         return fFalse;
-    if (!FBuildGcb(&gcb, kidCostPreviewFrame, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidCostPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
     _pape = APE::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fFalse, prca);
     if (pvNil == _pape)
         return fFalse;
     _pape->SetToolIncCmtl();
 
-    if (!FBuildGcb(&gcb, kidCostEditBox, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidCostEditBox, CommandHandler::HidUnique()))
         return fFalse;
     edpar.Set(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
               vpappb->DypTextDef(), tahLeft, tavCenter);
@@ -1674,7 +1674,7 @@ bool ESLR::_FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PSTN pst
     if (!ESLR_PAR::_FInit(prca, kidEasel))
         return fFalse;
 
-    if (!FBuildGcb(&gcb, kidRecordSoundName, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidRecordSoundName, CommandHandler::HidUnique()))
         return fFalse;
     edpar.Set(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
               vpappb->DypTextDef(), tahLeft, tavCenter);
