@@ -419,7 +419,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     MARKMEM
 
   private:
-    PGPT _pgpt; // the port
+    PGraphicsPort _pgpt; // the port
 
     // coordinate mapping
     RC _rcSrc;
@@ -438,7 +438,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     // this is passed to the GraphicsPort
     GDD _gdd;
 
-    void _Init(PGPT pgpt);
+    void _Init(PGraphicsPort pgpt);
     bool _FMapRcRcs(RC *prc, RCS *prcs);
     void _MapPtPts(long xp, long yp, PTS *ppts);
     HQ _HqolyCreate(POGN pogn, ulong grfogn);
@@ -450,13 +450,13 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     bool _FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc);
 
   public:
-    GraphicsEnvironment(PGPT pgpt);
+    GraphicsEnvironment(PGraphicsPort pgpt);
     GraphicsEnvironment(PGraphicsObject pgob);
-    GraphicsEnvironment(PGraphicsObject pgob, PGPT pgpt);
+    GraphicsEnvironment(PGraphicsObject pgob, PGraphicsPort pgpt);
     ~GraphicsEnvironment(void);
 
     void SetGobRc(PGraphicsObject pgob);
-    PGPT Pgpt(void)
+    PGraphicsPort Pgpt(void)
     {
         return _pgpt;
     }
@@ -694,8 +694,8 @@ class GraphicsPort : public GraphicsPort_PAR
 
   public:
 #ifdef WIN
-    static PGPT PgptNew(HDC hdc);
-    static PGPT PgptNewHwnd(HWND hwnd);
+    static PGraphicsPort PgptNew(HDC hdc);
+    static PGraphicsPort PgptNewHwnd(HWND hwnd);
 
     static long CclrSetPalette(HWND hwnd, bool fInval);
 
@@ -703,7 +703,7 @@ class GraphicsPort : public GraphicsPort_PAR
     void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RCS *prcs, GDD *pgdd);
 #endif // WIN
 #ifdef MAC
-    static PGPT PgptNew(PPRT pprt, HGD hgd = hNil);
+    static PGraphicsPort PgptNew(PPRT pprt, HGD hgd = hNil);
 
     static bool FCanScreen(long cbitPixel, bool fColor);
     static bool FSetScreenState(long cbitPixel, bool tColor);
@@ -720,8 +720,8 @@ class GraphicsPort : public GraphicsPort_PAR
     static PDynamicArray PglclrGetPalette(void);
     static void Flush(void);
 
-    static PGPT PgptNewOffscreen(RC *prc, long cbitPixel);
-    static PGPT PgptNewPic(RC *prc);
+    static PGraphicsPort PgptNewOffscreen(RC *prc, long cbitPixel);
+    static PGraphicsPort PgptNewPic(RC *prc);
     PPIC PpicRelease(void);
     void SetOffscreenColors(PDynamicArray pglclr = pvNil);
 
@@ -739,7 +739,7 @@ class GraphicsPort : public GraphicsPort_PAR
     void DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf);
     void GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf);
 
-    void CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd);
+    void CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd);
     void DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd);
     void DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd);
 

@@ -722,7 +722,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
 
             if ((pmbmp = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoDisplay, MBMP::FReadMbmp)))
             {
-                PGPT pgpt;
+                PGraphicsPort pgpt;
                 HPEN hpen, hpenold;
                 HBRUSH hbr, hbrold;
                 HFONT hfnt, hfntold;
@@ -748,7 +748,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 {
                     GraphicsEnvironment gnv(pgpt);
                     PGraphicsEnvironment pgnvOff;
-                    PGPT pgptOff;
+                    PGraphicsPort pgptOff;
                     RC rcItem(pDrawItem->rcItem);
 
                     // Must create offscreen dc and blit into that. Then blit that
@@ -1036,7 +1036,7 @@ void RepaintPortfolio(HWND hwndCustom)
     // Get the background bitmap first.
     if ((pmbmp = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBack, MBMP::FReadMbmp)))
     {
-        PGPT pgpt;
+        PGraphicsPort pgpt;
         HPEN hpen, hpenold;
         HBRUSH hbr, hbrold;
         HFONT hfnt, hfntold;
@@ -1064,7 +1064,7 @@ void RepaintPortfolio(HWND hwndCustom)
             RCS rcsPort, rcsPreview;
             GraphicsEnvironment gnv(pgpt);
             PGraphicsEnvironment pgnvOff;
-            PGPT pgptOff;
+            PGraphicsPort pgptOff;
             HWND hwndPreview;
             ChunkNumber cnoBtn;
             int iBtnId;
@@ -1356,7 +1356,7 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
         RCS rcsPreview;
         RC rcPreview;
         PGraphicsEnvironment pgnvOff;
-        PGPT pgpt, pgptOff;
+        PGraphicsPort pgpt, pgptOff;
         HPEN hpen, hpenold;
         HBRUSH hbr, hbrold;
         HFONT hfnt, hfntold;

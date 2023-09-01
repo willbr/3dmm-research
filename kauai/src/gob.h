@@ -127,7 +127,7 @@ class GraphicsObject : public GraphicsObject_PAR
     static PGraphicsObject _pgobScreen;
 
     HWND _hwnd;   // the OS window (may be nil)
-    PGPT _pgpt;   // the graphics port (may be shared with _pgobPar)
+    PGraphicsPort _pgpt;   // the graphics port (may be shared with _pgobPar)
     PCURS _pcurs; // the cursor to show over this gob
 
     RC _rcCur; // current position
@@ -249,7 +249,7 @@ class GraphicsObject : public GraphicsObject_PAR
     // variables
     virtual PDynamicArray *Ppglrtvm(void);
 
-    PGPT Pgpt(void)
+    PGraphicsPort Pgpt(void)
     {
         return _pgpt;
     }
@@ -259,8 +259,8 @@ class GraphicsObject : public GraphicsObject_PAR
     void Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1 = pvNil, RC *prcBad2 = pvNil);
 
     virtual void Clean(void);
-    virtual void DrawTree(PGPT pgpt, RC *prc, RC *prcUpdate, ulong grfgob);
-    virtual void DrawTreeRgn(PGPT pgpt, RC *prc, Region *pregn, ulong grfgob);
+    virtual void DrawTree(PGraphicsPort pgpt, RC *prc, RC *prcUpdate, ulong grfgob);
+    virtual void DrawTreeRgn(PGraphicsPort pgpt, RC *prc, Region *pregn, ulong grfgob);
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 
     // mouse handling and hit testing

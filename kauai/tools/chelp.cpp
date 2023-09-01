@@ -233,7 +233,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGPT pgpt)
+void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertThis(0);
 

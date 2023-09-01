@@ -96,7 +96,7 @@ EDCB::~EDCB(void)
 bool EDCB::_FInit(void)
 {
     AssertBaseThis(0);
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (_fMark)
     {

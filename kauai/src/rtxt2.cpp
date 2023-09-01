@@ -537,7 +537,7 @@ void TextDocumentGraphicsObject::MarkMem(void)
 bool TextDocumentGraphicsObject::_FInit(void)
 {
     AssertBaseThis(0);
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (!TextDocumentGraphicsObject_PAR::_FInit())
         return fFalse;

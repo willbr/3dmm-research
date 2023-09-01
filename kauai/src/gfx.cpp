@@ -135,7 +135,7 @@ GraphicsEnvironment::GraphicsEnvironment(PGraphicsObject pgob)
 /***************************************************************************
     Constructor for Graphics environment based on both a port and a pgob.
 ***************************************************************************/
-GraphicsEnvironment::GraphicsEnvironment(PGraphicsObject pgob, PGPT pgpt)
+GraphicsEnvironment::GraphicsEnvironment(PGraphicsObject pgob, PGraphicsPort pgpt)
 {
     AssertPo(pgpt, 0);
     AssertPo(pgob, 0);
@@ -157,7 +157,7 @@ GraphicsEnvironment::~GraphicsEnvironment(void)
 /***************************************************************************
     Fill in all fields of the gnv with default values.
 ***************************************************************************/
-void GraphicsEnvironment::_Init(PGPT pgpt)
+void GraphicsEnvironment::_Init(PGraphicsPort pgpt)
 {
     PT pt;
 
@@ -1231,7 +1231,7 @@ void GraphicsEnvironment::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray p
 ***************************************************************************/
 bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc)
 {
-    PGPT pgpt;
+    PGraphicsPort pgpt;
     PGraphicsEnvironment pgnv;
 
     if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(prc, 8)) || pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
@@ -1541,7 +1541,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
         // allocate the offscreen port and copy the destination into it.
         if (pgnvSrc != pvNil)
         {
-            PGPT pgptSrc;
+            PGraphicsPort pgptSrc;
 
             AssertVarMem(prcSrc);
             Assert(prcSrc->Dyp() == prcDst->Dyp() && prcSrc->Dxp() == prcDst->Dxp(), "rc's are scaled");

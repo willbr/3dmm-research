@@ -218,9 +218,9 @@ bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
     bool fHalfXSave = _fHalfX;
     bool fHalfYSave = _fHalfY;
     RC rcBufferSave = _rcBuffer;
-    PGPT pgptWorkingSave = _pgptWorking;
-    PGPT pgptStretchSave = _pgptStretch;
-    PGPT pgptBackgroundSave = _pgptBackground;
+    PGraphicsPort pgptWorkingSave = _pgptWorking;
+    PGraphicsPort pgptStretchSave = _pgptStretch;
+    PGraphicsPort pgptBackgroundSave = _pgptBackground;
     BPMP bpmpRGBSave = _bpmpRGB;
     PZBMP pzbmpWorkingSave = _pzbmpWorking;
     PZBMP pzbmpBackgroundSave = _pzbmpBackground;
@@ -357,7 +357,7 @@ bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumbe
         // and _pzbmpBackground.  For pmbmpNew, it is drawn into a
         // full-size buffer, then reduced with CopyPixels.  For the
         // ZBMP, it is necessary to reduce it in code here.
-        PGPT pgptFull;
+        PGraphicsPort pgptFull;
         long yp;
         byte *pbSrc;
         byte *pbDst;

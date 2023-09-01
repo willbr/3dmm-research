@@ -341,10 +341,10 @@ long GraphicsPort::CclrSetPalette(HWND hwnd, bool fInval)
 /***************************************************************************
     Static method to create a new GraphicsPort for an HDC.
 ***************************************************************************/
-PGPT GraphicsPort::PgptNew(HDC hdc)
+PGraphicsPort GraphicsPort::PgptNew(HDC hdc)
 {
     Assert(hNil != hdc, "Null hdc");
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (hNil == hdc || pvNil == (pgpt = NewObj GraphicsPort))
         return pvNil;
@@ -359,11 +359,11 @@ PGPT GraphicsPort::PgptNew(HDC hdc)
 /***************************************************************************
     Static method to create a new GraphicsPort for a window.
 ***************************************************************************/
-PGPT GraphicsPort::PgptNewHwnd(HWND hwnd)
+PGraphicsPort GraphicsPort::PgptNewHwnd(HWND hwnd)
 {
     Assert(hNil != hwnd, "Null hwnd");
     HDC hdc;
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (hNil == hwnd || hNil == (hdc = GetDC(hwnd)))
     {
@@ -479,11 +479,11 @@ SCR GraphicsPort::_Scr(AbstractColor acr)
 /***************************************************************************
     Static method to create an offscreen port.
 ***************************************************************************/
-PGPT GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
+PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
 {
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rectangle for offscreen");
-    PGPT pgpt;
+    PGraphicsPort pgpt;
     HDC hdc, hdcT;
     HBMP hbmp, hbmpOld;
     BITMAPINFO *pbmi;
@@ -737,11 +737,11 @@ void GraphicsPort::Unlock(void)
     Static method to create a metafile dc and its an associated GraphicsPort.
     This should be balanced with a call to PpicRelease().
 ***************************************************************************/
-PGPT GraphicsPort::PgptNewPic(RC *prc)
+PGraphicsPort GraphicsPort::PgptNewPic(RC *prc)
 {
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rectangle for metafile GraphicsPort");
-    PGPT pgpt;
+    PGraphicsPort pgpt;
     RCS rcs;
     HDC hdc;
 
@@ -1503,7 +1503,7 @@ LSetAlignment:
 /***************************************************************************
     Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GraphicsPort::CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
+void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pgptSrc, 0);
@@ -1686,7 +1686,7 @@ void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
         // area to white in this GraphicsPort, then create an offscreen GraphicsPort for the
         // actual MBMP graphic, then blt to this GraphicsPort.
         PT ptSrc;
-        PGPT pgpt;
+        PGraphicsPort pgpt;
 
         SetTextColor(_hdc, kscrWhite);
         SetBkColor(_hdc, kscrBlack);

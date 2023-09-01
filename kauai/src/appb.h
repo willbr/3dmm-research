@@ -107,7 +107,7 @@ class ApplicationBase : public ApplicationBase_PAR
     PDynamicArray _pglmkrgn;        // list of marked regions for fast updating
     long _onnDefFixed;    // default fixed pitch font
     long _onnDefVariable; // default variable pitched font
-    PGPT _pgptOff;        // cached offscreen GraphicsPort for offscreen updates
+    PGraphicsPort _pgptOff;        // cached offscreen GraphicsPort for offscreen updates
     long _dxpOff;         // size of the offscreen GraphicsPort
     long _dypOff;
 
@@ -171,13 +171,13 @@ class ApplicationBase : public ApplicationBase_PAR
 #endif
 
     // fast updating
-    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
     virtual void _CopyPixels(PGraphicsEnvironment pgvnSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst);
     void _MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
     void _UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
 
     // to borrow the common offscreen GraphicsPort
-    virtual PGPT _PgptEnsure(RC *prc);
+    virtual PGraphicsPort _PgptEnsure(RC *prc);
 
     // property list management
     bool _FFindProp(long prid, PROP *pprop, long *piprop = pvNil);

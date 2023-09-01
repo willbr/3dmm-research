@@ -2040,8 +2040,8 @@ bool APP::_FDetermineIfSlowCPU(void)
 
 #else // PERF_TEST
 
-    PGPT pgptWnd = pvNil;
-    PGPT pgptOff = pvNil;
+    PGraphicsPort pgptWnd = pvNil;
+    PGraphicsPort pgptOff = pvNil;
     RC rc1;
     RC rc2;
     ulong ts;
@@ -4161,7 +4161,7 @@ bool APP::_FGetNextEvt(PEVT pevt)
 /***************************************************************************
     Override default _FastUpdate to optionally skip offscreen buffer
 ***************************************************************************/
-void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGPT pgpt)
+void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertBaseThis(0);
 

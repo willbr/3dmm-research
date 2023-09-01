@@ -4659,7 +4659,7 @@ void Scene::_UpdateThumbnail(void)
     AssertThis(0);
 
     long nfrmCur;
-    PGPT pgpt, pgptThumb;
+    PGraphicsPort pgpt, pgptThumb;
     PMovieView pmvu;
     PTBOX ptbox = PtboxSelected();
     PActor pactr = PactrSelected();

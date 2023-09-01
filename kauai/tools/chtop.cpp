@@ -1189,7 +1189,7 @@ bool HEDG::FCmdPrint(PCommand pcmd)
 
     PHETD phetd = pvNil;
     PHETG phetg = pvNil;
-    PGPT pgpt = pvNil;
+    PGraphicsPort pgpt = pvNil;
     PGraphicsEnvironment pgnv = pvNil;
     long lwPage = 1;
     bool fInPage = fFalse;
@@ -3074,7 +3074,7 @@ bool HETG::FCmdPrint(PCommand pcmd)
 #ifdef WIN
     PRINTDLG pd;
     DOCINFO di;
-    PGPT pgpt = pvNil;
+    PGraphicsPort pgpt = pvNil;
     PGraphicsEnvironment pgnv = pvNil;
     STN stn;
     RC rc;

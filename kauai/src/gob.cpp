@@ -643,7 +643,7 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
     intersect prcClip will be drawn.  prcClip is in the GraphicsObject's local
     coordinates.
 ***************************************************************************/
-void GraphicsObject::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
+void GraphicsObject::DrawTree(PGraphicsPort pgpt, RC *prc, RC *prcClip, ulong grfgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgpt, 0);
@@ -750,7 +750,7 @@ void GraphicsObject::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
     rectangle based at (0, 0).  Only GraphicsObject's that intersect pregn will be
     drawn.  pregn is in the GraphicsObject's local coordinates.
 ***************************************************************************/
-void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, Region *pregn, ulong grfgob)
+void GraphicsObject::DrawTreeRgn(PGraphicsPort pgpt, RC *prc, Region *pregn, ulong grfgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgpt, 0);

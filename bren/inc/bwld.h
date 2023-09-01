@@ -44,9 +44,9 @@ class World : public World_PAR
     BACT _bactWorld;             // The world root actor
     BACT _bactCamera;            // The camera actor
     BCAM _bcam;                  // The camera data
-    PGPT _pgptBackground;        // Background RGB bitmap
-    PGPT _pgptWorking;           // RGB working buffer to render into
-    PGPT _pgptStretch;           // Stretched working buffer (if _fhalfY)
+    PGraphicsPort _pgptBackground;        // Background RGB bitmap
+    PGraphicsPort _pgptWorking;           // RGB working buffer to render into
+    PGraphicsPort _pgptStretch;           // Stretched working buffer (if _fhalfY)
     BPMP _bpmpRGB;               // BRender wrapper around _pgptWorking
     PZBMP _pzbmpBackground;      // Background Z-buffer
     PZBMP _pzbmpWorking;         // Working Z-buffer to render into

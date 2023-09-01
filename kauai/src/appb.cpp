@@ -755,7 +755,7 @@ void ApplicationBase::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     AssertVarMem(prc);
 
     PGraphicsObject pgob;
-    PGPT pgpt = pvNil;
+    PGraphicsPort pgpt = pvNil;
 
     if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
@@ -1141,7 +1141,7 @@ void ApplicationBase::UpdateMarked(void)
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGPT pgpt)
+void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -1168,7 +1168,7 @@ void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong
         // copy the stuff to the screen
         GraphicsEnvironment gnvOff(pgpt);
         GraphicsEnvironment gnv(pgob);
-        PGPT pgptDst = pgob->Pgpt();
+        PGraphicsPort pgptDst = pgob->Pgpt();
 
         pgptDst->ClipToRegn(&pregnClip);
         _CopyPixels(&gnvOff, &rc, &gnv, &rc);
@@ -1262,7 +1262,7 @@ void ApplicationBase::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGra
     Should minimize reallocations.  Doesn't increment a ref count.
     ApplicationBase maintains ownership of the GraphicsPort.
 ***************************************************************************/
-PGPT ApplicationBase::_PgptEnsure(RC *prc)
+PGraphicsPort ApplicationBase::_PgptEnsure(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);

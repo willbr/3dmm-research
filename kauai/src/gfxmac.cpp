@@ -258,11 +258,11 @@ void GraphicsPort::GetScreenState(long *pcbitPixel, bool *pfColor)
 /***************************************************************************
     Static method to create a new GraphicsPort.
 ***************************************************************************/
-PGPT GraphicsPort::PgptNew(PPRT pprt, HGD hgd)
+PGraphicsPort GraphicsPort::PgptNew(PPRT pprt, HGD hgd)
 {
     AssertVarMem(pprt);
     AssertNilOrVarMem(hgd);
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (pvNil == (pgpt = NewObj GraphicsPort))
         return pvNil;
@@ -319,13 +319,13 @@ HCLT GraphicsPort::_HcltUse(long cbitPixel)
 /***************************************************************************
     Static method to create an offscreen port.
 ***************************************************************************/
-PGPT GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
+PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
 {
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rc for offscreen");
     PGWR pgwr;
     RCS rcs;
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (cbitPixel == 24)
         cbitPixel = 32;
@@ -401,11 +401,11 @@ long GraphicsPort::CbitPixel(void)
     Static method to create a PICT and its an associated GraphicsPort.
     This should be balanced with a call to PpicRelease().
 ***************************************************************************/
-PGPT GraphicsPort::PgptNewPic(RC *prc)
+PGraphicsPort GraphicsPort::PgptNewPic(RC *prc)
 {
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rectangle for metafile GraphicsPort");
-    PGPT pgpt;
+    PGraphicsPort pgpt;
     RCS rcs;
     RC rc(0, 0, 1, 1);
 
@@ -1012,7 +1012,7 @@ HPIX GraphicsPort::_Hpix(void)
 /***************************************************************************
     Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GraphicsPort::CopyPixels(PGPT pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
+void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
 {
     Set(pgdd->prcsClip);
     ForeColor(blackColor);
@@ -1081,7 +1081,7 @@ void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
         // area to white in this GraphicsPort, then create an offscreen GraphicsPort for the
         // actual MBMP graphic, then blt these to this GraphicsPort.
         PT ptDst;
-        PGPT pgpt;
+        PGraphicsPort pgpt;
         RCS rcsDst;
         RCS rcsSrc;
 

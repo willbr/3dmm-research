@@ -1457,7 +1457,7 @@ void DOCPIC::MarkMem(void)
 DOCPIC *DOCPIC::PdocpicNew(void)
 {
     static long _cact = 0;
-    PGPT pgpt;
+    PGraphicsPort pgpt;
     PGraphicsEnvironment pgnv;
     PPIC ppic;
     DOCPIC *pdocpic;
@@ -1627,7 +1627,7 @@ class DOCGPT : public DOCGPT_PAR
 
   protected:
     DOCGPT(void);
-    PGPT _pgpt;
+    PGraphicsPort _pgpt;
 
   public:
     ~DOCGPT(void);
@@ -1635,7 +1635,7 @@ class DOCGPT : public DOCGPT_PAR
     static DOCGPT *PdocgptNew(void);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
-    PGPT Pgpt(void)
+    PGraphicsPort Pgpt(void)
     {
         return _pgpt;
     }
@@ -1688,7 +1688,7 @@ void DOCGPT::MarkMem(void)
 DOCGPT *DOCGPT::PdocgptNew(void)
 {
     DOCGPT *pdocgpt;
-    PGPT pgpt;
+    PGraphicsPort pgpt;
     PGraphicsEnvironment pgnv;
     PMBMP pmbmp;
     long i;

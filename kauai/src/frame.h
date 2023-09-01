@@ -32,7 +32,7 @@ class DSG;  // document scroll gob
 class DocumentDisplayGraphicsObject;  // document display gob
 class SNDM; // sound manager
 
-typedef class GraphicsPort *PGPT;
+typedef class GraphicsPort *PGraphicsPort;
 typedef class GraphicsEnvironment *PGraphicsEnvironment;
 typedef class CommandHandler *PCommandHandler;
 typedef class GraphicsObject *PGraphicsObject;
