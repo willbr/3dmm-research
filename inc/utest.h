@@ -103,7 +103,7 @@ class APP : public APP_PAR
         _fRunInWindow : 1, // run in a window (as opposed to fullscreen)
         _fFontError : 1,   // Have we already seen a font error?
         _fInPortfolio : 1; // Is the portfolio active?
-    PCEX _pcex;            // Pointer to suspended cex.
+    PCommandExecutionManager _pcex;            // Pointer to suspended cex.
     Filename _fniPortfolioDoc;  // document last opened in portfolio
     PMovie _pmvieHandoff;   // Stores movie for studio to use
     PKWA _pkwa;            // Kidworld for App

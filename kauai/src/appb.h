@@ -87,7 +87,7 @@ class ApplicationBase : public ApplicationBase_PAR
     struct MODCX
     {
         long cactLongOp;
-        PCEX pcex;
+        PCommandExecutionManager pcex;
         PUSAC pusac;
         ulong luScale;
     };
@@ -301,7 +301,7 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual void ResetToolTip(void);
 
     // modal loop support
-    virtual bool FPushModal(PCEX pcex = pvNil);
+    virtual bool FPushModal(PCommandExecutionManager pcex = pvNil);
     virtual bool FModalLoop(long *plwRet);
     virtual void EndModal(long lwRet);
     virtual void PopModal(void);
@@ -323,7 +323,7 @@ class ApplicationBase : public ApplicationBase_PAR
 };
 
 extern PApplicationBase vpappb;
-extern PCEX vpcex;
+extern PCommandExecutionManager vpcex;
 extern PSNDM vpsndm;
 
 // main entry point for the client app

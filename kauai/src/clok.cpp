@@ -9,8 +9,8 @@
 
     Clock class. Clocks provide timing and alarm functionality. Clocks get
     CPU time by inserting themselves in the command handler list (attached
-    to the CEX). This causes Clock::FCmdAll to be called every time a command
-    comes through the CEX. The time of a clock is updated only when
+    to the CommandExecutionManager). This causes Clock::FCmdAll to be called every time a command
+    comes through the CommandExecutionManager. The time of a clock is updated only when
     Clock::FCmdAll is called. So the following code will not time the operation:
 
         dtim = vclok.TimCur();
@@ -56,7 +56,7 @@
     now, does some work that takes 1/2 second (we're running on a slow
     machine), then enqueues a command "cidFoo" to another object "B".
     Assuming the command queue was empty, the next command processed by the
-    CEX is cidFoo. This causes the alarm to go off again (remember that alarms
+    CommandExecutionManager is cidFoo. This causes the alarm to go off again (remember that alarms
     go off during the FCmdAll call). And the whole process repeats. The
     command queue is never empty in the main app loop, so we never check the
     system event queue, so the user can sit there and hit the keyboard or play

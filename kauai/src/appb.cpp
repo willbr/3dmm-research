@@ -14,7 +14,7 @@
 ASSERTNAME
 
 PApplicationBase vpappb;
-PCEX vpcex;
+PCommandExecutionManager vpcex;
 PSNDM vpsndm;
 
 // basic commands common to most apps
@@ -555,7 +555,7 @@ bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 #endif
 
     // initialize the command dispatcher
-    if (pvNil == (vpcex = CEX::PcexNew(20, 20)))
+    if (pvNil == (vpcex = CommandExecutionManager::PcexNew(20, 20)))
         return fFalse;
 
     // add the app as a handler (so it can catch menu commands)
@@ -1529,7 +1529,7 @@ bool ApplicationBase::FImportClip(long clfm, void *pv, long cb, PDocumentBase *p
     Push the current modal context and create a new one. This should be
     balanced with a call to PopModal (if successful).
 ***************************************************************************/
-bool ApplicationBase::FPushModal(PCEX pcex)
+bool ApplicationBase::FPushModal(PCommandExecutionManager pcex)
 {
     AssertThis(0);
     MODCX modcx;
@@ -1551,7 +1551,7 @@ bool ApplicationBase::FPushModal(PCEX pcex)
     if (pcex != pvNil)
         pcex->AddRef();
 
-    if (pvNil == pcex && pvNil == (pcex = CEX::PcexNew(20, 20)) || !pcex->FAddCmh(vpappb, kcmhlAppb) ||
+    if (pvNil == pcex && pvNil == (pcex = CommandExecutionManager::PcexNew(20, 20)) || !pcex->FAddCmh(vpappb, kcmhlAppb) ||
         pvNil == (pusacNew = NewObj USAC))
     {
         ReleasePpo(&pcex);
@@ -1647,7 +1647,7 @@ bool ApplicationBase::FCmdEndModal(PCommand pcmd)
 
 /***************************************************************************
     Handle any bad modal commands. Default is to put the command in the
-    next modal context's CEX.
+    next modal context's CommandExecutionManager.
 ***************************************************************************/
 void ApplicationBase::BadModalCmd(PCommand pcmd)
 {

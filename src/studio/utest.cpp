@@ -2526,7 +2526,7 @@ void APP::_Activate(bool fActive)
     RawRtn();
 #endif // MAC
 
-    /* Don't do this stuff unless we've got the CEX set up */
+    /* Don't do this stuff unless we've got the CommandExecutionManager set up */
     if (vpcex != pvNil)
     {
 

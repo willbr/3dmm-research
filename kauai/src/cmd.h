@@ -203,15 +203,15 @@ enum
     recLim
 };
 
-typedef class CEX *PCEX;
-#define CEX_PAR BASE
-#define kclsCEX 'CEX'
-class CEX : public CEX_PAR
+typedef class CommandExecutionManager *PCommandExecutionManager;
+#define CommandExecutionManager_PAR BASE
+#define kclsCommandExecutionManager 'CEX'
+class CommandExecutionManager : public CommandExecutionManager_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CEX)
+    NOCOPY(CommandExecutionManager)
 
   protected:
     // an entry in the command handler list
@@ -262,7 +262,7 @@ class CEX : public CEX_PAR
     long _ccmdMax; // running max
 #endif             // DEBUG
 
-    CEX(void);
+    CommandExecutionManager(void);
 
     virtual bool _FInit(long ccmdInit, long ccmhInit);
     virtual bool _FFindCmhl(long cmhl, long *picmhe);
@@ -277,8 +277,8 @@ class CEX : public CEX_PAR
     bool _FReadCmd(PCommand pcmd);
 
   public:
-    static PCEX PcexNew(long ccmdInit, long ccmhInit);
-    ~CEX(void);
+    static PCommandExecutionManager PcexNew(long ccmdInit, long ccmhInit);
+    ~CommandExecutionManager(void);
 
     // recording and play back
     bool FRecording(void)
