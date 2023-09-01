@@ -830,7 +830,7 @@ BOOL CALLBACK _FDlgAssert(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
     return fFalse;
 }
 
-MUTX _mutxAssert;
+Mutex _mutxAssert;
 
 /***************************************************************************
     The assert proc. Returning true breaks into the debugger.

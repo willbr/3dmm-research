@@ -65,10 +65,10 @@ class FIL : public FIL_PAR
 
   protected:
     // static member variables
-    static MUTX _mutxList;
+    static Mutex _mutxList;
     static PFIL _pfilFirst;
 
-    MUTX _mutx;
+    Mutex _mutx;
 
     Filename _fni;
     bool _fOpen : 1;

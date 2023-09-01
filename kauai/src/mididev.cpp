@@ -40,7 +40,7 @@ class MIDO : public MIDO_PAR
   protected:
     typedef HMIDIOUT HMO;
 
-    MUTX _mutx; // restricts access to member variables
+    Mutex _mutx; // restricts access to member variables
     HMO _hmo;   // the output device
 
     // system volume level - to be saved and restored. The volume we set
@@ -362,7 +362,7 @@ class MPQUE : public MPQUE_PAR
     bool _fChanged; // also signals new input - for extra protection
     HN _hth;        // the thread handle
 
-    MUTX _mutx;    // mutex to restrict access to member variables
+    Mutex _mutx;    // mutex to restrict access to member variables
     MSTP _mstp;    // midi stream parser
     long _dtsSlip; // amount of time we've slipped by
     long _sii;     // id and priority of sound we're currently serving

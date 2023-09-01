@@ -69,9 +69,9 @@ inline ulong DtsCaret(void)
     Mutexes to protect various global linked lists, etc.
 ***************************************************************************/
 #ifdef DEBUG
-extern MUTX vmutxBase;
+extern Mutex vmutxBase;
 #endif // DEBUG
-extern MUTX vmutxMem;
+extern Mutex vmutxMem;
 
 /***************************************************************************
     Global random number generator and shuffler. These are used by the

@@ -262,8 +262,8 @@ inline long BvSubPvs(void *pv1, void *pv2)
 /****************************************
     Mutex (critical section) object
 ****************************************/
-typedef class MUTX *PMUTX;
-class MUTX
+typedef class Mutex *PMutex;
+class Mutex
 {
   protected:
 #ifdef WIN
@@ -271,11 +271,11 @@ class MUTX
 #endif // WIN
 
   public:
-    MUTX(void)
+    Mutex(void)
     {
         Win(InitializeCriticalSection(&_crit);)
     }
-    ~MUTX(void)
+    ~Mutex(void)
     {
         Win(DeleteCriticalSection(&_crit);)
     }
@@ -290,7 +290,7 @@ class MUTX
     }
 };
 
-extern MUTX vmutxMem;
+extern Mutex vmutxMem;
 
 /****************************************
     Current thread id

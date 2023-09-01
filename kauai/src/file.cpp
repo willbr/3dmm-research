@@ -15,7 +15,7 @@ ASSERTNAME
 
 FileType FIL::vftgCreator = '____';
 PFIL FIL::_pfilFirst;
-MUTX FIL::_mutxList;
+Mutex FIL::_mutxList;
 
 RTCLASS(FIL)
 RTCLASS(DataBlock)

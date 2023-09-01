@@ -1786,7 +1786,7 @@ void WarnProc(PSZS pszsFile, long lwLine, PSZS pszsMsg)
         vpappb->WarnProcApp(pszsFile, lwLine, pszsMsg);
 }
 
-static MUTX _mutxWarn;
+static Mutex _mutxWarn;
 
 /***************************************************************************
     Default framework warning proc.

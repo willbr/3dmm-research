@@ -177,7 +177,7 @@ class AMQUE : public AMQUE_PAR
     ASSERT
 
   protected:
-    MUTX _mutx;         // restricts access to member variables
+    Mutex _mutx;         // restricts access to member variables
     IAMChannel *_pchan; // the audioman channel
     ulong _tsStart;     // when we started the current sound
     AMNOT _amnot;       // notify sink

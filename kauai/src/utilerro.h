@@ -38,7 +38,7 @@ class ErrorStack : public ErrorStack_PAR
 #endif // DEBUG
     };
 
-    MUTX _mutx;
+    Mutex _mutx;
     long _cerd;
     ERD _rgerd[kcerdMax];
 

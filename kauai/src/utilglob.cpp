@@ -29,10 +29,10 @@ RTCLASS(USAC)
 
 #ifdef DEBUG
 // protects our debug linked list object management
-MUTX vmutxBase;
+Mutex vmutxBase;
 #endif // DEBUG
 
-MUTX vmutxMem;
+Mutex vmutxMem;
 
 // Shuffler and random number generator for the script interpreter
 SFL vsflUtil;

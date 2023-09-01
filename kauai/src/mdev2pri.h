@@ -97,7 +97,7 @@ class MSQUE : public MSQUE_PAR
     MARKMEM
 
   protected:
-    MUTX _mutx;     // restricts access to member variables
+    Mutex _mutx;     // restricts access to member variables
     ulong _tsStart; // when we started the current sound
     PMSMIX _pmsmix;
 
@@ -147,7 +147,7 @@ class MSMIX : public MSMIX_PAR
     };
 
     // Mutex to protect our member variables
-    MUTX _mutx;
+    Mutex _mutx;
     HN _hevt; // to notify the thread that the sound list changed
     HN _hth;  // thread to terminate non-playing sounds
 
@@ -281,7 +281,7 @@ class WMS : public WMS_PAR
     };
     typedef MSIR *PMSIR;
 
-    MUTX _mutx;
+    Mutex _mutx;
     HINSTANCE _hlib;
     PDynamicArray _pglpmsir;
     long _ipmsirCur;
@@ -358,7 +358,7 @@ class OMS : public OMS_PAR
         ulong luData;
     };
 
-    MUTX _mutx;
+    Mutex _mutx;
     HN _hevt; // event to notify the thread that the stream data has changed
     HN _hth;  // thread to play the stream data
 
