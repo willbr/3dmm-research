@@ -386,31 +386,31 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     // to the studio.  Otherwise, start the building.
     GetPortfolioDoc(&fniUserDoc);
 
-    if (fniUserDoc.Ftg() == ftgNil)
-    {
-        // Startup place depends on whether this is the user's first time in.
-        if (!FGetProp(kpridFirstTimeUser, &fFirstTimeUser))
-        {
-            _FGenericError(PszLit("FGetProp: kpridFirstTimeUser"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
+    // if (fniUserDoc.Ftg() == ftgNil)
+    // {
+    //     // Startup place depends on whether this is the user's first time in.
+    //     if (!FGetProp(kpridFirstTimeUser, &fFirstTimeUser))
+    //     {
+    //         _FGenericError(PszLit("FGetProp: kpridFirstTimeUser"));
+    //         _fDontReportInitFailure = fTrue;
+    //         goto LFail;
+    //     }
 
-        if (!FSetProp(kpridBuildingGob, (fFirstTimeUser ? kgobCloset : kgobLogin)))
-        {
-            _FGenericError(PszLit("FSetProp: kpridBuildingGob"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
-        if (!_FInitBuilding())
-        {
-            _FGenericError(PszLit("_FInitBuilding"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
-    }
-    else
-    {
+    //     if (!FSetProp(kpridBuildingGob, (fFirstTimeUser ? kgobCloset : kgobLogin)))
+    //     {
+    //         _FGenericError(PszLit("FSetProp: kpridBuildingGob"));
+    //         _fDontReportInitFailure = fTrue;
+    //         goto LFail;
+    //     }
+    //     if (!_FInitBuilding())
+    //     {
+    //         _FGenericError(PszLit("_FInitBuilding"));
+    //         _fDontReportInitFailure = fTrue;
+    //         goto LFail;
+    //     }
+    // }
+    // else
+    // {
         if (!FSetProp(kpridBuildingGob, kgobStudio1))
         {
             _FGenericError(PszLit("FSetProp: kpridBuildingGob"));
@@ -423,7 +423,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
             _fDontReportInitFailure = fTrue;
             goto LFail;
         }
-    }
+    // }
 
     EnsureInteractive();
 
