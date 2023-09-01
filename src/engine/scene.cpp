@@ -3401,27 +3401,27 @@ LSuccess:
     _isevFrmLim = 0;
 
     // Add the default sound for the new background, if any
-    _pbkgd->GetDefaultSound(&tag, &vlm, &fLoop);
-    if (tag.sid != ksidInvalid) // new background sound
-    {
-        // Note: since FSetBkgdCore is only called at edit time,
-        // it's okay to call FCacheTag.  The background default
-        // sound is not an intrinsic part of the Background...it's more
-        // of a "serving suggestion" that the user can remove
-        // once the background is added.
-        Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
-        if (vptagm->FCacheTagToHD(&tag))
-        {
-            pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
-            if (pvNil != pmsnd)
-            {
-                sty = pmsnd->Sty();
-                ReleasePpo(&pmsnd);
-                // non-destructive if we fail
-                FAddSndCore(fLoop, fFalse, vlm, sty, 1, &tag);
-            }
-        }
-    }
+    // _pbkgd->GetDefaultSound(&tag, &vlm, &fLoop);
+    // if (tag.sid != ksidInvalid) // new background sound
+    // {
+    //     // Note: since FSetBkgdCore is only called at edit time,
+    //     // it's okay to call FCacheTag.  The background default
+    //     // sound is not an intrinsic part of the Background...it's more
+    //     // of a "serving suggestion" that the user can remove
+    //     // once the background is added.
+    //     Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
+    //     if (vptagm->FCacheTagToHD(&tag))
+    //     {
+    //         pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    //         if (pvNil != pmsnd)
+    //         {
+    //             sty = pmsnd->Sty();
+    //             ReleasePpo(&pmsnd);
+    //             // non-destructive if we fail
+    //             FAddSndCore(fLoop, fFalse, vlm, sty, 1, &tag);
+    //         }
+    //     }
+    // }
 
     _pmvie->Pmcc()->SceneChange();
 
