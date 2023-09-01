@@ -476,7 +476,7 @@ Scene::Scene(PMovie pmvie)
     _nfrmCur = 1;
     _nfrmLast = 1;
     _nfrmFirst = 1;
-    _trans = transDissolve; // default transition
+    _trans = transCut; // default transition
 
     //
     // By default we disable pauses in the studio
