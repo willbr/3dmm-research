@@ -2442,7 +2442,7 @@ void TextDocumentGraphicsObject::ShowRuler(bool fShow)
         GraphicsObjectBlock gcb;
 
         pgob = PgobPar();
-        if (pvNil == pgob || !pgob->FIs(kclsDSG))
+        if (pvNil == pgob || !pgob->FIs(kclsDocumentScrollGraphicsObject))
             return;
 
         GetPos(&rcAbs, &rcRel);

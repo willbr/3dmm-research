@@ -37,7 +37,7 @@ RTCLASS(DTE)
 RTCLASS(DocumentDisplayGraphicsObject)
 RTCLASS(DocumentMDIWindow)
 RTCLASS(DocumentMainWindow)
-RTCLASS(DSG)
+RTCLASS(DocumentScrollGraphicsObject)
 RTCLASS(DSSP)
 RTCLASS(DSSM)
 RTCLASS(UndoBase)
@@ -523,16 +523,16 @@ PDocumentMainWindow DocumentBase::PdmwNew(PGCB pgcb)
 }
 
 /***************************************************************************
-    Create a new DSG for the doc in the given DocumentMainWindow.
+    Create a new DocumentScrollGraphicsObject for the doc in the given DocumentMainWindow.
 ***************************************************************************/
-PDSG DocumentBase::PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDocumentScrollGraphicsObject DocumentBase::PdsgNew(PDocumentMainWindow pdmw, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
-    return DSG::PdsgNew(pdmw, pdsgSplit, grfdsg, rel);
+    return DocumentScrollGraphicsObject::PdsgNew(pdmw, pdsgSplit, grfdsg, rel);
 }
 
 /***************************************************************************
-    Create a new DocumentDisplayGraphicsObject for the doc in the given DSG.
+    Create a new DocumentDisplayGraphicsObject for the doc in the given DocumentScrollGraphicsObject.
 ***************************************************************************/
 PDocumentDisplayGraphicsObject DocumentBase::PddgNew(PGCB pgcb)
 {
@@ -1269,7 +1269,7 @@ void DocumentDisplayGraphicsObject::_SetScrollValues(void)
     PGraphicsObject pgob;
 
     pgob = PgobPar();
-    if (pgob->FIs(kclsDSG))
+    if (pgob->FIs(kclsDocumentScrollGraphicsObject))
     {
         if (pvNil != (pscb = (PSCB)pgob->PgobFromHid(khidVScroll)))
             pscb->SetValMinMax(_scvVert, 0, _ScvMax(fTrue));
@@ -1496,7 +1496,7 @@ bool DocumentMainWindow::_FInit(void)
     if (pvNil == _pdocb->PdsgNew(this, pvNil, fdsgNil, krelOne))
         return fFalse;
     AssertPo(_paldsed, 0);
-    Assert(_paldsed->IvMac() > 0, "the DSG wasn't added to the DocumentMainWindow");
+    Assert(_paldsed->IvMac() > 0, "the DocumentScrollGraphicsObject wasn't added to the DocumentMainWindow");
 
     _fCreating = fFalse;
     return fTrue;
@@ -1515,7 +1515,7 @@ void DocumentMainWindow::_NewRc(void)
     Add the dsg to the dmw (the dsg is already a child gob - we now promote
     it to a full fledged child dsg).
 ***************************************************************************/
-bool DocumentMainWindow::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
+bool DocumentMainWindow::FAddDsg(PDocumentScrollGraphicsObject pdsg, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     AssertIn(rel, 0, krelOne + 1);
@@ -1544,7 +1544,7 @@ bool DocumentMainWindow::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long r
     AssertIn(_idsedRoot, 0, _paldsed->IvMac());
     if ((idsedSplit = pdsgSplit->_dsno) == dsnoNil)
     {
-        Bug("pdsgSplit is not a registered DSG");
+        Bug("pdsgSplit is not a registered DocumentScrollGraphicsObject");
         return fFalse;
     }
     idsedSplit--;
@@ -1609,7 +1609,7 @@ LDone:
 /***************************************************************************
     Remove the dsg from the list of active DSGs.
 ***************************************************************************/
-void DocumentMainWindow::RemoveDsg(PDSG pdsg)
+void DocumentMainWindow::RemoveDsg(PDocumentScrollGraphicsObject pdsg)
 {
     long idsedStart;
 
@@ -1621,9 +1621,9 @@ void DocumentMainWindow::RemoveDsg(PDSG pdsg)
 }
 
 /***************************************************************************
-    Remove the DSG from the tree and set its _dsno to nil.
+    Remove the DocumentScrollGraphicsObject from the tree and set its _dsno to nil.
 ***************************************************************************/
-void DocumentMainWindow::_RemoveDsg(PDSG pdsg, long *pidsedStartLayout)
+void DocumentMainWindow::_RemoveDsg(PDocumentScrollGraphicsObject pdsg, long *pidsedStartLayout)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1757,7 +1757,7 @@ void DocumentMainWindow::_Layout(long idsedStart)
     long idsed;
     DSED *qdsed;
     RC rcRel;
-    PDSG pdsg;
+    PDocumentScrollGraphicsObject pdsg;
 
 LRestart:
     if (ivNil == idsedStart)
@@ -1791,7 +1791,7 @@ LRestart:
         qdsed = _Qdsed(idsed);
         if (ivNil != qdsed->idsedLeft)
         {
-            // internal node - no DSG
+            // internal node - no DocumentScrollGraphicsObject
             DSED dsed;
 
             Assert(ivNil != qdsed->idsedRight, "bad node");
@@ -1814,7 +1814,7 @@ LRestart:
         rcDsg.ypBottom = LwMulDiv(dypDmw, rcRel.ypBottom, krelOne);
         if ((rcDsg.Dxp() < rc.xpLeft || rcDsg.Dyp() < rc.ypTop) && idsed != _idsedRoot)
         {
-            // DSG is becoming too small and it's not the only one, so nuke it
+            // DocumentScrollGraphicsObject is becoming too small and it's not the only one, so nuke it
             // and restart this routine from the top.
 
             // Remove the dsg first so we don't recursively enter _Layout
@@ -1893,7 +1893,7 @@ long DocumentMainWindow::Cdsg(void)
     Get the rectangles for the split associated with pdsg and for the area
     that the split affects.
 ***************************************************************************/
-void DocumentMainWindow::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
+void DocumentMainWindow::GetRcSplit(PDocumentScrollGraphicsObject pdsg, RC *prcBounds, RC *prcSplit)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1937,9 +1937,9 @@ void DocumentMainWindow::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
 }
 
 /***************************************************************************
-    Move the split corresponding to the given DSG.
+    Move the split corresponding to the given DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DocumentMainWindow::MoveSplit(PDSG pdsg, long relNew)
+void DocumentMainWindow::MoveSplit(PDocumentScrollGraphicsObject pdsg, long relNew)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pdsg, 0);
@@ -1970,7 +1970,7 @@ void DocumentMainWindow::MoveSplit(PDSG pdsg, long relNew)
     Determine whether the split corresponding to pdsg is vertical,
     horizontal or inactive.
 ***************************************************************************/
-tribool DocumentMainWindow::TVert(PDSG pdsg)
+tribool DocumentMainWindow::TVert(PDocumentScrollGraphicsObject pdsg)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -2033,7 +2033,7 @@ void DocumentMainWindow::AssertValid(ulong grfobj)
         {
             Assert(ivNil == dsed.idsedRight, "left nil, but right not");
             AssertPo(dsed.pdsg, 0);
-            Assert(dsed.pdsg->_dsno == idsed + 1, "bad _dsno in DSG");
+            Assert(dsed.pdsg->_dsno == idsed + 1, "bad _dsno in DocumentScrollGraphicsObject");
         }
         else
         {
@@ -2082,22 +2082,22 @@ void DocumentMainWindow::MarkMem(void)
 }
 #endif // DEBUG
 
-BEGIN_CMD_MAP(DSG, GraphicsObject)
-ON_CID_ME(cidDoScroll, &DSG::FCmdScroll, pvNil)
-ON_CID_ME(cidEndScroll, &DSG::FCmdScroll, pvNil)
+BEGIN_CMD_MAP(DocumentScrollGraphicsObject, GraphicsObject)
+ON_CID_ME(cidDoScroll, &DocumentScrollGraphicsObject::FCmdScroll, pvNil)
+ON_CID_ME(cidEndScroll, &DocumentScrollGraphicsObject::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
-    Static method to create a new DSG.
+    Static method to create a new DocumentScrollGraphicsObject.
 ***************************************************************************/
-PDSG DSG::PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDocumentScrollGraphicsObject DocumentScrollGraphicsObject::PdsgNew(PDocumentMainWindow pdmw, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
     AssertPo(pdmw, 0);
-    Assert(pvNil != pdsgSplit || pdmw->Cdsg() == 0, "must split an existing DSG");
-    PDSG pdsg;
+    Assert(pvNil != pdsgSplit || pdmw->Cdsg() == 0, "must split an existing DocumentScrollGraphicsObject");
+    PDocumentScrollGraphicsObject pdsg;
     GraphicsObjectBlock gcb(khidDsg, pdmw);
 
-    if (pvNil == (pdsg = NewObj DSG(&gcb)))
+    if (pvNil == (pdsg = NewObj DocumentScrollGraphicsObject(&gcb)))
         return pvNil;
 
     if (!pdsg->_FInit(pdsgSplit, grfdsg, rel))
@@ -2110,28 +2110,28 @@ PDSG DSG::PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long r
 }
 
 /***************************************************************************
-    Constructor for DSG.
+    Constructor for DocumentScrollGraphicsObject.
 ***************************************************************************/
-DSG::DSG(PGCB pgcb) : GraphicsObject(pgcb)
+DocumentScrollGraphicsObject::DocumentScrollGraphicsObject(PGCB pgcb) : GraphicsObject(pgcb)
 {
     _dsno = dsnoNil;
     AssertThis(fobjAssertFull);
 }
 
 /***************************************************************************
-    Destructor for DSG - remove ourselves from the DocumentMainWindow.
+    Destructor for DocumentScrollGraphicsObject - remove ourselves from the DocumentMainWindow.
 ***************************************************************************/
-DSG::~DSG(void)
+DocumentScrollGraphicsObject::~DocumentScrollGraphicsObject(void)
 {
     Pdmw()->RemoveDsg(this);
 }
 
 /***************************************************************************
-    Create the scroll bars, the DocumentDisplayGraphicsObject and do any other DSG initialization.
+    Create the scroll bars, the DocumentDisplayGraphicsObject and do any other DocumentScrollGraphicsObject initialization.
 ***************************************************************************/
-bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
+bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
-    Assert(pvNil != pdsgSplit || Pdmw()->Cdsg() == 0, "must split an existing DSG");
+    Assert(pvNil != pdsgSplit || Pdmw()->Cdsg() == 0, "must split an existing DocumentScrollGraphicsObject");
     PDocumentMainWindow pdmw;
     PDocumentBase pdocb;
 
@@ -2177,9 +2177,9 @@ bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
 }
 
 /***************************************************************************
-    Get the min and max sizes for the DSG.
+    Get the min and max sizes for the DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DSG::GetMinMax(RC *prcMinMax)
+void DocumentScrollGraphicsObject::GetMinMax(RC *prcMinMax)
 {
     AssertThis(0);
     long dxpScb = SCB::DxpNormal();
@@ -2196,15 +2196,15 @@ void DSG::GetMinMax(RC *prcMinMax)
 }
 
 /***************************************************************************
-    Split the DSG into two dsg's.
+    Split the DocumentScrollGraphicsObject into two dsg's.
 ***************************************************************************/
-void DSG::Split(ulong grfdsg, long rel)
+void DocumentScrollGraphicsObject::Split(ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     PDocumentMainWindow pdmw;
     PDocumentBase pdocb;
 
-    Assert(_dsno != dsnoNil, "why are we splitting an unattached DSG?");
+    Assert(_dsno != dsnoNil, "why are we splitting an unattached DocumentScrollGraphicsObject?");
     pdmw = Pdmw();
     pdocb = pdmw->Pdocb();
     pdocb->PdsgNew(pdmw, this, grfdsg, rel);
@@ -2213,7 +2213,7 @@ void DSG::Split(ulong grfdsg, long rel)
 /***************************************************************************
     A scroll bar has been hit.  Do the scroll.
 ***************************************************************************/
-bool DSG::FCmdScroll(PCommand pcmd)
+bool DocumentScrollGraphicsObject::FCmdScroll(PCommand pcmd)
 {
     // just pass it on to the DocumentDisplayGraphicsObject
     AssertThis(0);
@@ -2226,13 +2226,13 @@ bool DSG::FCmdScroll(PCommand pcmd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the DSG.
+    Assert the validity of the DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DSG::AssertValid(ulong grfobj)
+void DocumentScrollGraphicsObject::AssertValid(ulong grfobj)
 {
     PDocumentMainWindow pdmw;
 
-    DSG_PAR::AssertValid(grfobj);
+    DocumentScrollGraphicsObject_PAR::AssertValid(grfobj);
     pdmw = (PDocumentMainWindow)PgobPar();
     AssertBasePo(pdmw, 0);
 }
@@ -2249,7 +2249,7 @@ DSSP::DSSP(PGCB pgcb) : GraphicsObject(pgcb)
 /***************************************************************************
     Static method to create a new split box.
 ***************************************************************************/
-PDSSP DSSP::PdsspNew(PDSG pdsg, ulong grfdssp)
+PDSSP DSSP::PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp)
 {
     Assert(FPure(grfdssp & fdsspHorz) != FPure(grfdssp & fdsspVert),
            "must specify exactly one of (fdsspVert,fdsspHorz)");
@@ -2290,7 +2290,7 @@ void DSSP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 }
 
 /***************************************************************************
-    See if the parent DSG can be split.  If so, track the mouse and draw
+    See if the parent DocumentScrollGraphicsObject can be split.  If so, track the mouse and draw
     the gray outline until the user releases the mouse.
 ***************************************************************************/
 void DSSP::MouseDown(long xp, long yp, long cact, ulong grfcust)
@@ -2300,7 +2300,7 @@ void DSSP::MouseDown(long xp, long yp, long cact, ulong grfcust)
     long dzpMinDsg, dzpDsg, zpMin, zpLast, dzp, zp;
     RC rc;
     bool fVert = Hid() == khidDsspVert;
-    PDSG pdsg = (PDSG)PgobPar();
+    PDocumentScrollGraphicsObject pdsg = (PDocumentScrollGraphicsObject)PgobPar();
     PT pt(xp, yp);
 
     MapPt(&pt, cooLocal, cooParent);
@@ -2345,7 +2345,7 @@ DSSM::DSSM(PGCB pgcb) : GraphicsObject(pgcb)
 /***************************************************************************
     Static method to create a new split mover.
 ***************************************************************************/
-PDSSM DSSM::PdssmNew(PDSG pdsg)
+PDSSM DSSM::PdssmNew(PDocumentScrollGraphicsObject pdsg)
 {
     AssertPo(pdsg, 0);
     PDSSM pdssm;
@@ -2387,7 +2387,7 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
     AssertThis(0);
     long zp, zpMin, zpLast, zpOrig, dzpMinDsg, dzp;
     RC rc, rcSplit;
-    PDSG pdsg;
+    PDocumentScrollGraphicsObject pdsg;
     PDocumentMainWindow pdmw;
     tribool tVert;
     PT pt(xp, yp);
@@ -2396,7 +2396,7 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
     if (tMaybe == tVert)
         return;
 
-    pdsg = (PDSG)PgobPar();
+    pdsg = (PDocumentScrollGraphicsObject)PgobPar();
     AssertPo(pdsg, 0);
     pdsg->GetMinMax(&rc);
     dzpMinDsg = (tYes == tVert) ? rc.ypTop : rc.xpLeft;
@@ -2443,10 +2443,10 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
 ***************************************************************************/
 tribool DSSM::TVert(void)
 {
-    PDSG pdsg;
+    PDocumentScrollGraphicsObject pdsg;
     PDocumentMainWindow pdmw;
 
-    pdsg = (PDSG)PgobPar();
+    pdsg = (PDocumentScrollGraphicsObject)PgobPar();
     pdmw = pdsg->Pdmw();
     return pdmw->TVert(pdsg);
 }

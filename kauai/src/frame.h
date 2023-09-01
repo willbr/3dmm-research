@@ -28,7 +28,7 @@ class MenuBar;  // menu bar
 class DocumentBase; // base document
 class DocumentMDIWindow;  // document mdi window
 class DocumentMainWindow;  // main document window
-class DSG;  // document scroll gob
+class DocumentScrollGraphicsObject;  // document scroll gob
 class DocumentDisplayGraphicsObject;  // document display gob
 class SNDM; // sound manager
 
@@ -40,7 +40,7 @@ typedef class MenuBar *PMenuBar;
 typedef class DocumentBase *PDocumentBase;
 typedef class DocumentMDIWindow *PDocumentMDIWindow;
 typedef class DocumentMainWindow *PDocumentMainWindow;
-typedef class DSG *PDSG;
+typedef class DocumentScrollGraphicsObject *PDocumentScrollGraphicsObject;
 typedef class DocumentDisplayGraphicsObject *PDocumentDisplayGraphicsObject;
 typedef class SNDM *PSNDM;
 

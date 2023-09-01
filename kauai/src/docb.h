@@ -115,7 +115,7 @@ class DocumentBase : public DocumentBase_PAR
 
     // low level calls - generally not for public consumption
     virtual PDocumentMainWindow PdmwNew(PGCB pgcb);
-    virtual PDSG PdsgNew(PDocumentMainWindow pdwm, PDSG pdsgSplit, ulong grfdsg, long rel);
+    virtual PDocumentScrollGraphicsObject PdsgNew(PDocumentMainWindow pdwm, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel);
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
     // DocumentDisplayGraphicsObject management - only to be called by DDGs
@@ -212,7 +212,7 @@ class DTE : public DTE_PAR
 };
 
 /***************************************************************************
-    document display gob - normally a child of a DSG but can be a child
+    document display gob - normally a child of a DocumentScrollGraphicsObject but can be a child
     of any gob (for doc previewing, etc)
 ***************************************************************************/
 #define DocumentDisplayGraphicsObject_PAR GraphicsObject
@@ -317,7 +317,7 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
     MARKMEM
 
   protected:
-    // DSG edge struct - these form a locally-balanced binary tree
+    // DocumentScrollGraphicsObject edge struct - these form a locally-balanced binary tree
     // with DSGs as the leafs.  Locally-balanced means that a node has a left
     // child iff it has a right child.
     struct DSED
@@ -328,7 +328,7 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
         long idsedLeft;
         long idsedRight;
         long idsedPar;
-        PDSG pdsg;
+        PDocumentScrollGraphicsObject pdsg;
     };
     PAllocatedArray _paldsed; // the tree of DSEDs
     long _idsedRoot;
@@ -342,7 +342,7 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
     void _Layout(long idsedStart);
     long _IdsedNext(long idsed, long idsedRoot);
     long _IdsedEdge(long idsed, long idsedRoot);
-    void _RemoveDsg(PDSG pdsg, long *pidsedStartLayout);
+    void _RemoveDsg(PDocumentScrollGraphicsObject pdsg, long *pidsedStartLayout);
     DSED *_Qdsed(long idsed)
     {
         return (DSED *)_paldsed->QvGet(idsed);
@@ -357,13 +357,13 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
         return _pdocb;
     }
 
-    bool FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel);
-    void RemoveDsg(PDSG pdsg);
+    bool FAddDsg(PDocumentScrollGraphicsObject pdsg, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel);
+    void RemoveDsg(PDocumentScrollGraphicsObject pdsg);
     long Cdsg(void);
 
-    void GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit);
-    void MoveSplit(PDSG pdsg, long relNew);
-    tribool TVert(PDSG pdsg);
+    void GetRcSplit(PDocumentScrollGraphicsObject pdsg, RC *prcBounds, RC *prcSplit);
+    void MoveSplit(PDocumentScrollGraphicsObject pdsg, long relNew);
+    tribool TVert(PDocumentScrollGraphicsObject pdsg);
 
     virtual void Release(void);
 };
@@ -373,28 +373,28 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
     holds any scroll bars, splitter boxes and split movers
     dialogs tightly with DocumentMainWindow and DocumentDisplayGraphicsObject
 ***************************************************************************/
-#define DSG_PAR GraphicsObject
-#define kclsDSG 'DSG'
-class DSG : public DSG_PAR
+#define DocumentScrollGraphicsObject_PAR GraphicsObject
+#define kclsDocumentScrollGraphicsObject 'DSG'
+class DocumentScrollGraphicsObject : public DocumentScrollGraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(DSG)
+    CMD_MAP_DEC(DocumentScrollGraphicsObject)
     ASSERT
 
     friend DocumentMainWindow;
 
   private:
-    long _dsno; // this is how the DocumentMainWindow refers to this DSG
+    long _dsno; // this is how the DocumentMainWindow refers to this DocumentScrollGraphicsObject
     PDocumentDisplayGraphicsObject _pddg;
 
   protected:
-    DSG(PGCB pgcb);
-    ~DSG(void);
+    DocumentScrollGraphicsObject(PGCB pgcb);
+    ~DocumentScrollGraphicsObject(void);
 
-    virtual bool _FInit(PDSG pdsgSplit, ulong grfdsg, long rel);
+    virtual bool _FInit(PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel);
 
   public:
-    static PDSG PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long rel);
+    static PDocumentScrollGraphicsObject PdsgNew(PDocumentMainWindow pdmw, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel);
     virtual void GetMinMax(RC *prcMinMax);
 
     PDocumentMainWindow Pdmw(void)
@@ -415,7 +415,7 @@ enum
 };
 
 /***************************************************************************
-    document scroll window splitter - must be a child of a DSG
+    document scroll window splitter - must be a child of a DocumentScrollGraphicsObject
 ***************************************************************************/
 typedef class DSSP *PDSSP;
 #define DSSP_PAR GraphicsObject
@@ -436,7 +436,7 @@ class DSSP : public DSSP_PAR
     {
         return SCB::DxpNormal() / 2;
     }
-    static PDSSP PdsspNew(PDSG pdsg, ulong grfdssp);
+    static PDSSP PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -450,7 +450,7 @@ enum
 };
 
 /***************************************************************************
-    document scroll split mover - must be a child of a DSG
+    document scroll split mover - must be a child of a DocumentScrollGraphicsObject
 ***************************************************************************/
 typedef class DSSM *PDSSM;
 #define DSSM_PAR GraphicsObject
@@ -468,7 +468,7 @@ class DSSM : public DSSM_PAR
     void _DrawTrackBar(PGraphicsEnvironment pgnv, RC *prcOld, RC *prcNew);
 
   public:
-    static PDSSM PdssmNew(PDSG pdsg);
+    static PDSSM PdssmNew(PDocumentScrollGraphicsObject pdsg);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
