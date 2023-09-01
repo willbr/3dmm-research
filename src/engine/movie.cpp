@@ -4476,7 +4476,7 @@ bool Movie::FCmdRender(PCommand pcmd)
             // {
             //     _vlmOrg = vpsndm->VlmCur(); // get the current volume
             //     if ((0 == _vlmOrg))         // if there is volume to fade with
-            //         SetFStopPlaying(fTrue); // there is nothing to fade
+                    SetFStopPlaying(fTrue); // there is nothing to fade
             // }
             return (fTrue);
         }
