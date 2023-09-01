@@ -25,7 +25,7 @@ ON_CID_ME(cidMouseMove, &GraphicsObject::FCmdMouseMoveCore, pvNil)
 END_CMD_MAP_NIL()
 
 RTCLASS(GraphicsObject)
-RTCLASS(GTE)
+RTCLASS(GraphicsObjectTreeEnumerator)
 
 long GraphicsObject::_ginDefGob = kginSysInval;
 long GraphicsObject::_gridLast;
@@ -193,7 +193,7 @@ void GraphicsObject::ActivateHwnd(HWND hwnd, bool fActive)
     if (fActive)
         pgob->SendBehind(pvNil);
 
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
 
     gte.Init(pgob, fgteBackToFront);
@@ -457,7 +457,7 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
     RC rc, rcBad1, rcBad2, rcInval, rcT;
     PT dpt(0, 0);
     PGraphicsObject pgob, pgobT;
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte, grfgteIn;
     bool fFound;
 
@@ -674,7 +674,7 @@ void GraphicsObject::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
         return;
 
     GraphicsEnvironment gnv(pgpt);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte, grfgteIn;
     PGraphicsObject pgob;
 
@@ -779,7 +779,7 @@ void GraphicsObject::DrawTreeRgn(PGPT pgpt, RC *prc, Region *pregn, ulong grfgob
         return;
 
     GraphicsEnvironment gnv(pgpt);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte, grfgteIn;
     PGraphicsObject pgob;
     PRegion pregnClip;
@@ -1278,7 +1278,7 @@ void GraphicsObject::MouseDown(long xp, long yp, long cact, ulong grfcust)
 void GraphicsObject::_SetRcCur(void)
 {
     PGraphicsObject pgob;
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     RC rc, rcVis;
 
@@ -1429,7 +1429,7 @@ PGraphicsObject GraphicsObject::PgobFromClsScr(long cls)
 PGraphicsObject GraphicsObject::PgobFromCls(long cls)
 {
     AssertThis(0);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     PGraphicsObject pgob;
 
@@ -1493,7 +1493,7 @@ PGraphicsObject GraphicsObject::PgobFromHidScr(long hid)
 PGraphicsObject GraphicsObject::PgobFromHid(long hid)
 {
     AssertThis(0);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     PGraphicsObject pgob;
 
@@ -1544,7 +1544,7 @@ PGraphicsObject GraphicsObject::PgobParFromHid(long hid)
 PGraphicsObject GraphicsObject::PgobFromGrid(long grid)
 {
     AssertThis(0);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     PGraphicsObject pgob;
 
@@ -1834,7 +1834,7 @@ void GraphicsObject::MarkMem(void)
 ***************************************************************************/
 void GraphicsObject::MarkGobTree(void)
 {
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     PGraphicsObject pgob;
     ulong grfgte;
 
@@ -1850,7 +1850,7 @@ void GraphicsObject::MarkGobTree(void)
 /***************************************************************************
     Constructor for a GraphicsObject tree enumerator.
 ***************************************************************************/
-GTE::GTE(void)
+GraphicsObjectTreeEnumerator::GraphicsObjectTreeEnumerator(void)
 {
     _es = esDone;
 }
@@ -1858,7 +1858,7 @@ GTE::GTE(void)
 /***************************************************************************
     Initialize a GraphicsObject tree enumerator.
 ***************************************************************************/
-void GTE::Init(PGraphicsObject pgob, ulong grfgte)
+void GraphicsObjectTreeEnumerator::Init(PGraphicsObject pgob, ulong grfgte)
 {
     _pgobRoot = pgob;
     _pgobCur = pvNil;
@@ -1870,7 +1870,7 @@ void GTE::Init(PGraphicsObject pgob, ulong grfgte)
     Goes to the next node in the sub tree being enumerated.  Returns false
     iff the enumeration is done.
 ***************************************************************************/
-bool GTE::FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgte)
+bool GraphicsObjectTreeEnumerator::FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgte)
 {
     PGraphicsObject pgobT;
 

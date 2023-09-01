@@ -724,7 +724,7 @@ void ApplicationBase::TopOfLoop(void)
         // need to redraw all our windows - we ignored some paint
         // events while in an assert
         _fRefresh = fFalse;
-        GTE gte;
+        GraphicsObjectTreeEnumerator gte;
         PGraphicsObject pgob;
         ulong grfgte;
 

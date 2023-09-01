@@ -473,7 +473,7 @@ bool WorldOfKidspace::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
 
     GraphicsObjectBlock gcb;
     PWorldOfKidspace pwoksModal;
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     PGraphicsObject pgob;
     ulong grfgte;
     bool fRet = fFalse;

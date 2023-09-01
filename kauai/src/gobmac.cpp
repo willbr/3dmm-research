@@ -253,7 +253,7 @@ void GraphicsObject::SetHwndName(PSTZ pstz)
 void GraphicsObject::MakeHwndActive(HWND hwnd)
 {
     Assert(hwnd != hNil, "nil hwnd");
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     PGraphicsObject pgob;
 

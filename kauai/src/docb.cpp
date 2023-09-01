@@ -1391,7 +1391,7 @@ DocumentMDIWindow::DocumentMDIWindow(PDocumentBase pdocb, PGCB pgcb) : GraphicsO
 void DocumentMDIWindow::ActivateNext(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     PGraphicsObject pgob;
 

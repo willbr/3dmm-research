@@ -2571,7 +2571,7 @@ bool APP::FCmdDeactivate(PCommand pcmd)
 
     GraphicsObjectBlock gcb;
     PWorldOfKidspace pwoksModal;
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     PGraphicsObject pgob;
     ulong grfgte;
     long lwRet;

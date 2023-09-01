@@ -72,7 +72,7 @@ PGraphicsObject GraphicsObject::PgobFromHwnd(HWND hwnd)
     // NOTE: we used to use SetProp and GetProp for this, but profiling
     // indicated that GetProp is very slow.
     Assert(hwnd != hNil, "nil hwnd");
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     PGraphicsObject pgob;
 

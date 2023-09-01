@@ -121,7 +121,7 @@ class GraphicsObject : public GraphicsObject_PAR
     ASSERT
     MARKMEM
 
-    friend class GTE;
+    friend class GraphicsObjectTreeEnumerator;
 
   private:
     static PGraphicsObject _pgobScreen;
@@ -331,9 +331,9 @@ enum
     fgteRoot = 0x0040
 };
 
-#define GTE_PAR BASE
-#define kclsGTE 'GTE'
-class GTE : public GTE_PAR
+#define GraphicsObjectTreeEnumerator_PAR BASE
+#define kclsGraphicsObjectTreeEnumerator 'GTE'
+class GraphicsObjectTreeEnumerator : public GraphicsObjectTreeEnumerator_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -354,7 +354,7 @@ class GTE : public GTE_PAR
     PGraphicsObject _pgobCur;
 
   public:
-    GTE(void);
+    GraphicsObjectTreeEnumerator(void);
     void Init(PGraphicsObject pgob, ulong grfgte);
     bool FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgteIn);
 };
