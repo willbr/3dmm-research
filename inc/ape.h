@@ -34,7 +34,7 @@ struct GMS
 };
 
 // Actor preview entity tool
-struct APET
+struct ActorPreviewEntityTool
 {
     long apt;
     GMS gms;
@@ -57,7 +57,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     PWorld _pbwld;       // BRender world to draw actor in
     PTMPL _ptmpl;       // Template (or TDT) of the actor being previewed
     PBODY _pbody;       // Body of the actor being previewed
-    APET _apet;         // Currently selected tool
+    ActorPreviewEntityTool _apet;         // Currently selected tool
     PDynamicArray _pglgms;        // What materials are attached to what body part sets
     long _celn;         // Current cel of action
     Clock _clok;         // To time cel cycling
