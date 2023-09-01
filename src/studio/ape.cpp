@@ -69,7 +69,7 @@ bool ActorPreviewEntity::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycle
     long cbset;
     long ibset;
     RC rc;
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     _fCycleCels = fCycleCels;
     _prca = prca;
@@ -103,7 +103,7 @@ bool ActorPreviewEntity::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycle
         }
     }
 
-    _pglgms = DynamicArray::PglNew(size(GMS), cbset);
+    _pglgms = DynamicArray::PglNew(size(GeneralMaterialSpec), cbset);
     if (pvNil == _pglgms)
         return fFalse;
     AssertDo(_pglgms->FSetIvMac(cbset), "PglNew should have ensured space");
@@ -507,7 +507,7 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
     PBODY pbody;
     long ibset;
     long ibsetAcc;
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     if (pcmd->cid != cidMouseDown)
     {
@@ -557,9 +557,9 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
 }
 
 /***************************************************************************
-    Apply a GMS to ibset
+    Apply a GeneralMaterialSpec to ibset
 ***************************************************************************/
-bool ActorPreviewEntity::_FApplyGms(GMS *pgms, long ibset)
+bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
 {
     AssertThis(0);
     AssertVarMem(pgms);
@@ -592,7 +592,7 @@ bool ActorPreviewEntity::_FApplyGms(GMS *pgms, long ibset)
     Fill in pgms with the next CMTL available for ibset and applies it
     to _pbody.
 ***************************************************************************/
-bool ActorPreviewEntity::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
+bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool fNextAccessory)
 {
     AssertThis(0);
     AssertVarMem(pgms);
@@ -613,11 +613,11 @@ bool ActorPreviewEntity::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
     ccmid = _ptmpl->CcmidOfBset(ibset);
 
     // Need to find out what cmid (if any) is currently attached to ibset.
-    // If the GMS is valid, use it.  Otherwise, figure out which cmid
+    // If the GeneralMaterialSpec is valid, use it.  Otherwise, figure out which cmid
     // generates the same pcmtl that is currently attached to the body.
     if (!pgms->fValid || pgms->fMtrl)
     {
-        // GMS is useless...look at the body
+        // GeneralMaterialSpec is useless...look at the body
         _pbody->GetPartSetMaterial(ibset, &fMtrl, &pmtrlOld, &pcmtlOld);
         if (!fMtrl)
         {
@@ -639,7 +639,7 @@ bool ActorPreviewEntity::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
     }
     else
     {
-        // GMS has current cmid
+        // GeneralMaterialSpec has current cmid
         cmid = pgms->cmid;
         for (icmid = 0; icmid < ccmid; icmid++)
         {
@@ -749,7 +749,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
     AssertVarMem(ptagMtrl);
 
     PMTRL pmtrl;
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     pmtrl = (PMTRL)vptagm->PbacoFetch(ptagMtrl, MTRL::FReadMtrl);
     if (pvNil == pmtrl)
@@ -817,7 +817,7 @@ bool ActorPreviewEntity::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, 
     AssertVarMem(pcmid);
     AssertVarMem(ptagMtrl);
 
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     _pglgms->Get(ibset, &gms);
     if (!gms.fValid)

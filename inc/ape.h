@@ -25,9 +25,9 @@ enum
 };
 
 // Generic material spec
-struct GMS
+struct GeneralMaterialSpec
 {
-    bool fValid; // if fFalse, ignore this GMS
+    bool fValid; // if fFalse, ignore this GeneralMaterialSpec
     bool fMtrl;  // if fMtrl is fTrue, tagMtrl is valid.  Else cmid is valid
     long cmid;
     TAG tagMtrl;
@@ -37,7 +37,7 @@ struct GMS
 struct ActorPreviewEntityTool
 {
     long apt;
-    GMS gms;
+    GeneralMaterialSpec gms;
 };
 
 /****************************************
@@ -77,8 +77,8 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     void _InitView(void);
     void _SetScale(void);
     void _UpdateView(void);
-    bool _FApplyGms(GMS *pgms, long ibset);
-    bool _FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory);
+    bool _FApplyGms(GeneralMaterialSpec *pgms, long ibset);
+    bool _FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool fNextAccessory);
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
