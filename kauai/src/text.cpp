@@ -120,7 +120,7 @@ bool EDCB::_FInit(void)
 /***************************************************************************
     Draw the contents of the gob.
 ***************************************************************************/
-void EDCB::Draw(PGNV pgnv, RC *prcClip)
+void EDCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -443,7 +443,7 @@ void EDCB::_GetRcContent(RC *prc)
     Set the vis for the GraphicsEnvironment to be the intersection of the GraphicsObject's vis and
     the content rc.
 ***************************************************************************/
-void EDCB::_InitGnv(PGNV pgnv)
+void EDCB::_InitGnv(PGraphicsEnvironment pgnv)
 {
     RC rc;
 
@@ -588,7 +588,7 @@ void EDCB::ShowSel(bool fForceJustification, long gin)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void EDCB::_InvertSel(PGNV pgnv, long gin)
+void EDCB::_InvertSel(PGraphicsEnvironment pgnv, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -619,7 +619,7 @@ void EDCB::_InvertSel(PGNV pgnv, long gin)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void EDCB::_InvertIchRange(PGNV pgnv, long ich1, long ich2, long gin)
+void EDCB::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -937,7 +937,7 @@ long EDPL::_LnFromYp(long yp)
 /***************************************************************************
     Hilite the rectangle.
 ***************************************************************************/
-void EDPL::_HiliteRc(PGNV pgnv, RC *prc)
+void EDPL::_HiliteRc(PGraphicsEnvironment pgnv, RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1018,7 +1018,7 @@ long EDPL::_IchFromLnXp(long ln, long xp, bool fClosest)
 /***************************************************************************
     Draw the given line in the given GraphicsEnvironment.
 ***************************************************************************/
-void EDPL::_DrawLine(PGNV pgnv, long ln)
+void EDPL::_DrawLine(PGraphicsEnvironment pgnv, long ln)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac() + 1);

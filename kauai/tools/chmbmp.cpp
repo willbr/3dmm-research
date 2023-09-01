@@ -146,7 +146,7 @@ PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb)
 /***************************************************************************
     Draw the MBMP.
 ***************************************************************************/
-void DCMBMP::Draw(PGNV pgnv, RC *prcClip)
+void DCMBMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rcMbmp, rcDdg;
 

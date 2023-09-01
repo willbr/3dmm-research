@@ -108,15 +108,15 @@ class TXDD : public TXDD_PAR
     bool _FFindLineStart(long ich, long *pich);
     bool _FFindNextLineStartCached(long ich, long *pich, achar *prgch = pvNil, long cchMax = 0);
     bool _FFindLineStartCached(long ich, long *pich);
-    void _DrawLine(PGNV pgnv, RC *prcClip, long yp, achar *prgch, long cch);
+    void _DrawLine(PGraphicsEnvironment pgnv, RC *prcClip, long yp, achar *prgch, long cch);
     void _SwitchSel(bool fOn, bool fDraw);
-    void _InvertSel(PGNV pgnv, bool fDraw);
-    void _InvertIchRange(PGNV pgnv, long ich1, long ich2, bool fDraw);
+    void _InvertSel(PGraphicsEnvironment pgnv, bool fDraw);
+    void _InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, bool fDraw);
     long _LnFromIch(long ich);
     long _IchMinLn(long ln);
-    long _XpFromLnIch(PGNV pgnv, long ln, long ich);
+    long _XpFromLnIch(PGraphicsEnvironment pgnv, long ln, long ich);
     long _XpFromIch(long ich);
-    long _XpFromRgch(PGNV pgnv, achar *prgch, long cch);
+    long _XpFromRgch(PGraphicsEnvironment pgnv, achar *prgch, long cch);
     long _IchFromLnXp(long ln, long xp);
     long _IchFromIchXp(long ich, long xp);
     long _IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp);
@@ -141,7 +141,7 @@ class TXDD : public TXDD_PAR
   public:
     static PTXDD PtxddNew(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual bool FCmdSelIdle(PCommand pcmd);

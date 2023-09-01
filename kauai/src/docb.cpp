@@ -1202,7 +1202,7 @@ bool DocumentDisplayGraphicsObject::FCmdUndo(PCommand pcmd)
 /***************************************************************************
     Default for a DocumentDisplayGraphicsObject - for frame testing only.
 ***************************************************************************/
-void DocumentDisplayGraphicsObject::Draw(PGNV pgnv, RC *prcClip)
+void DocumentDisplayGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     pgnv->FillRc(prcClip, _fActive ? kacrBlue : kacrMagenta);
@@ -2280,7 +2280,7 @@ PDSSP DSSP::PdsspNew(PDSG pdsg, ulong grfdssp)
 /***************************************************************************
     Draw the split box.
 ***************************************************************************/
-void DSSP::Draw(PGNV pgnv, RC *prcClip)
+void DSSP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
@@ -2362,7 +2362,7 @@ PDSSM DSSM::PdssmNew(PDSG pdsg)
 /***************************************************************************
     Draw the split mover.
 ***************************************************************************/
-void DSSM::Draw(PGNV pgnv, RC *prcClip)
+void DSSM::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;

@@ -265,7 +265,7 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     }
 
     // members of GraphicsObject
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdActivateSel(PCommand pcmd);
 
     virtual bool FCmdScroll(PCommand pcmd);
@@ -438,7 +438,7 @@ class DSSP : public DSSP_PAR
     }
     static PDSSP PdsspNew(PDSG pdsg, ulong grfdssp);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 };
 
@@ -465,12 +465,12 @@ class DSSM : public DSSM_PAR
   protected:
     DSSM(PGCB pgcb);
 
-    void _DrawTrackBar(PGNV pgnv, RC *prcOld, RC *prcNew);
+    void _DrawTrackBar(PGraphicsEnvironment pgnv, RC *prcOld, RC *prcNew);
 
   public:
     static PDSSM PdssmNew(PDSG pdsg);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     tribool TVert(void);
 };

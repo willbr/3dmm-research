@@ -810,7 +810,7 @@ void LIG::Refresh(void)
 /***************************************************************************
     Draw the list.
 ***************************************************************************/
-void LIG::Draw(PGNV pgnv, RC *prcClip)
+void LIG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -987,7 +987,7 @@ void CCG::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Draw the Color chooser gob.
 ***************************************************************************/
-void CCG::Draw(PGNV pgnv, RC *prcClip)
+void CCG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1199,7 +1199,7 @@ void CCGT::SetAcr(AbstractColor acr, PSTN pstn)
 /***************************************************************************
     Draw the color tool tip.
 ***************************************************************************/
-void CCGT::Draw(PGNV pgnv, RC *prcClip)
+void CCGT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

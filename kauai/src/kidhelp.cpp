@@ -296,7 +296,7 @@ bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, boo
 /***************************************************************************
     Get the bounding rectangle for the given object.
 ***************************************************************************/
-bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
+bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(icact, 0, _pagcact->IvMac());
@@ -358,7 +358,7 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC
 /***************************************************************************
     Draw the given object.
 ***************************************************************************/
-bool TextDocument::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);

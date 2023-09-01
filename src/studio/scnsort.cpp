@@ -845,11 +845,11 @@ PGOMP GOMP::PgompNew(PGraphicsObject pgobPar, long hid)
         Draws the given GOMP
 
     Arguments:
-        PGNV pgnv    -- the graphics environment in which to draw
+        PGraphicsEnvironment pgnv    -- the graphics environment in which to draw
         RC *prcClip  -- the clipping rect; this is ignored
 
 ************************************************************ PETED ***********/
-void GOMP::Draw(PGNV pgnv, RC *prcClip)
+void GOMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

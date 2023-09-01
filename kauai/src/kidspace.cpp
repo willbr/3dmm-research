@@ -905,7 +905,7 @@ bool KidspaceGraphicObject::FPtInBounds(long xp, long yp)
 /***************************************************************************
     Draw the kidspace object.
 ***************************************************************************/
-void KidspaceGraphicObject::Draw(PGNV pgnv, RC *prcClip)
+void KidspaceGraphicObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2014,7 +2014,7 @@ PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 /***************************************************************************
     Fill the rectangle.
 ***************************************************************************/
-void GORF::Draw(PGNV pgnv, RC *prcClip)
+void GORF::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2108,7 +2108,7 @@ GORB::~GORB(void)
 /***************************************************************************
     Draw the bitmap.
 ***************************************************************************/
-void GORB::Draw(PGNV pgnv, RC *prcClip)
+void GORB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2296,7 +2296,7 @@ GORT::~GORT(void)
 /***************************************************************************
     Draw the GORT.
 ***************************************************************************/
-void GORT::Draw(PGNV pgnv, RC *prcClip)
+void GORT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2356,7 +2356,7 @@ void GORT::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draw a row of the tiled bitmap.
 ***************************************************************************/
-void GORT::_DrawRow(PGNV pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
+void GORT::_DrawRow(PGraphicsEnvironment pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2681,7 +2681,7 @@ GORV::~GORV(void)
 /***************************************************************************
     Draw the frame.
 ***************************************************************************/
-void GORV::Draw(PGNV pgnv, RC *prcClip)
+void GORV::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

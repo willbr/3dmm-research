@@ -655,7 +655,7 @@ void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
     have called World::MarkRenderedRegn before calling this, so only
     _pregnDirtyScreen's bits will be copied.
 ***************************************************************************/
-void World::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
+void World::Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

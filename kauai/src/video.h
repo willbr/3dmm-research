@@ -43,7 +43,7 @@ class GVID : public GVID_PAR
     virtual bool FPlay(RC *prc = pvNil) = 0;
     virtual void Stop(void) = 0;
 
-    virtual void Draw(PGNV pgnv, RC *prc) = 0;
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prc) = 0;
     virtual void GetRc(RC *prc) = 0;
     virtual void SetRcPlay(RC *prc) = 0;
 };
@@ -97,7 +97,7 @@ class GVDS : public GVDS_PAR
     virtual bool FPlay(RC *prc = pvNil);
     virtual void Stop(void);
 
-    virtual void Draw(PGNV pgnv, RC *prc);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prc);
     virtual void GetRc(RC *prc);
     virtual void SetRcPlay(RC *prc);
 
@@ -147,7 +147,7 @@ class GVDW : public GVDW_PAR
     virtual bool FPlay(RC *prc = pvNil);
     virtual void Stop(void);
 
-    virtual void Draw(PGNV pgnv, RC *prc);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prc);
     virtual void GetRc(RC *prc);
     virtual void SetRcPlay(RC *prc);
 };

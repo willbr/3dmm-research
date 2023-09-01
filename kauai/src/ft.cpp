@@ -171,7 +171,7 @@ class GPRC : public GPRC_PAR
     GPRC(PGCB pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
     ~GPRC(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 };
 
@@ -190,7 +190,7 @@ class GFRC : public GFRC_PAR
   public:
     GFRC(PGCB pgcb, AbstractColor acr, bool fOval);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 };
 
@@ -232,7 +232,7 @@ void GPRC::MarkMem(void)
 /***************************************************************************
     Draw the patterned rectangle.
 ***************************************************************************/
-void GPRC::Draw(PGNV pgnv, RC *prcClip)
+void GPRC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
 
@@ -369,7 +369,7 @@ GFRC::GFRC(PGCB pgcb, AbstractColor acr, bool fOval) : GraphicsObject(pgcb)
 /***************************************************************************
     Draw the filled rectangle.
 ***************************************************************************/
-void GFRC::Draw(PGNV pgnv, RC *prcClip)
+void GFRC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
 
@@ -421,7 +421,7 @@ class TDC : public TDC_PAR
         _NewRc();
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 RTCLASS(TDC)
@@ -458,7 +458,7 @@ void TDC::_NewRc(void)
 /***************************************************************************
     Draw routine for the TDC.
 ***************************************************************************/
-void TDC::Draw(PGNV pgnv, RC *prcClip)
+void TDC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
 
@@ -671,7 +671,7 @@ class TTW : public TTW_PAR
     }
     static TTW *PttwNew(void);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    void Draw(PGNV pgnv, RC *prcClip);
+    void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 RTCLASS(TTW)
@@ -711,7 +711,7 @@ TTW *TTW::PttwNew(void)
     return pttw;
 }
 
-void TTW::Draw(PGNV pgnv, RC *prcClip)
+void TTW::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
     long dxp, dyp, idxp, idyp;
@@ -795,7 +795,7 @@ class RTW : public RTW_PAR
         _cact = 0;
     }
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     static RTW *PrtwNew(void);
 };
 
@@ -986,7 +986,7 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /******************************************************************************
     Paint the RTW GraphicsObject.
 ******************************************************************************/
-void RTW::Draw(PGNV pgnv, RC *prcClip)
+void RTW::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     STN stn;
     STN rgstn[] = {PszLit("frame rectangle "), PszLit("frame polygon "), PszLit("line draw ")};
@@ -1185,11 +1185,11 @@ class DDP : public DocumentDisplayGraphicsObject
   public:
     static DDP *PddpNew(DOCP *pdocp, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 
-    void DrawRc(PGNV pgnv);
-    void DrawNumbers(PGNV pgnv);
+    void DrawRc(PGraphicsEnvironment pgnv);
+    void DrawNumbers(PGraphicsEnvironment pgnv);
 };
 
 /***************************************************************************
@@ -1264,7 +1264,7 @@ DDP *DDP::PddpNew(DOCP *pdocp, PGCB pgcb)
 /***************************************************************************
     Draws the perspective doc.
 ***************************************************************************/
-void DDP::Draw(PGNV pgnv, RC *prcClip)
+void DDP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
     RC rc, rcT;
@@ -1291,7 +1291,7 @@ void DDP::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draw the square and it's coordinates.
 ***************************************************************************/
-void DDP::DrawRc(PGNV pgnv)
+void DDP::DrawRc(PGraphicsEnvironment pgnv)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
     RC rc;
@@ -1303,7 +1303,7 @@ void DDP::DrawRc(PGNV pgnv)
 /***************************************************************************
     Draw the coordinates in the GraphicsEnvironment.
 ***************************************************************************/
-void DDP::DrawNumbers(PGNV pgnv)
+void DDP::DrawNumbers(PGraphicsEnvironment pgnv)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
     STN stn;
@@ -1420,7 +1420,7 @@ class DDPIC : public DDPIC_PAR
   public:
     static DDPIC *PddpicNew(DOCPIC *pdocpic, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -1458,7 +1458,7 @@ DOCPIC *DOCPIC::PdocpicNew(void)
 {
     static long _cact = 0;
     PGPT pgpt;
-    PGNV pgnv;
+    PGraphicsEnvironment pgnv;
     PPIC ppic;
     DOCPIC *pdocpic;
     long i, j;
@@ -1577,7 +1577,7 @@ DDPIC *DDPIC::PddpicNew(DOCPIC *pdocpic, PGCB pgcb)
 /***************************************************************************
     Draws the picture doc.
 ***************************************************************************/
-void DDPIC::Draw(PGNV pgnv, RC *prcClip)
+void DDPIC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     DOCPIC *pdocpic = (DOCPIC *)_pdocb;
     long i, j;
@@ -1651,7 +1651,7 @@ class DDGPT : public DDGPT_PAR
   public:
     static DDGPT *PddgptNew(DOCGPT *pdocgpt, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -1689,7 +1689,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
 {
     DOCGPT *pdocgpt;
     PGPT pgpt;
-    PGNV pgnv;
+    PGraphicsEnvironment pgnv;
     PMBMP pmbmp;
     long i;
     RC rc(0, 0, 256, 256);
@@ -1855,10 +1855,10 @@ DDGPT *DDGPT::PddgptNew(DOCGPT *pdocgpt, PGCB pgcb)
 /***************************************************************************
     Draws the gpt doc.
 ***************************************************************************/
-void DDGPT::Draw(PGNV pgnv, RC *prcClip)
+void DDGPT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     DOCGPT *pdocgpt = (DOCGPT *)_pdocb;
-    PGNV pgnvT;
+    PGraphicsEnvironment pgnvT;
     RC rc(0, 0, 256, 256);
     RC rcT;
 
@@ -1998,7 +1998,7 @@ class TAN : public TAN_PAR
   public:
     static PTAN PtanNew(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdAlarm(PCommand pcmd);
 };
 
@@ -2096,7 +2096,7 @@ bool TAN::FCmdAlarm(PCommand pcmd)
 /***************************************************************************
     Draw the thing
 ***************************************************************************/
-void TAN::Draw(PGNV pgnv, RC *prcClip)
+void TAN::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     //_apt.MoveOrigin(1, 1);
     pgnv->FillRcApt(prcClip, &_apt, kacrRed, kacrBlue);
@@ -2114,7 +2114,7 @@ class TED : public TED_PAR
   public:
     static PTED PtedNew(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdBadKey(PCMD_BADKEY pcmd);
 };
 
@@ -2214,7 +2214,7 @@ bool TED::FCmdBadKey(PCMD_BADKEY pcmd)
 /***************************************************************************
     Draw the background of the TED.
 ***************************************************************************/
-void TED::Draw(PGNV pgnv, RC *prcClip)
+void TED::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     pgnv->FillRc(prcClip, kacrWhite);
 }

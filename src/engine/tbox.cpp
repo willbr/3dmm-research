@@ -293,7 +293,7 @@ PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
  *  None.
  *
  ****************************************************/
-void TBXB::Draw(PGNV pgnv, RC *prcClip)
+void TBXB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1022,7 +1022,7 @@ PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGCB pgcb)
  *  None.
  *
  ****************************************************/
-void TBXG::Draw(PGNV pgnv, RC *prcClip)
+void TBXG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

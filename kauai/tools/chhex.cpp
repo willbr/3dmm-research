@@ -139,7 +139,7 @@ void DCH::_Activate(bool fActive)
 /***************************************************************************
     Draw the Hex doc in the port.
 ***************************************************************************/
-void DCH::Draw(PGNV pgnv, RC *prcClip)
+void DCH::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -233,7 +233,7 @@ void DCH::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draw the header for the DCH.
 ***************************************************************************/
-void DCH::_DrawHeader(PGNV pgnv)
+void DCH::_DrawHeader(PGraphicsEnvironment pgnv)
 {
     STN stn;
     RC rc, rcSrc;
@@ -592,7 +592,7 @@ void DCH::_ShowSel(void)
 /***************************************************************************
     Invert the selection.  Doesn't touch _fSelOn.
 ***************************************************************************/
-void DCH::_InvertSel(PGNV pgnv)
+void DCH::_InvertSel(PGraphicsEnvironment pgnv)
 {
     Assert(!_fFixed || _ibAnchor == _ibOther, "non-ins sel in fixed");
     long cb;
@@ -660,7 +660,7 @@ void DCH::_InvertSel(PGNV pgnv)
 /***************************************************************************
     Inverts a range on screen.  Does not mark insertion bars or half sels.
 ***************************************************************************/
-void DCH::_InvertIbRange(PGNV pgnv, long ib1, long ib2, bool fHex)
+void DCH::_InvertIbRange(PGraphicsEnvironment pgnv, long ib1, long ib2, bool fHex)
 {
     long ibMin, ibMac;
     long xp2, yp2;

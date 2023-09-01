@@ -120,7 +120,7 @@ class GOMP : public GOMP_PAR
         return fFalse;
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 #endif /* SCNSORT_H */

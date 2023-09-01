@@ -36,7 +36,7 @@ class GORP : public GORP_PAR
     }
 
   public:
-    virtual void Draw(PGNV pgnv, RC *prcClip) = 0;
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip) = 0;
     virtual bool FPtIn(long xp, long yp) = 0;
     virtual void SetDxpDyp(long dxpPref, long dypPref) = 0;
     virtual void GetRc(RC *prc) = 0;
@@ -74,7 +74,7 @@ class GORF : public GORF_PAR
   public:
     static PGORF PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
     virtual void SetDxpDyp(long dxpPref, long dypPref);
     virtual void GetRc(RC *prc);
@@ -102,7 +102,7 @@ class GORB : public GORB_PAR
   public:
     static PGORB PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
     virtual void SetDxpDyp(long dxpPref, long dypPref);
     virtual void GetRc(RC *prc);
@@ -160,7 +160,7 @@ class GORT : public GORT_PAR
     bool _fStream;
 
     ~GORT(void);
-    void _DrawRow(PGNV pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp);
+    void _DrawRow(PGraphicsEnvironment pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp);
     void _ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp);
     void _MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
@@ -168,7 +168,7 @@ class GORT : public GORT_PAR
   public:
     static PGORT PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
     virtual void SetDxpDyp(long dxpPref, long dypPref);
     virtual void GetRc(RC *prc);
@@ -203,7 +203,7 @@ class GORV : public GORV_PAR
   public:
     static PGORV PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
     virtual void SetDxpDyp(long dxpPref, long dypPref);
     virtual void GetRc(RC *prc);
@@ -403,7 +403,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual void SetCursor(ulong grfcust);
     virtual bool FPtIn(long xp, long yp);
     virtual bool FPtInBounds(long xp, long yp);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdAlarm(PCommand pcmd);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);

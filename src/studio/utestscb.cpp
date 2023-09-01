@@ -192,7 +192,7 @@ bool MSCB::FCmdScroll(PCommand pcmd)
  *  None.
  *
  ***************************************************************************/
-void MSCB::Draw(PGNV pgnv, RC *prcClip)
+void MSCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

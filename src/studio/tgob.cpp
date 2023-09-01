@@ -56,7 +56,7 @@ TGOB::TGOB(long hid) : GraphicsObject(hid)
  *  None.
  *
  ***************************************************************************/
-void TGOB::Draw(PGNV pgnv, RC *prcClip)
+void TGOB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

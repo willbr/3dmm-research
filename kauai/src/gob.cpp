@@ -887,7 +887,7 @@ LFail:
     the width and height of the gob.  The gob is free to change the source
     rectangle, but should not touch the destination rectangle.
 ***************************************************************************/
-void GraphicsObject::Draw(PGNV pgnv, RC *prcClip)
+void GraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
 }

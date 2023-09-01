@@ -137,7 +137,7 @@ void CTL::_NewRc(void)
 /***************************************************************************
     Draw routine for a control.
 ***************************************************************************/
-void CTL::Draw(PGNV pgnv, RC *prcClip)
+void CTL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     if (_hctl == hNil)
         return;
@@ -609,7 +609,7 @@ PWSB WSB::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 /***************************************************************************
     Draw the size box icon.
 ***************************************************************************/
-void WSB::Draw(PGNV pgnv, RC *prcClip)
+void WSB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     HWND hwnd;
     RC rc;

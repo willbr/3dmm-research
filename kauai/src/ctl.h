@@ -48,7 +48,7 @@ class CTL : public CTL_PAR
     static PCTL PctlFromHctl(HCTL hctl);
 
 #ifdef MAC
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 #endif // MAC
 };
 
@@ -161,7 +161,7 @@ class WSB : public WSB_PAR
     static PWSB PwsbNew(PGraphicsObject pgob, ulong grfgob);
 
 #ifdef MAC
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 #endif // MAC
 };
 

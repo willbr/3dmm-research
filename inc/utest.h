@@ -34,7 +34,7 @@ class KWA : public KWA_PAR
         _fAskForCD = fTrue;
     }
     ~KWA(void);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FFindFile(PSTN pstnSrc, PFilename pfni); // for finding AVIs
     virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
     void SetMbmp(PMBMP pmbmp);
@@ -202,7 +202,7 @@ class APP : public APP_PAR
     {
         return fTrue;
     } // no menubar
-    virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
+    virtual void _CopyPixels(PGraphicsEnvironment pgvnSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst);
     virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
     virtual void _CleanUp(void);
     virtual void _Activate(bool fActive);

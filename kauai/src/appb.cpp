@@ -1212,7 +1212,7 @@ void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PDynamicArray pglc
     (pgnvDst, prcDst).  This gives the app a chance to do any transition
     affects they want.
 ***************************************************************************/
-void ApplicationBase::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
+void ApplicationBase::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst)
 {
     AssertThis(0);
     AssertPo(pgnvSrc, 0);

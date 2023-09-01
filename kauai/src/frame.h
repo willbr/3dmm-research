@@ -33,7 +33,7 @@ class DocumentDisplayGraphicsObject;  // document display gob
 class SNDM; // sound manager
 
 typedef class GraphicsPort *PGPT;
-typedef class GraphicsEnvironment *PGNV;
+typedef class GraphicsEnvironment *PGraphicsEnvironment;
 typedef class CommandHandler *PCommandHandler;
 typedef class GraphicsObject *PGraphicsObject;
 typedef class MenuBar *PMenuBar;

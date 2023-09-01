@@ -128,7 +128,7 @@ class World : public World_PAR
     void Render(void);
     void Prerender(void);
     void Unprerender(void);
-    void Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp);
+    void Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp);
 
 #ifdef DEBUG
     bool FWriteBmp(PFilename pfni);

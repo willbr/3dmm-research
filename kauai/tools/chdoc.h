@@ -412,7 +412,7 @@ class DCD : public DCD_PAR
     SEL _sel;        // the current selection
 
     DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb);
-    void _DrawSel(PGNV pgnv);
+    void _DrawSel(PGraphicsEnvironment pgnv);
     void _HiliteLn(long ln);
     void _SetSel(long ln, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
     void _ShowSel(void);
@@ -437,7 +437,7 @@ class DCD : public DCD_PAR
     static PDCD PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb);
     static void InvalAllDcd(PDocumentBase pdocb, PChunkyFile pcfl, ChunkIdentification *pcki = pvNil, ChildChunkIdentification *pkid = pvNil);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual bool FCmdKey(PCMD_KEY pcmd);
 
@@ -509,14 +509,14 @@ class DCH : public DCH_PAR
     void _SetHexSel(bool fHex);
     void _SwitchSel(bool fOn);
     void _ShowSel(void);
-    void _InvertSel(PGNV pgnv);
-    void _InvertIbRange(PGNV pgnv, long ib1, long ib2, bool fHex);
+    void _InvertSel(PGraphicsEnvironment pgnv);
+    void _InvertIbRange(PGraphicsEnvironment pgnv, long ib1, long ib2, bool fHex);
 
     bool _FReplace(byte *prgb, long cb, long ibMin, long ibLim, bool fHalfSel = fFalse);
     void _InvalAllDch(long ib, long cbIns, long cbDel);
     void _InvalIb(long ib, long cbIns, long cbDel);
 
-    void _DrawHeader(PGNV pgnv);
+    void _DrawHeader(PGraphicsEnvironment pgnv);
 
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
@@ -526,7 +526,7 @@ class DCH : public DCH_PAR
   public:
     static PDCH PdchNew(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual bool FCmdKey(PCMD_KEY pcmd);
 };
@@ -571,7 +571,7 @@ class DCGB : public DCGB_PAR
     }
     void _SetSel(long ln);
     void _ShowSel(void);
-    void _DrawSel(PGNV pgnv);
+    void _DrawSel(PGraphicsEnvironment pgnv);
     void _InvalIv(long iv, long cvIns, long cvDel);
     void _EditIvDln(long iv, long dln);
     void _DeleteIv(long iv);
@@ -602,7 +602,7 @@ class DCGL : public DCGL_PAR
   public:
     static PDCGL PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCommand pcmd);
 };
 
@@ -621,7 +621,7 @@ class DCGG : public DCGG_PAR
   public:
     static PDCGG PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCommand pcmd);
 };
 
@@ -640,7 +640,7 @@ class DCST : public DCST_PAR
   public:
     static PDCST PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdAddItem(PCommand pcmd);
 };
 
@@ -664,7 +664,7 @@ class DCPIC : public DCPIC_PAR
   public:
     static PDCPIC PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -687,7 +687,7 @@ class DCMBMP : public DCMBMP_PAR
   public:
     static PDCMBMP PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -706,7 +706,7 @@ class TSCG : public TSCG_PAR
     {
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************

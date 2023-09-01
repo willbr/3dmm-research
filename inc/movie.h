@@ -341,7 +341,7 @@ class MovieView : public MovieView_PAR
     //
     // Routines for communicating with the framework
     //
-    void Draw(PGNV pgnv, RC *prcClip);
+    void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 //
@@ -803,7 +803,7 @@ class Movie : public Movie_PAR
     {
         _trans = trans;
     }                                                                 // Set transition
-    void DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc); // Draw current transition into GNVs
+    void DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, RC *prcDst, RC *prcSrc); // Draw current transition into GNVs
 
     //
     // Sound stuff

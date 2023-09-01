@@ -818,7 +818,7 @@ bool TextDocumentBase::FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long
     Get the bounds of an object - since plain text doesn't have objects,
     just return false.
 ***************************************************************************/
-bool TextDocumentBase::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
+bool TextDocumentBase::FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -834,7 +834,7 @@ bool TextDocumentBase::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
     Draw an object - since plain text doesn't have objects, just return
     false.
 ***************************************************************************/
-bool TextDocumentBase::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool TextDocumentBase::FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -3121,7 +3121,7 @@ bool RichTextDocument::FApplyObjectProps(void *pv, long cb, long cp, ulong grfdo
 /***************************************************************************
     Get the bounds of an object.
 ***************************************************************************/
-bool RichTextDocument::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
+bool RichTextDocument::FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -3140,7 +3140,7 @@ bool RichTextDocument::FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc)
 /***************************************************************************
     Get the object bounds from the AllocatedGroup entry.
 ***************************************************************************/
-bool RichTextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
+bool RichTextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);
@@ -3156,7 +3156,7 @@ bool RichTextDocument::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp
 /***************************************************************************
     Draw an object.
 ***************************************************************************/
-bool RichTextDocument::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool RichTextDocument::FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -3176,7 +3176,7 @@ bool RichTextDocument::FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP 
 /***************************************************************************
     Draw the object.
 ***************************************************************************/
-bool RichTextDocument::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool RichTextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);

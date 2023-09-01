@@ -617,7 +617,7 @@ bool TXDD::_FFindNextLineStartCached(long ich, long *pich, achar *prgch, long cc
 /***************************************************************************
     Draw the contents of the gob.
 ***************************************************************************/
-void TXDD::Draw(PGNV pgnv, RC *prcClip)
+void TXDD::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -682,7 +682,7 @@ void TXDD::_FetchLineIch(long ich, achar *prgch, long cchMax, long *pcch, long *
 /***************************************************************************
     Draw the line in the given GraphicsEnvironment.
 ***************************************************************************/
-void TXDD::_DrawLine(PGNV pgnv, RC *prcClip, long yp, achar *prgch, long cch)
+void TXDD::_DrawLine(PGraphicsEnvironment pgnv, RC *prcClip, long yp, achar *prgch, long cch)
 {
     AssertThis(0);
     long xp, xpOrigin, xpPrev;
@@ -955,7 +955,7 @@ void TXDD::_SwitchSel(bool fOn, bool fDraw)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void TXDD::_InvertSel(PGNV pgnv, bool fDraw)
+void TXDD::_InvertSel(PGraphicsEnvironment pgnv, bool fDraw)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -989,7 +989,7 @@ void TXDD::_InvertSel(PGNV pgnv, bool fDraw)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void TXDD::_InvertIchRange(PGNV pgnv, long ich1, long ich2, bool fDraw)
+void TXDD::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, bool fDraw)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1109,7 +1109,7 @@ long TXDD::_IchMinLn(long ln)
 /***************************************************************************
     Return the xp location of the given ich on the given line.
 ***************************************************************************/
-long TXDD::_XpFromLnIch(PGNV pgnv, long ln, long ich)
+long TXDD::_XpFromLnIch(PGraphicsEnvironment pgnv, long ln, long ich)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1148,7 +1148,7 @@ long TXDD::_XpFromIch(long ich)
     Return the xp location of the end of the given (rgch, cch), assuming
     it starts at the beginning of a line.
 ***************************************************************************/
-long TXDD::_XpFromRgch(PGNV pgnv, achar *prgch, long cch)
+long TXDD::_XpFromRgch(PGraphicsEnvironment pgnv, achar *prgch, long cch)
 {
     AssertThis(0);
     long xp, xpOrigin;

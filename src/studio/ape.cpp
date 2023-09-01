@@ -447,7 +447,7 @@ void APE::_UpdateView(void)
 /***************************************************************************
     Draw the contents of the APE's bwld
 ***************************************************************************/
-void APE::Draw(PGNV pgnv, RC *prcClip)
+void APE::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

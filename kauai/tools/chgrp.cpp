@@ -514,7 +514,7 @@ void DCGB::_ShowSel(void)
 /***************************************************************************
     Hilite the selection (if there is one)
 ***************************************************************************/
-void DCGB::_DrawSel(PGNV pgnv)
+void DCGB::_DrawSel(PGraphicsEnvironment pgnv)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -793,7 +793,7 @@ PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgc
 /***************************************************************************
     Draw the contents of the DCGL.
 ***************************************************************************/
-void DCGL::Draw(PGNV pgnv, RC *prcClip)
+void DCGL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -950,7 +950,7 @@ PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgc
 /***************************************************************************
     Draw the contents of the DCGL.
 ***************************************************************************/
-void DCGG::Draw(PGNV pgnv, RC *prcClip)
+void DCGG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1134,7 +1134,7 @@ PDCST DCST::PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, P
 /***************************************************************************
     Draw the contents of the DCGL.
 ***************************************************************************/
-void DCST::Draw(PGNV pgnv, RC *prcClip)
+void DCST::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

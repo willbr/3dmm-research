@@ -1132,7 +1132,7 @@ void GraphicsEnvironment::GetRcFromStn(RC *prc, PSTN pstn, long xp, long yp)
 /***************************************************************************
     Copy bits from a GraphicsEnvironment to this one.
 ***************************************************************************/
-void GraphicsEnvironment::CopyPixels(PGNV pgnvSrc, RC *prcSrc, RC *prcDst)
+void GraphicsEnvironment::CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst)
 {
     AssertThis(0);
     AssertPo(pgnvSrc, 0);
@@ -1229,10 +1229,10 @@ void GraphicsEnvironment::_PaletteTrans(PDynamicArray pglclrOld, PDynamicArray p
     Create a temporary GraphicsEnvironment that is a copy of the given rectangle in this
     GraphicsEnvironment.  This is used for several transitions.
 ***************************************************************************/
-bool GraphicsEnvironment::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
+bool GraphicsEnvironment::_FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc)
 {
     PGPT pgpt;
-    PGNV pgnv;
+    PGraphicsEnvironment pgnv;
 
     if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(prc, 8)) || pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
     {
@@ -1254,7 +1254,7 @@ bool GraphicsEnvironment::_FEnsureTempGnv(PGNV *ppgnv, RC *prc)
     size.  gfd indicates which direction the wipe is.  If pglclr is not
     nil and acrFill is clear, the palette transition is gradual.
 ***************************************************************************/
-void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1342,7 +1342,7 @@ void GraphicsEnvironment::Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC
     Slide the source gnv onto this one.  The source and destination
     rectangles must be the same size.
 ***************************************************************************/
-void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);
@@ -1357,7 +1357,7 @@ void GraphicsEnvironment::Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, R
     long dxp, dxpTot, dxpOld;
     RC rcSrc, rcDst;
     RC rc1, rc2;
-    PGNV pgnv;
+    PGraphicsEnvironment pgnv;
     PT dpt;
     PDynamicArray pglclrOld = pvNil;
     PDynamicArray pglclrTrans = pvNil;
@@ -1503,7 +1503,7 @@ inline long _LwNextDissolve(long lw)
     and destination rectangles must be the same size.  If pgnvSrc is nil,
     just dissolve into the solid color.  Each portion is done in dts time.
 ***************************************************************************/
-void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
                    PDynamicArray pglclr)
 {
     AssertThis(0);
@@ -1526,7 +1526,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
     byte *pbRow;
     byte *prgbDst = pvNil;
     byte *prgbSrc = pvNil;
-    PGNV pgnv = pvNil;
+    PGraphicsEnvironment pgnv = pvNil;
     PDynamicArray pglclrOld = pvNil;
     PDynamicArray pglclrTrans = pvNil;
 
@@ -1783,7 +1783,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
     the maximum number of palette interpolations to do.  It doesn't make
     sense for this to be bigger than 256.  If it's zero, we'll use 256.
 ***************************************************************************/
-void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertIn(cactMax, 0, 257);
@@ -1849,7 +1849,7 @@ void GraphicsEnvironment::Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc
     intermediate color of acrFill (if not clear).  xp, yp are the focus
     point of the iris (in destination coordinates).
 ***************************************************************************/
-void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
+void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr)
 {
     AssertThis(0);
     AssertPo(&acrFill, 0);

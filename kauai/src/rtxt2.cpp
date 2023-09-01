@@ -42,7 +42,7 @@ class CHR
     CHP _chp;
     PAP _pap;
     PTextDocumentBase _ptxtb;
-    PGNV _pgnv;
+    PGraphicsEnvironment _pgnv;
     bool _fMustAdvance : 1;
     bool _fBreak : 1;
     bool _fObject : 1;
@@ -67,7 +67,7 @@ class CHR
     void _DoTab(void);
 
   public:
-    void Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGNV pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
+    void Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGraphicsEnvironment pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
               long xpBreak);
 
     void GetNextRun(bool fMustAdvance = fFalse);
@@ -130,7 +130,7 @@ void CHR::AssertValid(ulong grf)
 /***************************************************************************
     Initialize the CHR.
 ***************************************************************************/
-void CHR::Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGNV pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
+void CHR::Init(CHP *pchp, PAP *ppap, PTextDocumentBase ptxtb, PGraphicsEnvironment pgnv, long cpMin, long cpLim, long xpBase, long xpLimLine,
                long xpBreak)
 {
     AssertVarMem(pchp);
@@ -1683,7 +1683,7 @@ void TextDocumentGraphicsObject::_ScrollDxpDyp(long dxp, long dyp)
 /***************************************************************************
     Update the display of the document.
 ***************************************************************************/
-void TextDocumentGraphicsObject::Draw(PGNV pgnv, RC *prcClip)
+void TextDocumentGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
@@ -1697,7 +1697,7 @@ void TextDocumentGraphicsObject::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draws some lines of the document.
 ***************************************************************************/
-void TextDocumentGraphicsObject::DrawLines(PGNV pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim, ulong grftxtg)
+void TextDocumentGraphicsObject::DrawLines(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim, ulong grftxtg)
 {
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
@@ -1789,7 +1789,7 @@ void TextDocumentGraphicsObject::DrawLines(PGNV pgnv, RC *prcClip, long dxp, lon
     Gives a subclass an opportunity to draw extra stuff associated with
     the line. Default does nothing.
 ***************************************************************************/
-void TextDocumentGraphicsObject::_DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg)
+void TextDocumentGraphicsObject::_DrawLinExtra(PGraphicsEnvironment pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg)
 {
 }
 
@@ -2060,7 +2060,7 @@ void TextDocumentGraphicsObject::_SwitchSel(bool fOn, long gin)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void TextDocumentGraphicsObject::_InvertSel(PGNV pgnv, long gin)
+void TextDocumentGraphicsObject::_InvertSel(PGraphicsEnvironment pgnv, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2087,7 +2087,7 @@ void TextDocumentGraphicsObject::_InvertSel(PGNV pgnv, long gin)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void TextDocumentGraphicsObject::_InvertCpRange(PGNV pgnv, long cp1, long cp2, long gin)
+void TextDocumentGraphicsObject::_InvertCpRange(PGraphicsEnvironment pgnv, long cp1, long cp2, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

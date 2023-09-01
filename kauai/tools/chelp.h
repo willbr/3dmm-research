@@ -136,7 +136,7 @@ class LIG : public LIG_PAR
     PLID Plid(void);
     void Refresh(void);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdScroll(PCommand pcmd);
 };
 
@@ -166,7 +166,7 @@ class CCG : public CCG_PAR
     CCG(GraphicsObjectBlock *pgcb, PTextDocument ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
 
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
 
     virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
@@ -195,7 +195,7 @@ class CCGT : public CCGT_PAR
         return _acr;
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -312,7 +312,7 @@ class HEDG : public HEDG_PAR
     long _IckiFromYp(long yp);
     void _GetContent(RC *prc);
 
-    void _DrawSel(PGNV pgnv);
+    void _DrawSel(PGraphicsEnvironment pgnv);
     void _SetSel(long icki, ChunkNumber cno = cnoNil);
     void _ShowSel(void);
     void _EditTopic(ChunkNumber cno);
@@ -326,13 +326,13 @@ class HEDG : public HEDG_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
 #ifdef WIN
-    void _StartPage(PGNV pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn);
+    void _StartPage(PGraphicsEnvironment pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn);
 #endif // WIN
 
   public:
     static PHEDG PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual bool FCmdKey(PCMD_KEY pcmd);
 
@@ -430,14 +430,14 @@ class HETG : public HETG_PAR
     virtual PTRUL _PtrulNew(PGCB pgcb);
 
     // override _DrawLinExtra so we can put boxes around grouped text.
-    virtual void _DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
+    virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
     static PHETG PhetgNew(PHETD phetd, PGCB pgcb);
 
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
     virtual bool FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
@@ -505,7 +505,7 @@ class HTRU : public HTRU_PAR
     static PHTRU PhtruNew(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
                           long dypFont, ulong grfont);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 
     virtual void SetDxpTab(long dxpTab);

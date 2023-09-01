@@ -5483,7 +5483,7 @@ const long kdtsTrans = 4 * kdtsSecond;
  *  None.
  *
  **************************************************************************/
-void Movie::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
+void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, RC *prcDst, RC *prcSrc)
 {
     AssertThis(0);
     AssertPo(pgnvDst, 0);
@@ -6158,7 +6158,7 @@ void MovieView::SetTagTool(PTAG ptag)
  *  None.
  *
  ***************************************************************************/
-void MovieView::Draw(PGNV pgnv, RC *prcClip)
+void MovieView::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

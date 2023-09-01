@@ -146,7 +146,7 @@ PDCPIC DCPIC::PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGCB pgcb)
 /***************************************************************************
     Draw the picture.
 ***************************************************************************/
-void DCPIC::Draw(PGNV pgnv, RC *prcClip)
+void DCPIC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc, rcSrc;
 

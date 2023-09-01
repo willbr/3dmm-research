@@ -773,7 +773,7 @@ void DCD::_InvalCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid
 /***************************************************************************
     Draw the chunk list
 ***************************************************************************/
-void DCD::Draw(PGNV pgnv, RC *prcClip)
+void DCD::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -875,7 +875,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Hilite the selection (if there is one)
 ***************************************************************************/
-void DCD::_DrawSel(PGNV pgnv)
+void DCD::_DrawSel(PGraphicsEnvironment pgnv)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2459,7 +2459,7 @@ bool DCD::FCmdImportScript(PCommand pcmd)
 /***************************************************************************
     Draw routine for a test-script gob - just erase the gob.
 ***************************************************************************/
-void TSCG::Draw(PGNV pgnv, RC *prcClip)
+void TSCG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     pgnv->FillRc(prcClip, kacrWhite);
 }

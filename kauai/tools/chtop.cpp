@@ -608,7 +608,7 @@ void HEDG::InvalCno(ChunkNumber cno)
 /***************************************************************************
     Draw the topic list.
 ***************************************************************************/
-void HEDG::Draw(PGNV pgnv, RC *prcClip)
+void HEDG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -651,7 +651,7 @@ void HEDG::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Hilite the selection (if there is one)
 ***************************************************************************/
-void HEDG::_DrawSel(PGNV pgnv)
+void HEDG::_DrawSel(PGraphicsEnvironment pgnv)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1190,7 +1190,7 @@ bool HEDG::FCmdPrint(PCommand pcmd)
     PHETD phetd = pvNil;
     PHETG phetg = pvNil;
     PGPT pgpt = pvNil;
-    PGNV pgnv = pvNil;
+    PGraphicsEnvironment pgnv = pvNil;
     long lwPage = 1;
     bool fInPage = fFalse;
     PHEDO phedo = Phedo();
@@ -1413,7 +1413,7 @@ bool HEDG::FCmdPrint(PCommand pcmd)
 /***************************************************************************
     Print the page number and document name.
 ***************************************************************************/
-void HEDG::_StartPage(PGNV pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn)
+void HEDG::_StartPage(PGraphicsEnvironment pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn)
 {
     STN stn;
 
@@ -2509,7 +2509,7 @@ bool HETG::_FCopySel(PDocumentBase *ppdocb)
     Draw extra stuff for the line. In our case we put a box around grouped
     text.
 ***************************************************************************/
-void HETG::_DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg)
+void HETG::_DrawLinExtra(PGraphicsEnvironment pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2543,7 +2543,7 @@ void HETG::_DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, u
 /***************************************************************************
     Draw the view on the help topic.
 ***************************************************************************/
-void HETG::Draw(PGNV pgnv, RC *prcClip)
+void HETG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
@@ -3075,7 +3075,7 @@ bool HETG::FCmdPrint(PCommand pcmd)
     PRINTDLG pd;
     DOCINFO di;
     PGPT pgpt = pvNil;
-    PGNV pgnv = pvNil;
+    PGraphicsEnvironment pgnv = pvNil;
     STN stn;
     RC rc;
 
@@ -3499,7 +3499,7 @@ PHTRU HTRU::PhtruNew(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxt
 /***************************************************************************
     Draw the ruler.
 ***************************************************************************/
-void HTRU::Draw(PGNV pgnv, RC *prcClip)
+void HTRU::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

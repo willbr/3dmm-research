@@ -60,7 +60,7 @@ class EDCB : public EDCB_PAR
     long _cmhl;
 
     // the selection
-    PGNV _pgnv;
+    PGraphicsEnvironment _pgnv;
     long _ichAnchor;
     long _ichOther;
     bool _fSelOn : 1;
@@ -89,13 +89,13 @@ class EDCB : public EDCB_PAR
     virtual long _LnFromYp(long yp) = 0;
     virtual long _IchFromLnXp(long ln, long xp, bool fClosest = fTrue) = 0;
     virtual long _LnMac(void) = 0;
-    virtual void _DrawLine(PGNV pgnv, long ln) = 0;
-    virtual void _HiliteRc(PGNV pgnv, RC *prc) = 0;
+    virtual void _DrawLine(PGraphicsEnvironment pgnv, long ln) = 0;
+    virtual void _HiliteRc(PGraphicsEnvironment pgnv, RC *prc) = 0;
     virtual bool _FFilterCh(achar ch) = 0;
 
     void _SwitchSel(bool fOn, long gin = kginDraw);
-    void _InvertSel(PGNV pgnv, long gin = kginDraw);
-    void _InvertIchRange(PGNV pgnv, long ich1, long ich2, long gin = kginDraw);
+    void _InvertSel(PGraphicsEnvironment pgnv, long gin = kginDraw);
+    void _InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long gin = kginDraw);
     void _Scroll(long dxp, long dyp, long gin = kginDraw);
     void _UpdateLn(long ln, long clnIns, long dlnDel, long dypDel, long gin = kginDraw);
     long _IchPrev(long ich, bool fWord = fFalse);
@@ -105,12 +105,12 @@ class EDCB : public EDCB_PAR
     virtual void _NewRc(void);
 
     virtual void _GetRcContent(RC *prc);
-    virtual void _InitGnv(PGNV pgnv);
+    virtual void _InitGnv(PGraphicsEnvironment pgnv);
 
   public:
     ~EDCB(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual bool FCmdSelIdle(PCommand pcmd);
@@ -164,8 +164,8 @@ class EDPL : public EDPL_PAR
     virtual long _YpFromLn(long ln);
     virtual long _LnFromYp(long yp);
     virtual long _IchFromLnXp(long ln, long xp, bool fClosest = fTrue);
-    virtual void _DrawLine(PGNV pgnv, long ln);
-    virtual void _HiliteRc(PGNV pgnv, RC *prc);
+    virtual void _DrawLine(PGraphicsEnvironment pgnv, long ln);
+    virtual void _HiliteRc(PGraphicsEnvironment pgnv, RC *prc);
 
     long _XpOrigin(void);
     virtual bool _FLockLn(long ln, achar **pprgch, long *pcch) = 0;

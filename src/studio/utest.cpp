@@ -2676,7 +2676,7 @@ bool APP::FCmdDeactivate(PCommand pcmd)
     buffer to the screen during a _FastUpdate cycle.  This gives us
     a chance to do a transition.
 ***************************************************************************/
-void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
+void APP::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst)
 {
     AssertBaseThis(0);
     AssertPo(pgnvSrc, 0);
@@ -4636,7 +4636,7 @@ void KWA::SetMbmp(PMBMP pmbmp)
 /***************************************************************************
     Draw the KWA's MBMP, if any (for splash screen)
 ***************************************************************************/
-void KWA::Draw(PGNV pgnv, RC *prcClip)
+void KWA::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

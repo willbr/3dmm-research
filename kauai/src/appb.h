@@ -172,7 +172,7 @@ class ApplicationBase : public ApplicationBase_PAR
 
     // fast updating
     virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
-    virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
+    virtual void _CopyPixels(PGraphicsEnvironment pgvnSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst);
     void _MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
     void _UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
 

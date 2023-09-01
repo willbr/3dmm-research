@@ -747,7 +747,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 if ((pgpt = GraphicsPort::PgptNew(pDrawItem->hDC)) != pvNil)
                 {
                     GraphicsEnvironment gnv(pgpt);
-                    PGNV pgnvOff;
+                    PGraphicsEnvironment pgnvOff;
                     PGPT pgptOff;
                     RC rcItem(pDrawItem->rcItem);
 
@@ -1063,7 +1063,7 @@ void RepaintPortfolio(HWND hwndCustom)
             RC rcDisplay;
             RCS rcsPort, rcsPreview;
             GraphicsEnvironment gnv(pgpt);
-            PGNV pgnvOff;
+            PGraphicsEnvironment pgnvOff;
             PGPT pgptOff;
             HWND hwndPreview;
             ChunkNumber cnoBtn;
@@ -1208,7 +1208,7 @@ void RepaintPortfolio(HWND hwndCustom)
  Returns: nothing.
 
 ***************************************************************************/
-void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
+void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, RCS *prcsPreview)
 {
     STN stn;
     PChunkyFile pcfl;
@@ -1355,7 +1355,7 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
         PAINTSTRUCT ps;
         RCS rcsPreview;
         RC rcPreview;
-        PGNV pgnvOff;
+        PGraphicsEnvironment pgnvOff;
         PGPT pgpt, pgptOff;
         HPEN hpen, hpenold;
         HBRUSH hbr, hbrold;

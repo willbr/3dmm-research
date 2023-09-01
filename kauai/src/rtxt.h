@@ -152,8 +152,8 @@ class TextDocumentBase : public TextDocumentBase_PAR
     virtual bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
     virtual bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
                               ulong grfdoc = fdocUpdate);
-    virtual bool FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
     virtual bool FGetFni(Filename *pfni);
 
@@ -331,8 +331,8 @@ class RichTextDocument : public RichTextDocument_PAR
     void _AdjustMpe(long cp, long ccpIns, long ccpDel);
     void _CopyProps(PRichTextDocument ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim);
 
-    virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool _FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
     bool _FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
                        PCHP pchp, PPAP ppap, ulong grfdoc);
@@ -372,8 +372,8 @@ class RichTextDocument : public RichTextDocument_PAR
     virtual bool FInsertObject(void *pv, long cb, long cp, long ccpDel, PCHP pchp = pvNil, ulong grfdoc = fdocUpdate);
     virtual bool FApplyObjectProps(void *pv, long cb, long cp, ulong grfdoc = fdocUpdate);
 
-    virtual bool FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
     virtual bool FGetFni(Filename *pfni);
     virtual bool FGetFniSave(Filename *pfni);
@@ -453,7 +453,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     long _cpDisp;
     long _dypDisp;
     long _ilinInval; // LINs from here on have wrong cpMin and dypTot values
-    PGNV _pgnv;
+    PGraphicsEnvironment _pgnv;
 
     // the selection
     long _cpAnchor;
@@ -492,21 +492,21 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     void _GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *pdypBaseLine = pvNil, bool fView = fTrue);
     long _DxpFromCp(long cpLine, long cp);
     void _SwitchSel(bool fOn, long gin = kginDraw);
-    void _InvertSel(PGNV pgnv, long gin = kginDraw);
-    void _InvertCpRange(PGNV pgnv, long cp1, long cp2, long gin = kginDraw);
+    void _InvertSel(PGraphicsEnvironment pgnv, long gin = kginDraw);
+    void _InvertCpRange(PGraphicsEnvironment pgnv, long cp1, long cp2, long gin = kginDraw);
 
     virtual long _ScvMax(bool fVert);
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
     virtual long _DypTrul(void);
     virtual PTRUL _PtrulNew(PGCB pgcb);
-    virtual void _DrawLinExtra(PGNV pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
+    virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
-    virtual void DrawLines(PGNV pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim = klwMax,
+    virtual void DrawLines(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim = klwMax,
                            ulong grftxtg = ftxtgNil);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual bool FCmdSelIdle(PCommand pcmd);

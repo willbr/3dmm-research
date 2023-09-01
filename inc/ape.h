@@ -95,7 +95,7 @@ class APE : public APE_PAR
 
     void SetCustomView(BRA xa, BRA ya, BRA za);
     void ChangeView(void);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 

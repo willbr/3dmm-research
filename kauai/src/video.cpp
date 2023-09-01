@@ -286,7 +286,7 @@ bool GVDS::FCmdAll(PCommand pcmd)
 /***************************************************************************
     Call this to draw the current state of the video image.
 ***************************************************************************/
-void GVDS::Draw(PGNV pgnv, RC *prc)
+void GVDS::Draw(PGraphicsEnvironment pgnv, RC *prc)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -635,7 +635,7 @@ void GVDW::Stop(void)
 /***************************************************************************
     Call this to draw the current state of the video image.
 ***************************************************************************/
-void GVDW::Draw(PGNV pgnv, RC *prc)
+void GVDW::Draw(PGraphicsEnvironment pgnv, RC *prc)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);

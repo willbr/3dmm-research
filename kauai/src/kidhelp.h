@@ -85,8 +85,8 @@ class TextDocument : public TextDocument_PAR
 
     virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
-    virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool _FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
     static PTextDocument PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil,

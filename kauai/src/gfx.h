@@ -447,7 +447,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     // transition related methods
     bool _FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel = 0);
     void _PaletteTrans(PDynamicArray pglclrOld, PDynamicArray pglclrNew, long lwNum, long lwDen, PDynamicArray pglclrTrans, Color *pclrSub = pvNil);
-    bool _FEnsureTempGnv(PGNV *ppgnv, RC *prc);
+    bool _FEnsureTempGnv(PGraphicsEnvironment *ppgnv, RC *prc);
 
   public:
     GraphicsEnvironment(PGPT pgpt);
@@ -547,18 +547,18 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     void GetRcFromStn(RC *prc, PSTN pstn, long xp = 0, long yp = 0);
 
     // bitmaps and pictures
-    void CopyPixels(PGNV pgnvSrc, RC *prcSrc, RC *prcDst);
+    void CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst);
     void DrawPic(PPIC ppic, RC *prc);
     void DrawMbmp(PMBMP pmbmp, long xp, long yp);
     void DrawMbmp(PMBMP pmbmp, RC *prc);
 
     // transitions
-    void Wipe(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
-    void Slide(long gfd, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
-    void Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+    void Wipe(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
+    void Slide(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
+    void Dissolve(long crcWidth, long crcHeight, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
                   PDynamicArray pglclr = pvNil);
-    void Fade(long cactMax, AbstractColor acrFade, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
-    void Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGNV pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
+    void Fade(long cactMax, AbstractColor acrFade, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
+    void Iris(long gfd, long xp, long yp, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts,
               PDynamicArray pglclr = pvNil);
 };
 
