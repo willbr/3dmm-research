@@ -134,7 +134,7 @@
 #define khidDsspHorz 11 // standard horizontal document window split box
 #define khidDsspVert 12 // standard vertical document window split box
 #define khidDssm 13     // standard split mover
-#define khidDmw 14      // convenient for single DMW window
+#define khidDmw 14      // convenient for single DocumentMainWindow window
 #define khidDmd 15      // standard dmd
 #define khidEdit 16     // edit control
 #define khidToolTip 17  // tool tip

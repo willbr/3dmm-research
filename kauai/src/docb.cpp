@@ -36,7 +36,7 @@ RTCLASS(DocumentBase)
 RTCLASS(DTE)
 RTCLASS(DocumentDisplayGraphicsObject)
 RTCLASS(DocumentMDIWindow)
-RTCLASS(DMW)
+RTCLASS(DocumentMainWindow)
 RTCLASS(DSG)
 RTCLASS(DSSP)
 RTCLASS(DSSM)
@@ -514,18 +514,18 @@ void DocumentBase::ActivateDmd(void)
 }
 
 /***************************************************************************
-    Create a DMW for the document.
+    Create a DocumentMainWindow for the document.
 ***************************************************************************/
-PDMW DocumentBase::PdmwNew(PGCB pgcb)
+PDocumentMainWindow DocumentBase::PdmwNew(PGCB pgcb)
 {
     AssertThis(fobjAssertFull);
-    return DMW::PdmwNew(this, pgcb);
+    return DocumentMainWindow::PdmwNew(this, pgcb);
 }
 
 /***************************************************************************
-    Create a new DSG for the doc in the given DMW.
+    Create a new DSG for the doc in the given DocumentMainWindow.
 ***************************************************************************/
-PDSG DocumentBase::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDSG DocumentBase::PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     return DSG::PdsgNew(pdmw, pdsgSplit, grfdsg, rel);
@@ -1326,7 +1326,7 @@ void DocumentDisplayGraphicsObject::MarkMem(void)
 
 /***************************************************************************
     Static method: create a new Document MDI window.  Put a size box in
-    it and add a DMW.
+    it and add a DocumentMainWindow.
 ***************************************************************************/
 PDocumentMDIWindow DocumentMDIWindow::PdmdNew(PDocumentBase pdocb)
 {
@@ -1438,14 +1438,14 @@ bool DocumentMDIWindow::FCmdCloseWnd(PCommand pcmd)
 }
 
 /***************************************************************************
-    Static method to create a new DMW (document window) based on the given
+    Static method to create a new DocumentMainWindow (document window) based on the given
     document.
 ***************************************************************************/
-PDMW DMW::PdmwNew(PDocumentBase pdocb, PGCB pgcb)
+PDocumentMainWindow DocumentMainWindow::PdmwNew(PDocumentBase pdocb, PGCB pgcb)
 {
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
 
-    pdmw = NewObj DMW(pdocb, pgcb);
+    pdmw = NewObj DocumentMainWindow(pdocb, pgcb);
     if (!pdmw->_FInit())
     {
         ReleasePpo(&pdmw);
@@ -1459,7 +1459,7 @@ PDMW DMW::PdmwNew(PDocumentBase pdocb, PGCB pgcb)
 /***************************************************************************
     Constructor for document window class
 ***************************************************************************/
-DMW::DMW(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DocumentMainWindow::DocumentMainWindow(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1472,7 +1472,7 @@ DMW::DMW(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
     Free the DSED tree so we don't bother with the tree manipulations
     during freeing.  Then call GraphicsObject::Free.
 ***************************************************************************/
-void DMW::Release(void)
+void DocumentMainWindow::Release(void)
 {
     AssertThis(fobjAssertFull);
     if (_cactRef <= 1)
@@ -1482,13 +1482,13 @@ void DMW::Release(void)
         ReleasePpo(&_paldsed);
         _idsedRoot = ivNil;
     }
-    DMW_PAR::Release();
+    DocumentMainWindow_PAR::Release();
 }
 
 /***************************************************************************
     Create the actual mdi window, etc.
 ***************************************************************************/
-bool DMW::_FInit(void)
+bool DocumentMainWindow::_FInit(void)
 {
     _fCreating = fTrue;
 
@@ -1496,16 +1496,16 @@ bool DMW::_FInit(void)
     if (pvNil == _pdocb->PdsgNew(this, pvNil, fdsgNil, krelOne))
         return fFalse;
     AssertPo(_paldsed, 0);
-    Assert(_paldsed->IvMac() > 0, "the DSG wasn't added to the DMW");
+    Assert(_paldsed->IvMac() > 0, "the DSG wasn't added to the DocumentMainWindow");
 
     _fCreating = fFalse;
     return fTrue;
 }
 
 /***************************************************************************
-    The DMW has been resized, make sure no DSGs are too small.
+    The DocumentMainWindow has been resized, make sure no DSGs are too small.
 ***************************************************************************/
-void DMW::_NewRc(void)
+void DocumentMainWindow::_NewRc(void)
 {
     AssertThis(0);
     _Layout(_idsedRoot);
@@ -1515,7 +1515,7 @@ void DMW::_NewRc(void)
     Add the dsg to the dmw (the dsg is already a child gob - we now promote
     it to a full fledged child dsg).
 ***************************************************************************/
-bool DMW::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
+bool DocumentMainWindow::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     AssertIn(rel, 0, krelOne + 1);
@@ -1609,7 +1609,7 @@ LDone:
 /***************************************************************************
     Remove the dsg from the list of active DSGs.
 ***************************************************************************/
-void DMW::RemoveDsg(PDSG pdsg)
+void DocumentMainWindow::RemoveDsg(PDSG pdsg)
 {
     long idsedStart;
 
@@ -1623,7 +1623,7 @@ void DMW::RemoveDsg(PDSG pdsg)
 /***************************************************************************
     Remove the DSG from the tree and set its _dsno to nil.
 ***************************************************************************/
-void DMW::_RemoveDsg(PDSG pdsg, long *pidsedStartLayout)
+void DocumentMainWindow::_RemoveDsg(PDSG pdsg, long *pidsedStartLayout)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1698,7 +1698,7 @@ void DMW::_RemoveDsg(PDSG pdsg, long *pidsedStartLayout)
     either hit the root (return ivNil) or we just went up a left arc (return
     the parent).
 ***************************************************************************/
-long DMW::_IdsedEdge(long idsed, long idsedRoot)
+long DocumentMainWindow::_IdsedEdge(long idsed, long idsedRoot)
 {
     // Don't call AssertThis because AssertValid calls this
     AssertBaseThis(0);
@@ -1730,7 +1730,7 @@ long DMW::_IdsedEdge(long idsed, long idsedRoot)
     Find the next dsed to visit in the sub-tree traversal based at
     idsedStart (pre-order traversal).
 ***************************************************************************/
-long DMW::_IdsedNext(long idsed, long idsedRoot)
+long DocumentMainWindow::_IdsedNext(long idsed, long idsedRoot)
 {
     DSED *qdsed;
 
@@ -1747,9 +1747,9 @@ long DMW::_IdsedNext(long idsed, long idsedRoot)
 }
 
 /***************************************************************************
-    Re-layout the DSGs in the DMW.  If any become too small, delete them.
+    Re-layout the DSGs in the DocumentMainWindow.  If any become too small, delete them.
 ***************************************************************************/
-void DMW::_Layout(long idsedStart)
+void DocumentMainWindow::_Layout(long idsedStart)
 {
     AssertThis(0);
     RC rc, rcDsg;
@@ -1847,7 +1847,7 @@ LRestart:
 /***************************************************************************
     Find the two child rc's from the DSED's rc.
 ***************************************************************************/
-void DMW::_SplitRcRel(long idsed, RC *prcLeft, RC *prcRight)
+void DocumentMainWindow::_SplitRcRel(long idsed, RC *prcLeft, RC *prcRight)
 {
     DSED *qdsed;
 
@@ -1867,7 +1867,7 @@ void DMW::_SplitRcRel(long idsed, RC *prcLeft, RC *prcRight)
 /***************************************************************************
     Return the number of DSGs.
 ***************************************************************************/
-long DMW::Cdsg(void)
+long DocumentMainWindow::Cdsg(void)
 {
     AssertThis(0);
     long idsed, cdsg;
@@ -1893,7 +1893,7 @@ long DMW::Cdsg(void)
     Get the rectangles for the split associated with pdsg and for the area
     that the split affects.
 ***************************************************************************/
-void DMW::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
+void DocumentMainWindow::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1939,7 +1939,7 @@ void DMW::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
 /***************************************************************************
     Move the split corresponding to the given DSG.
 ***************************************************************************/
-void DMW::MoveSplit(PDSG pdsg, long relNew)
+void DocumentMainWindow::MoveSplit(PDSG pdsg, long relNew)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pdsg, 0);
@@ -1970,7 +1970,7 @@ void DMW::MoveSplit(PDSG pdsg, long relNew)
     Determine whether the split corresponding to pdsg is vertical,
     horizontal or inactive.
 ***************************************************************************/
-tribool DMW::TVert(PDSG pdsg)
+tribool DocumentMainWindow::TVert(PDSG pdsg)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1986,15 +1986,15 @@ tribool DMW::TVert(PDSG pdsg)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the DMW.
+    Assert the validity of the DocumentMainWindow.
 ***************************************************************************/
-void DMW::AssertValid(ulong grfobj)
+void DocumentMainWindow::AssertValid(ulong grfobj)
 {
     long cdsed, idsed;
     DSED dsed;
     DSED *qdsed;
 
-    DMW_PAR::AssertValid(grfobj);
+    DocumentMainWindow_PAR::AssertValid(grfobj);
     AssertPo(_pdocb, grfobj & fobjAssertFull);
 
     if (pvNil == _paldsed || _paldsed->IvMac() == 0)
@@ -2073,11 +2073,11 @@ void DMW::AssertValid(ulong grfobj)
 }
 
 /***************************************************************************
-    Mark memory used by the DMW.
+    Mark memory used by the DocumentMainWindow.
 ***************************************************************************/
-void DMW::MarkMem(void)
+void DocumentMainWindow::MarkMem(void)
 {
-    DMW_PAR::MarkMem();
+    DocumentMainWindow_PAR::MarkMem();
     MarkMemObj(_paldsed);
 }
 #endif // DEBUG
@@ -2090,7 +2090,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Static method to create a new DSG.
 ***************************************************************************/
-PDSG DSG::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDSG DSG::PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
 {
     AssertPo(pdmw, 0);
     Assert(pvNil != pdsgSplit || pdmw->Cdsg() == 0, "must split an existing DSG");
@@ -2119,7 +2119,7 @@ DSG::DSG(PGCB pgcb) : GraphicsObject(pgcb)
 }
 
 /***************************************************************************
-    Destructor for DSG - remove ourselves from the DMW.
+    Destructor for DSG - remove ourselves from the DocumentMainWindow.
 ***************************************************************************/
 DSG::~DSG(void)
 {
@@ -2132,7 +2132,7 @@ DSG::~DSG(void)
 bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
 {
     Assert(pvNil != pdsgSplit || Pdmw()->Cdsg() == 0, "must split an existing DSG");
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
     PDocumentBase pdocb;
 
     _fCreating = fTrue;
@@ -2201,7 +2201,7 @@ void DSG::GetMinMax(RC *prcMinMax)
 void DSG::Split(ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
     PDocumentBase pdocb;
 
     Assert(_dsno != dsnoNil, "why are we splitting an unattached DSG?");
@@ -2230,10 +2230,10 @@ bool DSG::FCmdScroll(PCommand pcmd)
 ***************************************************************************/
 void DSG::AssertValid(ulong grfobj)
 {
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
 
     DSG_PAR::AssertValid(grfobj);
-    pdmw = (PDMW)PgobPar();
+    pdmw = (PDocumentMainWindow)PgobPar();
     AssertBasePo(pdmw, 0);
 }
 #endif // DEBUG
@@ -2388,7 +2388,7 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
     long zp, zpMin, zpLast, zpOrig, dzpMinDsg, dzp;
     RC rc, rcSplit;
     PDSG pdsg;
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
     tribool tVert;
     PT pt(xp, yp);
 
@@ -2444,7 +2444,7 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
 tribool DSSM::TVert(void)
 {
     PDSG pdsg;
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
 
     pdsg = (PDSG)PgobPar();
     pdmw = pdsg->Pdmw();

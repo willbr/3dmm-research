@@ -114,8 +114,8 @@ class DocumentBase : public DocumentBase_PAR
     void ActivateDmd(void);
 
     // low level calls - generally not for public consumption
-    virtual PDMW PdmwNew(PGCB pgcb);
-    virtual PDSG PdsgNew(PDMW pdwm, PDSG pdsgSplit, ulong grfdsg, long rel);
+    virtual PDocumentMainWindow PdmwNew(PGCB pgcb);
+    virtual PDSG PdsgNew(PDocumentMainWindow pdwm, PDSG pdsgSplit, ulong grfdsg, long rel);
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
 
     // DocumentDisplayGraphicsObject management - only to be called by DDGs
@@ -308,9 +308,9 @@ class DocumentMDIWindow : public DocumentMDIWindow_PAR
     Document main window
     provides basic pane management - including splitting, etc
 ***************************************************************************/
-#define DMW_PAR GraphicsObject
-#define kclsDMW 'DMW'
-class DMW : public DMW_PAR
+#define DocumentMainWindow_PAR GraphicsObject
+#define kclsDocumentMainWindow 'DMW'
+class DocumentMainWindow : public DocumentMainWindow_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -324,7 +324,7 @@ class DMW : public DMW_PAR
     {
         bool fVert; // splits its parent vertically, so the edge is horizontal
         long rel;   // where it splits its parent
-        RC rcRel;   // current relative rectangle (in the DMW)
+        RC rcRel;   // current relative rectangle (in the DocumentMainWindow)
         long idsedLeft;
         long idsedRight;
         long idsedPar;
@@ -334,7 +334,7 @@ class DMW : public DMW_PAR
     long _idsedRoot;
     PDocumentBase _pdocb;
 
-    DMW(PDocumentBase pdocb, PGCB pgcb);
+    DocumentMainWindow(PDocumentBase pdocb, PGCB pgcb);
 
     virtual bool _FInit(void);
     virtual void _NewRc(void);
@@ -350,7 +350,7 @@ class DMW : public DMW_PAR
     void _SplitRcRel(long idsed, RC *prcLeft, RC *prcRight);
 
   public:
-    static PDMW PdmwNew(PDocumentBase pdocb, PGCB pgcb);
+    static PDocumentMainWindow PdmwNew(PDocumentBase pdocb, PGCB pgcb);
 
     PDocumentBase Pdocb(void)
     {
@@ -369,9 +369,9 @@ class DMW : public DMW_PAR
 };
 
 /***************************************************************************
-    document scroll gob - child gob of a DMW
+    document scroll gob - child gob of a DocumentMainWindow
     holds any scroll bars, splitter boxes and split movers
-    dialogs tightly with DMW and DocumentDisplayGraphicsObject
+    dialogs tightly with DocumentMainWindow and DocumentDisplayGraphicsObject
 ***************************************************************************/
 #define DSG_PAR GraphicsObject
 #define kclsDSG 'DSG'
@@ -381,10 +381,10 @@ class DSG : public DSG_PAR
     CMD_MAP_DEC(DSG)
     ASSERT
 
-    friend DMW;
+    friend DocumentMainWindow;
 
   private:
-    long _dsno; // this is how the DMW refers to this DSG
+    long _dsno; // this is how the DocumentMainWindow refers to this DSG
     PDocumentDisplayGraphicsObject _pddg;
 
   protected:
@@ -394,12 +394,12 @@ class DSG : public DSG_PAR
     virtual bool _FInit(PDSG pdsgSplit, ulong grfdsg, long rel);
 
   public:
-    static PDSG PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel);
+    static PDSG PdsgNew(PDocumentMainWindow pdmw, PDSG pdsgSplit, ulong grfdsg, long rel);
     virtual void GetMinMax(RC *prcMinMax);
 
-    PDMW Pdmw(void)
+    PDocumentMainWindow Pdmw(void)
     {
-        return (PDMW)PgobPar();
+        return (PDocumentMainWindow)PgobPar();
     }
 
     virtual void Split(ulong grfdsg, long rel);
