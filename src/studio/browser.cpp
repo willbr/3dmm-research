@@ -2581,7 +2581,7 @@ bool BRWA::FBuildApe(PActor pactr)
     Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Invalid class");
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(kidBrwsActionPrev, pgokFrame, fgobNil, kginDefault, pvNil, &rcRel);
-    _pape = APE::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fTrue);
+    _pape = ActorPreviewEntity::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fTrue);
     if (pvNil == _pape)
         return fFalse;
     return fTrue;

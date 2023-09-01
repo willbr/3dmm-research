@@ -564,7 +564,7 @@ class BRWA : public BRWA_PAR
 
   protected:
     long _celnStart;              // Starting cel number
-    PAPE _pape;                   // Actor Preview Entity
+    PActorPreviewEntity _pape;                   // Actor Preview Entity
     void _ProcessSelection(void); // Action Preview
     virtual void _ApplySelection(long thumSelect, long sid);
 

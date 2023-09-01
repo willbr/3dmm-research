@@ -102,7 +102,7 @@ class ESLT : public ESLT_PAR
   protected:
     PMovie _pmvie; // Movie that this TDT is in
     PActor _pactr; // Actor of this TDT, or pvNil for new TDT
-    PAPE _pape;   // Actor Preview Entity
+    PActorPreviewEntity _pape;   // Actor Preview Entity
     PSNE _psne;   // Spletter Name Editor
     PRCA _prca;   // Resource source for cursors
     PSFL _psflMtrl;
@@ -149,7 +149,7 @@ class ESLA : public ESLA_PAR
   protected:
     PMovie _pmvie; // Movie that this actor is in
     PActor _pactr; // The actor that is being edited
-    PAPE _pape;   // Actor Preview Entity
+    PActorPreviewEntity _pape;   // Actor Preview Entity
     PEDSL _pedsl; // Single-line edit control (for actor's name)
 
   protected:

@@ -286,7 +286,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pst
         ptdt = TDT::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
         if (pvNil == ptdt)
             return fFalse;
-        _pape = APE::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
+        _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
         ReleasePpo(&ptdt);
         if (pvNil == _pape)
             return fFalse;
@@ -301,7 +301,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pst
         ptdt = ((PTDT)pactr->Ptmpl())->PtdtDup();
         if (pvNil == ptdt)
             return fFalse;
-        _pape = APE::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
+        _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
         ReleasePpo(&ptdt);
         if (pvNil == _pape)
             return fFalse;
@@ -542,7 +542,7 @@ bool ESLT::FCmdSetColor(PCommand pcmd)
 }
 
 /***************************************************************************
-    Update the APE when the text of the SNE changed
+    Update the ActorPreviewEntity when the text of the SNE changed
 ***************************************************************************/
 bool ESLT::FTextChanged(PSTN pstnNew)
 {
@@ -881,7 +881,7 @@ bool ESLA::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
         return fFalse;
     if (!FBuildGcb(&gcb, kidCostPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
-    _pape = APE::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fFalse, prca);
+    _pape = ActorPreviewEntity::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fFalse, prca);
     if (pvNil == _pape)
         return fFalse;
     _pape->SetToolIncCmtl();

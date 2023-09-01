@@ -8,13 +8,13 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CommandHandler ---> GraphicsObject ---> APE
+    BASE ---> CommandHandler ---> GraphicsObject ---> ActorPreviewEntity
 
 ***************************************************************************/
 #ifndef APE_H
 #define APE_H
 
-// APE tool types
+// ActorPreviewEntity tool types
 enum
 {
     aptNil = 0,
@@ -43,15 +43,15 @@ struct APET
 /****************************************
     Actor preview entity class
 ****************************************/
-typedef class APE *PAPE;
-#define APE_PAR GraphicsObject
-#define kclsAPE 'APE'
-class APE : public APE_PAR
+typedef class ActorPreviewEntity *PActorPreviewEntity;
+#define ActorPreviewEntity_PAR GraphicsObject
+#define kclsActorPreviewEntity 'APE'
+class ActorPreviewEntity : public ActorPreviewEntity_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(APE)
+    CMD_MAP_DEC(ActorPreviewEntity)
 
   protected:
     PWorld _pbwld;       // BRender world to draw actor in
@@ -70,7 +70,7 @@ class APE : public APE_PAR
     long _ibsetOnlyAcc; // ibset of accessory, if only one (else ivNil)
 
   protected:
-    APE(PGCB pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
+    ActorPreviewEntity(PGCB pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
     bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca);
@@ -82,8 +82,8 @@ class APE : public APE_PAR
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
-    static PAPE PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca = pvNil);
-    ~APE();
+    static PActorPreviewEntity PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca = pvNil);
+    ~ActorPreviewEntity();
 
     void SetToolMtrl(PTAG ptagMtrl);
     void SetToolCmtl(long cmid);
