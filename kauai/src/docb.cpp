@@ -38,7 +38,7 @@ RTCLASS(DocumentDisplayGraphicsObject)
 RTCLASS(DocumentMDIWindow)
 RTCLASS(DocumentMainWindow)
 RTCLASS(DocumentScrollGraphicsObject)
-RTCLASS(DSSP)
+RTCLASS(DocumentScrollWindowSplitter)
 RTCLASS(DSSM)
 RTCLASS(UndoBase)
 
@@ -2144,16 +2144,16 @@ bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSpli
     // Create the scroll bars and split boxes
     GraphicsObjectBlock gcb(khidVScroll, this);
     SCB::GetStandardRc(fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
-    gcb._rcAbs.ypTop += DSSP::DypNormal();
-    if (pvNil == SCB::PscbNew(&gcb, fscbVert) || pvNil == DSSP::PdsspNew(this, fdsspVert))
+    gcb._rcAbs.ypTop += DocumentScrollWindowSplitter::DypNormal();
+    if (pvNil == SCB::PscbNew(&gcb, fscbVert) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspVert))
     {
         return fFalse;
     }
 
     gcb._hid = khidHScroll;
     SCB::GetStandardRc(fscbHorz | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
-    gcb._rcAbs.xpLeft += DSSP::DxpNormal();
-    if (pvNil == SCB::PscbNew(&gcb, fscbHorz) || pvNil == DSSP::PdsspNew(this, fdsspHorz))
+    gcb._rcAbs.xpLeft += DocumentScrollWindowSplitter::DxpNormal();
+    if (pvNil == SCB::PscbNew(&gcb, fscbHorz) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspHorz))
     {
         return fFalse;
     }
@@ -2189,8 +2189,8 @@ void DocumentScrollGraphicsObject::GetMinMax(RC *prcMinMax)
     _pddg->GetMinMax(prcMinMax);
 
     // impose our own min and add the scroll bar dimensions
-    prcMinMax->xpLeft = dxpScb + LwMax(prcMinMax->xpLeft, DSSP::DxpNormal() + dxpScb);
-    prcMinMax->ypTop = dypScb + LwMax(prcMinMax->ypTop, DSSP::DypNormal() + dypScb);
+    prcMinMax->xpLeft = dxpScb + LwMax(prcMinMax->xpLeft, DocumentScrollWindowSplitter::DxpNormal() + dxpScb);
+    prcMinMax->ypTop = dypScb + LwMax(prcMinMax->ypTop, DocumentScrollWindowSplitter::DypNormal() + dypScb);
     prcMinMax->xpRight = LwMax(prcMinMax->xpLeft, dxpScb + prcMinMax->xpRight);
     prcMinMax->ypBottom = LwMax(prcMinMax->ypTop, dypScb + prcMinMax->ypBottom);
 }
@@ -2241,7 +2241,7 @@ void DocumentScrollGraphicsObject::AssertValid(ulong grfobj)
 /***************************************************************************
     Constructor for the splitter.
 ***************************************************************************/
-DSSP::DSSP(PGCB pgcb) : GraphicsObject(pgcb)
+DocumentScrollWindowSplitter::DocumentScrollWindowSplitter(PGCB pgcb) : GraphicsObject(pgcb)
 {
     AssertThis(0);
 }
@@ -2249,7 +2249,7 @@ DSSP::DSSP(PGCB pgcb) : GraphicsObject(pgcb)
 /***************************************************************************
     Static method to create a new split box.
 ***************************************************************************/
-PDSSP DSSP::PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp)
+PDocumentScrollWindowSplitter DocumentScrollWindowSplitter::PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp)
 {
     Assert(FPure(grfdssp & fdsspHorz) != FPure(grfdssp & fdsspVert),
            "must specify exactly one of (fdsspVert,fdsspHorz)");
@@ -2274,13 +2274,13 @@ PDSSP DSSP::PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp)
         gcb._rcAbs.xpRight = DxpNormal();
         gcb._rcAbs.ypBottom = 0;
     }
-    return NewObj DSSP(&gcb);
+    return NewObj DocumentScrollWindowSplitter(&gcb);
 }
 
 /***************************************************************************
     Draw the split box.
 ***************************************************************************/
-void DSSP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void DocumentScrollWindowSplitter::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
@@ -2293,7 +2293,7 @@ void DSSP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     See if the parent DocumentScrollGraphicsObject can be split.  If so, track the mouse and draw
     the gray outline until the user releases the mouse.
 ***************************************************************************/
-void DSSP::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void DocumentScrollWindowSplitter::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
 

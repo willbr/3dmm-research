@@ -417,15 +417,15 @@ enum
 /***************************************************************************
     document scroll window splitter - must be a child of a DocumentScrollGraphicsObject
 ***************************************************************************/
-typedef class DSSP *PDSSP;
-#define DSSP_PAR GraphicsObject
-#define kclsDSSP 'DSSP'
-class DSSP : public DSSP_PAR
+typedef class DocumentScrollWindowSplitter *PDocumentScrollWindowSplitter;
+#define DocumentScrollWindowSplitter_PAR GraphicsObject
+#define kclsDocumentScrollWindowSplitter 'DSSP'
+class DocumentScrollWindowSplitter : public DocumentScrollWindowSplitter_PAR
 {
     RTCLASS_DEC
 
   protected:
-    DSSP(PGCB pgcb);
+    DocumentScrollWindowSplitter(PGCB pgcb);
 
   public:
     static long DypNormal(void)
@@ -436,7 +436,7 @@ class DSSP : public DSSP_PAR
     {
         return SCB::DxpNormal() / 2;
     }
-    static PDSSP PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp);
+    static PDocumentScrollWindowSplitter PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
