@@ -2301,12 +2301,14 @@ bool APP::_FFindMsKidsDir(void)
     STN stn;
     STN stnUsers;
 
-    szMsKidsDir[0] = chNil;
-    if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(SZ), fregMachine | fregString))
-    {
-        Warn("Missing InstallDirectory registry entry or registry error");
-    }
-    stn = szMsKidsDir;
+    // szMsKidsDir[0] = chNil;
+    // if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(SZ), fregMachine | fregString))
+    // {
+    //     Warn("Missing InstallDirectory registry entry or registry error");
+    // }
+    // stn = szMsKidsDir;
+    stn = "";
+
     if (stn.Cch() == 0 || !_fniMsKidsDir.FBuildFromPath(&stn, kftgDir) || tYes != _fniMsKidsDir.TExists())
     {
         // REVIEW *****: this artificial search is temp until we have a
@@ -2319,19 +2321,19 @@ bool APP::_FFindMsKidsDir(void)
             ;
         */
 
-        if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
-        {
-            _fniMsKidsDir = _fniCurrentDir;
-            if (!_fniMsKidsDir.FSetLeaf(pvNil, kftgDir))
-                return fFalse;
-            if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
-            {
-                Warn("Can't find Microsoft Kids or MSKIDS.");
-                stn = PszLit("Microsoft Kids");
-                _FCantFindFileDialog(&stn); // ignore failure
-                return fFalse;
-            }
-        }
+        // if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
+        // {
+        //     _fniMsKidsDir = _fniCurrentDir;
+        //     if (!_fniMsKidsDir.FSetLeaf(pvNil, kftgDir))
+        //         return fFalse;
+        //     if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
+        //     {
+        //         Warn("Can't find Microsoft Kids or MSKIDS.");
+        //         stn = PszLit("Microsoft Kids");
+        //         _FCantFindFileDialog(&stn); // ignore failure
+        //         return fFalse;
+        //     }
+        // }
     }
 
     AssertPo(&_fniMsKidsDir, ffniDir);
