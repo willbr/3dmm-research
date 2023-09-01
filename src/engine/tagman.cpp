@@ -365,8 +365,8 @@ bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PSTN pstn)
     AssertPo(pfniCD, ffniDir);
     AssertNilOrPo(pstn, 0);
 
-    ERS ersT;
-    ERS *pers;
+    ErrorStack ersT;
+    ErrorStack *pers;
     bool fRet;
 
     pers = vpers;

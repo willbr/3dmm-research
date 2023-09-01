@@ -15,15 +15,15 @@
 #include "util.h"
 ASSERTNAME
 
-ERS _ers;
-ERS *vpers = &_ers;
+ErrorStack _ers;
+ErrorStack *vpers = &_ers;
 
-RTCLASS(ERS)
+RTCLASS(ErrorStack)
 
 /***************************************************************************
     Initialize the error code stack.
 ***************************************************************************/
-ERS::ERS(void)
+ErrorStack::ErrorStack(void)
 {
     _cerd = 0;
 }
@@ -33,9 +33,9 @@ ERS::ERS(void)
     kcerdMax - 1 entries down by one (and lose the bottom entry).
 ***************************************************************************/
 #ifdef DEBUG
-void ERS::Push(long erc, PSZS pszsFile, long lwLine)
+void ErrorStack::Push(long erc, PSZS pszsFile, long lwLine)
 #else  //! DEBUG
-void ERS::Push(long erc)
+void ErrorStack::Push(long erc)
 #endif //! DEBUG
 {
     AssertThis(0);
@@ -75,7 +75,7 @@ LDone:
 /***************************************************************************
     Pop the top error from the stack.  Return fFalse if underflow.
 ***************************************************************************/
-bool ERS::FPop(long *perc)
+bool ErrorStack::FPop(long *perc)
 {
     AssertThis(0);
     AssertNilOrVarMem(perc);
@@ -101,7 +101,7 @@ bool ERS::FPop(long *perc)
 /***************************************************************************
     Clear the error stack.
 ***************************************************************************/
-void ERS::Clear(void)
+void ErrorStack::Clear(void)
 {
     AssertThis(0);
 
@@ -113,7 +113,7 @@ void ERS::Clear(void)
 /***************************************************************************
     Return the size of the error stack.
 ***************************************************************************/
-long ERS::Cerc(void)
+long ErrorStack::Cerc(void)
 {
     AssertThis(0);
     return _cerd;
@@ -122,7 +122,7 @@ long ERS::Cerc(void)
 /***************************************************************************
     See if the given error code is on the stack.
 ***************************************************************************/
-bool ERS::FIn(long erc)
+bool ErrorStack::FIn(long erc)
 {
     AssertThis(0);
     long ierd;
@@ -143,7 +143,7 @@ bool ERS::FIn(long erc)
 /***************************************************************************
     Return the i'th entry.
 ***************************************************************************/
-long ERS::ErcGet(long ierc)
+long ErrorStack::ErcGet(long ierc)
 {
     AssertThis(0);
     long erc;
@@ -161,7 +161,7 @@ long ERS::ErcGet(long ierc)
 /***************************************************************************
     Flush all instances of the given error code from the error stack.
 ***************************************************************************/
-void ERS::Flush(long erc)
+void ErrorStack::Flush(long erc)
 {
     AssertThis(0);
     long ierdSrc, ierdDst;
@@ -184,9 +184,9 @@ void ERS::Flush(long erc)
 /***************************************************************************
     Assert the error stack is valid.
 ***************************************************************************/
-void ERS::AssertValid(ulong grf)
+void ErrorStack::AssertValid(ulong grf)
 {
-    ERS_PAR::AssertValid(0);
+    ErrorStack_PAR::AssertValid(0);
     AssertIn(_cerd, 0, kcerdMax + 1);
 }
 #endif // DEBUG

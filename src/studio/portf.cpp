@@ -1215,8 +1215,8 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
     PMBMP pmbmp;
     Filename fni;
     SZ szFile;
-    ERS ersT;
-    ERS *pers;
+    ErrorStack ersT;
+    ErrorStack *pers;
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
     bool fPreviewed = fFalse;
     RC rcPreview(*prcsPreview);
