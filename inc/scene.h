@@ -118,7 +118,7 @@ class Scene : public Scene_PAR
     ASSERT
 
   public:
-    PActor _pactrSelected2; // Currently selected actor, if any
+    PDynamicArray selected_actors;
 
   protected:
     typedef struct SEV *PSEV;
@@ -295,7 +295,8 @@ class Scene : public Scene_PAR
         return _pactrSelected;
     }
     void SelectActr(Actor *pactr);                      // Sets the selected actor
-    void SelectActr2(Actor *pactr);                      // Sets the selected actor
+    void SelectMultipleActors(Actor *pactr, bool toggle_selection);
+    void DeselectMultipleActors();
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {

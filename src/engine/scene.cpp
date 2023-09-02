@@ -527,6 +527,12 @@ PScene Scene::PscenNew(PMovie pmvie)
         goto LFail;
     }
 
+    pscen->selected_actors = DynamicArray::PglNew(size(PActor), 0);
+    if (pscen->selected_actors == pvNil)
+    {
+        goto LFail;
+    }
+
     pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
@@ -660,6 +666,9 @@ Scene::~Scene(void)
     //
     ReleasePpo(&_pggsevFrm);
 
+
+    ReleasePpo(&selected_actors);
+
     //
     // Remove the DynamicArray of actors.  We do not Release the actors
     // themselves as our reference was released above in the
@@ -744,6 +753,7 @@ void Scene::MarkMem(void)
 
     MarkMemObj(_pggsevStart);
     MarkMemObj(_pggsevFrm);
+    MarkMemObj(selected_actors);
     MarkMemObj(_pglpactr);
     MarkMemObj(_pglptbox);
     MarkMemObj(_pmbmp);
@@ -2450,38 +2460,70 @@ void Scene::SelectActr(Actor *pactr)
     _pmvie->BuildActionMenu();
 }
 
-void Scene::SelectActr2(Actor *pactr)
+void Scene::SelectMultipleActors(PActor pnew_actor, bool toggle_selection)
 {
     AssertThis(0);
-    AssertNilOrPo(pactr, 0);
+    AssertNilOrPo(pnew_actor, 0);
 
     PMovieView pmvu;
+    PActor pactor;
+    long iactr;
+    bool already_selected = fFalse;
 
+    if (pvNil == pnew_actor) {
+        return;
+    }
+    
     pmvu = (PMovieView)Pmvie()->PddgGet(0);
     AssertNilOrPo(pmvu, 0);
 
     if ((pmvu != pvNil) && !pmvu->FTextMode())
     {
-        if (pvNil != _pactrSelected2)
-        {
-            _pactrSelected2->Unhilite();
-        }
-
-        if (pvNil != pactr)
-        {
-            pactr->Hilite();
-        }
 
         if (_ptboxSelected != pvNil)
         {
             _ptboxSelected->Select(fFalse);
         }
+
+        for (iactr = 0; iactr < selected_actors->IvMac(); iactr++)
+        {
+            selected_actors->Get(iactr, &pactor);
+            if (pnew_actor == pactor) {
+                already_selected = fTrue;
+                break;
+            }
+        }
+
+        if (already_selected) {
+            if (toggle_selection) {
+                selected_actors->Delete(iactr);
+                pnew_actor->Unhilite();
+            } else {
+                // do nothing
+            }
+        } else {
+            if (selected_actors->FPush(&pnew_actor) == fFalse)
+            {
+                Bug("push failed");
+                return;
+            }
+            pnew_actor->Hilite();
+        }
     }
 
     _pmvie->InvalViews();
-    _pactrSelected2 = pactr;
-
     _pmvie->BuildActionMenu();
+}
+
+void Scene::DeselectMultipleActors() {
+    PActor pactor;
+    long iactr;
+
+    while (selected_actors->IvMac()) {
+        if (selected_actors->FPop(&pactor)) {
+            pactor->Unhilite();
+        }
+    }
 }
 
 /****************************************************
@@ -3844,6 +3886,12 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     }
 
     pscen->_isevFrmLim = 0;
+
+    pscen->selected_actors = DynamicArray::PglNew(size(PActor), 0);
+    if (pscen->selected_actors == pvNil)
+    {
+        goto LFail0;
+    }
 
     //
     // Initialize roll call	for actors

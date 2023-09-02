@@ -6903,9 +6903,15 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
             _ActorClicked(pactr, fTrue);
         }
 
+        // printf("tool %d\n", Tool());
+
         if (pcmd->grfcust & fcustCmd) {
-            Pmvie()->Pscen()->SelectActr2(pactr); // okay even if pactr is pvNil
+            Pmvie()->Pscen()->SelectMultipleActors(pactr, fTrue);
         } else {
+            if (pvNil == pactr) {
+                Pmvie()->Pscen()->DeselectMultipleActors();
+            }
+            Pmvie()->Pscen()->SelectMultipleActors(pactr, fFalse);
             Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
         }
 
@@ -7278,13 +7284,15 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     PMovie pmvie;
     PScene pscen;
     PActor pactr = pvNil;
-    PActor pactr2 = pvNil;
+    // PActor pactr2 = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
     BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
     BRS zrActr, zrCam, dzrActr;
     bool fArrowKey = fFalse;
     RC rc;
     PT pt;
+
+    // printf("_MouseDrag\n");
 
     if (Pmvie()->FPlaying() || Pmvie()->Pmcc()->FMinimized())
     {
@@ -7305,7 +7313,6 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     }
 
     pactr = pscen->PactrSelected();
-    pactr2 = pscen->_pactrSelected2;
 
     AssertNilOrPo(pactr, 0);
 
@@ -7441,28 +7448,40 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             if (_grfcust & fcustShift)
             {
                 grfmaf |= fmafEntireSubrte;
+            } else if (_grfcust & fcustCmd) {
+                // printf("ctrl\n");
+            } else {
+                // printf("other\n");
+            }
+
+            long iactr;
+            bool actor_moved = fFalse;
+
+            // printf("moving %d\n", pscen->selected_actors->IvMac());
+
+            for (iactr = 0; iactr < pscen->selected_actors->IvMac(); iactr++)
+            {
+                pscen->selected_actors->Get(iactr, &pactr);
+                if (pvNil != pactr) {
+                    pactr->FMoveRoute(dxrWld, dyrWld, dzrWld, &actor_moved, grfmaf);
+                    fMoved |= actor_moved;
+                }
             }
 
             // FMoveRoute returns fTrue if the distance moved was non-zero
-            if (pactr->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMoved, grfmaf))
+            if (fMoved)
             {
-                if (fMoved)
+                if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
                 {
-                    if (pactr2 != pvNil) {
-                        pactr2->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMoved, grfmaf);
-                    }
-                    if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-                    {
-                        PushErc(ercSocNotUndoable);
-                        Pmvie()->ClearUndo();
-                    }
-
-                    ReleasePpo(&_paund);
-
-                    AdjustCursor(pcmd->xp, pcmd->yp);
-                    Pmvie()->Pbwld()->MarkDirty();
-                    Pmvie()->MarkViews();
+                    PushErc(ercSocNotUndoable);
+                    Pmvie()->ClearUndo();
                 }
+
+                ReleasePpo(&_paund);
+
+                AdjustCursor(pcmd->xp, pcmd->yp);
+                Pmvie()->Pbwld()->MarkDirty();
+                Pmvie()->MarkViews();
             }
         }
     }
@@ -7840,6 +7859,13 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         break;
 
     case toolCompose:
+        if (pactr != pvNil)
+        {
+            // WarpCursToActor(pactr);
+            vpappb->ShowCurs();
+        }
+        break;
+
     case toolRotateX:
     case toolRotateY:
     case toolRotateZ:
