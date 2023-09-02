@@ -246,6 +246,7 @@
 #define cidPrint 138
 #define cidPrintSetup 139
 #define cidPasteSpecial 140
+#define cidSelectAll 141
 
 #define wcidListBase 50000 // for windows menu list handling
 #define dwcidList 500      // increment between list base values

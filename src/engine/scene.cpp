@@ -2482,6 +2482,55 @@ bool Scene::ActorIsSelected(PActor pneedle)
     return fFalse;
 }
 
+void Scene::SelectAllActors(void)
+{
+    AssertThis(0);
+
+    PMovieView pmvu;
+    PActor pactor;
+    long iactr;
+
+    DeselectMultipleActors();
+
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
+    AssertNilOrPo(pmvu, 0);
+
+    if (_pglpactr->IvMac() == 0) {
+        printf("no actors\n");
+        return;
+    }
+
+    if ((pmvu != pvNil) && !pmvu->FTextMode())
+    {
+
+        if (_ptboxSelected != pvNil)
+        {
+            _ptboxSelected->Select(fFalse);
+        }
+
+        for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
+        {
+            _pglpactr->Get(iactr, &pactor);
+
+            if (selected_actors->FPush(&pactor) == fFalse)
+            {
+                Bug("push failed");
+                return;
+            }
+
+            pactor->Hilite();
+
+        }
+    }
+
+    _pmvie->InvalViews();
+    _pactrSelected = pvNil;
+
+    _pmvie->BuildActionMenu();
+
+    return;
+}
+
 void Scene::SelectMultipleActors(PActor pnew_actor, bool toggle_selection)
 {
     AssertThis(0);

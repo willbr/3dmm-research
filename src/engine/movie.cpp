@@ -8124,6 +8124,11 @@ bool MovieView::FCmdClip(PCMD pcmd)
         _grfcust = fcustNil;
         break;
 
+    case cidSelectAll:
+        _grfcust = fcustNil;
+        Pmvie()->Pscen()->SelectAllActors();
+        break;
+
     default:
         Bug("Unknown command");
     }

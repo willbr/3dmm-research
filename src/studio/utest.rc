@@ -57,6 +57,7 @@ END
 
 acidMain ACCELERATORS DISCARDABLE 
 BEGIN
+    "A",            cidSelectAll,           VIRTKEY, CONTROL, NOINVERT
     "C",            cidCopy,                VIRTKEY, CONTROL, NOINVERT
     "C",            cidShiftCopy,           VIRTKEY, SHIFT, CONTROL, 
                                                     NOINVERT
