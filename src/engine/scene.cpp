@@ -2462,6 +2462,26 @@ void Scene::SelectActr(Actor *pactr)
     _pmvie->BuildActionMenu();
 }
 
+bool Scene::ActorIsSelected(PActor pneedle)
+{
+    long iactr = selected_actors->IvMac();
+    PActor pactor = pvNil;
+
+    if (_pactrSelected == pneedle) {
+        return fTrue;
+    }
+
+    for (iactr = 0; iactr < selected_actors->IvMac(); iactr++)
+    {
+        selected_actors->Get(iactr, &pactor);
+        if (pneedle == pactor) {
+            return fTrue;
+        }
+    }
+
+    return fFalse;
+}
+
 void Scene::SelectMultipleActors(PActor pnew_actor, bool toggle_selection)
 {
     AssertThis(0);

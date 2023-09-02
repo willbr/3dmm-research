@@ -6908,11 +6908,19 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         if (pcmd->grfcust & fcustCmd) {
             Pmvie()->Pscen()->SelectMultipleActors(pactr, fTrue);
         } else {
+            bool actor_isnt_selected;
+
             if (pvNil == pactr) {
                 Pmvie()->Pscen()->DeselectMultipleActors();
             }
+
+            actor_isnt_selected = !(Pmvie()->Pscen()->ActorIsSelected(pactr));
+
+            if (actor_isnt_selected) {
+                Pmvie()->Pscen()->DeselectMultipleActors();
+            }
+            
             Pmvie()->Pscen()->SelectMultipleActors(pactr, fFalse);
-            Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
         }
 
         Pmvie()->Pbwld()->MarkDirty();

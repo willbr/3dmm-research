@@ -295,6 +295,7 @@ class Scene : public Scene_PAR
         return _pactrSelected;
     }
     void SelectActr(Actor *pactr);                      // Sets the selected actor
+    bool ActorIsSelected(Actor *pactor);
     void SelectMultipleActors(Actor *pactr, bool toggle_selection);
     void DeselectMultipleActors();
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
