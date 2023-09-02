@@ -7859,13 +7859,6 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         break;
 
     case toolCompose:
-        if (pactr != pvNil)
-        {
-            // WarpCursToActor(pactr);
-            vpappb->ShowCurs();
-        }
-        break;
-
     case toolRotateX:
     case toolRotateY:
     case toolRotateZ:
