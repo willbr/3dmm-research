@@ -4464,6 +4464,7 @@ bool Movie::FCmdRender(PCMD pcmd)
 
         if (Iscen() == (Cscen() - 1))
         {
+            SetFStopPlaying(fTrue);
             // disable volume fade
 
             // // since this is the last scene/last frame, we want to
