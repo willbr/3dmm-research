@@ -2436,6 +2436,8 @@ void Scene::SelectActr(Actor *pactr)
     pmvu = (PMovieView)Pmvie()->PddgGet(0);
     AssertNilOrPo(pmvu, 0);
 
+    DeselectMultipleActors();
+
     if ((pmvu != pvNil) && !pmvu->FTextMode())
     {
         if (pvNil != _pactrSelected)
@@ -2512,6 +2514,8 @@ void Scene::SelectMultipleActors(PActor pnew_actor, bool toggle_selection)
     }
 
     _pmvie->InvalViews();
+    _pactrSelected = pnew_actor;
+
     _pmvie->BuildActionMenu();
 }
 
