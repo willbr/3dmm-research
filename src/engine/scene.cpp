@@ -2548,6 +2548,8 @@ void Scene::DeselectMultipleActors() {
             pactor->Unhilite();
         }
     }
+
+    _pactrSelected = pvNil;
 }
 
 /****************************************************
