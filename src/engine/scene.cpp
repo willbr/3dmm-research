@@ -2458,6 +2458,7 @@ void Scene::SelectActr(Actor *pactr)
 
     _pmvie->InvalViews();
     _pactrSelected = pactr;
+    SelectMultipleActors(pactr, fFalse);
 
     _pmvie->BuildActionMenu();
 }
