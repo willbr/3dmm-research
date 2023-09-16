@@ -558,16 +558,61 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
 
             if (pggsevStart == pvNil)
             {
+                printf("fail\n");
                 goto LFail;
             }
 
             printf("%d\n", pggsevStart->IvMac());
-            for (isevStart = 0; isevStart < pggsevFrm->IvMac(); isevStart++)
+            for (isevStart = 0; isevStart < pggsevStart->IvMac(); isevStart++)
             {
-                pggsevFrm->Get(isevStart, &sev);
+                // pggsevFrm->Get(isevStart, &sev);
+                sev = *(PSEV)pggsevStart->QvFixedGet(isevStart);
                 printf("\tSceneEvent(\n");
-                printf("\t\tnfrm=%d\n", sev.nfrm);
-                printf("\t\tsevt=%d\n", sev.sevt);
+                printf("\t\tnfrm=%lu\n", sev.nfrm);
+
+                switch (sev.sevt) {
+                    case sevtAddActr:
+                        printf("\t\tsevt=sevtAddActr\n");
+                        break;
+
+                    case sevtSetBkgd: {
+                        printf("\t\tsevt=sevtSetBkgd\n");
+                        TAG tag;
+                        tag = *(PTAG)pggsevStart->QvGet(isevStart);
+                        printf("\t\tTAG(\n");
+                        printf("\t\t\tcno=%lu\n", tag.cno);
+
+                        STN background_tag;
+                        background_tag.FFormatSz(PszLit("%f"), tag.ctg);
+                        printf("\t\t\tctg='%s'\n", background_tag.Psz());
+
+                        printf("\t\t\tpcrf=%p\n", tag.pcrf);
+                        printf("\t\t\tsig=%lu\n", tag.sid);
+                        printf("\t\t)\n");
+
+                        break;
+                    }
+
+                    case sevtChngCamera: {
+                        long iangle;
+                        iangle = *(long*)pggsevStart->QvGet(isevStart);
+                        // long
+                        printf("\t\tsevt=sevtChngCamera\n");
+                        printf("\t\tiangle=%lu\n", iangle);
+                        break;
+                    }
+
+                    case sevtAddTbox:
+                        printf("\t\tsevt=sevtAddTbox\n");
+                        break;
+
+                    case sevtPause:
+                    case sevtPlaySnd:
+                    default:
+                        Assert(0, "Bad event in frame event list");
+                        break;
+                }
+
                 printf("\t)\n");
             //     // printf("\t// %d\n", irdp);
             //     // printf("\tRouteDistancePoint(\n");
