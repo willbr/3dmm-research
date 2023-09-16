@@ -335,6 +335,29 @@ typedef struct SEV *PSEV;
 const auto kbomSev = 0xF0000000;
 const auto kbomLong = 0xC0000000;
 
+//
+// Movie file prefix
+//
+struct MFP
+{
+    short bo;  // byte order
+    short osk; // which system wrote this
+    DVER dver; // chunky file version
+};
+const ByteOrderMask kbomMfp = 0x55000000;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 RTCLASS(MovieDecompiler)
@@ -625,9 +648,17 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             printf("ACTR\n");
             goto LEndChunk;
 
-        case kctgMvie:
-            printf("MVIE\n");
+        case kctgMvie: {
+            MFP mfp;
+            blck.FReadRgb(&mfp, size(MFP), 0);
+            printf("\tMovie(\n");
+            printf("\t\tbo=%d\n", mfp.bo);
+            printf("\t\tosk=%d\n", mfp.osk);
+            printf("\t\tdver._swCur=%d\n", mfp.dver._swCur);
+            printf("\t\tdver._swBack=%d\n", mfp.dver._swBack);
+            printf("\t)\n");
             goto LEndChunk;
+        }
 
         case kctgFrmGg:
             // printf("GGFR\n");
