@@ -521,7 +521,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             printf("\t\tosk=%d,\n", scenh.osk);
             printf("\t\tnfrmFirst=%d,\n", scenh.nfrmFirst);
             printf("\t\tnfrmLast=%d,\n", scenh.nfrmLast);
-            printf("\t\ttrans=%d,\n", scenh.trans);
+            printf("\t\ttrans=%d\n", scenh.trans);
             printf("\t)\n");
 
             goto LEndChunk;
@@ -543,8 +543,8 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 pglrpt->Get(irdp, &rdp);
                 printf("\t// %d\n", irdp);
                 printf("\tRouteDistancePoint(\n");
-                printf("\t\t{x=%d, y=%d, z=%d}\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
-                printf("\t\tdwr=%d;\n", rdp.dwr);
+                printf("\t\t{x=%d, y=%d, z=%d},\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
+                printf("\t\tdwr=%d\n", rdp.dwr);
                 printf("\t)\n");
             }
             goto LEndChunk;
@@ -566,11 +566,11 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             for (iaev = 0; iaev < pggaev->IvMac(); iaev++)
             {
                 pggaev->GetFixed(iaev, &aev);
-                printf("\tGGAE(\n");
-                printf("\t\tnfrm=%ld\n", aev.nfrm);
-                printf("\t\trtel.irpt=%d\n", aev.rtel.irpt);
-                printf("\t\trtel.dwrOffset=%ld\n", aev.rtel.dwrOffset);
-                printf("\t\trtel.dnfrm=%ld\n", aev.rtel.dnfrm);
+                printf("\tActorEvent(\n");
+                printf("\t\tnfrm=%ld,\n", aev.nfrm);
+                printf("\t\trtel.irpt=%d,\n", aev.rtel.irpt);
+                printf("\t\trtel.dwrOffset=%ld,\n", aev.rtel.dwrOffset);
+                printf("\t\trtel.dnfrm=%ld,\n", aev.rtel.dnfrm);
 
                 switch (aev.aet)
                 {
@@ -579,7 +579,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                     ulong grfactn;
                     pggaev->Get(iaev, &aevactn);
                     printf("\t\tAction(\n");
-                    printf("\t\t\tanid=%d\n", aevactn.anid);
+                    printf("\t\t\tanid=%d,\n", aevactn.anid);
                     printf("\t\t\tceln=%d\n", aevactn.celn);
                     printf("\t\t)\n");
                     break;
@@ -591,8 +591,8 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                     // Set the translation for the subroute
                     pggaev->Get(iaev, &aevadd);
                     printf("\t\tAdd(\n");
-                    printf("\t\t\taevadd.dxr=%ld\n", aevadd.dxr);
-                    printf("\t\t\taevadd.dxr=%ld\n", aevadd.dyr);
+                    printf("\t\t\taevadd.dxr=%ld,\n", aevadd.dxr);
+                    printf("\t\t\taevadd.dxr=%ld,\n", aevadd.dyr);
                     printf("\t\t\taevadd.dxr=%ld\n", aevadd.dzr);
                     printf("\t\t)\n");
                     break;
@@ -696,31 +696,31 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
 
         case kctgActr: {
             ACTF actf;
-            printf("ACTR\n");
+            // printf("ACTR\n");
             _FReadActf(&blck, &actf);
 
             printf("\tActor(\n");
-            printf("\t\tbo=%d\n", actf.bo);
-            printf("\t\tosk=%d\n", actf.osk);
+            printf("\t\tbo=%d,\n", actf.bo);
+            printf("\t\tosk=%d,\n", actf.osk);
 
             printf("\t\tRoutePoint(\n");
-            printf("\t\t\tdxyzFullRte.dxr=%ld\n", actf.dxyzFullRte.dxr);
-            printf("\t\t\tdxyzFullRte.dyr=%ld\n", actf.dxyzFullRte.dyr);
+            printf("\t\t\tdxyzFullRte.dxr=%ld,\n", actf.dxyzFullRte.dxr);
+            printf("\t\t\tdxyzFullRte.dyr=%ld,\n", actf.dxyzFullRte.dyr);
             printf("\t\t\tdxyzFullRte.dzr=%ld\n", actf.dxyzFullRte.dzr);
             printf("\t\t)\n");
 
-            printf("\t\tarid=%d\n", actf.arid);
-            printf("\t\tnfrmFirst=%d\n", actf.nfrmFirst);
-            printf("\t\tnfrmLast=%d\n", actf.nfrmLast);
+            printf("\t\tarid=%d,\n", actf.arid);
+            printf("\t\tnfrmFirst=%d,\n", actf.nfrmFirst);
+            printf("\t\tnfrmLast=%d,\n", actf.nfrmLast);
 
             printf("\t\tTAG(\n");
-            printf("\t\t\ttagTmpl.cno=%d\n", actf.tagTmpl.cno);
+            printf("\t\t\ttagTmpl.cno=%d,\n", actf.tagTmpl.cno);
 
             STN template_tag;
             template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
-            printf("\t\t\ttagTmpl='%s'\n", template_tag.Psz());
+            printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
-            printf("\t\t\ttagTmpl.pcrf=%d\n", actf.tagTmpl.pcrf);
+            printf("\t\t\ttagTmpl.pcrf=%d,\n", actf.tagTmpl.pcrf);
             printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
             printf("\t\t)\n");
 
@@ -732,10 +732,9 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             MFP mfp;
             blck.FReadRgb(&mfp, size(MFP), 0);
             printf("\tMovie(\n");
-            printf("\t\tbo=%d\n", mfp.bo);
-            printf("\t\tosk=%d\n", mfp.osk);
-            printf("\t\tdver._swCur=%d\n", mfp.dver._swCur);
-            printf("\t\tdver._swBack=%d\n", mfp.dver._swBack);
+            printf("\t\tbo=%d,\n", mfp.bo);
+            printf("\t\tosk=%d,\n", mfp.osk);
+            printf("\t\tdver={swCur=%d, swBack=%d}\n", mfp.dver._swCur, mfp.dver._swBack);
             printf("\t)\n");
             goto LEndChunk;
         }
@@ -823,25 +822,25 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 // pggsevFrm->Get(isevStart, &sev);
                 sev = *(PSEV)pggsevStart->QvFixedGet(isevStart);
                 printf("\tSceneEvent(\n");
-                printf("\t\tnfrm=%lu\n", sev.nfrm);
+                printf("\t\tnfrm=%lu,\n", sev.nfrm);
 
                 switch (sev.sevt) {
                     case sevtAddActr:
-                        printf("\t\tsevt=sevtAddActr\n");
+                        printf("\t\tsevt=sevtAddActr,\n");
                         break;
 
                     case sevtSetBkgd: {
-                        printf("\t\tsevt=sevtSetBkgd\n");
+                        printf("\t\tsevt=sevtSetBkgd,\n");
                         TAG tag;
                         tag = *(PTAG)pggsevStart->QvGet(isevStart);
                         printf("\t\tTAG(\n");
-                        printf("\t\t\tcno=%lu\n", tag.cno);
+                        printf("\t\t\tcno=%lu,\n", tag.cno);
 
                         STN background_tag;
                         background_tag.FFormatSz(PszLit("%f"), tag.ctg);
-                        printf("\t\t\tctg='%s'\n", background_tag.Psz());
+                        printf("\t\t\tctg='%s',\n", background_tag.Psz());
 
-                        printf("\t\t\tpcrf=%p\n", tag.pcrf);
+                        printf("\t\t\tpcrf=%p,\n", tag.pcrf);
                         printf("\t\t\tsig=%lu\n", tag.sid);
                         printf("\t\t)\n");
 
@@ -852,7 +851,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                         long iangle;
                         iangle = *(long*)pggsevStart->QvGet(isevStart);
                         // long
-                        printf("\t\tsevt=sevtChngCamera\n");
+                        printf("\t\tsevt=sevtChngCamera,\n");
                         printf("\t\tiangle=%lu\n", iangle);
                         break;
                     }
