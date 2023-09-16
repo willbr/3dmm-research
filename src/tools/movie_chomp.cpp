@@ -493,7 +493,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             break;
 
         case kctgThumbMbmp:
-            printf("THUM\n");
+            printf("PACK BITMAP( 0, 0, 0 ) \"thumbnail.mbmp\"\n");
             goto LEndChunk;
         
         case kctgScen:
