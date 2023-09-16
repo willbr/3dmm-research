@@ -348,10 +348,60 @@ const ByteOrderMask kbomMfp = 0x55000000;
 
 
 
+struct ACTF // Actor chunk on file
+{
+    short bo;        // Byte order
+    short osk;       // OS kind
+    RoutePoint dxyzFullRte; // Translation of the route
+    long arid;       // Unique id assigned to this actor.
+    long nfrmFirst;  // First frame in this actor's stage life
+    long nfrmLast;   // Last frame in this actor's stage life
+    TAG tagTmpl;     // Tag to actor's template
+};
+const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 
 
 
+/***************************************************************************
+    Read the ACTF. This handles converting an ACTF that doesn't have an
+    nfrmLast.
+***************************************************************************/
+bool _FReadActf(PDataBlock pblck, ACTF *pactf)
+{
+    AssertPo(pblck, 0);
+    AssertVarMem(pactf);
+    bool fOldActf = fFalse;
 
+    if (!pblck->FUnpackData())
+        return fFalse;
+
+    if (pblck->Cb() != size(ACTF))
+    {
+        if (pblck->Cb() != size(ACTF) - size(long))
+            return fFalse;
+        fOldActf = fTrue;
+    }
+
+    if (!pblck->FReadRgb(pactf, pblck->Cb(), 0))
+        return fFalse;
+
+    if (fOldActf)
+    {
+        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ACTF) - offset(ACTF, nfrmLast) - size(long));
+    }
+
+    if (kboOther == pactf->bo)
+        SwapBytesBom(pactf, kbomActf);
+    if (kboCur != pactf->bo)
+    {
+        Bug("Corrupt ACTF");
+        return fFalse;
+    }
+
+    if (fOldActf)
+        pactf->nfrmLast = knfrmInvalid;
+    return fTrue;
+}
 
 
 
@@ -644,9 +694,39 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             goto LEndChunk;
         }
 
-        case kctgActr:
+        case kctgActr: {
+            ACTF actf;
             printf("ACTR\n");
+            _FReadActf(&blck, &actf);
+
+            printf("\tActor(\n");
+            printf("\t\tbo=%d\n", actf.bo);
+            printf("\t\tosk=%d\n", actf.osk);
+
+            printf("\t\tRoutePoint(\n");
+            printf("\t\t\tdxyzFullRte.dxr=%ld\n", actf.dxyzFullRte.dxr);
+            printf("\t\t\tdxyzFullRte.dyr=%ld\n", actf.dxyzFullRte.dyr);
+            printf("\t\t\tdxyzFullRte.dzr=%ld\n", actf.dxyzFullRte.dzr);
+            printf("\t\t)\n");
+
+            printf("\t\tarid=%d\n", actf.arid);
+            printf("\t\tnfrmFirst=%d\n", actf.nfrmFirst);
+            printf("\t\tnfrmLast=%d\n", actf.nfrmLast);
+
+            printf("\t\tTAG(\n");
+            printf("\t\t\ttagTmpl.cno=%d\n", actf.tagTmpl.cno);
+
+            STN template_tag;
+            template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
+            printf("\t\t\ttagTmpl='%s'\n", template_tag.Psz());
+
+            printf("\t\t\ttagTmpl.pcrf=%d\n", actf.tagTmpl.pcrf);
+            printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
+            printf("\t\t)\n");
+
+            printf("\t)\n");
             goto LEndChunk;
+        }
 
         case kctgMvie: {
             MFP mfp;
