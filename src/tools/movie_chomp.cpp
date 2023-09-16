@@ -1,10 +1,13 @@
 #include "movie_chomp.h"
+#include "actor.h"
 
 // #include "studio.h"
 // #include "socres.h"
 // #include "mminstal.h"
 
 // using namespace Chunky;
+using namespace ActorEvent;
+
 ASSERTNAME
 
 bool FInsertCD(PSTN pstnTitle);
@@ -404,8 +407,8 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
         // look for special CTGs
         ctg = cki.ctg;
 
-        stnTag.FFormatSz(PszLit("%f"), ctg);
-        printf("TAG '%s'\n", stnTag.Psz());
+        // stnTag.FFormatSz(PszLit("%f"), ctg);
+        // printf("TAG '%s'\n", stnTag.Psz());
 
         // handle 4 character ctg's
         switch (ctg)
@@ -460,7 +463,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             {
                 SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(long)));
             }
-            printf("length of path: %d\n", pglrpt->IvMac());
+            // printf("length of path: %d\n", pglrpt->IvMac());
 
             for (irdp = 0; irdp < pglrpt->IvMac(); irdp++)
             {
@@ -473,9 +476,150 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             }
             goto LEndChunk;
 
-        case kctgGgae:
-            printf("GGAE\n");
+        case kctgGgae: {
+            PGeneralGroup pggaev = pvNil;
+            pggaev = GeneralGroup::PggRead(&blck, &bo);
+
+            // printf("GGAE\n");
+            // printf("%d\n", pggaev->IvMac());
+
+            long iaev;
+            Base aev;
+            COST cost;
+            FramePosition xfrm;
+
+            printf("// length: %d\n", pggaev->IvMac());
+
+            for (iaev = 0; iaev < pggaev->IvMac(); iaev++)
+            {
+                pggaev->GetFixed(iaev, &aev);
+                printf("\tGGAE(\n");
+                printf("\t\tnfrm=%ld\n", aev.nfrm);
+                printf("\t\trtel.irpt=%d\n", aev.rtel.irpt);
+                printf("\t\trtel.dwrOffset=%ld\n", aev.rtel.dwrOffset);
+                printf("\t\trtel.dnfrm=%ld\n", aev.rtel.dnfrm);
+
+                switch (aev.aet)
+                {
+                case aetActn:
+                    Action aevactn;
+                    ulong grfactn;
+                    pggaev->Get(iaev, &aevactn);
+                    printf("\t\tAction(\n");
+                    printf("\t\t\tanid=%d\n", aevactn.anid);
+                    printf("\t\t\tceln=%d\n", aevactn.celn);
+                    printf("\t\t)\n");
+                    break;
+
+                case aetAdd:
+                    Add aevadd;
+                    RouteDistancePoint rpt;
+
+                    // Set the translation for the subroute
+                    pggaev->Get(iaev, &aevadd);
+                    printf("\t\tAdd(\n");
+                    printf("\t\t\taevadd.dxr=%ld\n", aevadd.dxr);
+                    printf("\t\t\taevadd.dxr=%ld\n", aevadd.dyr);
+                    printf("\t\t\taevadd.dxr=%ld\n", aevadd.dzr);
+                    printf("\t\t)\n");
+                    break;
+
+                case aetRem:
+                    printf("\t\tRemove()\n");
+                    break;
+
+                case aetCost:
+                    Costume aevcost;
+                    pggaev->Get(iaev, &aevcost);
+                    printf("\t\tCostume()\n");
+                    break;
+
+                case aetRotF: {
+                    BMAT34 bmat34fwd;
+                    // Actors are xformed in _FDoFrm, Rotate or Scale
+                    pggaev->Get(iaev, &bmat34fwd);
+                    printf("\t\tRotF(bmat34fwd)\n");
+                    break;
+                }
+
+                case aetRotH: {
+                    BMAT34 bmat34fwd;
+                    // Actors are xformed in _FDoFrm, Rotate or Scale
+                    pggaev->Get(iaev, &bmat34fwd);
+                    printf("\t\tRotH(bmat34fwd)\n");
+                    break;
+                }
+
+                case aetPull:
+                    // Actors are xformed in _FDoFrm, Rotate or Scale
+                    pggaev->Get(iaev, &xfrm.aevpull);
+                    printf("\t\tPull()\n");
+                    break;
+
+                case aetSize:
+                    // Actors are xformed in _FDoFrm, Rotate or Scale
+                    pggaev->Get(iaev, &xfrm.rScaleStep);
+                    printf("\t\tSize()\n");
+                    break;
+
+                case aetStep: { // Exists for timing control (eg walk in place)
+                    BRS dwrStep;
+                    pggaev->Get(iaev, &dwrStep);
+                    // Force the location to the step event
+                    // Avoids incorrect event ordering on static segments
+                    if (rZero == dwrStep)
+                    {
+                        // _rtelCur = aev.rtel;
+                        // _GetXyzFromRtel(&_rtelCur, &_xyzCur);
+                    }
+                    printf("\t\tStep()\n");
+                    break;
+                }
+
+                case aetFreeze: {
+                    long fFrozen; //_fFrozen is a bit
+                    pggaev->Get(iaev, &fFrozen);
+                    // _fFrozen = FPure(fFrozen);
+                    printf("\t\tFreeze()\n");
+                    break;
+                }
+
+                case aetTweak: {
+                    RoutePoint xyzCur;
+                    pggaev->Get(iaev, &xyzCur);
+                    // The actual locating of the actor is done in _FDoFrm or FTweakRoute
+                    printf("\t\tTweak()\n");
+                    break;
+                }
+
+                case aetSnd:
+                    printf("\t\tSound()\n");
+                    break;
+
+                
+
+                case aetMove: {
+                    RoutePoint dxyz;
+                    pggaev->Get(iaev, &dxyz);
+                    printf("\t\tMove(\n");
+                    printf("\t\t\tdxyz.dxr=%ld\n", dxyz.dxr);
+                    printf("\t\t\tdxyz.dxr=%ld\n", dxyz.dyr);
+                    printf("\t\t\tdxyz.dxr=%ld\n", dxyz.dzr);
+                    printf("\t\t)\n");
+                    break;
+                }
+
+
+                default:
+                    printf("\t\tUnknown AET\n");
+                }
+
+                printf("\t)\n");
+            }
+
+
             goto LEndChunk;
+        }
 
         case kctgActr:
             printf("ACTR\n");
@@ -486,7 +630,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             goto LEndChunk;
 
         case kctgFrmGg:
-            printf("GGFR\n");
+            // printf("GGFR\n");
             pggsevFrm = GeneralGroup::PggRead(&blck, &bo);
             if (pggsevFrm == pvNil)
             {
@@ -494,7 +638,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 goto LFail;
             }
 
-            printf("%d\n", pggsevFrm->IvMac());
+            printf("// length: %d\n", pggsevFrm->IvMac());
             for (isevFrm = 0; isevFrm < pggsevFrm->IvMac(); isevFrm++)
             {
                 // pggsevFrm->Get(isevFrm, &sev);
@@ -553,7 +697,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             goto LEndChunk;
 
         case kctgStartGg:
-            printf("GGST\n");
+            // printf("GGST\n");
             pggsevStart = GeneralGroup::PggRead(&blck, &bo);
 
             if (pggsevStart == pvNil)
@@ -562,7 +706,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 goto LFail;
             }
 
-            printf("%d\n", pggsevStart->IvMac());
+            printf("// length: %d\n", pggsevStart->IvMac());
             for (isevStart = 0; isevStart < pggsevStart->IvMac(); isevStart++)
             {
                 // pggsevFrm->Get(isevStart, &sev);
