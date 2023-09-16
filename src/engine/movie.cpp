@@ -6358,6 +6358,7 @@ long MovieView::_dtsKbdRepeat;
  **************************************************************************/
 void MovieView::SlowKeyboardRepeat(void)
 {
+    return;
     if (_fKbdDelayed)
         return;
 #ifdef WIN
@@ -6401,6 +6402,7 @@ void MovieView::SlowKeyboardRepeat(void)
  **************************************************************************/
 void MovieView::RestoreKeyboardRepeat(void)
 {
+    return;
     if (!_fKbdDelayed)
         return;
 #ifdef WIN
