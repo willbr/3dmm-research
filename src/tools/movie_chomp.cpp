@@ -755,9 +755,9 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 // pggsevFrm->Get(isevFrm, &sev);
                 sev = *(PSEV)pggsevFrm->QvFixedGet(isevFrm);
 
-                printf("\tSceneEvent(\n");
-                printf("\t\tnfrm=%d\n", sev.nfrm);
-                printf("\t\tsevt=%d\n", sev.sevt);
+                printf("\tFrameEvent(\n");
+                printf("\t\tnfrm=%d,\n", sev.nfrm);
+                printf("\t\tsevt=%d,\n", sev.sevt);
 
                 switch (sev.sevt)
                 {
