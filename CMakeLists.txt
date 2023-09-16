@@ -102,6 +102,17 @@ target_sources(chomp PRIVATE "${PROJECT_SOURCE_DIR}/kauai/tools/chomp.cpp")
 target_include_directories(chomp PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
 target_link_libraries(chomp PRIVATE $<TARGET_NAME_IF_EXISTS:kauai>)
 
+
+add_executable(movie-chomp EXCLUDE_FROM_ALL)
+target_sources(movie-chomp PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/movie_chomp.cpp")
+
+target_include_directories(movie-chomp
+  PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
+  "${PROJECT_SOURCE_DIR}/src")
+
+target_link_libraries(movie-chomp PRIVATE engine)
+
+
 # Chunk Editor
 add_executable(ched WIN32 EXCLUDE_FROM_ALL)
 target_sources(ched PRIVATE
