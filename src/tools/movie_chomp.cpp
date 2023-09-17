@@ -1,10 +1,21 @@
 #include "movie_chomp.h"
 #include "actor.h"
 
-using namespace ActorEvent;
-
 ASSERTNAME
 
+using namespace ActorEvent;
+
+/*
+
+SCEN
+|-- THUM
+|-- GGFT FrameEvents
+|-- GGST SceneEvents
+|-- ACTR
+    |-- PATH
+    |-- GGAE ActorEvents
+    
+*/
 
 const ChildChunkID kchidGstSource = 1;
 const ChunkNumber movie_chunk_number = 0;
@@ -487,6 +498,39 @@ LFail:
     puts("\t)");
 }
 
+void DumpScenes(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
+{
+    
+    ChildChunkIdentification kid;
+    ChunkNumber cno = 0;
+    printf("\tscenes = [\n");
+
+    //
+    // Count the number of scenes in the movie
+    //
+    ChildChunkID chid;
+    for (chid = 0; pcfl->FGetKidChidCtg(kctgMvie, cno, chid, kctgScen, &kid); chid++)
+    {
+        SCENH scenh;
+        DataBlock data_block; 
+        pcfl->FFind(kctgScen, kid.cki.cno, &data_block);
+
+        if ( !data_block.FReadRgb(&scenh, size(SCENH), 0)) {
+            goto LFail;
+        }
+
+            printf("\t\tScene(\n");
+            printf("\t\t\tbo=%d,\n", scenh.bo);
+            printf("\t\t\tosk=%d,\n", scenh.osk);
+            printf("\t\t\tnfrmFirst=%d,\n", scenh.nfrmFirst);
+            printf("\t\t\tnfrmLast=%d,\n", scenh.nfrmLast);
+            printf("\t\t\ttrans=%d\n", scenh.trans);
+            printf("\t\t)\n");
+    }
+
+LFail:
+    puts("\t]");
+}
 
 /***************************************************************************
     Decompile a chunky file.
@@ -511,6 +555,8 @@ bool MovieDecompiler::FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pm
 
     DumpSourceList(pcflSrc, pmsnk, pmsnkError);
     DumpRollcall(pcflSrc, pmsnk, pmsnkError);
+
+    DumpScenes(pcflSrc, pmsnk, pmsnkError);
 
     printf(")\n");
 
