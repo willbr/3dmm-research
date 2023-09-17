@@ -1,24 +1,9 @@
 #include "movie_chomp.h"
 #include "actor.h"
 
-// #include "studio.h"
-// #include "socres.h"
-// #include "mminstal.h"
-
-// using namespace Chunky;
 using namespace ActorEvent;
 
 ASSERTNAME
-
-// bool FInsertCD(PSTN pstnTitle);
-
-// // 2MB cache per source for TagManager
-// const ulong kcbCacheTagm = 2048 * 1024;
-
-
-// PTagManager vptagm = pvNil;
-// Filename _fniMsKidsDir;
-
 
 
 void __cdecl FrameMain(void) {
@@ -44,45 +29,6 @@ void MovieDecompiler::MarkMem(void)
 
 #endif // DEBUG
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* Copyright (c) Microsoft Corporation.
-   Licensed under the MIT License. */
-
-/***************************************************************************
-
-    CHOMP.CPP
-    Main routine for Chomp, the chunky compiler
-
-***************************************************************************/
-// #include "chomp.h"
-// ASSERTNAME
 
 /***************************************************************************
     Main routine for the stand-alone chunky compiler.  Returns non-zero
