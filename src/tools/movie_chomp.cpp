@@ -720,7 +720,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
             printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
-            printf("\t\t\ttagTmpl.pcrf=%d,\n", actf.tagTmpl.pcrf);
+            printf("\t\t\ttagTmpl.pcrf=%p,\n", actf.tagTmpl.pcrf);
             printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
             printf("\t\t)\n");
 
