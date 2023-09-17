@@ -10,64 +10,66 @@ using namespace ActorEvent;
 
 ASSERTNAME
 
-bool FInsertCD(PSTN pstnTitle);
+// bool FInsertCD(PSTN pstnTitle);
 
 // // 2MB cache per source for TagManager
 // const ulong kcbCacheTagm = 2048 * 1024;
 
 
-PTagManager vptagm = pvNil;
+// PTagManager vptagm = pvNil;
 // Filename _fniMsKidsDir;
 
 
-// int __cdecl main(int cpszs, char *prgpszs[])
-// {
-//     Filename fni;
-//     STN stn;
-//     STN path;
-//     PMovie pmvie = pvNil;
-//     PChunkyFile pcfl = pvNil;
-//     PScene pscene = pvNil;
-
-// // Debugger();
-//     puts("hi1");
-//     Debugger();
-//     // stn = PszLit("./");
-//     // AssertDo(_fniMsKidsDir.FBuildFromPath(&stn), 0);
-
-//     // vptagm = TagManager::PtagmNew(&_fniMsKidsDir, FInsertCD, kcbCacheTagm);
-
-//     stn = PszLit("C:/Users/wjbr/src/3DMMForever/build/input.3mm");
-//     AssertDo(fni.FBuildFromPath(&stn), 0);
-
-//     fni.GetStnPath(&path);
-//     printf("%s\n", path.Psz());
-
-//     pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
-//     printf("cf %p\n", pcfl);
-
-//     pmvie = Movie::PNewMovieFromFilename(&fni, pvNil);
-//     printf("%p\n", pmvie);
-//     if (pvNil == pmvie) {
-//         fprintf(stderr, "failed to load movie");
-//         return 1;
-//     }
-
-//     puts(".");
-//     pmvie->FSwitchScen(0);
-//     puts(".");
-//     pscene = pmvie->Pscen();
-
-//     printf("%p\n", pscene);
-
-//     puts("bye2");
-
-//     return 0;
-// }
 
 void __cdecl FrameMain(void) {
     return;
 }
+
+#ifdef DEBUG
+
+/***************************************************************************
+    Assert the validity of the World.
+***************************************************************************/
+void MovieDecompiler::AssertValid(ulong grf)
+{
+    // MovieDecompiler_PAR::AssertValid(fobjAllocated);
+}
+
+
+void MovieDecompiler::MarkMem(void)
+{
+    // AssertThis(0);
+    // MovieDecompiler_PAR::MarkMem();
+}
+
+#endif // DEBUG
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* Copyright (c) Microsoft Corporation.
@@ -80,7 +82,7 @@ void __cdecl FrameMain(void) {
 
 ***************************************************************************/
 // #include "chomp.h"
-ASSERTNAME
+// ASSERTNAME
 
 /***************************************************************************
     Main routine for the stand-alone chunky compiler.  Returns non-zero
@@ -222,68 +224,6 @@ LUsage:
     FIL::ShutDown();
     return 1;
 }
-
-#ifdef DEBUG
-bool _fEnableWarnings = fTrue;
-
-/***************************************************************************
-    Warning proc called by Warn() macro
-***************************************************************************/
-void WarnProc(PSZS pszsFile, long lwLine, PSZS pszsMessage)
-{
-    if (_fEnableWarnings)
-    {
-        fprintf(stderr, "%s(%ld) : warning", pszsFile, lwLine);
-        if (pszsMessage != pvNil)
-        {
-            fprintf(stderr, ": %s", pszsMessage);
-        }
-        fprintf(stderr, "\n");
-    }
-}
-
-/***************************************************************************
-    Returning true breaks into the debugger.
-***************************************************************************/
-bool FAssertProc(PSZS pszsFile, long lwLine, PSZS pszsMessage, void *pv, long cb)
-{
-    fprintf(stderr, "An assert occurred: \n");
-    if (pszsMessage != pvNil)
-        fprintf(stderr, "   Message: %s\n", pszsMessage);
-    if (pv != pvNil)
-    {
-        fprintf(stderr, "   Address %p\n", pv);
-        if (cb != 0)
-        {
-            fprintf(stderr, "   Value: ");
-            switch (cb)
-            {
-            default: {
-                byte *pb;
-                byte *pbLim;
-
-                for (pb = (byte *)pv, pbLim = pb + cb; pb < pbLim; pb++)
-                    fprintf(stderr, "%02x", (int)*pb);
-            }
-            break;
-
-            case 2:
-                fprintf(stderr, "%04x", (int)*(short *)pv);
-                break;
-
-            case 4:
-                fprintf(stderr, "%08lx", *(long *)pv);
-                break;
-            }
-            printf("\n");
-        }
-    }
-    fprintf(stderr, "   File: %s\n", pszsFile);
-    fprintf(stderr, "   Line: %ld\n", lwLine);
-
-    return fFalse;
-}
-#endif // DEBUG
 
 struct SCENH
 {
@@ -486,11 +426,6 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
         // handle 4 character ctg's
         switch (ctg)
         {
-        case kctgScript:
-            if (_FDumpScript(&cki))
-                goto LEndChunk;
-            _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-            break;
 
         case kctgThumbMbmp:
             printf("PACK BITMAP( 0, 0, 0 ) \"thumbnail.mbmp\"\n");

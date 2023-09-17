@@ -112,6 +112,10 @@ target_include_directories(movie-chomp
 
 target_link_libraries(movie-chomp PRIVATE engine)
 
+target_link_options(movie-chomp
+  BEFORE PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+
 
 # Chunk Editor
 add_executable(ched WIN32 EXCLUDE_FROM_ALL)
