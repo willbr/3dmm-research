@@ -60,6 +60,7 @@ class MovieDecompiler : public MovieDecompiler_PAR
     }
 
     bool FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
+    bool FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
 };
 
 // #endif // CHCM_H

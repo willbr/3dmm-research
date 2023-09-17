@@ -6,6 +6,9 @@ using namespace ActorEvent;
 ASSERTNAME
 
 
+const ChildChunkID kchidGstSource = 1;
+const ChunkNumber movie_chunk_number = 0;
+
 void __cdecl FrameMain(void) {
     return;
 }
@@ -44,11 +47,11 @@ int __cdecl main(int cpszs, char *prgpszs[])
     bool fCompile = fTrue;
     bool fCompileMovie = fFalse;
 
-#ifdef UNICODE
-    fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Unicode; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
-#else  //! UNICODE
-    fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Ansi; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
-#endif //! UNICODE
+// #ifdef UNICODE
+//     fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Unicode; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
+// #else  //! UNICODE
+//     fprintf(stderr, "\nMicrosoft (R) Chunky File Compiler (Ansi; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
+// #endif //! UNICODE
     // fprintf(stderr, "Copyright (C) Microsoft Corp 1995. All rights reserved.\n\n");
 
     for (prgpszs++; --cpszs > 0; prgpszs++)
@@ -154,7 +157,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
             msfilDump.SetFile(pfil);
         }
 
-        fRet = chdc.FDecompile(pcfl, fniDst.Ftg() == ftgNil ? (PMSNK)&mssioDump : (PMSNK)&msfilDump, &mssioError);
+        fRet = chdc.FDecompileMovie(pcfl, fniDst.Ftg() == ftgNil ? (PMSNK)&mssioDump : (PMSNK)&msfilDump, &mssioError);
         ReleasePpo(&pcfl);
         FIL::ShutDown();
         return !fRet;
@@ -246,7 +249,20 @@ struct ACTF // Actor chunk on file
 };
 const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 
+//
+// Used to keep track of the roll call list of the movie
+//
+struct MACTR
+{
+    long arid;
+    long cactRef;
+    ulong grfbrws; // browser properties
+    TAG tagTmpl;
+};
 
+typedef MACTR *PMACTR;
+
+const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
 /***************************************************************************
     Read the ACTF. This handles converting an ACTF that doesn't have an
@@ -291,11 +307,6 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
 
 
 
-
-
-
-
-
 RTCLASS(MovieDecompiler)
 
 /***************************************************************************
@@ -314,6 +325,196 @@ MovieDecompiler::MovieDecompiler(void)
 MovieDecompiler::~MovieDecompiler(void)
 {
     ReleasePpo(&_pcfl);
+}
+
+
+void DumpSourceList(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
+{
+    short bo =  1;
+    short osk=771;
+    DataBlock data_block;
+
+    ChildChunkIdentification kid;
+    PStringTable pgstSource;
+
+    printf("\tSourceList(\n");
+
+    if (pcflSrc->FGetKidChidCtg(kctgMvie, movie_chunk_number, kchidGstSource, kctgGst, &kid) &&
+        pcflSrc->FFind(kid.cki.ctg, kid.cki.cno, &data_block))
+    {
+        pgstSource = StringTable::PgstRead(&data_block, &bo, &osk);
+        if (pvNil != pgstSource)
+        {
+            STN stn1;
+            STN stn2;  
+            long iv, ivMac;
+            long cbExtra;
+            void *pvExtra = pvNil;
+
+            cbExtra = pgstSource->CbExtra();
+            AssertIn(cbExtra, 0, kcbMax);
+            ivMac = pgstSource->IvMac();
+
+            if (cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
+                return;
+
+            for (iv = 0; iv < ivMac; iv++)
+            {
+                if (pgstSource->FFree(iv))
+                {
+                    puts(PszLit("\tFREE"));
+                    continue;
+                }
+                printf(PszLit("\t\tITEM("));
+
+                pgstSource->GetStn(iv, &stn2);
+                stn2.FExpandControls();
+                stn1.FFormatSz(PszLit("%s"), &stn2);
+                printf("\"%s\"", stn1.Psz());
+
+                if (cbExtra > 0)
+                {
+                    long extra;
+                    pgstSource->GetExtra(iv, pvExtra);
+                    // printf("%zu\n", cbExtra);
+                    // printf("%zu\n", sizeof(long));
+
+                    extra = *(long*)pvExtra;
+                    printf(", %ld", extra);
+
+                    // _bsf.FReplace(pvExtra, cbExtra, 0, _bsf.IbMac());
+                    // _DumpBsf(2);
+                }
+                puts(")");
+            }
+
+            FreePpv(&pvExtra);
+        }
+    }
+
+    printf("\t)\n");
+}
+
+void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
+{
+    DataBlock data_block;
+    ChildChunkIdentification kid;
+    short bo =  1;
+    short osk=771;
+    PStringTable ppgst;
+
+    puts("\tRollcall(");
+
+    if (!pcfl->FGetKidChidCtg(kctgMvie, movie_chunk_number, 0, kctgGst, &kid) ||
+        !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &data_block))
+    {
+        Bug("failed to read rollcall");
+        goto LFail;
+    }
+
+    ppgst = StringTable::PgstRead(&data_block, &bo);
+    if (pvNil != ppgst)
+    {
+        STN stn1;
+        STN stn2;  
+        long iv, ivMac;
+        long cbExtra;
+        void *pvExtra = pvNil;
+
+        cbExtra = ppgst->CbExtra();
+        AssertIn(cbExtra, 0, kcbMax);
+        ivMac = ppgst->IvMac();
+
+        if (cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
+            return;
+
+        for (iv = 0; iv < ivMac; iv++)
+        {
+            if (ppgst->FFree(iv))
+            {
+                puts(PszLit("\tFREE"));
+                continue;
+            }
+            printf(PszLit("\t\tITEM("));
+
+            ppgst->GetStn(iv, &stn2);
+            stn2.FExpandControls();
+            stn1.FFormatSz(PszLit("%s"), &stn2);
+            printf("\"%s\"", stn1.Psz());
+
+            if (cbExtra > 0)
+            {
+                MACTR mactr;
+                ppgst->GetExtra(iv, &mactr);
+                // printf("%zu\n", cbExtra);
+                // printf("%zu\n", sizeof(long));
+
+                // extra = *(long*)pvExtra;
+                // printf(", %ld", extra);
+
+                // _bsf.FReplace(pvExtra, cbExtra, 0, _bsf.IbMac());
+                // _DumpBsf(2);
+
+                printf(", {\n");
+                printf("\t\t\tarid=%ld,\n", mactr.arid);
+                printf("\t\t\tcactRef=%ld,\n", mactr.cactRef);
+                printf("\t\t\tgrfbrws=%lu,\n", mactr.grfbrws);
+
+                {
+                    printf("\t\t\tTAG(\n");
+                    printf("\t\t\t\ttagTmpl.cno=%d,\n", mactr.tagTmpl.cno);
+
+                    STN template_tag;
+                    template_tag.FFormatSz(PszLit("%f"), mactr.tagTmpl.ctg);
+                    printf("\t\t\t\ttagTmpl='%s',\n", template_tag.Psz());
+
+                    printf("\t\t\t\ttagTmpl.pcrf=%p,\n", mactr.tagTmpl.pcrf);
+                    printf("\t\t\t\ttagTmpl.sid=%d\n", mactr.tagTmpl.sid);
+                    printf("\t\t\t)");
+                }
+
+
+                printf("}\n");
+            }
+            puts("\t\t)");
+        }
+
+        FreePpv(&pvExtra);
+    }
+
+
+LFail:
+    puts("\t)");
+}
+
+
+/***************************************************************************
+    Decompile a chunky file.
+***************************************************************************/
+bool MovieDecompiler::FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
+{
+    STN movie_name;
+    pcflSrc->FGetName(kctgMvie, movie_chunk_number, &movie_name);
+    
+    DataBlock data_block; 
+    pcflSrc->FFind(kctgMvie, movie_chunk_number, &data_block);
+
+    printf("Movie(\n");
+
+    MFP mfp;
+    data_block.FReadRgb(&mfp, size(MFP), 0);
+
+    printf("\tname=\"%s\",\n", movie_name.Psz());
+    printf("\tbo=%d,\n", mfp.bo);
+    printf("\tosk=%d,\n", mfp.osk);
+    printf("\tdver={swCur=%d, swBack=%d}\n", mfp.dver._swCur, mfp.dver._swBack);
+
+    DumpSourceList(pcflSrc, pmsnk, pmsnkError);
+    DumpRollcall(pcflSrc, pmsnk, pmsnkError);
+
+    printf(")\n");
+
+    return fTrue;
 }
 
 /***************************************************************************
