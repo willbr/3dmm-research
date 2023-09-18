@@ -522,27 +522,93 @@ void DumpSceneEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
     printf("\t\t\t]\n");
 }
 
+void DumpFrameEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGroup pggsevFrm, long isevFrm)
+{
+    long indent = 32;
+    SEV sev;
+
+    sev = *(PSEV)pggsevFrm->QvFixedGet(isevFrm);
+
+    printf("%*.s" "FrameEvent(\n", indent, "");
+    indent += 8;
+    printf("%*.s" "nfrm=%d,\n", indent, "", sev.nfrm);
+    printf("%*.s" "sevt=%d,\n", indent, "", sev.sevt);
+
+    switch (sev.sevt)
+    {
+    case sevtPlaySnd: {
+        // PSSE psse;
+
+        // printf("sevtPlaySnd\n");
+
+        // psse = SSE::PsseDupFromGg(pggsevFrm, isevFrm);
+        // if (pvNil == psse)
+        // {
+        //     goto LFail;
+        // }
+        printf("%*.s" "sevtPlaySnd\n", indent, "");
+        break;
+    }
+
+    case sevtChngCamera: {
+        long iangle = 99;
+        iangle = *(long*)pggsevFrm->QvGet(isevFrm);
+        printf("%*.s" "sevtChngCamera angle=%d\n", indent, "", iangle);
+        break;
+    }
+
+    case sevtPause: {
+        // SEVP sevp;
+        // sevp = *(*SEVP)pggsevFrm->QvGet(isevFrm);
+        printf("%*.s" "sevtPause\n", indent, "");
+        break;
+    }
+
+    case sevtAddActr:
+    case sevtSetBkgd:
+    case sevtAddTbox:
+    default:
+        Assert(0, "Bad event in frame event list");
+        break;
+    }
+
+    indent -= 8;
+    
+    printf("%*.s" ")\n", indent, "");
+}
+
+
 void DumpFrameEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumber cno)
 {
     ChildChunkIdentification kid;
-    printf("\t\t\tframe_events = [\n");
+    long indent = 24;
 
-    //
-    // Count the number of scenes in the movie
-    //
-    ChildChunkID chid;
-    for (chid = 0; pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgFrmGg, &kid); chid++)
+    printf("%*.s" "frame_events = [", indent, "");
+
+    for (ChildChunkID chid = 0; pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgFrmGg, &kid); chid++)
     {
-        printf("\t\t\t\tFrameEvent()\n");
-        // SCENH scenh;
-        // DataBlock data_block; 
-        // pcfl->FFind(kctgScen, kid.cki.cno, &data_block);
+        PGeneralGroup pggsevFrm = pvNil;
+        DataBlock data_block; 
 
-        // if ( !data_block.FReadRgb(&scenh, size(SCENH), 0)) {
-        //     goto LFail;
-        // }
+        pcfl->FFind(kctgFrmGg, kid.cki.cno, &data_block);
+        short bo;
+
+        pggsevFrm = GeneralGroup::PggRead(&data_block, &bo);
+        if (pggsevFrm == pvNil)
+        {
+            Bug("fail");
+            return;
+        }
+
+        printf(" // length: %d\n", pggsevFrm->IvMac());
+
+        for (long isevFrm = 0; isevFrm < pggsevFrm->IvMac(); isevFrm++)
+        {
+            DumpFrameEvent(pcfl, pmsnk, pmsnkError, pggsevFrm, isevFrm);
+        }
+        printf("%*.s" "", indent, "");
     }
-    printf("\t\t\t]\n");
+    printf("]\n");
 }
 
 void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGroup pggaev, long iaev)
@@ -617,7 +683,7 @@ void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
     case aetPull:
         // Actors are xformed in _FDoFrm, Rotate or Scale
         pggaev->Get(iaev, &xfrm.aevpull);
-        printf("%*.sPull()\n, indent, """);
+        printf("%*.sPull()\n", indent, "");
         break;
 
     case aetSize:
