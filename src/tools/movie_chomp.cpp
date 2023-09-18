@@ -720,9 +720,38 @@ void DumpActorEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
     printf("\t\t\t\t\t]\n");
 }
 
-void DumpActorsPath(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumber cno)
+void DumpActorsPath(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PDataBlock pdata_block)
 {
-    printf("\t\t\t\t\tDumpActorsPath()\n");
+    short bo = 1;
+    PDynamicArray pglrpt;
+    int indent = 40;
+
+    printf("%*.s" "path = [\n", indent, "");
+    pglrpt = DynamicArray::PglRead(pdata_block, &bo);
+    if (pvNil == pglrpt) {
+        return;
+    }
+    AssertBomRglw(kbomRpt, size(RouteDistancePoint));
+    if (kboOther == bo)
+    {
+        SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(long)));
+    }
+    printf("%*.s" "\t//length of path: %d\n", indent, "", pglrpt->IvMac());
+
+    indent += 8;
+    for (long irdp = 0; irdp < pglrpt->IvMac(); irdp++)
+    {
+        RouteDistancePoint rdp;
+        pglrpt->Get(irdp, &rdp);
+        // printf("%*.s" "\t// %d\n", indent, "", irdp);
+        printf("%*.s" "RouteDistancePoint(\n", indent, "");
+        printf("%*.s" "\t{x=%d, y=%d, z=%d},\n", indent, "", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
+        printf("%*.s" "\tdwr=%d\n", indent, "", rdp.dwr);
+        printf("%*.s" ")\n", indent, "");
+    }
+    indent -= 8;
+    
+    printf("%*.s" "]\n", indent, "");
 }
 
 void DumpSceneActors(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumber cno)
@@ -737,15 +766,10 @@ void DumpSceneActors(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
     for (chid = 0; pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid); chid++)
     {
         printf("\t\t\t\tActor(\n");
-        // SCENH scenh;
-        // DataBlock data_block; 
-        // pcfl->FFind(kctgScen, kid.cki.cno, &data_block);
+        DataBlock data_block; 
+        pcfl->FFind(kctgPath, kid.cki.cno, &data_block);
 
-        // if ( !data_block.FReadRgb(&scenh, size(SCENH), 0)) {
-        //     goto LFail;
-        // }
-
-        DumpActorsPath(pcfl, pmsnk, pmsnkError, kid.cki.cno);
+        DumpActorsPath(pcfl, pmsnk, pmsnkError, &data_block);
         DumpActorEvents(pcfl, pmsnk, pmsnkError, kid.cki.cno);
         printf("\t\t\t\t)\n");
     }
