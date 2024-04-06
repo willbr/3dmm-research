@@ -174,6 +174,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     Filename fniUserDoc;
     long fFirstTimeUser;
     long fSkipSplashScreen = fFalse;
+    STN kids_dir;
     
     FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
 
@@ -233,6 +234,11 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         _fDontReportInitFailure = fTrue;
         goto LFail;
     }
+
+    #ifdef DEBUG
+        kids_dir.SetSz("C:\\Program Files (x86)\\Microsoft Kids");
+        _fniMsKidsDir.FBuildFromPath(&kids_dir, kftgDir);
+    #endif // DEBUG
 
     // Init product names for tagman & _fniProductDir & potentially _stnProduct
     if (!_FInitProductNames())
