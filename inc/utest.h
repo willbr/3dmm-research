@@ -25,7 +25,7 @@ class KWA : public KWA_PAR
     MARKMEM
 
   protected:
-    PMBMP _pmbmp; // MBMP to draw in KWA (may be pvNil)
+    PMaskedBitmapMBMP _pmbmp; // MaskedBitmapMBMP to draw in KWA (may be pvNil)
     bool _fAskForCD;
 
   public:
@@ -37,7 +37,7 @@ class KWA : public KWA_PAR
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FFindFile(PString pstnSrc, PFilename pfni); // for finding AVIs
     virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
-    void SetMbmp(PMBMP pmbmp);
+    void SetMbmp(PMaskedBitmapMBMP pmbmp);
     void SetCDPrompt(bool fAskForCD)
     {
         _fAskForCD = fAskForCD;

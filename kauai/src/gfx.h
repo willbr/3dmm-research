@@ -549,8 +549,8 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     // bitmaps and pictures
     void CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst);
     void DrawPic(PPIC ppic, RC *prc);
-    void DrawMbmp(PMBMP pmbmp, long xp, long yp);
-    void DrawMbmp(PMBMP pmbmp, RC *prc);
+    void DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp);
+    void DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc);
 
     // transitions
     void Wipe(long gfd, AbstractColor acrFill, PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst, ulong dts, PDynamicArray pglclr = pvNil);
@@ -741,7 +741,7 @@ class GraphicsPort : public GraphicsPort_PAR
 
     void CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd);
     void DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd);
-    void DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd);
+    void DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd);
 
     void Lock(void);
     void Unlock(void);

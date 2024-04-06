@@ -3842,7 +3842,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     if (pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgThumbMbmp, &kid) && pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
-        pscen->_pmbmp = MBMP::PmbmpRead(&blck);
+        pscen->_pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
     }
 
     //
@@ -4634,7 +4634,7 @@ bool Scene::FAddActrsToRollCall(void)
  *  None
  *
  ****************************************************/
-PMBMP Scene::PmbmpThumbnail(void)
+PMaskedBitmapMBMP Scene::PmbmpThumbnail(void)
 {
     AssertThis(0);
 
@@ -4743,7 +4743,7 @@ void Scene::_UpdateThumbnail(void)
 
         ReleasePpo(&_pmbmp);
 
-        _pmbmp = MBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
+        _pmbmp = MaskedBitmapMBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
                                 kbTransparent);
         pgptThumb->Unlock();
 

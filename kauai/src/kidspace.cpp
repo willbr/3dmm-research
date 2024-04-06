@@ -2101,7 +2101,7 @@ PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 GORB::~GORB(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, MBMP::FReadMbmp);
+        _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
     ReleasePpo(&_pcrf);
 }
 
@@ -2113,13 +2113,13 @@ void GORB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rc;
 
     if (kctgMbmp != _ctg)
         return;
 
-    if (pvNil != (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil != (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         AssertPo(pmbmp, 0);
         pmbmp->GetRc(&rc);
@@ -2137,11 +2137,11 @@ void GORB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 bool GORB::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rc;
     bool fRet;
 
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
@@ -2175,9 +2175,9 @@ void GORB::GetRc(RC *prc)
     AssertThis(0);
     AssertVarMem(prc);
 
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
-    if (pvNil != (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil != (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         AssertPo(pmbmp, 0);
         pmbmp->GetRc(prc);
@@ -2263,7 +2263,7 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 #pragma warning(pop)
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgMbmp, &kid))
     {
-        Warn("no child MBMP of TILE chunk");
+        Warn("no child MaskedBitmapMBMP of TILE chunk");
         return pvNil;
     }
 
@@ -2289,7 +2289,7 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 GORT::~GORT(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, MBMP::FReadMbmp);
+        _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
     ReleasePpo(&_pcrf);
 }
 
@@ -2302,10 +2302,10 @@ void GORT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     long ypLim, dyp;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rcRow;
 
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
@@ -2356,7 +2356,7 @@ void GORT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Draw a row of the tiled bitmap.
 ***************************************************************************/
-void GORT::_DrawRow(PGraphicsEnvironment pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
+void GORT::_DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2441,14 +2441,14 @@ void GORT::_DrawRow(PGraphicsEnvironment pgnv, PMBMP pmbmp, RC *prcRow, RC *prcC
 bool GORT::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rc;
     bool fRet;
 
     if (!FIn(xp, 0, _dxp) || !FIn(yp, 0, _dyp))
         return fFalse;
 
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
@@ -2540,10 +2540,10 @@ void GORT::GetRc(RC *prc)
     AssertVarMem(prc);
     RC rc;
     PT pt;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
     prc->Set(0, 0, _dxp, _dyp);
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
@@ -2555,8 +2555,8 @@ void GORT::GetRc(RC *prc)
     pt.xp = -rc.xpLeft;
     pt.yp = -rc.ypTop;
 
-    // map the point from the MBMP to the flexed rectangle, scaling
-    // proportionally if the point is in a flex portion of the MBMP
+    // map the point from the MaskedBitmapMBMP to the flexed rectangle, scaling
+    // proportionally if the point is in a flex portion of the MaskedBitmapMBMP
     _MapZpFlex(&pt.xp, _rgdxp, _dxpLeftFlex, _dxpRightFlex);
     _MapZpFlex(&pt.yp, _rgdyp, _dypLeftFlex, _dypRightFlex);
 
@@ -2565,7 +2565,7 @@ void GORT::GetRc(RC *prc)
 }
 
 /***************************************************************************
-    Map the point from MBMP coordinates to flexed coordinates for setting the
+    Map the point from MaskedBitmapMBMP coordinates to flexed coordinates for setting the
     registration point. WARNING: this is not the inverse of _MapZpToMbmp.
 ***************************************************************************/
 void GORT::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)

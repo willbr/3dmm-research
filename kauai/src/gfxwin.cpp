@@ -1644,7 +1644,7 @@ void GraphicsPort::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
     Draw the masked bitmap in the given rectangle.  pgdd->prcsClip is the
     clipping rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1684,7 +1684,7 @@ void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
     {
         // need to create a temporary offscreen GraphicsPort for the Mask, set the Mask
         // area to white in this GraphicsPort, then create an offscreen GraphicsPort for the
-        // actual MBMP graphic, then blt to this GraphicsPort.
+        // actual MaskedBitmapMBMP graphic, then blt to this GraphicsPort.
         PT ptSrc;
         PGraphicsPort pgpt;
 
@@ -1695,7 +1695,7 @@ void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
         rcSrc.OffsetToOrigin();
         if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rcSrc, 1)))
         {
-            Warn("Drawing MBMP failed");
+            Warn("Drawing MaskedBitmapMBMP failed");
             return;
         }
         Assert(pgpt->_rcOff == rcSrc, 0);
@@ -1709,7 +1709,7 @@ void GraphicsPort::DrawMbmp(PMBMP pmbmp, RCS *prcs, GDD *pgdd)
 
         if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rcSrc, 8)))
         {
-            Warn("Drawing MBMP failed");
+            Warn("Drawing MaskedBitmapMBMP failed");
             return;
         }
         RCS rcs = rcSrc;

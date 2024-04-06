@@ -17,10 +17,10 @@ ASSERTNAME
     This routine is called to draw the masked bitmap onto prgbPixels.
     cbRow and dyp are the respective width and height of prgbPixels.
     xpRef and ypRef are the coordinates within the prgbPixels to place
-    the reference point of the MBMP.  The drawing will be clipped to both
+    the reference point of the MaskedBitmapMBMP.  The drawing will be clipped to both
     prcClip and pregnClip, which may be nil.
 ***************************************************************************/
-void MBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip, PRegion pregnClip)
+void MaskedBitmapMBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip, PRegion pregnClip)
 {
     AssertThis(0);
     AssertIn(cbRow, 1, kcbMax);
@@ -415,10 +415,10 @@ LFill:
 /***************************************************************************
     This routine is called to draw the masked bitmap as a mask onto
     prgbPixels.  prgbPixels is assumed to be 1 bit deep.  Zeros are
-    written where the MBMP is transparent and ones are written where
+    written where the MaskedBitmapMBMP is transparent and ones are written where
     it is non-transparent.
 ***************************************************************************/
-void MBMP::DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip)
+void MaskedBitmapMBMP::DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip)
 {
     AssertThis(0);
     AssertIn(cbRow, 1, kcbMax);

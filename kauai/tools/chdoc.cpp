@@ -1585,7 +1585,7 @@ bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
     yp = lw;
     ReleasePpo(&pdlg);
 
-    if (pvNil == (pbaco = MBMP::PmbmpReadNative(&fni, bTransparent, xp, yp, fMask ? fmbmpMask : fmbmpNil)))
+    if (pvNil == (pbaco = MaskedBitmapMBMP::PmbmpReadNative(&fni, bTransparent, xp, yp, fMask ? fmbmpMask : fmbmpNil)))
     {
         vpappb->TGiveAlertSz(PszLit("Reading bitmap file failed"), bkOk, cokExclamation);
         goto LCancel;

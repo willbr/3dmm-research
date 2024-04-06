@@ -13,7 +13,7 @@ RTCLASS(DOCMBMP)
 RTCLASS(DCMBMP)
 
 /****************************************************************************
-    Constructor for a MBMP document.
+    Constructor for a MaskedBitmapMBMP document.
 ****************************************************************************/
 DOCMBMP::DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
@@ -21,7 +21,7 @@ DOCMBMP::DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumbe
 }
 
 /****************************************************************************
-    Destructor for a MBMP document.
+    Destructor for a MaskedBitmapMBMP document.
 ****************************************************************************/
 DOCMBMP::~DOCMBMP(void)
 {
@@ -29,7 +29,7 @@ DOCMBMP::~DOCMBMP(void)
 }
 
 /****************************************************************************
-    Static method to create a new MBMP document.
+    Static method to create a new MaskedBitmapMBMP document.
 ****************************************************************************/
 PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
@@ -47,7 +47,7 @@ PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ct
 }
 
 /****************************************************************************
-    Create a new display gob for the MBMP document.
+    Create a new display gob for the MaskedBitmapMBMP document.
 ****************************************************************************/
 PDocumentDisplayGraphicsObject DOCMBMP::PddgNew(PGCB pgcb)
 {
@@ -74,14 +74,14 @@ bool DOCMBMP::_FWrite(PDataBlock pblck, bool fRedirect)
 }
 
 /*****************************************************************************
-    Read the MBMP.
+    Read the MaskedBitmapMBMP.
 *****************************************************************************/
 bool DOCMBMP::_FRead(PDataBlock pblck)
 {
-    Assert(pvNil == _pmbmp, "losing existing MBMP");
+    Assert(pvNil == _pmbmp, "losing existing MaskedBitmapMBMP");
     AssertPo(pblck, 0);
 
-    _pmbmp = MBMP::PmbmpRead(pblck);
+    _pmbmp = MaskedBitmapMBMP::PmbmpRead(pblck);
     return pvNil != _pmbmp;
 }
 
@@ -109,7 +109,7 @@ void DOCMBMP::MarkMem(void)
 /*****************************************************************************
     Constructor for a pic display gob.
 *****************************************************************************/
-DCMBMP::DCMBMP(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+DCMBMP::DCMBMP(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     _pmbmp = pmbmp;
 }
@@ -125,7 +125,7 @@ void DCMBMP::GetMinMax(RC *prcMinMax)
 /*****************************************************************************
     Static method to create a new DCMBMP.
 *****************************************************************************/
-PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb)
+PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGCB pgcb)
 {
     PDCMBMP pdcmbmp;
 
@@ -144,7 +144,7 @@ PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb)
 }
 
 /***************************************************************************
-    Draw the MBMP.
+    Draw the MaskedBitmapMBMP.
 ***************************************************************************/
 void DCMBMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {

@@ -1489,7 +1489,7 @@ bool APP::_FDisplayHomeLogo(bool fSkipSplashScreen)
 
     DataBlock blck;
     PDynamicArray pglclr;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     short bo;
     short osk;
 
@@ -1504,7 +1504,7 @@ bool APP::_FDisplayHomeLogo(bool fSkipSplashScreen)
     if (!fSkipSplashScreen) {
         if (!_pcfl->FFind(kctgMbmp, kcnoMbmpHomeLogo, &blck))
             return fFalse;
-        pmbmp = MBMP::PmbmpRead(&blck);
+        pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
         if (pvNil == pmbmp)
             return fFalse;
         _pkwa->SetMbmp(pmbmp);
@@ -1750,11 +1750,11 @@ bool APP::_FShowSplashScreen(void)
     AssertBaseThis(0);
 
     DataBlock blck;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
     if (!_pcfl->FFind(kctgMbmp, kcnoMbmpSplash, &blck))
         return fFalse;
-    pmbmp = MBMP::PmbmpRead(&blck);
+    pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
     if (pvNil == pmbmp)
         return fFalse;
     _pkwa->SetMbmp(pmbmp);
@@ -4624,9 +4624,9 @@ KWA::~KWA(void)
 }
 
 /***************************************************************************
-    Set the KWA's MBMP (for splash screen)
+    Set the KWA's MaskedBitmapMBMP (for splash screen)
 ***************************************************************************/
-void KWA::SetMbmp(PMBMP pmbmp)
+void KWA::SetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertThis(0);
     AssertNilOrPo(pmbmp, 0);
@@ -4642,7 +4642,7 @@ void KWA::SetMbmp(PMBMP pmbmp)
 }
 
 /***************************************************************************
-    Draw the KWA's MBMP, if any (for splash screen)
+    Draw the KWA's MaskedBitmapMBMP, if any (for splash screen)
 ***************************************************************************/
 void KWA::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {

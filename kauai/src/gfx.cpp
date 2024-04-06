@@ -1978,7 +1978,7 @@ void GraphicsEnvironment::DrawPic(PPIC ppic, RC *prc)
 /***************************************************************************
     Draw the mbmp with reference point at the given point.
 ***************************************************************************/
-void GraphicsEnvironment::DrawMbmp(PMBMP pmbmp, long xp, long yp)
+void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1995,7 +1995,7 @@ void GraphicsEnvironment::DrawMbmp(PMBMP pmbmp, long xp, long yp)
 /***************************************************************************
     Draw the mbmp in the given rectangle.
 ***************************************************************************/
-void GraphicsEnvironment::DrawMbmp(PMBMP pmbmp, RC *prc)
+void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);

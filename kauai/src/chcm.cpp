@@ -747,7 +747,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumbe
     Token tok;
     PHP rgphp[3];
     long cphp;
-    PMBMP pmbmp = pvNil;
+    PMaskedBitmapMBMP pmbmp = pvNil;
 
     ClearPb(rgphp, size(rgphp));
     if (!_FParseParenHeader(rgphp, 3, &cphp))
@@ -762,7 +762,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumbe
         goto LFail;
     }
 
-    if (pvNil == (pmbmp = MBMP::PmbmpReadNative(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
+    if (pvNil == (pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
                                                 fMask ? fmbmpMask : fmbmpNil)))
     {
         String stn;

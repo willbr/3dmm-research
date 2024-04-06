@@ -305,7 +305,7 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
     AssertVarMem(pchp);
     AssertVarMem(prc);
     long cb;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     PChunkyResourceFile pcrf;
     ChildChunkIdentification kid;
     long rglw[2];
@@ -321,7 +321,7 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
     switch ((ChunkTag)rglw[0])
     {
     case kctgMbmp:
-        pmbmp = (PMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
         goto LHaveMbmp;
 
     case kctgGokd:
@@ -332,7 +332,7 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
         {
             return fFalse;
         }
-        pmbmp = (PMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MaskedBitmapMBMP::FReadMbmp);
     LHaveMbmp:
         if (pvNil == pmbmp)
             return fFalse;
@@ -368,7 +368,7 @@ bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv
     AssertVarMem(prcClip);
     long cb;
     RC rc;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     PChunkyResourceFile pcrf;
     ChildChunkIdentification kid;
     long rglw[2];
@@ -384,7 +384,7 @@ bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv
     switch ((ChunkTag)rglw[0])
     {
     case kctgMbmp:
-        pmbmp = (PMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
         goto LHaveMbmp;
 
     case kctgGokd:
@@ -396,7 +396,7 @@ bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv
         {
             return fFalse;
         }
-        pmbmp = (PMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MaskedBitmapMBMP::FReadMbmp);
     LHaveMbmp:
         if (pvNil == pmbmp)
             return fFalse;

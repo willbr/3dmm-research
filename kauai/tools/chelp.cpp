@@ -694,16 +694,16 @@ void LID::GetCki(long icki, ChunkIdentification *pcki, PChunkyResourceFile *ppcr
 }
 
 /***************************************************************************
-    Get an MBMP for the indicated item.
+    Get an MaskedBitmapMBMP for the indicated item.
 ***************************************************************************/
-PMBMP LID::PmbmpGet(long icki)
+PMaskedBitmapMBMP LID::PmbmpGet(long icki)
 {
     AssertThis(0);
     AssertIn(icki, 0, _pglcach->IvMac());
     CACH cach;
 
     _pglcach->Get(icki, &cach);
-    return (PMBMP)cach.pcrf->PbacoFetch(kctgMbmp, cach.cnoMbmp, MBMP::FReadMbmp);
+    return (PMaskedBitmapMBMP)cach.pcrf->PbacoFetch(kctgMbmp, cach.cnoMbmp, MaskedBitmapMBMP::FReadMbmp);
 }
 
 /***************************************************************************
@@ -817,7 +817,7 @@ void LIG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertVarMem(prcClip);
     RC rc, rcT, rcCell, rcClip;
     long icki;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     PLID plid;
     long ccki;
 

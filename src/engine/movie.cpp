@@ -4681,7 +4681,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
         scend.chid = iscen;
         scend.pmbmp = pvNil;
 
-        /* Get PMBMP and TRANS from the scene */
+        /* Get PMaskedBitmapMBMP and TRANS from the scene */
         if (iscen != Iscen())
         {
             DataBlock blck;
@@ -4693,7 +4693,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
                      "Scene doesn't have a thumbnail");
             if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
                 goto LFail;
-            if ((scend.pmbmp = MBMP::PmbmpRead(&blck)) == pvNil)
+            if ((scend.pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck)) == pvNil)
                 goto LFail;
         }
         else

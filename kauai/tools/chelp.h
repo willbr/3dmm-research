@@ -89,7 +89,7 @@ class LID : public LID_PAR
 
     PChunkyResourceManager _pcrm;   // where to look for the chunks
     ChunkTag _ctg;     // what ctg to look for
-    ChildChunkID _chid;   // what chid value the MBMP should be at (if _ctg is not MBMP)
+    ChildChunkID _chid;   // what chid value the MaskedBitmapMBMP should be at (if _ctg is not MaskedBitmapMBMP)
     PDynamicArray _pglcach; // list of the chunks that we found
 
     LID(void);
@@ -103,7 +103,7 @@ class LID : public LID_PAR
     bool FRefresh(void);
     long Ccki(void);
     void GetCki(long icki, ChunkIdentification *pcki, PChunkyResourceFile *ppcrf = pvNil);
-    PMBMP PmbmpGet(long icki);
+    PMaskedBitmapMBMP PmbmpGet(long icki);
 };
 
 /***************************************************************************

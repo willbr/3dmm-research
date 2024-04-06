@@ -330,10 +330,10 @@ bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumbe
     AssertThis(0);
     AssertPo(pcrf, 0);
 
-    PMBMP pmbmpNew;
+    PMaskedBitmapMBMP pmbmpNew;
     PZBMP pzbmpNew;
 
-    pmbmpNew = (PMBMP)pcrf->PbacoFetch(ctgRGB, cnoRGB, MBMP::FReadMbmp);
+    pmbmpNew = (PMaskedBitmapMBMP)pcrf->PbacoFetch(ctgRGB, cnoRGB, MaskedBitmapMBMP::FReadMbmp);
     if (pvNil == pmbmpNew)
         return fFalse;
 

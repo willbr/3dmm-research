@@ -68,7 +68,7 @@ class TextureMap : public TextureMap_PAR
   public:
     ~TextureMap(void);
 
-    //  REVIEW *****(peted): MBMP's ...Read function just takes a PDataBlock; this
+    //  REVIEW *****(peted): MaskedBitmapMBMP's ...Read function just takes a PDataBlock; this
     //  is more like the FRead... function, just without the BaseCacheableObject stuff.  Why
     //  the difference?
     //	Addendum: to enable compiling 'TMAP' chunks, I added an FWrite that does

@@ -1690,7 +1690,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     DOCGPT *pdocgpt;
     PGraphicsPort pgpt;
     PGraphicsEnvironment pgnv;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     long i;
     RC rc(0, 0, 256, 256);
     RC rcT;
@@ -1743,7 +1743,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
         goto LFail;
 
     // The color mapped to 100 is the transparent pixel value for
-    // the MBMP, so start everything as transparent.
+    // the MaskedBitmapMBMP, so start everything as transparent.
     acr.SetToIndex(100);
     pgnv->FillRc(&rc, acr);
 
@@ -1773,8 +1773,8 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     rcT.Set(128, 0, 192, 64);
     pgnv->FillOval(&rcT, kacrWhite);
 
-    // Create an MBMP from the foreground.
-    pmbmp = MBMP::PmbmpNew(pgpt->PrgbLockPixels(), pgpt->CbRow(), rc.Dyp(), &rc, 0, 0, 100);
+    // Create an MaskedBitmapMBMP from the foreground.
+    pmbmp = MaskedBitmapMBMP::PmbmpNew(pgpt->PrgbLockPixels(), pgpt->CbRow(), rc.Dyp(), &rc, 0, 0, 100);
     pgpt->Unlock();
 
     if (pvNil == pmbmp)

@@ -21,19 +21,19 @@
      |
      +---CameraPosition  (chid 0) // Contains camera pos/orient matrix, hither, yon
      |    |
-     |    +---MBMP (chid 0) // Background RGB bitmap
+     |    +---MaskedBitmapMBMP (chid 0) // Background RGB bitmap
      |    |
      |    +---ZBMP (chid 0) // Background Z-buffer
      |
      +---CameraPosition (chid 1)
      |    |
-     |    +---MBMP (chid 0)
+     |    +---MaskedBitmapMBMP (chid 0)
      |    |
      |    +---ZBMP (chid 0)
      |
      +---CameraPosition (chid 2)
      .    |
-     .    +---MBMP (chid 0)
+     .    +---MaskedBitmapMBMP (chid 0)
      .    |
           +---ZBMP (chid 0)
 

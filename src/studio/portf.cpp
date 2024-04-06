@@ -667,7 +667,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
         int iDlgId = (int)wParam;
         DRAWITEMSTRUCT *pDrawItem = (DRAWITEMSTRUCT *)lParam;
         ChunkNumber cnoDisplay = cnoNil;
-        PMBMP pmbmp;
+        PMaskedBitmapMBMP pmbmp;
 
         // Custom draw the our push btns here.
         switch (iDlgId)
@@ -720,7 +720,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
         {
             // Select the appropriate bitmap to display.
 
-            if ((pmbmp = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoDisplay, MBMP::FReadMbmp)))
+            if ((pmbmp = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoDisplay, MaskedBitmapMBMP::FReadMbmp)))
             {
                 PGraphicsPort pgpt;
                 HPEN hpen, hpenold;
@@ -800,7 +800,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             RCS rcsApp;
             POINT ptBtn;
             int ypBtn;
-            PMBMP pmbmpBtn;
+            PMaskedBitmapMBMP pmbmpBtn;
             RC rcBmp;
             RCS rcsAppScreen, rcsPreview;
             int xOff = 0;
@@ -827,7 +827,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             MapWindowPoints(hwndPreview, hwndCustom, (POINT *)&ptBtn, 1);
 
             // First the home button.
-            if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnHome, MBMP::FReadMbmp)))
+            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnHome, MaskedBitmapMBMP::FReadMbmp)))
             {
                 pmbmpBtn->GetRc(&rcBmp);
 
@@ -841,7 +841,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             }
 
             // Now the cancel button.
-            if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnCancel, MBMP::FReadMbmp)))
+            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnCancel, MaskedBitmapMBMP::FReadMbmp)))
             {
                 pmbmpBtn->GetRc(&rcBmp);
 
@@ -855,7 +855,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             }
 
             // Now the ok button.
-            if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnOk, MBMP::FReadMbmp)))
+            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnOk, MaskedBitmapMBMP::FReadMbmp)))
             {
                 pmbmpBtn->GetRc(&rcBmp);
 
@@ -1016,7 +1016,7 @@ void RepaintPortfolio(HWND hwndCustom)
     TEXTMETRIC tmCaption;
     SZ szCaption;
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
-    PMBMP pmbmp, pmbmpBtn;
+    PMaskedBitmapMBMP pmbmp, pmbmpBtn;
     int iBtn;
     ChunkNumber cnoBack;
 
@@ -1034,7 +1034,7 @@ void RepaintPortfolio(HWND hwndCustom)
     }
 
     // Get the background bitmap first.
-    if ((pmbmp = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBack, MBMP::FReadMbmp)))
+    if ((pmbmp = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBack, MaskedBitmapMBMP::FReadMbmp)))
     {
         PGraphicsPort pgpt;
         HPEN hpen, hpenold;
@@ -1152,7 +1152,7 @@ void RepaintPortfolio(HWND hwndCustom)
                             continue;
                         }
 
-                        if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBtn, MBMP::FReadMbmp)))
+                        if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBtn, MaskedBitmapMBMP::FReadMbmp)))
                         {
                             HWND hwndBtn = GetDlgItem(hwndCustom, iBtnId);
                             RCS rcsBtn;
@@ -1212,7 +1212,7 @@ void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, RCS *prcsPreview
 {
     String stn;
     PChunkyFile pcfl;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     Filename fni;
     SZ szFile;
     ErrorStack ersT;
@@ -1271,7 +1271,7 @@ void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, RCS *prcsPreview
                             if (pcfl->FGetKidChidCtg(kctgScen, kidScene.cki.cno, 0, kctgThumbMbmp, &kidThumb) &&
                                 pcfl->FFind(kidThumb.cki.ctg, kidThumb.cki.cno, &blck))
                             {
-                                if ((pmbmp = MBMP::PmbmpRead(&blck)) != pvNil)
+                                if ((pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck)) != pvNil)
                                 {
                                     // Stretch the preview into the preview window.
                                     pgnvOff->DrawMbmp(pmbmp, &rcPreview);
@@ -1291,7 +1291,7 @@ void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, RCS *prcsPreview
             if (!fPreviewed && (pdiPortfolio->grfPrevType & fpfPortPrevTexture))
             {
                 // Preview the file as a .bmp file if we can.
-                if ((pmbmp = MBMP::PmbmpReadNative(&fni, 0, 0, 0, fmbmpNil)) != pvNil)
+                if ((pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fni, 0, 0, 0, fmbmpNil)) != pvNil)
                 {
                     // Stretch the bitmap in the preview window.
                     pgnvOff->DrawMbmp(pmbmp, &rcPreview);

@@ -81,7 +81,7 @@ class SCRT : public SCRT_PAR
 
 /******************************************************************************
 
-    GOMP class -- wraps an MBMP in a GraphicsObject for display in the Scene Sorter
+    GOMP class -- wraps an MaskedBitmapMBMP in a GraphicsObject for display in the Scene Sorter
 
 ************************************************************ PETED ***********/
 
@@ -96,7 +96,7 @@ class GOMP : public GOMP_PAR
     /* REVIEW peted: do I need to declare a command map? */
 
   protected:
-    PMBMP _pmbmp;
+    PMaskedBitmapMBMP _pmbmp;
 
   public:
     GOMP(PGCB pgcb);
@@ -108,7 +108,7 @@ class GOMP : public GOMP_PAR
 
     static PGOMP PgompNew(PGraphicsObject pgobPar, long hid);
     static PGOMP PgompFromHidScr(long hid);
-    bool FSetMbmp(PMBMP pmbmp);
+    bool FSetMbmp(PMaskedBitmapMBMP pmbmp);
 
     /* Makes the GOMP invisible to mouse actions */
     virtual bool FPtIn(long xp, long yp)

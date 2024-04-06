@@ -608,7 +608,7 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
     while (cFrame--)
     {
         bool fNewTransition;
-        PMBMP pmbmp;
+        PMaskedBitmapMBMP pmbmp;
         RC rc;
 
         pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
@@ -792,7 +792,7 @@ void GOMP::MarkMem(void)
 
     Arguments:
         PGCB pgcb    -- Gob Creation Block to be passed to the parent class
-        PMBMP pmbmp  -- the MBMP to use when drawing this GOMP
+        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to use when drawing this GOMP
 
 ************************************************************ PETED ***********/
 GOMP::GOMP(PGCB pgcb) : GraphicsObject(pgcb)
@@ -807,7 +807,7 @@ GOMP::GOMP(PGCB pgcb) : GraphicsObject(pgcb)
         be exactly the same size as the parent, and will have the given hid.
 
     Arguments:
-        PMBMP pmbmp  -- the MBMP to draw as this GOMP
+        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to draw as this GOMP
         PGraphicsObject pgobPar -- the parent of this GOMP
         long hid     -- the hid (kid) of this GOMP
 
@@ -867,15 +867,15 @@ void GOMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 
 /******************************************************************************
     FSetMbmp
-        Replaces the MBMP for this GOMP with the given MBMP.
+        Replaces the MaskedBitmapMBMP for this GOMP with the given MaskedBitmapMBMP.
 
     Arguments:
-        PMBMP pmbmp -- pointer to the MBMP
+        PMaskedBitmapMBMP pmbmp -- pointer to the MaskedBitmapMBMP
 
-    Returns: fTrue if the new MBMP is different from the old one
+    Returns: fTrue if the new MaskedBitmapMBMP is different from the old one
 
 ************************************************************ PETED ***********/
-bool GOMP::FSetMbmp(PMBMP pmbmp)
+bool GOMP::FSetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertNilOrPo(pmbmp, 0);
 

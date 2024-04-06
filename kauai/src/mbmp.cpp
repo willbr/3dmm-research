@@ -13,36 +13,36 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(MBMP)
+RTCLASS(MaskedBitmapMBMP)
 
 /***************************************************************************
     Destructor for a masked bitmap.
 ***************************************************************************/
-MBMP::~MBMP(void)
+MaskedBitmapMBMP::~MaskedBitmapMBMP(void)
 {
     AssertBaseThis(0);
     FreePhq(&_hqrgb);
 }
 
 /***************************************************************************
-    Static method to create a new MBMP based on the given prgbPixels with
+    Static method to create a new MaskedBitmapMBMP based on the given prgbPixels with
     extracting rectangle *prc and transparent color bTransparent.  prgbPixels
     should be a two-dimensional matrix of 8-bit pixels with width cbRow and
     height dyp.  prc should be the desired extracting rectangle.  xp and yp
-    are the coordinates for the reference point of the MBMP (with (0,0) being
+    are the coordinates for the reference point of the MaskedBitmapMBMP (with (0,0) being
     the upper-left corner).  bTransparent should be the pixel value for the
-    transparent color for the MBMP.
+    transparent color for the MaskedBitmapMBMP.
 ***************************************************************************/
-PMBMP MBMP::PmbmpNew(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
                      ulong grfmbmp, byte bDefault)
 {
     AssertIn(cbRow, 1, kcbMax);
     AssertIn(dyp, 1, kcbMax);
     AssertPvCb(prgbPixels, LwMul(cbRow, dyp));
     AssertVarMem(prc);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
-    if (pvNil != (pmbmp = NewObj MBMP) &&
+    if (pvNil != (pmbmp = NewObj MaskedBitmapMBMP) &&
         !pmbmp->_FInit(prgbPixels, cbRow, dyp, prc, xpRef, ypRef, bTransparent, grfmbmp, bDefault))
     {
         ReleasePpo(&pmbmp);
@@ -51,9 +51,9 @@ PMBMP MBMP::PmbmpNew(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef
 }
 
 /***************************************************************************
-    Initialize the MBMP based on the given pixels.
+    Initialize the MaskedBitmapMBMP based on the given pixels.
 ***************************************************************************/
-bool MBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
+bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
                   ulong grfmbmp, byte bDefault)
 {
     AssertIn(cbRow, 1, kcbMax);
@@ -150,7 +150,7 @@ bool MBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, l
     rc.xpRight = xpLim;
     if (rc.FEmpty())
     {
-        Warn("Empty source bitmap for MBMP");
+        Warn("Empty source bitmap for MaskedBitmapMBMP");
         rc.Zero();
     }
 
@@ -222,7 +222,7 @@ bool MBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, l
     AssertIn(cbRun, 0, CbOfHq(_hqrgb) + 1);
     AssertDo(FResizePhq(&_hqrgb, cbRun, fmemNil, mprNormal), "shrinking failed!");
 
-    // set the bounding rectangle of the MBMP
+    // set the bounding rectangle of the MaskedBitmapMBMP
     rc.Offset(-xpRef, -ypRef);
     _Qmbmph()->rc = rc;
 
@@ -231,26 +231,26 @@ bool MBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, l
 }
 
 /****************************************************************************
-    This function will read in a bitmap file and return a PMBMP made from it.
+    This function will read in a bitmap file and return a PMaskedBitmapMBMP made from it.
     (xp, yp) will be the reference point of the mbmp [(0,0) is uppper-left].
     All pixels with the same value as bTransparent will be read in as
     transparent. The bitmap file must be uncompressed and have a bit depth
     of 8.  The palette information is be ignored.
 ****************************************************************************/
-PMBMP MBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, long xp, long yp, ulong grfmbmp, byte bDefault)
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, long xp, long yp, ulong grfmbmp, byte bDefault)
 {
     AssertPo(pfni, ffniFile);
     byte *prgb;
     RC rc;
     long dxp, dyp;
     bool fUpsideDown;
-    PMBMP pmbmp = pvNil;
+    PMaskedBitmapMBMP pmbmp = pvNil;
 
     if (!FReadBitmap(pfni, &prgb, pvNil, &dxp, &dyp, &fUpsideDown, bTransparent))
         return pvNil;
 
     rc.Set(0, 0, dxp, dyp);
-    pmbmp = MBMP::PmbmpNew(prgb, CbRoundToLong(rc.xpRight), rc.ypBottom, &rc, xp, yp, bTransparent,
+    pmbmp = MaskedBitmapMBMP::PmbmpNew(prgb, CbRoundToLong(rc.xpRight), rc.ypBottom, &rc, xp, yp, bTransparent,
                            (fUpsideDown ? grfmbmp : grfmbmp ^ fmbmpUpsideDown), bDefault);
     FreePpv((void **)&prgb);
 
@@ -260,10 +260,10 @@ PMBMP MBMP::PmbmpReadNative(Filename *pfni, byte bTransparent, long xp, long yp,
 /***************************************************************************
     Read a masked bitmap from a block.  May free the block or modify it.
 ***************************************************************************/
-PMBMP MBMP::PmbmpRead(PDataBlock pblck)
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     MBMPH *qmbmph;
     long cbRgcb;
     long cbTot;
@@ -301,7 +301,7 @@ PMBMP MBMP::PmbmpRead(PDataBlock pblck)
     if (size(MBMPH) + cbRgcb > cbTot)
         goto LFail;
 
-    if (pvNil == (pmbmp = NewObj MBMP))
+    if (pvNil == (pmbmp = NewObj MaskedBitmapMBMP))
     {
     LFail:
         FreePhq(&hqrgb);
@@ -352,7 +352,7 @@ PMBMP MBMP::PmbmpRead(PDataBlock pblck)
     if (cbTot != 0)
     {
     LFailDebug:
-        Bug("Attempted to read bad MBMP");
+        Bug("Attempted to read bad MaskedBitmapMBMP");
         ReleasePpo(&pmbmp);
     }
 #endif // DEBUG
@@ -364,7 +364,7 @@ PMBMP MBMP::PmbmpRead(PDataBlock pblck)
 /***************************************************************************
     Return the total size on file.
 ***************************************************************************/
-long MBMP::CbOnFile(void)
+long MaskedBitmapMBMP::CbOnFile(void)
 {
     AssertThis(0);
     return CbOfHq(_hqrgb);
@@ -373,7 +373,7 @@ long MBMP::CbOnFile(void)
 /***************************************************************************
     Write the masked bitmap (and its header) to the given block.
 ***************************************************************************/
-bool MBMP::FWrite(PDataBlock pblck)
+bool MaskedBitmapMBMP::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -400,7 +400,7 @@ bool MBMP::FWrite(PDataBlock pblck)
 /***************************************************************************
     Get the natural rectangle for the mbmp.
 ***************************************************************************/
-void MBMP::GetRc(RC *prc)
+void MaskedBitmapMBMP::GetRc(RC *prc)
 {
     AssertThis(0);
     *prc = _Qmbmph()->rc;
@@ -408,9 +408,9 @@ void MBMP::GetRc(RC *prc)
 
 /***************************************************************************
     Return whether the given (xp, yp) is in a non-transparent pixel of
-    the MBMP.  (xp, yp) should be given in MBMP coordinates.
+    the MaskedBitmapMBMP.  (xp, yp) should be given in MaskedBitmapMBMP coordinates.
 ***************************************************************************/
-bool MBMP::FPtIn(long xp, long yp)
+bool MaskedBitmapMBMP::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     byte *qb, *qbLim;
@@ -438,22 +438,22 @@ bool MBMP::FPtIn(long xp, long yp)
         if (!qmbmph->fMask)
             qb += cb;
     }
-    Assert(qb <= qbLim, "bad row in MBMP");
+    Assert(qb <= qbLim, "bad row in MaskedBitmapMBMP");
     return fFalse;
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MBMP.
+    Assert the validity of a MaskedBitmapMBMP.
 ***************************************************************************/
-void MBMP::AssertValid(ulong grf)
+void MaskedBitmapMBMP::AssertValid(ulong grf)
 {
     long ccb;
     long cbTot;
     short *qcb;
     RC rc;
 
-    MBMP_PAR::AssertValid(0);
+    MaskedBitmapMBMP_PAR::AssertValid(0);
     AssertHq(_hqrgb);
 
     rc = _Qmbmph()->rc;
@@ -470,26 +470,26 @@ void MBMP::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the MBMP.
+    Mark memory for the MaskedBitmapMBMP.
 ***************************************************************************/
-void MBMP::MarkMem(void)
+void MaskedBitmapMBMP::MarkMem(void)
 {
     AssertValid(0);
-    MBMP_PAR::MarkMem();
+    MaskedBitmapMBMP_PAR::MarkMem();
     MarkHq(_hqrgb);
 }
 #endif // DEBUG
 
 /***************************************************************************
-    A PFNRPO to read an MBMP.
+    A PFNRPO to read an MaskedBitmapMBMP.
 ***************************************************************************/
-bool MBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)

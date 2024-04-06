@@ -160,7 +160,7 @@ class GORT : public GORT_PAR
     bool _fStream;
 
     ~GORT(void);
-    void _DrawRow(PGraphicsEnvironment pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp);
+    void _DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp);
     void _ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp);
     void _MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);

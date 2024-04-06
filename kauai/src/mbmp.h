@@ -25,10 +25,10 @@ enum
     fmbmpMask = 2,
 };
 
-typedef class MBMP *PMBMP;
-#define MBMP_PAR BaseCacheableObject
-#define kclsMBMP 'MBMP'
-class MBMP : public MBMP_PAR
+typedef class MaskedBitmapMBMP *PMaskedBitmapMBMP;
+#define MaskedBitmapMBMP_PAR BaseCacheableObject
+#define kclsMaskedBitmapMBMP 'MBMP'
+class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -41,7 +41,7 @@ class MBMP : public MBMP_PAR
     // _hqrgb holds an MBMPH followed by an array of the length of each row
     // (rgcb) followed by the actual pixel data. The rgcb is an array of shorts
     // of length rc.Dyp(). We store the whole MBMPH in the _hqrgb so that
-    // loading the MBMP from a chunky file is fast. If the chunk is compressed,
+    // loading the MaskedBitmapMBMP from a chunky file is fast. If the chunk is compressed,
     // storing anything less than the full chunk in _hqrgb requires another blt.
 
     // The pixel data is stored row by row with transparency encoded using
@@ -57,7 +57,7 @@ class MBMP : public MBMP_PAR
     long _cbRgcb; // size of the rgcb portion of _hqrgb
     HQ _hqrgb;    // MBMPH, short rgcb[_rc.Dyp()] followed by the pixel data
 
-    // MBMP header on file
+    // MaskedBitmapMBMP header on file
     struct MBMPH
     {
         short bo;
@@ -69,7 +69,7 @@ class MBMP : public MBMP_PAR
         long cb; // length of whole chunk, including the header
     };
 
-    MBMP(void)
+    MaskedBitmapMBMP(void)
     {
     }
     virtual bool _FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
@@ -85,14 +85,14 @@ class MBMP : public MBMP_PAR
     }
 
   public:
-    ~MBMP(void);
+    ~MaskedBitmapMBMP(void);
 
-    static PMBMP PmbmpNew(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
+    static PMaskedBitmapMBMP PmbmpNew(byte *prgbPixels, long cbRow, long dyp, RC *prc, long xpRef, long ypRef, byte bTransparent,
                           ulong grfmbmp = fmbmpNil, byte bDefault = 0);
-    static PMBMP PmbmpReadNative(Filename *pfni, byte bTransparent = 0, long xp = 0, long yp = 0, ulong grfmbmp = fmbmpNil,
+    static PMaskedBitmapMBMP PmbmpReadNative(Filename *pfni, byte bTransparent = 0, long xp = 0, long yp = 0, ulong grfmbmp = fmbmpNil,
                                  byte bDefault = 0);
 
-    static PMBMP PmbmpRead(PDataBlock pblck);
+    static PMaskedBitmapMBMP PmbmpRead(PDataBlock pblck);
 
     void GetRc(RC *prc);
     void Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
@@ -103,7 +103,7 @@ class MBMP : public MBMP_PAR
     virtual bool FWrite(PDataBlock pblck);
     virtual long CbOnFile(void);
 
-    // a chunky resource reader for an MBMP
+    // a chunky resource reader for an MaskedBitmapMBMP
     static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 };
 const ByteOrderMask kbomMbmph = 0xAFFC0000;

@@ -505,7 +505,7 @@ typedef struct _scend
     long imvied;     // index of the MVIED for this scene
     ChunkNumber cno;         // the ChunkNumber of this scene chunk
     ChildChunkID chid;       // the original ChildChunkID
-    PMBMP pmbmp;     // pointer to thumbnail MBMP
+    PMaskedBitmapMBMP pmbmp;     // pointer to thumbnail MaskedBitmapMBMP
                      /* The client can read or write the following fields */
     TRANS trans;     // the transition that will occur after this scene
     bool fNuked : 1; // fTrue if this scene has been deleted

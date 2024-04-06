@@ -26,7 +26,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     char chs;
     FLO flo;
     long lwSig;
-    PMBMP pmbmp = pvNil;
+    PMaskedBitmapMBMP pmbmp = pvNil;
     long cfni = 0;
     long xp = 0;
     long yp = 0;
@@ -143,7 +143,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    pmbmp = MBMP::PmbmpReadNative(&fniSrc, B0Lw(lwTrans), xp, yp);
+    pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fniSrc, B0Lw(lwTrans), xp, yp);
     if (pvNil == pmbmp)
     {
         fprintf(stderr, "reading bitmap failed\n\n");

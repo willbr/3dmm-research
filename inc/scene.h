@@ -147,7 +147,7 @@ class Scene : public Scene_PAR
     PActor _pactrSelected; // Currently selected actor, if any
     PTBOX _ptboxSelected; // Currently selected tbox, if any
     TRANS _trans;         // Transition at the end of the scene.
-    PMBMP _pmbmp;         // The thumbnail for this scene.
+    PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
     PSSE _psseBkgd;       // Background scene sound (starts playing
                           // at start time even if snd event is
                           // earlier)
@@ -356,7 +356,7 @@ class Scene : public Scene_PAR
     }                                               // Gets the background for this scene.
     bool FChangeCamCore(long icam, long *picamOld); // Changes camera viewpoint at current frame.
     bool FChangeCam(long icam);                     // Changes camera viewpoint at current frame, and undo
-    PMBMP PmbmpThumbnail(void);                     // Returns the thumbnail.
+    PMaskedBitmapMBMP PmbmpThumbnail(void);                     // Returns the thumbnail.
     bool FGetTagBkgd(PTAG ptag);                    // Returns the tag for the background for this scene
 
     //

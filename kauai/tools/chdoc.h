@@ -242,7 +242,7 @@ class DOCPIC : public DOCPIC_PAR
 };
 
 /***************************************************************************
-    MBMP display document.
+    MaskedBitmapMBMP display document.
 ***************************************************************************/
 #define DOCMBMP_PAR DOCE
 #define kclsDOCMBMP 'docm'
@@ -253,7 +253,7 @@ class DOCMBMP : public DOCMBMP_PAR
     MARKMEM
 
   protected:
-    PMBMP _pmbmp;
+    PMaskedBitmapMBMP _pmbmp;
 
     DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCMBMP(void);
@@ -266,7 +266,7 @@ class DOCMBMP : public DOCMBMP_PAR
     static PDOCMBMP PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
-    PMBMP Pmbmp(void)
+    PMaskedBitmapMBMP Pmbmp(void)
     {
         return _pmbmp;
     }
@@ -668,7 +668,7 @@ class DCPIC : public DCPIC_PAR
 };
 
 /***************************************************************************
-    Display a MBMP chunk.
+    Display a MaskedBitmapMBMP chunk.
 ***************************************************************************/
 #define DCMBMP_PAR DocumentDisplayGraphicsObject
 #define kclsDCMBMP 'dmbp'
@@ -679,13 +679,13 @@ class DCMBMP : public DCMBMP_PAR
     MARKMEM
 
   protected:
-    PMBMP _pmbmp;
+    PMaskedBitmapMBMP _pmbmp;
 
-    DCMBMP(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb);
+    DCMBMP(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGCB pgcb);
     virtual void GetMinMax(RC *prcMinMax);
 
   public:
-    static PDCMBMP PdcmbmpNew(PDocumentBase pdocb, PMBMP pmbmp, PGCB pgcb);
+    static PDCMBMP PdcmbmpNew(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGCB pgcb);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
