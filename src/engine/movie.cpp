@@ -160,7 +160,7 @@ const short kcvnMin = 1;
 //
 // Movie file prefix
 //
-struct MFP
+struct MovieFilePrefix
 {
     short bo;  // byte order
     short osk; // which system wrote this
@@ -1787,7 +1787,7 @@ bool Movie::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
 
     ChildChunkIdentification kid;
     ChunkNumber cnoMvie;
-    MFP mfp;
+    MovieFilePrefix mfp;
     DataBlock blck;
 
     // Get the cno of the first kid of the movie
@@ -1804,8 +1804,8 @@ bool Movie::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
     }
 
     // Get version number of the file
-    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData() || (blck.Cb() != size(MFP)) ||
-        !blck.FReadRgb(&mfp, size(MFP), 0))
+    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData() || (blck.Cb() != size(MovieFilePrefix)) ||
+        !blck.FReadRgb(&mfp, size(MovieFilePrefix), 0))
     {
         PushErc(ercSocBadFile);
         return fFalse;
@@ -2450,7 +2450,7 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     ChunkNumber cno;
     ChunkNumber cnoScen;
     ChunkNumber cnoSource;
-    MFP mfp;
+    MovieFilePrefix mfp;
     ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
     PChunkyFile pcfl;
     PStringTable pgstSource = pvNil;
@@ -2486,7 +2486,7 @@ LRetry:
     //
     if (_cno == cnoNil)
     {
-        if (!pcfl->FAdd(size(MFP), kctgMvie, &_cno, &blck))
+        if (!pcfl->FAdd(size(MovieFilePrefix), kctgMvie, &_cno, &blck))
         {
             goto LFail0;
         }

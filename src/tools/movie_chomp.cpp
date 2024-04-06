@@ -238,7 +238,7 @@ const auto kbomLong = 0xC0000000;
 //
 // Movie file prefix
 //
-struct MFP
+struct MovieFilePrefix
 {
     short bo;  // byte order
     short osk; // which system wrote this
@@ -895,8 +895,8 @@ bool MovieDecompiler::FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pm
 
     printf("Movie(\n");
 
-    MFP mfp;
-    data_block.FReadRgb(&mfp, size(MFP), 0);
+    MovieFilePrefix mfp;
+    data_block.FReadRgb(&mfp, size(MovieFilePrefix), 0);
 
     printf("\tname=\"%s\",\n", movie_name.Psz());
     printf("\tbo=%d,\n", mfp.bo);
@@ -1067,8 +1067,8 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
         }
 
         case kctgMvie: {
-            MFP mfp;
-            blck.FReadRgb(&mfp, size(MFP), 0);
+            MovieFilePrefix mfp;
+            blck.FReadRgb(&mfp, size(MovieFilePrefix), 0);
             printf("\tMovie(\n");
             printf("\t\tbo=%d,\n", mfp.bo);
             printf("\t\tosk=%d,\n", mfp.osk);
