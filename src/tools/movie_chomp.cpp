@@ -242,7 +242,7 @@ struct MovieFilePrefix
 {
     short bo;  // byte order
     short osk; // which system wrote this
-    DVER dver; // chunky file version
+    DataVersion dver; // chunky file version
 };
 const ByteOrderMask kbomMfp = 0x55000000;
 

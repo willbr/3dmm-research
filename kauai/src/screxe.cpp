@@ -141,7 +141,7 @@ bool Interpreter::FAttachScript(PScript pscpt, long *prglw, long clw)
     AssertIn(clw, 0, kcbMax);
     AssertPvCb(prglw, LwMul(clw, size(long)));
     long lw;
-    DVER dver;
+    DataVersion dver;
 
     Free();
     _lwReturn = 0;

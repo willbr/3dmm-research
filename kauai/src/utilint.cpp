@@ -1130,19 +1130,19 @@ void USAC::Scale(ulong luScale)
 }
 
 /***************************************************************************
-    Set the DVER structure.
+    Set the DataVersion structure.
 ***************************************************************************/
-void DVER::Set(short swCur, short swBack)
+void DataVersion::Set(short swCur, short swBack)
 {
     _swBack = swBack;
     _swCur = swCur;
 }
 
 /***************************************************************************
-    Determines if the DVER structure is compatible with (swCur and swMin).
+    Determines if the DataVersion structure is compatible with (swCur and swMin).
     Asserts that 0 <= swMin <= swCur.
 ***************************************************************************/
-bool DVER::FReadable(short swCur, short swMin)
+bool DataVersion::FReadable(short swCur, short swMin)
 {
     AssertIn(_swBack, 0, _swCur + 1);
     AssertIn(_swCur, 0, kswMax);

@@ -820,7 +820,7 @@ class RAT
 /***************************************************************************
     Data versioning utility
 ***************************************************************************/
-struct DVER
+struct DataVersion
 {
     short _swCur;
     short _swBack;

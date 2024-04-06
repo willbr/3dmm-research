@@ -117,7 +117,7 @@ struct ChunkyFilePrefix
 {
     long lwMagic;   // identifies this as a chunky file
     ChunkTag ctgCreator; // program that created this file
-    DVER dver;      // chunky file version
+    DataVersion dver;      // chunky file version
     short bo;       // byte order
     short osk;      // which system wrote this
 

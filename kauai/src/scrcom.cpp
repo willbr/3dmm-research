@@ -2560,7 +2560,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     long lw;
     long op;
     String stn;
-    DVER dver;
+    DataVersion dver;
     PDynamicArray pgllw = pscpt->_pgllw;
     PSZ pszError = pvNil;
     AssertPo(pgllw, 0);
