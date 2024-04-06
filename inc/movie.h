@@ -157,7 +157,7 @@ class MovieView : public MovieView_PAR
     //   objects.  V2.666 should revisit this issue and see if we can get Actor to
     //   do all its own undo objects (e.g. Growing over a long drag could become
     //   a StartGrow/Grow/EndGrow sequence).  This also effects _pactrRestore.
-    PAUND _paund;        // Actor undo object to save from mouse down to drag.
+    PActorUndo _paund;        // Actor undo object to save from mouse down to drag.
     ulong _tsLast;       // Last time a cell was recorded.
     ulong _tsLastSample; // Last time mouse/kbd sampled
     RC _rcFrame;         // Frame for creating a text box.

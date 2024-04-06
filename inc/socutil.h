@@ -83,11 +83,11 @@ class MovieUndo : public MovieUndo_PAR
 //
 // Undo object for actor operations
 //
-typedef class AUND *PAUND;
+typedef class ActorUndo *PActorUndo;
 
-#define AUND_PAR MovieUndo
-#define kclsAUND 'AUND'
-class AUND : public AUND_PAR
+#define ActorUndo_PAR MovieUndo
+#define kclsActorUndo 'AUND'
+class ActorUndo : public ActorUndo_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -100,13 +100,13 @@ class AUND : public AUND_PAR
     bool _fSndUndo;
     long _nfrmLast;
     String _stn; // actor's name
-    AUND(void)
+    ActorUndo(void)
     {
     }
 
   public:
-    static PAUND PaundNew(void);
-    ~AUND(void);
+    static PActorUndo PaundNew(void);
+    ~ActorUndo(void);
 
     void SetPactr(PActor pactr);
     void SetArid(long arid)

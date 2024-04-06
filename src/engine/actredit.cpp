@@ -7,7 +7,7 @@
 
     Primary authors:
         ACLP::(clipbd)	Seanse
-        AUND::(undo)	Seanse
+        ActorUndo::(undo)	Seanse
         Actor::(undo)	Seanse
         Actor::(vacuum)  *****
         Actor::(dup/restore) *****
@@ -21,7 +21,7 @@ ASSERTNAME
 
 using namespace ActorEvent;
 
-RTCLASS(AUND)
+RTCLASS(ActorUndo)
 
 /***************************************************************************
 
@@ -1069,9 +1069,9 @@ bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
     AssertPo(pactrDup, 0);
     AssertNilOrPo(pstn, 0);
 
-    PAUND paund;
+    PActorUndo paund;
 
-    paund = AUND::PaundNew();
+    paund = ActorUndo::PaundNew();
 
     if (paund == pvNil)
     {
@@ -1379,10 +1379,10 @@ bool Actor::FRemFromStage(void)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PAUND AUND::PaundNew()
+PActorUndo ActorUndo::PaundNew()
 {
-    PAUND paund;
-    paund = NewObj AUND();
+    PActorUndo paund;
+    paund = NewObj ActorUndo();
     AssertNilOrPo(paund, 0);
     return (paund);
 }
@@ -1392,7 +1392,7 @@ PAUND AUND::PaundNew()
  * Destructor for actor undo objects
  *
  ****************************************************/
-AUND::~AUND(void)
+ActorUndo::~ActorUndo(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pactr);
@@ -1409,7 +1409,7 @@ AUND::~AUND(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool AUND::FDo(PDocumentBase pdocb)
+bool ActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -1443,7 +1443,7 @@ bool AUND::FDo(PDocumentBase pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool AUND::FUndo(PDocumentBase pdocb)
+bool ActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -1550,7 +1550,7 @@ bool AUND::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void AUND::SetPactr(PActor pactr)
+void ActorUndo::SetPactr(PActor pactr)
 {
     AssertThis(0);
 
@@ -1560,7 +1560,7 @@ void AUND::SetPactr(PActor pactr)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the AUND
+ * Mark memory used by the ActorUndo
  *
  * Parameters:
  * 	None.
@@ -1569,17 +1569,17 @@ void AUND::SetPactr(PActor pactr)
  *  None.
  *
  ****************************************************/
-void AUND::MarkMem(void)
+void ActorUndo::MarkMem(void)
 {
     AssertThis(0);
-    AUND_PAR::MarkMem();
+    ActorUndo_PAR::MarkMem();
     MarkMemObj(_pactr);
 }
 
 /***************************************************************************
-    Assert the validity of the AUND.
+    Assert the validity of the ActorUndo.
 ***************************************************************************/
-void AUND::AssertValid(ulong grf)
+void ActorUndo::AssertValid(ulong grf)
 {
     AssertNilOrPo(_pactr, 0);
 }

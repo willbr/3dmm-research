@@ -3572,7 +3572,7 @@ bool Movie::FSoonerLaterActr(long nfrm)
     AssertPo(Pscen(), 0);
 
     Actor *pactr;
-    PAUND paund;
+    PActorUndo paund;
 
     long dnfrm = nfrm - Pscen()->Nfrm();
 
@@ -3592,7 +3592,7 @@ bool Movie::FSoonerLaterActr(long nfrm)
 
         _pglpundb->Get(_ipundbLimDone - 1, &paund);
 
-        if (paund->FIs(kclsAUND) && paund->FSoonerLater())
+        if (paund->FIs(kclsActorUndo) && paund->FSoonerLater())
         {
             AssertPo(paund, 0);
             paund->SetNfrmLast(nfrm);
@@ -6845,7 +6845,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     PActor pactr = pvNil;
     PActor pactrDup;
     PTBOX ptbox;
-    PAUND paund;
+    PActorUndo paund;
     PT pt;
     long ibset;
     PDocumentBase pdocb;
@@ -7083,7 +7083,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
             //
             // Create an actor undo object
             //
-            paund = AUND::PaundNew();
+            paund = ActorUndo::PaundNew();
             if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
             {
                 Pmvie()->ClearUndo();
@@ -7874,9 +7874,9 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
             Assert(pactr->FTimeFrozen(), "Something odd is going on");
 
             PActor pactrDup;
-            PAUND paund;
+            PActorUndo paund;
 
-            paund = AUND::PaundNew();
+            paund = ActorUndo::PaundNew();
             if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
             {
                 Pmvie()->ClearUndo();
