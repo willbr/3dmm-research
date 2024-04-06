@@ -258,7 +258,7 @@ void VirtualStringTable::SetMinGrow(long cstnAdd, long cchAdd)
 /***************************************************************************
     Append an stn to string table.
 ***************************************************************************/
-bool VirtualStringTable::FAddStn(PSTN pstn, void *pvExtra, long *pistn)
+bool VirtualStringTable::FAddStn(PString pstn, void *pvExtra, long *pistn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -308,7 +308,7 @@ LDone:
 /***************************************************************************
     Replace the ith string with stn.
 ***************************************************************************/
-bool VirtualStringTable::FPutStn(long istn, PSTN pstn)
+bool VirtualStringTable::FPutStn(long istn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -336,7 +336,7 @@ void VirtualStringTable::GetRgch(long istn, achar *prgch, long cchMax, long *pcc
 /***************************************************************************
     Get the ith string.
 ***************************************************************************/
-void VirtualStringTable::GetStn(long istn, PSTN pstn)
+void VirtualStringTable::GetStn(long istn, PString pstn)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac);
@@ -349,7 +349,7 @@ void VirtualStringTable::GetStn(long istn, PSTN pstn)
 /***************************************************************************
     Find the given stn in the string table.
 ***************************************************************************/
-bool VirtualStringTable::FFindStn(PSTN pstn, long *pistn, ulong grfgst)
+bool VirtualStringTable::FFindStn(PString pstn, long *pistn, ulong grfgst)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -395,7 +395,7 @@ bool VirtualStringTable::FFindRgch(achar *prgch, long cch, long *pistn, ulong gr
 /***************************************************************************
     Find the string with the given extra data in the string table.
 ***************************************************************************/
-bool VirtualStringTable::FFindExtra(void *prgbFind, PSTN pstn, long *pistn)
+bool VirtualStringTable::FFindExtra(void *prgbFind, PString pstn, long *pistn)
 {
     AssertThis(0);
     AssertPvCb(prgbFind, CbExtra());
@@ -892,7 +892,7 @@ bool StringTable::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
 /***************************************************************************
     Insert an stn into the string table
 ***************************************************************************/
-bool StringTable::FInsertStn(long istn, PSTN pstn, void *pvExtra)
+bool StringTable::FInsertStn(long istn, PString pstn, void *pvExtra)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac + 1);

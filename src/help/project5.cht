@@ -149,9 +149,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_40, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpc5Project03 __HELP_SYMBOL( STN "ktpc5Project03" )
+		VAR BYTE 1 LONG ktpc5Project03 __HELP_SYMBOL( String "ktpc5Project03" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -325,7 +325,7 @@ PARENT('RTXT', _help_52545854_4D, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -534,7 +534,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_49, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' kgobOkButton 0xFFFFFFFF __HELP_SYMBOL( STN "kgobOkButton" )
+		VAR LONG 'GOKD' kgobOkButton 0xFFFFFFFF __HELP_SYMBOL( String "kgobOkButton" )
 	ITEM LONG 0x40000001
 		VAR
 			BYTE
@@ -1571,7 +1571,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( STN "mbmpRewind" )
+		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( String "mbmpRewind" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5778,7 +5778,7 @@ PARENT('RTXT', _help_52545854_41, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpc5Project3A __HELP_SYMBOL( STN "ktpc5Project3A" )
+		VAR BYTE 1 LONG ktpc5Project3A __HELP_SYMBOL( String "ktpc5Project3A" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5878,7 +5878,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( STN "mbmpRewind" )
+		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( String "mbmpRewind" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6592,7 +6592,7 @@ AllocatedGroup(4)
 			BYTE
 			0x04 0xFF 0xFF 0xFF 0xFF                   // '?����' 
 	ITEM LONG 0xC0000004
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 ENDCHUNK
 
 SET _help_cno++

@@ -114,7 +114,7 @@ class Background : public Background_PAR
     BMAT34 _bmat34Mouse; // camera matrix for mouse model
     BRA _braRotY;        // Y rotation of current camera
     ChunkNumber _cnoSnd;         // background sound
-    STN _stn;            // name of this background
+    String _stn;            // name of this background
     PDynamicArray _pglclr;         // palette for this background
     byte _bIndexBase;    // first index for palette
     long _iaposLast;     // Last placement point we used
@@ -138,7 +138,7 @@ class Background : public Background_PAR
     static bool FCacheToHD(PTAG ptagBkgd);
     static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~Background(void);
-    void GetName(PSTN pstn);
+    void GetName(PString pstn);
 
     void TurnOnLights(PWorld pbwld);
     void TurnOffLights(void);

@@ -35,7 +35,7 @@ class KWA : public KWA_PAR
     }
     ~KWA(void);
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
-    virtual bool FFindFile(PSTN pstnSrc, PFilename pfni); // for finding AVIs
+    virtual bool FFindFile(PString pstnSrc, PFilename pfni); // for finding AVIs
     virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
     void SetMbmp(PMBMP pmbmp);
     void SetCDPrompt(bool fAskForCD)
@@ -111,10 +111,10 @@ class APP : public APP_PAR
     PStringTable _pgstStudioFiles;
     PStringTable _pgstSharedFiles;
     PStringTable _pgstApp;        // Misc. app global strings
-    STN _stnAppName;      // App name
-    STN _stnProductLong;  // Long version of product name
-    STN _stnProductShort; // Short version of product name
-    STN _stnUser;         // User's name
+    String _stnAppName;      // App name
+    String _stnProductLong;  // Long version of product name
+    String _stnProductShort; // Short version of product name
+    String _stnUser;         // User's name
     long _sidProduct;
     Filename _fniCurrentDir; // fni of current working directory
     Filename _fniExe;        // fni of this executable file
@@ -157,12 +157,12 @@ class APP : public APP_PAR
     void _SkipSpace(char **ppch);
     bool _FEnsureProductNames(void);
     bool _FFindProductDir(PStringTable pgst);
-    bool _FQueryProductExists(STN *pstnLong, STN *pstnShort, Filename *pfni);
+    bool _FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni);
     bool _FFindMsKidsDir(void);
     bool _FFindMsKidsDirAt(Filename *path);
-    bool _FCantFindFileDialog(PSTN pstn);
+    bool _FCantFindFileDialog(PString pstn);
     bool _FGenericError(PSTZ message);
-    bool _FGenericError(PSTN message);
+    bool _FGenericError(PString message);
     bool _FGenericError(Filename *path);
     bool _FGetUserName(void);
     bool _FGetUserDirectories(void);
@@ -218,7 +218,7 @@ class APP : public APP_PAR
     }
 
     // Overridden ApplicationBase functions
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
     virtual long OnnDefVariable(void);
     virtual long DypTextDef(void);
     virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);
@@ -249,7 +249,7 @@ class APP : public APP_PAR
     bool FCmdExitStudio(PCommand pcmd);
     bool FCmdDeactivate(PCommand pcmd);
 
-    static bool FInsertCD(PSTN pstnTitle);
+    static bool FInsertCD(PString pstnTitle);
     void DisplayErrors(void);
     void SetPortfolioDoc(PFilename pfni)
     {
@@ -285,15 +285,15 @@ class APP : public APP_PAR
         return _fMinimized;
     }
 
-    bool FGetStnApp(long ids, PSTN pstn)
+    bool FGetStnApp(long ids, PString pstn)
     {
         return _pgstApp->FFindExtra(&ids, pstn);
     }
-    void GetStnProduct(PSTN pstn)
+    void GetStnProduct(PString pstn)
     {
         *pstn = _stnProductLong;
     }
-    void GetStnUser(PSTN pstn)
+    void GetStnUser(PString pstn)
     {
         *pstn = _stnUser;
     }
@@ -321,7 +321,7 @@ class APP : public APP_PAR
     {
         return _sidProduct;
     }
-    bool FGetOnn(PSTN pstn, long *ponn);
+    bool FGetOnn(PString pstn, long *ponn);
     void MemStat(long *pdwTotalPhys, long *pdwAvailPhys = pvNil);
     bool FSlowCPU(void)
     {
@@ -345,8 +345,8 @@ class APP : public APP_PAR
 #endif //! WIN
         }
     }
-    tribool TModal(PRCA prca, long tpc, PSTN pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
-                   PSTN pstnSubst = pvNil);
+    tribool TModal(PRCA prca, long tpc, PString pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
+                   PString pstnSubst = pvNil);
 
     // Enable/disable accelerator keys
     void DisableAccel(void);

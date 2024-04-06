@@ -220,9 +220,9 @@ AllocatedGroup(4)
 	FREE
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPCopy __HELP_SYMBOL( STN "mbmpCCPCopy" )
+		VAR LONG 'MBMP' mbmpCCPCopy __HELP_SYMBOL( String "mbmpCCPCopy" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPCut __HELP_SYMBOL( STN "mbmpCCPCut" )
+		VAR LONG 'MBMP' mbmpCCPCut __HELP_SYMBOL( String "mbmpCCPCut" )
 ENDCHUNK
 
 SET _help_cno++
@@ -384,7 +384,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 ENDCHUNK
 
 SET _help_cno++
@@ -536,11 +536,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsXY __HELP_SYMBOL( STN "mbmpActorsXY" )
+		VAR LONG 'MBMP' mbmpActorsXY __HELP_SYMBOL( String "mbmpActorsXY" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 ENDCHUNK
 
 SET _help_cno++
@@ -715,7 +715,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 ENDCHUNK
 
 SET _help_cno++
@@ -879,13 +879,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( STN "mbmpRewind" )
+		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( String "mbmpRewind" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpForward __HELP_SYMBOL( STN "mbmpForward" )
+		VAR LONG 'MBMP' mbmpForward __HELP_SYMBOL( String "mbmpForward" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSettingsCameras __HELP_SYMBOL( STN "mbmpSettingsCameras" )
+		VAR LONG 'MBMP' mbmpSettingsCameras __HELP_SYMBOL( String "mbmpSettingsCameras" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSorter __HELP_SYMBOL( STN "mbmpSceneSorter" )
+		VAR LONG 'MBMP' mbmpSceneSorter __HELP_SYMBOL( String "mbmpSceneSorter" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1043,9 +1043,9 @@ PARENT('RTXT', _help_52545854_8, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSorter __HELP_SYMBOL( STN "mbmpSceneSorter" )
+		VAR LONG 'MBMP' mbmpSceneSorter __HELP_SYMBOL( String "mbmpSceneSorter" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortfolio __HELP_SYMBOL( STN "mbmpPortfolio" )
+		VAR LONG 'MBMP' mbmpPortfolio __HELP_SYMBOL( String "mbmpPortfolio" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1204,11 +1204,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( STN "mbmpActorActions" )
+		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( String "mbmpActorActions" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSpletters __HELP_SYMBOL( STN "mbmpActorsSpletters" )
+		VAR LONG 'MBMP' mbmpActorsSpletters __HELP_SYMBOL( String "mbmpActorsSpletters" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1379,11 +1379,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCostume __HELP_SYMBOL( STN "mbmpActorsCostume" )
+		VAR LONG 'MBMP' mbmpActorsCostume __HELP_SYMBOL( String "mbmpActorsCostume" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1559,9 +1559,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( STN "mbmpCutCopyPaste" )
+		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( String "mbmpCutCopyPaste" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPCopyRoute __HELP_SYMBOL( STN "mbmpCCPCopyRoute" )
+		VAR LONG 'MBMP' mbmpCCPCopyRoute __HELP_SYMBOL( String "mbmpCCPCopyRoute" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1724,7 +1724,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSooner __HELP_SYMBOL( STN "mbmpActorsSooner" )
+		VAR LONG 'MBMP' mbmpActorsSooner __HELP_SYMBOL( String "mbmpActorsSooner" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1880,9 +1880,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSquash __HELP_SYMBOL( STN "mbmpActorsSquash" )
+		VAR LONG 'MBMP' mbmpActorsSquash __HELP_SYMBOL( String "mbmpActorsSquash" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( STN "mbmpActorActions" )
+		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( String "mbmpActorActions" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2016,11 +2016,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( STN "mbmpSoundsEfxBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( String "mbmpSoundsEfxBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( STN "mbmpSoundsMicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( String "mbmpSoundsMicBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRecordMic __HELP_SYMBOL( STN "mbmpRecordMic" )
+		VAR LONG 'MBMP' mbmpRecordMic __HELP_SYMBOL( String "mbmpRecordMic" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2169,7 +2169,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesSound __HELP_SYMBOL( STN "mbmpPausesSound" )
+		VAR LONG 'MBMP' mbmpPausesSound __HELP_SYMBOL( String "mbmpPausesSound" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2324,7 +2324,7 @@ PARENT('RTXT', _help_52545854_9, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( STN "mbmpSoundsListen" )
+		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( String "mbmpSoundsListen" )
 ENDCHUNK
 
 SET _help_cno++

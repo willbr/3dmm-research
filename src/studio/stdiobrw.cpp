@@ -649,7 +649,7 @@ void BRWR::_ApplySelection(long thumSelect, long sid)
     PMovieView pmvu;
     PMovie pmvie = _pstdio->Pmvie();
     long arid;
-    STN stn;
+    String stn;
     long cactRef;
 
     long iarid = _IaridFromIthum(thumSelect);

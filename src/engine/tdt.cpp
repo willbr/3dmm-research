@@ -124,7 +124,7 @@ LFail:
 /***************************************************************************
     Create a new TDT
 ***************************************************************************/
-PTDT TDT::PtdtNew(PSTN pstn, long tdts, PTAG ptagTdf)
+PTDT TDT::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertPo(pstn, 0);
     AssertIn(tdts, 0, tdtsLim);
@@ -318,7 +318,7 @@ LFail:
 /***************************************************************************
     Get the name of the given action
 ***************************************************************************/
-bool TDT::FGetActnName(long anid, PSTN pstn)
+bool TDT::FGetActnName(long anid, PString pstn)
 {
     AssertThis(0);
     AssertIn(anid, 0, tdaLim);
@@ -609,7 +609,7 @@ PTDT TDT::PtdtDup(void)
 /***************************************************************************
     Change the text, shape, and/or font of the TDT
 ***************************************************************************/
-bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
+bool TDT::FChange(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -617,7 +617,7 @@ bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
         AssertIn(tdts, 0, tdtsLim);
     AssertNilOrVarMem(ptagTdf);
 
-    STN stnSave;
+    String stnSave;
     long tdtsSave;
     TAG tagTdfSave;
 
@@ -656,7 +656,7 @@ bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
 /***************************************************************************
     Get stats of this TDT
 ***************************************************************************/
-void TDT::GetInfo(PSTN pstn, long *ptdts, PTAG ptagTdf)
+void TDT::GetInfo(PString pstn, long *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);

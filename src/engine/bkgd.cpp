@@ -318,7 +318,7 @@ Background::~Background(void)
 /***************************************************************************
     Get the background's name
 ***************************************************************************/
-void Background::GetName(PSTN pstn)
+void Background::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -587,10 +587,10 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     AssertThis(0);
     Assert(yrPlace == rZero, "are you sure you want non-zero Y?");
 
-    STN stnFile;
+    String stnFile;
     Filename fni;
     PFIL pfil = pvNil;
-    STN stnData;
+    String stnData;
     FP fp;
     long xr1 = BrScalarToInt(xrPlace);
     long xr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(xrPlace - BrIntToScalar(xr1))));

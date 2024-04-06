@@ -82,13 +82,13 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSettingsCameras __HELP_SYMBOL( STN "mbmpSettingsCameras" )
+		VAR LONG 'MBMP' mbmpSettingsCameras __HELP_SYMBOL( String "mbmpSettingsCameras" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -253,17 +253,17 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Change_Camera_Angle __HELP_SYMBOL( STN "Tip___Change_Camera_Angle" )
+		VAR BYTE 3 LONG Tip___Change_Camera_Angle __HELP_SYMBOL( String "Tip___Change_Camera_Angle" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Moving_Scene_to_Scene __HELP_SYMBOL( STN "Tip___Moving_Scene_to_Scene" )
+		VAR BYTE 4 LONG Tip___Moving_Scene_to_Scene __HELP_SYMBOL( String "Tip___Moving_Scene_to_Scene" )
 	ITEM LONG 0xC0000003
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneChoices __HELP_SYMBOL( STN "mbmpSceneChoices" )
+		VAR LONG 'MBMP' mbmpSceneChoices __HELP_SYMBOL( String "mbmpSceneChoices" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___frame __HELP_SYMBOL( STN "Def___frame" )
+		VAR BYTE 1 LONG Def___frame __HELP_SYMBOL( String "Def___frame" )
 ENDCHUNK
 
 SET _help_cno++
@@ -429,12 +429,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSorter __HELP_SYMBOL( STN "mbmpSceneSorter" )
+		VAR LONG 'MBMP' mbmpSceneSorter __HELP_SYMBOL( String "mbmpSceneSorter" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___frame __HELP_SYMBOL( STN "Def___frame" )
+		VAR BYTE 1 LONG Def___frame __HELP_SYMBOL( String "Def___frame" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___transitions __HELP_SYMBOL( STN "Def___transitions" )
+		VAR BYTE 2 LONG Def___transitions __HELP_SYMBOL( String "Def___transitions" )
 ENDCHUNK
 
 SET _help_cno++
@@ -608,9 +608,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 1 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -745,13 +745,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortsNew __HELP_SYMBOL( STN "mbmpPortsNew" )
+		VAR LONG 'MBMP' mbmpPortsNew __HELP_SYMBOL( String "mbmpPortsNew" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Key___New __HELP_SYMBOL( STN "Key___New" )
+		VAR BYTE 2 LONG Key___New __HELP_SYMBOL( String "Key___New" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( STN "Def___portfolio" )
+		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( String "Def___portfolio" )
 ENDCHUNK
 
 SET _help_cno++
@@ -862,17 +862,17 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsBrowser __HELP_SYMBOL( STN "mbmpActorsBrowser" )
+		VAR LONG 'MBMP' mbmpActorsBrowser __HELP_SYMBOL( String "mbmpActorsBrowser" )
 	ITEM LONG 0xC0000002
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Animating __HELP_SYMBOL( STN "Tip___Animating" )
+		VAR BYTE 3 LONG Tip___Animating __HELP_SYMBOL( String "Tip___Animating" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Reposition __HELP_SYMBOL( STN "Tip___Reposition" )
+		VAR BYTE 2 LONG Tip___Reposition __HELP_SYMBOL( String "Tip___Reposition" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1025,13 +1025,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_62, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Key___Open __HELP_SYMBOL( STN "Key___Open" )
+		VAR BYTE 2 LONG Key___Open __HELP_SYMBOL( String "Key___Open" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortfolioOpen __HELP_SYMBOL( STN "mbmpPortfolioOpen" )
+		VAR LONG 'MBMP' mbmpPortfolioOpen __HELP_SYMBOL( String "mbmpPortfolioOpen" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( STN "Def___portfolio" )
+		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( String "Def___portfolio" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1143,15 +1143,15 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsPropBrowser __HELP_SYMBOL( STN "mbmpActorsPropBrowser" )
+		VAR LONG 'MBMP' mbmpActorsPropBrowser __HELP_SYMBOL( String "mbmpActorsPropBrowser" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Reposition __HELP_SYMBOL( STN "Tip___Reposition" )
+		VAR BYTE 2 LONG Tip___Reposition __HELP_SYMBOL( String "Tip___Reposition" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000002
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Animating __HELP_SYMBOL( STN "Tip___Animating" )
+		VAR BYTE 3 LONG Tip___Animating __HELP_SYMBOL( String "Tip___Animating" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1309,15 +1309,15 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSpletters __HELP_SYMBOL( STN "mbmpActorsSpletters" )
+		VAR LONG 'MBMP' mbmpActorsSpletters __HELP_SYMBOL( String "mbmpActorsSpletters" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Animating __HELP_SYMBOL( STN "Tip___Animating" )
+		VAR BYTE 3 LONG Tip___Animating __HELP_SYMBOL( String "Tip___Animating" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Reposition __HELP_SYMBOL( STN "Tip___Reposition" )
+		VAR BYTE 2 LONG Tip___Reposition __HELP_SYMBOL( String "Tip___Reposition" )
 	ITEM LONG 0xC0000002
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1475,9 +1475,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCostume __HELP_SYMBOL( STN "mbmpActorsCostume" )
+		VAR LONG 'MBMP' mbmpActorsCostume __HELP_SYMBOL( String "mbmpActorsCostume" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1625,9 +1625,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsShrink __HELP_SYMBOL( STN "mbmpActorsShrink" )
+		VAR LONG 'MBMP' mbmpActorsShrink __HELP_SYMBOL( String "mbmpActorsShrink" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1793,18 +1793,18 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsShrink __HELP_SYMBOL( STN "mbmpActorsShrink" )
+		VAR LONG 'MBMP' mbmpActorsShrink __HELP_SYMBOL( String "mbmpActorsShrink" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 4 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Size_Tools __HELP_SYMBOL( STN "Def___Size_Tools" )
+		VAR BYTE 2 LONG Def___Size_Tools __HELP_SYMBOL( String "Def___Size_Tools" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1979,18 +1979,18 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSquash __HELP_SYMBOL( STN "mbmpActorsSquash" )
+		VAR LONG 'MBMP' mbmpActorsSquash __HELP_SYMBOL( String "mbmpActorsSquash" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 4 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Size_Tools __HELP_SYMBOL( STN "Def___Size_Tools" )
+		VAR BYTE 2 LONG Def___Size_Tools __HELP_SYMBOL( String "Def___Size_Tools" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2167,12 +2167,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Size_Tools __HELP_SYMBOL( STN "Def___Size_Tools" )
+		VAR BYTE 1 LONG Def___Size_Tools __HELP_SYMBOL( String "Def___Size_Tools" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsNormalizeRot __HELP_SYMBOL( STN "mbmpActorsNormalizeRot" )
+		VAR LONG 'MBMP' mbmpActorsNormalizeRot __HELP_SYMBOL( String "mbmpActorsNormalizeRot" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2337,13 +2337,13 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsRotateY __HELP_SYMBOL( STN "mbmpActorsRotateY" )
+		VAR LONG 'MBMP' mbmpActorsRotateY __HELP_SYMBOL( String "mbmpActorsRotateY" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( STN "Tip___Change_direction" )
+		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( String "Tip___Change_direction" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2521,17 +2521,17 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsRotateY __HELP_SYMBOL( STN "mbmpActorsRotateY" )
+		VAR LONG 'MBMP' mbmpActorsRotateY __HELP_SYMBOL( String "mbmpActorsRotateY" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( STN "Tip___Change_direction" )
+		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( String "Tip___Change_direction" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( STN "Def___Rotate_Tools" )
+		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( String "Def___Rotate_Tools" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2705,17 +2705,17 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsRotateX __HELP_SYMBOL( STN "mbmpActorsRotateX" )
+		VAR LONG 'MBMP' mbmpActorsRotateX __HELP_SYMBOL( String "mbmpActorsRotateX" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( STN "Tip___Change_direction" )
+		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( String "Tip___Change_direction" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( STN "Def___Rotate_Tools" )
+		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( String "Def___Rotate_Tools" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2889,17 +2889,17 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsRotateZ __HELP_SYMBOL( STN "mbmpActorsRotateZ" )
+		VAR LONG 'MBMP' mbmpActorsRotateZ __HELP_SYMBOL( String "mbmpActorsRotateZ" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( STN "Tip___Change_direction" )
+		VAR BYTE 1 LONG Tip___Change_direction __HELP_SYMBOL( String "Tip___Change_direction" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( STN "Def___Rotate_Tools" )
+		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( String "Def___Rotate_Tools" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3073,12 +3073,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsTransformNorm __HELP_SYMBOL( STN "mbmpActorsTransformNorm" )
+		VAR LONG 'MBMP' mbmpActorsTransformNorm __HELP_SYMBOL( String "mbmpActorsTransformNorm" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( STN "Def___Rotate_Tools" )
+		VAR BYTE 2 LONG Def___Rotate_Tools __HELP_SYMBOL( String "Def___Rotate_Tools" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3232,14 +3232,14 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSooner __HELP_SYMBOL( STN "mbmpActorsSooner" )
+		VAR LONG 'MBMP' mbmpActorsSooner __HELP_SYMBOL( String "mbmpActorsSooner" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcHowToActors93 __HELP_SYMBOL( STN "ktpcHowToActors93" )
+		VAR BYTE 1 LONG ktpcHowToActors93 __HELP_SYMBOL( String "ktpcHowToActors93" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___Play_button __HELP_SYMBOL( STN "Def___Play_button" )
+		VAR BYTE 3 LONG Def___Play_button __HELP_SYMBOL( String "Def___Play_button" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___rewind __HELP_SYMBOL( STN "Def___rewind" )
+		VAR BYTE 2 LONG Def___rewind __HELP_SYMBOL( String "Def___rewind" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3424,20 +3424,20 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Reposition_One_Frame __HELP_SYMBOL( STN "Tip___Reposition_One_Frame" )
+		VAR BYTE 4 LONG Tip___Reposition_One_Frame __HELP_SYMBOL( String "Tip___Reposition_One_Frame" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG Tip___Reposition_Entire_Path __HELP_SYMBOL( STN "Tip___Reposition_Entire_Path" )
+		VAR BYTE 5 LONG Tip___Reposition_Entire_Path __HELP_SYMBOL( String "Tip___Reposition_Entire_Path" )
 	ITEM LONG 0xC0000003
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 2 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Move_Up_or_Down_3 __HELP_SYMBOL( STN "Tip___Move_Up_or_Down_3" )
+		VAR BYTE 3 LONG Tip___Move_Up_or_Down_3 __HELP_SYMBOL( String "Tip___Move_Up_or_Down_3" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3687,14 +3687,14 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( STN "mbmpActorActions" )
+		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( String "mbmpActorActions" )
 	FREE
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3863,12 +3863,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 2 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4039,20 +4039,20 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsRecordMode __HELP_SYMBOL( STN "mbmpActorsRecordMode" )
+		VAR LONG 'MBMP' mbmpActorsRecordMode __HELP_SYMBOL( String "mbmpActorsRecordMode" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Turn_on __HELP_SYMBOL( STN "Def___Turn_on" )
+		VAR BYTE 2 LONG Def___Turn_on __HELP_SYMBOL( String "Def___Turn_on" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Key___Replace_Part_Path __HELP_SYMBOL( STN "Key___Replace_Part_Path" )
+		VAR BYTE 4 LONG Key___Replace_Part_Path __HELP_SYMBOL( String "Key___Replace_Part_Path" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4263,18 +4263,18 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsGround __HELP_SYMBOL( STN "mbmpActorsGround" )
+		VAR LONG 'MBMP' mbmpActorsGround __HELP_SYMBOL( String "mbmpActorsGround" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Turn_on __HELP_SYMBOL( STN "Def___Turn_on" )
+		VAR BYTE 2 LONG Def___Turn_on __HELP_SYMBOL( String "Def___Turn_on" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4476,22 +4476,22 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsXY __HELP_SYMBOL( STN "mbmpActorsXY" )
+		VAR LONG 'MBMP' mbmpActorsXY __HELP_SYMBOL( String "mbmpActorsXY" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Turn_on __HELP_SYMBOL( STN "Def___Turn_on" )
+		VAR BYTE 2 LONG Def___Turn_on __HELP_SYMBOL( String "Def___Turn_on" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 3 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( STN "mbmpActorsContinue" )
+		VAR LONG 'MBMP' mbmpActorsContinue __HELP_SYMBOL( String "mbmpActorsContinue" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Key___Up_Down __HELP_SYMBOL( STN "Key___Up_Down" )
+		VAR BYTE 4 LONG Key___Up_Down __HELP_SYMBOL( String "Key___Up_Down" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4687,7 +4687,7 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsBiography __HELP_SYMBOL( STN "mbmpActorsBiography" )
+		VAR LONG 'MBMP' mbmpActorsBiography __HELP_SYMBOL( String "mbmpActorsBiography" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5129,13 +5129,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( STN "Def___portfolio" )
+		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( String "Def___portfolio" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortsSave __HELP_SYMBOL( STN "mbmpPortsSave" )
+		VAR LONG 'MBMP' mbmpPortsSave __HELP_SYMBOL( String "mbmpPortsSave" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Key___Save __HELP_SYMBOL( STN "Key___Save" )
+		VAR BYTE 2 LONG Key___Save __HELP_SYMBOL( String "Key___Save" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5245,21 +5245,21 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( STN "mbmpSoundsEfxBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( String "mbmpSoundsEfxBrowser" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Attach_Action __HELP_SYMBOL( STN "Tip___Attach_Action" )
+		VAR BYTE 3 LONG Tip___Attach_Action __HELP_SYMBOL( String "Tip___Attach_Action" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG Tip___Play_continuously __HELP_SYMBOL( STN "Tip___Play_continuously" )
+		VAR BYTE 5 LONG Tip___Play_continuously __HELP_SYMBOL( String "Tip___Play_continuously" )
 	ITEM LONG 0xC0000003
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Import __HELP_SYMBOL( STN "Def___Import" )
+		VAR BYTE 1 LONG Def___Import __HELP_SYMBOL( String "Def___Import" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Chaining_sounds __HELP_SYMBOL( STN "Tip___Chaining_sounds" )
+		VAR BYTE 4 LONG Tip___Chaining_sounds __HELP_SYMBOL( String "Tip___Chaining_sounds" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5452,21 +5452,21 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000003
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( STN "mbmpSoundsMicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( String "mbmpSoundsMicBrowser" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Attach_Action __HELP_SYMBOL( STN "Tip___Attach_Action" )
+		VAR BYTE 3 LONG Tip___Attach_Action __HELP_SYMBOL( String "Tip___Attach_Action" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Import __HELP_SYMBOL( STN "Def___Import" )
+		VAR BYTE 1 LONG Def___Import __HELP_SYMBOL( String "Def___Import" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Chaining_sounds __HELP_SYMBOL( STN "Tip___Chaining_sounds" )
+		VAR BYTE 4 LONG Tip___Chaining_sounds __HELP_SYMBOL( String "Tip___Chaining_sounds" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG Tip___Pause_Sound __HELP_SYMBOL( STN "Tip___Pause_Sound" )
+		VAR BYTE 5 LONG Tip___Pause_Sound __HELP_SYMBOL( String "Tip___Pause_Sound" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5649,19 +5649,19 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Play_continuously __HELP_SYMBOL( STN "Tip___Play_continuously" )
+		VAR BYTE 3 LONG Tip___Play_continuously __HELP_SYMBOL( String "Tip___Play_continuously" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMusicBrowser __HELP_SYMBOL( STN "mbmpSoundsMusicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMusicBrowser __HELP_SYMBOL( String "mbmpSoundsMusicBrowser" )
 	ITEM LONG 0xC0000002
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Stop_sound __HELP_SYMBOL( STN "Tip___Stop_sound" )
+		VAR BYTE 4 LONG Tip___Stop_sound __HELP_SYMBOL( String "Tip___Stop_sound" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Import __HELP_SYMBOL( STN "Def___Import" )
+		VAR BYTE 1 LONG Def___Import __HELP_SYMBOL( String "Def___Import" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5828,21 +5828,21 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsPlayOnce __HELP_SYMBOL( STN "mbmpSoundsPlayOnce" )
+		VAR LONG 'MBMP' mbmpSoundsPlayOnce __HELP_SYMBOL( String "mbmpSoundsPlayOnce" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Chaining_sounds __HELP_SYMBOL( STN "Tip___Chaining_sounds" )
+		VAR BYTE 3 LONG Tip___Chaining_sounds __HELP_SYMBOL( String "Tip___Chaining_sounds" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000003
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Choose_sound __HELP_SYMBOL( STN "Def___Choose_sound" )
+		VAR BYTE 2 LONG Def___Choose_sound __HELP_SYMBOL( String "Def___Choose_sound" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG Tip___Stop_sound __HELP_SYMBOL( STN "Tip___Stop_sound" )
+		VAR BYTE 5 LONG Tip___Stop_sound __HELP_SYMBOL( String "Tip___Stop_sound" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___How_many_sounds __HELP_SYMBOL( STN "Tip___How_many_sounds" )
+		VAR BYTE 4 LONG Tip___How_many_sounds __HELP_SYMBOL( String "Tip___How_many_sounds" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6016,18 +6016,18 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000002
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsLooping __HELP_SYMBOL( STN "mbmpSoundsLooping" )
+		VAR LONG 'MBMP' mbmpSoundsLooping __HELP_SYMBOL( String "mbmpSoundsLooping" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Choose_sound __HELP_SYMBOL( STN "Def___Choose_sound" )
+		VAR BYTE 2 LONG Def___Choose_sound __HELP_SYMBOL( String "Def___Choose_sound" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___How_many_sounds __HELP_SYMBOL( STN "Tip___How_many_sounds" )
+		VAR BYTE 3 LONG Tip___How_many_sounds __HELP_SYMBOL( String "Tip___How_many_sounds" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Stop_sound __HELP_SYMBOL( STN "Tip___Stop_sound" )
+		VAR BYTE 4 LONG Tip___Stop_sound __HELP_SYMBOL( String "Tip___Stop_sound" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6196,15 +6196,15 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsAttachToCell __HELP_SYMBOL( STN "mbmpSoundsAttachToCell" )
+		VAR LONG 'MBMP' mbmpSoundsAttachToCell __HELP_SYMBOL( String "mbmpSoundsAttachToCell" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Choose_sound __HELP_SYMBOL( STN "Def___Choose_sound" )
+		VAR BYTE 2 LONG Def___Choose_sound __HELP_SYMBOL( String "Def___Choose_sound" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___How_many_sounds __HELP_SYMBOL( STN "Tip___How_many_sounds" )
+		VAR BYTE 3 LONG Tip___How_many_sounds __HELP_SYMBOL( String "Tip___How_many_sounds" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6384,10 +6384,10 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( STN "mbmpSoundsListen" )
+		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( String "mbmpSoundsListen" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6559,9 +6559,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_54, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( STN "Def___portfolio" )
+		VAR BYTE 1 LONG Def___portfolio __HELP_SYMBOL( String "Def___portfolio" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortfolioSaveAs __HELP_SYMBOL( STN "mbmpPortfolioSaveAs" )
+		VAR LONG 'MBMP' mbmpPortfolioSaveAs __HELP_SYMBOL( String "mbmpPortfolioSaveAs" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6683,20 +6683,20 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsCreate __HELP_SYMBOL( STN "mbmpTextsCreate" )
+		VAR LONG 'MBMP' mbmpTextsCreate __HELP_SYMBOL( String "mbmpTextsCreate" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Making_words_scroll __HELP_SYMBOL( STN "Tip___Making_words_scroll" )
+		VAR BYTE 4 LONG Tip___Making_words_scroll __HELP_SYMBOL( String "Tip___Making_words_scroll" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( STN )
+		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( String )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Typing_hints __HELP_SYMBOL( STN "Tip___Typing_hints" )
+		VAR BYTE 3 LONG Tip___Typing_hints __HELP_SYMBOL( String "Tip___Typing_hints" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___scroll __HELP_SYMBOL( STN "Def___scroll" )
+		VAR BYTE 2 LONG Def___scroll __HELP_SYMBOL( String "Def___scroll" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6876,14 +6876,14 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsSelect __HELP_SYMBOL( STN "mbmpTextsSelect" )
+		VAR LONG 'MBMP' mbmpTextsSelect __HELP_SYMBOL( String "mbmpTextsSelect" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 2 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -7087,12 +7087,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsFont __HELP_SYMBOL( STN "mbmpTextsFont" )
+		VAR LONG 'MBMP' mbmpTextsFont __HELP_SYMBOL( String "mbmpTextsFont" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -7241,12 +7241,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsFontShape __HELP_SYMBOL( STN "mbmpTextsFontShape" )
+		VAR LONG 'MBMP' mbmpTextsFontShape __HELP_SYMBOL( String "mbmpTextsFontShape" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -7398,12 +7398,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsFontSize __HELP_SYMBOL( STN "mbmpTextsFontSize" )
+		VAR LONG 'MBMP' mbmpTextsFontSize __HELP_SYMBOL( String "mbmpTextsFontSize" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -7553,12 +7553,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsFontColor __HELP_SYMBOL( STN "mbmpTextsFontColor" )
+		VAR LONG 'MBMP' mbmpTextsFontColor __HELP_SYMBOL( String "mbmpTextsFontColor" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 2 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -7707,9 +7707,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsBkgdColor __HELP_SYMBOL( STN "mbmpTextsBkgdColor" )
+		VAR LONG 'MBMP' mbmpTextsBkgdColor __HELP_SYMBOL( String "mbmpTextsBkgdColor" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -7860,12 +7860,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsScrollType __HELP_SYMBOL( STN "mbmpTextsScrollType" )
+		VAR LONG 'MBMP' mbmpTextsScrollType __HELP_SYMBOL( String "mbmpTextsScrollType" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___scroll __HELP_SYMBOL( STN "Def___scroll" )
+		VAR BYTE 1 LONG Def___scroll __HELP_SYMBOL( String "Def___scroll" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8026,16 +8026,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsScrollType __HELP_SYMBOL( STN "mbmpTextsScrollType" )
+		VAR LONG 'MBMP' mbmpTextsScrollType __HELP_SYMBOL( String "mbmpTextsScrollType" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___scroll __HELP_SYMBOL( STN "Def___scroll" )
+		VAR BYTE 1 LONG Def___scroll __HELP_SYMBOL( String "Def___scroll" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( STN )
+		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( String )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Making_words_scroll __HELP_SYMBOL( STN "Tip___Making_words_scroll" )
+		VAR BYTE 3 LONG Tip___Making_words_scroll __HELP_SYMBOL( String "Tip___Making_words_scroll" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8200,10 +8200,10 @@ AllocatedGroup(4)
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFONonScrolling __HELP_SYMBOL( STN "mbmpFONonScrolling" )
+		VAR LONG 'MBMP' mbmpFONonScrolling __HELP_SYMBOL( String "mbmpFONonScrolling" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8350,13 +8350,13 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 1 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip___Add_frames __HELP_SYMBOL( STN "Tip___Add_frames" )
+		VAR BYTE 1 LONG Tip___Add_frames __HELP_SYMBOL( String "Tip___Add_frames" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8501,14 +8501,14 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesMouse __HELP_SYMBOL( STN "mbmpPausesMouse" )
+		VAR LONG 'MBMP' mbmpPausesMouse __HELP_SYMBOL( String "mbmpPausesMouse" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Remove_pause __HELP_SYMBOL( STN "Tip___Remove_pause" )
+		VAR BYTE 2 LONG Tip___Remove_pause __HELP_SYMBOL( String "Tip___Remove_pause" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8656,16 +8656,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesSound __HELP_SYMBOL( STN "mbmpPausesSound" )
+		VAR LONG 'MBMP' mbmpPausesSound __HELP_SYMBOL( String "mbmpPausesSound" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___frame __HELP_SYMBOL( STN "Def___frame" )
+		VAR BYTE 1 LONG Def___frame __HELP_SYMBOL( String "Def___frame" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 2 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___Turn_on __HELP_SYMBOL( STN "Def___Turn_on" )
+		VAR BYTE 3 LONG Def___Turn_on __HELP_SYMBOL( String "Def___Turn_on" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8837,9 +8837,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesClear __HELP_SYMBOL( STN "mbmpPausesClear" )
+		VAR LONG 'MBMP' mbmpPausesClear __HELP_SYMBOL( String "mbmpPausesClear" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 ENDCHUNK
 
 SET _help_cno++
@@ -8968,9 +8968,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( STN "mbmpPlay" )
+		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( String "mbmpPlay" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPlayStop __HELP_SYMBOL( STN "mbmpPlayStop" )
+		VAR LONG 'MBMP' mbmpPlayStop __HELP_SYMBOL( String "mbmpPlayStop" )
 ENDCHUNK
 
 SET _help_cno++
@@ -9131,14 +9131,14 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Individual_Sounds __HELP_SYMBOL( STN "Tip___Individual_Sounds" )
+		VAR BYTE 2 LONG Tip___Individual_Sounds __HELP_SYMBOL( String "Tip___Individual_Sounds" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpVolumeControl __HELP_SYMBOL( STN "mbmpVolumeControl" )
+		VAR LONG 'MBMP' mbmpVolumeControl __HELP_SYMBOL( String "mbmpVolumeControl" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Drag __HELP_SYMBOL( STN "Def___Drag" )
+		VAR BYTE 1 LONG Def___Drag __HELP_SYMBOL( String "Def___Drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -9271,13 +9271,13 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpUndo __HELP_SYMBOL( STN "mbmpUndo" )
+		VAR LONG 'MBMP' mbmpUndo __HELP_SYMBOL( String "mbmpUndo" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRedo __HELP_SYMBOL( STN "mbmpRedo" )
+		VAR LONG 'MBMP' mbmpRedo __HELP_SYMBOL( String "mbmpRedo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Key___Undo __HELP_SYMBOL( STN "Key___Undo" )
+		VAR BYTE 1 LONG Key___Undo __HELP_SYMBOL( String "Key___Undo" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 ENDCHUNK
 
 SET _help_cno++
@@ -9411,7 +9411,7 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( STN "mbmpCutCopyPaste" )
+		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( String "mbmpCutCopyPaste" )
 ENDCHUNK
 
 SET _help_cno++
@@ -9550,13 +9550,13 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPRemoveBefore __HELP_SYMBOL( STN "mbmpCCPRemoveBefore" )
+		VAR LONG 'MBMP' mbmpCCPRemoveBefore __HELP_SYMBOL( String "mbmpCCPRemoveBefore" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 ENDCHUNK
 
 SET _help_cno++
@@ -9723,14 +9723,14 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPRemoveAfter __HELP_SYMBOL( STN "mbmpCCPRemoveAfter" )
+		VAR LONG 'MBMP' mbmpCCPRemoveAfter __HELP_SYMBOL( String "mbmpCCPRemoveAfter" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 2 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 ENDCHUNK
 
 SET _help_cno++
@@ -9898,16 +9898,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPRemoveScene __HELP_SYMBOL( STN "mbmpCCPRemoveScene" )
+		VAR LONG 'MBMP' mbmpCCPRemoveScene __HELP_SYMBOL( String "mbmpCCPRemoveScene" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Move_to_scene __HELP_SYMBOL( STN "Def___Move_to_scene" )
+		VAR BYTE 1 LONG Def___Move_to_scene __HELP_SYMBOL( String "Def___Move_to_scene" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -10062,16 +10062,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPRemoveObject __HELP_SYMBOL( STN "mbmpCCPRemoveObject" )
+		VAR LONG 'MBMP' mbmpCCPRemoveObject __HELP_SYMBOL( String "mbmpCCPRemoveObject" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -10237,16 +10237,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCutWordBox __HELP_SYMBOL( STN "mbmpCutWordBox" )
+		VAR LONG 'MBMP' mbmpCutWordBox __HELP_SYMBOL( String "mbmpCutWordBox" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -10407,16 +10407,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPCopyRoute __HELP_SYMBOL( STN "mbmpCCPCopyRoute" )
+		VAR LONG 'MBMP' mbmpCCPCopyRoute __HELP_SYMBOL( String "mbmpCCPCopyRoute" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -10590,18 +10590,18 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPPaste __HELP_SYMBOL( STN "mbmpCCPPaste" )
+		VAR LONG 'MBMP' mbmpCCPPaste __HELP_SYMBOL( String "mbmpCCPPaste" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Key___Paste __HELP_SYMBOL( STN "Key___Paste" )
+		VAR BYTE 3 LONG Key___Paste __HELP_SYMBOL( String "Key___Paste" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 ENDCHUNK
 
 SET _help_cno++
@@ -10741,19 +10741,19 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPCopy __HELP_SYMBOL( STN "mbmpCCPCopy" )
+		VAR LONG 'MBMP' mbmpCCPCopy __HELP_SYMBOL( String "mbmpCCPCopy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Copy_until_end_of_scene __HELP_SYMBOL( STN "Tip___Copy_until_end_of_scene" )
+		VAR BYTE 4 LONG Tip___Copy_until_end_of_scene __HELP_SYMBOL( String "Tip___Copy_until_end_of_scene" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 ENDCHUNK
 
 SET _help_cno++
@@ -10937,19 +10937,19 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG Tip___Cut_until_end_of_scene __HELP_SYMBOL( STN "Tip___Cut_until_end_of_scene" )
+		VAR BYTE 4 LONG Tip___Cut_until_end_of_scene __HELP_SYMBOL( String "Tip___Cut_until_end_of_scene" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCCPCut __HELP_SYMBOL( STN "mbmpCCPCut" )
+		VAR LONG 'MBMP' mbmpCCPCut __HELP_SYMBOL( String "mbmpCCPCut" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( STN "Def___drag" )
+		VAR BYTE 3 LONG Def___drag __HELP_SYMBOL( String "Def___drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11125,7 +11125,7 @@ AllocatedGroup(4)
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortfolio __HELP_SYMBOL( STN "mbmpPortfolio" )
+		VAR LONG 'MBMP' mbmpPortfolio __HELP_SYMBOL( String "mbmpPortfolio" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11270,12 +11270,12 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpExit __HELP_SYMBOL( STN "mbmpExit" )
+		VAR LONG 'MBMP' mbmpExit __HELP_SYMBOL( String "mbmpExit" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Key___Exit __HELP_SYMBOL( STN "Key___Exit" )
+		VAR BYTE 1 LONG Key___Exit __HELP_SYMBOL( String "Key___Exit" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11380,11 +11380,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_34, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpUndo __HELP_SYMBOL( STN "mbmpUndo" )
+		VAR LONG 'MBMP' mbmpUndo __HELP_SYMBOL( String "mbmpUndo" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRedo __HELP_SYMBOL( STN "mbmpRedo" )
+		VAR LONG 'MBMP' mbmpRedo __HELP_SYMBOL( String "mbmpRedo" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11496,7 +11496,7 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11616,9 +11616,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSettingsCameras __HELP_SYMBOL( STN "mbmpSettingsCameras" )
+		VAR LONG 'MBMP' mbmpSettingsCameras __HELP_SYMBOL( String "mbmpSettingsCameras" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11733,11 +11733,11 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpBook __HELP_SYMBOL( STN "mbmpBook" )
+		VAR LONG 'MBMP' mbmpBook __HELP_SYMBOL( String "mbmpBook" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Key___Help __HELP_SYMBOL( STN "Key___Help" )
+		VAR BYTE 1 LONG Key___Help __HELP_SYMBOL( String "Key___Help" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11856,12 +11856,12 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpMap __HELP_SYMBOL( STN "mbmpMap" )
+		VAR LONG 'MBMP' mbmpMap __HELP_SYMBOL( String "mbmpMap" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipKey" )
+		VAR LONG 'GOKD' _gobTipKey 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipKey" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Key___Map __HELP_SYMBOL( STN "Key___Map" )
+		VAR BYTE 1 LONG Key___Map __HELP_SYMBOL( String "Key___Map" )
 ENDCHUNK
 
 SET _help_cno++
@@ -11975,7 +11975,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0x2000004
 		VAR
 			BYTE
@@ -11983,7 +11983,7 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12105,7 +12105,7 @@ PARENT('RTXT', _help_52545854_37, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12199,9 +12199,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( STN "mbmpActorsCompose" )
+		VAR LONG 'MBMP' mbmpActorsCompose __HELP_SYMBOL( String "mbmpActorsCompose" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12347,9 +12347,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_49, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( STN "mbmpActorActions" )
+		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( String "mbmpActorActions" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12489,7 +12489,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_15, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12581,7 +12581,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_45, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsShrink __HELP_SYMBOL( STN "mbmpActorsShrink" )
+		VAR LONG 'MBMP' mbmpActorsShrink __HELP_SYMBOL( String "mbmpActorsShrink" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12664,7 +12664,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsRotateY __HELP_SYMBOL( STN "mbmpActorsRotateY" )
+		VAR LONG 'MBMP' mbmpActorsRotateY __HELP_SYMBOL( String "mbmpActorsRotateY" )
 ENDCHUNK
 
 SET _help_cno++
@@ -12954,9 +12954,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13091,9 +13091,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_59, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13201,7 +13201,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_52, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( STN "mbmpPlay" )
+		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( String "mbmpPlay" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13282,7 +13282,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13391,7 +13391,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_28, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13497,7 +13497,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13617,10 +13617,10 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_21, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( STN "mbmpActorActions" )
+		VAR LONG 'MBMP' mbmpActorActions __HELP_SYMBOL( String "mbmpActorActions" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13763,7 +13763,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_9, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -13993,7 +13993,7 @@ PARENT('RTXT', _help_52545854_57, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14099,11 +14099,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( STN "mbmpRewind" )
+		VAR LONG 'MBMP' mbmpRewind __HELP_SYMBOL( String "mbmpRewind" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpForward __HELP_SYMBOL( STN "mbmpForward" )
+		VAR LONG 'MBMP' mbmpForward __HELP_SYMBOL( String "mbmpForward" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14245,7 +14245,7 @@ AllocatedGroup(4)
 	FREE
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14358,7 +14358,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_26, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14449,7 +14449,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14542,9 +14542,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsLooping __HELP_SYMBOL( STN "mbmpSoundsLooping" )
+		VAR LONG 'MBMP' mbmpSoundsLooping __HELP_SYMBOL( String "mbmpSoundsLooping" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14659,9 +14659,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_13, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsAttachToCell __HELP_SYMBOL( STN "mbmpSoundsAttachToCell" )
+		VAR LONG 'MBMP' mbmpSoundsAttachToCell __HELP_SYMBOL( String "mbmpSoundsAttachToCell" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14792,9 +14792,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_60, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( STN "mbmpSoundsListen" )
+		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( String "mbmpSoundsListen" )
 ENDCHUNK
 
 SET _help_cno++
@@ -14909,9 +14909,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_30, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesSound __HELP_SYMBOL( STN "mbmpPausesSound" )
+		VAR LONG 'MBMP' mbmpPausesSound __HELP_SYMBOL( String "mbmpPausesSound" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15038,10 +15038,10 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_24, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesMouse __HELP_SYMBOL( STN "mbmpPausesMouse" )
+		VAR LONG 'MBMP' mbmpPausesMouse __HELP_SYMBOL( String "mbmpPausesMouse" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15161,7 +15161,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15278,11 +15278,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( STN "mbmpCutCopyPaste" )
+		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( String "mbmpCutCopyPaste" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCutWordBox __HELP_SYMBOL( STN "mbmpCutWordBox" )
+		VAR LONG 'MBMP' mbmpCutWordBox __HELP_SYMBOL( String "mbmpCutWordBox" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15488,13 +15488,13 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPausesClear __HELP_SYMBOL( STN "mbmpPausesClear" )
+		VAR LONG 'MBMP' mbmpPausesClear __HELP_SYMBOL( String "mbmpPausesClear" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15630,9 +15630,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_20, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( STN "mbmpSoundsListen" )
+		VAR LONG 'MBMP' mbmpSoundsListen __HELP_SYMBOL( String "mbmpSoundsListen" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15742,7 +15742,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_17, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15850,7 +15850,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_18, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( STN "mbmpCutCopyPaste" )
+		VAR LONG 'MBMP' mbmpCutCopyPaste __HELP_SYMBOL( String "mbmpCutCopyPaste" )
 ENDCHUNK
 
 SET _help_cno++
@@ -15933,7 +15933,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_35, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 	ITEM LONG 0x2000002
 		VAR
 			BYTE
@@ -15941,7 +15941,7 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16059,7 +16059,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_41, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0x2000002
 		VAR
 			BYTE
@@ -16067,9 +16067,9 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( STN "mbmpSceneSlider" )
+		VAR LONG 'MBMP' mbmpSceneSlider __HELP_SYMBOL( String "mbmpSceneSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16212,7 +16212,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_69, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16304,7 +16304,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16407,7 +16407,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16508,7 +16508,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_14, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16600,7 +16600,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16689,13 +16689,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( STN "mbmpSoundsEfxBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( String "mbmpSoundsEfxBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( STN "mbmpSoundsMicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( String "mbmpSoundsMicBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMusicBrowser __HELP_SYMBOL( STN "mbmpSoundsMusicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMusicBrowser __HELP_SYMBOL( String "mbmpSoundsMusicBrowser" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16820,11 +16820,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_43, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( STN "mbmpSoundsEfxBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsEfxBrowser __HELP_SYMBOL( String "mbmpSoundsEfxBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( STN "mbmpSoundsMicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMicBrowser __HELP_SYMBOL( String "mbmpSoundsMicBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundsMusicBrowser __HELP_SYMBOL( STN "mbmpSoundsMusicBrowser" )
+		VAR LONG 'MBMP' mbmpSoundsMusicBrowser __HELP_SYMBOL( String "mbmpSoundsMusicBrowser" )
 ENDCHUNK
 
 SET _help_cno++
@@ -16932,7 +16932,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPortfolio __HELP_SYMBOL( STN "mbmpPortfolio" )
+		VAR LONG 'MBMP' mbmpPortfolio __HELP_SYMBOL( String "mbmpPortfolio" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17013,7 +17013,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17120,7 +17120,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17250,7 +17250,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_48, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17436,13 +17436,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSOTransition1 __HELP_SYMBOL( STN "mbmpSOTransition1" )
+		VAR LONG 'MBMP' mbmpSOTransition1 __HELP_SYMBOL( String "mbmpSOTransition1" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSOTransition2 __HELP_SYMBOL( STN "mbmpSOTransition2" )
+		VAR LONG 'MBMP' mbmpSOTransition2 __HELP_SYMBOL( String "mbmpSOTransition2" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSOTransition3 __HELP_SYMBOL( STN "mbmpSOTransition3" )
+		VAR LONG 'MBMP' mbmpSOTransition3 __HELP_SYMBOL( String "mbmpSOTransition3" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSOTransition4 __HELP_SYMBOL( STN "mbmpSOTransition4" )
+		VAR LONG 'MBMP' mbmpSOTransition4 __HELP_SYMBOL( String "mbmpSOTransition4" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17549,16 +17549,16 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( STN "Tip___Undo" )
+		VAR BYTE 3 LONG Tip___Undo __HELP_SYMBOL( String "Tip___Undo" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( STN "Def___Go_to_the_place" )
+		VAR BYTE 1 LONG Def___Go_to_the_place __HELP_SYMBOL( String "Def___Go_to_the_place" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( STN "Def___Cut_Copy_Paste" )
+		VAR BYTE 2 LONG Def___Cut_Copy_Paste __HELP_SYMBOL( String "Def___Cut_Copy_Paste" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpNukeSound __HELP_SYMBOL( STN "mbmpNukeSound" )
+		VAR LONG 'MBMP' mbmpNukeSound __HELP_SYMBOL( String "mbmpNukeSound" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17718,7 +17718,7 @@ PARENT('RTXT', _help_52545854_7A, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( STN "helppic1020_bmp" )
+		VAR LONG 'MBMP' helppic1020_bmp __HELP_SYMBOL( String "helppic1020_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17812,10 +17812,10 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_80, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( STN "mbmpPlay" )
+		VAR LONG 'MBMP' mbmpPlay __HELP_SYMBOL( String "mbmpPlay" )
 ENDCHUNK
 
 SET _help_cno++
@@ -17939,7 +17939,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -18044,9 +18044,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_11, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsGround __HELP_SYMBOL( STN "mbmpActorsGround" )
+		VAR LONG 'MBMP' mbmpActorsGround __HELP_SYMBOL( String "mbmpActorsGround" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++

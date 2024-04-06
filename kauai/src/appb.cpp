@@ -84,7 +84,7 @@ void ApplicationBase::Quit(bool fForce)
 /***************************************************************************
     Return a default app name.
 ***************************************************************************/
-void ApplicationBase::GetStnAppName(PSTN pstn)
+void ApplicationBase::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -278,7 +278,7 @@ long ApplicationBase::OnnDefVariable(void)
 
     if (_onnDefVariable == onnNil)
     {
-        STN stn;
+        String stn;
 
         stn = MacWin(PszLit("New York"), PszLit("Times New Roman"));
         if (!vntl.FGetOnn(&stn, &_onnDefVariable))
@@ -296,7 +296,7 @@ long ApplicationBase::OnnDefFixed(void)
 
     if (_onnDefFixed == onnNil)
     {
-        STN stn;
+        String stn;
 
         stn = MacWin(PszLit("Courier"), PszLit("Courier New"));
         if (!vntl.FGetOnn(&stn, &_onnDefFixed))
@@ -1674,8 +1674,8 @@ void ApplicationBase::BadModalCmd(PCommand pcmd)
 tribool ApplicationBase::TQuerySaveDoc(PDocumentBase pdocb, bool fForce)
 {
     AssertThis(0);
-    STN stn;
-    STN stnName;
+    String stn;
+    String stnName;
 
     pdocb->GetName(&stnName);
     stn.FFormatSz(PszLit("Save changes to \"%s\" before closing?"), &stnName);
@@ -1796,9 +1796,9 @@ void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
     static PFIL _pfilWarn;
     static bool _fInWarn;
     static FP _fpCur;
-    STN stn;
-    STN stnFile;
-    STN stnMsg;
+    String stn;
+    String stnFile;
+    String stnMsg;
 
     if (_fInWarn)
         return;

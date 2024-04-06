@@ -287,7 +287,7 @@ struct THD
     ChunkNumber cno;       // KidspaceGraphicObjectDescriptor cno
     ChildChunkID chidThum; // KidspaceGraphicObjectDescriptor's parent's ChildChunkID (relative to KidspaceGraphicObjectDescriptor parent's parent)
     long ithd;     // Original index for this THD, before sorting (used to
-                   // retrieve proper STN for the BRWN-derived browsers)
+                   // retrieve proper String for the BRWN-derived browsers)
 };
 
 /* Browser Content List Base --  create one of these when you want a list of a
@@ -697,7 +697,7 @@ class BRWM : public BRWM_PAR
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type
     void _ProcessSelection(void); // Sound Preview
-    bool _FAddThd(STN *pstn, ChunkIdentification *pcki);
+    bool _FAddThd(String *pstn, ChunkIdentification *pcki);
     bool _FSndListed(ChunkNumber cno, long *pithd = pvNil);
 
   public:

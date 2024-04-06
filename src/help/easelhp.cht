@@ -80,9 +80,9 @@ AllocatedGroup(4)
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktpcEaselHelp2F __HELP_SYMBOL( STN "ktpcEaselHelp2F" )
+		VAR BYTE 2 LONG ktpcEaselHelp2F __HELP_SYMBOL( String "ktpcEaselHelp2F" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp2E __HELP_SYMBOL( STN "ktpcEaselHelp2E" )
+		VAR BYTE 1 LONG ktpcEaselHelp2E __HELP_SYMBOL( String "ktpcEaselHelp2E" )
 ENDCHUNK
 
 SET _help_cno++
@@ -541,7 +541,7 @@ PARENT('RTXT', _help_52545854_31, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( STN "ktpcEaselHelp2F" )
+		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( String "ktpcEaselHelp2F" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1039,7 +1039,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1641,12 +1641,12 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_12, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( STN )
+		VAR LONG 'GOKD' 0x16102 0xFFFFFFFF __HELP_SYMBOL( String )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp3B __HELP_SYMBOL( STN "ktpcEaselHelp3B" )
+		VAR BYTE 1 LONG ktpcEaselHelp3B __HELP_SYMBOL( String "ktpcEaselHelp3B" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( STN "ktpcEaselHelp2F" )
+		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( String "ktpcEaselHelp2F" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2542,7 +2542,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1F, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundRecord __HELP_SYMBOL( STN "mbmpSoundRecord" )
+		VAR LONG 'MBMP' mbmpSoundRecord __HELP_SYMBOL( String "mbmpSoundRecord" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3724,9 +3724,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_16, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp3F __HELP_SYMBOL( STN "ktpcEaselHelp3F" )
+		VAR BYTE 1 LONG ktpcEaselHelp3F __HELP_SYMBOL( String "ktpcEaselHelp3F" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' 0x16104 0xFFFFFFFF __HELP_SYMBOL( STN )
+		VAR LONG 'GOKD' 0x16104 0xFFFFFFFF __HELP_SYMBOL( String )
 ENDCHUNK
 
 SET _help_cno++
@@ -3826,7 +3826,7 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( STN "mbmpFrameSlider" )
+		VAR LONG 'MBMP' mbmpFrameSlider __HELP_SYMBOL( String "mbmpFrameSlider" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4208,15 +4208,15 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_13, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 4 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktpcEaselHelp2F __HELP_SYMBOL( STN "ktpcEaselHelp2F" )
+		VAR BYTE 2 LONG ktpcEaselHelp2F __HELP_SYMBOL( String "ktpcEaselHelp2F" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp2E __HELP_SYMBOL( STN "ktpcEaselHelp2E" )
+		VAR BYTE 1 LONG ktpcEaselHelp2E __HELP_SYMBOL( String "ktpcEaselHelp2E" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4326,9 +4326,9 @@ PARENT('RTXT', _help_52545854_30, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4424,12 +4424,12 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_35, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 2 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( STN "ktpcEaselHelp2F" )
+		VAR BYTE 1 LONG ktpcEaselHelp2F __HELP_SYMBOL( String "ktpcEaselHelp2F" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4540,10 +4540,10 @@ PARENT('RTXT', _help_52545854_3D, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4644,9 +4644,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_34, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 3 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4740,11 +4740,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_32, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSoundRecord __HELP_SYMBOL( STN "mbmpSoundRecord" )
+		VAR LONG 'MBMP' mbmpSoundRecord __HELP_SYMBOL( String "mbmpSoundRecord" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4857,9 +4857,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4951,9 +4951,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_33, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 1 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5045,15 +5045,15 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_25, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' 0x16104 0xFFFFFFFF __HELP_SYMBOL( STN )
+		VAR LONG 'GOKD' 0x16104 0xFFFFFFFF __HELP_SYMBOL( String )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktpcEaselHelp0C __HELP_SYMBOL( STN "ktpcEaselHelp0C" )
+		VAR BYTE 2 LONG ktpcEaselHelp0C __HELP_SYMBOL( String "ktpcEaselHelp0C" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktpcEaselHelp3F __HELP_SYMBOL( STN "ktpcEaselHelp3F" )
+		VAR BYTE 1 LONG ktpcEaselHelp3F __HELP_SYMBOL( String "ktpcEaselHelp3F" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5151,9 +5151,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpNukeSound __HELP_SYMBOL( STN "mbmpNukeSound" )
+		VAR LONG 'MBMP' mbmpNukeSound __HELP_SYMBOL( String "mbmpNukeSound" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5474,7 +5474,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_38, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++

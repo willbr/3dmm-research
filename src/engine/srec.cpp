@@ -389,7 +389,7 @@ bool SREC::FSave(PFilename pfni)
     AssertThis(0);
     Assert(_fHaveSound, "Nothing to save!");
 
-    STN stn;
+    String stn;
 
     if (_psnd)
     {

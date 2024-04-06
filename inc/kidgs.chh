@@ -454,7 +454,7 @@
 		__PACK \
 		PARENT( kctgGokd,  _curgok,  _chid ) \
 		BYTE _fWindowed \
-		STN _szFilename \
+		String _szFilename \
 	ENDCHUNK
 
 // ---------------------------------------------------------

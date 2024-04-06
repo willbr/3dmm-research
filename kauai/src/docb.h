@@ -133,7 +133,7 @@ class DocumentBase : public DocumentBase_PAR
     PDocumentDisplayGraphicsObject PddgActive(void);
 
     virtual void UpdateName(void);
-    virtual void GetName(PSTN pstn);
+    virtual void GetName(PString pstn);
     virtual bool FQueryClose(ulong grfdoc);
     virtual bool FQueryCloseDmd(PDocumentMDIWindow pdmd);
     virtual bool FSave(long cid = cidSave);

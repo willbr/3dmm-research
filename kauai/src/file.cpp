@@ -224,7 +224,7 @@ void FIL::Release(void)
 /***************************************************************************
     Get a string representing the path of the file.
 ***************************************************************************/
-void FIL::GetStnPath(PSTN pstn)
+void FIL::GetStnPath(PString pstn)
 {
     AssertThis(0);
 

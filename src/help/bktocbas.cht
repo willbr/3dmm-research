@@ -86,7 +86,7 @@ AllocatedGroup(4)
 			BYTE
 			0x01 0xFF 0xFF 0xFF 0xFF                   // '?����' 
 	ITEM LONG 0xC0000004
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
 		VAR
 			BYTE
@@ -283,22 +283,22 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidBasics03 __HELP_SYMBOL( STN "kidBasics03" )
+		VAR BYTE 3 LONG kidBasics03 __HELP_SYMBOL( String "kidBasics03" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidBasics04 __HELP_SYMBOL( STN "kidBasics04" )
+		VAR BYTE 4 LONG kidBasics04 __HELP_SYMBOL( String "kidBasics04" )
 	ITEM LONG 0xC0000007
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidBasics05 __HELP_SYMBOL( STN "kidBasics05" )
+		VAR BYTE 5 LONG kidBasics05 __HELP_SYMBOL( String "kidBasics05" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidBasics06 __HELP_SYMBOL( STN "kidBasics06" )
+		VAR BYTE 6 LONG kidBasics06 __HELP_SYMBOL( String "kidBasics06" )
 	ITEM LONG 0x40000001
-		VAR BYTE 7 LONG kidBasics07 __HELP_SYMBOL( STN "kidBasics07" )
+		VAR BYTE 7 LONG kidBasics07 __HELP_SYMBOL( String "kidBasics07" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidBasics01 __HELP_SYMBOL( STN "kidBasics01" )
+		VAR BYTE 1 LONG kidBasics01 __HELP_SYMBOL( String "kidBasics01" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidBasics02 __HELP_SYMBOL( STN "kidBasics02" )
+		VAR BYTE 2 LONG kidBasics02 __HELP_SYMBOL( String "kidBasics02" )
 ENDCHUNK
 
 SET _help_cno++
@@ -466,11 +466,11 @@ AllocatedGroup(4)
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidBasics08 __HELP_SYMBOL( STN "kidBasics08" )
+		VAR BYTE 1 LONG kidBasics08 __HELP_SYMBOL( String "kidBasics08" )
 	ITEM LONG 0xC0000002
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidBasics09 __HELP_SYMBOL( STN "kidBasics09" )
+		VAR BYTE 2 LONG kidBasics09 __HELP_SYMBOL( String "kidBasics09" )
 ENDCHUNK
 
 SET _help_cno++

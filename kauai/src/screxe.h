@@ -91,9 +91,9 @@ class StringRegistry : public StringRegistry_PAR
     StringRegistry(void);
     ~StringRegistry(void);
 
-    bool FPut(long stid, PSTN pstn);
-    bool FGet(long stid, PSTN pstn);
-    bool FAdd(long *pstid, PSTN pstn);
+    bool FPut(long stid, PString pstn);
+    bool FGet(long stid, PString pstn);
+    bool FAdd(long *pstid, PString pstn);
     bool FMove(long stidSrc, long stidDst);
     void Delete(long stid);
 };

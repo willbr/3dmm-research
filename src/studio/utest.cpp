@@ -134,7 +134,7 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
     even for different products, i.e., Socrates and Playdo will have
     different _stnProduct, but the same _stnAppName.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void APP::GetStnAppName(PString pstn)
 {
     AssertBaseThis(0);
     AssertPo(pstn, 0);
@@ -174,7 +174,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     Filename fniUserDoc;
     long fFirstTimeUser;
     long fSkipSplashScreen = fFalse;
-    STN kids_dir;
+    String kids_dir;
     
     FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
 
@@ -503,7 +503,7 @@ bool APP::_FAppAlreadyRunning(void)
 
 #ifdef WIN
     HANDLE hsem;
-    STN stn;
+    String stn;
 
     GetStnAppName(&stn);
 
@@ -530,7 +530,7 @@ void APP::_TryToActivateWindow(void)
 
 #ifdef WIN
     HWND hwnd;
-    STN stn;
+    String stn;
     Filename fniUserDoc;
 
     GetStnAppName(&stn);
@@ -949,7 +949,7 @@ bool APP::_FInitOS(void)
     long xpWindow;
     long ypWindow;
     DWORD dwStyle = 0;
-    STN stnWindowTitle;
+    String stnWindowTitle;
 
     if (_fMainWindowCreated) // If someone else called _FInitOS already,
         return fTrue;        // we can leave
@@ -1086,7 +1086,7 @@ bool APP::_FOpenResourceFile(void)
     AssertPo(&_fniProductDir, ffniDir);
 
     Filename fni;
-    STN stn;
+    String stn;
 
     fni = _fniProductDir;
     if (!fni.FSetLeaf(&_stnProductLong, kftgChunky) || tYes != fni.TExists())
@@ -1108,7 +1108,7 @@ bool APP::_FOpenResourceFile(void)
 /***************************************************************************
     Report that 3DMM can't find a file named pstnFile
 ***************************************************************************/
-bool APP::_FCantFindFileDialog(PSTN pstnFile)
+bool APP::_FCantFindFileDialog(PString pstnFile)
 {
     AssertBaseThis(0);
     AssertPo(pstnFile, 0);
@@ -1135,7 +1135,7 @@ bool APP::_FCantFindFileDialog(PSTN pstnFile)
 ***************************************************************************/
 bool APP::_FGenericError(Filename *path)
 {
-    STN stn;
+    String stn;
     path->GetStnPath(&stn);
     return _FGenericError(&stn);
 }
@@ -1145,13 +1145,13 @@ bool APP::_FGenericError(Filename *path)
 ***************************************************************************/
 bool APP::_FGenericError(PSTZ message)
 {
-    STN stn = message;
+    String stn = message;
     return _FGenericError(&stn);
 }
 /***************************************************************************
     Report that 3DMM ran into a generic error
 ***************************************************************************/
-bool APP::_FGenericError(PSTN message)
+bool APP::_FGenericError(PString message)
 {
     AssertBaseThis(0);
 
@@ -1184,9 +1184,9 @@ bool APP::_FGetUserDirectories(void)
     Assert(_stnUser.Cch() > 0, "need valid stnUser!");
 
     SZ szDir;
-    STN stn;
-    STN stnT;
-    STN stnUsers;
+    String stn;
+    String stnT;
+    String stnUsers;
     bool fFirstTimeUser;
 
     // First, find the Users directory
@@ -1281,11 +1281,11 @@ bool APP::_FGetUserName(void)
     case ERROR_EXTENDED_ERROR: {
         DWORD dwError;
         SZ szProvider;
-        STN stnMessage;
+        String stnMessage;
 
         if (WNetGetLastError(&dwError, szT, size(SZ), szProvider, size(SZ)) == NO_ERROR)
         {
-            STN stnFormat;
+            String stnFormat;
 
             if (FGetStnApp(idsWNetError, &stnFormat))
             {
@@ -1579,10 +1579,10 @@ bool APP::_FReadTitlesFromReg(PStringTable *ppgst)
     DWORD dwDisposition;
     DWORD iValue;
     SZ szSid;
-    STN stnSid;
+    String stnSid;
     DWORD cchSid = kcchMaxSz;
     SZ szTitle;
-    STN stnTitle;
+    String stnTitle;
     DWORD cchTitle = kcchMaxSz;
     PStringTable pgst;
     long sid;
@@ -1855,7 +1855,7 @@ bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynam
 
     bool fRet = fFalse;
     Filename fni;
-    STN stn;
+    String stn;
     long istn;
     long cbCache;
     PChunkyFile pcfl = pvNil;
@@ -1873,7 +1873,7 @@ bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynam
             // In debug, we look for "buildingd.chk", "sharedd.chk", etc. and
             // use them instead of the normal files if they exist.  If they
             // don't exist, just use the normal files.
-            STN stnT = stn;
+            String stnT = stn;
             stnT.FAppendCh(ChLit('d'));
             stnT.FAppendSz(PszLit(".chk")); // REVIEW *****
             Pkwa()->SetCDPrompt(fFalse);
@@ -2142,7 +2142,7 @@ void APP::_ParseCommandLine(void)
 
 #ifdef WIN
     SZ sz;
-    STN stn;
+    String stn;
     achar *pch;
     achar *pchT;
     Filename fniT;
@@ -2225,7 +2225,7 @@ void APP::_ParseCommandLine(void)
             if (*pchT == '\\')
                 pchT++;
 
-            // set STN to the path, which is the string up to the last '\'
+            // set String to the path, which is the string up to the last '\'
             stn.SetRgch(pch, pchT - pch);
 
             // try to map to long file name if we can
@@ -2304,8 +2304,8 @@ bool APP::_FFindMsKidsDir(void)
 
     Filename fni;
     SZ szMsKidsDir;
-    STN stn;
-    STN stnUsers;
+    String stn;
+    String stnUsers;
 
     // szMsKidsDir[0] = chNil;
     // if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(SZ), fregMachine | fregString))
@@ -2352,7 +2352,7 @@ bool APP::_FFindMsKidsDir(void)
 ***************************************************************************/
 bool APP::_FFindMsKidsDirAt(Filename *path)
 {
-    STN stn;
+    String stn;
 
     /* REVIEW ***** (peted): if you check for the MSKIDS dir first, then
         you don't have to reset the dir string before presenting the error
@@ -2385,9 +2385,9 @@ bool APP::_FFindProductDir(PStringTable pgst)
     AssertBaseThis(0);
     AssertVarMem(pgst);
 
-    STN stnLong;
-    STN stnShort;
-    STN stn;
+    String stnLong;
+    String stnShort;
+    String stn;
     Filename fni;
     long istn;
 
@@ -2413,7 +2413,7 @@ bool APP::_FFindProductDir(PStringTable pgst)
     See if the product exists.
     Method:  See if the directory and chunk file exist.
 ***************************************************************************/
-bool APP::_FQueryProductExists(STN *pstnLong, STN *pstnShort, Filename *pfni)
+bool APP::_FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni)
 {
     AssertBaseThis(0);
     AssertVarMem(pfni);
@@ -2421,7 +2421,7 @@ bool APP::_FQueryProductExists(STN *pstnLong, STN *pstnShort, Filename *pfni)
     AssertPo(pstnShort, 0);
 
     Filename fni;
-    STN stn;
+    String stn;
 
     *pfni = _fniMsKidsDir;
     if (!pfni->FDownDir(pstnLong, ffniMoveToDir) && !pfni->FDownDir(pstnShort, ffniMoveToDir))
@@ -2859,7 +2859,7 @@ bool APP::FCmdExitStudio(PCommand pcmd)
     AssertVarMem(pcmd);
 
     tribool tRet;
-    STN stnBackup;
+    String stnBackup;
 
     // Now query the user to find whether they want to go to the
     // building or to exit the app completely.
@@ -3052,7 +3052,7 @@ long APP::OnnDefVariable(void)
 
     if (_onnDefVariable == onnNil)
     {
-        STN stn;
+        String stn;
 
         if (!FGetStnApp(idsDefaultFont, &stn) || !FGetOnn(&stn, &_onnDefVariable))
         {
@@ -3072,13 +3072,13 @@ long APP::OnnDefVariable(void)
         solutions.
 
     Arguments:
-        PSTN pstn   --  The font name
+        PString pstn   --  The font name
         long *ponn  --  takes the result
 
     Returns:  fTrue if the original font could be found.
 
 ************************************************************ PETED ***********/
-bool APP::FGetOnn(PSTN pstn, long *ponn)
+bool APP::FGetOnn(PString pstn, long *ponn)
 {
     AssertBaseThis(0);
 
@@ -3125,7 +3125,7 @@ long APP::DypTextDef(void)
 
     if (_dypTextDef == 0)
     {
-        STN stn;
+        String stn;
 
         if (pvNil == _pgstApp || !FGetStnApp(idsDefaultDypFont, &stn) || !stn.FGetLw(&_dypTextDef) || _dypTextDef <= 0)
         {
@@ -3144,9 +3144,9 @@ tribool APP::TQuerySaveDoc(PDocumentBase pdocb, bool fForce)
     AssertThis(0);
     AssertPo(pdocb, 0);
 
-    STN stnName;
+    String stnName;
     long tpc;
-    STN stnBackup;
+    String stnBackup;
     long bk;
     tribool tResult;
 
@@ -3171,7 +3171,7 @@ void APP::Quit(bool fForce)
     AssertThis(0);
 
     bool tRet;
-    STN stnBackup;
+    String stnBackup;
 
     // If we already know we have to quit, or a modal topic is already
     // being  displayed, then do not query the user to quit here.
@@ -3290,8 +3290,8 @@ bool APP::FCmdInfo(PCommand pcmd)
     PDLG pdlg;
     long idit;
     bool fRunInWindowNew;
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     bool fSaveChanges;
 
     pmvie = _Pmvie();
@@ -3622,14 +3622,14 @@ void APP::_CleanUp(void)
 /***************************************************************************
     Put up a modal help balloon
 ***************************************************************************/
-tribool APP::TModal(PRCA prca, long tpc, PSTN pstnBackup, long bkBackup, long stidSubst, PSTN pstnSubst)
+tribool APP::TModal(PRCA prca, long tpc, PString pstnBackup, long bkBackup, long stidSubst, PString pstnSubst)
 {
     AssertThis(0);
     AssertNilOrPo(prca, 0);
 
     long lwSelect;
     tribool tRet;
-    STN stn;
+    String stn;
 
     // If app is minimized, restore it so user can see the dialog
     EnsureInteractive();
@@ -3681,11 +3681,11 @@ tribool APP::TModal(PRCA prca, long tpc, PSTN pstnBackup, long bkBackup, long st
 /***************************************************************************
     Static function to prompt the user to insert the CD named pstnTitle
 ***************************************************************************/
-bool APP::FInsertCD(PSTN pstnTitle)
+bool APP::FInsertCD(PString pstnTitle)
 {
     AssertPo(pstnTitle, 0);
 
-    STN stnBackup;
+    String stnBackup;
     bool tRet;
 
     stnBackup = PszLit("I can't find the CD '%s'  Please insert it.  Should I look again?");
@@ -3709,11 +3709,11 @@ void APP::DisplayErrors(void)
     AssertThis(0);
 
     long erc;
-    STN stnMessage;
+    String stnMessage;
 
     if (vpers->FPop(&erc))
     {
-        STN stnErr;
+        String stnErr;
 
         vpers->Clear();
 
@@ -4037,8 +4037,8 @@ bool APP::_FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc)
     Assert(pvNil != hwnd, "bad hwnd");
     AssertPo(pfniUserDoc, ffniFile);
 
-    STN stnUserDoc;
-    STN stn;
+    String stnUserDoc;
+    String stn;
     Filename fniTemp;
     PFIL pfil = pvNil;
     DataBlock blck;
@@ -4089,8 +4089,8 @@ bool APP::_FProcessOpenDocCmd(void)
 {
     AssertBaseThis(0);
 
-    STN stnUserDoc;
-    STN stn;
+    String stnUserDoc;
+    String stn;
     Filename fniTemp;
     PFIL pfil = pvNil;
     Filename fniUserDoc;
@@ -4657,7 +4657,7 @@ void KWA::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool KWA::FFindFile(PSTN pstnSrc, PFilename pfni)
+bool KWA::FFindFile(PString pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);

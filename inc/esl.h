@@ -82,7 +82,7 @@ class SNE : public SNE_PAR
     }
 
   public:
-    static PSNE PsneNew(PEDPAR pedpar, PESLT peslt, PSTN pstnInit);
+    static PSNE PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin);
 };
 
@@ -115,11 +115,11 @@ class ESLT : public ESLT_PAR
     ESLT(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLT PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PSTN pstnNew = pvNil, long tdtsNew = tdtsNil,
+    static PESLT PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PString pstnNew = pvNil, long tdtsNew = tdtsNil,
                           PTAG ptagTdfNew = pvNil);
     ~ESLT(void);
 
@@ -130,7 +130,7 @@ class ESLT : public ESLT_PAR
     bool FCmdSetShape(PCommand pcmd);
     bool FCmdSetColor(PCommand pcmd);
 
-    bool FTextChanged(PSTN pstn);
+    bool FTextChanged(PString pstn);
 };
 
 /********************************************
@@ -275,12 +275,12 @@ class ESLR : public ESLR_PAR
     ESLR(PGCB pgcb) : ESL(pgcb), _clok(HidUnique())
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PSTN pstnNew);
+    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
     void _UpdateMeter(void);
 
   public:
-    static PESLR PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PSTN pstnNew);
+    static PESLR PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PString pstnNew);
     ~ESLR(void);
 
     bool FCmdRecord(PCommand pcmd);

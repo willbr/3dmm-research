@@ -82,21 +82,21 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000007
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToScenes01 __HELP_SYMBOL( STN "kidHowToScenes01" )
+		VAR BYTE 1 LONG kidHowToScenes01 __HELP_SYMBOL( String "kidHowToScenes01" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToScenes02 __HELP_SYMBOL( STN "kidHowToScenes02" )
+		VAR BYTE 2 LONG kidHowToScenes02 __HELP_SYMBOL( String "kidHowToScenes02" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToScenes06 __HELP_SYMBOL( STN "kidHowToScenes06" )
+		VAR BYTE 4 LONG kidHowToScenes06 __HELP_SYMBOL( String "kidHowToScenes06" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToScenes15 __HELP_SYMBOL( STN "kidHowToScenes15" )
+		VAR BYTE 3 LONG kidHowToScenes15 __HELP_SYMBOL( String "kidHowToScenes15" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToScenes07 __HELP_SYMBOL( STN "kidHowToScenes07" )
+		VAR BYTE 6 LONG kidHowToScenes07 __HELP_SYMBOL( String "kidHowToScenes07" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToScenes13 __HELP_SYMBOL( STN "kidHowToScenes13" )
+		VAR BYTE 5 LONG kidHowToScenes13 __HELP_SYMBOL( String "kidHowToScenes13" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToScenes08 __HELP_SYMBOL( STN "kidHowToScenes08" )
+		VAR BYTE 1 LONG kidHowToScenes08 __HELP_SYMBOL( String "kidHowToScenes08" )
 ENDCHUNK
 
 SET _help_cno++
@@ -283,20 +283,20 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0xC0000005
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	FREE
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToScenes10 __HELP_SYMBOL( STN "kidHowToScenes10" )
+		VAR BYTE 3 LONG kidHowToScenes10 __HELP_SYMBOL( String "kidHowToScenes10" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToScenes11 __HELP_SYMBOL( STN "kidHowToScenes11" )
+		VAR BYTE 4 LONG kidHowToScenes11 __HELP_SYMBOL( String "kidHowToScenes11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToScenes12 __HELP_SYMBOL( STN "kidHowToScenes12" )
+		VAR BYTE 5 LONG kidHowToScenes12 __HELP_SYMBOL( String "kidHowToScenes12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToScenes14 __HELP_SYMBOL( STN "kidHowToScenes14" )
+		VAR BYTE 6 LONG kidHowToScenes14 __HELP_SYMBOL( String "kidHowToScenes14" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToScenes09 __HELP_SYMBOL( STN "kidHowToScenes09" )
+		VAR BYTE 2 LONG kidHowToScenes09 __HELP_SYMBOL( String "kidHowToScenes09" )
 ENDCHUNK
 
 SET _help_cno++
@@ -448,13 +448,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToActors02 __HELP_SYMBOL( STN "kidHowToActors02" )
+		VAR BYTE 2 LONG kidHowToActors02 __HELP_SYMBOL( String "kidHowToActors02" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToActors03 __HELP_SYMBOL( STN "kidHowToActors03" )
+		VAR BYTE 3 LONG kidHowToActors03 __HELP_SYMBOL( String "kidHowToActors03" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToActors05 __HELP_SYMBOL( STN "kidHowToActors05" )
+		VAR BYTE 5 LONG kidHowToActors05 __HELP_SYMBOL( String "kidHowToActors05" )
 	ITEM LONG 0x2000003
 		VAR
 			BYTE
@@ -463,11 +463,11 @@ AllocatedGroup(4)
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToActors04 __HELP_SYMBOL( STN "kidHowToActors04" )
+		VAR BYTE 4 LONG kidHowToActors04 __HELP_SYMBOL( String "kidHowToActors04" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToActors01 __HELP_SYMBOL( STN "kidHowToActors01" )
+		VAR BYTE 1 LONG kidHowToActors01 __HELP_SYMBOL( String "kidHowToActors01" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToActors06 __HELP_SYMBOL( STN "kidHowToActors06" )
+		VAR BYTE 6 LONG kidHowToActors06 __HELP_SYMBOL( String "kidHowToActors06" )
 ENDCHUNK
 
 SET _help_cno++
@@ -621,23 +621,23 @@ PARENT('RTXT', _help_52545854_A, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToActors13 __HELP_SYMBOL( STN "kidHowToActors13" )
+		VAR BYTE 4 LONG kidHowToActors13 __HELP_SYMBOL( String "kidHowToActors13" )
 	FREE
 	FREE
 	ITEM LONG 0xC0000007
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToActors11 __HELP_SYMBOL( STN "kidHowToActors11" )
+		VAR BYTE 2 LONG kidHowToActors11 __HELP_SYMBOL( String "kidHowToActors11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToActors09 __HELP_SYMBOL( STN "kidHowToActors09" )
+		VAR BYTE 3 LONG kidHowToActors09 __HELP_SYMBOL( String "kidHowToActors09" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToActors12 __HELP_SYMBOL( STN "kidHowToActors12" )
+		VAR BYTE 5 LONG kidHowToActors12 __HELP_SYMBOL( String "kidHowToActors12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToActors07 __HELP_SYMBOL( STN "kidHowToActors07" )
+		VAR BYTE 1 LONG kidHowToActors07 __HELP_SYMBOL( String "kidHowToActors07" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToActors08 __HELP_SYMBOL( STN "kidHowToActors08" )
+		VAR BYTE 6 LONG kidHowToActors08 __HELP_SYMBOL( String "kidHowToActors08" )
 	ITEM LONG 0x40000001
-		VAR BYTE 7 LONG kidHowToActors27 __HELP_SYMBOL( STN "kidHowToActors27" )
+		VAR BYTE 7 LONG kidHowToActors27 __HELP_SYMBOL( String "kidHowToActors27" )
 ENDCHUNK
 
 SET _help_cno++
@@ -802,21 +802,21 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToActors14 __HELP_SYMBOL( STN "kidHowToActors14" )
+		VAR BYTE 1 LONG kidHowToActors14 __HELP_SYMBOL( String "kidHowToActors14" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToActors15 __HELP_SYMBOL( STN "kidHowToActors15" )
+		VAR BYTE 2 LONG kidHowToActors15 __HELP_SYMBOL( String "kidHowToActors15" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToActors16 __HELP_SYMBOL( STN "kidHowToActors16" )
+		VAR BYTE 3 LONG kidHowToActors16 __HELP_SYMBOL( String "kidHowToActors16" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToActors17 __HELP_SYMBOL( STN "kidHowToActors17" )
+		VAR BYTE 4 LONG kidHowToActors17 __HELP_SYMBOL( String "kidHowToActors17" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToActors18 __HELP_SYMBOL( STN "kidHowToActors18" )
+		VAR BYTE 5 LONG kidHowToActors18 __HELP_SYMBOL( String "kidHowToActors18" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToActors19 __HELP_SYMBOL( STN "kidHowToActors19" )
+		VAR BYTE 6 LONG kidHowToActors19 __HELP_SYMBOL( String "kidHowToActors19" )
 	ITEM LONG 0x40000001
-		VAR BYTE 7 LONG kidHowToActors20 __HELP_SYMBOL( STN "kidHowToActors20" )
+		VAR BYTE 7 LONG kidHowToActors20 __HELP_SYMBOL( String "kidHowToActors20" )
 	ITEM LONG 0xC0000007
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 ENDCHUNK
 
 SET _help_cno++
@@ -958,20 +958,20 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToActors23 __HELP_SYMBOL( STN "kidHowToActors23" )
+		VAR BYTE 2 LONG kidHowToActors23 __HELP_SYMBOL( String "kidHowToActors23" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToActors24 __HELP_SYMBOL( STN "kidHowToActors24" )
+		VAR BYTE 3 LONG kidHowToActors24 __HELP_SYMBOL( String "kidHowToActors24" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToActors25 __HELP_SYMBOL( STN "kidHowToActors25" )
+		VAR BYTE 4 LONG kidHowToActors25 __HELP_SYMBOL( String "kidHowToActors25" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToActors26 __HELP_SYMBOL( STN "kidHowToActors26" )
+		VAR BYTE 5 LONG kidHowToActors26 __HELP_SYMBOL( String "kidHowToActors26" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToScenes14 __HELP_SYMBOL( STN "kidHowToScenes14" )
+		VAR BYTE 6 LONG kidHowToScenes14 __HELP_SYMBOL( String "kidHowToScenes14" )
 	FREE
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToActors22 __HELP_SYMBOL( STN "kidHowToActors22" )
+		VAR BYTE 1 LONG kidHowToActors22 __HELP_SYMBOL( String "kidHowToActors22" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1111,20 +1111,20 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToActors07 __HELP_SYMBOL( STN "kidHowToActors07" )
+		VAR BYTE 2 LONG kidHowToActors07 __HELP_SYMBOL( String "kidHowToActors07" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToActors11 __HELP_SYMBOL( STN "kidHowToActors11" )
+		VAR BYTE 3 LONG kidHowToActors11 __HELP_SYMBOL( String "kidHowToActors11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToActors09 __HELP_SYMBOL( STN "kidHowToActors09" )
+		VAR BYTE 4 LONG kidHowToActors09 __HELP_SYMBOL( String "kidHowToActors09" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToActors12 __HELP_SYMBOL( STN "kidHowToActors12" )
+		VAR BYTE 6 LONG kidHowToActors12 __HELP_SYMBOL( String "kidHowToActors12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToActors06 __HELP_SYMBOL( STN "kidHowToActors06" )
+		VAR BYTE 1 LONG kidHowToActors06 __HELP_SYMBOL( String "kidHowToActors06" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToActors13 __HELP_SYMBOL( STN "kidHowToActors13" )
+		VAR BYTE 5 LONG kidHowToActors13 __HELP_SYMBOL( String "kidHowToActors13" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1272,20 +1272,20 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToSounds02 __HELP_SYMBOL( STN "kidHowToSounds02" )
+		VAR BYTE 2 LONG kidHowToSounds02 __HELP_SYMBOL( String "kidHowToSounds02" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToSounds03 __HELP_SYMBOL( STN "kidHowToSounds03" )
+		VAR BYTE 3 LONG kidHowToSounds03 __HELP_SYMBOL( String "kidHowToSounds03" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToSounds04 __HELP_SYMBOL( STN "kidHowToSounds04" )
+		VAR BYTE 4 LONG kidHowToSounds04 __HELP_SYMBOL( String "kidHowToSounds04" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToSounds05 __HELP_SYMBOL( STN "kidHowToSounds05" )
+		VAR BYTE 5 LONG kidHowToSounds05 __HELP_SYMBOL( String "kidHowToSounds05" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToSounds01 __HELP_SYMBOL( STN "kidHowToSounds01" )
+		VAR BYTE 1 LONG kidHowToSounds01 __HELP_SYMBOL( String "kidHowToSounds01" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToSounds06 __HELP_SYMBOL( STN "kidHowToSounds06" )
+		VAR BYTE 6 LONG kidHowToSounds06 __HELP_SYMBOL( String "kidHowToSounds06" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1443,18 +1443,18 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_10, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000005
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToSounds10 __HELP_SYMBOL( STN "kidHowToSounds10" )
+		VAR BYTE 1 LONG kidHowToSounds10 __HELP_SYMBOL( String "kidHowToSounds10" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToSounds08 __HELP_SYMBOL( STN "kidHowToSounds08" )
+		VAR BYTE 4 LONG kidHowToSounds08 __HELP_SYMBOL( String "kidHowToSounds08" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToSounds07 __HELP_SYMBOL( STN "kidHowToSounds07" )
+		VAR BYTE 2 LONG kidHowToSounds07 __HELP_SYMBOL( String "kidHowToSounds07" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToSounds08 __HELP_SYMBOL( STN "kidHowToSounds08" )
+		VAR BYTE 3 LONG kidHowToSounds08 __HELP_SYMBOL( String "kidHowToSounds08" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToSounds12 __HELP_SYMBOL( STN "kidHowToSounds12" )
+		VAR BYTE 5 LONG kidHowToSounds12 __HELP_SYMBOL( String "kidHowToSounds12" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1616,16 +1616,16 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000004
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToScenes14 __HELP_SYMBOL( STN "kidHowToScenes14" )
+		VAR BYTE 4 LONG kidHowToScenes14 __HELP_SYMBOL( String "kidHowToScenes14" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToSounds11 __HELP_SYMBOL( STN "kidHowToSounds11" )
+		VAR BYTE 1 LONG kidHowToSounds11 __HELP_SYMBOL( String "kidHowToSounds11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToScenes04 __HELP_SYMBOL( STN "kidHowToScenes04" )
+		VAR BYTE 3 LONG kidHowToScenes04 __HELP_SYMBOL( String "kidHowToScenes04" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToSounds09 __HELP_SYMBOL( STN "kidHowToSounds09" )
+		VAR BYTE 2 LONG kidHowToSounds09 __HELP_SYMBOL( String "kidHowToSounds09" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1754,21 +1754,21 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToWords12 __HELP_SYMBOL( STN "kidHowToWords12" )
+		VAR BYTE 4 LONG kidHowToWords12 __HELP_SYMBOL( String "kidHowToWords12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToWords13 __HELP_SYMBOL( STN "kidHowToWords13" )
+		VAR BYTE 5 LONG kidHowToWords13 __HELP_SYMBOL( String "kidHowToWords13" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToWords14 __HELP_SYMBOL( STN "kidHowToWords14" )
+		VAR BYTE 1 LONG kidHowToWords14 __HELP_SYMBOL( String "kidHowToWords14" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToWords01 __HELP_SYMBOL( STN "kidHowToWords01" )
+		VAR BYTE 1 LONG kidHowToWords01 __HELP_SYMBOL( String "kidHowToWords01" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToWords11 __HELP_SYMBOL( STN "kidHowToWords11" )
+		VAR BYTE 3 LONG kidHowToWords11 __HELP_SYMBOL( String "kidHowToWords11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToWords10 __HELP_SYMBOL( STN "kidHowToWords10" )
+		VAR BYTE 2 LONG kidHowToWords10 __HELP_SYMBOL( String "kidHowToWords10" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1908,18 +1908,18 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_12, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000005
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToWords04 __HELP_SYMBOL( STN "kidHowToWords04" )
+		VAR BYTE 4 LONG kidHowToWords04 __HELP_SYMBOL( String "kidHowToWords04" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToWords02 __HELP_SYMBOL( STN "kidHowToWords02" )
+		VAR BYTE 2 LONG kidHowToWords02 __HELP_SYMBOL( String "kidHowToWords02" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToWords05 __HELP_SYMBOL( STN "kidHowToWords05" )
+		VAR BYTE 5 LONG kidHowToWords05 __HELP_SYMBOL( String "kidHowToWords05" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToWords15 __HELP_SYMBOL( STN "kidHowToWords15" )
+		VAR BYTE 1 LONG kidHowToWords15 __HELP_SYMBOL( String "kidHowToWords15" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToWords03 __HELP_SYMBOL( STN "kidHowToWords03" )
+		VAR BYTE 3 LONG kidHowToWords03 __HELP_SYMBOL( String "kidHowToWords03" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2049,21 +2049,21 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000005
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToWords09 __HELP_SYMBOL( STN "kidHowToWords09" )
+		VAR BYTE 4 LONG kidHowToWords09 __HELP_SYMBOL( String "kidHowToWords09" )
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToWords06 __HELP_SYMBOL( STN "kidHowToWords06" )
+		VAR BYTE 1 LONG kidHowToWords06 __HELP_SYMBOL( String "kidHowToWords06" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToWords07 __HELP_SYMBOL( STN "kidHowToWords07" )
+		VAR BYTE 2 LONG kidHowToWords07 __HELP_SYMBOL( String "kidHowToWords07" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToWords08 __HELP_SYMBOL( STN "kidHowToWords08" )
+		VAR BYTE 3 LONG kidHowToWords08 __HELP_SYMBOL( String "kidHowToWords08" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToScenes14 __HELP_SYMBOL( STN "kidHowToScenes14" )
+		VAR BYTE 5 LONG kidHowToScenes14 __HELP_SYMBOL( String "kidHowToScenes14" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2198,21 +2198,21 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToScenes15 __HELP_SYMBOL( STN "kidHowToScenes15" )
+		VAR BYTE 4 LONG kidHowToScenes15 __HELP_SYMBOL( String "kidHowToScenes15" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToScenes14 __HELP_SYMBOL( STN "kidHowToScenes14" )
+		VAR BYTE 3 LONG kidHowToScenes14 __HELP_SYMBOL( String "kidHowToScenes14" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToScenes08 __HELP_SYMBOL( STN "kidHowToScenes08" )
+		VAR BYTE 1 LONG kidHowToScenes08 __HELP_SYMBOL( String "kidHowToScenes08" )
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToScenes09 __HELP_SYMBOL( STN "kidHowToScenes09" )
+		VAR BYTE 2 LONG kidHowToScenes09 __HELP_SYMBOL( String "kidHowToScenes09" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToScenes13 __HELP_SYMBOL( STN "kidHowToScenes13" )
+		VAR BYTE 6 LONG kidHowToScenes13 __HELP_SYMBOL( String "kidHowToScenes13" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToScenes06 __HELP_SYMBOL( STN "kidHowToScenes06" )
+		VAR BYTE 5 LONG kidHowToScenes06 __HELP_SYMBOL( String "kidHowToScenes06" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2376,23 +2376,23 @@ AllocatedGroup(4)
 			0x0D 0x43 0x6F 0x6D 0x69 0x63 0x20 0x53    // '?Comic S' 
 			0x61 0x6E 0x73 0x20 0x4D 0x53 0x00         // 'ans MS?' 
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToActors15 __HELP_SYMBOL( STN "kidHowToActors15" )
+		VAR BYTE 6 LONG kidHowToActors15 __HELP_SYMBOL( String "kidHowToActors15" )
 	FREE
 	ITEM LONG 0xC0000007
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToActors14 __HELP_SYMBOL( STN "kidHowToActors14" )
+		VAR BYTE 5 LONG kidHowToActors14 __HELP_SYMBOL( String "kidHowToActors14" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToScenes11 __HELP_SYMBOL( STN "kidHowToScenes11" )
+		VAR BYTE 3 LONG kidHowToScenes11 __HELP_SYMBOL( String "kidHowToScenes11" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 7 LONG kidHowToActors16 __HELP_SYMBOL( STN "kidHowToActors16" )
+		VAR BYTE 7 LONG kidHowToActors16 __HELP_SYMBOL( String "kidHowToActors16" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToScenes12 __HELP_SYMBOL( STN "kidHowToScenes12" )
+		VAR BYTE 4 LONG kidHowToScenes12 __HELP_SYMBOL( String "kidHowToScenes12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToScenes07 __HELP_SYMBOL( STN "kidHowToScenes07" )
+		VAR BYTE 1 LONG kidHowToScenes07 __HELP_SYMBOL( String "kidHowToScenes07" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToScenes10 __HELP_SYMBOL( STN "kidHowToScenes10" )
+		VAR BYTE 2 LONG kidHowToScenes10 __HELP_SYMBOL( String "kidHowToScenes10" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2570,20 +2570,20 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_5, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000006
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToSounds12 __HELP_SYMBOL( STN "kidHowToSounds12" )
+		VAR BYTE 4 LONG kidHowToSounds12 __HELP_SYMBOL( String "kidHowToSounds12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToSounds11 __HELP_SYMBOL( STN "kidHowToSounds11" )
+		VAR BYTE 5 LONG kidHowToSounds11 __HELP_SYMBOL( String "kidHowToSounds11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToSounds09 __HELP_SYMBOL( STN "kidHowToSounds09" )
+		VAR BYTE 6 LONG kidHowToSounds09 __HELP_SYMBOL( String "kidHowToSounds09" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToSounds07 __HELP_SYMBOL( STN "kidHowToSounds07" )
+		VAR BYTE 1 LONG kidHowToSounds07 __HELP_SYMBOL( String "kidHowToSounds07" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToSounds08 __HELP_SYMBOL( STN "kidHowToSounds08" )
+		VAR BYTE 2 LONG kidHowToSounds08 __HELP_SYMBOL( String "kidHowToSounds08" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToSounds08 __HELP_SYMBOL( STN "kidHowToSounds08" )
+		VAR BYTE 3 LONG kidHowToSounds08 __HELP_SYMBOL( String "kidHowToSounds08" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2741,23 +2741,23 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000007
-		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( STN "_gobHelpSquishy" )
+		VAR LONG 'GOKD' _gobHelpSquishy 0xFFFFFFFF __HELP_SYMBOL( String "_gobHelpSquishy" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 7 LONG kidHowToWords15 __HELP_SYMBOL( STN "kidHowToWords15" )
+		VAR BYTE 7 LONG kidHowToWords15 __HELP_SYMBOL( String "kidHowToWords15" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG kidHowToScenes04 __HELP_SYMBOL( STN "kidHowToScenes04" )
+		VAR BYTE 1 LONG kidHowToScenes04 __HELP_SYMBOL( String "kidHowToScenes04" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG kidHowToWords12 __HELP_SYMBOL( STN "kidHowToWords12" )
+		VAR BYTE 4 LONG kidHowToWords12 __HELP_SYMBOL( String "kidHowToWords12" )
 	ITEM LONG 0x40000001
-		VAR BYTE 6 LONG kidHowToWords14 __HELP_SYMBOL( STN "kidHowToWords14" )
+		VAR BYTE 6 LONG kidHowToWords14 __HELP_SYMBOL( String "kidHowToWords14" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG kidHowToWords10 __HELP_SYMBOL( STN "kidHowToWords10" )
+		VAR BYTE 2 LONG kidHowToWords10 __HELP_SYMBOL( String "kidHowToWords10" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG kidHowToWords11 __HELP_SYMBOL( STN "kidHowToWords11" )
+		VAR BYTE 3 LONG kidHowToWords11 __HELP_SYMBOL( String "kidHowToWords11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 5 LONG kidHowToWords13 __HELP_SYMBOL( STN "kidHowToWords13" )
+		VAR BYTE 5 LONG kidHowToWords13 __HELP_SYMBOL( String "kidHowToWords13" )
 ENDCHUNK
 
 SET _help_cno++

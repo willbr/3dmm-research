@@ -427,7 +427,7 @@ class SUNT : public SUNT_PAR
     ASSERT
 
   protected:
-    STN _stn;
+    String _stn;
     SUNT(void)
     {
     }
@@ -436,7 +436,7 @@ class SUNT : public SUNT_PAR
     static PSUNT PsuntNew(void);
     ~SUNT(void);
 
-    void SetName(PSTN pstn)
+    void SetName(PString pstn)
     {
         AssertPo(pstn, 0);
         _stn = *pstn;
@@ -862,7 +862,7 @@ bool Scene::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FSetName(PSTN pstn)
+bool Scene::FSetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2526,7 +2526,7 @@ bool Scene::FAddActrCore(Actor *pactr)
     SEV sev;
     long isev;
     long ipactr;
-    STN stn;
+    String stn;
     PActor pactrOld;
     bool fRetValue;
 
@@ -4597,7 +4597,7 @@ bool Scene::FAddActrsToRollCall(void)
 
     PActor pactr;
     long ipactr;
-    STN stn;
+    String stn;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
     {
@@ -5878,7 +5878,7 @@ bool SUNT::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    STN stn;
+    String stn;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {

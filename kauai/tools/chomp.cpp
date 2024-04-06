@@ -18,7 +18,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 {
     Filename fniSrc, fniDst;
     PChunkyFile pcfl;
-    STN stn;
+    String stn;
     char *pszs;
     MSSIO mssioError(stderr);
     bool fCompile = fTrue;

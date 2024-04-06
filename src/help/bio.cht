@@ -194,14 +194,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio1 __HELP_SYMBOL( STN "ktipbio1" )
+		VAR BYTE 1 LONG ktipbio1 __HELP_SYMBOL( String "ktipbio1" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio2 __HELP_SYMBOL( STN "ktipbio2" )
+		VAR BYTE 2 LONG ktipbio2 __HELP_SYMBOL( String "ktipbio2" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio4 __HELP_SYMBOL( STN "ktipbio4" )
+		VAR BYTE 4 LONG ktipbio4 __HELP_SYMBOL( String "ktipbio4" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio3 __HELP_SYMBOL( STN "ktipbio3" )
+		VAR BYTE 3 LONG ktipbio3 __HELP_SYMBOL( String "ktipbio3" )
 ENDCHUNK
 
 SET _help_cno++
@@ -347,14 +347,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_D2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio6 __HELP_SYMBOL( STN "ktipbio6" )
+		VAR BYTE 2 LONG ktipbio6 __HELP_SYMBOL( String "ktipbio6" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio7 __HELP_SYMBOL( STN "ktipbio7" )
+		VAR BYTE 3 LONG ktipbio7 __HELP_SYMBOL( String "ktipbio7" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio8 __HELP_SYMBOL( STN "ktipbio8" )
+		VAR BYTE 4 LONG ktipbio8 __HELP_SYMBOL( String "ktipbio8" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio5 __HELP_SYMBOL( STN "ktipbio5" )
+		VAR BYTE 1 LONG ktipbio5 __HELP_SYMBOL( String "ktipbio5" )
 ENDCHUNK
 
 SET _help_cno++
@@ -530,13 +530,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_AE, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio9 __HELP_SYMBOL( STN "ktipbio9" )
+		VAR BYTE 1 LONG ktipbio9 __HELP_SYMBOL( String "ktipbio9" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio10 __HELP_SYMBOL( STN "ktipbio10" )
+		VAR BYTE 2 LONG ktipbio10 __HELP_SYMBOL( String "ktipbio10" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio11 __HELP_SYMBOL( STN "ktipbio11" )
+		VAR BYTE 3 LONG ktipbio11 __HELP_SYMBOL( String "ktipbio11" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio12 __HELP_SYMBOL( STN "ktipbio12" )
+		VAR BYTE 4 LONG ktipbio12 __HELP_SYMBOL( String "ktipbio12" )
 ENDCHUNK
 
 SET _help_cno++
@@ -701,13 +701,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_32, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio13 __HELP_SYMBOL( STN "ktipbio13" )
+		VAR BYTE 1 LONG ktipbio13 __HELP_SYMBOL( String "ktipbio13" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio14 __HELP_SYMBOL( STN "ktipbio14" )
+		VAR BYTE 2 LONG ktipbio14 __HELP_SYMBOL( String "ktipbio14" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio15 __HELP_SYMBOL( STN "ktipbio15" )
+		VAR BYTE 3 LONG ktipbio15 __HELP_SYMBOL( String "ktipbio15" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio16 __HELP_SYMBOL( STN "ktipbio16" )
+		VAR BYTE 4 LONG ktipbio16 __HELP_SYMBOL( String "ktipbio16" )
 ENDCHUNK
 
 SET _help_cno++
@@ -861,13 +861,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio17 __HELP_SYMBOL( STN "ktipbio17" )
+		VAR BYTE 1 LONG ktipbio17 __HELP_SYMBOL( String "ktipbio17" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio18 __HELP_SYMBOL( STN "ktipbio18" )
+		VAR BYTE 2 LONG ktipbio18 __HELP_SYMBOL( String "ktipbio18" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio19 __HELP_SYMBOL( STN "ktipbio19" )
+		VAR BYTE 3 LONG ktipbio19 __HELP_SYMBOL( String "ktipbio19" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio20 __HELP_SYMBOL( STN "ktipbio20" )
+		VAR BYTE 4 LONG ktipbio20 __HELP_SYMBOL( String "ktipbio20" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1029,13 +1029,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio22 __HELP_SYMBOL( STN "ktipbio22" )
+		VAR BYTE 2 LONG ktipbio22 __HELP_SYMBOL( String "ktipbio22" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio23 __HELP_SYMBOL( STN "ktipbio23" )
+		VAR BYTE 3 LONG ktipbio23 __HELP_SYMBOL( String "ktipbio23" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio24 __HELP_SYMBOL( STN "ktipbio24" )
+		VAR BYTE 4 LONG ktipbio24 __HELP_SYMBOL( String "ktipbio24" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio21 __HELP_SYMBOL( STN "ktipbio21" )
+		VAR BYTE 1 LONG ktipbio21 __HELP_SYMBOL( String "ktipbio21" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1195,13 +1195,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_81, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio26 __HELP_SYMBOL( STN "ktipbio26" )
+		VAR BYTE 2 LONG ktipbio26 __HELP_SYMBOL( String "ktipbio26" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio25 __HELP_SYMBOL( STN "ktipbio25" )
+		VAR BYTE 1 LONG ktipbio25 __HELP_SYMBOL( String "ktipbio25" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio27 __HELP_SYMBOL( STN "ktipbio27" )
+		VAR BYTE 3 LONG ktipbio27 __HELP_SYMBOL( String "ktipbio27" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio28 __HELP_SYMBOL( STN "ktipbio28" )
+		VAR BYTE 4 LONG ktipbio28 __HELP_SYMBOL( String "ktipbio28" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1358,12 +1358,12 @@ PARENT('RTXT', _help_52545854_11, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio31 __HELP_SYMBOL( STN "ktipbio31" )
+		VAR BYTE 3 LONG ktipbio31 __HELP_SYMBOL( String "ktipbio31" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio32 __HELP_SYMBOL( STN "ktipbio32" )
+		VAR BYTE 4 LONG ktipbio32 __HELP_SYMBOL( String "ktipbio32" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio29 __HELP_SYMBOL( STN "ktipbio29" )
+		VAR BYTE 1 LONG ktipbio29 __HELP_SYMBOL( String "ktipbio29" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1527,13 +1527,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_8E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio34 __HELP_SYMBOL( STN "ktipbio34" )
+		VAR BYTE 2 LONG ktipbio34 __HELP_SYMBOL( String "ktipbio34" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio35 __HELP_SYMBOL( STN "ktipbio35" )
+		VAR BYTE 3 LONG ktipbio35 __HELP_SYMBOL( String "ktipbio35" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio36 __HELP_SYMBOL( STN "ktipbio36" )
+		VAR BYTE 4 LONG ktipbio36 __HELP_SYMBOL( String "ktipbio36" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio33 __HELP_SYMBOL( STN "ktipbio33" )
+		VAR BYTE 1 LONG ktipbio33 __HELP_SYMBOL( String "ktipbio33" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1685,13 +1685,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_42, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio38 __HELP_SYMBOL( STN "ktipbio38" )
+		VAR BYTE 2 LONG ktipbio38 __HELP_SYMBOL( String "ktipbio38" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio39 __HELP_SYMBOL( STN "ktipbio39" )
+		VAR BYTE 3 LONG ktipbio39 __HELP_SYMBOL( String "ktipbio39" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio40 __HELP_SYMBOL( STN "ktipbio40" )
+		VAR BYTE 4 LONG ktipbio40 __HELP_SYMBOL( String "ktipbio40" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio37 __HELP_SYMBOL( STN "ktipbio37" )
+		VAR BYTE 1 LONG ktipbio37 __HELP_SYMBOL( String "ktipbio37" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1865,13 +1865,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio42 __HELP_SYMBOL( STN "ktipbio42" )
+		VAR BYTE 2 LONG ktipbio42 __HELP_SYMBOL( String "ktipbio42" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio43 __HELP_SYMBOL( STN "ktipbio43" )
+		VAR BYTE 3 LONG ktipbio43 __HELP_SYMBOL( String "ktipbio43" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio44 __HELP_SYMBOL( STN "ktipbio44" )
+		VAR BYTE 4 LONG ktipbio44 __HELP_SYMBOL( String "ktipbio44" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio41 __HELP_SYMBOL( STN "ktipbio41" )
+		VAR BYTE 1 LONG ktipbio41 __HELP_SYMBOL( String "ktipbio41" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2028,14 +2028,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio46 __HELP_SYMBOL( STN "ktipbio46" )
+		VAR BYTE 2 LONG ktipbio46 __HELP_SYMBOL( String "ktipbio46" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio47 __HELP_SYMBOL( STN "ktipbio47" )
+		VAR BYTE 3 LONG ktipbio47 __HELP_SYMBOL( String "ktipbio47" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio48 __HELP_SYMBOL( STN "ktipbio48" )
+		VAR BYTE 4 LONG ktipbio48 __HELP_SYMBOL( String "ktipbio48" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio45 __HELP_SYMBOL( STN "ktipbio45" )
+		VAR BYTE 1 LONG ktipbio45 __HELP_SYMBOL( String "ktipbio45" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2177,14 +2177,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_CF, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio49 __HELP_SYMBOL( STN "ktipbio49" )
+		VAR BYTE 1 LONG ktipbio49 __HELP_SYMBOL( String "ktipbio49" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio51 __HELP_SYMBOL( STN "ktipbio51" )
+		VAR BYTE 3 LONG ktipbio51 __HELP_SYMBOL( String "ktipbio51" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio52 __HELP_SYMBOL( STN "ktipbio52" )
+		VAR BYTE 4 LONG ktipbio52 __HELP_SYMBOL( String "ktipbio52" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio50 __HELP_SYMBOL( STN "ktipbio50" )
+		VAR BYTE 2 LONG ktipbio50 __HELP_SYMBOL( String "ktipbio50" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2321,14 +2321,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio53 __HELP_SYMBOL( STN "ktipbio53" )
+		VAR BYTE 1 LONG ktipbio53 __HELP_SYMBOL( String "ktipbio53" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio55 __HELP_SYMBOL( STN "ktipbio55" )
+		VAR BYTE 3 LONG ktipbio55 __HELP_SYMBOL( String "ktipbio55" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio56 __HELP_SYMBOL( STN "ktipbio56" )
+		VAR BYTE 4 LONG ktipbio56 __HELP_SYMBOL( String "ktipbio56" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio54 __HELP_SYMBOL( STN "ktipbio54" )
+		VAR BYTE 2 LONG ktipbio54 __HELP_SYMBOL( String "ktipbio54" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2499,14 +2499,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio57 __HELP_SYMBOL( STN "ktipbio57" )
+		VAR BYTE 1 LONG ktipbio57 __HELP_SYMBOL( String "ktipbio57" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio59 __HELP_SYMBOL( STN "ktipbio59" )
+		VAR BYTE 3 LONG ktipbio59 __HELP_SYMBOL( String "ktipbio59" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio60 __HELP_SYMBOL( STN "ktipbio60" )
+		VAR BYTE 4 LONG ktipbio60 __HELP_SYMBOL( String "ktipbio60" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio58 __HELP_SYMBOL( STN "ktipbio58" )
+		VAR BYTE 2 LONG ktipbio58 __HELP_SYMBOL( String "ktipbio58" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2657,14 +2657,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio61 __HELP_SYMBOL( STN "ktipbio61" )
+		VAR BYTE 1 LONG ktipbio61 __HELP_SYMBOL( String "ktipbio61" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio63 __HELP_SYMBOL( STN "ktipbio63" )
+		VAR BYTE 3 LONG ktipbio63 __HELP_SYMBOL( String "ktipbio63" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio64 __HELP_SYMBOL( STN "ktipbio64" )
+		VAR BYTE 4 LONG ktipbio64 __HELP_SYMBOL( String "ktipbio64" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio62 __HELP_SYMBOL( STN "ktipbio62" )
+		VAR BYTE 2 LONG ktipbio62 __HELP_SYMBOL( String "ktipbio62" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2815,14 +2815,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio65 __HELP_SYMBOL( STN "ktipbio65" )
+		VAR BYTE 1 LONG ktipbio65 __HELP_SYMBOL( String "ktipbio65" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio68 __HELP_SYMBOL( STN "ktipbio68" )
+		VAR BYTE 4 LONG ktipbio68 __HELP_SYMBOL( String "ktipbio68" )
 	ITEM LONG 0x40000001
-		VAR BYTE 66 LONG ktipbio66 __HELP_SYMBOL( STN "ktipbio66" )
+		VAR BYTE 66 LONG ktipbio66 __HELP_SYMBOL( String "ktipbio66" )
 	ITEM LONG 0x40000001
-		VAR BYTE 67 LONG ktipbio67 __HELP_SYMBOL( STN "ktipbio67" )
+		VAR BYTE 67 LONG ktipbio67 __HELP_SYMBOL( String "ktipbio67" )
 ENDCHUNK
 
 SET _help_cno++
@@ -2995,13 +2995,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_10, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio73 __HELP_SYMBOL( STN "ktipbio73" )
+		VAR BYTE 1 LONG ktipbio73 __HELP_SYMBOL( String "ktipbio73" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio74 __HELP_SYMBOL( STN "ktipbio74" )
+		VAR BYTE 2 LONG ktipbio74 __HELP_SYMBOL( String "ktipbio74" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio75 __HELP_SYMBOL( STN "ktipbio75" )
+		VAR BYTE 3 LONG ktipbio75 __HELP_SYMBOL( String "ktipbio75" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio76 __HELP_SYMBOL( STN "ktipbio76" )
+		VAR BYTE 4 LONG ktipbio76 __HELP_SYMBOL( String "ktipbio76" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3156,13 +3156,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_27, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio77 __HELP_SYMBOL( STN "ktipbio77" )
+		VAR BYTE 1 LONG ktipbio77 __HELP_SYMBOL( String "ktipbio77" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio78 __HELP_SYMBOL( STN "ktipbio78" )
+		VAR BYTE 2 LONG ktipbio78 __HELP_SYMBOL( String "ktipbio78" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio79 __HELP_SYMBOL( STN "ktipbio79" )
+		VAR BYTE 3 LONG ktipbio79 __HELP_SYMBOL( String "ktipbio79" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio80 __HELP_SYMBOL( STN "ktipbio80" )
+		VAR BYTE 4 LONG ktipbio80 __HELP_SYMBOL( String "ktipbio80" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3327,13 +3327,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_57, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio81 __HELP_SYMBOL( STN "ktipbio81" )
+		VAR BYTE 1 LONG ktipbio81 __HELP_SYMBOL( String "ktipbio81" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio82 __HELP_SYMBOL( STN "ktipbio82" )
+		VAR BYTE 2 LONG ktipbio82 __HELP_SYMBOL( String "ktipbio82" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio83 __HELP_SYMBOL( STN "ktipbio83" )
+		VAR BYTE 3 LONG ktipbio83 __HELP_SYMBOL( String "ktipbio83" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio84 __HELP_SYMBOL( STN "ktipbio84" )
+		VAR BYTE 4 LONG ktipbio84 __HELP_SYMBOL( String "ktipbio84" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3496,14 +3496,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7A, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio86 __HELP_SYMBOL( STN "ktipbio86" )
+		VAR BYTE 2 LONG ktipbio86 __HELP_SYMBOL( String "ktipbio86" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio87 __HELP_SYMBOL( STN "ktipbio87" )
+		VAR BYTE 3 LONG ktipbio87 __HELP_SYMBOL( String "ktipbio87" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio88 __HELP_SYMBOL( STN "ktipbio88" )
+		VAR BYTE 4 LONG ktipbio88 __HELP_SYMBOL( String "ktipbio88" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio85 __HELP_SYMBOL( STN "ktipbio85" )
+		VAR BYTE 1 LONG ktipbio85 __HELP_SYMBOL( String "ktipbio85" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3656,13 +3656,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio89 __HELP_SYMBOL( STN "ktipbio89" )
+		VAR BYTE 1 LONG ktipbio89 __HELP_SYMBOL( String "ktipbio89" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio90 __HELP_SYMBOL( STN "ktipbio90" )
+		VAR BYTE 2 LONG ktipbio90 __HELP_SYMBOL( String "ktipbio90" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio91 __HELP_SYMBOL( STN "ktipbio91" )
+		VAR BYTE 3 LONG ktipbio91 __HELP_SYMBOL( String "ktipbio91" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio92 __HELP_SYMBOL( STN "ktipbio92" )
+		VAR BYTE 4 LONG ktipbio92 __HELP_SYMBOL( String "ktipbio92" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3802,13 +3802,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio93 __HELP_SYMBOL( STN "ktipbio93" )
+		VAR BYTE 1 LONG ktipbio93 __HELP_SYMBOL( String "ktipbio93" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio94 __HELP_SYMBOL( STN "ktipbio94" )
+		VAR BYTE 2 LONG ktipbio94 __HELP_SYMBOL( String "ktipbio94" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio95 __HELP_SYMBOL( STN "ktipbio95" )
+		VAR BYTE 3 LONG ktipbio95 __HELP_SYMBOL( String "ktipbio95" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio96 __HELP_SYMBOL( STN "ktipbio96" )
+		VAR BYTE 4 LONG ktipbio96 __HELP_SYMBOL( String "ktipbio96" )
 ENDCHUNK
 
 SET _help_cno++
@@ -3961,13 +3961,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_25, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio97 __HELP_SYMBOL( STN "ktipbio97" )
+		VAR BYTE 1 LONG ktipbio97 __HELP_SYMBOL( String "ktipbio97" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio98 __HELP_SYMBOL( STN "ktipbio98" )
+		VAR BYTE 2 LONG ktipbio98 __HELP_SYMBOL( String "ktipbio98" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio99 __HELP_SYMBOL( STN "ktipbio99" )
+		VAR BYTE 3 LONG ktipbio99 __HELP_SYMBOL( String "ktipbio99" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio100 __HELP_SYMBOL( STN "ktipbio100" )
+		VAR BYTE 4 LONG ktipbio100 __HELP_SYMBOL( String "ktipbio100" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4118,13 +4118,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio101 __HELP_SYMBOL( STN "ktipbio101" )
+		VAR BYTE 1 LONG ktipbio101 __HELP_SYMBOL( String "ktipbio101" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio102 __HELP_SYMBOL( STN "ktipbio102" )
+		VAR BYTE 2 LONG ktipbio102 __HELP_SYMBOL( String "ktipbio102" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio103 __HELP_SYMBOL( STN "ktipbio103" )
+		VAR BYTE 3 LONG ktipbio103 __HELP_SYMBOL( String "ktipbio103" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio104 __HELP_SYMBOL( STN "ktipbio104" )
+		VAR BYTE 4 LONG ktipbio104 __HELP_SYMBOL( String "ktipbio104" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4268,13 +4268,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_91, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio105 __HELP_SYMBOL( STN "ktipbio105" )
+		VAR BYTE 1 LONG ktipbio105 __HELP_SYMBOL( String "ktipbio105" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio106 __HELP_SYMBOL( STN "ktipbio106" )
+		VAR BYTE 2 LONG ktipbio106 __HELP_SYMBOL( String "ktipbio106" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio107 __HELP_SYMBOL( STN "ktipbio107" )
+		VAR BYTE 3 LONG ktipbio107 __HELP_SYMBOL( String "ktipbio107" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio108 __HELP_SYMBOL( STN "ktipbio108" )
+		VAR BYTE 4 LONG ktipbio108 __HELP_SYMBOL( String "ktipbio108" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4440,13 +4440,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio109 __HELP_SYMBOL( STN "ktipbio109" )
+		VAR BYTE 1 LONG ktipbio109 __HELP_SYMBOL( String "ktipbio109" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio110 __HELP_SYMBOL( STN "ktipbio110" )
+		VAR BYTE 2 LONG ktipbio110 __HELP_SYMBOL( String "ktipbio110" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio111 __HELP_SYMBOL( STN "ktipbio111" )
+		VAR BYTE 3 LONG ktipbio111 __HELP_SYMBOL( String "ktipbio111" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio112 __HELP_SYMBOL( STN "ktipbio112" )
+		VAR BYTE 4 LONG ktipbio112 __HELP_SYMBOL( String "ktipbio112" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4595,14 +4595,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio113 __HELP_SYMBOL( STN "ktipbio113" )
+		VAR BYTE 1 LONG ktipbio113 __HELP_SYMBOL( String "ktipbio113" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio115 __HELP_SYMBOL( STN "ktipbio115" )
+		VAR BYTE 3 LONG ktipbio115 __HELP_SYMBOL( String "ktipbio115" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio116 __HELP_SYMBOL( STN "ktipbio116" )
+		VAR BYTE 4 LONG ktipbio116 __HELP_SYMBOL( String "ktipbio116" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio114 __HELP_SYMBOL( STN "ktipbio114" )
+		VAR BYTE 2 LONG ktipbio114 __HELP_SYMBOL( String "ktipbio114" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4771,13 +4771,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio117 __HELP_SYMBOL( STN "ktipbio117" )
+		VAR BYTE 1 LONG ktipbio117 __HELP_SYMBOL( String "ktipbio117" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio118 __HELP_SYMBOL( STN "ktipbio118" )
+		VAR BYTE 2 LONG ktipbio118 __HELP_SYMBOL( String "ktipbio118" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio119 __HELP_SYMBOL( STN "ktipbio119" )
+		VAR BYTE 3 LONG ktipbio119 __HELP_SYMBOL( String "ktipbio119" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio120 __HELP_SYMBOL( STN "ktipbio120" )
+		VAR BYTE 4 LONG ktipbio120 __HELP_SYMBOL( String "ktipbio120" )
 ENDCHUNK
 
 SET _help_cno++
@@ -4932,13 +4932,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_4E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio121 __HELP_SYMBOL( STN "ktipbio121" )
+		VAR BYTE 1 LONG ktipbio121 __HELP_SYMBOL( String "ktipbio121" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio122 __HELP_SYMBOL( STN "ktipbio122" )
+		VAR BYTE 2 LONG ktipbio122 __HELP_SYMBOL( String "ktipbio122" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio123 __HELP_SYMBOL( STN "ktipbio123" )
+		VAR BYTE 3 LONG ktipbio123 __HELP_SYMBOL( String "ktipbio123" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio124 __HELP_SYMBOL( STN "ktipbio124" )
+		VAR BYTE 4 LONG ktipbio124 __HELP_SYMBOL( String "ktipbio124" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5079,13 +5079,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_19, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio125 __HELP_SYMBOL( STN "ktipbio125" )
+		VAR BYTE 1 LONG ktipbio125 __HELP_SYMBOL( String "ktipbio125" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio126 __HELP_SYMBOL( STN "ktipbio126" )
+		VAR BYTE 2 LONG ktipbio126 __HELP_SYMBOL( String "ktipbio126" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio127 __HELP_SYMBOL( STN "ktipbio127" )
+		VAR BYTE 3 LONG ktipbio127 __HELP_SYMBOL( String "ktipbio127" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio128 __HELP_SYMBOL( STN "ktipbio128" )
+		VAR BYTE 4 LONG ktipbio128 __HELP_SYMBOL( String "ktipbio128" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5229,13 +5229,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_76, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio129 __HELP_SYMBOL( STN "ktipbio129" )
+		VAR BYTE 1 LONG ktipbio129 __HELP_SYMBOL( String "ktipbio129" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio130 __HELP_SYMBOL( STN "ktipbio130" )
+		VAR BYTE 2 LONG ktipbio130 __HELP_SYMBOL( String "ktipbio130" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio131 __HELP_SYMBOL( STN "ktipbio131" )
+		VAR BYTE 3 LONG ktipbio131 __HELP_SYMBOL( String "ktipbio131" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio132 __HELP_SYMBOL( STN "ktipbio132" )
+		VAR BYTE 4 LONG ktipbio132 __HELP_SYMBOL( String "ktipbio132" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5392,13 +5392,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_56, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio133 __HELP_SYMBOL( STN "ktipbio133" )
+		VAR BYTE 1 LONG ktipbio133 __HELP_SYMBOL( String "ktipbio133" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio134 __HELP_SYMBOL( STN "ktipbio134" )
+		VAR BYTE 2 LONG ktipbio134 __HELP_SYMBOL( String "ktipbio134" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio135 __HELP_SYMBOL( STN "ktipbio135" )
+		VAR BYTE 3 LONG ktipbio135 __HELP_SYMBOL( String "ktipbio135" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio136 __HELP_SYMBOL( STN "ktipbio136" )
+		VAR BYTE 4 LONG ktipbio136 __HELP_SYMBOL( String "ktipbio136" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5544,13 +5544,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_BE, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio141 __HELP_SYMBOL( STN "ktipbio141" )
+		VAR BYTE 1 LONG ktipbio141 __HELP_SYMBOL( String "ktipbio141" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio142 __HELP_SYMBOL( STN "ktipbio142" )
+		VAR BYTE 2 LONG ktipbio142 __HELP_SYMBOL( String "ktipbio142" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio143 __HELP_SYMBOL( STN "ktipbio143" )
+		VAR BYTE 3 LONG ktipbio143 __HELP_SYMBOL( String "ktipbio143" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio144 __HELP_SYMBOL( STN "ktipbio144" )
+		VAR BYTE 4 LONG ktipbio144 __HELP_SYMBOL( String "ktipbio144" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5717,13 +5717,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_BA, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio145 __HELP_SYMBOL( STN "ktipbio145" )
+		VAR BYTE 1 LONG ktipbio145 __HELP_SYMBOL( String "ktipbio145" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio146 __HELP_SYMBOL( STN "ktipbio146" )
+		VAR BYTE 2 LONG ktipbio146 __HELP_SYMBOL( String "ktipbio146" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio147 __HELP_SYMBOL( STN "ktipbio147" )
+		VAR BYTE 3 LONG ktipbio147 __HELP_SYMBOL( String "ktipbio147" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio148 __HELP_SYMBOL( STN "ktipbio148" )
+		VAR BYTE 4 LONG ktipbio148 __HELP_SYMBOL( String "ktipbio148" )
 ENDCHUNK
 
 SET _help_cno++
@@ -5891,13 +5891,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_15, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio149 __HELP_SYMBOL( STN "ktipbio149" )
+		VAR BYTE 1 LONG ktipbio149 __HELP_SYMBOL( String "ktipbio149" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio150 __HELP_SYMBOL( STN "ktipbio150" )
+		VAR BYTE 2 LONG ktipbio150 __HELP_SYMBOL( String "ktipbio150" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio151 __HELP_SYMBOL( STN "ktipbio151" )
+		VAR BYTE 3 LONG ktipbio151 __HELP_SYMBOL( String "ktipbio151" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio152 __HELP_SYMBOL( STN "ktipbio152" )
+		VAR BYTE 4 LONG ktipbio152 __HELP_SYMBOL( String "ktipbio152" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6031,13 +6031,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_B0, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio153 __HELP_SYMBOL( STN "ktipbio153" )
+		VAR BYTE 1 LONG ktipbio153 __HELP_SYMBOL( String "ktipbio153" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio154 __HELP_SYMBOL( STN "ktipbio154" )
+		VAR BYTE 2 LONG ktipbio154 __HELP_SYMBOL( String "ktipbio154" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio155 __HELP_SYMBOL( STN "ktipbio155" )
+		VAR BYTE 3 LONG ktipbio155 __HELP_SYMBOL( String "ktipbio155" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio156 __HELP_SYMBOL( STN "ktipbio156" )
+		VAR BYTE 4 LONG ktipbio156 __HELP_SYMBOL( String "ktipbio156" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6210,14 +6210,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_C, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio157 __HELP_SYMBOL( STN "ktipbio157" )
+		VAR BYTE 1 LONG ktipbio157 __HELP_SYMBOL( String "ktipbio157" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio159 __HELP_SYMBOL( STN "ktipbio159" )
+		VAR BYTE 3 LONG ktipbio159 __HELP_SYMBOL( String "ktipbio159" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio160 __HELP_SYMBOL( STN "ktipbio160" )
+		VAR BYTE 4 LONG ktipbio160 __HELP_SYMBOL( String "ktipbio160" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio158 __HELP_SYMBOL( STN "ktipbio158" )
+		VAR BYTE 2 LONG ktipbio158 __HELP_SYMBOL( String "ktipbio158" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6382,13 +6382,13 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2B, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio161 __HELP_SYMBOL( STN "ktipbio161" )
+		VAR BYTE 1 LONG ktipbio161 __HELP_SYMBOL( String "ktipbio161" )
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio162 __HELP_SYMBOL( STN "ktipbio162" )
+		VAR BYTE 2 LONG ktipbio162 __HELP_SYMBOL( String "ktipbio162" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio163 __HELP_SYMBOL( STN "ktipbio163" )
+		VAR BYTE 3 LONG ktipbio163 __HELP_SYMBOL( String "ktipbio163" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio164 __HELP_SYMBOL( STN "ktipbio164" )
+		VAR BYTE 4 LONG ktipbio164 __HELP_SYMBOL( String "ktipbio164" )
 ENDCHUNK
 
 SET _help_cno++
@@ -6619,14 +6619,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1E, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 2 LONG ktipbio166 __HELP_SYMBOL( STN "ktipbio166" )
+		VAR BYTE 2 LONG ktipbio166 __HELP_SYMBOL( String "ktipbio166" )
 	ITEM LONG 0x40000001
-		VAR BYTE 3 LONG ktipbio167 __HELP_SYMBOL( STN "ktipbio167" )
+		VAR BYTE 3 LONG ktipbio167 __HELP_SYMBOL( String "ktipbio167" )
 	ITEM LONG 0x40000001
-		VAR BYTE 4 LONG ktipbio168 __HELP_SYMBOL( STN "ktipbio168" )
+		VAR BYTE 4 LONG ktipbio168 __HELP_SYMBOL( String "ktipbio168" )
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG ktipbio165 __HELP_SYMBOL( STN "ktipbio165" )
+		VAR BYTE 1 LONG ktipbio165 __HELP_SYMBOL( String "ktipbio165" )
 ENDCHUNK
 
 SET _help_cno++

@@ -322,7 +322,7 @@ LexerBase::LexerBase(PFIL pfil, bool fUnionStrings)
 /***************************************************************************
     Constructor for the lexer.
 ***************************************************************************/
-LexerBase::LexerBase(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings)
+LexerBase::LexerBase(PFileByteStream pbsf, PString pstnFile, bool fUnionStrings)
 {
     AssertPo(pbsf, 0);
     AssertPo(pstnFile, 0);
@@ -385,7 +385,7 @@ void LexerBase::MarkMem(void)
 /***************************************************************************
     Get the current file that we're reading tokens from.
 ***************************************************************************/
-void LexerBase::GetStnFile(PSTN pstn)
+void LexerBase::GetStnFile(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -464,7 +464,7 @@ bool LexerBase::_FSkipWhiteSpace(void)
     bool fStar, fSkipComment, fSlash;
     long lwLineSav;
     achar rgch[kcchPoundLine + 1];
-    STN stn;
+    String stn;
 
     fSkipComment = fFalse;
     while (_FFetchRgch(&ch))

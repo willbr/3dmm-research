@@ -1086,7 +1086,7 @@ void GraphicsEnvironment::DrawRgch(achar *prgch, long cch, long xp, long yp, Abs
 /***************************************************************************
     Draw the given string.
 ***************************************************************************/
-void GraphicsEnvironment::DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::DrawStn(PString pstn, long xp, long yp, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1120,7 +1120,7 @@ void GraphicsEnvironment::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp
     Return the bounding box of the text.  If the GraphicsEnvironment has any scaling, this
     is approximate.  This even works if the string is empty (gives the height).
 ******************************************************************************/
-void GraphicsEnvironment::GetRcFromStn(RC *prc, PSTN pstn, long xp, long yp)
+void GraphicsEnvironment::GetRcFromStn(RC *prc, PString pstn, long xp, long yp)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2187,7 +2187,7 @@ bool NTL::FValidOnn(long onn)
 /***************************************************************************
     Find the name of the given font.
 ***************************************************************************/
-void NTL::GetStn(long onn, PSTN pstn)
+void NTL::GetStn(long onn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2198,7 +2198,7 @@ void NTL::GetStn(long onn, PSTN pstn)
 /***************************************************************************
     Get the font number for the given font name.
 ***************************************************************************/
-bool NTL::FGetOnn(PSTN pstn, long *ponn)
+bool NTL::FGetOnn(PString pstn, long *ponn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2211,7 +2211,7 @@ bool NTL::FGetOnn(PSTN pstn, long *ponn)
     possible.
     REVIEW shonk: implement font mapping for real.
 ***************************************************************************/
-long NTL::OnnMapStn(PSTN pstn, short osk)
+long NTL::OnnMapStn(PString pstn, short osk)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

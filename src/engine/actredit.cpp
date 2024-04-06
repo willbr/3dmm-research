@@ -917,7 +917,7 @@ PACLP ACLP::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 
     PACLP paclp;
     PActor pactrTmp;
-    STN stn, stnCopyOf;
+    String stn, stnCopyOf;
 
     paclp = NewObj ACLP();
 
@@ -1064,7 +1064,7 @@ void ACLP::AssertValid(ulong grf)
     Create an undo object
 
 ***************************************************************************/
-bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PSTN pstn)
+bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
 {
     AssertPo(pactrDup, 0);
     AssertNilOrPo(pstn, 0);
@@ -1484,7 +1484,7 @@ bool AUND::FUndo(PDocumentBase pdocb)
         if (_stn.Cch() != 0)
         {
             // Undo actor name change
-            STN stn;
+            String stn;
             if (_pmvie->FGetName(_arid, &stn))
             {
                 // If FNameActr fails, the actor will not have

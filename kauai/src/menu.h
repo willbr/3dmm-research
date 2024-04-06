@@ -66,7 +66,7 @@ class MenuBar : public MenuBar_PAR
     PDynamicArray _pglmnu;
     PDynamicArray _pglmlst; // menu lists
 
-    bool _FInsertMni(long imnu, long imni, long cid, long lw0, PSTN pstn);
+    bool _FInsertMni(long imnu, long imni, long cid, long lw0, PString pstn);
     void _DeleteMni(long imnu, long imni);
     bool _FFindMlst(long imnu, long imni, MLST *pmlst = pvNil, long *pimlst = pvNil);
     bool _FGetCmdFromCode(long lwCode, Command *pcmd);
@@ -116,9 +116,9 @@ class MenuBar : public MenuBar_PAR
     virtual void EnqueueWcid(long wcid);
 #endif // WIN
 
-    virtual bool FAddListCid(long cid, long lw0, PSTN pstn);
-    virtual bool FRemoveListCid(long cid, long lw0, PSTN pstn = pvNil);
-    virtual bool FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN pstnNew);
+    virtual bool FAddListCid(long cid, long lw0, PString pstn);
+    virtual bool FRemoveListCid(long cid, long lw0, PString pstn = pvNil);
+    virtual bool FChangeListCid(long cid, long lwOld, PString pstnOld, long lwNew, PString pstnNew);
     virtual bool FRemoveAllListCid(long cid);
 };
 

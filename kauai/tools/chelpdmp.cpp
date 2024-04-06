@@ -22,7 +22,7 @@ ASSERTNAME
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     schar chs;
-    STN stn;
+    String stn;
     Filename fni;
     PFIL pfil = pvNil;
     PMSNK pmsnk = pvNil;

@@ -58,7 +58,7 @@ END_CMD_MAP_NIL()
 
 bool _fCaseSensitive;
 
-void _TokenizeStn(PSTN pstn);
+void _TokenizeStn(PString pstn);
 bool _FDoFindDlg(void);
 
 /***************************************************************************
@@ -248,7 +248,7 @@ void HEDO::DoFindNext(PHETD phetd, ChunkNumber cno, bool fAdvance)
     AssertNilOrPo(phetd, 0);
     Assert(pvNil == phetd || phetd->PdocbPar() == this, "bad topic doc");
     long cpMin, cpLim;
-    STN stn;
+    String stn;
     PHETG phetg;
     PHETD phetdT;
 
@@ -613,7 +613,7 @@ void HEDG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    STN stn, stnT;
+    String stn, stnT;
     RC rc;
     long yp, xp;
     long icki;
@@ -844,7 +844,7 @@ bool HEDG::FEnableHedgCmd(PCommand pcmd, ulong *pgrfeds)
     AssertVarMem(pcmd);
     AssertVarMem(pgrfeds);
     ChunkIdentification cki;
-    STN stn;
+    String stn;
 
     *pgrfeds = fedsEnable;
     switch (pcmd->cid)
@@ -1177,8 +1177,8 @@ bool HEDG::FCmdPrint(PCommand pcmd)
     PDocumentBase pdocb;
     PRINTDLG pd;
     DOCINFO di;
-    STN stn, stnT;
-    STN stnDoc;
+    String stn, stnT;
+    String stnDoc;
     RC rcPage, rcSrc, rcDst, rcT;
     long onnDef;
     long yp, ypTopic;
@@ -1413,9 +1413,9 @@ bool HEDG::FCmdPrint(PCommand pcmd)
 /***************************************************************************
     Print the page number and document name.
 ***************************************************************************/
-void HEDG::_StartPage(PGraphicsEnvironment pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn)
+void HEDG::_StartPage(PGraphicsEnvironment pgnv, PString pstnDoc, long lwPage, RC *prcPage, long onn)
 {
-    STN stn;
+    String stn;
 
     // draw the document name and page number
     pgnv->SetFont(onn, fontNil, 10, tahLeft, tavTop);
@@ -1498,7 +1498,7 @@ bool HEDG::FCmdCheckSpelling(PCommand pcmd)
 
     if (fContinue)
     {
-        STN stn;
+        String stn;
 
         if (cactTotal == 0)
             stn = PszLit("No corrections made.");
@@ -1763,7 +1763,7 @@ bool HETD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCo
 /***************************************************************************
     Get the name of the document.
 ***************************************************************************/
-void HETD::GetName(PSTN pstn)
+void HETD::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1772,7 +1772,7 @@ void HETD::GetName(PSTN pstn)
         HETD_PAR::GetName(pstn);
     else
     {
-        STN stn;
+        String stn;
 
         if (cnoNil == _cno)
         {
@@ -1964,7 +1964,7 @@ void HETD::EditHtop(void)
     AssertThis(0);
     PDLG pdlg;
     long dxp;
-    STN stn;
+    String stn;
 
     if (pvNil == (pdlg = Dialog::PdlgNew(dlidTopicInfo)))
         return;
@@ -2093,7 +2093,7 @@ bool HETD::FDoFind(long cpMin, long *pcpMin, long *pcpLim)
     AssertThis(0);
     AssertVarMem(pcpMin);
     AssertVarMem(pcpLim);
-    STN stn;
+    String stn;
 
     if (!vpstrg->FGet(kstidFind, &stn) || stn.Cch() == 0 ||
         !FFind(stn.Psz(), stn.Cch(), cpMin, pcpMin, pcpLim, _fCaseSensitive))
@@ -2114,7 +2114,7 @@ bool HETD::FDoReplace(long cp1, long cp2, long *pcpMin, long *pcpLim)
     AssertThis(0);
     AssertVarMem(pcpMin);
     AssertVarMem(pcpLim);
-    STN stn;
+    String stn;
 
     SortLw(&cp1, &cp2);
     vpstrg->FGet(kstidReplace, &stn);
@@ -2128,7 +2128,7 @@ bool HETD::FDoReplace(long cp1, long cp2, long *pcpMin, long *pcpLim)
     Get a string corresponding to an entry in the Topic. -1 means get the
     topic description.
 ***************************************************************************/
-void HETD::GetHtopStn(long istn, PSTN pstn)
+void HETD::GetHtopStn(long istn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2235,7 +2235,7 @@ bool HETG::FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cn
     Assert(ctg == kctgMbmp, "bad mbmp chunk");
     long cpMin, cpLim;
     PDLG pdlg;
-    STN stn;
+    String stn;
     long cb;
     byte rgb[kcbMaxDataStn];
 
@@ -2336,7 +2336,7 @@ bool HETG::FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno
     long cpMin, cpLim;
     long lw;
     PDLG pdlg;
-    STN stn;
+    String stn;
     byte rgb[2 * kcbMaxDataStn];
     long cb;
 
@@ -2574,7 +2574,7 @@ bool HETG::FCmdGroupText(PCommand pcmd)
     long cpAnchor, cpOther;
     PDLG pdlg;
     ChunkNumber cnoTopic;
-    STN stnTopic;
+    String stnTopic;
     byte bGroup;
     long lw;
 
@@ -2703,7 +2703,7 @@ bool HETG::FEnableHetgCmd(PCommand pcmd, ulong *pgrfeds)
     AssertVarMem(pgrfeds);
     void *pv;
     long cp, cpT, cb;
-    STN stn;
+    String stn;
 
     *pgrfeds = fedsDisable;
     switch (pcmd->cid)
@@ -2764,7 +2764,7 @@ bool HETG::FCmdFormatPicture(PCommand pcmd)
     PDLG pdlg;
     long cp, cpT, cb;
     byte rgb[size(ChunkIdentification) + kcbMaxDataStn];
-    STN stn;
+    String stn;
     ChunkIdentification *pcki = (ChunkIdentification *)rgb;
 
     if (LwAbs(_cpAnchor - _cpOther) > 1)
@@ -2828,7 +2828,7 @@ bool HETG::FCmdFormatButton(PCommand pcmd)
     void *pv;
     PDLG pdlg;
     long cp, cpT, cb, ib, cbRead;
-    STN stn;
+    String stn;
     byte rgb[size(ChunkIdentification) + size(long) + 2 * kcbMaxDataStn];
     ChunkIdentification *pcki = (ChunkIdentification *)rgb;
     long *plw = (long *)(pcki + 1);
@@ -3076,7 +3076,7 @@ bool HETG::FCmdPrint(PCommand pcmd)
     DOCINFO di;
     PGraphicsPort pgpt = pvNil;
     PGraphicsEnvironment pgnv = pvNil;
-    STN stn;
+    String stn;
     RC rc;
 
     // set up the print dialog structure
@@ -3165,7 +3165,7 @@ bool HETG::FCmdCheckSpelling(PCommand pcmd)
     AssertVarMem(pcmd);
 
 #ifdef SPELL
-    STN stn;
+    String stn;
     long cactChanges;
 
     if (pvNil != vpsplc)
@@ -3204,7 +3204,7 @@ bool HETG::FCheckSpelling(long *pcactChanges)
     long ichMin, ichLim;
     long idit;
     long cstn;
-    STN stnSrc, stnDst;
+    String stnSrc, stnDst;
     long scrs;
     PDLG pdlg = pvNil;
 
@@ -3505,7 +3505,7 @@ void HTRU::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     RC rc, rcT;
-    STN stn;
+    String stn;
 
     GetRc(&rc, cooLocal);
     pgnv->SetPenSize(0, 1);
@@ -3620,7 +3620,7 @@ bool HETG::FCmdFontDialog(PCommand pcmd)
     AssertVarMem(pcmd);
     PDLG pdlg;
     CHP chpNew, chpOld;
-    STN stn;
+    String stn;
     long onn;
 
     if (pvNil == (pdlg = Dialog::PdlgNew(dlidChooseFont)))
@@ -3727,7 +3727,7 @@ void HTRU::AssertValid(ulong grf)
 /***************************************************************************
     Munge the string so it is a valid token or empty.
 ***************************************************************************/
-void _TokenizeStn(PSTN pstn)
+void _TokenizeStn(PString pstn)
 {
     AssertPo(pstn, 0);
     bool fDigitOk;
@@ -3771,7 +3771,7 @@ bool _FDlgFind(PDLG pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    STN stn;
+    String stn;
 
     switch (*pidit)
     {
@@ -3806,7 +3806,7 @@ bool _FDlgFind(PDLG pdlg, long *pidit, void *pv)
 bool _FDoFindDlg(void)
 {
     PDLG pdlg;
-    STN stn;
+    String stn;
     bool fRet = fFalse;
 
     if (pvNil == (pdlg = Dialog::PdlgNew(dlidFind, _FDlgFind)))

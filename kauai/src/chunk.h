@@ -144,8 +144,8 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner);
     void _ReadFreeMap(void);
     bool _FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
-    bool _FSetName(long icrp, PSTN pstn);
-    bool _FGetName(long icrp, PSTN pstn);
+    bool _FSetName(long icrp, PString pstn);
+    bool _FGetName(long icrp, PString pstn);
     void _GetFlo(long icrp, PFLO pflo);
     void _GetBlck(long icrp, PDataBlock pblck);
     bool _FEnsureOnExtra(long icrp, FLO *pflo = pvNil);
@@ -167,7 +167,7 @@ class ChunkyFile : public ChunkyFile_PAR
     static void ClearMarks(void);
     static void CloseUnmarked(void);
 #ifdef CHUNK_STATS
-    static void DumpStn(PSTN pstn, PFIL pfil = pvNil);
+    static void DumpStn(PString pstn, PFIL pfil = pvNil);
 #endif // CHUNK_STATS
 
     virtual void Release(void);
@@ -233,8 +233,8 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FLoner(ChunkTag ctg, ChunkNumber cno);
 
     // chunk naming
-    bool FSetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn);
-    bool FGetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn);
+    bool FSetName(ChunkTag ctg, ChunkNumber cno, PString pstn);
+    bool FGetName(ChunkTag ctg, ChunkNumber cno, PString pstn);
 
     // graph structure
     bool FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0, bool fClearLoner = fTrue);

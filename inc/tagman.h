@@ -64,7 +64,7 @@ const ByteOrderMask kbomTag = 0xFF000000;
 // insert the given CD.  The name of the source is passed to the callback.
 // The function should return fTrue if the user wants to retry searching
 // for the chunk, or fFalse to cancel.
-typedef bool FNINSCD(PSTN pstnSourceTitle);
+typedef bool FNINSCD(PString pstnSourceTitle);
 typedef FNINSCD *PFNINSCD;
 
 enum
@@ -98,10 +98,10 @@ class TagManager : public TagManager_PAR
     {
     }
     bool _FFindSid(long sid, long *pistn = pvNil);
-    bool _FGetStnMergedOfSid(long sid, PSTN pstn);
-    bool _FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort);
+    bool _FGetStnMergedOfSid(long sid, PString pstn);
+    bool _FGetStnSplitOfSid(long sid, PString pstnLong, PString pstnShort);
     bool _FRetry(long sid);
-    bool _FEnsureFniCD(long sid, PFilename pfniCD, PSTN pstn = pvNil);
+    bool _FEnsureFniCD(long sid, PFilename pfniCD, PString pstn = pvNil);
     bool _FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged);
     bool _FDetermineIfSourceHD(long sid, bool *pfSourceIsOnHD);
     bool _FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni);
@@ -121,11 +121,11 @@ class TagManager : public TagManager_PAR
     // GstSource stuff:
     PStringTable PgstSource(void);
     bool FMergeGstSource(PStringTable pgst, short bo, short osk);
-    bool FAddStnSource(PSTN pstnMerged, long sid);
-    bool FGetSid(PSTN pstn, long *psid); // pstn can be short or long
+    bool FAddStnSource(PString pstnMerged, long sid);
+    bool FGetSid(PString pstn, long *psid); // pstn can be short or long
 
-    bool FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD);
-    void SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort);
+    bool FFindFile(long sid, PString pstn, PFilename pfni, bool fAskForCD);
+    void SplitString(PString pstnMerged, PString pstnLong, PString pstnShort);
 
     bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);

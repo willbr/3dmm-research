@@ -454,7 +454,7 @@ class MovieClientCallbacks : public MovieClientCallbacks_PAR
     {
     } // Tells the client to start up the listener easel.
     virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                            PSTN pstnDefFileName)
+                            PString pstnDefFileName)
     {
         return fFalse;
     } // Tells the client to start up the save portfolio.
@@ -464,7 +464,7 @@ class MovieClientCallbacks : public MovieClientCallbacks_PAR
     virtual void StopUISound(void)
     {
     } // Tells the client to stop sound associated with use of tools.
-    virtual void UpdateTitle(PSTN pstnTitle)
+    virtual void UpdateTitle(PString pstnTitle)
     {
     } // Tells the client that the movie name has changed.
     virtual void EnableAccel(void)
@@ -473,7 +473,7 @@ class MovieClientCallbacks : public MovieClientCallbacks_PAR
     virtual void DisableAccel(void)
     {
     } // Tells the client to disable keyboard accelerators.
-    virtual void GetStn(long ids, PSTN pstn)
+    virtual void GetStn(long ids, PString pstn)
     {
     } // Requests the client to fetch the given ids string.
     virtual long DypTextDef(void)
@@ -558,7 +558,7 @@ class Movie : public Movie_PAR
 
     ChunkNumber _cno; // ChunkNumber of movie in current file.
 
-    STN _stnTitle; // Title of the movie
+    String _stnTitle; // Title of the movie
 
     PStringTable _pgstmactr;             // StringTable of actors in the movie (for roll call)
     PScene _pscenOpen;            // Index of current open scene.
@@ -676,8 +676,8 @@ class Movie : public Movie_PAR
     //
     // Title stuff
     //
-    void GetName(PSTN pstnTitle); // Gets the title of the movie.
-    PSTN PstnTitle(void)
+    void GetName(PString pstnTitle); // Gets the title of the movie.
+    PString PstnTitle(void)
     {
         return &_stnTitle;
     }
@@ -742,7 +742,7 @@ class Movie : public Movie_PAR
     {
         return TagManager::FSaveTag(ptag, _pcrfAutoSave, fTrue);
     }
-    bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
+    bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
     bool FCopyMsndFromPcfl(PChunkyFile pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
@@ -765,12 +765,12 @@ class Movie : public Movie_PAR
     //
     // Roll call
     //
-    bool FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef,
+    bool FGetArid(long iarid, long *parid, PString pstn, long *pcactRef,
                   PTAG ptagTmpl = pvNil); // return actors one by one
     bool FChooseArid(long arid);          // user chose arid in roll call
     long AridSelected(void);
-    bool FGetName(long arid, PSTN pstn);      // Return the name of a specific actor.
-    bool FNameActr(long arid, PSTN pstn);     // Set the name of this actor.
+    bool FGetName(long arid, PString pstn);      // Return the name of a specific actor.
+    bool FNameActr(long arid, PString pstn);     // Set the name of this actor.
     void ChangeActrTag(long arid, PTAG ptag); // Change an actor's TMPL tag
     long CmactrMac(void)
     {
@@ -872,8 +872,8 @@ class Movie : public Movie_PAR
     //
     // 3-D Text stuff
     //
-    bool FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf); // Inserts a TDT into this movie.
-    bool FChangeActrTdt(PActor pactr, PSTN pstn, long tdts, PTAG ptagTdf);
+    bool FInsTdt(PString pstn, long tdts, PTAG ptagTdf); // Inserts a TDT into this movie.
+    bool FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf);
 
     //
     // Marking (overridden DocumentBase methods)
@@ -890,7 +890,7 @@ class Movie : public Movie_PAR
     //
     // Roll call
     //
-    bool FAddToRollCall(Actor *pactr, PSTN pstn);                    // Add an actor to the roll call
+    bool FAddToRollCall(Actor *pactr, PString pstn);                    // Add an actor to the roll call
     void RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef = fFalse); // Remove an actor from the roll call.
     void BuildActionMenu(void);                                     // Called when the selected actor has changed.
 

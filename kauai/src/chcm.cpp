@@ -140,8 +140,8 @@ void Compiler::_Error(long ert, PSZ pszMessage)
     AssertThis(0);
     AssertIn(ert, ertNil, ertLim);
     AssertPo(_pchlx, 0);
-    STN stnFile;
-    STN stn;
+    String stnFile;
+    String stn;
 
     _pchlx->GetStnFile(&stnFile);
     if (ertNil == ert)
@@ -402,7 +402,7 @@ void Compiler::_ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno)
     AssertVarMem(pctg);
     AssertVarMem(pcno);
 
-    STN stnChunkName;
+    String stnChunkName;
     PHP rgphp[3];
     long cphp;
 
@@ -440,7 +440,7 @@ void Compiler::_ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno)
 /***************************************************************************
     Append a string to the chunk data stream.
 ***************************************************************************/
-void Compiler::_AppendString(PSTN pstnValue)
+void Compiler::_AppendString(PString pstnValue)
 {
     AssertThis(0);
     AssertPo(pstnValue, 0);
@@ -597,7 +597,7 @@ void Compiler::_ParseBodyAlign(void)
 
     if (!FIn(tok.lw, kcbMinAlign, kcbMaxAlign + 1))
     {
-        STN stn;
+        String stn;
 
         stn.FFormatSz(PszLit("legal range for alignment is (%d, %d)"), kcbMinAlign, kcbMaxAlign);
         _Error(ertBodyAlignRange, stn.Psz());
@@ -765,7 +765,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumbe
     if (pvNil == (pmbmp = MBMP::PmbmpReadNative(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
                                                 fMask ? fmbmpMask : fmbmpNil)))
     {
-        STN stn;
+        String stn;
         fni.GetStnPath(&stn);
         _Error(ertReadBitmap, stn.Psz());
         goto LFail;
@@ -1457,7 +1457,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
     long cphp;
     long cbExtra, cb;
     long iv, iiv;
-    STN stn;
+    String stn;
     DataBlock blck;
     bool fFree;
     PVirtualStringTable pgstb = pvNil;
@@ -1992,7 +1992,7 @@ PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pm
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
     FileByteStream bsfSrc;
-    STN stnFile;
+    String stnFile;
     FLO flo;
     bool fRet;
 
@@ -2016,7 +2016,7 @@ PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pm
 /***************************************************************************
     Compile the given FileByteStream, using initial file name given by pstnFile.
 ***************************************************************************/
-PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk)
+PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pbsfSrc, ffniFile);
@@ -2144,7 +2144,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("BYTE"),      ttModeByte,  PszLit("SHORT"),      ttModeShort,  PszLit("LONG"),    ttModeLong,
     PszLit("CHUNK"),     ttChunk,     PszLit("ENDCHUNK"),   ttEndChunk,   PszLit("ADOPT"),   ttAdopt,
     PszLit("CHILD"),     ttChild,     PszLit("PARENT"),     ttParent,     PszLit("BO"),      ttBo,
-    PszLit("OSK"),       ttOsk,       PszLit("STN"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
+    PszLit("OSK"),       ttOsk,       PszLit("String"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
     PszLit("SZ"),        ttModeSz,    PszLit("ST"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
@@ -2162,7 +2162,7 @@ static KEYTT _rgkeytt[] = {
 /***************************************************************************
     Constructor for the chunky compiler lexer.
 ***************************************************************************/
-CompilerLexer::CompilerLexer(PFileByteStream pbsf, PSTN pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
+CompilerLexer::CompilerLexer(PFileByteStream pbsf, PString pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
 {
     _pgstVariables = pvNil;
     AssertThis(0);
@@ -2253,7 +2253,7 @@ bool CompilerLexer::FGetPath(Filename *pfni)
     AssertThis(0);
     AssertPo(pfni, 0);
     achar ch;
-    STN stn;
+    String stn;
 
     if (!_FSkipWhiteSpace())
     {
@@ -2507,7 +2507,7 @@ bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     _chse.DumpSz(PszLit(""));
     for (icki = 0; _pcfl->FGetCki(icki, &cki, pvNil, &blck); icki++)
     {
-        STN stnName;
+        String stnName;
 
         // don't dump these, because they're embedded in the script
         if (cki.ctg == kctgScriptStrs)
@@ -2734,7 +2734,7 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 void Decompiler::_WritePack(long cfmt)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (cfmtNil == cfmt)
         _chse.DumpSz(PszLit("PACK"));

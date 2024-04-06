@@ -95,7 +95,7 @@ class CompilerLexer : public CompilerLexer_PAR
     bool _FDoSet(PToken ptok);
 
   public:
-    CompilerLexer(PFileByteStream pbsf, PSTN pstnFile);
+    CompilerLexer(PFileByteStream pbsf, PString pstnFile);
     ~CompilerLexer(void);
 
     // override the LexerBase FGetTok to resolve variables, hande SET
@@ -209,7 +209,7 @@ class Compiler : public Compiler_PAR
     struct PHP // parenthesized header parameter
     {
         long lw;
-        PSTN pstn;
+        PString pstn;
     };
 
     void _Error(long ert, PSZ pszMessage = pvNil);
@@ -219,7 +219,7 @@ class Compiler : public Compiler_PAR
     bool _FGetCleanTok(Token *ptok, bool fEofOk = fFalse);
     void _SkipPastTok(long tt);
     void _ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno);
-    void _AppendString(PSTN pstnValue);
+    void _AppendString(PString pstnValue);
     void _AppendNumber(long lwValue);
     void _ParseBodyChild(ChunkTag ctg, ChunkNumber cno);
     void _ParseBodyParent(ChunkTag ctg, ChunkNumber cno);
@@ -257,7 +257,7 @@ class Compiler : public Compiler_PAR
     }
 
     PChunkyFile PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk);
-    PChunkyFile PcflCompile(PFileByteStream pbsfSrc, PSTN pstnFile, PFilename pfniDst, PMSNK pmsnk);
+    PChunkyFile PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFilename pfniDst, PMSNK pmsnk);
 };
 
 /***************************************************************************

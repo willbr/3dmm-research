@@ -104,9 +104,9 @@ class NTL : public NTL_PAR
     {
         return _onnSystem;
     }
-    void GetStn(long onn, PSTN pstn);
-    bool FGetOnn(PSTN pstn, long *ponn);
-    long OnnMapStn(PSTN pstn, short osk = koskCur);
+    void GetStn(long onn, PString pstn);
+    bool FGetOnn(PString pstn, long *ponn);
+    long OnnMapStn(PString pstn, short osk = koskCur);
     long OnnMac(void);
     bool FFixedPitch(long onn);
 
@@ -542,9 +542,9 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     void GetDsf(FontDescription *pdsf);
     void SetDsf(FontDescription *pdsf);
     void DrawRgch(achar *prgch, long cch, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
-    void DrawStn(PSTN pstn, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
+    void DrawStn(PString pstn, long xp, long yp, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrClear);
     void GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp = 0, long yp = 0);
-    void GetRcFromStn(RC *prc, PSTN pstn, long xp = 0, long yp = 0);
+    void GetRcFromStn(RC *prc, PString pstn, long xp = 0, long yp = 0);
 
     // bitmaps and pictures
     void CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst);

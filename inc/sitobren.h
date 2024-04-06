@@ -52,7 +52,7 @@ typedef struct _bmhr
     long cbModlf;
     BMAT34 bmat34; // XF
     MTRLF mtrlf;
-    PSTN pstnMtrlFile;
+    PString pstnMtrlFile;
     BRUFR brufrUOffset; // Material offsets
     BRUFR brufrVOffset;
     short uMinCrop; // Material cropping
@@ -84,7 +84,7 @@ typedef struct _cmtld
 /* A TextureMap descriptor */
 typedef struct _tmapd
 {
-    PSTN pstn;    // the name of the TextureMap
+    PString pstn;    // the name of the TextureMap
     long ccnoPar; // the number of MTRL parents
     long xp;      // the size of the bitmap
     long yp;
@@ -171,8 +171,8 @@ class S2BLX : public S2BLX_PAR
     {
         return FPure(_GrfctCh(ch) & fctDec);
     }
-    virtual bool FTextFromTt(long tt, PSTN pstn);
-    bool FTextFromS2btk(PS2BTK ps2btk, PSTN pstn);
+    virtual bool FTextFromTt(long tt, PString pstn);
+    bool FTextFromS2btk(PS2BTK ps2btk, PString pstn);
 };
 
 #define CnoAdd(ccno) (_cnoCur = (((_cnoPar & 0x0FFFF0000) + 0x010000) | (_cnoCur & 0x0FFFF) + (ccno)))
@@ -281,13 +281,13 @@ class S2B : public S2B_PAR
     ChunkTag _ctgPar;    // ChunkTag and ChunkNumber of current parent
     ChunkNumber _cnoPar;
     ChunkNumber _cnoCur;  // Current chunk number
-    STN _stnT;    // tmp buf for S2B to use
+    String _stnT;    // tmp buf for S2B to use
     S2BTK _s2btk; // current script token
     int _iZsign;  // Z multiplier
 
     /* Used by TMPL-specific stuff */
-    STN _stnTmpl;
-    STN _stnActn;
+    String _stnTmpl;
+    String _stnActn;
     ChildChunkID _chidActn; // Next available ACTN ChildChunkID
     ChildChunkID _chidBmdl;
     ChildChunkID _chidCmtl;
@@ -331,11 +331,11 @@ class S2B : public S2B_PAR
     bool _FDoTtBackgroundS2B(void);
     bool _FDoTtCostume(void);
     bool _FReadCmdline(char *szResult, bool *pfGotTok, const SCRP rgscrp[], ...);
-    void _DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack);
+    void _DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName, bool fPack);
 
     /* TMPL-specific stuff */
     bool _FInitGlpiCost(bool fForceCost);
-    bool _FProcessModel(Model *pmodel, BMAT34 bmat34Acc, PBMHR *ppbmhr, PSTN pstnSubmodel = pvNil,
+    bool _FProcessModel(Model *pmodel, BMAT34 bmat34Acc, PBMHR *ppbmhr, PString pstnSubmodel = pvNil,
                         PBMHR pbmhrParent = pvNil, int cLevel = 0);
     PBMHR _PbmhrFromModel(Model *pmodel, BMAT34 *pbmat34, PBMHR *ppbmhr, PBMHR pbmhrParent, int ibps, bool fAccessory);
     BRS _BrsdwrFromModel(Model *pmodel, BRS rgbrsDwr[]);
@@ -361,17 +361,17 @@ class S2B : public S2B_PAR
     bool _FDoBodyPart(PBMHR pbmhr, long ibp);
     void _ApplyBmdlXF(PBMHR pbmhr);
     void _TextureFileFromModel(Model *pmodel, PBMHR pbmhr, bool fWrapOnly = fFalse);
-    bool _FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl);
+    bool _FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PString pstnMtrl);
     bool _FFlushTmaps(void);
 
     /* Background-specific stuff */
-    bool _FDumpLites(int cLite, PSTN stnBkgd);
-    bool _FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal);
+    bool _FDumpLites(int cLite, PString stnBkgd);
+    bool _FDumpCameras(int cCam, PString pstnBkgd, int iPalBase, int cPal);
     bool _FBvec3Read(PS2BLX ps2blx, BVEC3 *pbvec3, PS2BTK ps2btk);
     void _Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34);
-    void _ReadLite(PSTN pstnLite, LightPosition *plite);
-    void _ReadCam(PSTN pstnCam, CameraPosition *pcam, PDynamicArray *ppglapos);
-    bool _FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CameraPosition *pcam);
+    void _ReadLite(PString pstnLite, LightPosition *plite);
+    void _ReadCam(PString pstnCam, CameraPosition *pcam, PDynamicArray *ppglapos);
+    bool _FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CameraPosition *pcam);
 
     /* Brender-knowledgable utilities */
     bool _FBrsFromS2btk(PS2BTK ps2btk, BRS *pbrs)

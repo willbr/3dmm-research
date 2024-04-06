@@ -52,7 +52,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 {
     Filename fniSrc, fniDst;
     PChunkyFile pcfl;
-    STN stn;
+    String stn;
     char *pszs;
     MSSIO mssioError(stderr);
     bool fCompile = fTrue;
@@ -356,8 +356,8 @@ void DumpSourceList(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
         pgstSource = StringTable::PgstRead(&data_block, &bo, &osk);
         if (pvNil != pgstSource)
         {
-            STN stn1;
-            STN stn2;  
+            String stn1;
+            String stn2;  
             long iv, ivMac;
             long cbExtra;
             void *pvExtra = pvNil;
@@ -426,8 +426,8 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
     ppgst = StringTable::PgstRead(&data_block, &bo);
     if (pvNil != ppgst)
     {
-        STN stn1;
-        STN stn2;  
+        String stn1;
+        String stn2;  
         long iv, ivMac;
         long cbExtra;
         void *pvExtra = pvNil;
@@ -475,7 +475,7 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
                     printf("\t\t\tTAG(\n");
                     printf("\t\t\t\ttagTmpl.cno=%d,\n", mactr.tagTmpl.cno);
 
-                    STN template_tag;
+                    String template_tag;
                     template_tag.FFormatSz(PszLit("%f"), mactr.tagTmpl.ctg);
                     printf("\t\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
@@ -887,7 +887,7 @@ LFail:
 ***************************************************************************/
 bool MovieDecompiler::FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
-    STN movie_name;
+    String movie_name;
     pcflSrc->FGetName(kctgMvie, movie_chunk_number, &movie_name);
     
     DataBlock data_block; 
@@ -937,8 +937,8 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
     _chse.DumpSz(PszLit(""));
     for (icki = 0; _pcfl->FGetCki(icki, &cki, pvNil, &blck); icki++)
     {
-        STN stnName;
-        STN stnTag;
+        String stnName;
+        String stnTag;
         SCENH scenh;
         short bo;
 
@@ -1054,7 +1054,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             printf("\t\tTAG(\n");
             printf("\t\t\ttagTmpl.cno=%d,\n", actf.tagTmpl.cno);
 
-            STN template_tag;
+            String template_tag;
             template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
             printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
@@ -1174,7 +1174,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                         printf("\t\tTAG(\n");
                         printf("\t\t\tcno=%lu,\n", tag.cno);
 
-                        STN background_tag;
+                        String background_tag;
                         background_tag.FFormatSz(PszLit("%f"), tag.ctg);
                         printf("\t\t\tctg='%s',\n", background_tag.Psz());
 
@@ -1432,7 +1432,7 @@ bool MovieDecompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 void MovieDecompiler::_WritePack(long cfmt)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (cfmtNil == cfmt)
         _chse.DumpSz(PszLit("PACK"));

@@ -58,7 +58,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
 
     PStudioScrollbars psscb;
     PGraphicsObject pgob;
-    STN stn;
+    String stn;
     GraphicsObjectBlock gcb;
     RC rcRel, rcAbs;
     long hid;
@@ -328,7 +328,7 @@ bool StudioScrollbars::FCmdScroll(PCommand pcmd)
 LExecuteCmd:
     if (!_pmvie->FPlaying())
     {
-        STN stn;
+        String stn;
 
         if (fScene)
         {
@@ -460,7 +460,7 @@ void StudioScrollbars::Update(void)
     AssertThis(0);
 
     PScene pscen;
-    STN stn;
+    String stn;
     PGraphicsObject pgob;
     RC rc;
     long xp, dxp;

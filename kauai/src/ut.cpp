@@ -31,7 +31,7 @@ void __cdecl main(long cpszs, char **prgpszs)
     FP fpMac, fp;
     long cbTot, clnTot, ib, cbT, cln;
     PFIL pfil;
-    STN stn;
+    String stn;
 
     if (!fniDir.FGetOpen("All files\0*.*\0", hNil))
         return;
@@ -75,7 +75,7 @@ void __cdecl main(long cpszs, char **prgpszs)
 
 #ifndef REVIEW // shonk: for finding a prime and a primitive root for the prime
     long lwPrime, lwRoot, lw;
-    STN stn;
+    String stn;
 
     lwPrime = 6000;
     if (cpszs > 1)

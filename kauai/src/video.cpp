@@ -90,7 +90,7 @@ bool GVDS::_FInit(PFilename pfni, PGraphicsObject pgobBase)
     AssertPo(pgobBase, 0);
 
 #ifdef WIN
-    STN stn;
+    String stn;
     AVIFILEINFO afi;
 
     _pgobBase = pgobBase;
@@ -395,7 +395,7 @@ bool GVDW::_FInit(PFilename pfni, PGraphicsObject pgobBase)
     MCI_ANIM_OPEN_PARMS mciOpen;
     MCI_STATUS_PARMS mciStatus;
     MCI_ANIM_RECT_PARMS mciRect;
-    STN stn;
+    String stn;
     PSNDV psndv;
 
     pfni->GetStnPath(&stn);

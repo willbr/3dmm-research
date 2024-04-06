@@ -190,7 +190,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     PScript pscpt = pvNil;
     PStudioScrollbars psscb = pvNil;
     PGraphicsObjectInterpreter psceg = pvNil;
-    STN stn;
+    String stn;
     RC rcAbs, rcRel;
     DataBlock blck;
     bool fRet = fFalse;
@@ -289,8 +289,8 @@ bool Studio::FCmdLoadProjectMovie(PCommand pcmd)
     AssertVarMem(pcmd);
 
     long stid = pcmd->rglw[0];
-    STN stn;
-    STN stnLeaf;
+    String stn;
+    String stnLeaf;
     Filename fni;
     bool fLoaded = fFalse;
 
@@ -954,7 +954,7 @@ bool Studio::FCmdOpen(PCommand pcmd)
         if (_fDisplayCast && vpappb->GrfcustCur() & fcustShift)
         {
             Filename fni;
-            STN stn;
+            String stn;
 
             _fDisplayCast = fFalse;
 
@@ -1087,7 +1087,7 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    STN stn;
+    String stn;
     TAG tagTdf;
     ChunkIdentification cki;
     PBCL pbcl;
@@ -1134,7 +1134,7 @@ bool Studio::FCmdOpenSoundRecord(PCommand pcmd)
 
     // If default sound name is required then set it in stn here.
     // Currently no default sound name required, so initialize it empty.
-    STN stn;
+    String stn;
 
     vapp.BeginLongOp();
 
@@ -1233,7 +1233,7 @@ bool Studio::FCmdCreatePopup(PCommand pcmd)
 
         for (onnCur = 0; onnCur < vntl.OnnMac(); onnCur++)
         {
-            STN stn;
+            String stn;
 
             if (onnCur != onnSystem)
             {
@@ -2492,7 +2492,7 @@ void Studio::StopUISound(void)
 /***************************************************************************
     Read a Misc Studio stn
 ***************************************************************************/
-void Studio::GetStnMisc(long ids, PSTN pstn)
+void Studio::GetStnMisc(long ids, PString pstn)
 {
     AssertBaseThis(0);
     AssertDo(_pgstMisc->FFindExtra(&ids, pstn), "Invalid studio.cht or ids");
@@ -2628,12 +2628,12 @@ bool Studio::FCmdCreateTbox(PCommand pcmd)
  *  None.
  *
  ****************************************************/
-void Studio::UpdateTitle(PSTN pstnTitle)
+void Studio::UpdateTitle(PString pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);
 
-    STN stnFontSize;
+    String stnFontSize;
     long dypFontSize;
 
     // Set the movie title
@@ -2809,7 +2809,7 @@ long StudioClientCallbacks::DypTboxDef(void)
 {
     if (_dypTextTbox == 0)
     {
-        STN stn;
+        String stn;
 
         _pstdio->GetStnMisc(idsTboxDypFont, &stn);
         if (!stn.FGetLw(&_dypTextTbox) || _dypTextTbox <= 0)
@@ -2830,7 +2830,7 @@ bool StudioClientCallbacks::FQueryPurgeSounds(void)
 {
     AssertThis(0);
 
-    STN stnMsg;
+    String stnMsg;
 
     AssertDo(vapp.FGetStnApp(idsPurgeSounds, &stnMsg), "String not present");
     return vapp.TModal(vapp.PcrmAll(), ktpcQueryPurgeSounds, &stnMsg, bkYesNo) == tYes;

@@ -34,7 +34,7 @@ class FrameTesterApp : public FrameTesterApp_PAR
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
 
   public:
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
     bool FCmdTestSuite(PCommand pcmd);
     bool FCmdNewTestWnd(PCommand pcmd);
     bool FCmdTextTestWnd(PCommand pcmd);
@@ -106,7 +106,7 @@ void FrameMain(void)
 /***************************************************************************
     Get the name for the frame tester app.
 ***************************************************************************/
-void FrameTesterApp::GetStnAppName(PSTN pstn)
+void FrameTesterApp::GetStnAppName(PString pstn)
 {
     *pstn = PszLit("Frame Tester");
 }
@@ -503,7 +503,7 @@ DWN *DWN::PdwnNew(void)
 {
     DWN *pdwn;
     PGraphicsObject pgob;
-    STN stn;
+    String stn;
 
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
     if ((pdwn = NewObj DWN(&gcb)) == pvNil)
@@ -682,7 +682,7 @@ RTCLASS(TTW)
 TTW *TTW::PttwNew(void)
 {
     TTW *pttw;
-    STN stn;
+    String stn;
     RC rc;
     PEDPL pedpl;
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
@@ -740,7 +740,7 @@ void TTW::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     {
         for (idxp = 0; idxp < cdxp; idxp++)
         {
-            STN stn;
+            String stn;
             RC rc;
             long itnm;
             long tah, tav;
@@ -807,7 +807,7 @@ RTCLASS(RTW)
 RTW *RTW::PrtwNew(void)
 {
     RTW *prtw;
-    STN stn;
+    String stn;
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (prtw = NewObj RTW(&gcb)))
@@ -917,7 +917,7 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
     long xp1, xp2, xp3, yp1, yp2, yp3;
     AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
     ulong ts;
-    STN stn;
+    String stn;
 
     if (pvNil == (pogn = OGN::PognNew(8)))
         return;
@@ -988,8 +988,8 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 ******************************************************************************/
 void RTW::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
-    STN stn;
-    STN rgstn[] = {PszLit("frame rectangle "), PszLit("frame polygon "), PszLit("line draw ")};
+    String stn;
+    String rgstn[] = {PszLit("frame rectangle "), PszLit("frame polygon "), PszLit("line draw ")};
     RC rc;
 
     stn.FFormatSz(PszLit("Click to begin the %s test"), &rgstn[_cact % 3]);
@@ -1094,7 +1094,7 @@ bool FrameTesterApp::FEnableMacro(PCommand pcmd, ulong *pgrfeds)
 bool FrameTesterApp::FCmdTestFni(PCommand pcmd)
 {
     long idit;
-    STN stn, stnT;
+    String stn, stnT;
     Filename fni;
     PDLG pdlg;
 
@@ -1306,7 +1306,7 @@ void DDP::DrawRc(PGraphicsEnvironment pgnv)
 void DDP::DrawNumbers(PGraphicsEnvironment pgnv)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("coords: (%d, %d, %d)        "), pdocp->_pttSquare.xt, pdocp->_pttSquare.yt,
                   pdocp->_pttSquare.zt);
@@ -2031,7 +2031,7 @@ PTAN TAN::PtanNew(void)
 {
     PTAN ptan;
     RC rc;
-    STN stn;
+    String stn;
     AbstractPattern apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
@@ -2135,7 +2135,7 @@ PTED TED::PtedNew(void)
     RC rcRel, rcAbs;
     EDPAR edpar;
     PTED pted;
-    STN stn;
+    String stn;
     long i, j;
     long hid;
     long rgtah[3] = {tahLeft, tahCenter, tahRight};

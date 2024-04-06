@@ -23,7 +23,7 @@ RTCLASS(GraphicsObjectInterpreter)
 
 #ifdef DEBUG
 // these strings are for debug only error messages
-static STN _stn;
+static String _stn;
 #endif // DEBUG
 
 /***************************************************************************
@@ -1074,8 +1074,8 @@ bool GraphicsObjectInterpreter::_FExecOp(long op)
 ***************************************************************************/
 void GraphicsObjectInterpreter::_DoAlert(long op)
 {
-    STN stn1;
-    STN stn2;
+    String stn1;
+    String stn2;
     long lw;
     bool fStrings;
     long clw = _LwPop();
@@ -1149,7 +1149,7 @@ void GraphicsObjectInterpreter::_DoEditControl(long hid, long stid, bool fGet)
     PEDCB pedcb;
     long cch;
     achar rgch[kcchMaxStn];
-    STN stn;
+    String stn;
 
     if (_fError || pvNil == (pedcb = (PEDCB)_PgobFromHid(hid)) || !pedcb->FIs(kclsEDCB))
     {
@@ -1255,7 +1255,7 @@ bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 bool GraphicsObjectInterpreter::_FLaunch(long stid)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (pvNil == _pstrg)
     {

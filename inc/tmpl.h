@@ -160,7 +160,7 @@ class TMPL : public TMPL_PAR
     long _ccmid;      // Count of custom costumes
     long _cbset;      // Count of body part sets
     long _cactn;      // Count of actions
-    STN _stn;         // Template name
+    String _stn;         // Template name
 
   protected:
     TMPL(void)
@@ -178,7 +178,7 @@ class TMPL : public TMPL_PAR
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError);
 
     // TMPL / BODY stuff
-    void GetName(PSTN pstn); // default name of actor or text of the TDT
+    void GetName(PString pstn); // default name of actor or text of the TDT
     PBODY PbodyCreate(void); // Creates a body based on this TMPL
     void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
     bool FIsTdt(void)
@@ -195,7 +195,7 @@ class TMPL : public TMPL_PAR
     {
         return _cactn;
     } // count of actions
-    virtual bool FGetActnName(long anid, PSTN pstn);
+    virtual bool FGetActnName(long anid, PString pstn);
     bool FSetActnCel(PBODY pbody, long anid, long celn, BRS *pdwr = pvNil);
     bool FGetGrfactn(long anid, ulong *pgrfactn);
     bool FGetDwrActnCel(long anid, long celn, BRS *pdwr);

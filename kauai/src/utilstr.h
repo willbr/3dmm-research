@@ -319,8 +319,8 @@ extern const achar vrgchHex[];
 /***************************************************************************
     General string class.
 ***************************************************************************/
-typedef class STN *PSTN;
-class STN
+typedef class String *PString;
+class String
 {
     ASSERT
 
@@ -328,13 +328,13 @@ class STN
     achar _rgch[kcchMaxStn + 2];
 
   public:
-    STN(void)
+    String(void)
     {
         _rgch[0] = _rgch[1] = 0;
         AssertThis(0);
     }
-    STN(STN &stnSrc);
-    STN(PSZ pszSrc);
+    String(String &stnSrc);
+    String(PSZ pszSrc);
 
     // pointers to the data - these should be considered readonly!
     achar *Prgch(void)
@@ -385,8 +385,8 @@ class STN
     void SetSzs(PSZS pszsSrc);
 
     // assignment operators
-    STN &operator=(STN &stnSrc);
-    STN &operator=(PSZ pszSrc)
+    String &operator=(String &stnSrc);
+    String &operator=(PSZ pszSrc)
     {
         SetSz(pszSrc);
         return *this;
@@ -426,7 +426,7 @@ class STN
     {
         return FAppendRgch(pszSrc, CchSz(pszSrc));
     }
-    bool FAppendStn(PSTN pstnSrc)
+    bool FAppendStn(PString pstnSrc)
     {
         return FAppendRgch(pstnSrc->Prgch(), pstnSrc->Cch());
     }
@@ -435,7 +435,7 @@ class STN
     {
         return FInsertRgch(ich, &chSrc, 1);
     }
-    bool FInsertStn(long ich, PSTN pstnSrc)
+    bool FInsertStn(long ich, PString pstnSrc)
     {
         return FInsertRgch(ich, pstnSrc->Prgch(), pstnSrc->Cch());
     }
@@ -446,7 +446,7 @@ class STN
     {
         return FEqualRgch(psz, CchSz(psz));
     }
-    bool FEqual(PSTN pstn)
+    bool FEqual(PString pstn)
     {
         return FEqualRgch(pstn->Prgch(), pstn->Cch());
     }
@@ -455,17 +455,17 @@ class STN
     {
         return FEqualUserRgch(psz, CchSz(psz), grfstn);
     }
-    bool FEqualUser(PSTN pstn, ulong grfstn = fstnIgnoreCase)
+    bool FEqualUser(PString pstn, ulong grfstn = fstnIgnoreCase)
     {
         return FEqualUserRgch(pstn->Prgch(), pstn->Cch(), grfstn);
     }
 
     // for sorting
-    ulong FcmpCompare(PSTN pstn)
+    ulong FcmpCompare(PString pstn)
     {
         return ::FcmpCompareRgch(Prgch(), Cch(), pstn->Prgch(), pstn->Cch());
     }
-    ulong FcmpCompareUser(PSTN pstn, ulong grfstn = fstnIgnoreCase)
+    ulong FcmpCompareUser(PString pstn, ulong grfstn = fstnIgnoreCase)
     {
         return ::FcmpCompareUserRgch(Prgch(), Cch(), pstn->Prgch(), pstn->Cch(), grfstn);
     }
@@ -477,7 +477,7 @@ class STN
     bool FWrite(PDataBlock pblck, long ib);
     bool FRead(PDataBlock pblck, long ib, long *pcbRead = pvNil);
 
-    bool FFormat(PSTN pstnFormat, ...);
+    bool FFormat(PString pstnFormat, ...);
     bool FFormatSz(PSZ pszFormat, ...);
     bool FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData);
     bool FGetLw(long *plw, long lwBase = 0);

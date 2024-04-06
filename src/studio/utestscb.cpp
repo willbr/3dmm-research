@@ -197,7 +197,7 @@ void MSCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    STN stn;
+    String stn;
     RC rc;
     PSCB pscb;
 

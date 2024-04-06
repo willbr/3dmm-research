@@ -82,7 +82,7 @@ namespace Chunky {
 
     1	ShonK: instantiated, 10/28/93
     2	ShonK: added compression support, 2/14/95
-    3	ShonK: changed format of chunk names to be a saved STN, 3/30/95
+    3	ShonK: changed format of chunk names to be a saved String, 3/30/95
     4	ShonK: implemented support for compact index (CRP is smaller). 8/21/95
     5	ShonK: added the fcrpForest flag. 9/4/95
 
@@ -294,10 +294,10 @@ FP _fpStats;
 /***************************************************************************
     Static method to dump a string to the chunk stats file
 ***************************************************************************/
-void ChunkyFile::DumpStn(PSTN pstn, PFIL pfil)
+void ChunkyFile::DumpStn(PString pstn, PFIL pfil)
 {
     Filename fni;
-    STN stn;
+    String stn;
 
     if (pvNil == _pfilStats)
     {
@@ -1338,7 +1338,7 @@ bool ChunkyFile::_FReadIndex(void)
 
     // used for old name stuff
     SZS szsName;
-    STN stn;
+    String stn;
     bool fOldNames;
 
     // used for old index stuff
@@ -1928,7 +1928,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FLO *pflo)
 #ifdef CHUNK_STATS
         if (vfDumpChunkRequests)
         {
-            STN stn;
+            String stn;
 
             qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
             stn.FFormatSz(PszLit("Cache: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), qcrp->cki.ctg, qcrp->cki.cno,
@@ -1959,7 +1959,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FLO *pflo)
 #ifdef CHUNK_STATS
     if (pvNil != pflo && vfDumpChunkRequests)
     {
-        STN stn;
+        String stn;
 
         qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
         stn.FFormatSz(PszLit("Fetch from extra: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), qcrp->cki.ctg, qcrp->cki.cno,
@@ -1991,7 +1991,7 @@ void ChunkyFile::_GetFlo(long icrp, PFLO pflo)
 #ifdef CHUNK_STATS
         if (vfDumpChunkRequests)
         {
-            STN stn;
+            String stn;
 
             qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
             stn.FFormatSz(PszLit("Fetch from %z: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"),
@@ -3171,7 +3171,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FP fp, long cb)
 /***************************************************************************
     Set the name of the chunk.
 ***************************************************************************/
-bool ChunkyFile::FSetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn)
+bool ChunkyFile::FSetName(ChunkTag ctg, ChunkNumber cno, PString pstn)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -3195,7 +3195,7 @@ bool ChunkyFile::FSetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn)
 /***************************************************************************
     Set the name of the chunk at the given index.
 ***************************************************************************/
-bool ChunkyFile::_FSetName(long icrp, PSTN pstn)
+bool ChunkyFile::_FSetName(long icrp, PString pstn)
 {
     AssertBaseThis(0);
     AssertIn(icrp, 0, _pggcrp->IvMac());
@@ -3234,7 +3234,7 @@ bool ChunkyFile::_FSetName(long icrp, PSTN pstn)
     Retrieve the name of the chunk.  Returns whether the string is
     non-empty.
 ***************************************************************************/
-bool ChunkyFile::FGetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn)
+bool ChunkyFile::FGetName(ChunkTag ctg, ChunkNumber cno, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -3255,7 +3255,7 @@ bool ChunkyFile::FGetName(ChunkTag ctg, ChunkNumber cno, PSTN pstn)
     Retrieve the name of the chunk at the given index.  Returns whether
     the string is non-empty.
 ***************************************************************************/
-bool ChunkyFile::_FGetName(long icrp, PSTN pstn)
+bool ChunkyFile::_FGetName(long icrp, PString pstn)
 {
     AssertBaseThis(0);
     AssertIn(icrp, 0, _pggcrp->IvMac());
@@ -3826,7 +3826,7 @@ bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst
     DataBlock blckSrc;
     ulong grfcge, grfcgeIn;
     CNOM cnom, cnomPar;
-    STN stn;
+    String stn;
     CRP *qcrp;
 
     bool fFreeDstOnFailure = fFalse;

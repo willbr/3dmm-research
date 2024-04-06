@@ -1235,7 +1235,7 @@ bool EDSL::_FFilterCh(achar ch)
 /***************************************************************************
     Get the text in the edit control.
 ***************************************************************************/
-void EDSL::GetStn(PSTN pstn)
+void EDSL::GetStn(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1247,7 +1247,7 @@ void EDSL::GetStn(PSTN pstn)
     Set the text in the edit control.  Sets the selection to an insertion
     point at the end of the text.
 ***************************************************************************/
-void EDSL::SetStn(PSTN pstn, long gin)
+void EDSL::SetStn(PString pstn, long gin)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

@@ -389,7 +389,7 @@ PGraphicsObject WorldOfKidspace::PgobParGob(PGraphicsObject pgob)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool WorldOfKidspace::FFindFile(PSTN pstnSrc, PFilename pfni)
+bool WorldOfKidspace::FFindFile(PString pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -401,7 +401,7 @@ bool WorldOfKidspace::FFindFile(PSTN pstnSrc, PFilename pfni)
 /***************************************************************************
     Put up an alert (and don't return until it is dismissed).
 ***************************************************************************/
-tribool WorldOfKidspace::TGiveAlert(PSTN pstn, long bk, long cok)
+tribool WorldOfKidspace::TGiveAlert(PString pstn, long bk, long cok)
 {
     AssertThis(0);
 
@@ -411,7 +411,7 @@ tribool WorldOfKidspace::TGiveAlert(PSTN pstn, long bk, long cok)
 /***************************************************************************
     Put up an alert (and don't return until it is dismissed).
 ***************************************************************************/
-void WorldOfKidspace::Print(PSTN pstn)
+void WorldOfKidspace::Print(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

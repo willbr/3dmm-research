@@ -19,7 +19,7 @@ ASSERTNAME
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     schar chs;
-    STN stn;
+    String stn;
     Filename fniSrc, fniT;
     ChunkIdentification cki;
     long icki;

@@ -498,7 +498,7 @@ void Dialog::_SetCheckBox(long idit, bool fOn)
 /***************************************************************************
     Get the text from an edit control or combo.
 ***************************************************************************/
-void Dialog::_GetEditText(long idit, PSTN pstn)
+void Dialog::_GetEditText(long idit, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -519,7 +519,7 @@ void Dialog::_GetEditText(long idit, PSTN pstn)
 /***************************************************************************
     Set the text in an edit control or combo.
 ***************************************************************************/
-void Dialog::_SetEditText(long idit, PSTN pstn)
+void Dialog::_SetEditText(long idit, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -538,7 +538,7 @@ void Dialog::_SetEditText(long idit, PSTN pstn)
 /***************************************************************************
     Add a string to a combo item.
 ***************************************************************************/
-bool Dialog::_FAddToList(long idit, PSTN pstn)
+bool Dialog::_FAddToList(long idit, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

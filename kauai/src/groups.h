@@ -444,16 +444,16 @@ class VirtualStringTable : public VirtualStringTable_PAR
         return _cbEntry - size(long);
     }
 
-    bool FAddStn(PSTN pstn, void *pvExtra = pvNil, long *pistn = pvNil);
+    bool FAddStn(PString pstn, void *pvExtra = pvNil, long *pistn = pvNil);
     bool FPutRgch(long istn, achar *prgch, long cch);
-    bool FPutStn(long istn, PSTN pstn);
+    bool FPutStn(long istn, PString pstn);
     void GetRgch(long istn, achar *prgch, long cchMax, long *pcch);
-    void GetStn(long istn, PSTN pstn);
-    bool FFindStn(PSTN pstn, long *pistn, ulong grfgst = fgstNil);
+    void GetStn(long istn, PString pstn);
+    bool FFindStn(PString pstn, long *pistn, ulong grfgst = fgstNil);
 
     void GetExtra(long istn, void *pv);
     void PutExtra(long istn, void *pv);
-    bool FFindExtra(void *prgbFind, PSTN pstn = pvNil, long *pistn = pvNil);
+    bool FFindExtra(void *prgbFind, PString pstn = pvNil, long *pistn = pvNil);
 };
 
 /****************************************
@@ -487,7 +487,7 @@ class StringTable : public StringTable_PAR
 
     // new methods
     bool FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra = pvNil);
-    bool FInsertStn(long istn, PSTN pstn, void *pvExtra = pvNil);
+    bool FInsertStn(long istn, PString pstn, void *pvExtra = pvNil);
     void Move(long istnSrc, long istnDst);
 };
 

@@ -23,7 +23,7 @@ ASSERTNAME
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     Filename fniSrc, fniDst;
-    STN stn;
+    String stn;
     char chs;
     PTextureMap ptmap = pvNil;
     long cfni = 0;

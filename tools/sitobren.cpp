@@ -124,7 +124,7 @@ bool _fBreak = fFalse;
 
 int __cdecl main(int cpsz, achar *prgpsz[])
 {
-    STN stnSrc, stnDst;
+    String stnSrc, stnDst;
     achar **ppszParm = &prgpsz[1];
     bool fBanner = fTrue, fSwapHand, fUsage = fTrue, fDumpLex = fFalse;
     bool fContinue = fFalse, fPreprocess = fFalse, fHaveInc = fFalse;
@@ -147,7 +147,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
 
         if (fIncNext)
         {
-            STN stnT;
+            String stnT;
 
             stnT = pszParm;
             fHaveInc = fniInc.FBuildFromPath(&stnT);
@@ -282,7 +282,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
 
     if (fDumpLex)
     {
-        STN stn;
+        String stn;
         S2BLX s2blx(pfilSrc);
         S2BTK s2btk;
         long cch = 0;
@@ -517,7 +517,7 @@ S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
     Filename fni;
     ChunkyFile *pcfl;
     DataBlock blck;
-    STN stnPal;
+    String stnPal;
 
     _ibpCur = 0;
     _chidActn = 0;
@@ -637,17 +637,17 @@ S2B::~S2B(void)
     Arguments:
         ChunkTag ctg       -- the ChunkTag of the chunk; used in the #ifdef
         ChunkNumber cno       -- the remainder of the arguments are just passed
-        PSTN pstnName    directly to the SourceEmitter DumpHeader()
+        PString pstnName    directly to the SourceEmitter DumpHeader()
         bool fPack
 
 ************************************************************ PETED ***********/
-void S2B::_DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
+void S2B::_DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName, bool fPack)
 {
     if (_fPreprocess)
     {
         long ich;
-        STN stnCtg;
-        STN stnT;
+        String stnCtg;
+        String stnT;
 
         stnCtg.FFormatSz(PszLit("%f"), ctg);
         ich = 0;
@@ -712,7 +712,7 @@ bool S2B::FConvertSI(PMSNK pmsnkErr, PMSNK pmsnkDst, PFilename pfniInc, ulong gr
 
     if (_fPreprocess && pfniInc != pvNil)
     {
-        STN stnT;
+        String stnT;
 
         pfniInc->GetStnPath(&stnT);
         _stnT.FFormatSz(PszLit("#include \"%s\""), &stnT);
@@ -761,7 +761,7 @@ bool S2B::FConvertSI(PMSNK pmsnkErr, PMSNK pmsnkDst, PFilename pfniInc, ulong gr
             }
             break;
         default: {
-            STN stnTok;
+            String stnTok;
 
             printf("Unexpected token at line %d, character %d: \n", _ps2blx->LwLine(), _ps2blx->IchLine());
             if (_ps2blx->FTextFromS2btk(&_s2btk, &stnTok))
@@ -859,7 +859,7 @@ bool S2B::_FReadCmdline(PSZ pszResult, bool *pfGotTok, const SCRP rgscrp[], ...)
                 printf("Error: expected string\n");
                 goto LDone;
             }
-            *((PSTN)rgpv[iscrp]) = _s2btk.tok.stn;
+            *((PString)rgpv[iscrp]) = _s2btk.tok.stn;
             break;
         case ptLong:
             if (_s2btk.tok.tt != ttLong)
@@ -1018,7 +1018,7 @@ const SCRP rgscrpAction[] = {{ptString, ttCalled, "missing name for action"},
 bool S2B::_FDoTtActionS2B(void)
 {
     bool fRet = fTrue, fSuccess = fTrue;
-    STN stnFileBase, stnFileAddon, stnSubmodel;
+    String stnFileBase, stnFileAddon, stnSubmodel;
     int cCel, iCel, iCelBase, dCel = 1, iCelMac;
     long grfactn;
     ACTNF actnf;
@@ -1314,7 +1314,7 @@ bool S2B::_FDoTtBackgroundS2B(void)
     long cLite = 2, cCam = 9, iPalBase = 151, cPal = 95;
     ChunkTag ctgSav;
     ChunkNumber cnoBkgd, cnoSav;
-    STN stnBkgd;
+    String stnBkgd;
     BackgroundFile bkgdf;
 
     ctgSav = _ctgPar;
@@ -1380,7 +1380,7 @@ bool S2B::_FDoTtCostume(void)
     bool fRet, fSuccess = fFalse;
     long ibpsCur;
     Model *pmodel;
-    STN stnCostume;
+    String stnCostume;
     BMAT34 bmat34;
 
     /* Read in all of the command data */
@@ -1451,7 +1451,7 @@ LFail:
         for (long iibps = 0; iibps < iibpsMac; iibps++)
         {
             long ibps;
-            STN stnT;
+            String stnT;
 
             _pglibps->Get(iibps, &ibps);
             stnT.FFormatSz(PszLit(", %d"), ibps);
@@ -1479,12 +1479,12 @@ LFail:
 
     Arguments:
         int cLite     -- the number of lights
-        PSTN pstnBkgd -- string containing the background name
+        PString pstnBkgd -- string containing the background name
 
     Returns: fTrue if it succeeds, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool S2B::_FDumpLites(int cLite, PSTN pstnBkgd)
+bool S2B::_FDumpLites(int cLite, PString pstnBkgd)
 {
     bool fRet = fFalse;
     int iLite;
@@ -1541,19 +1541,19 @@ LFail:
 
     Arguments:
         int cCam      -- the number of cameras
-        PSTN pstnBkgd -- the name of the background
+        PString pstnBkgd -- the name of the background
         int iPalBase  -- the first palette entry used by the background
         int cPal      -- the number of palette entries used by the background
 
     Returns: fTrue if it succeeds, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool S2B::_FDumpCameras(int cCam, PSTN pstnBkgd, int iPalBase, int cPal)
+bool S2B::_FDumpCameras(int cCam, PString pstnBkgd, int iPalBase, int cPal)
 {
     int iCam;
     long dxp, dyp;
     CameraPosition cam;
-    STN stnFile;
+    String stnFile;
 
     /* Cameras are kept as individual chunks;
         read each file and create the chunk */
@@ -1669,7 +1669,7 @@ LFail:
     the chunk data explicitly.
 
     Arguments:
-        PSTN pstnBkgd -- the name of the background
+        PString pstnBkgd -- the name of the background
         ChunkNumber cnoPar    -- the ChunkNumber of the parent camera chunk
         int iCam      -- the number of the camera
         long dxp      -- the width of the background
@@ -1680,7 +1680,7 @@ LFail:
         data, fFalse otherwise.
 
 ************************************************************ PETED ***********/
-bool S2B::_FZbmpFromZpic(PSTN pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CameraPosition *pcam)
+bool S2B::_FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dxp, long dyp, CameraPosition *pcam)
 {
     Assert(dxp > 0, "Invalid z-buffer width");
     Assert(dyp > 0, "Invalid z-buffer height");
@@ -1916,11 +1916,11 @@ void S2B::_Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34)
     as appropriate.
 
     Arguments:
-        PSTN pstnLite -- the name of the light file
+        PString pstnLite -- the name of the light file
         LightPosition *plite   -- pointer to LightPosition structure to fill in
 
 ************************************************************ PETED ***********/
-void S2B::_ReadLite(PSTN pstnLite, LightPosition *plite)
+void S2B::_ReadLite(PString pstnLite, LightPosition *plite)
 {
     Filename fni;
     FIL *pfil;
@@ -1993,11 +1993,11 @@ LFail:
     structure as appropriate.
 
     Arguments:
-        PSTN pstnCam -- the name of the camera file
+        PString pstnCam -- the name of the camera file
         CameraPosition *pcam    -- pointer to the CameraPosition to fill in
 
 ************************************************************ PETED ***********/
-void S2B::_ReadCam(PSTN pstnCam, CameraPosition *pcam, PDynamicArray *ppglapos)
+void S2B::_ReadCam(PString pstnCam, CameraPosition *pcam, PDynamicArray *ppglapos)
 {
     bool fGotActorPos = fFalse;
     Filename fni;
@@ -2146,7 +2146,7 @@ LFail:
 |		fTrue if succeeds, fFalse otherwise (usually due to OOM)
 |
 -------------------------------------------------------------PETED-----------*/
-bool S2B::_FProcessModel(Model *pmodel, BMAT34 bmat34Acc, PBMHR *ppbmhr, PSTN pstnSubmodel, PBMHR pbmhrParent,
+bool S2B::_FProcessModel(Model *pmodel, BMAT34 bmat34Acc, PBMHR *ppbmhr, PString pstnSubmodel, PBMHR pbmhrParent,
                          int cLevel)
 {
     bool fRet = fTrue, fSubmodel, fKeepNode;
@@ -2414,10 +2414,10 @@ PBMHR S2B::_PbmhrFromModel(Model *pmodel, BMAT34 *pbmat34, PBMHR *ppbmhr, PBMHR 
         {
             Assert(!fMesh || pbmhrParent->fMtrlf, "Warning: mesh node has no material parent");
             pbmhrCur->mtrlf = pbmhrParent->mtrlf;
-            /* REVIEW peted: bogus...if an STN were derived from the BASE class,
+            /* REVIEW peted: bogus...if an String were derived from the BASE class,
                 I could just AddRef it and copy the pointer here rather than
-                allocating a whole new STN */
-            if (pbmhrParent->pstnMtrlFile != pvNil && (pbmhrCur->pstnMtrlFile = new STN()) != pvNil)
+                allocating a whole new String */
+            if (pbmhrParent->pstnMtrlFile != pvNil && (pbmhrCur->pstnMtrlFile = new String()) != pvNil)
             {
                 *pbmhrCur->pstnMtrlFile = *pbmhrParent->pstnMtrlFile;
             }
@@ -2475,7 +2475,7 @@ void S2B::_TextureFileFromModel(Model *pmodel, PBMHR pbmhr, bool fWrapOnly)
     AssertVarMem(pbmhr);
 
     char *pch, *pszName;
-    PSTN pstn = pvNil;
+    PString pstn = pvNil;
     Texture *ptexture;
 
     /* Look for a texture in the model; if the model doesn't have one, check
@@ -2492,7 +2492,7 @@ void S2B::_TextureFileFromModel(Model *pmodel, PBMHR pbmhr, bool fWrapOnly)
     if (fWrapOnly)
         goto LDoWrap;
 
-    pstn = new STN();
+    pstn = new String();
     if (pstn != pvNil)
     {
         pszName = ptexture->pic_name;
@@ -2541,14 +2541,14 @@ LNotexture:
         dumping out the TextureMap chunk definition.
 
     Arguments:
-        PSTN pstnBmpFile  -- the name of the texture
+        PString pstnBmpFile  -- the name of the texture
         ChunkNumber cnoPar        -- the ChunkNumber of the parent MTRL
         pstnMtrl          -- the string used for the MTRL name
 
     Returns: fTrue if the texture was successfully added
 
 ************************************************************ PETED ***********/
-bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
+bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PString pstnMtrl)
 {
     Assert(pbmhr != pvNil, 0);
     AssertPo(pbmhr->pstnMtrlFile, 0);
@@ -2558,7 +2558,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
     Filename fni;
     PTextureMap ptmap = pvNil;
     TMAPD tmapd;
-    PSTN pstnBmpFile = pbmhr->pstnMtrlFile;
+    PString pstnBmpFile = pbmhr->pstnMtrlFile;
 
     /* Look for the bitmap file in our list */
     if (_pggtmapd == pvNil && (_pggtmapd = GeneralGroup::PggNew(size(TMAPD))) == pvNil)
@@ -2585,7 +2585,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PSTN pstnMtrl)
         if (!fni.FChangeFtg(kftgTmapChkFile))
             goto LFail;
 
-        if ((tmapd.pstn = new STN()) == pvNil)
+        if ((tmapd.pstn = new String()) == pvNil)
             goto LFail;
         *tmapd.pstn = *pstnBmpFile;
         tmapd.ccnoPar = 1;
@@ -4723,16 +4723,16 @@ bool S2BLX::FGetTok(PToken ptok)
 
 /******************************************************************************
     FTextFromTt
-        Sets an STN to the text string that corresponds to the given token.
+        Sets an String to the text string that corresponds to the given token.
 
     Arguments:
         long tt   -- the token
-        PSTN pstn -- the STN to set
+        PString pstn -- the String to set
 
     Returns: fTrue if if knew about the token, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool S2BLX::FTextFromTt(long tt, PSTN pstn)
+bool S2BLX::FTextFromTt(long tt, PString pstn)
 {
     AssertPo(pstn, 0);
 
@@ -4752,17 +4752,17 @@ bool S2BLX::FTextFromTt(long tt, PSTN pstn)
 
 /******************************************************************************
     FTextFromS2btk
-        Fills in the given STN with text that represents the given token.
+        Fills in the given String with text that represents the given token.
 
     Arguments:
         PS2BTK ps2btk -- the token to use
-        PSTN pstn     -- the STN to fill in
+        PString pstn     -- the String to fill in
 
     Returns: fTrue if the token was successfully recognized and converted
         to text, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool S2BLX::FTextFromS2btk(PS2BTK ps2btk, PSTN pstn)
+bool S2BLX::FTextFromS2btk(PS2BTK ps2btk, PString pstn)
 {
     AssertPo(pstn, 0);
 

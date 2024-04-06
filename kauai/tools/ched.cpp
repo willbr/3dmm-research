@@ -39,7 +39,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 #ifdef WIN
     // parse the command line and load any resource files and help files
     Filename fni;
-    STN stn;
+    String stn;
     bool fQuote, fScript, fSkip;
     PDocumentMDIWindow pdmd;
     PDocumentDisplayGraphicsObject pddg;
@@ -126,14 +126,14 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 /***************************************************************************
     Get the name for the frame tester app.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void APP::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
 #ifdef UNICODE
-    STN stnDate;
-    STN stnTime;
+    String stnDate;
+    String stnTime;
 
     stnDate.SetSzs(__DATE__);
     stnTime.SetSzs(__TIME__);

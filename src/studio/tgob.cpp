@@ -64,7 +64,7 @@ void TGOB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 
     RC rc, rcText;
     long xp, yp;
-    STN stnDraw(_stn);
+    String stnDraw(_stn);
 
     // Use a temporary stn here for the displayed text. For example, the tgob
     // text may be 'hello', but the dispayed text may be 'hel..'. This means
@@ -97,7 +97,7 @@ void TGOB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     }
     else
     {
-        STN stnDots;
+        String stnDots;
         RC rcDots;
         int iCh;
 
@@ -138,7 +138,7 @@ PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
     RC rcRel;
     RC rcAbs;
     PGraphicsObject pgob;
-    STN stn;
+    String stn;
     GraphicsObjectBlock gcb;
     long onn;
     PTGOB ptgob;

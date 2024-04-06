@@ -72,7 +72,7 @@ void ApplicationBase::Abort(void)
 bool ApplicationBase::_FInitOS(void)
 {
     AssertThis(0);
-    STN stnApp;
+    String stnApp;
     PSZ pszAppWndCls = PszLit("APP");
 
     // get the app name
@@ -798,7 +798,7 @@ bool ApplicationBase::_FInitDebug(void)
 }
 
 // passes the strings to the assert dialog proc
-STN *_rgpstn[3];
+String *_rgpstn[3];
 
 /***************************************************************************
     Dialog proc for assert.
@@ -838,7 +838,7 @@ Mutex _mutxAssert;
 bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, long cb)
 {
     const long kclwChain = 10;
-    STN stn0, stn1, stn2;
+    String stn0, stn1, stn2;
     int tmc;
     PSZ psz;
     long cact;
@@ -899,7 +899,7 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
             long cbT = cb;
             long ilw;
             long lw;
-            STN stnT;
+            String stnT;
 
             stn2.SetNil();
             for (ilw = 0; ilw < 20 && cb >= 4; cb -= 4, pb += 4, ++ilw)

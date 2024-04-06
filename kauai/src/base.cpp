@@ -435,7 +435,7 @@ void AssertUnmarkedObjs(void)
 {
     _Enter();
 
-    STN stn;
+    String stn;
     SZS szs;
     BASE *pbase;
     DOI *pdoi;

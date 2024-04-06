@@ -137,7 +137,7 @@ class Scene : public Scene_PAR
     //
     // Global information
     //
-    STN _stnName;         // Name of this scene
+    String _stnName;         // Name of this scene
     PDynamicArray _pglpactr;        // List of actors in the scene.
     PDynamicArray _pglptbox;        // List of text boxes in the scene.
     PGeneralGroup _pggsevStart;     // List of frame independent events.
@@ -232,15 +232,15 @@ class Scene : public Scene_PAR
     // Edit functions
     //
     void SetMvie(PMovie pmvie); // Sets the associated movie.
-    void GetName(PSTN pstn)    // Gets name of current scene.
+    void GetName(PString pstn)    // Gets name of current scene.
     {
         *pstn = _stnName;
     }
-    void SetNameCore(PSTN pstn) // Sets name of current scene.
+    void SetNameCore(PString pstn) // Sets name of current scene.
     {
         _stnName = *pstn;
     }
-    bool FSetName(PSTN pstn); // Sets name of current scene, and undo
+    bool FSetName(PString pstn); // Sets name of current scene, and undo
     bool FChopCore(void);     // Chops off the rest of the scene.
     bool FChop(void);         // Chops off the rest of the scene and undo
     bool FChopBackCore(void); // Chops off the rest of the scene, backwards.

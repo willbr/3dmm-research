@@ -74,10 +74,10 @@ class Dialog : public Dialog_PAR
     bool _FGetCheckBox(long idit);
     void _InvertCheckBox(long idit);
     void _SetCheckBox(long idit, bool fOn);
-    void _GetEditText(long idit, PSTN pstn);
-    void _SetEditText(long idit, PSTN pstn);
+    void _GetEditText(long idit, PString pstn);
+    void _SetEditText(long idit, PString pstn);
     bool _FDitChange(long *pidit);
-    bool _FAddToList(long idit, PSTN pstn);
+    bool _FAddToList(long idit, PString pstn);
     void _ClearList(long idit);
 
   public:
@@ -101,8 +101,8 @@ class Dialog : public Dialog_PAR
         PutFixed(idit, pdit);
     }
 
-    void GetStn(long idit, PSTN pstn);
-    bool FPutStn(long idit, PSTN pstn);
+    void GetStn(long idit, PString pstn);
+    bool FPutStn(long idit, PString pstn);
     long LwGetRadio(long idit);
     void PutRadio(long idit, long lw);
     bool FGetCheck(long idit);
@@ -111,7 +111,7 @@ class Dialog : public Dialog_PAR
     bool FGetLwFromEdit(long idit, long *plw, bool *pfEmpty = pvNil);
     bool FPutLwInEdit(long idit, long lw);
 
-    bool FAddToList(long idit, PSTN pstn);
+    bool FAddToList(long idit, PString pstn);
     void ClearList(long idit);
 };
 

@@ -157,7 +157,7 @@ class GraphicsObject : public GraphicsObject_PAR
 
     ~GraphicsObject(void);
 
-    static HWND _HwndNewMdi(PSTN pstnTitle);
+    static HWND _HwndNewMdi(PString pstnTitle);
     static void _DestroyHwnd(HWND hwnd);
 
     void _Init(PGCB pgcb);
@@ -195,14 +195,14 @@ class GraphicsObject : public GraphicsObject_PAR
 
     // hwnd stuff
     bool FAttachHwnd(HWND hwnd);
-    bool FCreateAndAttachMdi(PSTN pstnTitle);
+    bool FCreateAndAttachMdi(PString pstnTitle);
     HWND Hwnd(void)
     {
         return _hwnd;
     }
     HWND HwndContainer(void);
     virtual void GetMinMax(RC *prcMinMax);
-    void SetHwndName(PSTN pstn);
+    void SetHwndName(PString pstn);
 
     // unique gob run-time id.
     long Grid(void)

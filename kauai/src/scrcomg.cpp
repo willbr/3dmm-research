@@ -266,7 +266,7 @@ StringOpcodeArgumentMap _rgaropSccg[] = {
 /***************************************************************************
     Map a string to an operator.
 ***************************************************************************/
-long GraphicsObjectCompiler::_OpFromStn(PSTN pstn)
+long GraphicsObjectCompiler::_OpFromStn(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -280,7 +280,7 @@ long GraphicsObjectCompiler::_OpFromStn(PSTN pstn)
 /***************************************************************************
     Map an op code to a string.
 ***************************************************************************/
-bool GraphicsObjectCompiler::_FGetStnFromOp(long op, PSTN pstn)
+bool GraphicsObjectCompiler::_FGetStnFromOp(long op, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -294,7 +294,7 @@ bool GraphicsObjectCompiler::_FGetStnFromOp(long op, PSTN pstn)
     Map a string to an operator with argument information (for in-fix
     compiler).
 ***************************************************************************/
-bool GraphicsObjectCompiler::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
+bool GraphicsObjectCompiler::_FGetOpFromName(PString pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
 {
     if (_FGetArop(pstn, _rgaropSccg, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid))
     {

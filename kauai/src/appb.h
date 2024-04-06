@@ -238,7 +238,7 @@ class ApplicationBase : public ApplicationBase_PAR
     void TrackMouse(PGraphicsObject pgob, PT *ppt);
 
     // app name
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
 
     // command handler stuff
     virtual void BuryCmh(PCommandHandler pcmh);

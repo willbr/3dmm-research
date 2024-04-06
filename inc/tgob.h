@@ -30,7 +30,7 @@ class TGOB : public TGOB_PAR
   protected:
     long _onn;
     long _dypFont;
-    STN _stn;
+    String _stn;
     long _tah;
     long _tav;
     AbstractColor _acrFore;
@@ -56,7 +56,7 @@ class TGOB : public TGOB_PAR
         AssertThis(0);
         _dypFont = dypFont;
     }
-    void SetText(PSTN pstn)
+    void SetText(PString pstn)
     {
         AssertThis(0);
         _stn = *pstn;

@@ -97,18 +97,18 @@ class TDT : public TDT_PAR
     static void MarkActionNames(void);
 #endif
 
-    static PTDT PtdtNew(PSTN pstn, long tdts, PTAG ptagTdf);
+    static PTDT PtdtNew(PString pstn, long tdts, PTAG ptagTdf);
     ~TDT(void);
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError);
     PTDT PtdtDup(void);
 
-    void GetInfo(PSTN pstn, long *ptdts, PTAG ptagTdf);
-    bool FChange(PSTN pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
+    void GetInfo(PString pstn, long *ptdts, PTAG ptagTdf);
+    bool FChange(PString pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
     bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
     bool FAdjustBody(PBODY pbody);
     virtual bool FSetDefaultCost(PBODY pbody);
     virtual PCMTL PcmtlFetch(long cmid);
-    virtual bool FGetActnName(long anid, PSTN pstn);
+    virtual bool FGetActnName(long anid, PString pstn);
 };
 
 #endif // TDT_H

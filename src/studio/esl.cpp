@@ -205,7 +205,7 @@ END_CMD_MAP_NIL()
     Create a new text easel.  If pactr is pvNil, this is for a new TDT
     and pstnNew, tdtsNew, and ptagTdfNew will be used as initial values.
 ***************************************************************************/
-PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
+PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -238,7 +238,7 @@ PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PSTN pstnNew, long t
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
+bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -252,7 +252,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PSTN pst
 
     GraphicsObjectBlock gcb;
     COST cost;
-    STN stn;
+    String stn;
     bool fNewTdt = (pactr == pvNil);
     PTDT ptdt;
 
@@ -544,7 +544,7 @@ bool ESLT::FCmdSetColor(PCommand pcmd)
 /***************************************************************************
     Update the ActorPreviewEntity when the text of the SNE changed
 ***************************************************************************/
-bool ESLT::FTextChanged(PSTN pstnNew)
+bool ESLT::FTextChanged(PString pstnNew)
 {
     AssertBaseThis(0); // we may still be setting up the ESLT
     AssertPo(pstnNew, 0);
@@ -565,10 +565,10 @@ bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
     PActor pactrDup = pvNil;
     bool fChangesMade = fFalse;
     PTDT ptdtOld;
-    STN stnOld;
+    String stnOld;
     long tdtsOld;
     TAG tagTdfOld;
-    STN stnNew;
+    String stnNew;
     long tdtsNew;
     TAG tagTdfNew;
     long cbset;
@@ -712,7 +712,7 @@ void ESLT::MarkMem(void)
     Create a new spletter name editor with initial string pstnInit.  Text
     change notifications will be sent to peslt.
 ***************************************************************************/
-PSNE SNE::PsneNew(PEDPAR pedpar, PESLT peslt, PSTN pstnInit)
+PSNE SNE::PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit)
 {
     AssertVarMem(pedpar);
     AssertBasePo(peslt, 0);
@@ -743,8 +743,8 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(0);
 
-    STN stnOld;
-    STN stnNew;
+    String stnOld;
+    String stnNew;
 
     GetStn(&stnOld);
 
@@ -765,7 +765,7 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
     {
         // Hack for testing: ")xxx(" changes the TDT to
         // all ASCII values from xxx to xxx + kcchMaxTdt (or up to chNil).
-        STN stnT;
+        String stnT;
         achar rgch[kcchMaxTdt];
         long ichStart;
         long ich;
@@ -872,7 +872,7 @@ bool ESLA::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
 
     GraphicsObjectBlock gcb;
     COST cost;
-    STN stn;
+    String stn;
     EDPAR edpar;
 
     if (!ESLA_PAR::_FInit(prca, kidEasel))
@@ -965,8 +965,8 @@ bool ESLA::_FAcceptChanges(bool *pfDismissEasel)
     bool fNonSpaceFound;
     long ich;
     bool fChangesMade = fFalse;
-    STN stnOld;
-    STN stnNew;
+    String stnOld;
+    String stnNew;
     long cbset;
     long ibset;
     tribool fMtrl;
@@ -1629,7 +1629,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new sound recording easel
 ***************************************************************************/
-PESLR ESLR::PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PSTN pstnNew)
+PESLR ESLR::PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -1658,7 +1658,7 @@ PESLR ESLR::PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PSTN pstnNew)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLR::_FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PSTN pstnNew)
+bool ESLR::_FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -1884,7 +1884,7 @@ bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
     AssertVarMem(pfDismissEasel);
 
     Filename fni;
-    STN stn;
+    String stn;
     PFIL pfil = pvNil;
     ChunkNumber cno;
     long sty = _fSpeech ? stySpeech : stySfx;

@@ -145,9 +145,9 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);
     virtual PCommandHandler PcmhFromHid(long hid);
     virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);
-    virtual bool FFindFile(PSTN pstnSrc, PFilename pfni);
-    virtual tribool TGiveAlert(PSTN pstn, long bk, long cok);
-    virtual void Print(PSTN pstn);
+    virtual bool FFindFile(PString pstnSrc, PFilename pfni);
+    virtual tribool TGiveAlert(PString pstn, long bk, long cok);
+    virtual void Print(PString pstn);
 
     virtual ulong GrfcustCur(bool fAsynch = fFalse);
     virtual void ModifyGrfcust(ulong grfcustOr, ulong grfcustXor);

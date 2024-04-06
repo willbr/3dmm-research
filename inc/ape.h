@@ -99,11 +99,11 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 
-    bool FChangeTdt(PSTN pstn, long tdts, PTAG ptagTdf);
+    bool FChangeTdt(PString pstn, long tdts, PTAG ptagTdf);
     bool FSetTdtMtrl(PTAG ptagMtrl);
     bool FGetTdtMtrlCno(ChunkNumber *pcno);
 
-    void GetTdtInfo(PSTN pstn, long *ptdts, PTAG ptagTdf);
+    void GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf);
     long Anid(void)
     {
         return _anid;

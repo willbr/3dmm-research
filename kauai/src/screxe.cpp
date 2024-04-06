@@ -22,7 +22,7 @@ RTCLASS(StringRegistry)
 
 #ifdef DEBUG
 // these strings are for debug only error messages
-static STN _stn;
+static String _stn;
 #endif // DEBUG
 
 /***************************************************************************
@@ -282,7 +282,7 @@ void Interpreter::_AddParameters(long *prglw, long clw)
     AssertThis(0);
     AssertIn(clw, 1, kcbMax);
     AssertPvCb(prglw, LwMul(clw, size(long)));
-    STN stn;
+    String stn;
     long ilw;
     RuntimeVariableName rtvn;
 
@@ -309,7 +309,7 @@ void Interpreter::_AddStrings(PStringTable pgst)
     AssertPo(pgst, 0);
     RuntimeVariableName rtvn;
     long stid;
-    STN stn;
+    String stn;
 
     if (pvNil == _pstrg)
     {
@@ -748,7 +748,7 @@ void Interpreter::_WarnSz(PSZ psz, ...)
 {
     AssertThis(0);
     AssertSz(psz);
-    STN stn1, stn2;
+    String stn1, stn2;
     SZS szs;
 
     stn1.FFormatRgch(psz, CchSz(psz), (ulong *)(&psz + 1));
@@ -920,7 +920,7 @@ void Interpreter::_RndList(long clw)
 void Interpreter::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (pvNil == _pstrg)
         _Error(fTrue);
@@ -951,7 +951,7 @@ void Interpreter::_CopySubStr(long stidSrc, long ichMin, long cch, long stidDst)
 void Interpreter::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
 {
     AssertThis(0);
-    STN stn1, stn2;
+    String stn1, stn2;
 
     if (pvNil == _pstrg)
         _Error(fTrue);
@@ -985,7 +985,7 @@ void Interpreter::_ConcatStrs(long stidSrc1, long stidSrc2, long stidDst)
 void Interpreter::_LenStr(long stid)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (pvNil == _pstrg)
         _Error(fTrue);
@@ -1058,7 +1058,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
     PGenericCacheableObject pcabo;
     PStringTable pgst;
     long istn, stid;
-    STN stn;
+    String stn;
     bool fFail;
 
     if (_fError)
@@ -1111,7 +1111,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 void Interpreter::_NumToStr(long lw, long stid)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (pvNil == _pstrg)
         _Error(fTrue);
@@ -1135,7 +1135,7 @@ void Interpreter::_NumToStr(long lw, long stid)
 void Interpreter::_StrToNum(long stid, long lwEmpty, long lwError)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
     long lw;
 
     if (pvNil == _pstrg)
@@ -1528,7 +1528,7 @@ void StringRegistry::MarkMem(void)
 /***************************************************************************
     Put the string in the registry with the given string id.
 ***************************************************************************/
-bool StringRegistry::FPut(long stid, PSTN pstn)
+bool StringRegistry::FPut(long stid, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1547,7 +1547,7 @@ bool StringRegistry::FPut(long stid, PSTN pstn)
     Get the string with the given string id.  If the string isn't in the
     registry, sets pstn to an empty string and returns false.
 ***************************************************************************/
-bool StringRegistry::FGet(long stid, PSTN pstn)
+bool StringRegistry::FGet(long stid, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1568,7 +1568,7 @@ bool StringRegistry::FGet(long stid, PSTN pstn)
     id's are not repeated in the near future.  All assigned id's have their
     high bit set.
 ***************************************************************************/
-bool StringRegistry::FAdd(long *pstid, PSTN pstn)
+bool StringRegistry::FAdd(long *pstid, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pstid);

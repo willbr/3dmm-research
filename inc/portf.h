@@ -13,10 +13,10 @@
 // Top level portoflio routines.
 bool FPortGetFniMovieOpen(Filename *pfni);
 bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave);
+                         PString pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave);
 bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, Filename *pfniInitialDir, ulong grfPrevType,
                      ChunkNumber cnoWave);
-bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
+bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PString pstnDefFileName,
                      ulong grfPrevType, ChunkNumber cnoWave);
 
 UINT CALLBACK OpenHookProc(HWND hWnd, UINT msg, UINT wParam, LONG lParam);

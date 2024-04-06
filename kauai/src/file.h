@@ -139,7 +139,7 @@ class FIL : public FIL_PAR
     {
         *pfni = _fni;
     }
-    void GetStnPath(PSTN pstn);
+    void GetStnPath(PString pstn);
 
     bool FSetFpMac(FP fp);
     FP FpMac(void);

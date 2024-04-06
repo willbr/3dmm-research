@@ -152,9 +152,9 @@ class Studio : public Studio_PAR
     void StartListenerEasel(void);
     void PlayUISound(long tool, long grfcust);
     void StopUISound(void);
-    void UpdateTitle(PSTN pstnTitle);
+    void UpdateTitle(PString pstnTitle);
 
-    bool FEdit3DText(PSTN pstn, long *ptdts);
+    bool FEdit3DText(PString pstn, long *ptdts);
     void SetAridSelected(long arid)
     {
         _aridSelected = arid;
@@ -185,7 +185,7 @@ class Studio : public Studio_PAR
     static void ResumeActionButton(void);
 
     // Misc Studio strings
-    void GetStnMisc(long ids, PSTN pstn);
+    void GetStnMisc(long ids, PString pstn);
 
     //
     // Movie changing
@@ -343,7 +343,7 @@ class StudioClientCallbacks : public StudioClientCallbacks_PAR
         _pstdio->StartListenerEasel();
     }
     virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                            PSTN pstnDefFileName)
+                            PString pstnDefFileName)
     {
         return (FPortDisplayWithIds(pfni, fFalse, lFilterLabel, lFilterExt, lTitle, lpstrDefExt, pstnDefFileName, pvNil,
                                     fpfPortPrevMovie, kwavPortSaveMovie));
@@ -356,7 +356,7 @@ class StudioClientCallbacks : public StudioClientCallbacks_PAR
     {
         _pstdio->StopUISound();
     }
-    virtual void UpdateTitle(PSTN pstnTitle)
+    virtual void UpdateTitle(PString pstnTitle)
     {
         _pstdio->UpdateTitle(pstnTitle);
     }
@@ -368,7 +368,7 @@ class StudioClientCallbacks : public StudioClientCallbacks_PAR
     {
         vpapp->DisableAccel();
     }
-    virtual void GetStn(long ids, PSTN pstn)
+    virtual void GetStn(long ids, PString pstn)
     {
         vpapp->FGetStnApp(ids, pstn);
     }

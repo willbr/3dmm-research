@@ -543,7 +543,7 @@ PDocumentDisplayGraphicsObject DocumentBase::PddgNew(PGCB pgcb)
 /***************************************************************************
     Get the name of a default (untitled) document.
 ***************************************************************************/
-void DocumentBase::GetName(PSTN pstn)
+void DocumentBase::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -569,7 +569,7 @@ void DocumentBase::UpdateName(void)
 {
     DTE dte;
     ulong grfdte;
-    STN stn;
+    String stn;
     long ipddg;
     PDocumentDisplayGraphicsObject pddg;
     PDocumentBase pdocb;
@@ -1332,7 +1332,7 @@ PDocumentMDIWindow DocumentMDIWindow::PdmdNew(PDocumentBase pdocb)
 {
     AssertPo(pdocb, 0);
     PDocumentMDIWindow pdmd;
-    STN stn;
+    String stn;
     RC rcRel, rcAbs;
 
     GraphicsObjectBlock gcb(khidDmd, GraphicsObject::PgobScreen());

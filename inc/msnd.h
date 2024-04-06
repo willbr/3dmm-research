@@ -115,7 +115,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     long _sty;         // MIDI, speech, or sfx
     long _vlm;         // Volume of the sound
     tribool _fNoSound; // Set if silent sound
-    STN _stn;          // Sound name
+    String _stn;          // Sound name
     bool _fInvalid;    // Invalid flag
 
   protected:
@@ -125,10 +125,10 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
-    static bool FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PSTN pstn = pvNil);
-    static bool FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno);
-    static bool FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PSTN pstn = pvNil);
-    static bool FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, STN *pstnName, ChunkNumber *pcno);
+    static bool FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn = pvNil);
+    static bool FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, String *pstnName, ChunkNumber *pcno);
+    static bool FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn = pvNil);
+    static bool FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno);
     ~MovieSoundMSND(void);
 
     static long SqnActr(long sty, long objID);
@@ -154,7 +154,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
         AssertBaseThis(0);
         return FPure(!_fInvalid);
     }
-    PSTN Pstn(void)
+    PString Pstn(void)
     {
         AssertThis(0);
         return &_stn;

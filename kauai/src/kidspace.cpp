@@ -2644,7 +2644,7 @@ bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTa
 
     PChunkyFile pcfl;
     DataBlock blck;
-    STN stn;
+    String stn;
     Filename fni;
     RC rc;
     byte bT;

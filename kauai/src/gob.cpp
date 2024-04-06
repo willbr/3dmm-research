@@ -1383,7 +1383,7 @@ PGraphicsObject GraphicsObject::PgobLastChild(void)
 /***************************************************************************
     Create a new MDI window and attach it to the gob.
 ***************************************************************************/
-bool GraphicsObject::FCreateAndAttachMdi(PSTN pstnTitle)
+bool GraphicsObject::FCreateAndAttachMdi(PString pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);

@@ -75,13 +75,13 @@ class Filename : public Filename_PAR
     long _lwDir; // the directory id
     FSS _fss;
 #elif defined(WIN)
-    STN _stnFile;
+    String _stnFile;
 #endif // WIN
 
 #ifdef WIN
     void _SetFtgFromName(void);
     long _CchExt(void);
-    bool _FChangeLeaf(PSTN pstn);
+    bool _FChangeLeaf(PString pstn);
 #endif // WIN
 
   public:
@@ -91,13 +91,13 @@ class Filename : public Filename_PAR
 #ifdef MAC
     bool FGetOpen(FileType *prgftg, short cftg);
     bool FGetSave(FileType ftg, PST pstPrompt, PST pstDefault);
-    bool FBuild(long lwVol, long lwDir, PSTN pstn, FileType ftg);
+    bool FBuild(long lwVol, long lwDir, PString pstn, FileType ftg);
 #elif defined(WIN)
     bool FGetOpen(achar *prgchFilter, HWND hwndOwner);
     bool FGetSave(achar *prgchFilter, HWND hwndOwner);
-    bool FSearchInPath(PSTN pstn, PSTN pstnEnv = pvNil);
+    bool FSearchInPath(PString pstn, PString pstnEnv = pvNil);
 #endif                                                   // WIN
-    bool FBuildFromPath(PSTN pstn, FileType ftgDef = ftgNil); // REVIEW shonk: Mac: implement
+    bool FBuildFromPath(PString pstn, FileType ftgDef = ftgNil); // REVIEW shonk: Mac: implement
     bool FGetUnique(FileType ftg);
     bool FGetTemp(void);
     void SetNil(void);
@@ -106,9 +106,9 @@ class Filename : public Filename_PAR
     ulong Grfvk(void); // volume kind (floppy/net/CD/etc)
     bool FChangeFtg(FileType ftg);
 
-    bool FSetLeaf(PSTN pstn, FileType ftg = ftgNil);
-    void GetLeaf(PSTN pstn);
-    void GetStnPath(PSTN pstn);
+    bool FSetLeaf(PString pstn, FileType ftg = ftgNil);
+    void GetLeaf(PString pstn);
+    void GetStnPath(PString pstn);
 
     tribool TExists(void);
     bool FDelete(void);
@@ -117,8 +117,8 @@ class Filename : public Filename_PAR
 
     bool FDir(void);
     bool FSameDir(PFilename pfni);
-    bool FDownDir(PSTN pstn, ulong grffni);
-    bool FUpDir(PSTN pstn, ulong grffni);
+    bool FDownDir(PString pstn, ulong grffni);
+    bool FUpDir(PString pstn, ulong grffni);
 };
 
 #ifdef MAC

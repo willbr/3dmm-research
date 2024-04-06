@@ -466,8 +466,8 @@ bool BRWD::FDraw(void)
     {
         long pagen;
         long cpage;
-        STN stn;
-        STN stnT;
+        String stn;
+        String stnT;
         pagen = (_cfrm == 0) ? 0 : (_ithumPageFirst / _cfrm);
         cpage = ((cthum - 1) / _cfrm) + 1;
         _pstdio->GetStnMisc(idsBrowserPage, &stnT);
@@ -1728,7 +1728,7 @@ bool BCLS::_FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-    STN stn;
+    String stn;
 
     if (!pcfl->FGetName(ctg, cno, &stn))
         return fFalse;
@@ -1779,7 +1779,7 @@ bool FNET::FNext(Filename *pfni, long *psid)
 
     FileType ftgThd = kftgThumbDesc;
     FileType ftgDir = kftgDir;
-    STN stnProduct;
+    String stnProduct;
 
     if (!_fInited)
         return fFalse;
@@ -1820,7 +1820,7 @@ bool FNET::FNext(Filename *pfni, long *psid)
 bool FNET::_FNextFni(Filename *pfni, long *psid)
 {
     AssertThis(0);
-    STN stnProduct;
+    String stnProduct;
 
     Assert(_fniDir.Ftg() == kftgDir, "Logic error");
     if (pvNil != psid)
@@ -1907,7 +1907,7 @@ void BRWN::_ReleaseThumFrame(long ifrm)
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
 
-    STN stn;
+    String stn;
     PGraphicsObject pgob;
 
     pgob = _PgobFromIfrm(ifrm);
@@ -1933,7 +1933,7 @@ bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
     AssertPo(pgobPar, 0);
 
     PTGOB ptgob;
-    STN stnLabel;
+    String stnLabel;
     THD thd;
 
     _pglthd->Get(ithd, &thd);
@@ -2037,7 +2037,7 @@ bool BRWM::_FUpdateLists(void)
 {
     AssertThis(0);
 
-    STN stn;
+    String stn;
     THD thd;
     long ithd;
     long ithdOld;
@@ -2131,7 +2131,7 @@ bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
  * Extend the BRWL lists
  *
  ****************************************************/
-bool BRWM::_FAddThd(STN *pstn, ChunkIdentification *pcki)
+bool BRWM::_FAddThd(String *pstn, ChunkIdentification *pcki)
 {
     AssertBaseThis(0);
     THD thd;
@@ -2213,7 +2213,7 @@ bool BRWM::FCmdFile(PCommand pcmd)
     PChunkyFile pcfl = pvNil; // Movie file
     long icki;
     long ccki;
-    STN stn;
+    String stn;
     ChunkIdentification cki;
     Command cmd;
 
@@ -2346,8 +2346,8 @@ bool BRWM::FCmdDel(PCommand pcmd)
     TAG tag;
     PTAG ptag;
     PMSND pmsnd;
-    STN stnErr;
-    STN stnSnd;
+    String stnErr;
+    String stnSnd;
     PMovieView pmvu;
 
     if (_ithumSelect < _cthumCD)
@@ -2497,7 +2497,7 @@ bool BRWT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
     AssertPo(pgobPar, 0);
 
     PTGOB ptgob;
-    STN stnLabel;
+    String stnLabel;
 
     _pgst->GetStn(istn, &stnLabel);
     ptgob = (PTGOB)(pgobPar->PgobFirstChild());
@@ -2601,7 +2601,7 @@ bool BRWA::FBuildGst(PScene pscen)
 {
     AssertThis(0);
 
-    STN stn;
+    String stn;
     PTMPL ptmpl;
     long cactn;
     long iactn;
@@ -2750,7 +2750,7 @@ bool BRWI::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
 
     PChunkyFile pcfl;
     Filename fni;
-    STN stn;
+    String stn;
 
     _pstdio = pstdio;
     //
@@ -3137,7 +3137,7 @@ void BRWR::_ProcessSelection(void)
 long BRWR::_Cthum(void)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
     long iarid;
     long arid;
     long cactRef;
@@ -3173,7 +3173,7 @@ long BRWR::_Cthum(void)
 long BRWR::_IaridFromIthum(long ithum, long iaridFirst)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
     long iarid;
     long arid;
     long cactRef;
@@ -3212,7 +3212,7 @@ long BRWR::_IthumFromArid(long aridSelect)
 {
     AssertThis(0);
 
-    STN stn;
+    String stn;
     long iarid;
     long arid;
     long cactRef;
@@ -3262,13 +3262,13 @@ bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
     RC rcAbsPar;
     RC rcAbs;
     RC rcRel;
-    STN stnLabel;
+    String stnLabel;
     long stid;
     long cactRef;
     long arid;
     long iarid;
     TAG tag;
-    STN stn;
+    String stn;
     long dxp;
     long dyp;
 
@@ -3302,7 +3302,7 @@ bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
     else
     {
         PTGOB ptgob;
-        STN stn = stnLabel;
+        String stn = stnLabel;
         long cch = stn.Cch();
         long hidThum;
 
@@ -3332,7 +3332,7 @@ bool BRWR::_FClearHelp(long ifrm)
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
 
-    STN stn;
+    String stn;
     stn.SetNil();
     long stid = (_ctg == kctgPrth) ? kstidProp : kstidActor;
     stid += ifrm;

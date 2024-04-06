@@ -3078,7 +3078,7 @@ bool RichTextDocumentGraphicsObject::FCmdApplyProperty(PCommand pcmd)
     CHP chpOld, chpNew;
     PAP papOld, papNew;
     long onn;
-    STN stn;
+    String stn;
 
     ClearPb(&papOld, size(PAP));
     papNew = papOld;
@@ -3241,7 +3241,7 @@ bool RichTextDocumentGraphicsObject::FEnablePropCmd(PCommand pcmd, ulong *pgrfed
 {
     PAP pap;
     bool fCheck;
-    STN stn, stnT;
+    String stn, stnT;
 
     _EnsureChpIns();
     ((PRichTextDocument)_ptxtb)->FetchPap(LwMin(_cpAnchor, _cpOther), &pap);

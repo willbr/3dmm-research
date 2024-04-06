@@ -143,7 +143,7 @@ PPIC PIC::PpicReadNative(Filename *pfni)
     PPIC ppic;
     RC rc;
     ENHMETAHEADER emh;
-    STN stn;
+    String stn;
 
     switch (pfni->Ftg())
     {

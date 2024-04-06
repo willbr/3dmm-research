@@ -46,7 +46,7 @@ SPLC::~SPLC(void)
 /***************************************************************************
     Static method to create a new spell checker.
 ***************************************************************************/
-PSPLC SPLC::PsplcNew(SC_LID sclid, PSTN pstnCustom)
+PSPLC SPLC::PsplcNew(SC_LID sclid, PString pstnCustom)
 {
     PSPLC psplc;
     AssertNilOrPo(pstnCustom, 0);
@@ -65,7 +65,7 @@ PSPLC SPLC::PsplcNew(SC_LID sclid, PSTN pstnCustom)
     Initializes the spell checker - finds the dll, loads the default
     dictionary.
 ***************************************************************************/
-bool SPLC::_FInit(SC_LID sclid, PSTN pstnCustom)
+bool SPLC::_FInit(SC_LID sclid, PString pstnCustom)
 {
     AssertThis(0);
     AssertNilOrPo(pstnCustom, 0);
@@ -107,7 +107,7 @@ bool SPLC::_FEnsureDll(SC_LID sclid)
 
     HKEY hkey;
     long cb, lwType;
-    STN stn;
+    String stn;
     SZ sz;
 
     stn.FFormatSz(PszLit("SOFTWARE\\Microsoft\\Shared Tools\\Proofing Tools") PszLit("\\Spelling\\%d\\Normal"), sclid);
@@ -167,7 +167,7 @@ bool SPLC::_FEnsureMainDict(SC_LID sclid, PFilename pfni)
 #ifdef WIN
     HKEY hkey;
     long cb, lwType;
-    STN stn;
+    String stn;
     SZ sz;
 
     stn.FFormatSz(PszLit("SOFTWARE\\Microsoft\\Shared Tools\\Proofing Tools") PszLit("\\Spelling\\%d\\Normal"), sclid);
@@ -187,7 +187,7 @@ bool SPLC::_FEnsureMainDict(SC_LID sclid, PFilename pfni)
 
     if (pvNil != pfni)
     {
-        STN stn = sz;
+        String stn = sz;
 
         if (!pfni->FBuildFromPath(&stn))
             goto LError;
@@ -213,7 +213,7 @@ LError:
 /***************************************************************************
     Find the main dictionary and load it
 ***************************************************************************/
-bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFilename pfniDef)
+bool SPLC::_FEnsureUserDict(PString pstnCustom, PFilename pfniDef)
 {
     AssertThis(0);
     AssertPo(pstnCustom, 0);
@@ -222,7 +222,7 @@ bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFilename pfniDef)
     HKEY hkey;
     long cb, lwType;
     SZ sz;
-    STN stn;
+    String stn;
     Filename fni;
 
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, PszLit("SOFTWARE\\Microsoft\\Shared Tools Location"), 0,
@@ -339,7 +339,7 @@ bool SPLC::FSetOptions(ulong grfsplc)
 /***************************************************************************
     Check the spelling of stuff in the given buffer.
 ***************************************************************************/
-bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PSTN pstnReplace, long *pscrs)
+bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PString pstnReplace, long *pscrs)
 {
     AssertThis(0);
     AssertIn(cch, 0, ksuMax);
@@ -405,7 +405,7 @@ bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PS
 /***************************************************************************
     Get the istn'th suggestion for the given word.
 ***************************************************************************/
-bool SPLC::FSuggest(achar *prgch, long cch, bool fFirst, PSTN pstn)
+bool SPLC::FSuggest(achar *prgch, long cch, bool fFirst, PString pstn)
 {
     AssertThis(0);
     AssertIn(cch, 1, ksuMax);
@@ -483,7 +483,7 @@ bool SPLC::FSuggest(achar *prgch, long cch, bool fFirst, PSTN pstn)
 /***************************************************************************
     Add this word to the ignore all list.
 ***************************************************************************/
-bool SPLC::FIgnoreAll(PSTN pstn)
+bool SPLC::FIgnoreAll(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -500,7 +500,7 @@ bool SPLC::FIgnoreAll(PSTN pstn)
 /***************************************************************************
     Add this word pair to the change once list.
 ***************************************************************************/
-bool SPLC::FChange(PSTN pstnSrc, PSTN pstnDst, bool fAll)
+bool SPLC::FChange(PString pstnSrc, PString pstnDst, bool fAll)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -519,7 +519,7 @@ bool SPLC::FChange(PSTN pstnSrc, PSTN pstnDst, bool fAll)
 /***************************************************************************
     Add this word pair to the user dictionary.
 ***************************************************************************/
-bool SPLC::FAddToUser(PSTN pstn)
+bool SPLC::FAddToUser(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

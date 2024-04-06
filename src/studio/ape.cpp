@@ -701,7 +701,7 @@ long ActorPreviewEntity::_CmidNext(long ibset, long icmidCur, bool fNextAccessor
 /***************************************************************************
     Change this ActorPreviewEntity's TDT properties
 ***************************************************************************/
-bool ActorPreviewEntity::FChangeTdt(PSTN pstn, long tdts, PTAG ptagTdf)
+bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     Assert(_ptmpl->FIsTdt(), "FChangeTdt is only for TDTs");
@@ -793,7 +793,7 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 /***************************************************************************
     Return info about the TDT
 ***************************************************************************/
-void ActorPreviewEntity::GetTdtInfo(PSTN pstn, long *ptdts, PTAG ptagTdf)
+void ActorPreviewEntity::GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
     Assert(_ptmpl->FIsTdt(), "GetTdtInfo is only for TDTs");

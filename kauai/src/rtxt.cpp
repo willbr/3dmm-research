@@ -1233,7 +1233,7 @@ bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
     AssertBaseThis(0);
     long onn, cb;
     byte *prgb;
-    STN stn;
+    String stn;
 
     cb = _pagcact->Cb(icact);
     switch (sprm)
@@ -2028,7 +2028,7 @@ tribool RichTextDocument::_TGetLwFromChp(byte sprm, PCHP pchpNew, PCHP pchpOld, 
         else
         {
             // data for sprmFont is: long onn, short osk, stn data
-            STN stn;
+            String stn;
             long cb;
             short osk = koskCur;
             byte rgb[kcbMaxDataStn + size(long) + size(short)];

@@ -35,11 +35,11 @@ ASSERTNAME
 
 ***************************************************************************/
 bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                         PSTN pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave)
+                         PString pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave)
 {
-    STN stnTitle;
-    STN stnFilterLabel;
-    STN stnFilterExt;
+    String stnTitle;
+    String stnFilterLabel;
+    String stnFilterExt;
     int cChLabel, cChExt;
     SZ szFilter;
     bool fRet;
@@ -59,7 +59,7 @@ bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFi
     if (!vapp.FGetStnApp(lFilterExt, &stnFilterExt))
         return fFalse;
 
-    // Kauai does not like internal null chars in an STN. So build
+    // Kauai does not like internal null chars in an String. So build
     // up the final final string as an SZ.
 
     cChLabel = stnFilterLabel.Cch();
@@ -119,9 +119,9 @@ bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, File
     SZ szFile;
     DLGINFO diPortfolio;
     OPENFILENAME ofn;
-    STN stn;
+    String stn;
     bool fOKed;
-    STN stnInitialDir;
+    String stnInitialDir;
     SZ szInitialDir;
 
     AssertPo(pfni, 0);
@@ -231,7 +231,7 @@ bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, File
             FALSE	- User canceled portfolio, (or other error).
 
 ***************************************************************************/
-bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
+bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PString pstnDefFileName,
                      ulong grfPrevType, ChunkNumber cnoWave)
 {
     DLGINFO diPortfolio;
@@ -240,9 +240,9 @@ bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTS
     bool tRet;
     bool fRedisplayPortfolio = fFalse;
     bool fExplorer = fTrue;
-    STN stnFile, stnErr;
+    String stnFile, stnErr;
     Filename fniUserDir;
-    STN stnUserDir;
+    String stnUserDir;
     SZ szUserDir;
     SZ szDefFileName;
     SZ szFileTitle;
@@ -616,7 +616,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
 
             case IDC_BUTTON3: {
                 Filename fniUserDir;
-                STN stnUserDir;
+                String stnUserDir;
                 SZ szUserDir;
                 SZ szCurFile;
                 HWND hwndDlg = GetParent(hwndCustom);
@@ -938,7 +938,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 if (CchSz(lpofNotify->lpOFN->lpstrFile) != 0)
                 {
                     Filename fni;
-                    STN stnFile, stnErr;
+                    String stnFile, stnErr;
                     bool fHelp, tRet;
                     long lSelect;
 
@@ -1210,7 +1210,7 @@ void RepaintPortfolio(HWND hwndCustom)
 ***************************************************************************/
 void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, RCS *prcsPreview)
 {
-    STN stn;
+    String stn;
     PChunkyFile pcfl;
     PMBMP pmbmp;
     Filename fni;

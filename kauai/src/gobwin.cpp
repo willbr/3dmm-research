@@ -100,7 +100,7 @@ HWND GraphicsObject::HwndMdiActive(void)
     Creates a new MDI window and returns it.  This is normally then
     attached to a gob.
 ***************************************************************************/
-HWND GraphicsObject::_HwndNewMdi(PSTN pstnTitle)
+HWND GraphicsObject::_HwndNewMdi(PString pstnTitle)
 {
     AssertPo(pstnTitle, 0);
     HWND hwnd, hwndT;
@@ -209,7 +209,7 @@ void GraphicsObject::Clean(void)
 /***************************************************************************
     Set the window name.
 ***************************************************************************/
-void GraphicsObject::SetHwndName(PSTN pstn)
+void GraphicsObject::SetHwndName(PString pstn)
 {
     if (hNil == _hwnd)
     {

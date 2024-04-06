@@ -216,7 +216,7 @@ bool Movie::_FSetPfilSave(PFilename pfni)
     AssertPo(pfni, 0);
 
     long lAttrib;
-    STN stnFile;
+    String stnFile;
 
     /* Look for the file and remember FIL if found */
     ReleasePpo(&_pfilSave);
@@ -760,7 +760,7 @@ PTagList Movie::_PtaglFetch(void)
  *	 fTrue if successful, else fFalse if out of range.
  *
  ****************************************************/
-bool Movie::FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef, PTAG ptagTmpl)
+bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG ptagTmpl)
 {
     AssertThis(0);
     AssertPvCb(parid, size(long));
@@ -918,7 +918,7 @@ long Movie::AridSelected(void)
  *	 fTrue if successful, else fFalse if failure.
  *
  ****************************************************/
-bool Movie::FGetName(long arid, PSTN pstn)
+bool Movie::FGetName(long arid, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -951,7 +951,7 @@ bool Movie::FGetName(long arid, PSTN pstn)
  *	 fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Movie::FNameActr(long arid, PSTN pstn)
+bool Movie::FNameActr(long arid, PString pstn)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
@@ -1072,7 +1072,7 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
  *   fTrue if successful, else fFalse indicating out of resources.
  *
  ****************************************************/
-bool Movie::FAddToRollCall(Actor *pactr, PSTN pstn)
+bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -1606,7 +1606,7 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool Movie::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PSTN pstn)
+bool Movie::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pfilSrc);
@@ -2107,7 +2107,7 @@ bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
  *  fTrue if success, fFalse if couldn't add the TDT
  *
  ****************************************************/
-bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2179,7 +2179,7 @@ bool Movie::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
  *  fTrue if success, fFalse if couldn't change the TDT
  *
  ****************************************************/
-bool Movie::FChangeActrTdt(PActor pactr, PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4979,7 +4979,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     imactrMac = pgstmactr->IvMac();
     for (imactr = 0; imactr < imactrMac; imactr++)
     {
-        STN stn;
+        String stn;
         MACTR mactr;
 
         pgstmactr->GetStn(imactr, &stn);
@@ -5384,7 +5384,7 @@ void Movie::MarkViews(void)
     if (FWriteBmps())
     {
         Filename fni;
-        STN stn;
+        String stn;
 
         if (stn.FFormatSz(PszLit("cel%04d.dib"), _lwBmp++))
         {
@@ -5414,7 +5414,7 @@ void Movie::MarkViews(void)
  *  None.
  *
  **************************************************************************/
-void Movie::GetName(PSTN pstnTitle)
+void Movie::GetName(PString pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);

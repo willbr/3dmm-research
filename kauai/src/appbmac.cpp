@@ -523,7 +523,7 @@ bool ApplicationBase::TGiveAlertSz(PSZ psz, long bk, long cok)
     AssertSz(psz);
 
     short rid, bid;
-    STN stn;
+    String stn;
 
     stn = psz;
     switch (bk)

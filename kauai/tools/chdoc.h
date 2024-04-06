@@ -32,7 +32,7 @@ typedef class DCST *PDCST;
 typedef class DCPIC *PDCPIC;
 typedef class DCMBMP *PDCMBMP;
 
-bool FGetCtgFromStn(ChunkTag *pctg, PSTN pstn);
+bool FGetCtgFromStn(ChunkTag *pctg, PString pstn);
 
 #define lnNil (-1L)
 
@@ -103,7 +103,7 @@ class DOCE : public DOCE_PAR
     static PDOCE PdoceFromChunk(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     static void CloseDeletedDoce(PDocumentBase pdocb);
 
-    virtual void GetName(PSTN pstn);
+    virtual void GetName(PString pstn);
     virtual bool FSave(long cid);
 };
 
@@ -206,7 +206,7 @@ class DOCI : public DOCI_PAR
         return _dln;
     }
 
-    virtual void GetName(PSTN pstn);
+    virtual void GetName(PString pstn);
     virtual bool FSave(long cid);
 };
 

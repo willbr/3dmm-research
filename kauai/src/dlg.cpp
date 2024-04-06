@@ -52,7 +52,7 @@ bool Dialog::FGetValues(long iditMin, long iditLim)
     long idit;
     DialogItem dit;
     long lw;
-    STN stn;
+    String stn;
 
     AssertIn(iditMin, 0, iditLim);
     if (_pgob == pvNil)
@@ -98,7 +98,7 @@ void Dialog::SetValues(long iditMin, long iditLim)
     AssertThis(0);
     long idit;
     DialogItem dit;
-    STN stn;
+    String stn;
     long lw;
     long cb, cbT, ib;
     byte *prgb;
@@ -204,7 +204,7 @@ bool Dialog::_FDitChange(long *pidit)
 /***************************************************************************
     Get the stn (for an edit item).
 ***************************************************************************/
-void Dialog::GetStn(long idit, PSTN pstn)
+void Dialog::GetStn(long idit, PString pstn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -230,7 +230,7 @@ void Dialog::GetStn(long idit, PSTN pstn)
 /***************************************************************************
     Put the stn into the Dialog.
 ***************************************************************************/
-bool Dialog::FPutStn(long idit, PSTN pstn)
+bool Dialog::FPutStn(long idit, PString pstn)
 {
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
@@ -255,7 +255,7 @@ bool Dialog::FPutStn(long idit, PSTN pstn)
     case ditkCombo:
         if (cbOld > 0)
         {
-            STN stn;
+            String stn;
 
             if (!stn.FSetData(PvLock(idit), cbOld, &cbOld))
             {
@@ -362,7 +362,7 @@ bool Dialog::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
     AssertThis(0);
     AssertVarMem(plw);
     AssertNilOrVarMem(pfEmpty);
-    STN stn;
+    String stn;
 
     GetStn(idit, &stn);
     if (0 == stn.Cch())
@@ -388,7 +388,7 @@ bool Dialog::FGetLwFromEdit(long idit, long *plw, bool *pfEmpty)
 bool Dialog::FPutLwInEdit(long idit, long lw)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("%d"), lw);
     return FPutStn(idit, &stn);
@@ -397,7 +397,7 @@ bool Dialog::FPutLwInEdit(long idit, long lw)
 /***************************************************************************
     Add the string to the given list item.
 ***************************************************************************/
-bool Dialog::FAddToList(long idit, PSTN pstn)
+bool Dialog::FAddToList(long idit, PString pstn)
 {
     AssertThis(0);
     long cb, cbTot;
@@ -411,7 +411,7 @@ bool Dialog::FAddToList(long idit, PSTN pstn)
     cbTot = Cb(idit);
     if (cbTot == 0)
     {
-        STN stn;
+        String stn;
 
         stn.SetNil();
         if (!FPut(idit, cbTot = stn.CbData(), pvNil))
@@ -436,7 +436,7 @@ void Dialog::ClearList(long idit)
     AssertThis(0);
     AssertIn(idit, 0, IvMac());
     long cbOld, cbNew;
-    STN stn;
+    String stn;
 
 #ifdef DEBUG
     DialogItem dit;

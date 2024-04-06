@@ -215,7 +215,7 @@ PMTRL MTRL::PmtrlNewFromPix(PFilename pfni)
 {
     AssertPo(pfni, ffniFile);
 
-    STN stn;
+    String stn;
     PMTRL pmtrl;
     PBMTL pbmtl;
     PTextureMap ptmap;

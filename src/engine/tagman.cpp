@@ -125,7 +125,7 @@ TagManager::~TagManager(void)
 /***************************************************************************
     Split a merged string into its long and short components
 ***************************************************************************/
-void TagManager::SplitString(PSTN pstnMerged, PSTN pstnLong, PSTN pstnShort)
+void TagManager::SplitString(PString pstnMerged, PString pstnLong, PString pstnShort)
 {
     AssertPo(pstnMerged, 0);
     AssertVarMem(pstnLong);
@@ -195,7 +195,7 @@ bool TagManager::FMergeGstSource(PStringTable pgst, short bo, short osk)
     Assert(size(long) == pgst->CbExtra(), "bad pgstSource");
 
     long istn;
-    STN stn;
+    String stn;
     long sid;
 
     for (istn = 0; istn < pgst->IvMac(); istn++)
@@ -214,7 +214,7 @@ bool TagManager::FMergeGstSource(PStringTable pgst, short bo, short osk)
 /***************************************************************************
     Add source title string to tag manager, if it's not already there
 ***************************************************************************/
-bool TagManager::FAddStnSource(PSTN pstn, long sid)
+bool TagManager::FAddStnSource(PString pstn, long sid)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -230,16 +230,16 @@ bool TagManager::FAddStnSource(PSTN pstn, long sid)
     Find the sid with the given string as its source name.  pstn can be
     the merged name, the short name, or the long name.
 ***************************************************************************/
-bool TagManager::FGetSid(PSTN pstn, long *psid)
+bool TagManager::FGetSid(PString pstn, long *psid)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
     AssertVarMem(psid);
 
     long istn;
-    STN stnMerged;
-    STN stnLong;
-    STN stnShort;
+    String stnMerged;
+    String stnLong;
+    String stnShort;
 
     for (istn = 0; istn < _pgstSource->IvMac(); istn++)
     {
@@ -262,7 +262,7 @@ bool TagManager::FGetSid(PSTN pstn, long *psid)
 /***************************************************************************
     Find the string of the source with the given sid
 ***************************************************************************/
-bool TagManager::_FGetStnMergedOfSid(long sid, PSTN pstn)
+bool TagManager::_FGetStnMergedOfSid(long sid, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pstn);
@@ -283,13 +283,13 @@ bool TagManager::_FGetStnMergedOfSid(long sid, PSTN pstn)
 /***************************************************************************
     Find the string of the source with the given sid
 ***************************************************************************/
-bool TagManager::_FGetStnSplitOfSid(long sid, PSTN pstnLong, PSTN pstnShort)
+bool TagManager::_FGetStnSplitOfSid(long sid, PString pstnLong, PString pstnShort)
 {
     AssertThis(0);
     AssertVarMem(pstnLong);
     AssertVarMem(pstnShort);
 
-    STN stnMerged;
+    String stnMerged;
 
     if (!_FGetStnMergedOfSid(sid, &stnMerged))
         return fFalse;
@@ -311,8 +311,8 @@ bool TagManager::_FBuildFniHD(long sid, PFilename pfniHD, bool *pfExists)
     AssertVarMem(pfniHD);
     AssertVarMem(pfExists);
 
-    STN stnLong;
-    STN stnShort;
+    String stnLong;
+    String stnShort;
     Filename fni;
 
     *pfExists = fFalse;
@@ -358,7 +358,7 @@ bool TagManager::_FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni)
     think it does.  Or, if pstn is non-nil, try to go down from pfniCD
     to pstn.
 ***************************************************************************/
-bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PSTN pstn)
+bool TagManager::_FEnsureFniCD(long sid, Filename *pfniCD, PString pstn)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -407,8 +407,8 @@ bool TagManager::_FFindFniCD(long sid, PFilename pfniCD, bool *pfFniChanged)
 
     FileNameEnumerator fne;
     Filename fni;
-    STN stnLong;
-    STN stnShort;
+    String stnLong;
+    String stnShort;
     Filename fniCD;
 
     *pfFniChanged = fFalse;
@@ -464,8 +464,8 @@ bool TagManager::_FRetry(long sid)
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
 
-    STN stnLong;
-    STN stnShort;
+    String stnLong;
+    String stnShort;
 
     if (!_FGetStnSplitOfSid(sid, &stnLong, &stnShort))
     {
@@ -485,7 +485,7 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(long sid, PFilename pfniDir)
     Assert(sid >= 0, "Invalid sid");
     AssertPo(pfniDir, ffniDir);
 
-    STN stn;
+    String stn;
     Filename fni;
     PChunkyResourceManager pcrmSource = pvNil;
     FileNameEnumerator fne;
@@ -731,7 +731,7 @@ LSetupSFS:
 /***************************************************************************
     Finds the file with name pstn on the HD or CD.
 ***************************************************************************/
-bool TagManager::FFindFile(long sid, PSTN pstn, PFilename pfni, bool fAskForCD)
+bool TagManager::FFindFile(long sid, PString pstn, PFilename pfni, bool fAskForCD)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");

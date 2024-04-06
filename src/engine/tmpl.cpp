@@ -604,7 +604,7 @@ PBODY TMPL::PbodyCreate(void)
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
-bool TMPL::FGetActnName(long anid, PSTN pstn)
+bool TMPL::FGetActnName(long anid, PString pstn)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -1015,7 +1015,7 @@ PCMTL TMPL::PcmtlFetch(long cmid)
 /***************************************************************************
     Puts the template's name into pstn
 ***************************************************************************/
-void TMPL::GetName(PSTN pstn)
+void TMPL::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

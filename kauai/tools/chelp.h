@@ -54,7 +54,7 @@ class APP : public APP_PAR
     virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
 
   public:
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
 
     virtual bool FCmdOpen(PCommand pcmd);
@@ -184,12 +184,12 @@ class CCGT : public CCGT_PAR
 
   protected:
     AbstractColor _acr;
-    STN _stn;
+    String _stn;
 
   public:
-    CCGT(PGCB pgcb, AbstractColor acr = kacrBlack, PSTN pstn = pvNil);
+    CCGT(PGCB pgcb, AbstractColor acr = kacrBlack, PString pstn = pvNil);
 
-    void SetAcr(AbstractColor acr, PSTN pstn = pvNil);
+    void SetAcr(AbstractColor acr, PString pstn = pvNil);
     AbstractColor AcrCur(void)
     {
         return _acr;
@@ -326,7 +326,7 @@ class HEDG : public HEDG_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
 #ifdef WIN
-    void _StartPage(PGraphicsEnvironment pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn);
+    void _StartPage(PGraphicsEnvironment pgnv, PString pstnDoc, long lwPage, RC *prcPage, long onn);
 #endif // WIN
 
   public:
@@ -369,7 +369,7 @@ class HETD : public HETD_PAR
     PChunkyFile _pcfl; // which chunk is being edited
     ChunkNumber _cno;
     PStringTable _pgst;   // string versions of stuff in Topic
-    STN _stnDesc; // description
+    String _stnDesc; // description
 
     HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno);
     ~HETD(void);
@@ -383,7 +383,7 @@ class HETD : public HETD_PAR
 
     virtual PDocumentMDIWindow PdmdNew(void);
     virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
-    virtual void GetName(PSTN pstn);
+    virtual void GetName(PString pstn);
     virtual bool FSave(long cid);
 
     virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
@@ -401,7 +401,7 @@ class HETD : public HETD_PAR
         return _cno;
     }
 
-    void GetHtopStn(long istn, PSTN pstn);
+    void GetHtopStn(long istn, PString pstn);
 };
 
 /***************************************************************************

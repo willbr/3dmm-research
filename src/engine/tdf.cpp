@@ -155,7 +155,7 @@ TDF::~TDF(void)
     TDF instance in memory...to do that, call FReadTdf with the values
     returned in pckiTdf.
 ***************************************************************************/
-bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, STN *pstn, ChunkIdentification *pckiTdf)
+bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf)
 {
     AssertPo(pcrf, 0);
     AssertPo(pglkid, 0);
@@ -261,7 +261,7 @@ PMODL TDF::PmodlFetch(ChildChunkID chid)
 
     if (!Pcrf()->Pcfl()->FGetKidChid(Ctg(), Cno(), chid, &kid))
     {
-        STN stn;
+        String stn;
         stn.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), chid);
         Warn(stn.Psz());
         PushErc(ercSocNoModlForChar);

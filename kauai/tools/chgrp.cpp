@@ -799,7 +799,7 @@ void DCGL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     PVirtualArray pglb;
-    STN stn;
+    String stn;
     byte rgb[kcbMaxDispGrp];
     long ivMac, iv;
     long cbDisp, cbEntry;
@@ -956,7 +956,7 @@ void DCGG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     PVirtualGroup pggb;
-    STN stn;
+    String stn;
     byte rgb[kcbMaxDispGrp];
     long ivMac, iv, dln;
     long cbDisp, cbEntry;
@@ -1140,8 +1140,8 @@ void DCST::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     PVirtualStringTable pgstb;
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     byte rgb[1024];
     long ivMac, iv;
     long cbDisp, cbExtra;
@@ -1256,7 +1256,7 @@ bool DCST::FCmdAddItem(PCommand pcmd)
     PVirtualStringTable pgstb;
     HQ hq;
     long cb;
-    STN stn;
+    String stn;
 
     stn.SetNil();
     pgstb = (PVirtualStringTable)_pgrpb;
@@ -1361,11 +1361,11 @@ PDocumentDisplayGraphicsObject DOCI::PddgNew(PGCB pgcb)
 /***************************************************************************
     Get the document's name.
 ***************************************************************************/
-void DOCI::GetName(PSTN pstn)
+void DOCI::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit(": item %d"), _iv);
     _pdocbPar->GetName(pstn);
@@ -1482,7 +1482,7 @@ HQ DOCI::_HqRead(void)
     long cb;
     HQ hq;
     void *pv;
-    STN stn;
+    String stn;
 
     _fFixed = fTrue;
     switch (_cls)

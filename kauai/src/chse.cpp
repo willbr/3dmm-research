@@ -99,16 +99,16 @@ void SourceEmitter::MarkMem(void)
 /***************************************************************************
     Dumps chunk header.
 ***************************************************************************/
-void SourceEmitter::DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName, bool fPack)
+void SourceEmitter::DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName, bool fPack)
 {
     AssertThis(fchseDump);
     AssertNilOrPo(pstnName, 0);
 
-    STN stnT;
+    String stnT;
 
     if (pstnName != pvNil)
     {
-        STN stnName;
+        String stnName;
 
         stnName = *pstnName;
         stnName.FExpandControls();
@@ -167,7 +167,7 @@ void SourceEmitter::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChun
 {
     AssertThis(fchseDump);
 
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("PARENT('%f', %d, %d)"), ctgPar, cnoPar, chid);
     DumpSz(stn.Psz());
@@ -176,12 +176,12 @@ void SourceEmitter::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChun
 /***************************************************************************
     Dump a bitmap directive
 ***************************************************************************/
-void SourceEmitter::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile)
+void SourceEmitter::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PString pstnFile)
 {
     AssertThis(fchseDump);
     AssertPo(pstnFile, 0);
 
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("BITMAP(%d, %d, %d) \"%s\""), (long)bTransparent, dxp, dyp, pstnFile);
     DumpSz(stn.Psz());
@@ -190,12 +190,12 @@ void SourceEmitter::DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN ps
 /***************************************************************************
     Dump a file directive
 ***************************************************************************/
-void SourceEmitter::DumpFileCmd(PSTN pstnFile, bool fPacked)
+void SourceEmitter::DumpFileCmd(PString pstnFile, bool fPacked)
 {
     AssertThis(fchseDump);
     AssertPo(pstnFile, 0);
 
-    STN stn;
+    String stn;
 
     if (fPacked)
         stn.FFormatSz(PszLit("PACKEDFILE \"%s\""), pstnFile);
@@ -213,7 +213,7 @@ void SourceEmitter::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentifica
     AssertVarMem(pcki);
     AssertVarMem(pkid);
 
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("ADOPT('%f', %d, '%f', %d, %d)"), pcki->ctg, pcki->cno, pkid->cki.ctg, pkid->cki.cno,
                   pkid->chid);
@@ -229,8 +229,8 @@ void SourceEmitter::_DumpBsf(long cactTab)
     AssertIn(cactTab, 0, kcchMaxStn + 1);
 
     byte rgb[8], bT;
-    STN stn1;
-    STN stn2;
+    String stn1;
+    String stn2;
     long cact;
     long ib, ibMac;
     long cb, ibT;
@@ -309,7 +309,7 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
 
     long cbEntry;
     long iv, ivMac;
-    STN stn;
+    String stn;
     bool fAl = pglb->FIs(kclsAllocatedArray);
 
     Assert(fAl || pglb->FIs(kclsDynamicArray), "neither a DynamicArray or AllocatedArray!");
@@ -348,7 +348,7 @@ void SourceEmitter::DumpGroup(PVirtualGroup pggb)
 
     long cbFixed, cb;
     long iv, ivMac;
-    STN stnT;
+    String stnT;
     bool fAg = pggb->FIs(kclsAllocatedGroup);
 
     Assert(fAg || pggb->FIs(kclsGeneralGroup), "neither a GeneralGroup or AllocatedGroup!");
@@ -397,8 +397,8 @@ bool SourceEmitter::FDumpStringTable(PVirtualStringTable pgstb)
 
     long cbExtra;
     long iv, ivMac;
-    STN stn1;
-    STN stn2;
+    String stn1;
+    String stn2;
     void *pvExtra = pvNil;
     bool fAst = pgstb->FIs(kclsAllocatedStringTable);
 

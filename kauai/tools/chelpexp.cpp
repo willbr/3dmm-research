@@ -15,7 +15,7 @@ ASSERTNAME
 
 static bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
 static bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
-static void _AppendHelpStnLw(PSTN pstn, PStringTable pgst, long istn, long lw);
+static void _AppendHelpStnLw(PString pstn, PStringTable pgst, long istn, long lw);
 
 /***************************************************************************
     Export the help topics in their textual representation for compilation
@@ -35,7 +35,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
     ulong grfcge;
     TopicFile htopf;
     SourceEmitter chse;
-    STN stn, stnT;
+    String stn, stnT;
     bool fRet = fFalse;
 
     chse.Init(pmsnk);
@@ -186,8 +186,8 @@ bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentifi
     AssertVarMem(pkid);
     AssertVarMem(pckiPar);
 
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     DataBlock blck;
 
     if (!pcfl->FFind(pkid->cki.ctg, pkid->cki.cno, &blck))
@@ -254,7 +254,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
 
     PAllocatedGroup pag;
     short bo, osk;
-    STN stn, stnT, stnT2;
+    String stn, stnT, stnT2;
     byte rgb[2 * kcbMaxDataStn];
     DataBlock blck;
     long iv, lw, cb, ib, cbRead;
@@ -320,7 +320,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
                 goto LWriteCore;
             }
 
-            stn.FFormatSz(PszLit("\t\tVAR BYTE %d LONG %s __HELP_SYMBOL( STN \""), (long)rgb[0], &stnT);
+            stn.FFormatSz(PszLit("\t\tVAR BYTE %d LONG %s __HELP_SYMBOL( String \""), (long)rgb[0], &stnT);
             stnT.FExpandControls();
             stn.FAppendStn(&stnT);
             stn.FAppendSz(PszLit("\" )"));
@@ -353,7 +353,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
                     Bug("bad picture data 2");
                     goto LWriteCore;
                 }
-                stn.FFormatSz(PszLit("\t\tVAR LONG '%f' %s __HELP_SYMBOL( STN \""), cki.ctg, &stnT);
+                stn.FFormatSz(PszLit("\t\tVAR LONG '%f' %s __HELP_SYMBOL( String \""), cki.ctg, &stnT);
                 stnT.FExpandControls();
                 stn.FAppendStn(&stnT);
                 stn.FAppendSz(PszLit("\" )"));
@@ -400,7 +400,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
                     stn.FAppendStn(&stnT2);
                     stnT2.SetNil();
                 }
-                stn.FAppendSz(PszLit(" __HELP_SYMBOL( STN "));
+                stn.FAppendSz(PszLit(" __HELP_SYMBOL( String "));
                 if (stnT.Cch() > 0)
                 {
                     stn.FAppendCh(ChLit('"'));
@@ -441,11 +441,11 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
 /***************************************************************************
     Append a string or number.
 ***************************************************************************/
-void _AppendHelpStnLw(PSTN pstn, PStringTable pgst, long istn, long lw)
+void _AppendHelpStnLw(PString pstn, PStringTable pgst, long istn, long lw)
 {
     AssertPo(pstn, 0);
     AssertNilOrPo(pgst, 0);
-    STN stn;
+    String stn;
 
     stn.SetNil();
     if (pvNil != pgst)

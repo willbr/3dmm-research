@@ -595,7 +595,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         *ptag = _tagTmpl;
     }
-    void GetName(PSTN pstn);
+    void GetName(PString pstn);
     bool FChangeTagTmpl(PTAG ptagTmplNew);
     bool FTimeFrozen(void)
     {
@@ -643,7 +643,7 @@ class Actor : public Actor_PAR
     bool FDup(PActor *ppactr, bool fReset = fFalse); // Duplicate everything
     void Restore(PActor pactr);
 
-    bool FCreateUndo(PActor pactr, bool fSndUndo = fFalse, PSTN pstn = pvNil); // Create undo object
+    bool FCreateUndo(PActor pactr, bool fSndUndo = fFalse, PString pstn = pvNil); // Create undo object
     void Reset(void);
     bool FAddOnStage(void); // add actor to the stage, w/Undo
     bool FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup = pvNil);
@@ -694,7 +694,7 @@ class ACLP : public ACLP_PAR
   protected:
     PActor _pactr;
     bool _fRteOnly;
-    STN _stnName;
+    String _stnName;
 
     ACLP(void)
     {

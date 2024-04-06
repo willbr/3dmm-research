@@ -210,8 +210,8 @@ class EDSL : public EDSL_PAR
     virtual long CchFetch(achar *prgch, long ich, long cchWant);
 
     // additional text APIs
-    void GetStn(PSTN pstn);
-    void SetStn(PSTN pstn, long gin = kginDraw);
+    void GetStn(PString pstn);
+    void SetStn(PString pstn, long gin = kginDraw);
 };
 
 /***************************************************************************

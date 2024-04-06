@@ -158,7 +158,7 @@ LFail:
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, STN *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, String *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pcflDest, 0);
     AssertPo(pmids, 0);
@@ -202,7 +202,7 @@ LFail:
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, STN *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
@@ -254,14 +254,14 @@ LFail:
     The *pcno is returned
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PSTN pstn)
+bool MovieSoundMSND::FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
 
     PMIDS pmids = pvNil;
     Filename fniSrc;
-    STN stnName;
+    String stnName;
 
     pfilSrc->GetFni(&fniSrc);
     if (pvNil == pstn)
@@ -294,7 +294,7 @@ LFail:
     Copy the wave file to a chunk in the current movie
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PSTN pstn)
+bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertPo(pcflDest, 0);
@@ -304,13 +304,13 @@ bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, Chu
     AssertNilOrPo(pstn, 0);
 
     Filename fniSrc;
-    STN stnName; // sound name
-    STN stn;     // src file path name
+    String stnName; // sound name
+    String stn;     // src file path name
     WAVEFORMATEX wfxSrc;
     LPSOUND psnd = pvNil;
     LPSOUND psndTemp = pvNil;
     FIL *pfilNew = pvNil;
-    STN stnNew;
+    String stnNew;
     Filename fniNew;
     WAVEFORMATEX *pwfxDst = pvNil;
     DWORD cbwfx;          // size of waveformatex needed

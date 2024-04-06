@@ -77,7 +77,7 @@ PARENT('RTXT', _help_52545854_2, 0x0)
 AllocatedGroup(4)
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpSceneChoices __HELP_SYMBOL( STN "mbmpSceneChoices" )
+		VAR LONG 'MBMP' mbmpSceneChoices __HELP_SYMBOL( String "mbmpSceneChoices" )
 ENDCHUNK
 
 SET _help_cno++
@@ -182,11 +182,11 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsBrowser __HELP_SYMBOL( STN "mbmpActorsBrowser" )
+		VAR LONG 'MBMP' mbmpActorsBrowser __HELP_SYMBOL( String "mbmpActorsBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsPropBrowser __HELP_SYMBOL( STN "mbmpActorsPropBrowser" )
+		VAR LONG 'MBMP' mbmpActorsPropBrowser __HELP_SYMBOL( String "mbmpActorsPropBrowser" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpActorsSpletters __HELP_SYMBOL( STN "mbmpActorsSpletters" )
+		VAR LONG 'MBMP' mbmpActorsSpletters __HELP_SYMBOL( String "mbmpActorsSpletters" )
 ENDCHUNK
 
 SET _help_cno++
@@ -315,7 +315,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpTextsCreate __HELP_SYMBOL( STN "mbmpTextsCreate" )
+		VAR LONG 'MBMP' mbmpTextsCreate __HELP_SYMBOL( String "mbmpTextsCreate" )
 ENDCHUNK
 
 SET _help_cno++

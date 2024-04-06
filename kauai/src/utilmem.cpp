@@ -509,7 +509,7 @@ void AssertUnmarkedMem(void)
         _AssertMbh(pmbh);
         if (pmbh->cactRef == 0 && pmbh->lwThread == lwThread)
         {
-            STN stn;
+            String stn;
             SZS szs;
 
             stn.FFormatSz(PszLit("\nLost block: size=%d, StackTrace=(use map file)"), pmbh->cb);

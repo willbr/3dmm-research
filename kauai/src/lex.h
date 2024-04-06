@@ -100,7 +100,7 @@ struct Token
 {
     long tt;
     long lw;
-    STN stn;
+    String stn;
 };
 typedef Token *PToken;
 
@@ -123,7 +123,7 @@ class LexerBase : public LexerBase_PAR
 
     PFIL _pfil; // exactly one of _pfil, _pbsf should be non-nil
     PFileByteStream _pbsf;
-    STN _stnFile;
+    String _stnFile;
     long _lwLine;  // which line
     long _ichLine; // which character on the line
 
@@ -157,14 +157,14 @@ class LexerBase : public LexerBase_PAR
 
   public:
     LexerBase(PFIL pfil, bool fUnionStrings = fTrue);
-    LexerBase(PFileByteStream pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
+    LexerBase(PFileByteStream pbsf, PString pstnFile, bool fUnionStrings = fTrue);
     ~LexerBase(void);
 
     virtual bool FGetTok(PToken ptok);
     virtual long CbExtra(void);
     virtual void GetExtra(void *pv);
 
-    void GetStnFile(PSTN pstn);
+    void GetStnFile(PString pstn);
     long LwLine(void)
     {
         return _lwLine;

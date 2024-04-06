@@ -57,11 +57,11 @@ class SourceEmitter : public SourceEmitter_PAR
     void Init(PMSNK pmsnkDump, PMSNK pmsnkError = pvNil);
     void Uninit(void);
 
-    void DumpHeader(ChunkTag ctg, ChunkNumber cno, PSTN pstnName = pvNil, bool fPack = fFalse);
+    void DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName = pvNil, bool fPack = fFalse);
     void DumpRgb(void *prgb, long cb, long cactTab = 1);
     void DumpParentCmd(ChunkTag ctg, ChunkNumber cno, ChildChunkID chid);
-    void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile);
-    void DumpFileCmd(PSTN pstnFile, bool fPacked = fFalse);
+    void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PString pstnFile);
+    void DumpFileCmd(PString pstnFile, bool fPacked = fFalse);
     void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
     void DumpList(PVirtualArray pglb);
     void DumpGroup(PVirtualGroup pggb);

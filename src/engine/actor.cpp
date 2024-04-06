@@ -5365,7 +5365,7 @@ LStill:
     Get actor name
 
 ***************************************************************************/
-void Actor::GetName(PSTN pstn)
+void Actor::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);

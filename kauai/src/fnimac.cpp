@@ -110,7 +110,7 @@ bool Filename::FGetUnique(FileType ftg)
     long lw;
     short cact;
     short err;
-    STN stn;
+    String stn;
     long lwDir = _lwDir;
     short swVol = _fss.vRefNum;
 

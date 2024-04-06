@@ -285,7 +285,7 @@ class RichTextDocument : public RichTextDocument_PAR
     long _onnDef; // default font and font size
     long _dypFontDef;
     short _oskFont;  // osk for the default font
-    STN _stnFontDef; // name of default font
+    String _stnFontDef; // name of default font
 
     // cached CHP and PAP (from FetchChp and FetchPap)
     CHP _chp;

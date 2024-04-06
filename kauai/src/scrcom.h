@@ -164,8 +164,8 @@ struct RuntimeVariableName
     ulong lu1;
     ulong lu2;
 
-    void SetFromStn(PSTN pstn);
-    void GetStn(PSTN pstn);
+    void SetFromStn(PString pstn);
+    void GetStn(PString pstn);
 };
 
 /***************************************************************************
@@ -210,13 +210,13 @@ class CompilerBase : public CompilerBase_PAR
 
     // general compilation methods
     void _PushLw(long lw);
-    void _PushString(PSTN pstn);
+    void _PushString(PString pstn);
     void _PushOp(long op);
     void _EndOp(void);
     void _PushVarOp(long op, RuntimeVariableName *prtvn);
-    bool _FFindLabel(PSTN pstn, long *plwLoc);
-    void _AddLabel(PSTN pstn);
-    void _PushLabelRequest(PSTN pstn);
+    bool _FFindLabel(PString pstn, long *plwLoc);
+    void _AddLabel(PString pstn);
+    void _PushLabelRequest(PString pstn);
     void _AddLabelLw(long lw);
     void _PushLabelRequestLw(long lw);
 
@@ -229,27 +229,27 @@ class CompilerBase : public CompilerBase_PAR
 
     // post-fix compiler routines
     virtual void _CompilePost(void);
-    long _OpFromStnRgszop(PSTN pstn, StringOpcodeMap *prgszop);
-    virtual long _OpFromStn(PSTN pstn);
-    bool _FGetStnFromOpRgszop(long op, PSTN pstn, StringOpcodeMap *prgszop);
-    virtual bool _FGetStnFromOp(long op, PSTN pstn);
+    long _OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop);
+    virtual long _OpFromStn(PString pstn);
+    bool _FGetStnFromOpRgszop(long op, PString pstn, StringOpcodeMap *prgszop);
+    virtual bool _FGetStnFromOp(long op, PString pstn);
 
     // in-fix compiler routines
     virtual void _CompileIn(void);
     bool _FResolveToOpl(long opl, long oplMin, long *pietn);
     void _EmitCode(long ietnTop, ulong grfscc, long *pclwArg);
     void _EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack);
-    virtual bool _FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
-    bool _FGetArop(PSTN pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+    virtual bool _FGetOpFromName(PString pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
+    bool _FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                    bool *pfVoid);
     void _PushLabelRequestIetn(long ietn);
     void _AddLabelIetn(long ietn);
     void _PushOpFromName(long ietn, ulong grfscc, long clwArg);
     void _GetIstnNameFromIetn(long ietn, long *pistn);
     void _GetRtvnFromName(long istn, RuntimeVariableName *prtvn);
-    bool _FKeyWord(PSTN pstn);
-    void _GetStnFromIstn(long istn, PSTN pstn);
-    void _AddNameRef(PSTN pstn, long *pistn);
+    bool _FKeyWord(PString pstn);
+    void _GetStnFromIstn(long istn, PString pstn);
+    void _AddNameRef(PString pstn, long *pistn);
     long _CstFromName(long ietn);
     void _BeginCst(long cst, long ietn);
     bool _FHandleCst(long ietn);

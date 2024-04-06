@@ -351,10 +351,10 @@ void DOCE::CloseDeletedDoce(PDocumentBase pdocb)
 /***************************************************************************
     Get the name of the item document.
 ***************************************************************************/
-void DOCE::GetName(PSTN pstn)
+void DOCE::GetName(PString pstn)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit(": %f %08x"), _ctg, _cno);
     _pdocbPar->GetName(pstn);
@@ -778,8 +778,8 @@ void DCD::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     RC rc;
     long yp, xp;
     long ikid, cckiRef;
@@ -1333,7 +1333,7 @@ bool DCD::_FAddChunk(ChunkTag ctgDef, ChunkIdentification *pcki, bool *pfCreated
     bool fEmpty;
     PDLG pdlg;
     ADCD adcd;
-    STN stn;
+    String stn;
 
     // put up the dialog
     adcd.pcfl = _pcfl;
@@ -1743,7 +1743,7 @@ bool DCD::_FEditChunkInfo(ChunkIdentification *pckiOld)
     long idit;
     long lw;
     PDLG pdlg;
-    STN stn;
+    String stn;
     CLAN clan;
     ChunkIdentification cki;
 
@@ -2575,7 +2575,7 @@ bool DCD::FTestScript(ChunkTag ctg, ChunkNumber cno, long cbCache)
 {
     AssertThis(0);
     AssertIn(cbCache, 0, kcbMax);
-    STN stn;
+    String stn;
     PTSCG ptscg;
     PScript pscpt = pvNil;
     PGraphicsObjectInterpreter psceg = pvNil;
@@ -2776,8 +2776,8 @@ bool DCD::FCmdFilterChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     PDLG pdlg;
     ulong grfsel;
     ChunkIdentification cki;
@@ -2911,7 +2911,7 @@ void DCD::MarkMem(void)
     Parses the stn as a ctg. Pads with spaces. Fails if pstn is longer
     than 4 characters or empty.
 ***************************************************************************/
-bool FGetCtgFromStn(ChunkTag *pctg, PSTN pstn)
+bool FGetCtgFromStn(ChunkTag *pctg, PString pstn)
 {
     achar rgch[4];
 
@@ -2940,7 +2940,7 @@ bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pctg);
-    STN stn;
+    String stn;
 
     pdlg->GetStn(idit, &stn);
     return FGetCtgFromStn(pctg, &stn);
@@ -2952,7 +2952,7 @@ bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg)
 void _PutCtgStn(PDLG pdlg, long idit, ChunkTag ctg)
 {
     AssertPo(pdlg, 0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("%f"), ctg);
     pdlg->FPutStn(idit, &stn);

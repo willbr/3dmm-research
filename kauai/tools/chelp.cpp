@@ -106,7 +106,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     };
 
     long iv, dyp;
-    STN stn;
+    String stn;
 
     if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
         return fFalse;
@@ -194,14 +194,14 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 /***************************************************************************
     Get the name for the help editor app.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void APP::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
 #ifdef UNICODE
-    STN stnDate;
-    STN stnTime;
+    String stnDate;
+    String stnTime;
 
     stnDate.SetSzs(__DATE__);
     stnTime.SetSzs(__TIME__);
@@ -1116,7 +1116,7 @@ bool CCG::FCmdMouseMove(PCMD_MOUSE pcmd)
     PCCGT pccgt;
     RC rc, rcOld;
     AbstractColor acr;
-    STN stn;
+    String stn;
     long iscr;
 
     if (pvNil == (pccgt = (PCCGT)PgobFromHid(khidToolTip)) || !pccgt->FIs(kclsCCGT))
@@ -1168,7 +1168,7 @@ void CCG::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for color chooser tool tip.
 ***************************************************************************/
-CCGT::CCGT(PGCB pgcb, AbstractColor acr, PSTN pstn) : CCGT_PAR(pgcb)
+CCGT::CCGT(PGCB pgcb, AbstractColor acr, PString pstn) : CCGT_PAR(pgcb)
 {
     AssertBaseThis(0);
     _acr = acr;
@@ -1179,7 +1179,7 @@ CCGT::CCGT(PGCB pgcb, AbstractColor acr, PSTN pstn) : CCGT_PAR(pgcb)
 /***************************************************************************
     Set the color for the tool tip.
 ***************************************************************************/
-void CCGT::SetAcr(AbstractColor acr, PSTN pstn)
+void CCGT::SetAcr(AbstractColor acr, PString pstn)
 {
     AssertThis(0);
     AssertPo(&acr, 0);

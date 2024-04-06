@@ -33,8 +33,8 @@ bool FMakeTdf(PFilename pfniSrc, PChunkyFile pcflDst);
 ***************************************************************************/
 int __cdecl main(int cpsz, achar *prgpsz[])
 {
-    STN stnDst;
-    STN stnSrc;
+    String stnDst;
+    String stnSrc;
     Filename fniSrcDir;
     Filename fniDst;
     PChunkyFile pcflDst;
@@ -109,8 +109,8 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     FileType ftgDat = MacWin('bdat', 'DAT');
     FileNameEnumerator fne;
     Filename fni;
-    STN stn;
-    STN stn2;
+    String stn;
+    String stn2;
     ChildChunkID chid;
     ChildChunkID chidMax = 0;
     PMODL pmodl;

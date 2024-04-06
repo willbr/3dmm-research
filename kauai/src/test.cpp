@@ -279,7 +279,7 @@ void TestGl(void)
 void TestFni(void)
 {
     Filename fni1, fni2;
-    STN stn1, stn2, stn3;
+    String stn1, stn2, stn3;
 
     AssertDo(fni1.FGetTemp(), 0);
     AssertDo(fni1.Ftg() == vftgTemp, 0);
@@ -460,7 +460,7 @@ void TestCfl(void)
     ChunkNumber cno;
     ChunkIdentification cki;
     EREL *perel, *perelPar;
-    STN stn;
+    String stn;
     achar rgch[kcchMaxSz];
 
     while (FGetFniSaveMacro(&fni, 'TEXT',

@@ -99,7 +99,7 @@ class AUND : public AUND_PAR
     bool _fSoonerLater;
     bool _fSndUndo;
     long _nfrmLast;
-    STN _stn; // actor's name
+    String _stn; // actor's name
     AUND(void)
     {
     }
@@ -125,7 +125,7 @@ class AUND : public AUND_PAR
     {
         _nfrmLast = nfrmLast;
     }
-    void SetStn(PSTN pstn)
+    void SetStn(PString pstn)
     {
         _stn = *pstn;
     }

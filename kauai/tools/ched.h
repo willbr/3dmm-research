@@ -32,7 +32,7 @@ class APP : public APP_PAR
     virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
 
   public:
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
 
     virtual bool FCmdOpen(PCommand pcmd);

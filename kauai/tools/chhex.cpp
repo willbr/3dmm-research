@@ -144,7 +144,7 @@ void DCH::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    STN stn;
+    String stn;
     byte rgb[kcbMaxLineDch];
     RC rc, rcSrc;
     long xp, yp, cb, ib, cbT, ibT;
@@ -235,7 +235,7 @@ void DCH::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 ***************************************************************************/
 void DCH::_DrawHeader(PGraphicsEnvironment pgnv)
 {
-    STN stn;
+    String stn;
     RC rc, rcSrc;
 
     pgnv->SetOnn(_onn);

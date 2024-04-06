@@ -102,9 +102,9 @@ class TextDocument : public TextDocument_PAR
     {
         return _prca;
     }
-    bool FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic = cnoNil, PSTN pstnTopic = pvNil);
+    bool FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic = cnoNil, PString pstnTopic = pvNil);
     bool FGrouped(long cp, long *pcpMin = pvNil, long *pcpLim = pvNil, byte *pbGroup = pvNil, ChunkNumber *pcnoTopic = pvNil,
-                  PSTN pstnTopic = pvNil);
+                  PString pstnTopic = pvNil);
 
     void GetHtop(PTopic phtop);
     void SetHtop(PTopic phtop);

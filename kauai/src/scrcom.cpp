@@ -446,7 +446,7 @@ PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk
         AssertPo(_pgstReq, 0);
         long istn;
         long lw, ilw;
-        STN stn;
+        String stn;
 
         for (istn = _pgstReq->IstnMac(); istn-- > 0;)
         {
@@ -563,8 +563,8 @@ void CompilerBase::_ReportError(PSZ psz)
     AssertThis(0);
     AssertPo(_plexb, 0);
     AssertPo(_pmsnk, 0);
-    STN stn;
-    STN stnFile;
+    String stn;
+    String stnFile;
 
     ReleasePpo(&_pscpt);
     _fError = fTrue;
@@ -594,7 +594,7 @@ void CompilerBase::_PushLw(long lw)
     "Push" a string constant.  Puts the string in the string table and emits
     code to push the corresponding internal variable.
 ***************************************************************************/
-void CompilerBase::_PushString(PSTN pstn)
+void CompilerBase::_PushString(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -689,7 +689,7 @@ void CompilerBase::_PushVarOp(long op, RuntimeVariableName *prtvn)
 /***************************************************************************
     Look up the indicated label and put it's location in *plwLoc.
 ***************************************************************************/
-bool CompilerBase::_FFindLabel(PSTN pstn, long *plwLoc)
+bool CompilerBase::_FFindLabel(PString pstn, long *plwLoc)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -708,7 +708,7 @@ bool CompilerBase::_FFindLabel(PSTN pstn, long *plwLoc)
 /***************************************************************************
     Add the given label, giving it the current location.
 ***************************************************************************/
-void CompilerBase::_AddLabel(PSTN pstn)
+void CompilerBase::_AddLabel(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -745,7 +745,7 @@ void CompilerBase::_AddLabel(PSTN pstn)
     of 0 in the compiled script.  When compilation is finished, we'll
     write the actual value for the label.
 ***************************************************************************/
-void CompilerBase::_PushLabelRequest(PSTN pstn)
+void CompilerBase::_PushLabelRequest(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -776,7 +776,7 @@ void CompilerBase::_PushLabelRequest(PSTN pstn)
 void CompilerBase::_AddLabelLw(long lw)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("0%x"), lw);
     _AddLabel(&stn);
@@ -788,7 +788,7 @@ void CompilerBase::_AddLabelLw(long lw)
 void CompilerBase::_PushLabelRequestLw(long lw)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("0%x"), lw);
     _PushLabelRequest(&stn);
@@ -797,7 +797,7 @@ void CompilerBase::_PushLabelRequestLw(long lw)
 /***************************************************************************
     Find the opcode that corresponds to the given stn.
 ***************************************************************************/
-long CompilerBase::_OpFromStn(PSTN pstn)
+long CompilerBase::_OpFromStn(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -809,7 +809,7 @@ long CompilerBase::_OpFromStn(PSTN pstn)
     Check the pstn against the strings in the prgszop and return the
     corresponding op code.
 ***************************************************************************/
-long CompilerBase::_OpFromStnRgszop(PSTN pstn, StringOpcodeMap *prgszop)
+long CompilerBase::_OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -828,7 +828,7 @@ long CompilerBase::_OpFromStnRgszop(PSTN pstn, StringOpcodeMap *prgszop)
     Find the string corresponding to the given opcode.  This is used during
     disassembly.
 ***************************************************************************/
-bool CompilerBase::_FGetStnFromOp(long op, PSTN pstn)
+bool CompilerBase::_FGetStnFromOp(long op, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -840,7 +840,7 @@ bool CompilerBase::_FGetStnFromOp(long op, PSTN pstn)
     Check the op against the ops in the prgszop and return the corresponding
     string.
 ***************************************************************************/
-bool CompilerBase::_FGetStnFromOpRgszop(long op, PSTN pstn, StringOpcodeMap *prgszop)
+bool CompilerBase::_FGetStnFromOpRgszop(long op, PString pstn, StringOpcodeMap *prgszop)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1867,7 +1867,7 @@ long CompilerBase::_CstFromName(long ietn)
 {
     AssertThis(0);
     long istn;
-    STN stn;
+    String stn;
 
     _GetIstnNameFromIetn(ietn, &istn);
     _GetStnFromIstn(istn, &stn);
@@ -1992,7 +1992,7 @@ bool CompilerBase::_FHandleCst(long ietn)
     AssertThis(0);
     AssertPo(_pglcstd, 0);
     long istn;
-    STN stn;
+    String stn;
     CSTD cstd;
     long icstd;
     long *plwLabel;
@@ -2209,7 +2209,7 @@ void CompilerBase::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
 {
     AssertThis(0);
     long istn;
-    STN stn;
+    String stn;
     long op, clwFixed, clwVar, cactMinVar;
     bool fVoid;
 
@@ -2238,7 +2238,7 @@ void CompilerBase::_PushOpFromName(long ietn, ulong grfscc, long clwArg)
     Find the string in the given rgarop and get the associated parameter
     and return type information.
 ***************************************************************************/
-bool CompilerBase::_FGetArop(PSTN pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+bool CompilerBase::_FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                      bool *pfVoid)
 {
     AssertThis(0);
@@ -2270,7 +2270,7 @@ bool CompilerBase::_FGetArop(PSTN pstn, StringOpcodeArgumentMap *prgarop, long *
     See if the given name is a function and give argument and return type
     information.
 ***************************************************************************/
-bool CompilerBase::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
+bool CompilerBase::_FGetOpFromName(PString pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid)
 {
     AssertThis(0);
     return _FGetArop(pstn, _rgarop, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid);
@@ -2279,7 +2279,7 @@ bool CompilerBase::_FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *
 /***************************************************************************
     Add the given string to _pgstNames.
 ***************************************************************************/
-void CompilerBase::_AddNameRef(PSTN pstn, long *pistn)
+void CompilerBase::_AddNameRef(PString pstn, long *pistn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2319,7 +2319,7 @@ void CompilerBase::_GetIstnNameFromIetn(long ietn, long *pistn)
 /***************************************************************************
     Get the rtvn for the given string (in _pgstNames).
 ***************************************************************************/
-void CompilerBase::_GetStnFromIstn(long istn, PSTN pstn)
+void CompilerBase::_GetStnFromIstn(long istn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2340,7 +2340,7 @@ void CompilerBase::_GetRtvnFromName(long istn, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
-    STN stn;
+    String stn;
 
     _GetStnFromIstn(istn, &stn);
     if (_FKeyWord(&stn))
@@ -2351,7 +2351,7 @@ void CompilerBase::_GetRtvnFromName(long istn, RuntimeVariableName *prtvn)
 /***************************************************************************
     Determine if the given string is a keyword.
 ***************************************************************************/
-bool CompilerBase::_FKeyWord(PSTN pstn)
+bool CompilerBase::_FKeyWord(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2377,7 +2377,7 @@ void CompilerBase::_PushLabelRequestIetn(long ietn)
 {
     AssertThis(0);
     long istn;
-    STN stn;
+    String stn;
 
     _GetIstnNameFromIetn(ietn, &istn);
     _GetStnFromIstn(istn, &stn);
@@ -2391,7 +2391,7 @@ void CompilerBase::_AddLabelIetn(long ietn)
 {
     AssertThis(0);
     long istn;
-    STN stn;
+    String stn;
 
     _GetIstnNameFromIetn(ietn, &istn);
     _GetStnFromIstn(istn, &stn);
@@ -2404,7 +2404,7 @@ void CompilerBase::_AddLabelIetn(long ietn)
 void CompilerBase::_PushStringIstn(long istn)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     _GetStnFromIstn(istn, &stn);
     _PushString(&stn);
@@ -2559,7 +2559,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     long ilwMac, ilw, clwPush;
     long lw;
     long op;
-    STN stn;
+    String stn;
     DVER dver;
     PDynamicArray pgllw = pscpt->_pgllw;
     PSZ pszError = pvNil;
@@ -2723,7 +2723,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     characters of the stn are significant.  The high word of lu1 is
     guaranteed to be zero.
 ***************************************************************************/
-void RuntimeVariableName::SetFromStn(PSTN pstn)
+void RuntimeVariableName::SetFromStn(PString pstn)
 {
     AssertThisMem();
     AssertPo(pstn, 0);
@@ -2780,7 +2780,7 @@ void RuntimeVariableName::SetFromStn(PSTN pstn)
 /***************************************************************************
     Get the variable name that an rtvn stores.
 ***************************************************************************/
-void RuntimeVariableName::GetStn(PSTN pstn)
+void RuntimeVariableName::GetStn(PString pstn)
 {
     AssertThisMem();
     AssertPo(pstn, 0);
@@ -2821,7 +2821,7 @@ void RuntimeVariableName::GetStn(PSTN pstn)
 
     if (lu1 & 0xFFFF0000)
     {
-        STN stn;
+        String stn;
 
         stn.FFormatSz(PszLit("[%d]"), SuHigh(lu1));
         pstn->FAppendStn(&stn);

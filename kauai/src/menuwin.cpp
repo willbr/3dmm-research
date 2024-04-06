@@ -145,7 +145,7 @@ void MenuBar::EnqueueWcid(long wcid)
     Adds an item identified by the given list cid, long parameter
     and string.
 ***************************************************************************/
-bool MenuBar::FAddListCid(long cid, long lw0, PSTN pstn)
+bool MenuBar::FAddListCid(long cid, long lw0, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -242,7 +242,7 @@ bool MenuBar::FAddListCid(long cid, long lw0, PSTN pstn)
     or string.  If pstn is non-nil, it is used to find the item.
     If pstn is nil, lw0 is used to identify the item.
 ***************************************************************************/
-bool MenuBar::FRemoveListCid(long cid, long lw0, PSTN pstn)
+bool MenuBar::FRemoveListCid(long cid, long lw0, PString pstn)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -435,7 +435,7 @@ bool MenuBar::FRemoveAllListCid(long cid)
     lwNew is set as the new long parameter and if pstnNew is non-nil,
     it is used as the new menu item text.
 ***************************************************************************/
-bool MenuBar::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN pstnNew)
+bool MenuBar::FChangeListCid(long cid, long lwOld, PString pstnOld, long lwNew, PString pstnNew)
 {
     AssertThis(0);
     AssertNilOrPo(pstnOld, 0);
@@ -495,7 +495,7 @@ bool MenuBar::_FGetCmdForWcid(long wcid, PCommand pcmd)
     {
         long lw, cch;
         SZ sz;
-        STN stn;
+        String stn;
 
         mlst.pgllw->Get(wcid - mlst.wcidList, &lw);
         cch = GetMenuString(mlst.hmenu, mlst.imniBase + wcid - mlst.wcidList, sz, kcchMaxSz, MF_BYPOSITION);
@@ -554,7 +554,7 @@ bool MenuBar::_FInitLists(void)
     long cid;
     MLST mlst;
     SZ sz;
-    STN stn;
+    String stn;
     long onn;
     long wcidList = wcidListBase;
 

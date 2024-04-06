@@ -81,7 +81,7 @@ AllocatedGroup(4)
 			0x01 0xFF 0xFF 0xFF 0xFF                   // '?����' 
 	FREE
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' kgobCancelButton 0xFFFFFFFF __HELP_SYMBOL( STN "kgobCancelButton" )
+		VAR LONG 'GOKD' kgobCancelButton 0xFFFFFFFF __HELP_SYMBOL( String "kgobCancelButton" )
 ENDCHUNK
 
 SET _help_cno++
@@ -777,9 +777,9 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_2, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip__Choose_Start_Position __HELP_SYMBOL( STN "Tip__Choose_Start_Position" )
+		VAR BYTE 1 LONG Tip__Choose_Start_Position __HELP_SYMBOL( String "Tip__Choose_Start_Position" )
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 ENDCHUNK
 
 SET _help_cno++
@@ -875,14 +875,14 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_7, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( STN "_gobTipGem" )
+		VAR LONG 'GOKD' _gobTipGem 0xFFFFFFFF __HELP_SYMBOL( String "_gobTipGem" )
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Tip___Move_Up_Down __HELP_SYMBOL( STN "Tip___Move_Up_Down" )
+		VAR BYTE 1 LONG Tip___Move_Up_Down __HELP_SYMBOL( String "Tip___Move_Up_Down" )
 	FREE
 	FREE
 	FREE
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def_Drag __HELP_SYMBOL( STN "Def_Drag" )
+		VAR BYTE 1 LONG Def_Drag __HELP_SYMBOL( String "Def_Drag" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1151,7 +1151,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_3, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1373,7 +1373,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_10, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1493,7 +1493,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_0, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0x40000001
-		VAR BYTE 1 LONG Def___camera_angle __HELP_SYMBOL( STN "Def___camera_angle" )
+		VAR BYTE 1 LONG Def___camera_angle __HELP_SYMBOL( String "Def___camera_angle" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1674,7 +1674,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_13, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++
@@ -1800,7 +1800,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_6, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( STN "helppic1016_bmp" )
+		VAR LONG 'MBMP' helppic1016_bmp __HELP_SYMBOL( String "helppic1016_bmp" )
 ENDCHUNK
 
 SET _help_cno++

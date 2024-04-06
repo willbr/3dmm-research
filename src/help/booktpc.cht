@@ -1433,7 +1433,7 @@ CHUNK('AGPA', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('RTXT', _help_52545854_1D, 0x0)
 AllocatedGroup(4)
 	ITEM LONG 0xC0000001
-		VAR LONG 'MBMP' mbmpLeannOk __HELP_SYMBOL( STN "mbmpLeannOk" )
+		VAR LONG 'MBMP' mbmpLeannOk __HELP_SYMBOL( String "mbmpLeannOk" )
 ENDCHUNK
 
 SET _help_cno++

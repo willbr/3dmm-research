@@ -208,7 +208,7 @@ PMODL MODL::PmodlReadFromDat(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
 
-    STN stn;
+    String stn;
     PMODL pmodl;
 
     pmodl = NewObj MODL;

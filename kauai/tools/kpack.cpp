@@ -21,7 +21,7 @@ bool _FGetLwFromSzs(PSZS pszs, long *plw);
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     Filename fniSrc, fniDst;
-    STN stn;
+    String stn;
     char chs;
     FLO floSrc, floDst;
     long lwSig;
@@ -225,7 +225,7 @@ LFail:
 ***************************************************************************/
 bool _FGetLwFromSzs(PSZS pszs, long *plw)
 {
-    STN stn;
+    String stn;
     long ich;
 
     stn.SetSzs(pszs);

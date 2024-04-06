@@ -41,7 +41,7 @@ void ErrorStack::Push(long erc)
     AssertThis(0);
 
 #ifdef DEBUG
-    STN stn;
+    String stn;
     SZS szs;
 
     stn.FFormatSz(PszLit("Error %d"), erc);

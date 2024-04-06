@@ -88,7 +88,7 @@ bool CHTDD::FCmdCompileChunky(PCommand pcmd)
 {
     Filename fni;
     PChunkyFile pcfl;
-    STN stnFile;
+    String stnFile;
     MSFIL msfil;
     Chunky::Compiler chcm;
     PDOC pdoc;
@@ -131,7 +131,7 @@ bool CHTDD::FCmdCompileScript(PCommand pcmd)
     AssertVarMem(pcmd);
     GraphicsObjectCompiler sccg;
     MSFIL msfil;
-    STN stnFile;
+    String stnFile;
     PScript pscpt;
     PDOC pdoc = pvNil;
 

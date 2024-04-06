@@ -102,7 +102,7 @@ bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, 
     TopicFile htopf;
     long stid, lw;
     long cp, cpMac, cpMin;
-    STN stn;
+    String stn;
     bool fRet = fFalse;
 
     if (pcfl->FForest(ctg, cno))
@@ -506,7 +506,7 @@ bool TextDocument::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pv
     Group the given text into the given group.  lw == 0 indicates no group.
     Any non-zero number is a group.
 ***************************************************************************/
-bool TextDocument::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic, PSTN pstnTopic)
+bool TextDocument::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic, PString pstnTopic)
 {
     AssertThis(0);
     AssertNilOrPo(pstnTopic, 0);
@@ -566,7 +566,7 @@ bool TextDocument::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTo
 /***************************************************************************
     Determine if the given cp is in a grouped text range.
 ***************************************************************************/
-bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, ChunkNumber *pcnoTopic, PSTN pstnTopic)
+bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, ChunkNumber *pcnoTopic, PString pstnTopic)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -703,7 +703,7 @@ bool TopicGraphicsObject::_FInit(void)
     CHP chp;
     RC rc;
     EDPAR edpar;
-    STN stn;
+    String stn;
     PTextDocument ptxhd = Ptxhd();
 
     if (!TopicGraphicsObject_PAR::_FInit())
@@ -1161,7 +1161,7 @@ bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca)
     PGraphicsObject pgob;
     GraphicsObjectBlock gcb;
     PT pt, ptReg;
-    STN stn;
+    String stn;
     RuntimeVariableName rtvn;
     PTopicGraphicsObject ptxhgSave = _ptxhg;
 
