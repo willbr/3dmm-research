@@ -812,7 +812,7 @@ PPIC GraphicsPort::PpicRelease(void)
 /***************************************************************************
     Hilites the rectangle by inverting.
 ***************************************************************************/
-void GraphicsPort::HiliteRcs(SystemRectangle *prcs, GDD *pgdd)
+void GraphicsPort::HiliteRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     _SetClip(pgdd->prcsClip);
@@ -823,7 +823,7 @@ void GraphicsPort::HiliteRcs(SystemRectangle *prcs, GDD *pgdd)
 /***************************************************************************
     Fill/frame a rectangle with a 2-color pattern or solid color.
 ***************************************************************************/
-void GraphicsPort::DrawRcs(SystemRectangle *prcs, GDD *pgdd)
+void GraphicsPort::DrawRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -841,7 +841,7 @@ void GraphicsPort::DrawRcs(SystemRectangle *prcs, GDD *pgdd)
 /***************************************************************************
     Fill/frame a rectangle with a 2-color pattern or solid color.
 ***************************************************************************/
-void GraphicsPort::DrawOval(SystemRectangle *prcs, GDD *pgdd)
+void GraphicsPort::DrawOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -860,7 +860,7 @@ void GraphicsPort::DrawOval(SystemRectangle *prcs, GDD *pgdd)
     Frames either an SystemRectangle or an oval.  Client should have already handled
     the case when the pen is big enough to fill the entire rcs/oval.
 ***************************************************************************/
-void GraphicsPort::_FrameRcsOval(SystemRectangle *prcs, GDD *pgdd, bool fOval)
+void GraphicsPort::_FrameRcsOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd, bool fOval)
 {
     Assert((pgdd->grfgdd & fgddFrame) && pgdd->dxpPen * 2 < prcs->right - prcs->left &&
                pgdd->dypPen * 2 < prcs->bottom - prcs->top,
@@ -904,7 +904,7 @@ void GraphicsPort::_FrameRcsOval(SystemRectangle *prcs, GDD *pgdd, bool fOval)
 /***************************************************************************
     Fill/frame a polygon with a 2-color pattern or solid color.
 ***************************************************************************/
-void GraphicsPort::DrawPoly(HQ hqoly, GDD *pgdd)
+void GraphicsPort::DrawPoly(HQ hqoly, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertHq(hqoly);
@@ -917,7 +917,7 @@ void GraphicsPort::DrawPoly(HQ hqoly, GDD *pgdd)
 /***************************************************************************
     Draw a line.
 ***************************************************************************/
-void GraphicsPort::DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GDD *pgdd)
+void GraphicsPort::DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertVarMem(ppts1);
@@ -1109,7 +1109,7 @@ void GraphicsPort::_EnsurePalette(void)
 /***************************************************************************
     Low level routine to fill an object with a color.
 ***************************************************************************/
-void GraphicsPort::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
+void GraphicsPort::_Fill(void *pv, GraphicsDrawingData *pgdd, PFNDRW pfn)
 {
     AbstractColor acrFore;
 
@@ -1210,7 +1210,7 @@ void GraphicsPort::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
 /***************************************************************************
     Scroll a rectangle.
 ***************************************************************************/
-void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgdd)
+void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -1224,7 +1224,7 @@ void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgd
 /***************************************************************************
     Draw some text.
 ***************************************************************************/
-void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, FontDescription *pdsf)
+void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GraphicsDrawingData *pgdd, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1243,7 +1243,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, 
         GetRcsFromRgch(&rcs, prgch, cch, pts, pdsf);
         if (acrBack == kacrInvert)
         {
-            GDD gdd = *pgdd;
+            GraphicsDrawingData gdd = *pgdd;
 
             acrBack = kacrClear;
             gdd.grfgdd = fgddFill;
@@ -1281,7 +1281,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, 
 
     if (pdsf->grfont & fontBoxed)
     {
-        GDD gdd = *pgdd;
+        GraphicsDrawingData gdd = *pgdd;
 
         gdd.dxpPen = gdd.dypPen = 1;
         gdd.grfgdd = fgddFrame | fgddPattern;
@@ -1503,7 +1503,7 @@ LSetAlignment:
 /***************************************************************************
     Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GDD *pgdd)
+void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertPo(pgptSrc, 0);
@@ -1620,7 +1620,7 @@ void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, S
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd)
+void GraphicsPort::DrawPic(PPIC ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertPo(ppic, 0);
@@ -1644,7 +1644,7 @@ void GraphicsPort::DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd)
     Draw the masked bitmap in the given rectangle.  pgdd->prcsClip is the
     clipping rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GDD *pgdd)
+void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1727,7 +1727,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GDD 
 /***************************************************************************
     Draw a dib using DrawDibDraw.
 ***************************************************************************/
-void GraphicsPort::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GDD *pgdd)
+void GraphicsPort::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertVarMem(pbi);

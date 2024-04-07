@@ -396,7 +396,7 @@ enum
 };
 
 // graphics drawing data
-struct GDD
+struct GraphicsDrawingData
 {
     ulong grfgdd;  // what to do
     AbstractPattern apt;       // pattern to use
@@ -436,7 +436,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
 
     // contains the current pen size and prcsClip
     // this is passed to the GraphicsPort
-    GDD _gdd;
+    GraphicsDrawingData _gdd;
 
     void _Init(PGraphicsPort pgpt);
     bool _FMapRcRcs(RC *prc, SystemRectangle *prcs);
@@ -643,7 +643,7 @@ class GraphicsPort : public GraphicsPort_PAR
     void _FillOval(SystemRectangle *prcs);
     void _FillPoly(OLY *poly);
     void _FillRgn(HRGN *phrgn);
-    void _FrameRcsOval(SystemRectangle *prcs, GDD *pgdd, bool fOval);
+    void _FrameRcsOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd, bool fOval);
     SCR _Scr(AbstractColor acr);
 
     bool _FInit(HDC hdc);
@@ -685,7 +685,7 @@ class GraphicsPort : public GraphicsPort_PAR
 
     // low level draw routine
     typedef void (GraphicsPort::*PFNDRW)(void *);
-    void _Fill(void *pv, GDD *pgdd, PFNDRW pfn);
+    void _Fill(void *pv, GraphicsDrawingData *pgdd, PFNDRW pfn);
 
     GraphicsPort(void)
     {
@@ -700,7 +700,7 @@ class GraphicsPort : public GraphicsPort_PAR
     static long CclrSetPalette(HWND hwnd, bool fInval);
 
     // this gross API is for AVI playback
-    void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GDD *pgdd);
+    void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
 #endif // WIN
 #ifdef MAC
     static PGraphicsPort PgptNew(PPRT pprt, HGD hgd = hNil);
@@ -729,19 +729,19 @@ class GraphicsPort : public GraphicsPort_PAR
     void SetPtBase(PT *ppt);
     void GetPtBase(PT *ppt);
 
-    void DrawRcs(SystemRectangle *prcs, GDD *pgdd);
-    void HiliteRcs(SystemRectangle *prcs, GDD *pgdd);
-    void DrawOval(SystemRectangle *prcs, GDD *pgdd);
-    void DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GDD *pgdd);
-    void DrawPoly(HQ hqoly, GDD *pgdd);
-    void ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgdd);
+    void DrawRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd);
+    void HiliteRcs(SystemRectangle *prcs, GraphicsDrawingData *pgdd);
+    void DrawOval(SystemRectangle *prcs, GraphicsDrawingData *pgdd);
+    void DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GraphicsDrawingData *pgdd);
+    void DrawPoly(HQ hqoly, GraphicsDrawingData *pgdd);
+    void ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GraphicsDrawingData *pgdd);
 
-    void DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, FontDescription *pdsf);
+    void DrawRgch(achar *prgch, long cch, SystemPoint pts, GraphicsDrawingData *pgdd, FontDescription *pdsf);
     void GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, SystemPoint pts, FontDescription *pdsf);
 
-    void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GDD *pgdd);
-    void DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd);
-    void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GDD *pgdd);
+    void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GraphicsDrawingData *pgdd);
+    void DrawPic(PPIC ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
+    void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
 
     void Lock(void);
     void Unlock(void);
