@@ -159,7 +159,7 @@ void ApplicationBase::TrackMouse(PGraphicsObject pgob, PT *ppt)
     AssertVarMem(ppt);
 
     EVT evt;
-    PTS pts;
+    SystemPoint pts;
 
     for (;;)
     {

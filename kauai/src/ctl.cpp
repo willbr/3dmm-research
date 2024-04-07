@@ -398,7 +398,7 @@ void SCB::_ActivateHwnd(bool fActive)
 ***************************************************************************/
 void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
-    PTS pts;
+    SystemPoint pts;
     short in;
     PT pt;
     bool fDown, fLit;

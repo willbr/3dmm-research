@@ -917,7 +917,7 @@ void GraphicsPort::DrawPoly(HQ hqoly, GDD *pgdd)
 /***************************************************************************
     Draw a line.
 ***************************************************************************/
-void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
+void GraphicsPort::DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(ppts1);
@@ -926,8 +926,8 @@ void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
 
     // create an OLY to fill
     long dxp, dyp, dypPen;
-    PTS *pptsDst;
-    byte rgbOly[kcbOlyBase + 6 * size(PTS)];
+    SystemPoint *pptsDst;
+    byte rgbOly[kcbOlyBase + 6 * size(SystemPoint)];
     OLY *poly = (OLY *)rgbOly;
 
     poly->cpts = 6;
@@ -935,7 +935,7 @@ void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
     if (ppts2->x < ppts1->x)
     {
         // swap them
-        PTS *pptsT;
+        SystemPoint *pptsT;
 
         pptsT = ppts2;
         ppts2 = ppts1;
@@ -1224,7 +1224,7 @@ void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgd
 /***************************************************************************
     Draw some text.
 ***************************************************************************/
-void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf)
+void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -1295,7 +1295,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDesc
 /***************************************************************************
     Get the bounding text rectangle.
 ***************************************************************************/
-void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
+void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, SystemPoint pts, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertVarMem(prcs);

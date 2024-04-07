@@ -167,7 +167,7 @@ void GraphicsObject::GetPtMouse(PT *ppt, bool *pfDown)
 {
     if (ppt != pvNil)
     {
-        PTS pts;
+        SystemPoint pts;
         long xp, yp;
         PGraphicsObject pgob;
         PPRT pprtSav, pprt;
@@ -214,8 +214,8 @@ void GraphicsObject::Clean(void)
     rcs = (*hwnd->updateRgn)->rgnBBox;
     GetPort(&pprt);
     SetPort(&hwnd->port);
-    GlobalToLocal((PTS *)&rcs);
-    GlobalToLocal((PTS *)&rcs + 1);
+    GlobalToLocal((SystemPoint *)&rcs);
+    GlobalToLocal((SystemPoint *)&rcs + 1);
     rcT = rcs;
     if (!rc.FIntersect(&rcT))
     {

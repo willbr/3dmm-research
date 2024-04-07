@@ -310,15 +310,15 @@ struct OLY // pOLYgon
 #ifdef MAC
     short cb; // size of the whole thing
     SystemRectangle rcs;  // bounding rectangle
-    PTS rgpts[1];
+    SystemPoint rgpts[1];
 
     long Cpts(void)
     {
-        return (cb - offset(OLY, rgpts[0])) / size(PTS);
+        return (cb - offset(OLY, rgpts[0])) / size(SystemPoint);
     }
 #else  //! MAC
     long cpts;
-    PTS rgpts[1];
+    SystemPoint rgpts[1];
 
     long Cpts(void)
     {
@@ -328,7 +328,7 @@ struct OLY // pOLYgon
 
     ASSERT
 };
-const long kcbOlyBase = size(OLY) - size(PTS);
+const long kcbOlyBase = size(OLY) - size(SystemPoint);
 
 /****************************************
     High level polygon - a DynamicArray of PT's.
@@ -440,7 +440,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
 
     void _Init(PGraphicsPort pgpt);
     bool _FMapRcRcs(RC *prc, SystemRectangle *prcs);
-    void _MapPtPts(long xp, long yp, PTS *ppts);
+    void _MapPtPts(long xp, long yp, SystemPoint *ppts);
     HQ _HqolyCreate(POGN pogn, ulong grfogn);
     HQ _HqolyFrame(POGN pogn, ulong grfogn);
 
@@ -679,8 +679,8 @@ class GraphicsPort : public GraphicsPort_PAR
     void _FrameOval(SystemRectangle *prcs);
     void _FillPoly(HQ *phqoly);
     void _FramePoly(HQ *phqoly);
-    void _DrawLine(PTS *prgpts);
-    void _GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf);
+    void _DrawLine(SystemPoint *prgpts);
+    void _GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, SystemPoint *ppts, FontDescription *pdsf);
 #endif // MAC
 
     // low level draw routine
@@ -732,12 +732,12 @@ class GraphicsPort : public GraphicsPort_PAR
     void DrawRcs(SystemRectangle *prcs, GDD *pgdd);
     void HiliteRcs(SystemRectangle *prcs, GDD *pgdd);
     void DrawOval(SystemRectangle *prcs, GDD *pgdd);
-    void DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd);
+    void DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GDD *pgdd);
     void DrawPoly(HQ hqoly, GDD *pgdd);
     void ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgdd);
 
-    void DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf);
-    void GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf);
+    void DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, FontDescription *pdsf);
+    void GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, SystemPoint pts, FontDescription *pdsf);
 
     void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GDD *pgdd);
     void DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd);

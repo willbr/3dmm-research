@@ -430,8 +430,8 @@ bool GraphicsObject::FGetRcInval(RC *prc, long gin)
         rcs = (*pgob->_hwnd->updateRgn)->rgnBBox;
         GetPort(&pprt);
         SetPort(&pgob->_hwnd->port);
-        GlobalToLocal((PTS *)&rcs);
-        GlobalToLocal((PTS *)&rcs + 1);
+        GlobalToLocal((SystemPoint *)&rcs);
+        GlobalToLocal((SystemPoint *)&rcs + 1);
         SetPort(pprt);
 #endif // MAC
         rcT = RC(rcs);
@@ -1087,8 +1087,8 @@ HWND GraphicsObject::_HwndGetDptFromCoo(PT *pdpt, long coo)
         if (cooGlobal == coo && hNil != hwnd)
         {
             // Map from Hwnd to screen
-            PTS pts;
-            pts = PTS(*pdpt);
+            SystemPoint pts;
+            pts = SystemPoint(*pdpt);
 #ifdef WIN
             ClientToScreen(hwnd, &pts);
 #endif // WIN
@@ -1126,7 +1126,7 @@ PGraphicsObject GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
 {
     AssertNilOrVarMem(pptLocal);
     HWND hwnd;
-    PTS pts;
+    SystemPoint pts;
     PGraphicsObject pgob;
 
 #ifdef MAC

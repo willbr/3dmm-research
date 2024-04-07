@@ -522,10 +522,10 @@ void AssertBomRgsw(ByteOrderMask bom, long cb)
     REVIEW shonk: should we assert on truncation?  Should we truncate
     on windows?
 ***************************************************************************/
-PT::operator PTS(void)
+PT::operator SystemPoint(void)
 {
     AssertThisMem();
-    PTS pts;
+    SystemPoint pts;
 
     MacWin(pts.h, pts.x) = SwTruncLw(xp);
     MacWin(pts.v, pts.y) = SwTruncLw(yp);
@@ -535,7 +535,7 @@ PT::operator PTS(void)
 /***************************************************************************
     Copies a system point to a util point.
 ***************************************************************************/
-PT &PT::operator=(PTS &pts)
+PT &PT::operator=(SystemPoint &pts)
 {
     AssertThisMem();
     xp = MacWin(pts.h, pts.x);

@@ -426,7 +426,7 @@ void GraphicsEnvironment::LineApt(long xp1, long yp1, long xp2, long yp2, Abstra
     AssertVarMem(papt);
     AssertPo(&acrFore, 0);
     AssertPo(&acrBack, 0);
-    PTS pts1, pts2;
+    SystemPoint pts1, pts2;
 
     if (_gdd.dxpPen != 0 || _gdd.dypPen != 0)
     {
@@ -451,7 +451,7 @@ void GraphicsEnvironment::Line(long xp1, long yp1, long xp2, long yp2, AbstractC
 {
     AssertThis(0);
     AssertPo(&acr, 0);
-    PTS pts1, pts2;
+    SystemPoint pts1, pts2;
 
     if (_gdd.dxpPen != 0 || _gdd.dypPen != 0)
     {
@@ -650,16 +650,16 @@ HQ GraphicsEnvironment::_HqolyCreate(POGN pogn, ulong grfogn)
     long cpt;
     OLY *poly;
     PT *ppt;
-    PTS *ppts;
+    SystemPoint *ppts;
 
     if ((cpt = pogn->IvMac()) < 2)
         return hqNil;
 
-    cb = kcbOlyBase + LwMul(cpt, size(PTS));
+    cb = kcbOlyBase + LwMul(cpt, size(SystemPoint));
     if (cpt < 3)
         grfogn &= ~fognAutoClose;
     else if (grfogn & fognAutoClose)
-        cb += size(PTS);
+        cb += size(SystemPoint);
 
     if (!FAllocHq(&hqoly, cb, fmemNil, mprNormal))
         return hqNil;
@@ -677,7 +677,7 @@ HQ GraphicsEnvironment::_HqolyCreate(POGN pogn, ulong grfogn)
 #endif //! MAC
 
     ppt = pogn->PrgptLock();
-    ppts = (PTS *)poly->rgpts;
+    ppts = (SystemPoint *)poly->rgpts;
     for (ipt = 0; ipt < cpt; ipt++, ppt++, ppts++)
     {
         _MapPtPts(ppt->xp, ppt->yp, ppts);
@@ -748,7 +748,7 @@ void GraphicsEnvironment::ScrollRc(RC *prc, long dxp, long dyp, RC *prc1, RC *pr
     AssertVarMem(prc);
     AssertNilOrVarMem(prc1);
     AssertNilOrVarMem(prc2);
-    PTS pts;
+    SystemPoint pts;
     SystemRectangle rcs;
     PT pt;
 
@@ -1072,7 +1072,7 @@ void GraphicsEnvironment::DrawRgch(achar *prgch, long cch, long xp, long yp, Abs
     AssertPo(&acrFore, 0);
     AssertPo(&acrBack, 0);
 
-    PTS pts;
+    SystemPoint pts;
 
     if (cch == 0)
         return;
@@ -1107,7 +1107,7 @@ void GraphicsEnvironment::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp
     AssertIn(cch, 0, kcbMax);
     AssertPvCb(prgch, cch);
 
-    PTS pts;
+    SystemPoint pts;
     SystemRectangle rcs;
 
     _MapPtPts(xp, yp, &pts);
@@ -2026,14 +2026,14 @@ bool GraphicsEnvironment::_FMapRcRcs(RC *prc, SystemRectangle *prcs)
 /***************************************************************************
     Map an (xp, yp) pair to a system point.
 ***************************************************************************/
-void GraphicsEnvironment::_MapPtPts(long xp, long yp, PTS *ppts)
+void GraphicsEnvironment::_MapPtPts(long xp, long yp, SystemPoint *ppts)
 {
     AssertThis(0);
     AssertVarMem(ppts);
     PT pt(xp, yp);
 
     pt.Map(&_rcSrc, &_rcDst);
-    *ppts = PTS(pt);
+    *ppts = SystemPoint(pt);
 }
 
 #ifdef MAC
@@ -2115,7 +2115,7 @@ void GraphicsPort::MarkMem(void)
 void OLY::AssertValid(ulong grf)
 {
     AssertThisMem();
-    AssertPvCb(rgpts, LwMul(Cpts(), size(PTS)));
+    AssertPvCb(rgpts, LwMul(Cpts(), size(SystemPoint)));
 }
 
 /******************************************************************************

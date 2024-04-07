@@ -165,7 +165,7 @@ void GraphicsObject::GetPtMouse(PT *ppt, bool *pfDown)
     AssertThis(0);
     if (ppt != pvNil)
     {
-        PTS pts;
+        SystemPoint pts;
         long xp, yp;
         PGraphicsObject pgob;
 

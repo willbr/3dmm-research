@@ -576,13 +576,13 @@ void GraphicsPort::_FramePoly(HQ *phqoly)
 /***************************************************************************
     Draw a line.
 ***************************************************************************/
-void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
+void GraphicsPort::DrawLine(SystemPoint *ppts1, SystemPoint *ppts2, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(ppts1);
     AssertVarMem(ppts2);
     AssertVarMem(pgdd);
-    PTS rgpts[2];
+    SystemPoint rgpts[2];
 
     rgpts[0] = *ppts1;
     rgpts[1] = *ppts2;
@@ -592,9 +592,9 @@ void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
 /***************************************************************************
     Callback (PFNDRW) to draw a line.
 ***************************************************************************/
-void GraphicsPort::_DrawLine(PTS *prgpts)
+void GraphicsPort::_DrawLine(SystemPoint *prgpts)
 {
-    AssertPvCb(prgpts, 2 * size(PTS));
+    AssertPvCb(prgpts, 2 * size(SystemPoint));
     MoveTo(prgpts[0].h, prgpts[0].v);
     LineTo(prgpts[1].h, prgpts[1].v);
 }
@@ -718,7 +718,7 @@ void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgd
 /***************************************************************************
     Draw the text.
 ***************************************************************************/
-void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf)
+void GraphicsPort::DrawRgch(achar *prgch, long cch, SystemPoint pts, GDD *pgdd, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -792,7 +792,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDesc
 /***************************************************************************
     Get the bounding text rectangle (in port coordinates).
 ***************************************************************************/
-void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
+void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, SystemPoint pts, FontDescription *pdsf)
 {
     Set(pvNil);
     _GetRcsFromRgch(prcs, prgch, (short)cch, &pts, pdsf);
@@ -811,7 +811,7 @@ void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch,
 
     prcs may be nil (saves a call to TextWidth if tah is tahLeft).
 ***************************************************************************/
-void GraphicsPort::_GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf)
+void GraphicsPort::_GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, SystemPoint *ppts, FontDescription *pdsf)
 {
     AssertNilOrVarMem(prcs);
     AssertIn(cch, 0, kcbMax);

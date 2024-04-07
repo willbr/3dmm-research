@@ -308,7 +308,7 @@ void ApplicationBase::_MouseDownEvt(EVT *pevt)
         {
             PPRT pprt;
             PT pt;
-            PTS pts = pevt->where;
+            SystemPoint pts = pevt->where;
 
             GetPort(&pprt);
             SetPort(&hwnd->port);
@@ -441,8 +441,8 @@ void ApplicationBase::_UpdateEvt(EVT *pevt)
     rcs = (*((HWND)pprt)->updateRgn)->rgnBBox;
     GetPort(&pprtSav);
     SetPort(pprt);
-    GlobalToLocal((PTS *)&rcs);
-    GlobalToLocal((PTS *)&rcs + 1);
+    GlobalToLocal((SystemPoint *)&rcs);
+    GlobalToLocal((SystemPoint *)&rcs + 1);
     rc = rcs;
     BeginUpdate(pprt);
     UpdateHwnd((HWND)pprt, &rc);
