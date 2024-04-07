@@ -289,7 +289,7 @@ long Dialog::_LwGetRadioGroup(long idit)
     DialogItem dit;
     short sitk;
     HCTL hctl;
-    RCS rcs;
+    SystemRectangle rcs;
     long sit;
 
     GetDit(idit, &dit);
@@ -317,7 +317,7 @@ void Dialog::_SetRadioGroup(long idit, long lw)
     DialogItem dit;
     short sitk;
     HCTL hctl;
-    RCS rcs;
+    SystemRectangle rcs;
     long sit;
     short swT;
 
@@ -359,7 +359,7 @@ bool Dialog::_FGetCheckBox(long idit)
     DialogItem dit;
     short sitk;
     HCTL hctl;
-    RCS rcs;
+    SystemRectangle rcs;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -389,7 +389,7 @@ void Dialog::_SetCheckBox(long idit, bool fOn)
     DialogItem dit;
     short sitk;
     HCTL hctl;
-    RCS rcs;
+    SystemRectangle rcs;
     short swT;
 
     GetDit(idit, &dit);
@@ -417,7 +417,7 @@ void Dialog::_GetEditText(long idit, PSTZ pstz)
     DialogItem dit;
     short sitk;
     HN hn;
-    RCS rcs;
+    SystemRectangle rcs;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();
@@ -440,7 +440,7 @@ void Dialog::_SetEditText(long idit, PSTZ pstz)
     DialogItem dit;
     short sitk;
     HN hn;
-    RCS rcs;
+    SystemRectangle rcs;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();

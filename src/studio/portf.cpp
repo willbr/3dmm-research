@@ -797,12 +797,12 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             // So take any special action now to ensure the portfolio still looks good.
 
             PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
-            RCS rcsApp;
+            SystemRectangle rcsApp;
             POINT ptBtn;
             int ypBtn;
             PMaskedBitmapMBMP pmbmpBtn;
             RC rcBmp;
-            RCS rcsAppScreen, rcsPreview;
+            SystemRectangle rcsAppScreen, rcsPreview;
             int xOff = 0;
             int yOff = 0;
             LONG lStyle;
@@ -1061,7 +1061,7 @@ void RepaintPortfolio(HWND hwndCustom)
         if ((pgpt = GraphicsPort::PgptNew(ps.hdc)) != pvNil)
         {
             RC rcDisplay;
-            RCS rcsPort, rcsPreview;
+            SystemRectangle rcsPort, rcsPreview;
             GraphicsEnvironment gnv(pgpt);
             PGraphicsEnvironment pgnvOff;
             PGraphicsPort pgptOff;
@@ -1155,7 +1155,7 @@ void RepaintPortfolio(HWND hwndCustom)
                         if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBtn, MaskedBitmapMBMP::FReadMbmp)))
                         {
                             HWND hwndBtn = GetDlgItem(hwndCustom, iBtnId);
-                            RCS rcsBtn;
+                            SystemRectangle rcsBtn;
                             RC rcItem;
 
                             GetClientRect(hwndBtn, &rcsBtn);
@@ -1203,12 +1203,12 @@ void RepaintPortfolio(HWND hwndCustom)
 
  Arguments: hwndCustom	- Handle to custom dlg window
             pgnvOff		- Offscreen dc for displaying preview in.
-            prcsPreview - RCS for displaying preview.
+            prcsPreview - SystemRectangle for displaying preview.
 
  Returns: nothing.
 
 ***************************************************************************/
-void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, RCS *prcsPreview)
+void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, SystemRectangle *prcsPreview)
 {
     String stn;
     PChunkyFile pcfl;
@@ -1353,7 +1353,7 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
     {
     case WM_PAINT: {
         PAINTSTRUCT ps;
-        RCS rcsPreview;
+        SystemRectangle rcsPreview;
         RC rcPreview;
         PGraphicsEnvironment pgnvOff;
         PGraphicsPort pgpt, pgptOff;

@@ -972,7 +972,7 @@ void RC::PinToRc(RC *prc)
 /***************************************************************************
     Copies a system rectangle to a util rectangle.
 ***************************************************************************/
-RC &RC::operator=(RCS &rcs)
+RC &RC::operator=(SystemRectangle &rcs)
 {
     AssertThisMem();
 
@@ -987,10 +987,10 @@ RC &RC::operator=(RCS &rcs)
     Truncates util rectangle to a system rectangle.
     REVIEW shonk: should we assert on truncation?
 ***************************************************************************/
-RC::operator RCS(void)
+RC::operator SystemRectangle(void)
 {
     AssertThisMem();
-    RCS rcs;
+    SystemRectangle rcs;
 
     rcs.left = SwTruncLw(xpLeft);
     rcs.right = SwTruncLw(xpRight);

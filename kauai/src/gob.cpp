@@ -275,7 +275,7 @@ void GraphicsObject::InvalRc(RC *prc, long gin)
     PT dpt;
     RC rc;
     PGraphicsObject pgob;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (kginDefault == gin)
     {
@@ -317,7 +317,7 @@ void GraphicsObject::InvalRc(RC *prc, long gin)
         break;
 
     case kginSysInval:
-        rcs = RCS(rc);
+        rcs = SystemRectangle(rc);
         InvalHwndRcs(pgob->_hwnd, &rcs);
         break;
     }
@@ -369,9 +369,9 @@ void GraphicsObject::ValidRc(RC *prc, long gin)
     if (gin != kginMark)
     {
         // do a system level validation
-        RCS rcs;
+        SystemRectangle rcs;
 
-        rcs = RCS(rc);
+        rcs = SystemRectangle(rc);
         ValidHwndRcs(pgob->_hwnd, &rcs);
     }
 }
@@ -418,7 +418,7 @@ bool GraphicsObject::FGetRcInval(RC *prc, long gin)
     if (kginMark != gin)
     {
         // get any system invalidated area
-        RCS rcs;
+        SystemRectangle rcs;
         RC rcT;
 
 #ifdef WIN
@@ -533,7 +533,7 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
 #ifdef WIN
     // SW_INVALIDATE invalidates any uncovered stuff and translates any
     // previously invalid stuff
-    RCS rcs = RCS(rc);
+    SystemRectangle rcs = SystemRectangle(rc);
     ScrollWindowEx(pgob->_hwnd, dxp, dyp, pvNil, &rcs, hNil, pvNil, SW_INVALIDATE);
 
     // compute the bad rectangles
@@ -561,12 +561,12 @@ void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, 
     case ginNil:
         if (!rcBad1.FEmpty())
         {
-            rcs = RCS(rcBad1);
+            rcs = SystemRectangle(rcBad1);
             ValidateRect(pgob->_hwnd, &rcs);
         }
         if (!rcBad2.FEmpty())
         {
-            rcs = RCS(rcBad2);
+            rcs = SystemRectangle(rcBad2);
             ValidateRect(pgob->_hwnd, &rcs);
         }
         break;
@@ -1296,7 +1296,7 @@ void GraphicsObject::_SetRcCur(void)
 
         if (pgob->_hwnd != hNil)
         {
-            RCS rcs;
+            SystemRectangle rcs;
 
             GetClientRect(pgob->_hwnd, &rcs);
             rc = rcs;

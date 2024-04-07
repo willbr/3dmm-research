@@ -99,7 +99,7 @@ PCTL CTL::PctlFromHctl(HCTL hctl)
 void CTL::_NewRc(void)
 {
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
     HWND hwnd;
 
     if (_hctl == hNil)
@@ -107,9 +107,9 @@ void CTL::_NewRc(void)
 
     hwnd = _HwndGetRc(&rc);
     Assert(hwnd != hNil, "control isn't based in an hwnd");
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
 #ifdef MAC
-    RCS rcsOld = (*_hctl)->contrlRect;
+    SystemRectangle rcsOld = (*_hctl)->contrlRect;
 
     if (!EqualRect(&rcs, &rcsOld))
     {
@@ -274,7 +274,7 @@ bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 {
     Assert(_Hctl() == hNil, "scb already created");
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
     HWND hwnd;
     HCTL hctl;
 
@@ -284,7 +284,7 @@ bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
         Bug("can only add controls to hwnd based gobs");
         return fFalse;
     }
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
 
 #ifdef MAC
     GraphicsEnvironment gnv(this);
@@ -588,12 +588,12 @@ PWSB WSB::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 
 #ifdef WIN
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
     HWND hwnd;
     HCTL hctl;
 
     hwnd = pwsb->_HwndGetRc(&rc);
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
 
     hctl = CreateWindow(PszLit("SCROLLBAR"), PszLit(""), SBS_SIZEBOX | WS_CHILD | WS_VISIBLE, rcs.left, rcs.top,
                         rcs.right - rcs.left, rcs.bottom - rcs.top, hwnd, hNil, vwig.hinst, pvNil);

@@ -110,7 +110,7 @@ HWND GraphicsObject::HwndMdiActive(void)
 HWND GraphicsObject::_HwndNewMdi(PSTZ pstzTitle)
 {
     HWND hwnd;
-    RCS rcs;
+    SystemRectangle rcs;
     static long _cact = 0;
 
     rcs = qd.screenBits.bounds;
@@ -147,10 +147,10 @@ void GraphicsObject::TrackGrow(PEVT pevt)
 
     long lw;
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
 
     GetMinMax(&rc);
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
     if ((lw = GrowWindow(&_hwnd->port, pevt->where, &rcs)) != 0)
     {
         SizeWindow(&_hwnd->port, SwLow(lw), SwHigh(lw), fFalse);
@@ -204,7 +204,7 @@ void GraphicsObject::Clean(void)
     AssertThis(0);
     HWND hwnd;
     RC rc, rcT;
-    RCS rcs;
+    SystemRectangle rcs;
     PPRT pprt;
 
     if (hNil == (hwnd = _HwndGetRc(&rc)))

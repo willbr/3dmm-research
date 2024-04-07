@@ -1109,7 +1109,7 @@ HRGN Region::HrgnCreate(void)
 {
 #ifdef WIN
     RGNDATAHEADER *prd;
-    RCS *prcs;
+    SystemRectangle *prcs;
     RegionScanner regsc;
     long crcMac, crc;
     HRGN hrgn;
@@ -1121,7 +1121,7 @@ HRGN Region::HrgnCreate(void)
         return hNil;
     }
 
-    prcs = (RCS *)(prd + 1);
+    prcs = (SystemRectangle *)(prd + 1);
     regsc.Init(this, &_rc);
     crc = 0;
     if (!_rc.FEmpty())
@@ -1150,7 +1150,7 @@ HRGN Region::HrgnCreate(void)
     prd->iType = RDH_RECTANGLES;
     prd->nCount = crc;
     prd->nRgnSize = 0;
-    prd->rcBound = (RCS)_rc;
+    prd->rcBound = (SystemRectangle)_rc;
 
     hrgn = ExtCreateRegion(pvNil, size(RGNDATAHEADER) + LwMul(crc, size(RECT)), (RGNDATA *)prd);
     FreePpv((void **)&prd);
@@ -1161,11 +1161,11 @@ HRGN Region::HrgnCreate(void)
 
     if (pvNil == _pglxp)
     {
-        RCS rcs;
+        SystemRectangle rcs;
 
         if (hNil == (hrgn = NewRgn()))
             return hNil;
-        rcs = RCS(_rc);
+        rcs = SystemRectangle(_rc);
         RectRgn(hrgn, &rcs);
         return hrgn;
     }
@@ -1222,7 +1222,7 @@ HRGN Region::HrgnCreate(void)
 
     HLock((HN)hrgn);
     (*hrgn)->rgnSize = (short)cb;
-    (*hrgn)->rgnBBox = RCS(_rc);
+    (*hrgn)->rgnBBox = SystemRectangle(_rc);
 
     regsc1.Init(this, &_rc);
     rc = _rc;

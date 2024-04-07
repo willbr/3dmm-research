@@ -309,7 +309,7 @@ struct OLY // pOLYgon
 {
 #ifdef MAC
     short cb; // size of the whole thing
-    RCS rcs;  // bounding rectangle
+    SystemRectangle rcs;  // bounding rectangle
     PTS rgpts[1];
 
     long Cpts(void)
@@ -404,7 +404,7 @@ struct GDD
     AbstractColor acrBack;   // background color
     long dxpPen;   // pen width (used if framing)
     long dypPen;   // pen height
-    RCS *prcsClip; // clipping (may be pvNil)
+    SystemRectangle *prcsClip; // clipping (may be pvNil)
 };
 
 /****************************************
@@ -428,7 +428,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     // current pen location and clipping
     long _xp;
     long _yp;
-    RCS _rcsClip;
+    SystemRectangle _rcsClip;
     RC _rcVis; // always clipped to - this is in Dst coordinates
 
     // Current font
@@ -439,7 +439,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     GDD _gdd;
 
     void _Init(PGraphicsPort pgpt);
-    bool _FMapRcRcs(RC *prc, RCS *prcs);
+    bool _FMapRcRcs(RC *prc, SystemRectangle *prcs);
     void _MapPtPts(long xp, long yp, PTS *ppts);
     HQ _HqolyCreate(POGN pogn, ulong grfogn);
     HQ _HqolyFrame(POGN pogn, ulong grfogn);
@@ -632,18 +632,18 @@ class GraphicsPort : public GraphicsPort_PAR
     bool _fMapIndices : 1; // SelectPalette failed, map indices to RGBs
     bool _fOwnPalette : 1; // this offscreen has its own palette
 
-    void _SetClip(RCS *prcsClip);
+    void _SetClip(SystemRectangle *prcsClip);
     void _EnsurePalette(void);
     void _SetTextProps(FontDescription *pdsf);
     void _SetAptBrush(AbstractPattern *papt);
     void _SetAcrBrush(AbstractColor acr);
     void _SetStockBrush(int wType);
 
-    void _FillRcs(RCS *prcs);
-    void _FillOval(RCS *prcs);
+    void _FillRcs(SystemRectangle *prcs);
+    void _FillOval(SystemRectangle *prcs);
     void _FillPoly(OLY *poly);
     void _FillRgn(HRGN *phrgn);
-    void _FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval);
+    void _FrameRcsOval(SystemRectangle *prcs, GDD *pgdd, bool fOval);
     SCR _Scr(AbstractColor acr);
 
     bool _FInit(HDC hdc);
@@ -673,14 +673,14 @@ class GraphicsPort : public GraphicsPort_PAR
     HPIC _hpic;
 
     HPIX _Hpix(void);
-    void _FillRcs(RCS *prcs);
-    void _FrameRcs(RCS *prcs);
-    void _FillOval(RCS *prcs);
-    void _FrameOval(RCS *prcs);
+    void _FillRcs(SystemRectangle *prcs);
+    void _FrameRcs(SystemRectangle *prcs);
+    void _FillOval(SystemRectangle *prcs);
+    void _FrameOval(SystemRectangle *prcs);
     void _FillPoly(HQ *phqoly);
     void _FramePoly(HQ *phqoly);
     void _DrawLine(PTS *prgpts);
-    void _GetRcsFromRgch(RCS *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf);
+    void _GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf);
 #endif // MAC
 
     // low level draw routine
@@ -700,7 +700,7 @@ class GraphicsPort : public GraphicsPort_PAR
     static long CclrSetPalette(HWND hwnd, bool fInval);
 
     // this gross API is for AVI playback
-    void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RCS *prcs, GDD *pgdd);
+    void DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GDD *pgdd);
 #endif // WIN
 #ifdef MAC
     static PGraphicsPort PgptNew(PPRT pprt, HGD hgd = hNil);
@@ -709,7 +709,7 @@ class GraphicsPort : public GraphicsPort_PAR
     static bool FSetScreenState(long cbitPixel, bool tColor);
     static void GetScreenState(long *pcbitPixel, bool *pfColor);
 
-    void Set(RCS *prcsClip);
+    void Set(SystemRectangle *prcsClip);
     void Restore(void);
 #endif // MAC
 #ifdef DEBUG
@@ -729,19 +729,19 @@ class GraphicsPort : public GraphicsPort_PAR
     void SetPtBase(PT *ppt);
     void GetPtBase(PT *ppt);
 
-    void DrawRcs(RCS *prcs, GDD *pgdd);
-    void HiliteRcs(RCS *prcs, GDD *pgdd);
-    void DrawOval(RCS *prcs, GDD *pgdd);
+    void DrawRcs(SystemRectangle *prcs, GDD *pgdd);
+    void HiliteRcs(SystemRectangle *prcs, GDD *pgdd);
+    void DrawOval(SystemRectangle *prcs, GDD *pgdd);
     void DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd);
     void DrawPoly(HQ hqoly, GDD *pgdd);
-    void ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd);
+    void ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgdd);
 
     void DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDescription *pdsf);
-    void GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf);
+    void GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf);
 
-    void CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd);
-    void DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd);
-    void DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd);
+    void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GDD *pgdd);
+    void DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd);
+    void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GDD *pgdd);
 
     void Lock(void);
     void Unlock(void);

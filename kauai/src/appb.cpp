@@ -1096,7 +1096,7 @@ void ApplicationBase::InvalMarked(HWND hwnd)
     long imkrgn;
     MKRGN mkrgn;
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (pvNil == _pglmkrgn)
         return;
@@ -1108,7 +1108,7 @@ void ApplicationBase::InvalMarked(HWND hwnd)
         {
             if (!mkrgn.pregn->FEmpty(&rc))
             {
-                rcs = RCS(rc);
+                rcs = SystemRectangle(rc);
                 InvalHwndRcs(hwnd, &rcs);
             }
             ReleasePpo(&mkrgn.pregn);

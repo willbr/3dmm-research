@@ -169,7 +169,7 @@ void GraphicsPort::SetActiveColors(PDynamicArray pglclr, ulong grfpal)
     else
     {
         // to activate the palette, create a window offscreen and then destroy it
-        RCS rcs;
+        SystemRectangle rcs;
 
         rcs = qd.screenBits.bounds;
         rcs.top = qd.screenBits.bounds.top + GetMBarHeight() / 2;
@@ -324,7 +324,7 @@ PGraphicsPort GraphicsPort::PgptNewOffscreen(RC *prc, long cbitPixel)
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rc for offscreen");
     PGWR pgwr;
-    RCS rcs;
+    SystemRectangle rcs;
     PGraphicsPort pgpt;
 
     if (cbitPixel == 24)
@@ -406,13 +406,13 @@ PGraphicsPort GraphicsPort::PgptNewPic(RC *prc)
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rectangle for metafile GraphicsPort");
     PGraphicsPort pgpt;
-    RCS rcs;
+    SystemRectangle rcs;
     RC rc(0, 0, 1, 1);
 
     if (pvNil == (pgpt = PgptNewOffscreen(&rc, 8)))
         return pvNil;
 
-    rcs = RCS(*prc);
+    rcs = SystemRectangle(*prc);
     pgpt->Set(&rcs);
     pgpt->_rcOff = *prc;
     pgpt->_hpic = OpenPicture(&rcs);
@@ -433,7 +433,7 @@ PPIC GraphicsPort::PpicRelease(void)
 {
     AssertThis(0);
     PPIC ppic;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (hNil == _hpic)
     {
@@ -461,7 +461,7 @@ PPIC GraphicsPort::PpicRelease(void)
 /***************************************************************************
     Fill or frame a rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawRcs(RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawRcs(SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -475,7 +475,7 @@ void GraphicsPort::DrawRcs(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Callback (PFNDRW) to fill a rectangle.
 ***************************************************************************/
-void GraphicsPort::_FillRcs(RCS *prcs)
+void GraphicsPort::_FillRcs(SystemRectangle *prcs)
 {
     AssertVarMem(prcs);
     PaintRect(prcs);
@@ -484,7 +484,7 @@ void GraphicsPort::_FillRcs(RCS *prcs)
 /***************************************************************************
     Callback (PFNDRW) to frame a rectangle.
 ***************************************************************************/
-void GraphicsPort::_FrameRcs(RCS *prcs)
+void GraphicsPort::_FrameRcs(SystemRectangle *prcs)
 {
     AssertVarMem(prcs);
     FrameRect(prcs);
@@ -493,7 +493,7 @@ void GraphicsPort::_FrameRcs(RCS *prcs)
 /***************************************************************************
     Hilite the rectangle by reversing white and the system hilite color.
 ***************************************************************************/
-void GraphicsPort::HiliteRcs(RCS *prcs, GDD *pgdd)
+void GraphicsPort::HiliteRcs(SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -510,7 +510,7 @@ void GraphicsPort::HiliteRcs(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Fill or frame an oval.
 ***************************************************************************/
-void GraphicsPort::DrawOval(RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawOval(SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -524,7 +524,7 @@ void GraphicsPort::DrawOval(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Callback (PFNDRW) to fill an oval.
 ***************************************************************************/
-void GraphicsPort::_FillOval(RCS *prcs)
+void GraphicsPort::_FillOval(SystemRectangle *prcs)
 {
     AssertVarMem(prcs);
     PaintOval(prcs);
@@ -533,7 +533,7 @@ void GraphicsPort::_FillOval(RCS *prcs)
 /***************************************************************************
     Callback (PFNDRW) to frame an oval.
 ***************************************************************************/
-void GraphicsPort::_FrameOval(RCS *prcs)
+void GraphicsPort::_FrameOval(SystemRectangle *prcs)
 {
     AssertVarMem(prcs);
     FrameOval(prcs);
@@ -697,7 +697,7 @@ LDone:
 /***************************************************************************
     Scroll the given rectangle.
 ***************************************************************************/
-void GraphicsPort::ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd)
+void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -727,8 +727,8 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDesc
     AssertPo(pdsf, 0);
 
     AbstractColor acrFore, acrBack;
-    RCS rcs;
-    RCS *prcs = pvNil;
+    SystemRectangle rcs;
+    SystemRectangle *prcs = pvNil;
 
     if (pdsf->grfont & fontBoxed)
         prcs = &rcs;
@@ -792,7 +792,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDesc
 /***************************************************************************
     Get the bounding text rectangle (in port coordinates).
 ***************************************************************************/
-void GraphicsPort::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
+void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
 {
     Set(pvNil);
     _GetRcsFromRgch(prcs, prgch, (short)cch, &pts, pdsf);
@@ -811,7 +811,7 @@ void GraphicsPort::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, Fo
 
     prcs may be nil (saves a call to TextWidth if tah is tahLeft).
 ***************************************************************************/
-void GraphicsPort::_GetRcsFromRgch(RCS *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf)
+void GraphicsPort::_GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, short cch, PTS *ppts, FontDescription *pdsf)
 {
     AssertNilOrVarMem(prcs);
     AssertIn(cch, 0, kcbMax);
@@ -906,11 +906,11 @@ void GraphicsPort::Unlock(void)
     (but not for the same port).  If this is a picture GraphicsPort, intersect
     the clipping with _rcOff.
 ***************************************************************************/
-void GraphicsPort::Set(RCS *prcsClip)
+void GraphicsPort::Set(SystemRectangle *prcsClip)
 {
     HCLT hclt;
     RC rc, rcT;
-    RCS rcs;
+    SystemRectangle rcs;
     HRGN hrgn = hNil;
 
     Assert(!_fSet, "this port is already set");
@@ -943,7 +943,7 @@ void GraphicsPort::Set(RCS *prcsClip)
             rcT.FIntersect(&rc);
         }
 
-        rcs = RCS(rcT);
+        rcs = SystemRectangle(rcT);
         ClipRect(&rcs);
         if (hNil != hrgn)
         {
@@ -965,7 +965,7 @@ void GraphicsPort::Set(RCS *prcsClip)
             // other stuff, including changing the seed?
             NewCode();
             long lw;
-            RCS rcs = _rcOff;
+            SystemRectangle rcs = _rcOff;
 
             // REVIEW shonk: check for errors
             lw = UpdateGWorld((PGWR *)&_pprt, _cbitPixel, &rcs, hclt, hNil, keepLocal);
@@ -1012,7 +1012,7 @@ HPIX GraphicsPort::_Hpix(void)
 /***************************************************************************
     Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
+void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GDD *pgdd)
 {
     Set(pgdd->prcsClip);
     ForeColor(blackColor);
@@ -1026,7 +1026,7 @@ void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst,
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(ppic, 0);
@@ -1042,7 +1042,7 @@ void GraphicsPort::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
     Draw the masked bitmap in the given rectangle with reference point
     *ppts.  pgdd->prcsClip is the clipping rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1082,11 +1082,11 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
         // actual MaskedBitmapMBMP graphic, then blt these to this GraphicsPort.
         PT ptDst;
         PGraphicsPort pgpt;
-        RCS rcsDst;
-        RCS rcsSrc;
+        SystemRectangle rcsDst;
+        SystemRectangle rcsSrc;
 
         ptDst = rc.PtTopLeft();
-        rcsDst = RCS(rc);
+        rcsDst = SystemRectangle(rc);
         rc.OffsetToOrigin();
         if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rc, 1)))
         {
@@ -1103,7 +1103,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
         Set(pgdd->prcsClip);
         ForeColor(blackColor);
         BackColor(whiteColor);
-        rcsSrc = RCS(rc);
+        rcsSrc = SystemRectangle(rc);
         CopyBits((PBMP)*hpix, (PBMP)*_Hpix(), &rcsSrc, &rcsDst, srcBic, hNil);
         Restore();
         pgpt->Unlock();
@@ -1243,7 +1243,7 @@ bool FCreateRgn(HRGN *phrgn, RC *prc)
         return fFalse;
     if (pvNil != prc && !prc->FEmpty())
     {
-        RCS rcs = *prc;
+        SystemRectangle rcs = *prc;
         RectRgn(*phrgn, &rcs);
     }
     return fTrue;
@@ -1280,7 +1280,7 @@ bool FSetRectRgn(HRGN *phrgn, RC *prc)
         SetEmptyRgn(*phrgn);
     else
     {
-        RCS rcs = *prc;
+        SystemRectangle rcs = *prc;
         RectRgn(*phrgn, &rcs);
     }
     return fTrue;
@@ -1338,7 +1338,7 @@ bool FRectRgn(HRGN hrgn, RC *prc)
 
     if (pvNil != prc)
     {
-        RCS rcs = (*hrgn)->rgnBBox;
+        SystemRectangle rcs = (*hrgn)->rgnBBox;
         *prc = rcs;
     }
     return (*hrgn)->rgnSize == 10;
@@ -1353,7 +1353,7 @@ bool FEmptyRgn(HRGN hrgn, RC *prc)
 
     if (pvNil != prc)
     {
-        RCS rcs = (*hrgn)->rgnBBox;
+        SystemRectangle rcs = (*hrgn)->rgnBBox;
         *prc = rcs;
     }
     return EmptyRgn(hrgn);

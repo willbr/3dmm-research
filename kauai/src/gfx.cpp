@@ -231,7 +231,7 @@ void GraphicsEnvironment::FillRcApt(RC *prc, AbstractPattern *papt, AbstractColo
     AssertPo(&acrFore, 0);
     AssertPo(&acrBack, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -254,7 +254,7 @@ void GraphicsEnvironment::FillRc(RC *prc, AbstractColor acr)
     AssertVarMem(prc);
     AssertPo(&acr, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -276,7 +276,7 @@ void GraphicsEnvironment::FrameRcApt(RC *prc, AbstractPattern *papt, AbstractCol
     AssertPo(&acrFore, 0);
     AssertPo(&acrBack, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs) || _gdd.dxpPen == 0 && _gdd.dypPen == 0)
         return;
@@ -299,7 +299,7 @@ void GraphicsEnvironment::FrameRc(RC *prc, AbstractColor acr)
     AssertVarMem(prc);
     AssertPo(&acr, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs) || _gdd.dxpPen == 0 && _gdd.dypPen == 0)
         return;
@@ -319,7 +319,7 @@ void GraphicsEnvironment::HiliteRc(RC *prc, AbstractColor acrBack)
     AssertThis(0);
     AssertVarMem(prc);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -338,7 +338,7 @@ void GraphicsEnvironment::FillOvalApt(RC *prc, AbstractPattern *papt, AbstractCo
     AssertPo(&acrFore, 0);
     AssertPo(&acrBack, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -361,7 +361,7 @@ void GraphicsEnvironment::FillOval(RC *prc, AbstractColor acr)
     AssertVarMem(prc);
     AssertPo(&acr, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -383,7 +383,7 @@ void GraphicsEnvironment::FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractC
     AssertPo(&acrFore, 0);
     AssertPo(&acrBack, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs) || _gdd.dxpPen == 0 && _gdd.dypPen == 0)
         return;
@@ -406,7 +406,7 @@ void GraphicsEnvironment::FrameOval(RC *prc, AbstractColor acr)
     AssertVarMem(prc);
     AssertPo(&acr, 0);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs) || _gdd.dxpPen == 0 && _gdd.dypPen == 0)
         return;
@@ -749,7 +749,7 @@ void GraphicsEnvironment::ScrollRc(RC *prc, long dxp, long dyp, RC *prc1, RC *pr
     AssertNilOrVarMem(prc1);
     AssertNilOrVarMem(prc2);
     PTS pts;
-    RCS rcs;
+    SystemRectangle rcs;
     PT pt;
 
     if (!_FMapRcRcs(prc, &rcs) || dxp == 0 && dyp == 0)
@@ -904,7 +904,7 @@ void GraphicsEnvironment::SetRcVis(RC *prc)
     {
         _rcVis = *prc;
         _rcVis.Map(&_rcSrc, &_rcDst);
-        _rcsClip = RCS(_rcVis);
+        _rcsClip = SystemRectangle(_rcVis);
         _gdd.prcsClip = &_rcsClip;
     }
     AssertThis(0);
@@ -924,7 +924,7 @@ void GraphicsEnvironment::IntersectRcVis(RC *prc)
     rc = *prc;
     rc.Map(&_rcSrc, &_rcDst);
     _rcVis.FIntersect(&rc);
-    _rcsClip = RCS(_rcVis);
+    _rcsClip = SystemRectangle(_rcVis);
     _gdd.prcsClip = &_rcsClip;
     AssertThis(0);
 }
@@ -959,7 +959,7 @@ void GraphicsEnvironment::ClipRc(RC *prc)
         rc.FIntersect(&_rcVis);
     }
 
-    _rcsClip = RCS(rc);
+    _rcsClip = SystemRectangle(rc);
     _gdd.prcsClip = &_rcsClip;
 }
 
@@ -1108,7 +1108,7 @@ void GraphicsEnvironment::GetRcFromRgch(RC *prc, achar *prgch, long cch, long xp
     AssertPvCb(prgch, cch);
 
     PTS pts;
-    RCS rcs;
+    SystemRectangle rcs;
 
     _MapPtPts(xp, yp, &pts);
     _pgpt->GetRcsFromRgch(&rcs, prgch, cch, pts, &_dsf);
@@ -1138,7 +1138,7 @@ void GraphicsEnvironment::CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, R
     AssertPo(pgnvSrc, 0);
     AssertVarMem(prcSrc);
     AssertVarMem(prcDst);
-    RCS rcsSrc, rcsDst;
+    SystemRectangle rcsSrc, rcsDst;
 
     if (!pgnvSrc->_FMapRcRcs(prcSrc, &rcsSrc) || !_FMapRcRcs(prcDst, &rcsDst))
         return;
@@ -1968,7 +1968,7 @@ void GraphicsEnvironment::DrawPic(PPIC ppic, RC *prc)
     AssertThis(0);
     AssertPo(ppic, 0);
     AssertVarMem(prc);
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -1983,7 +1983,7 @@ void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp)
     AssertThis(0);
     AssertPo(pmbmp, 0);
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
 
     pmbmp->GetRc(&rc);
     rc.Offset(xp - rc.xpLeft, yp - rc.ypTop);
@@ -2000,7 +2000,7 @@ void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc)
     AssertThis(0);
     AssertPo(pmbmp, 0);
     AssertVarMem(prc);
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -2011,7 +2011,7 @@ void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc)
     Map a rectangle to a system rectangle.  Return true iff the result
     is non-empty.
 ***************************************************************************/
-bool GraphicsEnvironment::_FMapRcRcs(RC *prc, RCS *prcs)
+bool GraphicsEnvironment::_FMapRcRcs(RC *prc, SystemRectangle *prcs)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2019,7 +2019,7 @@ bool GraphicsEnvironment::_FMapRcRcs(RC *prc, RCS *prcs)
     RC rc = *prc;
 
     rc.Map(&_rcSrc, &_rcDst);
-    *prcs = RCS(rc);
+    *prcs = SystemRectangle(rc);
     return prcs->left < prcs->right && prcs->top < prcs->bottom;
 }
 

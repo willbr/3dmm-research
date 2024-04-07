@@ -132,7 +132,7 @@ PPIC PIC::PpicReadNative(Filename *pfni)
     HPIC hpic;
     PPIC ppic;
     bool fT;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (pfni->Ftg() != kftgPict || pvNil == (pfil = FIL::PfilOpen(pfni)))
     {

@@ -35,12 +35,12 @@ bool GraphicsPort::_fFlushGdi;
 #define _Flush() _cactDraw = _cactFlush
 #endif // DEBUG
 
-HRGN _HrgnNew(RCS *prcs, bool fOval);
+HRGN _HrgnNew(SystemRectangle *prcs, bool fOval);
 
 /***************************************************************************
     Creates a rectangular or oval region according to fOval.
 ***************************************************************************/
-HRGN _HrgnNew(RCS *prcs, long dxpInset, long dypInset, bool fOval)
+HRGN _HrgnNew(SystemRectangle *prcs, long dxpInset, long dypInset, bool fOval)
 {
     AssertVarMem(prcs);
     return fOval ? CreateEllipticRgn(prcs->left + dxpInset, prcs->top + dypInset, prcs->right - dxpInset,
@@ -67,7 +67,7 @@ void GraphicsEnvironment::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RC *prc)
     AssertVarMem(pbi);
     AssertVarMem(prc);
 
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (!_FMapRcRcs(prc, &rcs))
         return;
@@ -742,7 +742,7 @@ PGraphicsPort GraphicsPort::PgptNewPic(RC *prc)
     AssertVarMem(prc);
     Assert(!prc->FEmpty(), "empty rectangle for metafile GraphicsPort");
     PGraphicsPort pgpt;
-    RCS rcs;
+    SystemRectangle rcs;
     HDC hdc;
 
     // NOTE: have to use nil for the rect because GDI is messed up -
@@ -812,7 +812,7 @@ PPIC GraphicsPort::PpicRelease(void)
 /***************************************************************************
     Hilites the rectangle by inverting.
 ***************************************************************************/
-void GraphicsPort::HiliteRcs(RCS *prcs, GDD *pgdd)
+void GraphicsPort::HiliteRcs(SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     _SetClip(pgdd->prcsClip);
@@ -823,7 +823,7 @@ void GraphicsPort::HiliteRcs(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Fill/frame a rectangle with a 2-color pattern or solid color.
 ***************************************************************************/
-void GraphicsPort::DrawRcs(RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawRcs(SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -841,7 +841,7 @@ void GraphicsPort::DrawRcs(RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Fill/frame a rectangle with a 2-color pattern or solid color.
 ***************************************************************************/
-void GraphicsPort::DrawOval(RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawOval(SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -857,10 +857,10 @@ void GraphicsPort::DrawOval(RCS *prcs, GDD *pgdd)
 }
 
 /***************************************************************************
-    Frames either an RCS or an oval.  Client should have already handled
+    Frames either an SystemRectangle or an oval.  Client should have already handled
     the case when the pen is big enough to fill the entire rcs/oval.
 ***************************************************************************/
-void GraphicsPort::_FrameRcsOval(RCS *prcs, GDD *pgdd, bool fOval)
+void GraphicsPort::_FrameRcsOval(SystemRectangle *prcs, GDD *pgdd, bool fOval)
 {
     Assert((pgdd->grfgdd & fgddFrame) && pgdd->dxpPen * 2 < prcs->right - prcs->left &&
                pgdd->dypPen * 2 < prcs->bottom - prcs->top,
@@ -982,7 +982,7 @@ void GraphicsPort::DrawLine(PTS *ppts1, PTS *ppts2, GDD *pgdd)
     Low level call back to fill a rectangle.  Assumes the current pen
     is NULL and the brush is set as desired.
 ***************************************************************************/
-void GraphicsPort::_FillRcs(RCS *prcs)
+void GraphicsPort::_FillRcs(SystemRectangle *prcs)
 {
     AssertVarMem(prcs);
 
@@ -994,7 +994,7 @@ void GraphicsPort::_FillRcs(RCS *prcs)
     Low level call back to fill an oval (ellipse).  Assumes the current
     pen is NULL and the brush is set as desired.
 ***************************************************************************/
-void GraphicsPort::_FillOval(RCS *prcs)
+void GraphicsPort::_FillOval(SystemRectangle *prcs)
 {
     AssertVarMem(prcs);
 
@@ -1030,7 +1030,7 @@ void GraphicsPort::_FillPoly(OLY *poly)
     Make sure the clipping is set to this rectangle and make sure the
     palette is selected.
 ***************************************************************************/
-void GraphicsPort::_SetClip(RCS *prcsClip)
+void GraphicsPort::_SetClip(SystemRectangle *prcsClip)
 {
     AssertNilOrVarMem(prcsClip);
     RC rc, rcT;
@@ -1210,7 +1210,7 @@ void GraphicsPort::_Fill(void *pv, GDD *pgdd, PFNDRW pfn)
 /***************************************************************************
     Scroll a rectangle.
 ***************************************************************************/
-void GraphicsPort::ScrollRcs(RCS *prcs, long dxp, long dyp, GDD *pgdd)
+void GraphicsPort::ScrollRcs(SystemRectangle *prcs, long dxp, long dyp, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -1233,7 +1233,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDesc
     AssertPo(pdsf, 0);
 
     AbstractColor acrFore, acrBack;
-    RCS rcs;
+    SystemRectangle rcs;
 
     _SetClip(pgdd->prcsClip);
     acrBack = pgdd->acrBack;
@@ -1295,7 +1295,7 @@ void GraphicsPort::DrawRgch(achar *prgch, long cch, PTS pts, GDD *pgdd, FontDesc
 /***************************************************************************
     Get the bounding text rectangle.
 ***************************************************************************/
-void GraphicsPort::GetRcsFromRgch(RCS *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
+void GraphicsPort::GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, PTS pts, FontDescription *pdsf)
 {
     AssertThis(0);
     AssertVarMem(prcs);
@@ -1503,7 +1503,7 @@ LSetAlignment:
 /***************************************************************************
     Copy bits from pgptSrc to this GraphicsPort.
 ***************************************************************************/
-void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst, GDD *pgdd)
+void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pgptSrc, 0);
@@ -1620,7 +1620,7 @@ void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, RCS *prcsSrc, RCS *prcsDst,
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawPic(PPIC ppic, SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(ppic, 0);
@@ -1644,7 +1644,7 @@ void GraphicsPort::DrawPic(PPIC ppic, RCS *prcs, GDD *pgdd)
     Draw the masked bitmap in the given rectangle.  pgdd->prcsClip is the
     clipping rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertPo(pmbmp, 0);
@@ -1712,7 +1712,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
             Warn("Drawing MaskedBitmapMBMP failed");
             return;
         }
-        RCS rcs = rcSrc;
+        SystemRectangle rcs = rcSrc;
         FillRect(pgpt->_hdc, &rcs, (HBRUSH)GetStockObject(WHITE_BRUSH));
 
         Flush();
@@ -1727,7 +1727,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, RCS *prcs, GDD *pgdd)
 /***************************************************************************
     Draw a dib using DrawDibDraw.
 ***************************************************************************/
-void GraphicsPort::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, RCS *prcs, GDD *pgdd)
+void GraphicsPort::DrawDib(HDRAWDIB hdd, BITMAPINFOHEADER *pbi, SystemRectangle *prcs, GDD *pgdd)
 {
     AssertThis(0);
     AssertVarMem(pbi);
@@ -1878,7 +1878,7 @@ bool FCreateRgn(HRGN *phrgn, RC *prc)
 {
     AssertVarMem(phrgn);
     AssertNilOrVarMem(prc);
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (pvNil == prc)
         ClearPb(&rcs, size(rcs));
@@ -1977,7 +1977,7 @@ bool FDiffRgn(HRGN hrgnDst, HRGN hrgnSrc, HRGN hrgnSrcSub, bool *pfEmpty)
 bool FRectRgn(HRGN hrgn, RC *prc)
 {
     Assert(hNil != hrgn, "null rgn");
-    RCS rcs;
+    SystemRectangle rcs;
     bool fRet;
 
     fRet = GetRgnBox(hrgn, &rcs) != COMPLEXREGION;
@@ -1992,7 +1992,7 @@ bool FRectRgn(HRGN hrgn, RC *prc)
 bool FEmptyRgn(HRGN hrgn, RC *prc)
 {
     Assert(hNil != hrgn, "null rgn");
-    RCS rcs;
+    SystemRectangle rcs;
     bool fRet;
 
     fRet = GetRgnBox(hrgn, &rcs) == NULLREGION;

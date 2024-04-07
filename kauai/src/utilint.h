@@ -339,10 +339,10 @@ void AssertBomRgsw(ByteOrderMask bom, long cb);
 ****************************************/
 
 #ifdef MAC
-typedef Rect RCS;
+typedef Rect SystemRectangle;
 typedef Point PTS;
 #elif defined(WIN)
-typedef RECT RCS;
+typedef RECT SystemRectangle;
 typedef POINT PTS;
 #endif // WIN
 
@@ -449,10 +449,10 @@ class RC
         ypBottom = ypBottomT;
     }
 
-    // for assigning to/from an RCS
-    operator RCS(void);
-    RC &operator=(RCS &rcs);
-    RC(RCS &rcs)
+    // for assigning to/from an SystemRectangle
+    operator SystemRectangle(void);
+    RC &operator=(SystemRectangle &rcs);
+    RC(SystemRectangle &rcs)
     {
         *this = rcs;
     }

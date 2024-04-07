@@ -40,11 +40,11 @@ const long krelOne = 0x00010000L; // denominator for relative rectangles
 const long krelZero = 0;
 
 #ifdef MAC
-inline void GetClientRect(HWND hwnd, RCS *prcs)
+inline void GetClientRect(HWND hwnd, SystemRectangle *prcs)
 {
     *prcs = hwnd->port.portRect;
 }
-inline void InvalHwndRcs(HWND hwnd, RCS *prcs)
+inline void InvalHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     PPRT pprt;
 
@@ -53,7 +53,7 @@ inline void InvalHwndRcs(HWND hwnd, RCS *prcs)
     InvalRect(prcs);
     SetPort(pprt);
 }
-inline void ValidHwndRcs(HWND hwnd, RCS *prcs)
+inline void ValidHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     PPRT pprt;
 
@@ -64,11 +64,11 @@ inline void ValidHwndRcs(HWND hwnd, RCS *prcs)
 }
 #endif // MAC
 #ifdef WIN
-inline void InvalHwndRcs(HWND hwnd, RCS *prcs)
+inline void InvalHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     InvalidateRect(hwnd, prcs, fFalse);
 }
-inline void ValidHwndRcs(HWND hwnd, RCS *prcs)
+inline void ValidHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     ValidateRect(hwnd, prcs);
 }

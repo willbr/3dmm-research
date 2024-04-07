@@ -110,7 +110,7 @@ HWND GraphicsObject::_HwndNewMdi(PString pstnTitle)
     {
         // create the client first
         CLIENTCREATESTRUCT ccs;
-        RCS rcs;
+        SystemRectangle rcs;
 
         ccs.hWindowMenu = hNil;
         ccs.idFirstChild = 1;
@@ -194,7 +194,7 @@ void GraphicsObject::Clean(void)
     AssertThis(0);
     HWND hwnd;
     RC rc, rcT;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (hNil == (hwnd = _HwndGetRc(&rc)))
         return;

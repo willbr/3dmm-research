@@ -20,7 +20,7 @@ bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTS
                      ulong grfPrevType, ChunkNumber cnoWave);
 
 UINT CALLBACK OpenHookProc(HWND hWnd, UINT msg, UINT wParam, LONG lParam);
-void OpenPreview(HWND hwnd, PGraphicsEnvironment pgnvOff, RCS *prcsPreview);
+void OpenPreview(HWND hwnd, PGraphicsEnvironment pgnvOff, SystemRectangle *prcsPreview);
 void RepaintPortfolio(HWND hwndCustom);
 
 static WNDPROC lpBtnProc;
@@ -34,7 +34,7 @@ typedef struct dlginfo
 {
     bool fIsOpen;      // fTrue if Open file, (ie not Save file)
     bool fDrawnBkgnd;  // fTrue if portfolio background bitmap has been displayed.
-    RCS rcsDlg;        // Initial size of the portfolio common dlg window client area.
+    SystemRectangle rcsDlg;        // Initial size of the portfolio common dlg window client area.
     ulong grfPrevType; // Bits for types of preview required, (eg movie, sound etc) == 0 if no preview
     ChunkNumber cnoWave;       // Wave file cno for audio when portfolio is invoked.
 } DLGINFO;

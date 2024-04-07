@@ -284,7 +284,7 @@ void ApplicationBase::_MouseDownEvt(EVT *pevt)
         break;
 
     case inDrag:
-        RCS rcs = qd.screenBits.bounds;
+        SystemRectangle rcs = qd.screenBits.bounds;
         InsetRect(&rcs, 4, 4);
         DragWindow(&hwnd->port, pevt->where, &rcs);
         break;
@@ -433,7 +433,7 @@ void ApplicationBase::_UpdateEvt(EVT *pevt)
     AssertVarMem(pevt);
 
     PPRT pprt, pprtSav;
-    RCS rcs;
+    SystemRectangle rcs;
     RC rc;
 
     pprt = (PPRT)pevt->message;
