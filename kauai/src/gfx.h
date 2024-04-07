@@ -72,14 +72,14 @@ const long onnNil = -1;
 int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam);
 #endif // WIN
 
-#define NTL_PAR BASE
-#define kclsNTL 'NTL'
-class NTL : public NTL_PAR
+#define FontList_PAR BASE
+#define kclsFontList 'NTL'
+class FontList : public FontList_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(NTL)
+    NOCOPY(FontList)
 
   private:
 #ifdef WIN
@@ -89,8 +89,8 @@ class NTL : public NTL_PAR
     long _onnSystem;
 
   public:
-    NTL(void);
-    ~NTL(void);
+    FontList(void);
+    ~FontList(void);
 
 #ifdef WIN
     HFONT HfntCreate(FontDescription *pdsf);
@@ -114,7 +114,7 @@ class NTL : public NTL_PAR
     bool FValidOnn(long onn);
 #endif // DEBUG
 };
-extern NTL vntl;
+extern FontList vntl;
 
 /****************************************
     Color and pattern

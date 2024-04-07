@@ -1162,7 +1162,7 @@ void GraphicsPort::MarkStaticMem(void)
 /***************************************************************************
     Initialize the font table.
 ***************************************************************************/
-bool NTL::FInit(void)
+bool FontList::FInit(void)
 {
     MenuHandle hmenu;
     achar st[kcbMaxSt];
@@ -1204,7 +1204,7 @@ bool NTL::FInit(void)
 /***************************************************************************
     Return the system font code for this font number.
 ***************************************************************************/
-short NTL::FtcFromOnn(long onn)
+short FontList::FtcFromOnn(long onn)
 {
     AssertThis(0);
     long ftc;
@@ -1216,7 +1216,7 @@ short NTL::FtcFromOnn(long onn)
 /***************************************************************************
     Return true iff the font is a fixed pitch font.
 ***************************************************************************/
-bool NTL::FFixedPitch(long onn)
+bool FontList::FFixedPitch(long onn)
 {
 #ifdef REVIEW // shonk: implement FFixedPitch on Mac
     AssertThis(0);

@@ -17,11 +17,11 @@ AbstractPattern vaptGray = {0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55, 0xAA, 0x55};
 AbstractPattern vaptLtGray = {0x22, 0x88, 0x44, 0x11, 0x22, 0x88, 0x44, 0x11};
 AbstractPattern vaptDkGray = {0xDD, 0x77, 0xBB, 0xEE, 0xDD, 0x77, 0xBB, 0xEE};
 
-NTL vntl;
+FontList vntl;
 
 RTCLASS(GraphicsEnvironment)
 RTCLASS(GraphicsPort)
-RTCLASS(NTL)
+RTCLASS(FontList)
 RTCLASS(Polygon)
 
 const long kdtsMaxTrans = 30 * kdtsSecond;
@@ -2142,7 +2142,7 @@ bool FInitGfx(void)
 /***************************************************************************
     Construct a new font list.
 ***************************************************************************/
-NTL::NTL(void)
+FontList::FontList(void)
 {
     _pgst = pvNil;
 }
@@ -2150,7 +2150,7 @@ NTL::NTL(void)
 /***************************************************************************
     Destroy a font list.
 ***************************************************************************/
-NTL::~NTL(void)
+FontList::~FontList(void)
 {
     ReleasePpo(&_pgst);
 }
@@ -2159,26 +2159,26 @@ NTL::~NTL(void)
 /***************************************************************************
     Assert the validity of the font list.
 ***************************************************************************/
-void NTL::AssertValid(ulong grf)
+void FontList::AssertValid(ulong grf)
 {
-    NTL_PAR::AssertValid(0);
+    FontList_PAR::AssertValid(0);
     AssertPo(_pgst, 0);
 }
 
 /***************************************************************************
     Mark memory for the font table.
 ***************************************************************************/
-void NTL::MarkMem(void)
+void FontList::MarkMem(void)
 {
     AssertValid(0);
-    NTL_PAR::MarkMem();
+    FontList_PAR::MarkMem();
     MarkMemObj(_pgst);
 }
 
 /***************************************************************************
     Return whether the font number is valid.
 ***************************************************************************/
-bool NTL::FValidOnn(long onn)
+bool FontList::FValidOnn(long onn)
 {
     return pvNil != _pgst && onn >= 0 && onn < _pgst->IstnMac();
 }
@@ -2187,7 +2187,7 @@ bool NTL::FValidOnn(long onn)
 /***************************************************************************
     Find the name of the given font.
 ***************************************************************************/
-void NTL::GetStn(long onn, PString pstn)
+void FontList::GetStn(long onn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2198,7 +2198,7 @@ void NTL::GetStn(long onn, PString pstn)
 /***************************************************************************
     Get the font number for the given font name.
 ***************************************************************************/
-bool NTL::FGetOnn(PString pstn, long *ponn)
+bool FontList::FGetOnn(PString pstn, long *ponn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2211,7 +2211,7 @@ bool NTL::FGetOnn(PString pstn, long *ponn)
     possible.
     REVIEW shonk: implement font mapping for real.
 ***************************************************************************/
-long NTL::OnnMapStn(PString pstn, short osk)
+long FontList::OnnMapStn(PString pstn, short osk)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -2225,7 +2225,7 @@ long NTL::OnnMapStn(PString pstn, short osk)
 /***************************************************************************
     Return the font number mac.
 ***************************************************************************/
-long NTL::OnnMac(void)
+long FontList::OnnMac(void)
 {
     AssertThis(0);
     return _pgst->IstnMac();

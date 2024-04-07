@@ -1789,7 +1789,7 @@ void GraphicsPort::MarkStaticMem(void)
 /***************************************************************************
     Enumerate the system fonts and build the font list.
 ***************************************************************************/
-bool NTL::FInit(void)
+bool FontList::FInit(void)
 {
     Assert(hNil != vwig.hdcApp, "No DC");
 
@@ -1839,7 +1839,7 @@ int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM lu
 /***************************************************************************
     -- Create a logical GDI font from the given font attributes.
 ***************************************************************************/
-HFONT NTL::HfntCreate(FontDescription *pdsf)
+HFONT FontList::HfntCreate(FontDescription *pdsf)
 {
     AssertThis(0);
     AssertPo(pdsf, 0);
@@ -1860,7 +1860,7 @@ HFONT NTL::HfntCreate(FontDescription *pdsf)
 /***************************************************************************
     Return true iff the font is a fixed pitch font.
 ***************************************************************************/
-bool NTL::FFixedPitch(long onn)
+bool FontList::FFixedPitch(long onn)
 {
     AssertThis(0);
     Assert(FValidOnn(onn), "bad onn");
