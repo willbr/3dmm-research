@@ -165,7 +165,7 @@ class GPRC : public GPRC_PAR
     AbstractPattern _apt;
     bool _fLit;
     bool _fTrackMouse;
-    POGN _pogn;
+    PPolygon _pogn;
 
   public:
     GPRC(PGCB pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
@@ -242,7 +242,7 @@ void GPRC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     {
         PT *qrgpt;
 
-        if (pvNil == (_pogn = OGN::PognNew(_fTrackMouse ? 4 : 1)))
+        if (pvNil == (_pogn = Polygon::PognNew(_fTrackMouse ? 4 : 1)))
             return;
 
         AssertDo(_pogn->FSetIvMac(_fTrackMouse ? 4 : 1), "why did this fail");
@@ -333,7 +333,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
             if (!_fTrackMouse)
             {
                 PT rgpt[3];
-                POGN pogn;
+                PPolygon pogn;
 
                 rgpt[0].xp = 0;
                 rgpt[0].yp = 0;
@@ -913,13 +913,13 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
     long iact;
     RC rc;
     PT *qrgpt;
-    POGN pogn;
+    PPolygon pogn;
     long xp1, xp2, xp3, yp1, yp2, yp3;
     AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
     ulong ts;
     String stn;
 
-    if (pvNil == (pogn = OGN::PognNew(8)))
+    if (pvNil == (pogn = Polygon::PognNew(8)))
         return;
 
     gnv.GetRcSrc(&rc);

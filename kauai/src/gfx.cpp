@@ -22,7 +22,7 @@ NTL vntl;
 RTCLASS(GraphicsEnvironment)
 RTCLASS(GraphicsPort)
 RTCLASS(NTL)
-RTCLASS(OGN)
+RTCLASS(Polygon)
 
 const long kdtsMaxTrans = 30 * kdtsSecond;
 long vcactRealize;
@@ -469,7 +469,7 @@ void GraphicsEnvironment::Line(long xp1, long yp1, long xp2, long yp2, AbstractC
 /***************************************************************************
     Fill a polygon with a pattern.
 ***************************************************************************/
-void GraphicsEnvironment::FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FillOgnApt(PPolygon pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -497,7 +497,7 @@ void GraphicsEnvironment::FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractC
 /***************************************************************************
     Fill a polygon with a color.
 ***************************************************************************/
-void GraphicsEnvironment::FillOgn(POGN pogn, AbstractColor acr)
+void GraphicsEnvironment::FillOgn(PPolygon pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -522,7 +522,7 @@ void GraphicsEnvironment::FillOgn(POGN pogn, AbstractColor acr)
     NOTE: Using kacrInvert produces slightly different results on the Mac.
     (Mac only does alternate winding).
 ***************************************************************************/
-void GraphicsEnvironment::FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FrameOgnApt(PPolygon pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -554,7 +554,7 @@ void GraphicsEnvironment::FrameOgnApt(POGN pogn, AbstractPattern *papt, Abstract
     Frame a polygon with a color.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GraphicsEnvironment::FrameOgn(POGN pogn, AbstractColor acr)
+void GraphicsEnvironment::FrameOgn(PPolygon pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -581,7 +581,7 @@ void GraphicsEnvironment::FrameOgn(POGN pogn, AbstractColor acr)
     Frame a poly-line with a pattern.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GraphicsEnvironment::FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
+void GraphicsEnvironment::FramePolyLineApt(PPolygon pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -613,7 +613,7 @@ void GraphicsEnvironment::FramePolyLineApt(POGN pogn, AbstractPattern *papt, Abs
     Frame a poly-line with a color.
     NOTE: Using kacrInvert produces slightly different results on the Mac.
 ***************************************************************************/
-void GraphicsEnvironment::FramePolyLine(POGN pogn, AbstractColor acr)
+void GraphicsEnvironment::FramePolyLine(PPolygon pogn, AbstractColor acr)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -637,10 +637,10 @@ void GraphicsEnvironment::FramePolyLine(POGN pogn, AbstractColor acr)
 }
 
 /***************************************************************************
-    Convert an OGN into a polygon record (hqoly).  This maps the points and
+    Convert an Polygon into a polygon record (hqoly).  This maps the points and
     optionally closes the polygon and/or calculates the bounds (Mac only).
 ***************************************************************************/
-HQ GraphicsEnvironment::_HqolyCreate(POGN pogn, ulong grfogn)
+HQ GraphicsEnvironment::_HqolyCreate(PPolygon pogn, ulong grfogn)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
@@ -702,19 +702,19 @@ HQ GraphicsEnvironment::_HqolyCreate(POGN pogn, ulong grfogn)
 }
 
 /***************************************************************************
-    Convert a polygon (OGN) into a polygon record (hqoly).  On Windows,
+    Convert a polygon (Polygon) into a polygon record (hqoly).  On Windows,
     this actually generates a new polygon that is the outline of the framed
     path (which we'll tell GDI to fill).  On the Mac, this just calls
     _HqolyCreate.
 ***************************************************************************/
-HQ GraphicsEnvironment::_HqolyFrame(POGN pogn, ulong grfogn)
+HQ GraphicsEnvironment::_HqolyFrame(PPolygon pogn, ulong grfogn)
 {
 #ifdef WIN
     AssertThis(0);
     AssertPo(pogn, 0);
     HQ hqoly;
 
-    POGN pognUse;
+    PPolygon pognUse;
     PT rgptPen[4]; // Pen rectangle vectors.
 
     rgptPen[0].xp = 0;
@@ -2235,12 +2235,12 @@ long NTL::OnnMac(void)
     Create a new polygon by tracing the outline of this one with a
     convex polygon.
 ***************************************************************************/
-POGN OGN::PognTraceOgn(POGN pogn, ulong grfogn)
+PPolygon Polygon::PognTraceOgn(PPolygon pogn, ulong grfogn)
 {
     AssertThis(0);
     AssertPo(pogn, 0);
 
-    POGN pognNew = PognTraceRgpt(pogn->PrgptLock(), pogn->IvMac(), grfogn);
+    PPolygon pognNew = PognTraceRgpt(pogn->PrgptLock(), pogn->IvMac(), grfogn);
 
     pogn->Unlock();
     return pognNew;
@@ -2250,7 +2250,7 @@ POGN OGN::PognTraceOgn(POGN pogn, ulong grfogn)
     Create a new polygon by tracing the outline of this one with a
     convex polygon.
 ***************************************************************************/
-POGN OGN::PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn)
+PPolygon Polygon::PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn)
 {
     AssertThis(0);
     AssertIn(cpt, 2, kcbMax);
@@ -2324,7 +2324,7 @@ POGN OGN::PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn)
 /***************************************************************************
     Add the vertices encountered while walking an edge of the input polygon.
 ***************************************************************************/
-bool OGN::_FAddEdge(AEI *paei)
+bool Polygon::_FAddEdge(AEI *paei)
 {
     AssertVarMem(paei);
     AssertIn(paei->cpt, 1, kcbMax);
@@ -2394,14 +2394,14 @@ long IptFindLeftmost(PT *prgpt, long cpt, long dxp, long dyp)
 }
 
 /***************************************************************************
-    -- Allocate a new OGN and ensure that it has space for cptInit elements.
+    -- Allocate a new Polygon and ensure that it has space for cptInit elements.
 ***************************************************************************/
-POGN OGN::PognNew(long cptInit)
+PPolygon Polygon::PognNew(long cptInit)
 {
     AssertIn(cptInit, 0, kcbMax);
-    POGN pogn;
+    PPolygon pogn;
 
-    if (pvNil == (pogn = NewObj OGN()))
+    if (pvNil == (pogn = NewObj Polygon()))
         return pvNil;
     if (cptInit > 0 && !pogn->FEnsureSpace(cptInit, fgrpNil))
     {
@@ -2413,9 +2413,9 @@ POGN OGN::PognNew(long cptInit)
 }
 
 /***************************************************************************
-    Constructor for OGN.
+    Constructor for Polygon.
 ***************************************************************************/
-OGN::OGN(void) : DynamicArray(size(PT))
+Polygon::Polygon(void) : DynamicArray(size(PT))
 {
     AssertThis(0);
 }

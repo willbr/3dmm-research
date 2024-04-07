@@ -340,10 +340,10 @@ enum
     fognLim
 };
 
-typedef class OGN *POGN;
-#define OGN_PAR DynamicArray
-#define kclsOGN 'OGN'
-class OGN : public OGN_PAR
+typedef class Polygon *PPolygon;
+#define Polygon_PAR DynamicArray
+#define kclsPolygon 'OGN'
+class Polygon : public Polygon_PAR
 {
     RTCLASS_DEC
 
@@ -354,14 +354,14 @@ class OGN : public OGN_PAR
         long cpt;
         long iptPenCur;
         PT ptCur;
-        POGN pogn;
+        PPolygon pogn;
         long ipt;
         long dipt;
     };
     bool _FAddEdge(AEI *paei);
 
   protected:
-    OGN(void);
+    Polygon(void);
 
   public:
     PT *PrgptLock(long ipt = 0)
@@ -373,11 +373,11 @@ class OGN : public OGN_PAR
         return (PT *)QvGet(ipt);
     }
 
-    POGN PognTraceOgn(POGN pogn, ulong grfogn);
-    POGN PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn);
+    PPolygon PognTraceOgn(PPolygon pogn, ulong grfogn);
+    PPolygon PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn);
 
     // static methods
-    static POGN PognNew(long cvInit = 0);
+    static PPolygon PognNew(long cvInit = 0);
 };
 
 long IptFindLeftmost(PT *prgpt, long cpt, long dxp, long dyp);
@@ -441,8 +441,8 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     void _Init(PGraphicsPort pgpt);
     bool _FMapRcRcs(RC *prc, SystemRectangle *prcs);
     void _MapPtPts(long xp, long yp, SystemPoint *ppts);
-    HQ _HqolyCreate(POGN pogn, ulong grfogn);
-    HQ _HqolyFrame(POGN pogn, ulong grfogn);
+    HQ _HqolyCreate(PPolygon pogn, ulong grfogn);
+    HQ _HqolyFrame(PPolygon pogn, ulong grfogn);
 
     // transition related methods
     bool _FInitPaletteTrans(PDynamicArray pglclr, PDynamicArray *ppglclrOld, PDynamicArray *ppglclrTrans, long cbitPixel = 0);
@@ -482,12 +482,12 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
     void FrameOvalApt(RC *prc, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
     void FrameOval(RC *prc, AbstractColor acr);
 
-    void FillOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
-    void FillOgn(POGN pogn, AbstractColor acr);
-    void FrameOgnApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
-    void FrameOgn(POGN pogn, AbstractColor acr);
-    void FramePolyLineApt(POGN pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
-    void FramePolyLine(POGN pogn, AbstractColor acr);
+    void FillOgnApt(PPolygon pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FillOgn(PPolygon pogn, AbstractColor acr);
+    void FrameOgnApt(PPolygon pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FrameOgn(PPolygon pogn, AbstractColor acr);
+    void FramePolyLineApt(PPolygon pogn, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack);
+    void FramePolyLine(PPolygon pogn, AbstractColor acr);
 
     void MoveTo(long xp, long yp)
     {
