@@ -15,7 +15,7 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TBOX)
+RTCLASS(TextBox)
 RTCLASS(TBXG)
 RTCLASS(TBXB)
 RTCLASS(TCLP)
@@ -1773,7 +1773,7 @@ void TBXG::AssertValid(ulong grf)
 
 //
 //
-// BEGIN TBOX
+// BEGIN TextBox
 //
 //
 
@@ -1810,14 +1810,14 @@ struct TBOXH
  *  None.
  *
  ****************************************************/
-PTBOX TBOX::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
+PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 {
     AssertNilOrPo(pscen, 0);
     AssertPvCb(prcRel, size(RC));
 
     PTBOX ptbox;
 
-    ptbox = NewObj TBOX;
+    ptbox = NewObj TextBox;
     if (ptbox == pvNil)
     {
         return (pvNil);
@@ -1855,7 +1855,7 @@ PTBOX TBOX::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
  *  None.
  *
  ****************************************************/
-void TBOX::SetDirty(bool fDirty)
+void TextBox::SetDirty(bool fDirty)
 {
     AssertThis(0);
 
@@ -1878,7 +1878,7 @@ void TBOX::SetDirty(bool fDirty)
  *  Pointer to a new tbox, else pvNil.
  *
  ****************************************************/
-PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
+PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
 {
     AssertPo(pcrf, 0);
     AssertNilOrPo(pscen, 0);
@@ -1916,7 +1916,7 @@ PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
         return (pvNil);
     }
 
-    ptbox = NewObj TBOX;
+    ptbox = NewObj TextBox;
     if (ptbox == pvNil)
     {
         return (pvNil);
@@ -1951,7 +1951,7 @@ PTBOX TBOX::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FWrite(PChunkyFile pcfl, ChunkNumber cno)
+bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2003,7 +2003,7 @@ bool TBOX::FWrite(PChunkyFile pcfl, ChunkNumber cno)
  *  None.
  *
  ****************************************************/
-void TBOX::SetScen(PScene pscen)
+void TextBox::SetScen(PScene pscen)
 {
     AssertThis(0);
     AssertPo(pscen, 0);
@@ -2026,7 +2026,7 @@ void TBOX::SetScen(PScene pscen)
  *  None.
  *
  ****************************************************/
-void TBOX::SetTypeCore(bool fStory)
+void TextBox::SetTypeCore(bool fStory)
 {
     AssertThis(0);
 
@@ -2055,7 +2055,7 @@ void TBOX::SetTypeCore(bool fStory)
  *  None.
  *
  ****************************************************/
-void TBOX::AttachToMouse(void)
+void TextBox::AttachToMouse(void)
 {
     AssertThis(0);
 
@@ -2084,7 +2084,7 @@ void TBOX::AttachToMouse(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetType(bool fStory)
+bool TextBox::FSetType(bool fStory)
 {
     AssertThis(0);
 
@@ -2127,7 +2127,7 @@ bool TBOX::FSetType(bool fStory)
  *  None.
  *
  ****************************************************/
-void TBOX::SetRc(RC *prc)
+void TextBox::SetRc(RC *prc)
 {
     AssertThis(0);
     AssertPvCb(prc, size(RC));
@@ -2154,7 +2154,7 @@ void TBOX::SetRc(RC *prc)
  *  fTrue if visible, else fFalse.
  *
  ****************************************************/
-bool TBOX::FIsVisible(void)
+bool TextBox::FIsVisible(void)
 {
     AssertThis(0);
     return ((_nfrmCur >= _nfrmFirst) && (_nfrmCur < _nfrmMax));
@@ -2172,7 +2172,7 @@ bool TBOX::FIsVisible(void)
  *  fTrue if the lifetime is valid, else fFalse.
  *
  **************************************************************************/
-bool TBOX::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
+bool TextBox::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
 {
     AssertThis(0);
     AssertVarMem(pnfrmStart);
@@ -2209,7 +2209,7 @@ bool TBOX::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
  *  None.
  *
  ****************************************************/
-void TBOX::Select(bool fSel)
+void TextBox::Select(bool fSel)
 {
     AssertThis(0);
 
@@ -2243,7 +2243,7 @@ void TBOX::Select(bool fSel)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FGotoFrame(long nfrm)
+bool TextBox::FGotoFrame(long nfrm)
 {
     AssertThis(0);
 
@@ -2309,7 +2309,7 @@ bool TBOX::FGotoFrame(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FShowCore(void)
+bool TextBox::FShowCore(void)
 {
     AssertThis(0);
 
@@ -2338,7 +2338,7 @@ bool TBOX::FShowCore(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FShow(void)
+bool TextBox::FShow(void)
 {
     AssertThis(0);
 
@@ -2382,7 +2382,7 @@ bool TBOX::FShow(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-void TBOX::HideCore(void)
+void TextBox::HideCore(void)
 {
     AssertThis(0);
 
@@ -2407,7 +2407,7 @@ void TBOX::HideCore(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FHide(void)
+bool TextBox::FHide(void)
 {
     AssertThis(0);
 
@@ -2452,10 +2452,10 @@ bool TBOX::FHide(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FDup(PTBOX *pptbox)
+bool TextBox::FDup(PTBOX *pptbox)
 {
     AssertThis(0);
-    *pptbox = TBOX::PtboxNew(pvNil, &_rc);
+    *pptbox = TextBox::PtboxNew(pvNil, &_rc);
     AssertNilOrPo(*pptbox, 0);
 
     if (*pptbox == pvNil)
@@ -2489,7 +2489,7 @@ bool TBOX::FDup(PTBOX *pptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetAcrBack(AbstractColor acr)
+bool TextBox::FSetAcrBack(AbstractColor acr)
 {
     AssertThis(0);
 
@@ -2530,7 +2530,7 @@ bool TBOX::FSetAcrBack(AbstractColor acr)
  *  fTrue if possible, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetAcrText(AbstractColor acr)
+bool TextBox::FSetAcrText(AbstractColor acr)
 {
     AssertThis(0);
 
@@ -2562,7 +2562,7 @@ bool TBOX::FSetAcrText(AbstractColor acr)
     Returns:  fTrue if it succeeds
 
 ************************************************************ PETED ***********/
-bool TBOX::FSetDypFontText(long dypFont)
+bool TextBox::FSetDypFontText(long dypFont)
 {
     AssertThis(0);
 
@@ -2592,7 +2592,7 @@ bool TBOX::FSetDypFontText(long dypFont)
     Returns:  fTrue if it succeeds
 
 ************************************************************ PETED ***********/
-bool TBOX::FSetStyleText(ulong grfont)
+bool TextBox::FSetStyleText(ulong grfont)
 {
     AssertThis(0);
 
@@ -2622,7 +2622,7 @@ bool TBOX::FSetStyleText(ulong grfont)
     Returns:  fTrue if it succeeds
 
 ************************************************************ PETED ***********/
-bool TBOX::FSetOnnText(long onn)
+bool TextBox::FSetOnnText(long onn)
 {
     AssertThis(0);
 
@@ -2645,7 +2645,7 @@ bool TBOX::FSetOnnText(long onn)
 /******************************************************************************
     FetchChpSel
         Gets the character formatting for the current selection of the active
-        DocumentDisplayGraphicsObject for this TBOX.  Returns the formatting of the first character of
+        DocumentDisplayGraphicsObject for this TextBox.  Returns the formatting of the first character of
         the selection in the CHP, and sets the corresponding bit in *pgrfchp
         if that particular formatting holds for the entire selection.
 
@@ -2654,7 +2654,7 @@ bool TBOX::FSetOnnText(long onn)
         ulong *pgrfchp  --  bitfield that indicates which formatting attributes
             hold for the entire selection.
 ************************************************************ PETED ***********/
-void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
+void TextBox::FetchChpSel(PCHP pchp, ulong *pgrfchp)
 {
     AssertVarMem(pchp);
     AssertVarMem(pgrfchp);
@@ -2709,7 +2709,7 @@ void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
  *  fTrue if yes, else fFalse.
  *
  ****************************************************/
-bool TBOX::FNeedToScroll(void)
+bool TextBox::FNeedToScroll(void)
 {
     AssertThis(0);
 
@@ -2735,7 +2735,7 @@ bool TBOX::FNeedToScroll(void)
  *  None.
  *
  ****************************************************/
-void TBOX::Scroll(void)
+void TextBox::Scroll(void)
 {
     AssertThis(0);
 
@@ -2757,7 +2757,7 @@ void TBOX::Scroll(void)
  *  None.
  *
  ****************************************************/
-bool TBOX::FTextSelected(void)
+bool TextBox::FTextSelected(void)
 {
     AssertThis(0);
 
@@ -2784,7 +2784,7 @@ bool TBOX::FTextSelected(void)
  *  None.
  *
  ****************************************************/
-void TBOX::SetStartFrame(long nfrm)
+void TextBox::SetStartFrame(long nfrm)
 {
     AssertThis(0);
     _nfrmFirst = nfrm;
@@ -2801,7 +2801,7 @@ void TBOX::SetStartFrame(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FAddUndo(PUndoBase pundb)
+bool TextBox::FAddUndo(PUndoBase pundb)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -2826,7 +2826,7 @@ bool TBOX::FAddUndo(PUndoBase pundb)
         return (fFalse);
     }
 
-    if (!TBOX_PAR::FAddUndo(pundb))
+    if (!TextBox_PAR::FAddUndo(pundb))
     {
         ReleasePpo(&ptund);
         return (fFalse);
@@ -2847,11 +2847,11 @@ bool TBOX::FAddUndo(PUndoBase pundb)
  *  None.
  *
  ****************************************************/
-void TBOX::ClearUndo()
+void TextBox::ClearUndo()
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
-    TBOX_PAR::ClearUndo();
+    TextBox_PAR::ClearUndo();
     Pscen()->Pmvie()->ClearUndo();
 }
 
@@ -2867,7 +2867,7 @@ void TBOX::ClearUndo()
  *  None.
  *
  ****************************************************/
-void TBOX::CleanDdg(void)
+void TextBox::CleanDdg(void)
 {
     AssertThis(0);
 
@@ -2898,7 +2898,7 @@ void TBOX::CleanDdg(void)
  *  Itbox.
  *
  ****************************************************/
-long TBOX::Itbox(void)
+long TextBox::Itbox(void)
 {
     AssertThis(0);
 
@@ -2918,7 +2918,7 @@ long TBOX::Itbox(void)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TBOX
+ * Mark memory used by the TextBox
  *
  * Parameters:
  * 	None.
@@ -2927,15 +2927,15 @@ long TBOX::Itbox(void)
  *  None.
  *
  ****************************************************/
-void TBOX::MarkMem(void)
+void TextBox::MarkMem(void)
 {
     AssertThis(0);
-    TBOX_PAR::MarkMem();
+    TextBox_PAR::MarkMem();
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TBOX.
+ * Assert the validity of the TextBox.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -2944,9 +2944,9 @@ void TBOX::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TBOX::AssertValid(ulong grf)
+void TextBox::AssertValid(ulong grf)
 {
-    TBOX_PAR::AssertValid(fobjAllocated);
+    TextBox_PAR::AssertValid(fobjAllocated);
     if (PddgGet(0) != pvNil)
     {
         AssertPo(PddgGet(0), 0);

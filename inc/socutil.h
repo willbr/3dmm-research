@@ -22,7 +22,7 @@ typedef class Actor *PActor;
 typedef class Scene *PScene;
 typedef class Movie *PMovie;
 typedef class Background *PBackground;
-typedef class TBOX *PTBOX;
+typedef class TextBox *PTBOX;
 typedef class Studio *PStudio;
 
 //

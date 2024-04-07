@@ -104,7 +104,7 @@ typedef class Scene *PScene;
 //	This assumes that struct SND contains at least,
 //		- Everything necessary to play the sound.
 //
-//	This assumes that struct TBOX contains at least,
+//	This assumes that struct TextBox contains at least,
 //		- Everything necessary to display the text.
 //		- Enumerating through text boxes in a scene is not necessary.
 //

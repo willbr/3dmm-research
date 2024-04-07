@@ -7,9 +7,9 @@
 
     Textbox Class
 
-        Textbox (TBOX)
+        Textbox (TextBox)
 
-            RichTextDocument ---> TBOX
+            RichTextDocument ---> TextBox
 
     Drawing stuff
 
@@ -196,14 +196,14 @@ const ulong kgrfchpAll = (kfchpOnn | kfchpDypFont | kfchpBold | kfchpItalic);
 
 //
 //
-// Text box document class (TBOX).
+// Text box document class (TextBox).
 //
 //
-typedef class TBOX *PTBOX;
+typedef class TextBox *PTBOX;
 
-#define TBOX_PAR RichTextDocument
-#define kclsTBOX 'TBOX'
-class TBOX : public TBOX_PAR
+#define TextBox_PAR RichTextDocument
+#define kclsTextBox 'TBOX'
+class TextBox : public TextBox_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -218,7 +218,7 @@ class TBOX : public TBOX_PAR
     bool _fStory;    // Is this a story text box.
     RC _rc;          // Size of text box.
 
-    TBOX(void) : RichTextDocument()
+    TextBox(void) : RichTextDocument()
     {
     }
 
@@ -289,7 +289,7 @@ class TBOX : public TBOX_PAR
     virtual void ClearUndo(void);
     void ParClearUndo(void)
     {
-        TBOX_PAR::ClearUndo();
+        TextBox_PAR::ClearUndo();
     }
 
     //

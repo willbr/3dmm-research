@@ -3141,7 +3141,7 @@ bool Scene::FRemTbox(PTBOX ptbox)
  *  Pointer to the text box if itbox is valid, else pvNil.
  *
  ****************************************************/
-TBOX *Scene::PtboxFromItbox(long itbox)
+TextBox *Scene::PtboxFromItbox(long itbox)
 {
     AssertThis(0);
     Assert(itbox >= 0, "Bad index value");
@@ -3999,7 +3999,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
                 goto LFail1;
             }
 
-            ptbox = TBOX::PtboxRead(pcrf, kid.cki.cno, pscen);
+            ptbox = TextBox::PtboxRead(pcrf, kid.cki.cno, pscen);
             AssertNilOrPo(ptbox, 0);
 
             if (ptbox == pvNil)

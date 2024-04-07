@@ -3119,7 +3119,7 @@ bool Movie::FInsTbox(RC *prc, bool fStory)
 
     PTBOX ptbox;
 
-    ptbox = TBOX::PtboxNew(Pscen(), prc, fStory);
+    ptbox = TextBox::PtboxNew(Pscen(), prc, fStory);
 
     if (ptbox == pvNil)
     {
