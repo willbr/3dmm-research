@@ -2257,7 +2257,7 @@ PPolygon Polygon::PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn)
     AssertPvCb(prgpt, LwMul(cpt, size(PT)));
 
     PT *prgptThis;
-    AEI aei;
+    AddEdgeInfo aei;
     long iptLast = IvMac() - 1;
 
     if (2 > cpt || iptLast < 0)
@@ -2324,7 +2324,7 @@ PPolygon Polygon::PognTraceRgpt(PT *prgpt, long cpt, ulong grfogn)
 /***************************************************************************
     Add the vertices encountered while walking an edge of the input polygon.
 ***************************************************************************/
-bool Polygon::_FAddEdge(AEI *paei)
+bool Polygon::_FAddEdge(AddEdgeInfo *paei)
 {
     AssertVarMem(paei);
     AssertIn(paei->cpt, 1, kcbMax);

@@ -348,7 +348,7 @@ class Polygon : public Polygon_PAR
     RTCLASS_DEC
 
   private:
-    struct AEI // Add Edge Info.
+    struct AddEdgeInfo // Add Edge Info.
     {
         PT *prgpt;
         long cpt;
@@ -358,7 +358,7 @@ class Polygon : public Polygon_PAR
         long ipt;
         long dipt;
     };
-    bool _FAddEdge(AEI *paei);
+    bool _FAddEdge(AddEdgeInfo *paei);
 
   protected:
     Polygon(void);
