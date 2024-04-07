@@ -324,7 +324,7 @@ class ApplicationBase : public ApplicationBase_PAR
 
 extern PApplicationBase vpappb;
 extern PCommandExecutionManager vpcex;
-extern PSNDM vpsndm;
+extern PSoundManager vpsndm;
 
 // main entry point for the client app
 void FrameMain(void);

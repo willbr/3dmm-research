@@ -13,15 +13,15 @@
 
     NOTE: when the MSQ stops sounds, it does it based on sound class (scl)
     and not sound queue (sqn).  This is slightly less efficient, because the
-    SNDM must search all open sound queues for the given scl's when we stop
+    SoundManager must search all open sound queues for the given scl's when we stop
     sounds; however, the code is made much simpler, because the sqn is
     generated on the fly based on whether the sound is for an actor or
     background, the sty of the sound, and (in the case of actor sounds) the
     arid of the source of the sound.  If we had to enumerate all sounds
-    based on that information, we'd wind up calling into the SNDM a minimum
+    based on that information, we'd wind up calling into the SoundManager a minimum
     of three times, plus three times for each actor; not only is the
     enumeration on this side inefficient (the MSQ would have to call into the
-    Movie to enumerate all the known actors), but the number of calls to SNDM
+    Movie to enumerate all the known actors), but the number of calls to SoundManager
     gets to be huge!  On top of all that, we'd probably wind up finding some
     bugs where a sound is still playing for an actor that's been deleted, and
     possibly fail to stop the sound properly (Murphy reigning strong in any

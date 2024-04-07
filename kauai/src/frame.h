@@ -30,7 +30,7 @@ class DocumentMDIWindow;  // document mdi window
 class DocumentMainWindow;  // main document window
 class DocumentScrollGraphicsObject;  // document scroll gob
 class DocumentDisplayGraphicsObject;  // document display gob
-class SNDM; // sound manager
+class SoundManager; // sound manager
 
 typedef class GraphicsPort *PGraphicsPort;
 typedef class GraphicsEnvironment *PGraphicsEnvironment;
@@ -42,7 +42,7 @@ typedef class DocumentMDIWindow *PDocumentMDIWindow;
 typedef class DocumentMainWindow *PDocumentMainWindow;
 typedef class DocumentScrollGraphicsObject *PDocumentScrollGraphicsObject;
 typedef class DocumentDisplayGraphicsObject *PDocumentDisplayGraphicsObject;
-typedef class SNDM *PSNDM;
+typedef class SoundManager *PSoundManager;
 
 #include "region.h"
 #include "pic.h"

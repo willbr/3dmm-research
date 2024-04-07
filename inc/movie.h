@@ -589,7 +589,7 @@ class Movie : public Movie_PAR
     long _dts;    // Number of clock ticks to pause.
     TRANS _trans; // Transition type to execute.
 
-    long _vlmOrg; // original SNDM volume, before fadeout, if we are done with fadeout, then 0
+    long _vlmOrg; // original SoundManager volume, before fadeout, if we are done with fadeout, then 0
 
 #ifdef DEBUG
     bool _fWriteBmps;

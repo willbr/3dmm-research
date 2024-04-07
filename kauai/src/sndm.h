@@ -68,10 +68,10 @@ class SNDV : public SNDV_PAR
 /****************************************
     Sound manager class
 ****************************************/
-typedef class SNDM *PSNDM;
-#define SNDM_PAR SNDV
-#define kclsSNDM 'SNDM'
-class SNDM : public SNDM_PAR
+typedef class SoundManager *PSoundManager;
+#define SoundManager_PAR SNDV
+#define kclsSoundManager 'SNDM'
+class SoundManager : public SoundManager_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -90,13 +90,13 @@ class SNDM : public SNDM_PAR
     bool _fActive : 1;  // whether the app is active
     bool _fFreeing : 1; // we're in the destructor
 
-    SNDM(void);
+    SoundManager(void);
     bool _FInit(void);
     bool _FFindCtg(ChunkTag ctg, SNDMPE *psndmpe, long *pisndmpe = pvNil);
 
   public:
-    static PSNDM PsndmNew(void);
-    ~SNDM(void);
+    static PSoundManager PsndmNew(void);
+    ~SoundManager(void);
 
     // new methods
     virtual bool FAddDevice(ChunkTag ctg, PSNDV psndv);

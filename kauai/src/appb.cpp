@@ -15,7 +15,7 @@ ASSERTNAME
 
 PApplicationBase vpappb;
 PCommandExecutionManager vpcex;
-PSNDM vpsndm;
+PSoundManager vpsndm;
 
 // basic commands common to most apps
 BEGIN_CMD_MAP(ApplicationBase, CommandHandler)
@@ -601,7 +601,7 @@ bool ApplicationBase::_FInitSound(long wav)
         return fTrue;
 
     // create the Sound manager
-    if (pvNil == (vpsndm = SNDM::PsndmNew()))
+    if (pvNil == (vpsndm = SoundManager::PsndmNew()))
         return fTrue;
 
     if (pvNil != (psndv = SDAM::PsdamNew(wav)))
@@ -672,7 +672,7 @@ void ApplicationBase::_CleanUp(void)
 {
     AssertThis(0);
 
-    PSNDM psndm;
+    PSoundManager psndm;
 
     if (pvNil != vpsndm)
     {
