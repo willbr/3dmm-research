@@ -12,12 +12,12 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(SNDV)
+RTCLASS(SoundDevice)
 RTCLASS(SoundManager)
 RTCLASS(SNDMQ)
 RTCLASS(SNQUE)
 
-long SNDV::_siiLast;
+long SoundDevice::_siiLast;
 
 /***************************************************************************
     This is the volume to use as the system volume if it is determined
@@ -33,14 +33,14 @@ ulong vluSysVolFake = (ulong)-1;
 /***************************************************************************
     Start a synchronized group.
 ***************************************************************************/
-void SNDV::BeginSynch(void)
+void SoundDevice::BeginSynch(void)
 {
 }
 
 /***************************************************************************
     End a synchronized group.
 ***************************************************************************/
-void SNDV::EndSynch(void)
+void SoundDevice::EndSynch(void)
 {
 }
 
@@ -167,7 +167,7 @@ bool SoundManager::_FFindCtg(ChunkTag ctg, SNDMPE *psndmpe, long *pisndmpe)
 /***************************************************************************
     Add a device to the device map to handle the particular ctg.
 ***************************************************************************/
-bool SoundManager::FAddDevice(ChunkTag ctg, PSNDV psndv)
+bool SoundManager::FAddDevice(ChunkTag ctg, PSoundDevice psndv)
 {
     AssertThis(0);
     AssertPo(psndv, 0);
@@ -202,7 +202,7 @@ bool SoundManager::FAddDevice(ChunkTag ctg, PSNDV psndv)
 /***************************************************************************
     Return the sound device that is registered for the given ctg.
 ***************************************************************************/
-PSNDV SoundManager::PsndvFromCtg(ChunkTag ctg)
+PSoundDevice SoundManager::PsndvFromCtg(ChunkTag ctg)
 {
     AssertThis(0);
     SNDMPE sndmpe;

@@ -23,10 +23,10 @@ const FileType kftgWave = MacWin('WAVE', 'WAV'); // REVIEW shonk: Mac: file type
 /***************************************************************************
     Sound device - like audioman or our midi player.
 ***************************************************************************/
-typedef class SNDV *PSNDV;
-#define SNDV_PAR BASE
-#define kclsSNDV 'SNDV'
-class SNDV : public SNDV_PAR
+typedef class SoundDevice *PSoundDevice;
+#define SoundDevice_PAR BASE
+#define kclsSoundDevice 'SNDV'
+class SoundDevice : public SoundDevice_PAR
 {
     RTCLASS_DEC
 
@@ -69,7 +69,7 @@ class SNDV : public SNDV_PAR
     Sound manager class
 ****************************************/
 typedef class SoundManager *PSoundManager;
-#define SoundManager_PAR SNDV
+#define SoundManager_PAR SoundDevice
 #define kclsSoundManager 'SNDM'
 class SoundManager : public SoundManager_PAR
 {
@@ -81,7 +81,7 @@ class SoundManager : public SoundManager_PAR
     struct SNDMPE
     {
         ChunkTag ctg;
-        PSNDV psndv;
+        PSoundDevice psndv;
     };
 
     PDynamicArray _pglsndmpe; // sound type to device mapper
@@ -99,8 +99,8 @@ class SoundManager : public SoundManager_PAR
     ~SoundManager(void);
 
     // new methods
-    virtual bool FAddDevice(ChunkTag ctg, PSNDV psndv);
-    virtual PSNDV PsndvFromCtg(ChunkTag ctg);
+    virtual bool FAddDevice(ChunkTag ctg, PSoundDevice psndv);
+    virtual PSoundDevice PsndvFromCtg(ChunkTag ctg);
     virtual void RemoveSndv(ChunkTag ctg);
 
     // inherited methods
@@ -136,7 +136,7 @@ class SoundManager : public SoundManager_PAR
 typedef class SNQUE *PSNQUE;
 
 typedef class SNDMQ *PSNDMQ;
-#define SNDMQ_PAR SNDV
+#define SNDMQ_PAR SoundDevice
 #define kclsSNDMQ 'snmq'
 class SNDMQ : public SNDMQ_PAR
 {

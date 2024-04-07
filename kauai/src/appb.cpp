@@ -595,7 +595,7 @@ bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 bool ApplicationBase::_FInitSound(long wav)
 {
     AssertBaseThis(0);
-    PSNDV psndv;
+    PSoundDevice psndv;
 
     if (pvNil != vpsndm)
         return fTrue;

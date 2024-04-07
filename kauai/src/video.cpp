@@ -370,7 +370,7 @@ GVDW::~GVDW(void)
     if (_fDeviceOpen)
     {
         MCI_GENERIC_PARMS mci;
-        PSNDV psndv;
+        PSoundDevice psndv;
 
         mciSendCommand(_lwDevice, MCI_CLOSE, MCI_WAIT, (long)&mci);
         if (pvNil != vpsndm && pvNil != (psndv = vpsndm->PsndvFromCtg(kctgWave)))
@@ -396,7 +396,7 @@ bool GVDW::_FInit(PFilename pfni, PGraphicsObject pgobBase)
     MCI_STATUS_PARMS mciStatus;
     MCI_ANIM_RECT_PARMS mciRect;
     String stn;
-    PSNDV psndv;
+    PSoundDevice psndv;
 
     pfni->GetStnPath(&stn);
 
