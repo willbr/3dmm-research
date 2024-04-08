@@ -8,32 +8,32 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    A TATR (theater) is similar to a Studio, but has no UI and is used for
+    A Theater (theater) is similar to a Studio, but has no UI and is used for
     playback only.
 
 ***************************************************************************/
 #include "studio.h"
 ASSERTNAME
 
-RTCLASS(TATR)
+RTCLASS(Theater)
 
 const long kcmhlTheater = 0x10000;
 
-BEGIN_CMD_MAP(TATR, CommandHandler)
-ON_CID_GEN(cidTheaterLoad, &TATR::FCmdLoad, pvNil)
-ON_CID_GEN(cidTheaterPlay, &TATR::FCmdPlay, pvNil)
-ON_CID_GEN(cidTheaterStop, &TATR::FCmdStop, pvNil)
-ON_CID_GEN(cidTheaterRewind, &TATR::FCmdRewind, pvNil)
+BEGIN_CMD_MAP(Theater, CommandHandler)
+ON_CID_GEN(cidTheaterLoad, &Theater::FCmdLoad, pvNil)
+ON_CID_GEN(cidTheaterPlay, &Theater::FCmdPlay, pvNil)
+ON_CID_GEN(cidTheaterStop, &Theater::FCmdStop, pvNil)
+ON_CID_GEN(cidTheaterRewind, &Theater::FCmdRewind, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
-    Create a new TATR
+    Create a new Theater
 ***************************************************************************/
-PTATR TATR::PtatrNew(long kidParent)
+PTheater Theater::PtatrNew(long kidParent)
 {
-    PTATR ptatr;
+    PTheater ptatr;
 
-    ptatr = NewObj TATR(HidUnique());
+    ptatr = NewObj Theater(HidUnique());
     if (pvNil == ptatr)
         return pvNil;
     if (!ptatr->_FInit(kidParent))
@@ -46,9 +46,9 @@ PTATR TATR::PtatrNew(long kidParent)
 }
 
 /***************************************************************************
-    Initialize the TATR
+    Initialize the Theater
 ***************************************************************************/
-bool TATR::_FInit(long kidParent)
+bool Theater::_FInit(long kidParent)
 {
     AssertBaseThis(0);
 
@@ -63,7 +63,7 @@ bool TATR::_FInit(long kidParent)
 /***************************************************************************
     Clean up and delete this theater
 ***************************************************************************/
-TATR::~TATR(void)
+Theater::~Theater(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pmvie);
@@ -77,7 +77,7 @@ TATR::~TATR(void)
 /***************************************************************************
     Load a new movie into the theater
 ***************************************************************************/
-bool TATR::FCmdLoad(PCommand pcmd)
+bool Theater::FCmdLoad(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -122,7 +122,7 @@ bool TATR::FCmdLoad(PCommand pcmd)
     pgob = vpapp->Pkwa()->PgobFromHid(_kidParent);
     if (pvNil == pgob)
     {
-        Bug("Couldn't find gob for TATR's kidParent");
+        Bug("Couldn't find gob for Theater's kidParent");
         goto LFail;
     }
     gcb.Set(HidUnique(), pgob);
@@ -158,7 +158,7 @@ LFail:
 /***************************************************************************
     Play the current movie.  Also makes the MovieView visible, if it was hidden.
 ***************************************************************************/
-bool TATR::FCmdPlay(PCommand pcmd)
+bool Theater::FCmdPlay(PCommand pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);
@@ -184,7 +184,7 @@ bool TATR::FCmdPlay(PCommand pcmd)
 /***************************************************************************
     Stop the current movie
 ***************************************************************************/
-bool TATR::FCmdStop(PCommand pcmd)
+bool Theater::FCmdStop(PCommand pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);
@@ -201,7 +201,7 @@ bool TATR::FCmdStop(PCommand pcmd)
 /***************************************************************************
     Rewind the current movie
 ***************************************************************************/
-bool TATR::FCmdRewind(PCommand pcmd)
+bool Theater::FCmdRewind(PCommand pcmd)
 {
     AssertThis(ftatrMvie); // make sure we have a movie
     AssertVarMem(pcmd);
@@ -220,22 +220,22 @@ bool TATR::FCmdRewind(PCommand pcmd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TATR.
+    Assert the validity of the Theater.
 ***************************************************************************/
-void TATR::AssertValid(ulong grf)
+void Theater::AssertValid(ulong grf)
 {
-    TATR_PAR::AssertValid(fobjAllocated);
+    Theater_PAR::AssertValid(fobjAllocated);
     if (grf & ftatrMvie)
         AssertPo(_pmvie, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the TATR
+    Mark memory used by the Theater
 ***************************************************************************/
-void TATR::MarkMem(void)
+void Theater::MarkMem(void)
 {
     AssertThis(0);
-    TATR_PAR::MarkMem();
+    Theater_PAR::MarkMem();
     MarkMemObj(_pmvie);
 }
 #endif // DEBUG

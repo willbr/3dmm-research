@@ -2909,11 +2909,11 @@ bool APP::FCmdTheaterOpen(PCommand pcmd)
 
     if (pvNil != _ptatr)
     {
-        Bug("You forgot to close the last TATR!");
+        Bug("You forgot to close the last Theater!");
         AssertPo(_ptatr, 0);
         return fTrue;
     }
-    _ptatr = TATR::PtatrNew(kidParent);
+    _ptatr = Theater::PtatrNew(kidParent);
     // Let the script know whether the open succeeded or failed
     vpcex->EnqueueCid(cidTheaterOpenCompleted, pvNil, pvNil, (pvNil != _ptatr));
 

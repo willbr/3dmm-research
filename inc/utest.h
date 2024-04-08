@@ -92,7 +92,7 @@ class APP : public APP_PAR
     bool _fOnscreenDrawing;
     PChunkyFile _pcfl;                   // resource file for app
     PStudio _pstdio;               // Current studio
-    PTATR _ptatr;                 // Current theater
+    PTheater _ptatr;                 // Current theater
     PChunkyResourceManager _pcrmAll;                // The app ChunkyResourceManager -- all crfs are loaded into this.
     PDynamicArray _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
     PDynamicArray _pglicrfStudio;           // List of crfs in _pcrmAll belonging to Studio.

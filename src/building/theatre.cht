@@ -572,7 +572,7 @@ OBJECT( "Movie Work Space",  kgobMovie, 400, kcrsArrow1 )
 
 	CHILD_SCRIPT("kgobMovie cidTheaterXCompleted Callback", kchidScript2)
 		If (_parm[2] == fFalse);	// Theater command failed.
-			// TATR will have already alerted the user. We just need to lose
+			// Theater will have already alerted the user. We just need to lose
 			// the movie object and put the theatre in a reasonable state.
 			DEBUGCMD(PrintStr("Warning: cidTheaterLoad or cidTheaterOpen failed!"));
 			DEBUGCMD(PrintStr("Enqueuing PortfolioClear"));
