@@ -3,7 +3,7 @@
 
 /***************************************************************************
 
-    mtrl.cpp: Material (Material_MTRL) and custom material (CMTL) classes
+    mtrl.cpp: Material (Material_MTRL) and custom material (CustomMaterial_CMTL) classes
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
@@ -13,7 +13,7 @@
 ASSERTNAME
 
 RTCLASS(Material_MTRL)
-RTCLASS(CMTL)
+RTCLASS(CustomMaterial_CMTL)
 
 // REVIEW *****: kiclrBaseDefault and kcclrDefault are palette-specific
 const byte kiclrBaseDefault = 15; // base index of default color
@@ -431,7 +431,7 @@ void Material_MTRL::MarkShadeTable(void)
 //
 //
 //
-//  CMTL (custom material) stuff begins here
+//  CustomMaterial_CMTL (custom material) stuff begins here
 //
 //
 //
@@ -439,7 +439,7 @@ void Material_MTRL::MarkShadeTable(void)
 /***************************************************************************
     Static function to see if the given chunk has MODL children
 ***************************************************************************/
-bool CMTL::FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -452,7 +452,7 @@ bool CMTL::FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     Static function to see if the two given CMTLs have the same child
     MODLs
 ***************************************************************************/
-bool CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2)
+bool CustomMaterial_CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2)
 {
     AssertPo(pcfl, 0);
 
@@ -477,13 +477,13 @@ bool CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2)
 /***************************************************************************
     Create a new custom material
 ***************************************************************************/
-PCMTL CMTL::PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl)
+PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl)
 {
     AssertPvCb(prgpmtrl, LwMul(cbprt, size(PMaterial_MTRL)));
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
     long imtrl;
 
-    pcmtl = NewObj CMTL;
+    pcmtl = NewObj CustomMaterial_CMTL;
     if (pvNil == pcmtl)
         return pvNil;
 
@@ -510,21 +510,21 @@ PCMTL CMTL::PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl)
 }
 
 /***************************************************************************
-    A PFNRPO to read CMTL objects.
+    A PFNRPO to read CustomMaterial_CMTL objects.
 ***************************************************************************/
-bool CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
 
-    *pcb = size(CMTL);
+    *pcb = size(CustomMaterial_CMTL);
     if (pvNil == ppbaco)
         return fTrue;
-    pcmtl = NewObj CMTL;
+    pcmtl = NewObj CustomMaterial_CMTL;
     if (pvNil == pcmtl || !pcmtl->_FInit(pcrf, ctg, cno))
     {
         ReleasePpo(&pcmtl);
@@ -539,9 +539,9 @@ bool CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 }
 
 /***************************************************************************
-    Read a CMTL from file
+    Read a CustomMaterial_CMTL from file
 ***************************************************************************/
-bool CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
@@ -604,9 +604,9 @@ bool CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 }
 
 /***************************************************************************
-    Free the CMTL
+    Free the CustomMaterial_CMTL
 ***************************************************************************/
-CMTL::~CMTL(void)
+CustomMaterial_CMTL::~CustomMaterial_CMTL(void)
 {
     AssertBaseThis(0);
 
@@ -630,7 +630,7 @@ CMTL::~CMTL(void)
 /***************************************************************************
     Return ibmtl'th BMTL
 ***************************************************************************/
-BMTL *CMTL::Pbmtl(long ibmtl)
+BMTL *CustomMaterial_CMTL::Pbmtl(long ibmtl)
 {
     AssertThis(0);
     AssertIn(ibmtl, 0, _cbprt);
@@ -641,7 +641,7 @@ BMTL *CMTL::Pbmtl(long ibmtl)
 /***************************************************************************
     Return imodl'th MODL
 ***************************************************************************/
-PMODL CMTL::Pmodl(long imodl)
+PMODL CustomMaterial_CMTL::Pmodl(long imodl)
 {
     AssertThis(0);
     AssertIn(imodl, 0, _cbprt);
@@ -651,9 +651,9 @@ PMODL CMTL::Pmodl(long imodl)
 }
 
 /***************************************************************************
-    Returns whether this CMTL has any models attached
+    Returns whether this CustomMaterial_CMTL has any models attached
 ***************************************************************************/
-bool CMTL::FHasModels(void)
+bool CustomMaterial_CMTL::FHasModels(void)
 {
     AssertThis(0);
 
@@ -669,9 +669,9 @@ bool CMTL::FHasModels(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the CMTL
+    Assert the validity of the CustomMaterial_CMTL
 ***************************************************************************/
-void CMTL::AssertValid(ulong grf)
+void CustomMaterial_CMTL::AssertValid(ulong grf)
 {
     long imtrl;
 
@@ -689,7 +689,7 @@ void CMTL::AssertValid(ulong grf)
 /***************************************************************************
     Mark memory used by the Material_MTRL
 ***************************************************************************/
-void CMTL::MarkMem(void)
+void CustomMaterial_CMTL::MarkMem(void)
 {
     AssertThis(0);
 

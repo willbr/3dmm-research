@@ -34,7 +34,7 @@ typedef struct _bmdb
     ChildChunkID chidBmdl;  // BMDL child ID
     ChunkNumber cnoBmdl;    // BMDL ChunkNumber
     char *pszName;  // name of the BMDL
-    PDynamicArray pglkidCmtl; // DynamicArray of CMTL parents' CNOs
+    PDynamicArray pglkidCmtl; // DynamicArray of CustomMaterial_CMTL parents' CNOs
     unsigned fFixWrap : 1, fSpherical : 1;
 } BMDB, *PBMDB;
 
@@ -72,13 +72,13 @@ typedef struct _crng
     long lwBase, lwRange;
 } CRNG;
 
-/* A CMTL descriptor */
+/* A CustomMaterial_CMTL descriptor */
 typedef struct _cmtld
 {
-    ChunkNumber cno;      // the CMTL's ChunkNumber
-    ChildChunkID chidCur; // the next ChildChunkID for the CMTL's children
+    ChunkNumber cno;      // the CustomMaterial_CMTL's ChunkNumber
+    ChildChunkID chidCur; // the next ChildChunkID for the CustomMaterial_CMTL's children
     short ibps;   // the body part set as specified in the .hrc file
-    ChildChunkID chid;    // the ChildChunkID of this CMTL
+    ChildChunkID chid;    // the ChildChunkID of this CustomMaterial_CMTL
 } CMTLD, *PCMTLD;
 
 /* A TextureMap descriptor */

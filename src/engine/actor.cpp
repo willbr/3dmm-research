@@ -1087,7 +1087,7 @@ bool Actor::_FDoAevCore(long iaev)
         _pggaev->Get(iaev, &aevcost);
         if (aevcost.fCmtl)
         {
-            PCMTL pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid);
+            PCustomMaterial_CMTL pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid);
             if (pvNil == pcmtl)
                 return fFalse;
             _pbody->SetPartSetCmtl(pcmtl);
@@ -2203,11 +2203,11 @@ bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCm
     AssertVarMem(ptag);
 
     Costume aevcost;
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
     long ibsetApply;
 
-    // For custom materials, the ibset is a property of the CMTL itself,
-    // so read it from the CMTL rather than using the clicked ibset.
+    // For custom materials, the ibset is a property of the CustomMaterial_CMTL itself,
+    // so read it from the CustomMaterial_CMTL rather than using the clicked ibset.
     if (fCmtl)
     {
         pcmtl = _ptmpl->PcmtlFetch(cmid);
@@ -3278,9 +3278,9 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
     bool fMtrl;
     bool fCmtl;
     Material_MTRL *pmtrlCmp;
-    CMTL *pcmtlCmp;
+    CustomMaterial_CMTL *pcmtlCmp;
     Material_MTRL *pmtrl = pvNil;
-    CMTL *pcmtl = pvNil;
+    CustomMaterial_CMTL *pcmtl = pvNil;
     bool fReplacePrev = fTrue;
 
     // Locate the most current costume for this body part

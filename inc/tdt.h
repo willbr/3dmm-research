@@ -107,7 +107,7 @@ class TDT : public TDT_PAR
     bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
     bool FAdjustBody(PBODY pbody);
     virtual bool FSetDefaultCost(PBODY pbody);
-    virtual PCMTL PcmtlFetch(long cmid);
+    virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
     virtual bool FGetActnName(long anid, PString pstn);
 };
 

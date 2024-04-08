@@ -204,7 +204,7 @@ class TMPL : public TMPL_PAR
 
     // Costume stuff
     virtual bool FSetDefaultCost(PBODY pbody); // applies default costume
-    virtual PCMTL PcmtlFetch(long cmid);
+    virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
     long CcmidOfBset(long ibset);
     long CmidOfBset(long ibset, long icmid);
     bool FBsetIsAccessory(long ibset); // whether ibset holds accessories

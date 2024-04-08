@@ -700,7 +700,7 @@ bool TDT::FSetDefaultCost(PBODY pbody)
 /***************************************************************************
     Get a custom material
 ***************************************************************************/
-PCMTL TDT::PcmtlFetch(long cmid)
+PCustomMaterial_CMTL TDT::PcmtlFetch(long cmid)
 {
     AssertThis(0);
     AssertIn(cmid, 0, _ccmid);

@@ -36,7 +36,7 @@ class BODY : public BODY_PAR
     BACT *_prgbact;      // array of BACTs
     PDynamicArray _pglibset;       // body part set IDs
     long _cbset;         // count of body part sets
-    PCMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
+    PCustomMaterial_CMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
     long _cbactPart;     // count of model body parts in body
     long _cactHidden;    // for Show() / Hide()
     PWorld _pbwld;        // world that body lives in
@@ -108,8 +108,8 @@ class BODY : public BODY_PAR
     void SetPartModel(long ibact, MODL *pmodl);
     void SetPartMatrix(long ibact, BMAT34 *pbmat34);
     void SetPartSetMtrl(long ibset, Material_MTRL *pmtrl);
-    void SetPartSetCmtl(CMTL *pcmtl);
-    void GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CMTL **ppcmtl);
+    void SetPartSetCmtl(CustomMaterial_CMTL *pcmtl);
+    void GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);
     long Cbset()
     {
         return _cbset;

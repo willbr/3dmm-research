@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     BASE ---> BaseCacheableObject ---> Material_MTRL
-    BASE ---> BaseCacheableObject ---> CMTL
+    BASE ---> BaseCacheableObject ---> CustomMaterial_CMTL
 
 *************************************************************************/
 #ifndef MTRL_H
@@ -17,12 +17,12 @@
 
 using namespace BRender;
 
-// CMTL on File
+// CustomMaterial_CMTL on File
 struct CMTLF
 {
     short bo;
     short osk;
-    long ibset; // which body part set this CMTL attaches to
+    long ibset; // which body part set this CustomMaterial_CMTL attaches to
 };
 const ByteOrderMask kbomCmtlf = 0x5c000000;
 
@@ -88,37 +88,37 @@ class Material_MTRL : public Material_MTRL_PAR
 };
 
 /****************************************
-    The CMTL (custom material) class
+    The CustomMaterial_CMTL (custom material) class
     This manages a set of materials to
     apply to a body part set
 ****************************************/
-typedef class CMTL *PCMTL;
-#define CMTL_PAR BaseCacheableObject
-#define kclsCMTL 'CMTL'
-class CMTL : public CMTL_PAR
+typedef class CustomMaterial_CMTL *PCustomMaterial_CMTL;
+#define CustomMaterial_CMTL_PAR BaseCacheableObject
+#define kclsCustomMaterial_CMTL 'CMTL'
+class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PMaterial_MTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CMTL's set
-    PMODL *_prgpmodl; // _cbprt PMODLs, one per body part in this CMTL's set
-    long _cbprt;      // count of body parts in this CMTL
-    long _ibset;      // body part set that this CMTL should be applied to
+    PMaterial_MTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CustomMaterial_CMTL's set
+    PMODL *_prgpmodl; // _cbprt PMODLs, one per body part in this CustomMaterial_CMTL's set
+    long _cbprt;      // count of body parts in this CustomMaterial_CMTL
+    long _ibset;      // body part set that this CustomMaterial_CMTL should be applied to
 
   protected:
     bool _FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
-    CMTL(void)
+    CustomMaterial_CMTL(void)
     {
     } // can't instantiate directly; must use PcmtlRead
 
   public:
-    static PCMTL PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl);
+    static PCustomMaterial_CMTL PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl);
     static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static bool FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
-    ~CMTL(void);
+    ~CustomMaterial_CMTL(void);
     PBMTL Pbmtl(long ibmtl);
     PMODL Pmodl(long imodl);
     long Ibset(void)

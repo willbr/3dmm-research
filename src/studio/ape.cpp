@@ -567,7 +567,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
     AssertIn(ibset, 0, _pbody->Cbset());
 
     PMaterial_MTRL pmtrl;
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
 
     if (pgms->fMtrl)
     {
@@ -589,7 +589,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
 }
 
 /***************************************************************************
-    Fill in pgms with the next CMTL available for ibset and applies it
+    Fill in pgms with the next CustomMaterial_CMTL available for ibset and applies it
     to _pbody.
 ***************************************************************************/
 bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool fNextAccessory)
@@ -602,8 +602,8 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
     long cmidNext;
     long icmid;
     long ccmid;
-    PCMTL pcmtl;
-    PCMTL pcmtlOld;
+    PCustomMaterial_CMTL pcmtl;
+    PCustomMaterial_CMTL pcmtlOld;
     PMaterial_MTRL pmtrlOld;
     bool fMtrl;
 
@@ -778,7 +778,7 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
     AssertVarMem(pcno);
 
     PMaterial_MTRL pmtrl;
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
     bool fMtrl;
 
     _pbody->GetPartSetMaterial(0, &fMtrl, &pmtrl, &pcmtl);

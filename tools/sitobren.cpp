@@ -2881,7 +2881,7 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
     CMTLD cmtld;
     long icmtld, icmtldMac, iibps, iibpsMac;
 
-    /* Find the appropriate CMTL */
+    /* Find the appropriate CustomMaterial_CMTL */
     if (fDoMtrl)
     {
         /* We may be only making costumes for a subset of the body part sets */
@@ -2928,7 +2928,7 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
         {
             long ccmid;
 
-            /* Create the CMTL chunk if necessary */
+            /* Create the CustomMaterial_CMTL chunk if necessary */
             if (icmtld == icmtldMac)
             {
                 long icmtldT;
@@ -2966,7 +2966,7 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
                     ccmid++;
                     _pggcm->PutFixed(ibps, &ccmid);
 
-                    /* Write a nice CMTL chunk */
+                    /* Write a nice CustomMaterial_CMTL chunk */
                     cmtlf.bo = kboCur;
                     cmtlf.osk = koskCur;
                     cmtlf.ibset = ibps;
@@ -3703,7 +3703,7 @@ void S2B::_FlushTmplKids(void)
             /* Don't need this any more */
             ReleasePpo(&_pglibactPar);
 
-            /* Do material stuff if we have the CMTL DynamicArray and there's valid
+            /* Do material stuff if we have the CustomMaterial_CMTL DynamicArray and there's valid
                 color info */
             if (_pggcm != pvNil && _pglclr != pvNil)
             {

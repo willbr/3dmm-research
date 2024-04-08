@@ -18,7 +18,7 @@
      |
      +--GGCM (chid 0) - custom costumes per body part set (GeneralGroup of cmids)
      |
-     +--CMTL* (chid <cmid>) - custom material...see mtrl.h
+     +--CustomMaterial_CMTL* (chid <cmid>) - custom material...see mtrl.h
      |   |
      |   +--Material_MTRL*
      |       |
@@ -503,7 +503,7 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 // REVIEW *****: temp code until Pete converts our TMPL content
 LBuildGgcm:
     long ikid;
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
     PChunkyResourceFile pcrf;
     long rgcmid[50];
     long ccmid;
@@ -529,7 +529,7 @@ LBuildGgcm:
         {
             if (kid.cki.ctg != kctgCmtl)
                 continue;
-            pcmtl = (PCMTL)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, CMTL::FReadCmtl);
+            pcmtl = (PCustomMaterial_CMTL)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, CustomMaterial_CMTL::FReadCmtl);
             if (pvNil == pcmtl)
             {
                 ReleasePpo(&pcrf);
@@ -845,10 +845,10 @@ bool TMPL::FSetDefaultCost(BODY *pbody)
 
     long ibset;
     long cmid;
-    PCMTL *prgpcmtl;
+    PCustomMaterial_CMTL *prgpcmtl;
     bool fRet = fFalse;
 
-    if (!FAllocPv((void **)&prgpcmtl, LwMul(_cbset, size(PCMTL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&prgpcmtl, LwMul(_cbset, size(PCustomMaterial_CMTL)), fmemClear, mprNormal))
     {
         goto LEnd;
     }
@@ -920,7 +920,7 @@ bool TMPL::FBsetIsAccessory(long ibset)
         return fFalse;
     }
 
-    return CMTL::FHasModels(Pcrf()->Pcfl(), kid.cki.ctg, kid.cki.cno);
+    return CustomMaterial_CMTL::FHasModels(Pcrf()->Pcfl(), kid.cki.ctg, kid.cki.cno);
 }
 
 /***************************************************************************
@@ -989,25 +989,25 @@ bool TMPL::FSameAccCmids(long cmid1, long cmid2)
     {
         return fFalse; // safer to assume they're different
     }
-    return CMTL::FEqualModels(Pcrf()->Pcfl(), kid1.cki.cno, kid2.cki.cno);
+    return CustomMaterial_CMTL::FEqualModels(Pcrf()->Pcfl(), kid1.cki.cno, kid2.cki.cno);
 }
 
 /***************************************************************************
     Get a custom material.  The cmid is really the chid under the TMPL.
 ***************************************************************************/
-PCMTL TMPL::PcmtlFetch(long cmid)
+PCustomMaterial_CMTL TMPL::PcmtlFetch(long cmid)
 {
     AssertThis(0);
     AssertIn(cmid, 0, _ccmid);
 
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
     ChildChunkIdentification kid;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid, kctgCmtl, &kid))
     {
         return pvNil;
     }
-    pcmtl = (PCMTL)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, CMTL::FReadCmtl);
+    pcmtl = (PCustomMaterial_CMTL)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, CustomMaterial_CMTL::FReadCmtl);
     AssertNilOrPo(pcmtl, 0);
     return pcmtl;
 }

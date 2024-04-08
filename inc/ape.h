@@ -18,9 +18,9 @@
 enum
 {
     aptNil = 0,
-    aptIncCmtl,      // Increment CMTL
+    aptIncCmtl,      // Increment CustomMaterial_CMTL
     aptIncAccessory, // Increment Accessory
-    aptGms,          // Material (Material_MTRL or CMTL)
+    aptGms,          // Material (Material_MTRL or CustomMaterial_CMTL)
     aptLim
 };
 
