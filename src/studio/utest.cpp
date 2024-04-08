@@ -12,7 +12,7 @@
     actions such as resolution-switching, switching between the building
     and the studio, and quitting.
 
-    The KWA (App KidWorld) is the parent of the gob tree in the product.
+    The KidWorld (App KidWorld) is the parent of the gob tree in the product.
     It also is used to display a splash screen, and to find AVIs on the CD.
 
 ***************************************************************************/
@@ -73,7 +73,7 @@ APP vapp;
 PTagManager vptagm;
 
 RTCLASS(APP)
-RTCLASS(KWA)
+RTCLASS(KidWorld)
 
 /***************************************************************************
     Entry point for a Kauai-based app.
@@ -1726,7 +1726,7 @@ bool APP::_FReadStringTables(void)
 }
 
 /***************************************************************************
-    Initialize KWA (app kidworld)
+    Initialize KidWorld (app kidworld)
 ***************************************************************************/
 bool APP::_FInitKidworld(void)
 {
@@ -1735,7 +1735,7 @@ bool APP::_FInitKidworld(void)
     RC rcRel(0, 0, krelOne, krelOne);
     GraphicsObjectBlock gcb(CommandHandler::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
 
-    _pkwa = NewObj KWA(&gcb);
+    _pkwa = NewObj KidWorld(&gcb);
     if (pvNil == _pkwa)
         return fFalse;
 
@@ -4610,23 +4610,23 @@ void APP::MarkMem(void)
 //
 //
 //
-//  KWA (KidWorld for App) stuff begins here
+//  KidWorld (KidWorld for App) stuff begins here
 //
 //
 //
 
 /***************************************************************************
-    KWA destructor
+    KidWorld destructor
 ***************************************************************************/
-KWA::~KWA(void)
+KidWorld::~KidWorld(void)
 {
     ReleasePpo(&_pmbmp);
 }
 
 /***************************************************************************
-    Set the KWA's MaskedBitmapMBMP (for splash screen)
+    Set the KidWorld's MaskedBitmapMBMP (for splash screen)
 ***************************************************************************/
-void KWA::SetMbmp(PMaskedBitmapMBMP pmbmp)
+void KidWorld::SetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertThis(0);
     AssertNilOrPo(pmbmp, 0);
@@ -4642,9 +4642,9 @@ void KWA::SetMbmp(PMaskedBitmapMBMP pmbmp)
 }
 
 /***************************************************************************
-    Draw the KWA's MaskedBitmapMBMP, if any (for splash screen)
+    Draw the KidWorld's MaskedBitmapMBMP, if any (for splash screen)
 ***************************************************************************/
-void KWA::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void KidWorld::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -4657,7 +4657,7 @@ void KWA::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool KWA::FFindFile(PString pstnSrc, PFilename pfni)
+bool KidWorld::FFindFile(PString pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -4669,7 +4669,7 @@ bool KWA::FFindFile(PString pstnSrc, PFilename pfni)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool KWA::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
+bool KidWorld::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -4683,10 +4683,10 @@ bool KWA::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
     // Now take the default action.
 #ifdef BUG1085
     vapp.PushCurs();
-    fRet = KWA_PAR::FModalTopic(prca, cnoTopic, plwRet);
+    fRet = KidWorld_PAR::FModalTopic(prca, cnoTopic, plwRet);
     vapp.PopCurs();
 #else
-    fRet = KWA_PAR::FModalTopic(prca, cnoTopic, plwRet);
+    fRet = KidWorld_PAR::FModalTopic(prca, cnoTopic, plwRet);
 #endif // !BUG1085
 
     // Let script know that the modal topic has been dismissed.
@@ -4698,21 +4698,21 @@ bool KWA::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the KWA
+    Assert the validity of the KidWorld
 ***************************************************************************/
-void KWA::AssertValid(ulong grf)
+void KidWorld::AssertValid(ulong grf)
 {
-    KWA_PAR::AssertValid(0);
+    KidWorld_PAR::AssertValid(0);
     AssertNilOrPo(_pmbmp, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the KWA
+    Mark memory used by the KidWorld
 ***************************************************************************/
-void KWA::MarkMem(void)
+void KidWorld::MarkMem(void)
 {
     AssertThis(0);
-    KWA_PAR::MarkMem();
+    KidWorld_PAR::MarkMem();
     MarkMemObj(_pmbmp);
 }
 #endif // DEBUG

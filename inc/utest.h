@@ -15,25 +15,25 @@
 /****************************************
     KidWorld for the App class
 ****************************************/
-typedef class KWA *PKWA;
-#define KWA_PAR WorldOfKidspace
-#define kclsKWA 'KWA'
-class KWA : public KWA_PAR
+typedef class KidWorld *PKidWorld;
+#define KidWorld_PAR WorldOfKidspace
+#define kclsKidWorld 'KWA'
+class KidWorld : public KidWorld_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PMaskedBitmapMBMP _pmbmp; // MaskedBitmapMBMP to draw in KWA (may be pvNil)
+    PMaskedBitmapMBMP _pmbmp; // MaskedBitmapMBMP to draw in KidWorld (may be pvNil)
     bool _fAskForCD;
 
   public:
-    KWA(GraphicsObjectBlock *pgcb) : WorldOfKidspace(pgcb)
+    KidWorld(GraphicsObjectBlock *pgcb) : WorldOfKidspace(pgcb)
     {
         _fAskForCD = fTrue;
     }
-    ~KWA(void);
+    ~KidWorld(void);
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FFindFile(PString pstnSrc, PFilename pfni); // for finding AVIs
     virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
@@ -106,7 +106,7 @@ class APP : public APP_PAR
     PCommandExecutionManager _pcex;            // Pointer to suspended cex.
     Filename _fniPortfolioDoc;  // document last opened in portfolio
     PMovie _pmvieHandoff;   // Stores movie for studio to use
-    PKWA _pkwa;            // Kidworld for App
+    PKidWorld _pkwa;            // Kidworld for App
     PStringTable _pgstBuildingFiles;
     PStringTable _pgstStudioFiles;
     PStringTable _pgstSharedFiles;
@@ -272,7 +272,7 @@ class APP : public APP_PAR
     {
         return _pstdio;
     }
-    PKWA Pkwa(void)
+    PKidWorld Pkwa(void)
     {
         return _pkwa;
     }
