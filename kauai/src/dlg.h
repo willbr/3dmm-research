@@ -44,10 +44,10 @@ struct DialogItem
     long ditk;   // kind of item
 };
 
-typedef class Dialog *PDLG;
+typedef class Dialog *PDialog;
 
 // callback to notify of an item change (while the dialog is active)
-typedef bool (*PFNDLG)(PDLG pdlg, long *pidit, void *pv);
+typedef bool (*PFNDLG)(PDialog pdlg, long *pidit, void *pv);
 
 // dialog class - a Dialog is a GeneralGroup of DITs
 #define Dialog_PAR GeneralGroup
@@ -81,7 +81,7 @@ class Dialog : public Dialog_PAR
     void _ClearList(long idit);
 
   public:
-    static PDLG PdlgNew(long rid, PFNDLG pfn = pvNil, void *pv = pvNil);
+    static PDialog PdlgNew(long rid, PFNDLG pfn = pvNil, void *pv = pvNil);
 
     long IditDo(long iditFocus = ivNil);
 

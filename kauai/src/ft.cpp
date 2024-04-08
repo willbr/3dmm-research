@@ -842,7 +842,7 @@ bool FrameTesterApp::FCmdNewTestWnd(PCommand pcmd)
     if (pcmd->pgg == pvNil)
     {
         // put up the dialog
-        PDLG pdlg;
+        PDialog pdlg;
 
         pdlg = Dialog::PdlgNew(200);
         pcmd->pgg = pdlg;
@@ -1096,7 +1096,7 @@ bool FrameTesterApp::FCmdTestFni(PCommand pcmd)
     long idit;
     String stn, stnT;
     Filename fni;
-    PDLG pdlg;
+    PDialog pdlg;
 
     // put up the dialog
     pdlg = Dialog::PdlgNew(201);

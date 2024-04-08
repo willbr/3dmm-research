@@ -50,8 +50,8 @@ BEGIN_CMD_MAP(TSCG, GraphicsObject)
 ON_CID_GEN(cidClose, &GraphicsObject::FCmdCloseWnd, pvNil)
 END_CMD_MAP_NIL()
 
-bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg);
-void _PutCtgStn(PDLG pdlg, long idit, ChunkTag ctg);
+bool _FGetCtg(PDialog pdlg, long idit, ChunkTag *pctg);
+void _PutCtgStn(PDialog pdlg, long idit, ChunkTag ctg);
 
 RTCLASS(DOC)
 RTCLASS(DOCE)
@@ -81,12 +81,12 @@ struct ADCD
     ChunkIdentification cki;
 };
 
-bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgAddChunk(PDialog pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for Add Chunk dialog. pv should be a padcd.
 ***************************************************************************/
-bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgAddChunk(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -370,7 +370,7 @@ bool DOCE::FSave(long cid)
     ChunkTag ctg;
     ChunkNumber cno;
     bool fCreated = fFalse;
-    PDLG pdlg = pvNil;
+    PDialog pdlg = pvNil;
 
     switch (cid)
     {
@@ -1331,7 +1331,7 @@ bool DCD::_FAddChunk(ChunkTag ctgDef, ChunkIdentification *pcki, bool *pfCreated
     long idit;
     long lw;
     bool fEmpty;
-    PDLG pdlg;
+    PDialog pdlg;
     ADCD adcd;
     String stn;
 
@@ -1482,12 +1482,12 @@ enum
     kiditDefaultMbmp,
     kiditLimMbmp
 };
-bool _FDlgMbmp(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgMbmp(PDialog pdlg, long *pidit, void *pv);
 
 /****************************************************************************
     Dialog proc for input of transparent pixel value and reference point
 ****************************************************************************/
-bool _FDlgMbmp(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgMbmp(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -1547,7 +1547,7 @@ bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
     bool fMask = pcmd->cid != cidAddMbmpChunk;
     PBaseCacheableObject pbaco = pvNil;
     ChunkTag ctg;
-    PDLG pdlg = pvNil;
+    PDialog pdlg = pvNil;
 
     // save and clear the sel
     lnOld = _sel.Ln();
@@ -1678,13 +1678,13 @@ struct CLAN
     PChunkyFile pcfl;
 };
 
-bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgEditChunkInfo(PDialog pdlg, long *pidit, void *pv);
 
 /**************************************************************************
     Dialog proc for Edit Chunk Info dialog. *pv should be a CLAN *, with
     the cki and pcfl fields filled in (the kid field is not used).
 **************************************************************************/
-bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgEditChunkInfo(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -1742,7 +1742,7 @@ bool DCD::_FEditChunkInfo(ChunkIdentification *pckiOld)
     AssertVarMem(pckiOld);
     long idit;
     long lw;
-    PDLG pdlg;
+    PDialog pdlg;
     String stn;
     CLAN clan;
     ChunkIdentification cki;
@@ -1860,12 +1860,12 @@ enum
     kiditLimChid
 };
 
-bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgChangeChid(PDialog pdlg, long *pidit, void *pv);
 
 /**************************************************************************
     Dialog proc for Change ChildChunkID dialog.
 **************************************************************************/
-bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgChangeChid(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -1923,7 +1923,7 @@ bool DCD::_FChangeChid(ChunkIdentification *pcki, ChildChunkIdentification *pkid
     AssertVarMem(pkid);
     long idit;
     ChildChunkID chid;
-    PDLG pdlg;
+    PDialog pdlg;
     long lw;
     CLAN clan;
 
@@ -2007,12 +2007,12 @@ enum
     kiditChidAdopt,
     kiditLimAdopt
 };
-bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgAdoptChunk(PDialog pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for Adopt Chunk dialog.
 ***************************************************************************/
-bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgAdoptChunk(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -2128,7 +2128,7 @@ bool DCD::_FDoAdoptChunkDlg(ChunkIdentification *pcki, ChildChunkIdentification 
     long lnOld;
     long lw1, lw2, lw3;
     bool fEmptyChid;
-    PDLG pdlg = pvNil;
+    PDialog pdlg = pvNil;
 
     // put up the dialog
     pdlg = Dialog::PdlgNew(dlidAdoptChunk, _FDlgAdoptChunk, _pcfl);
@@ -2199,7 +2199,7 @@ bool DCD::FCmdAdoptChunk(PCommand pcmd)
     AssertVarMem(pcmd);
     ChunkIdentification cki;
     ChunkIdentification *pcki;
-    PDLG pdlg = pvNil;
+    PDialog pdlg = pvNil;
 
     if (fselCki & _sel.GrfselGetCkiKid(&cki, pvNil))
         pcki = &cki;
@@ -2488,7 +2488,7 @@ bool DCD::FCmdTestScript(PCommand pcmd)
     if (pcmd->cid == cidRunScriptCache)
     {
         // get the cache size from the user
-        PDLG pdlg;
+        PDialog pdlg;
 
         // get the cache size
         pdlg = Dialog::PdlgNew(dlidScriptCache);
@@ -2778,7 +2778,7 @@ bool DCD::FCmdFilterChunk(PCommand pcmd)
     AssertVarMem(pcmd);
     String stn;
     String stnT;
-    PDLG pdlg;
+    PDialog pdlg;
     ulong grfsel;
     ChunkIdentification cki;
     ChildChunkIdentification kid;
@@ -2936,7 +2936,7 @@ bool FGetCtgFromStn(ChunkTag *pctg, PString pstn)
     Pads with spaces. Fails if the text in the edit item is longer
     than 4 characters or empty.
 ***************************************************************************/
-bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg)
+bool _FGetCtg(PDialog pdlg, long idit, ChunkTag *pctg)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pctg);
@@ -2949,7 +2949,7 @@ bool _FGetCtg(PDLG pdlg, long idit, ChunkTag *pctg)
 /***************************************************************************
     Put the ctg into the indicated edit item.
 ***************************************************************************/
-void _PutCtgStn(PDLG pdlg, long idit, ChunkTag ctg)
+void _PutCtgStn(PDialog pdlg, long idit, ChunkTag ctg)
 {
     AssertPo(pdlg, 0);
     String stn;
