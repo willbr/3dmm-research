@@ -280,7 +280,7 @@ class ApplicationBase : public ApplicationBase_PAR
 
     // cursor stuff
     virtual void SetCurs(PCURS pcurs, bool fLongOp = fFalse);
-    virtual void SetCursCno(PRCA prca, ChunkNumber cno, bool fLongOp = fFalse);
+    virtual void SetCursCno(PResourceCache prca, ChunkNumber cno, bool fLongOp = fFalse);
     virtual void RefreshCurs(void);
     virtual ulong GrfcustCur(bool fAsynch = fFalse);
     virtual void ModifyGrfcust(ulong grfcustOr, ulong grfcustXor);

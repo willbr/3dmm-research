@@ -45,14 +45,14 @@ class ESL : public ESL_PAR
     ESL(PGCB pgcb) : KidspaceGraphicObject(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel);
+    bool _FInit(PResourceCache prca, long kidEasel);
     virtual bool _FAcceptChanges(bool *pfDismissEasel)
     {
         return fTrue;
     }
 
   public:
-    static PESL PeslNew(PRCA prca, long kidParent, long hidEasel);
+    static PESL PeslNew(PResourceCache prca, long kidParent, long hidEasel);
     ~ESL(void);
 
     bool FCmdDismiss(PCommand pcmd); // Handles both OK and Cancel
@@ -104,7 +104,7 @@ class ESLT : public ESLT_PAR
     PActor _pactr; // Actor of this TDT, or pvNil for new TDT
     PActorPreviewEntity _pape;   // Actor Preview Entity
     PSNE _psne;   // Spletter Name Editor
-    PRCA _prca;   // Resource source for cursors
+    PResourceCache _prca;   // Resource source for cursors
     PSFL _psflMtrl;
     PBCL _pbclMtrl;
     PSFL _psflTdf;
@@ -115,11 +115,11 @@ class ESLT : public ESLT_PAR
     ESLT(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew);
+    bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLT PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PString pstnNew = pvNil, long tdtsNew = tdtsNil,
+    static PESLT PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew = pvNil, long tdtsNew = tdtsNil,
                           PTAG ptagTdfNew = pvNil);
     ~ESLT(void);
 
@@ -156,11 +156,11 @@ class ESLA : public ESLA_PAR
     ESLA(PGCB pgcb) : ESL(pgcb)
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr);
+    bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLA PeslaNew(PRCA prca, PMovie pmvie, PActor pactr);
+    static PESLA PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr);
     ~ESLA(void);
 
     bool FCmdRotate(PCommand pcmd);
@@ -237,11 +237,11 @@ class ESLL : public ESLL_PAR
     {
     }
 
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr);
+    bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLL PesllNew(PRCA prca, PMovie pmvie, PActor pactr);
+    static PESLL PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr);
     ~ESLL(void);
 
     bool FCmdVlm(PCommand pcmd);
@@ -275,12 +275,12 @@ class ESLR : public ESLR_PAR
     ESLR(PGCB pgcb) : ESL(pgcb), _clok(HidUnique())
     {
     }
-    bool _FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew);
+    bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
     void _UpdateMeter(void);
 
   public:
-    static PESLR PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PString pstnNew);
+    static PESLR PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew);
     ~ESLR(void);
 
     bool FCmdRecord(PCommand pcmd);

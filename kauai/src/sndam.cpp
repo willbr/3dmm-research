@@ -523,7 +523,7 @@ void AMQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as a CAMS.
 ***************************************************************************/
-PBaseCacheableObject AMQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno)
+PBaseCacheableObject AMQUE::_PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

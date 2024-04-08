@@ -81,7 +81,7 @@ HEDO::~HEDO(void)
     Use pfni == pvNil to create a new file, non-nil to open an
     existing file.
 ***************************************************************************/
-PHEDO HEDO::PhedoNew(Filename *pfni, PRCA prca)
+PHEDO HEDO::PhedoNew(Filename *pfni, PResourceCache prca)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertPo(prca, 0);
@@ -1677,7 +1677,7 @@ PHETD HETD::PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno)
 /***************************************************************************
     Constructor for a help topic document.
 ***************************************************************************/
-HETD::HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno) : TextDocument(prca, pdocb)
+HETD::HETD(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno) : TextDocument(prca, pdocb)
 {
     AssertNilOrPo(pcfl, 0);
     _pcfl = pcfl;
@@ -1697,7 +1697,7 @@ HETD::~HETD(void)
     (pcfl, cno) and using the given prca as the source for pictures
     and buttons.
 ***************************************************************************/
-PHETD HETD::PhetdNew(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno)
+PHETD HETD::PhetdNew(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertNilOrPo(pdocb, 0);
     AssertPo(prca, 0);

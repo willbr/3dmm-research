@@ -3622,7 +3622,7 @@ void APP::_CleanUp(void)
 /***************************************************************************
     Put up a modal help balloon
 ***************************************************************************/
-tribool APP::TModal(PRCA prca, long tpc, PString pstnBackup, long bkBackup, long stidSubst, PString pstnSubst)
+tribool APP::TModal(PResourceCache prca, long tpc, PString pstnBackup, long bkBackup, long stidSubst, PString pstnSubst)
 {
     AssertThis(0);
     AssertNilOrPo(prca, 0);
@@ -4669,7 +4669,7 @@ bool KidWorld::FFindFile(PString pstnSrc, PFilename pfni)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool KidWorld::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
+bool KidWorld::FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);

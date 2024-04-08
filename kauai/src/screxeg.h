@@ -56,7 +56,7 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     bool _FLaunch(long stid);
 
   public:
-    GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob);
+    GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PResourceCache prca, PGraphicsObject pgob);
 
     void GobMayDie(void)
     {

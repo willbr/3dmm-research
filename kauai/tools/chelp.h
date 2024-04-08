@@ -212,19 +212,19 @@ class HEDO : public HEDO_PAR
 
   protected:
     PChunkyFile _pcfl; // the chunky file
-    PRCA _prca; // the resources
+    PResourceCache _prca; // the resources
 
     HEDO(void);
     ~HEDO(void);
 
   public:
-    static PHEDO PhedoNew(Filename *pfni, PRCA prca);
+    static PHEDO PhedoNew(Filename *pfni, PResourceCache prca);
 
     PChunkyFile Pcfl(void)
     {
         return _pcfl;
     }
-    PRCA Prca(void)
+    PResourceCache Prca(void)
     {
         return _prca;
     }
@@ -371,13 +371,13 @@ class HETD : public HETD_PAR
     PStringTable _pgst;   // string versions of stuff in Topic
     String _stnDesc; // description
 
-    HETD(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno);
+    HETD(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno);
     ~HETD(void);
 
     virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
 
   public:
-    static PHETD PhetdNew(PDocumentBase pdocb, PRCA prca, PChunkyFile pcfl, ChunkNumber cno);
+    static PHETD PhetdNew(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno);
     static PHETD PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno);
     static void CloseDeletedHetd(PDocumentBase pdocb);
 

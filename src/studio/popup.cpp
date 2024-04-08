@@ -24,7 +24,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new popup menu
 ***************************************************************************/
-PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCommand pcmd, BWS bws, long ithumSelect, long sidSelect,
+PMP MP::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BWS bws, long ithumSelect, long sidSelect,
                ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);
@@ -210,7 +210,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new font menu
 ***************************************************************************/
-PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable pgst)
+PMPFNT MPFNT::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable pgst)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);

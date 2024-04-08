@@ -139,10 +139,10 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     }
 
     virtual bool FGobIn(PGraphicsObject pgob);
-    virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca);
-    virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca);
-    virtual PGraphicsObjectInterpreter PscegNew(PRCA prca, PGraphicsObject pgob);
-    virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);
+    virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTag ctg, ChunkNumber cno, PResourceCache prca);
+    virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca);
+    virtual PGraphicsObjectInterpreter PscegNew(PResourceCache prca, PGraphicsObject pgob);
+    virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);
     virtual PCommandHandler PcmhFromHid(long hid);
     virtual PGraphicsObject PgobParGob(PGraphicsObject pgob);
     virtual bool FFindFile(PString pstnSrc, PFilename pfni);
@@ -153,7 +153,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     virtual void ModifyGrfcust(ulong grfcustOr, ulong grfcustXor);
     virtual ulong GrfcustAdjust(ulong grfcust);
 
-    virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
+    virtual bool FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet);
     virtual PClock PclokAnim(void)
     {
         return &_clokAnim;

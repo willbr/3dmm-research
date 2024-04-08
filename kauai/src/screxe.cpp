@@ -28,7 +28,7 @@ static String _stn;
 /***************************************************************************
     Constructor for the script interpreter.
 ***************************************************************************/
-Interpreter::Interpreter(PRCA prca, PStringRegistry pstrg)
+Interpreter::Interpreter(PResourceCache prca, PStringRegistry pstrg)
 {
     AssertNilOrPo(prca, 0);
     AssertNilOrPo(pstrg, 0);

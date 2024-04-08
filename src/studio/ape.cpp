@@ -37,7 +37,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new ActorPreviewEntity
 ***************************************************************************/
-PActorPreviewEntity ActorPreviewEntity::PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca)
+PActorPreviewEntity ActorPreviewEntity::PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca)
 {
     AssertVarMem(pgcb);
     AssertPo(ptmpl, 0);
@@ -60,7 +60,7 @@ PActorPreviewEntity ActorPreviewEntity::PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pc
 /***************************************************************************
     Set up the ActorPreviewEntity
 ***************************************************************************/
-bool ActorPreviewEntity::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca)
+bool ActorPreviewEntity::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(ptmpl, 0);

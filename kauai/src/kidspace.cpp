@@ -34,9 +34,9 @@ const long kcmhlGok = -10000;
 
 /***************************************************************************
     Create a new kidspace gob as described in the KidspaceGraphicObjectDescriptor with given cno
-    in the given RCA.
+    in the given ResourceCache.
 ***************************************************************************/
-PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca)
+PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca)
 {
     AssertPo(pgobPar, 0);
     AssertPo(pgokd, 0);
@@ -133,7 +133,7 @@ KidspaceGraphicObject::~KidspaceGraphicObject(void)
 /***************************************************************************
     Initialize this KidspaceGraphicObject given the cno for the gokd.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -153,7 +153,7 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA
 /***************************************************************************
     Initialize this KidspaceGraphicObject.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -1951,7 +1951,7 @@ void GORP::Resume(void)
 
 /***************************************************************************
     The streaming property is being set or reset. If streaming is set, we
-    should flush our stuff from the RCA cache when we're done with it.
+    should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
 void GORP::Stream(bool fStream)
 {
@@ -2204,7 +2204,7 @@ void GORB::GetRcContent(RC *prc)
 
 /***************************************************************************
     The streaming property is being set or reset. If streaming is set, we
-    should flush our stuff from the RCA cache when we're done with it.
+    should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
 void GORB::Stream(bool fStream)
 {
@@ -2604,7 +2604,7 @@ void GORT::GetRcContent(RC *prc)
 
 /***************************************************************************
     The streaming property is being set or reset. If streaming is set, we
-    should flush our stuff from the RCA cache when we're done with it.
+    should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
 void GORT::Stream(bool fStream)
 {

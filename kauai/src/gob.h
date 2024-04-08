@@ -271,7 +271,7 @@ class GraphicsObject : public GraphicsObject_PAR
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual long ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpLim, long zpMinActive, long zpLimActive);
     void SetCurs(PCURS pcurs);
-    void SetCursCno(PRCA prca, ChunkNumber cno);
+    void SetCursCno(PResourceCache prca, ChunkNumber cno);
 
 #ifdef MAC
     virtual void TrackGrow(PEVT pevt);

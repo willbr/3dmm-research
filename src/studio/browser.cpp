@@ -112,7 +112,7 @@ END_CMD_MAP_NIL()
  *	A pointer to the object, else pvNil.
  *
  ****************************************************/
-PBRWD BRWD::PbrwdNew(PRCA prca, long kidPar, long kidGlass)
+PBRWD BRWD::PbrwdNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
@@ -174,7 +174,7 @@ bool BRWD::_FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidGlass)
  * Do everything PgokNew would have done but didn't
  *
  ****************************************************/
-bool BRWD::_FInitGok(PRCA prca, long kid)
+bool BRWD::_FInitGok(PResourceCache prca, long kid)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -838,7 +838,7 @@ void BRWD::_CacheContext(void)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
+PBRWL BRWL::PbrwlNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
@@ -1987,7 +1987,7 @@ bool BRWN::FCmdOk(PCommand pcmd)
  * Create a BRoWser Music Sound object
  *
  ****************************************************/
-PBRWM BRWM::PbrwmNew(PRCA prca, long kidGlass, long sty, PStudio pstdio)
+PBRWM BRWM::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio)
 {
     AssertPo(prca, 0);
     AssertPo(pstdio, 0);
@@ -2419,7 +2419,7 @@ bool BRWM::FCmdDel(PCommand pcmd)
  *	A pointer to the object, else pvNil.
  *
  ****************************************************/
-PBRWT BRWT::PbrwtNew(PRCA prca, long kidPar, long kidGlass)
+PBRWT BRWT::PbrwtNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
@@ -2524,7 +2524,7 @@ bool BRWT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWA BRWA::PbrwaNew(PRCA prca)
+PBRWA BRWA::PbrwaNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
@@ -2714,7 +2714,7 @@ bool BRWA::FCmdChangeCel(PCommand pcmd)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
+PBRWI BRWI::PbrwiNew(PResourceCache prca, long kidGlass, long sty)
 {
     AssertPo(prca, 0);
 
@@ -2797,7 +2797,7 @@ LFail:
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWP BRWP::PbrwpNew(PRCA prca, long kidGlass)
+PBRWP BRWP::PbrwpNew(PResourceCache prca, long kidGlass)
 {
     AssertPo(prca, 0);
 
@@ -2829,7 +2829,7 @@ PBRWP BRWP::PbrwpNew(PRCA prca, long kidGlass)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWB BRWB::PbrwbNew(PRCA prca)
+PBRWB BRWB::PbrwbNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
@@ -2914,7 +2914,7 @@ void BRWL::_SetCbPcrmMin(void)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWC BRWC::PbrwcNew(PRCA prca)
+PBRWC BRWC::PbrwcNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
@@ -2967,7 +2967,7 @@ bool BRWC::FCmdCancel(PCommand pcmd)
  * Create a BRoWser Roll Call object
  *
  ****************************************************/
-PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
+PBRWR BRWR::PbrwrNew(PResourceCache prca, long kid)
 {
     AssertPo(prca, 0);
 

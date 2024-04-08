@@ -45,7 +45,7 @@ class SoundDevice : public SoundDevice_PAR
     virtual void SetVlm(long vlm) = 0;
     virtual long VlmCur(void) = 0;
 
-    virtual long SiiPlay(PRCA prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil) = 0;
 
     virtual void Stop(long sii) = 0;
@@ -110,7 +110,7 @@ class SoundManager : public SoundManager_PAR
     virtual void SetVlm(long vlm);
     virtual long VlmCur(void);
 
-    virtual long SiiPlay(PRCA prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil);
 
     virtual void Stop(long sii);
@@ -171,7 +171,7 @@ class SNDMQ : public SNDMQ_PAR
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
 
-    virtual long SiiPlay(PRCA prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil);
 
     virtual void Stop(long sii);
@@ -227,7 +227,7 @@ class SNQUE : public SNQUE_PAR
     virtual void _Queue(long isndinMin) = 0;
     virtual void _PauseQueue(long isndinMin) = 0;
     virtual void _ResumeQueue(long isndinMin) = 0;
-    virtual PBaseCacheableObject _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno) = 0;
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno) = 0;
 
     virtual void _Enter(void);
     virtual void _Leave(void);
@@ -236,7 +236,7 @@ class SNQUE : public SNQUE_PAR
   public:
     ~SNQUE(void);
 
-    void Enqueue(long sii, PRCA prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
+    void Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
 
     long SprCur(void);
     void Stop(long sii);

@@ -111,7 +111,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     // these are inherent to the msnd
     ChunkTag _ctgSnd;       // ChunkTag of the WAV or MIDI chunk
     ChunkNumber _cnoSnd;       // ChunkNumber of the WAV or MIDI chunk
-    PRCA _prca;        // file that the WAV/MIDI lives in
+    PResourceCache _prca;        // file that the WAV/MIDI lives in
     long _sty;         // MIDI, speech, or sfx
     long _vlm;         // Volume of the sound
     tribool _fNoSound; // Set if silent sound

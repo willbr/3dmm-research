@@ -309,7 +309,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     long _dypPref;
 
     PWorldOfKidspace _pwoks; // the kidspace world that this KidspaceGraphicObject belongs to
-    PRCA _prca;   // Chunky resource chain
+    PResourceCache _prca;   // Chunky resource chain
     PChunkyResourceFile _pcrf;   // Chunky resource file
 
     short _sno;       // state number
@@ -356,8 +356,8 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     static PGraphicsObject _PgobBefore(PGraphicsObject pgobPar, long zp);
 
-    virtual bool _FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca);
-    virtual bool _FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PResourceCache prca);
 
     virtual bool _FAdjustGms(struct GMSE *pmpgmsgmse);
     virtual bool _FSetGmsCore(long gms, ulong grfact, bool *pfStable);
@@ -380,7 +380,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     void _DeferSnd(bool fDefer);
 
   public:
-    static PKidspaceGraphicObject PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PRCA prca);
+    static PKidspaceGraphicObject PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca);
 
     PWorldOfKidspace Pwoks(void)
     {

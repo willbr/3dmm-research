@@ -84,7 +84,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new easel
 ***************************************************************************/
-PESL ESL::PeslNew(PRCA prca, long kidParent, long kidEasel)
+PESL ESL::PeslNew(PResourceCache prca, long kidParent, long kidEasel)
 {
     AssertPo(prca, 0);
 
@@ -109,7 +109,7 @@ PESL ESL::PeslNew(PRCA prca, long kidParent, long kidEasel)
 /***************************************************************************
     Initialize the easel and make it visible
 ***************************************************************************/
-bool ESL::_FInit(PRCA prca, long kidEasel)
+bool ESL::_FInit(PResourceCache prca, long kidEasel)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -205,7 +205,7 @@ END_CMD_MAP_NIL()
     Create a new text easel.  If pactr is pvNil, this is for a new TDT
     and pstnNew, tdtsNew, and ptagTdfNew will be used as initial values.
 ***************************************************************************/
-PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
+PESLT ESLT::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -238,7 +238,7 @@ PESLT ESLT::PesltNew(PRCA prca, PMovie pmvie, PActor pactr, PString pstnNew, lon
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLT::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
+bool ESLT::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -834,7 +834,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new actor easel
 ***************************************************************************/
-PESLA ESLA::PeslaNew(PRCA prca, PMovie pmvie, PActor pactr)
+PESLA ESLA::PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -863,7 +863,7 @@ PESLA ESLA::PeslaNew(PRCA prca, PMovie pmvie, PActor pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLA::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
+bool ESLA::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -1064,7 +1064,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new listener easel
 ***************************************************************************/
-PESLL ESLL::PesllNew(PRCA prca, PMovie pmvie, PActor pactr)
+PESLL ESLL::PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -1099,7 +1099,7 @@ PESLL ESLL::PesllNew(PRCA prca, PMovie pmvie, PActor pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLL::_FInit(PRCA prca, long kidEasel, PMovie pmvie, PActor pactr)
+bool ESLL::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -1629,7 +1629,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new sound recording easel
 ***************************************************************************/
-PESLR ESLR::PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PString pstnNew)
+PESLR ESLR::PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -1658,7 +1658,7 @@ PESLR ESLR::PeslrNew(PRCA prca, PMovie pmvie, bool fSpeech, PString pstnNew)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLR::_FInit(PRCA prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew)
+bool ESLR::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);

@@ -22,7 +22,7 @@ namespace Chunky {
 
 RTCLASS(BaseCacheableObject)
 RTCLASS(GHQ)
-RTCLASS(RCA)
+RTCLASS(ResourceCache)
 RTCLASS(ChunkyResourceFile)
 RTCLASS(ChunkyResourceManager)
 RTCLASS(GenericCacheableObject)

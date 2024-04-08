@@ -1756,7 +1756,7 @@ void GraphicsObject::SetCurs(PCURS pcurs)
 /***************************************************************************
     Set the cursor for this GraphicsObject as indicated.
 ***************************************************************************/
-void GraphicsObject::SetCursCno(PRCA prca, ChunkNumber cno)
+void GraphicsObject::SetCursCno(PResourceCache prca, ChunkNumber cno)
 {
     AssertPo(prca, 0);
     PCURS pcurs;

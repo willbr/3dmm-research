@@ -29,7 +29,7 @@ END_CMD_MAP_NIL()
     Returns: pvNil on failure, pointer to SPLOT on success
 
 ************************************************************ PETED ***********/
-PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
+PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PResourceCache prca)
 {
     PSPLOT psplot = pvNil;
     PDynamicArray pglclr = pvNil;

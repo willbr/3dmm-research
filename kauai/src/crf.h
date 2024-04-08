@@ -12,7 +12,7 @@
 
     Chunky resource file management. A ChunkyResourceFile is a cache wrapped around a
     chunky file. A ChunkyResourceManager is a list of CRFs. A BaseCacheableObject is an object that
-    can be cached in a ChunkyResourceFile. An RCA is an interface that ChunkyResourceFile and ChunkyResourceManager both
+    can be cached in a ChunkyResourceFile. An ResourceCache is an interface that ChunkyResourceFile and ChunkyResourceManager both
     implement (are a super set of).
 
 ***************************************************************************/
@@ -99,10 +99,10 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 typedef FNRPO *PFNRPO;
 
-typedef class RCA *PRCA;
-#define RCA_PAR BASE
-#define kclsRCA 'RCA'
-class RCA : public RCA_PAR
+typedef class ResourceCache *PResourceCache;
+#define ResourceCache_PAR BASE
+#define kclsResourceCache 'RCA'
+class ResourceCache : public ResourceCache_PAR
 {
     RTCLASS_DEC
 
@@ -117,7 +117,7 @@ class RCA : public RCA_PAR
 /***************************************************************************
     Chunky resource file.
 ***************************************************************************/
-#define ChunkyResourceFile_PAR RCA
+#define ChunkyResourceFile_PAR ResourceCache
 #define kclsChunkyResourceFile 'CRF'
 class ChunkyResourceFile : public ChunkyResourceFile_PAR
 {
@@ -175,7 +175,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     Chunky resource manager - a list of CRFs.
 ***************************************************************************/
 typedef class ChunkyResourceManager *PChunkyResourceManager;
-#define ChunkyResourceManager_PAR RCA
+#define ChunkyResourceManager_PAR ResourceCache
 #define kclsChunkyResourceManager 'CRM'
 class ChunkyResourceManager : public ChunkyResourceManager_PAR
 {

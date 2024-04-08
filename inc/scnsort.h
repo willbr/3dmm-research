@@ -65,7 +65,7 @@ class SCRT : public SCRT_PAR
     SCRT(PGCB pgcb);
     ~SCRT(void);
 
-    static PSCRT PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PRCA prca);
+    static PSCRT PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca);
     static bool FSceneSortMovie(long hid, PMovie pmvie);
 
     /* Command API */

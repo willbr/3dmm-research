@@ -138,7 +138,7 @@ class BRWD : public BRWD_PAR
     void _SetScrollState(void);
     long _CfrmCalc(void);
     static bool _FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidBrws);
-    bool _FInitGok(PRCA prca, long kidGlass);
+    bool _FInitGok(PResourceCache prca, long kidGlass);
     void _SetVarForOverride(void);
 
     virtual long _Cthum(void)
@@ -200,7 +200,7 @@ class BRWD : public BRWD_PAR
     }
     ~BRWD(void);
 
-    static PBRWD PbrwdNew(PRCA prca, long kidPar, long kidBrwd);
+    static PBRWD PbrwdNew(PResourceCache prca, long kidPar, long kidBrwd);
     void Init(PCommand pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FDraw(void);
@@ -454,7 +454,7 @@ class BRWL : public BRWL_PAR
     }
     ~BRWL(void);
 
-    static PBRWL PbrwlNew(PRCA prca, long kidPar, long kidBrwl);
+    static PBRWL PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
     virtual bool FInit(PCommand pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
@@ -498,7 +498,7 @@ class BRWT : public BRWT_PAR
     }
     ~BRWT(void);
 
-    static PBRWT PbrwtNew(PRCA prca, long kidPar, long kidBrwt);
+    static PBRWT PbrwtNew(PResourceCache prca, long kidPar, long kidBrwt);
     void SetGst(PStringTable pgst);
     bool FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
@@ -581,7 +581,7 @@ class BRWA : public BRWA_PAR
     {
     }
 
-    static PBRWA PbrwaNew(PRCA prca);
+    static PBRWA PbrwaNew(PResourceCache prca);
     bool FBuildApe(PActor pactr);
     bool FBuildGst(PScene pscen);
     virtual bool FCmdChangeCel(PCommand pcmd);
@@ -612,7 +612,7 @@ class BRWP : public BRWP_PAR
     }
     ~BRWP(void){};
 
-    static PBRWP PbrwpNew(PRCA prca, long kidGlass);
+    static PBRWP PbrwpNew(PResourceCache prca, long kidGlass);
 };
 
 /************************************
@@ -640,7 +640,7 @@ class BRWB : public BRWB_PAR
     }
     ~BRWB(void){};
 
-    static PBRWB PbrwbNew(PRCA prca);
+    static PBRWB PbrwbNew(PResourceCache prca);
     virtual bool FCmdCancel(PCommand pcmd);
 };
 
@@ -672,7 +672,7 @@ class BRWC : public BRWC_PAR
     }
     ~BRWC(void){};
 
-    static PBRWC PbrwcNew(PRCA prca);
+    static PBRWC PbrwcNew(PResourceCache prca);
 
     virtual bool FCmdCancel(PCommand pcmd);
 };
@@ -710,7 +710,7 @@ class BRWM : public BRWM_PAR
     }
     ~BRWM(void){};
 
-    static PBRWM PbrwmNew(PRCA prca, long kidGlass, long sty, PStudio pstdio);
+    static PBRWM PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio);
     virtual bool FCmdFile(PCommand pcmd); // Upon portfolio completion
     virtual bool FCmdDel(PCommand pcmd);  // Delete user sound
 };
@@ -746,7 +746,7 @@ class BRWI : public BRWI_PAR
     }
     ~BRWI(void);
 
-    static PBRWI PbrwiNew(PRCA prca, long kidGlass, long sty);
+    static PBRWI PbrwiNew(PResourceCache prca, long kidGlass, long sty);
     bool FInit(PCommand pcmd, ChunkIdentification cki, PStudio pstdio);
 };
 
@@ -791,7 +791,7 @@ class BRWR : public BRWR_PAR
     }
     ~BRWR(void);
 
-    static PBRWR PbrwrNew(PRCA prca, long kid);
+    static PBRWR PbrwrNew(PResourceCache prca, long kid);
     void Init(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FInit(PCommand pcmd, ChunkTag ctg, long ithumDisplay, PStudio pstdio);

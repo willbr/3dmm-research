@@ -117,7 +117,7 @@ class Interpreter : public Interpreter_PAR
     MARKMEM
 
   protected:
-    PRCA _prca; // the chunky resource file list (may be nil)
+    PResourceCache _prca; // the chunky resource file list (may be nil)
     PStringRegistry _pstrg;
     PDynamicArray _pgllwStack;   // the execution stack
     PDynamicArray _pglrtvm;      // the local variables
@@ -172,7 +172,7 @@ class Interpreter : public Interpreter_PAR
 #endif // DEBUG
 
   public:
-    Interpreter(PRCA prca = pvNil, PStringRegistry pstrg = pvNil);
+    Interpreter(PResourceCache prca = pvNil, PStringRegistry pstrg = pvNil);
     ~Interpreter(void);
 
     virtual bool FRunScript(PScript pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,

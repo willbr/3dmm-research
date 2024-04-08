@@ -256,7 +256,7 @@ bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 /***************************************************************************
     Get a KidspaceGraphicObjectDescriptor from the given chunk.
 ***************************************************************************/
-PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTag ctg, ChunkNumber cno, PRCA prca)
+PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTag ctg, ChunkNumber cno, PResourceCache prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -267,7 +267,7 @@ PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTag ctg, Chunk
 /***************************************************************************
     Create a new gob in this kidspace world.
 ***************************************************************************/
-PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cnoGokd, PRCA prca)
+PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cnoGokd, PResourceCache prca)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -303,7 +303,7 @@ PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hi
 /***************************************************************************
     Create a new script interpreter for this kidspace world.
 ***************************************************************************/
-PGraphicsObjectInterpreter WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject pgob)
+PGraphicsObjectInterpreter WorldOfKidspace::PscegNew(PResourceCache prca, PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -315,7 +315,7 @@ PGraphicsObjectInterpreter WorldOfKidspace::PscegNew(PRCA prca, PGraphicsObject 
 /***************************************************************************
     Create a new help balloon.
 ***************************************************************************/
-PBalloon WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PTopic phtop)
+PBalloon WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, PTopic phtop)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -465,7 +465,7 @@ ulong WorldOfKidspace::GrfcustAdjust(ulong grfcust)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool WorldOfKidspace::FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet)
+bool WorldOfKidspace::FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);

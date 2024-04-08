@@ -107,7 +107,7 @@ class MSQUE : public MSQUE_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(PMSMIX pmsmix);
-    virtual PBaseCacheableObject _PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno);
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);

@@ -57,7 +57,7 @@ class SPLOT : public SPLOT_PAR
 
   public:
     ~SPLOT(void);
-    static PSPLOT PsplotNew(long hidPar, long hid, PRCA prca);
+    static PSPLOT PsplotNew(long hidPar, long hid, PResourceCache prca);
 
     bool FCmdInit(PCommand pcmd);
     bool FCmdSplot(PCommand pcmd);

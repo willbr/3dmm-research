@@ -76,11 +76,11 @@ class TextDocument : public TextDocument_PAR
         sprmGroup = 64, // grouped (hot) text - uses the AllocatedGroup
     };
 
-    PRCA _prca;         // source of pictures and buttons
+    PResourceCache _prca;         // source of pictures and buttons
     Topic _htop;         // our gob creation information
     bool _fHideButtons; // whether to draw buttons
 
-    TextDocument(PRCA prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    TextDocument(PResourceCache prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TextDocument(void);
 
     virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil, ulong grftxhd = ftxhdNil);
@@ -89,7 +89,7 @@ class TextDocument : public TextDocument_PAR
     virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTextDocument PtxhdReadChunk(PRCA prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil,
+    static PTextDocument PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
     virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
@@ -98,7 +98,7 @@ class TextDocument : public TextDocument_PAR
                         ulong grfdoc = fdocUpdate);
     bool FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                        ulong grfdoc = fdocUpdate);
-    PRCA Prca(void)
+    PResourceCache Prca(void)
     {
         return _prca;
     }
@@ -168,14 +168,14 @@ class Balloon : public Balloon_PAR
 
     Balloon(GraphicsObjectBlock *pgcb);
     virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PRCA prca);
-    virtual bool _FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PResourceCache prca);
+    virtual bool _FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca);
 
   public:
-    static PBalloon PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, ChunkNumber cnoTopic, PTopic phtop = pvNil);
-    static PBalloon PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PRCA prca, PTextDocument ptxhd, PTopic phtop = pvNil);
+    static PBalloon PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, PTopic phtop = pvNil);
+    static PBalloon PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PResourceCache prca, PTextDocument ptxhd, PTopic phtop = pvNil);
 
-    virtual bool FSetTopic(PTextDocument ptxhd, PTopic phtop, PRCA prca);
+    virtual bool FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca);
 };
 
 /***************************************************************************
@@ -195,7 +195,7 @@ class BalloonButton : public BalloonButton_PAR
     ChunkNumber _cnoTopic;
 
   public:
-    static PBalloonButton PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PRCA prca, byte bGroup, ChunkNumber cnoTopic,
+    static PBalloonButton PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca, byte bGroup, ChunkNumber cnoTopic,
                           long xpLeft, long ypBottom);
 
     virtual bool FPtIn(long xp, long yp);

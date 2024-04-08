@@ -417,7 +417,7 @@ void MSQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as an MDWS.
 ***************************************************************************/
-PBaseCacheableObject MSQUE::_PbacoFetch(PRCA prca, ChunkTag ctg, ChunkNumber cno)
+PBaseCacheableObject MSQUE::_PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

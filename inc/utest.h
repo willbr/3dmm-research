@@ -36,7 +36,7 @@ class KidWorld : public KidWorld_PAR
     ~KidWorld(void);
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FFindFile(PString pstnSrc, PFilename pfni); // for finding AVIs
-    virtual bool FModalTopic(PRCA prca, ChunkNumber cnoTopic, long *plwRet);
+    virtual bool FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet);
     void SetMbmp(PMaskedBitmapMBMP pmbmp);
     void SetCDPrompt(bool fAskForCD)
     {
@@ -345,7 +345,7 @@ class APP : public APP_PAR
 #endif //! WIN
         }
     }
-    tribool TModal(PRCA prca, long tpc, PString pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
+    tribool TModal(PResourceCache prca, long tpc, PString pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
                    PString pstnSubst = pvNil);
 
     // Enable/disable accelerator keys

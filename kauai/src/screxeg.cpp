@@ -30,7 +30,7 @@ static String _stn;
     Constructor for a GraphicsObject based script interpreter. We don't just keep
     the pgob in case the GraphicsObject goes away while the script is running.
 ***************************************************************************/
-GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRCA prca, PGraphicsObject pgob) : GraphicsObjectInterpreter_PAR(prca, pwoks->Pstrg())
+GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PResourceCache prca, PGraphicsObject pgob) : GraphicsObjectInterpreter_PAR(prca, pwoks->Pstrg())
 {
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);

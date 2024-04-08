@@ -66,14 +66,14 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     long _anid;         // Current action ID
     long _iview;        // Current camera view
     bool _fCycleCels;   // If cycling cels
-    PRCA _prca;         // resource source (for cursors)
+    PResourceCache _prca;         // resource source (for cursors)
     long _ibsetOnlyAcc; // ibset of accessory, if only one (else ivNil)
 
   protected:
     ActorPreviewEntity(PGCB pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
-    bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca);
+    bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca);
     void _InitView(void);
     void _SetScale(void);
     void _UpdateView(void);
@@ -82,7 +82,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
-    static PActorPreviewEntity PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca = pvNil);
+    static PActorPreviewEntity PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
     ~ActorPreviewEntity();
 
     void SetToolMtrl(PTAG ptagMtrl);

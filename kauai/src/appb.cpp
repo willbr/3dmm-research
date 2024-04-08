@@ -119,7 +119,7 @@ void ApplicationBase::SetCurs(PCURS pcurs, bool fLongOp)
 /***************************************************************************
     Set the indicated cursor as the current one.
 ***************************************************************************/
-void ApplicationBase::SetCursCno(PRCA prca, ChunkNumber cno, bool fLongOp)
+void ApplicationBase::SetCursCno(PResourceCache prca, ChunkNumber cno, bool fLongOp)
 {
     AssertThis(0);
     AssertPo(prca, 0);

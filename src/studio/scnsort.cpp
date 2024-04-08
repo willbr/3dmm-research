@@ -112,7 +112,7 @@ SCRT::~SCRT(void)
     Returns: the pointer to the new SCRT, pvNil if the routine fails
 
 ************************************************************ PETED ***********/
-PSCRT SCRT::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PRCA prca)
+PSCRT SCRT::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca)
 {
     AssertPo(pmvie, 0);
     AssertPo(pstdio, 0);
