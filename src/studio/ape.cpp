@@ -566,12 +566,12 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
     Assert(pgms->fValid, "bad gms");
     AssertIn(ibset, 0, _pbody->Cbset());
 
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     PCMTL pcmtl;
 
     if (pgms->fMtrl)
     {
-        pmtrl = (PMTRL)vptagm->PbacoFetch(&pgms->tagMtrl, MTRL::FReadMtrl);
+        pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&pgms->tagMtrl, Material_MTRL::FReadMtrl);
         if (pvNil == pmtrl)
             return fFalse;
         _pbody->SetPartSetMtrl(ibset, pmtrl);
@@ -604,7 +604,7 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
     long ccmid;
     PCMTL pcmtl;
     PCMTL pcmtlOld;
-    PMTRL pmtrlOld;
+    PMaterial_MTRL pmtrlOld;
     bool fMtrl;
 
     // Default cmidNext is default cmid for this body part set
@@ -748,10 +748,10 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
     Assert(_pbody->Cbset() == 1, "TDTs should only have one body part set");
     AssertVarMem(ptagMtrl);
 
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     GeneralMaterialSpec gms;
 
-    pmtrl = (PMTRL)vptagm->PbacoFetch(ptagMtrl, MTRL::FReadMtrl);
+    pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(ptagMtrl, Material_MTRL::FReadMtrl);
     if (pvNil == pmtrl)
         return fFalse;
     _pbody->SetPartSetMtrl(0, pmtrl);
@@ -768,8 +768,8 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 }
 
 /***************************************************************************
-    Get the ChunkNumber of the MTRL attached to this TDT.  Returns fFalse if there
-    is no MTRL attached or the MTRL didn't come from a chunk.
+    Get the ChunkNumber of the Material_MTRL attached to this TDT.  Returns fFalse if there
+    is no Material_MTRL attached or the Material_MTRL didn't come from a chunk.
 ***************************************************************************/
 bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 {
@@ -777,7 +777,7 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
     Assert(_ptmpl->FIsTdt(), "FGetTdtMtrlCno is only for TDTs");
     AssertVarMem(pcno);
 
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     PCMTL pcmtl;
     bool fMtrl;
 

@@ -867,7 +867,7 @@ class Movie : public Movie_PAR
     //
     // Material stuff
     //
-    bool FInsertMtrl(PMTRL pmtrl, PTAG ptag); // Inserts a material into this movie.
+    bool FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag); // Inserts a material into this movie.
 
     //
     // 3-D Text stuff

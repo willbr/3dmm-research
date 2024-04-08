@@ -85,7 +85,7 @@ typedef struct _cmtld
 typedef struct _tmapd
 {
     PString pstn;    // the name of the TextureMap
-    long ccnoPar; // the number of MTRL parents
+    long ccnoPar; // the number of Material_MTRL parents
     long xp;      // the size of the bitmap
     long yp;
 } TMAPD, *PTMAPD;

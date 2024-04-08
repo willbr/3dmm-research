@@ -2026,7 +2026,7 @@ bool Movie::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-bool Movie::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
+bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
 {
     AssertThis(0);
     AssertPo(pmtrl, 0);
@@ -2761,7 +2761,7 @@ bool Movie::_FDoGarbageCollection(PChunkyFile pcfl)
 
 /****************************************************
  *
- * Removes all MTRL and TMPL chunks that are not
+ * Removes all Material_MTRL and TMPL chunks that are not
  * referenced by any actors in this movie.
  *
  * Parameters:
@@ -2828,7 +2828,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
 
             if (kctgMtrl == cki.ctg)
             {
-                pfnrpo = MTRL::FReadMtrl;
+                pfnrpo = Material_MTRL::FReadMtrl;
             }
             else if (kctgTmpl == cki.ctg)
             {

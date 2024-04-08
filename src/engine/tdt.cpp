@@ -211,7 +211,7 @@ bool TDT::_FInitLists(void)
     PDynamicArray pglibactParNew = pvNil;
     PDynamicArray pglibsetNew = pvNil;
     PGeneralGroup pggcmidNew = pvNil;
-    PMTRL pmtrlDefaultNew = pvNil;
+    PMaterial_MTRL pmtrlDefaultNew = pvNil;
 
     pglibactParNew = _PglibactParBuild();
     if (pvNil == pglibactParNew)
@@ -225,7 +225,7 @@ bool TDT::_FInitLists(void)
     cch = _stn.Cch();
     if (pvNil == _pmtrlDefault)
     {
-        pmtrlDefaultNew = MTRL::PmtrlNew(); // get default solid-color material
+        pmtrlDefaultNew = Material_MTRL::PmtrlNew(); // get default solid-color material
     }
     else
     {
@@ -686,7 +686,7 @@ bool TDT::FAdjustBody(PBODY pbody)
 
 /***************************************************************************
     Set the default costume.  This always succeeds for TDTs because they
-    keep the PMTRL in memory.
+    keep the PMaterial_MTRL in memory.
 ***************************************************************************/
 bool TDT::FSetDefaultCost(PBODY pbody)
 {

@@ -2534,16 +2534,16 @@ LNotexture:
 
 /******************************************************************************
     _FTmapFromBmp
-        Given a texture name, adds the texture to the MTRL with the given ChunkNumber.
+        Given a texture name, adds the texture to the Material_MTRL with the given ChunkNumber.
         If this texture has never been seen before, the .bmp file is converted
-        to an appropriate TextureMap chunk file.  The reference to the parent MTRL's
+        to an appropriate TextureMap chunk file.  The reference to the parent Material_MTRL's
         ChunkNumber is added to our list of generated TMAPs for use later in actually
         dumping out the TextureMap chunk definition.
 
     Arguments:
         PString pstnBmpFile  -- the name of the texture
-        ChunkNumber cnoPar        -- the ChunkNumber of the parent MTRL
-        pstnMtrl          -- the string used for the MTRL name
+        ChunkNumber cnoPar        -- the ChunkNumber of the parent Material_MTRL
+        pstnMtrl          -- the string used for the Material_MTRL name
 
     Returns: fTrue if the texture was successfully added
 
@@ -2656,7 +2656,7 @@ LFail:
 /******************************************************************************
     _FFlushTmaps
         Actually writes out the TextureMap definitions to the chunk source file.
-        Each unique TextureMap chunk is added once, with each MTRL that refers to
+        Each unique TextureMap chunk is added once, with each Material_MTRL that refers to
         it being included as a parent of the TextureMap chunk.
 
     Returns: fTrue if all of the TextureMap declarations could be generated; in
@@ -2988,16 +2988,16 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
             else if (fUseMtrl)
                 _pggcm->GetFixed(ibps, &ccmid);
 
-            /* Write a nice MTRL chunk for this body part */
+            /* Write a nice Material_MTRL chunk for this body part */
             if (fUseMtrl)
             {
                 if (ccmid == 1)
                 {
-                    _stnT.FFormatSz(PszLit("%s Part %d Default MTRL"), &_stnTmpl, ibp);
+                    _stnT.FFormatSz(PszLit("%s Part %d Default Material_MTRL"), &_stnTmpl, ibp);
                 }
                 else
                 {
-                    _stnT.FFormatSz(PszLit("%s Part %d Costume %d MTRL"), &_stnTmpl, ibp, ccmid);
+                    _stnT.FFormatSz(PszLit("%s Part %d Costume %d Material_MTRL"), &_stnTmpl, ibp, ccmid);
                 }
                 CnoNext();
                 _DumpHeader(kctgMtrl, _cnoCur, &_stnT, fTrue);

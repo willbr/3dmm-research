@@ -1095,8 +1095,8 @@ bool Actor::_FDoAevCore(long iaev)
         }
         else
         {
-            PMTRL pmtrl;
-            pmtrl = (PMTRL)vptagm->PbacoFetch(&aevcost.tag, MTRL::FReadMtrl);
+            PMaterial_MTRL pmtrl;
+            pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl);
             if (pvNil == pmtrl)
                 return fFalse;
             _pbody->SetPartSetMtrl(aevcost.ibset, pmtrl);
@@ -3277,9 +3277,9 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
     Costume aevcost;
     bool fMtrl;
     bool fCmtl;
-    MTRL *pmtrlCmp;
+    Material_MTRL *pmtrlCmp;
     CMTL *pcmtlCmp;
-    MTRL *pmtrl = pvNil;
+    Material_MTRL *pmtrl = pvNil;
     CMTL *pcmtl = pvNil;
     bool fReplacePrev = fTrue;
 
@@ -3306,7 +3306,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
         {
             // Delete the event if the costumes are the same
             if ((fCmtl == aevcost.fCmtl) &&
-                ((!fCmtl && (pmtrlCmp == (pmtrl = (PMTRL)vptagm->PbacoFetch(&aevcost.tag, MTRL::FReadMtrl)))) ||
+                ((!fCmtl && (pmtrlCmp == (pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl)))) ||
                  (fCmtl && (pcmtlCmp == (pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid))))))
             {
                 goto LDelete;
@@ -3317,7 +3317,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
             fReplacePrev = fFalse;
             if (!paevcost->fCmtl)
             {
-                pmtrlCmp = (PMTRL)vptagm->PbacoFetch(&paevcost->tag, MTRL::FReadMtrl);
+                pmtrlCmp = (PMaterial_MTRL)vptagm->PbacoFetch(&paevcost->tag, Material_MTRL::FReadMtrl);
                 pcmtlCmp = pvNil;
             }
             else
@@ -3331,7 +3331,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
         ReleasePpo(&pmtrl);
         Assert(!fReplacePrev, "Logic error");
         if (paevcost->fCmtl != aevcost.fCmtl ||
-            (!aevcost.fCmtl && (pmtrlCmp != (pmtrl = (PMTRL)vptagm->PbacoFetch(&aevcost.tag, MTRL::FReadMtrl)))) ||
+            (!aevcost.fCmtl && (pmtrlCmp != (pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl)))) ||
             (aevcost.fCmtl && (pcmtlCmp != (pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid)))))
         {
             // If the costumes differ

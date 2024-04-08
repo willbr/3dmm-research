@@ -20,7 +20,7 @@
      |
      +--CMTL* (chid <cmid>) - custom material...see mtrl.h
      |   |
-     |   +--MTRL*
+     |   +--Material_MTRL*
      |       |
      |       +--TextureMap
      |

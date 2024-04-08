@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> MTRL
+    BASE ---> BaseCacheableObject ---> Material_MTRL
     BASE ---> BaseCacheableObject ---> CMTL
 
 *************************************************************************/
@@ -26,7 +26,7 @@ struct CMTLF
 };
 const ByteOrderMask kbomCmtlf = 0x5c000000;
 
-// material on file (MTRL chunk)
+// material on file (Material_MTRL chunk)
 struct MTRLF
 {
     short bo;            // byte order
@@ -42,16 +42,16 @@ struct MTRLF
 const ByteOrderMask kbomMtrlf = 0x5D530000;
 
 /****************************************
-    The MTRL class.  There are two kinds
+    The Material_MTRL class.  There are two kinds
     of MTRLs: solid-color MTRLs and
     texmap materials.  Texmap MTRLs have
-    TMAPs under the MTRL chunk with chid
+    TMAPs under the Material_MTRL chunk with chid
     0.
 ****************************************/
-typedef class MTRL *PMTRL;
-#define MTRL_PAR BaseCacheableObject
-#define kclsMTRL 'MTRL'
-class MTRL : public MTRL_PAR
+typedef class Material_MTRL *PMaterial_MTRL;
+#define Material_MTRL_PAR BaseCacheableObject
+#define kclsMaterial_MTRL 'MTRL'
+class Material_MTRL : public Material_MTRL_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -62,7 +62,7 @@ class MTRL : public MTRL_PAR
     PBMTL _pbmtl;
 
   protected:
-    MTRL(void)
+    Material_MTRL(void)
     {
         _pbmtl = pvNil;
     } // can't instantiate directly; must use FReadMtrl
@@ -70,12 +70,12 @@ class MTRL : public MTRL_PAR
 
   public:
     static bool FSetShadeTable(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    static PMTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
+    static PMaterial_MTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
     static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PMTRL PmtrlNewFromPix(PFilename pfni);
-    static PMTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
-    static PMTRL PmtrlFromBmtl(PBMTL pbmtl);
-    ~MTRL(void);
+    static PMaterial_MTRL PmtrlNewFromPix(PFilename pfni);
+    static PMaterial_MTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
+    static PMaterial_MTRL PmtrlFromBmtl(PBMTL pbmtl);
+    ~Material_MTRL(void);
     PTextureMap Ptmap(void);
     PBMTL Pbmtl(void)
     {
@@ -102,7 +102,7 @@ class CMTL : public CMTL_PAR
     MARKMEM
 
   protected:
-    PMTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CMTL's set
+    PMaterial_MTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CMTL's set
     PMODL *_prgpmodl; // _cbprt PMODLs, one per body part in this CMTL's set
     long _cbprt;      // count of body parts in this CMTL
     long _ibset;      // body part set that this CMTL should be applied to
@@ -114,7 +114,7 @@ class CMTL : public CMTL_PAR
     } // can't instantiate directly; must use PcmtlRead
 
   public:
-    static PCMTL PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl);
+    static PCMTL PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl);
     static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static bool FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);

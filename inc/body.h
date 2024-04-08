@@ -107,9 +107,9 @@ class BODY : public BODY_PAR
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
     void SetPartModel(long ibact, MODL *pmodl);
     void SetPartMatrix(long ibact, BMAT34 *pbmat34);
-    void SetPartSetMtrl(long ibset, MTRL *pmtrl);
+    void SetPartSetMtrl(long ibset, Material_MTRL *pmtrl);
     void SetPartSetCmtl(CMTL *pcmtl);
-    void GetPartSetMaterial(long ibset, bool *pfMtrl, MTRL **ppmtrl, CMTL **ppcmtl);
+    void GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CMTL **ppcmtl);
     long Cbset()
     {
         return _cbset;

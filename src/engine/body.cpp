@@ -68,9 +68,9 @@
     parts 0, 1, and 2 were in set 0; part 3 was in set 1; and parts 4
     and 5 were in set 2, _pglibset would be {0, 0, 0, 1, 2, 2}.
 
-    When applying a MTRL to a body part set, the same MTRL is
+    When applying a Material_MTRL to a body part set, the same Material_MTRL is
     attached to each body part in the set.  When a CMTL is applied,
-    the CMTL has a different MTRL per body part in the set.
+    the CMTL has a different Material_MTRL per body part in the set.
 
     The way that MODLs, MTRLs, and CMTLs attach to the BODY is a little
     strange.  In the case of models, the br_actor's model needs to be set
@@ -97,7 +97,7 @@
       |					  identifier
       |
       +--+
-         |			     MTRL<--+
+         |			     Material_MTRL<--+
          |                 |	|
          v				   v	|
        material--------->BMTL	|
@@ -291,7 +291,7 @@ bool BODY::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
     PBODY pbodyDup;
     long ibset;
     bool fMtrl;
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     PCMTL pcmtl;
     long ibact;
     PBACT pbactDup;
@@ -505,7 +505,7 @@ PBODY BODY::PbodyDup(void)
     PBACT pbact;
     long bv; // delta in bytes from _prgbact to _pbody->_prgbact
     bool fMtrl;
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     PCMTL pcmtl;
     bool fVis;
 
@@ -770,11 +770,11 @@ void BODY::SetPartMatrix(long ibact, BMAT34 *pbmat34)
 }
 
 /***************************************************************************
-    Remove old MTRL or CMTL from ibset.  This is nontrivial because there
+    Remove old Material_MTRL or CMTL from ibset.  This is nontrivial because there
     could either be a CMTL attached to the bset (in which case we just free
-    the CMTL) or a bunch of MTRLs (in which case we free each MTRL).
+    the CMTL) or a bunch of MTRLs (in which case we free each Material_MTRL).
     Actually, in the latter case, it would be a bunch of copies of the same
-    MTRL, but we keep one reference per body part in the set.
+    Material_MTRL, but we keep one reference per body part in the set.
 ***************************************************************************/
 void BODY::_RemoveMaterial(long ibset)
 {
@@ -794,16 +794,16 @@ void BODY::_RemoveMaterial(long ibset)
         ReleasePpo(&pcmtlOld); // free all old MTRLs
         _prgpcmtl[ibset] = pvNil;
     }
-    // for each body part, if this part is in the set ibset, free the MTRL
+    // for each body part, if this part is in the set ibset, free the Material_MTRL
     for (ibact = 0; ibact < _cbactPart; ibact++)
     {
         if (ibset == _Ibset(ibact))
         {
             pbact = _PbactPart(ibact);
-            if (pbact->material != pvNil) // free old MTRL
+            if (pbact->material != pvNil) // free old Material_MTRL
             {
                 if (!fCmtl)
-                    MTRL::PmtrlFromBmtl(pbact->material)->Release();
+                    Material_MTRL::PmtrlFromBmtl(pbact->material)->Release();
                 pbact->material = pvNil;
             }
         }
@@ -813,7 +813,7 @@ void BODY::_RemoveMaterial(long ibset)
 /***************************************************************************
     Set the ibset'th body part set to use material pmtrl
 ***************************************************************************/
-void BODY::SetPartSetMtrl(long ibset, MTRL *pmtrl)
+void BODY::SetPartSetMtrl(long ibset, Material_MTRL *pmtrl)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -822,9 +822,9 @@ void BODY::SetPartSetMtrl(long ibset, MTRL *pmtrl)
     BACT *pbact;
     long ibact;
 
-    _RemoveMaterial(ibset); // remove existing MTRL/CMTL, if any
+    _RemoveMaterial(ibset); // remove existing Material_MTRL/CMTL, if any
 
-    // for each body part, if this part is in the set ibset, set the MTRL
+    // for each body part, if this part is in the set ibset, set the Material_MTRL
     for (ibact = 0; ibact < _cbactPart; ibact++)
     {
         if (ibset == _Ibset(ibact))
@@ -857,10 +857,10 @@ void BODY::SetPartSetCmtl(CMTL *pcmtl)
     PMODL pmodl;
 
     pcmtl->AddRef();
-    _RemoveMaterial(ibset); // remove existing MTRL/CMTL
+    _RemoveMaterial(ibset); // remove existing Material_MTRL/CMTL
     _prgpcmtl[ibset] = pcmtl;
 
-    // for each body part, if this part is in the set ibset, set the MTRL
+    // for each body part, if this part is in the set ibset, set the Material_MTRL
     for (ibact = 0; ibact < _cbactPart; ibact++)
     {
         if (ibset == _Ibset(ibact))
@@ -883,12 +883,12 @@ void BODY::SetPartSetCmtl(CMTL *pcmtl)
 }
 
 /***************************************************************************
-    Determines the current CMTL or MTRL applied to the given ibset.
+    Determines the current CMTL or Material_MTRL applied to the given ibset.
     If a CMTL is attached, *pfMtrl is fFalse and *ppcmtl holds the
-    PCMTL.  If a MTRL is attached, *pfMtrl is fTrue and *ppmtrl holds
-    the PMTRL.
+    PCMTL.  If a Material_MTRL is attached, *pfMtrl is fTrue and *ppmtrl holds
+    the PMaterial_MTRL.
 ***************************************************************************/
-void BODY::GetPartSetMaterial(long ibset, bool *pfMtrl, MTRL **ppmtrl, CMTL **ppcmtl)
+void BODY::GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CMTL **ppcmtl)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -910,15 +910,15 @@ void BODY::GetPartSetMaterial(long ibset, bool *pfMtrl, MTRL **ppmtrl, CMTL **pp
     {
         *pfMtrl = fTrue;
         TrashVar(ppcmtl);
-        // Find any body part of ibset...they'll all have the same MTRL
+        // Find any body part of ibset...they'll all have the same Material_MTRL
         for (ibact = 0; ibact < _cbactPart; ibact++)
         {
             if (ibset == _Ibset(ibact))
             {
                 pbact = _PbactPart(ibact);
                 Assert(pvNil != pbact->material, "Why does this body part "
-                                                 "set have neither MTRL nor CMTL attached?");
-                *ppmtrl = MTRL::PmtrlFromBmtl(pbact->material);
+                                                 "set have neither Material_MTRL nor CMTL attached?");
+                *ppmtrl = Material_MTRL::PmtrlFromBmtl(pbact->material);
                 AssertPo(*ppmtrl, 0);
                 return;
             }
@@ -1208,7 +1208,7 @@ void BODY::AssertValid(ulong grf)
             if (pvNil != pbact->model)
                 AssertPo(MODL::PmodlFromBmdl(pbact->model), 0);
             if (pvNil != pbact->material)
-                AssertPo(MTRL::PmtrlFromBmtl(pbact->material), 0);
+                AssertPo(Material_MTRL::PmtrlFromBmtl(pbact->material), 0);
         }
         for (ibset = 0; ibset < _cbset; ibset++)
         {
@@ -1229,7 +1229,7 @@ void BODY::MarkMem(void)
     PMODL pmodl;
     long ibset;
     bool fMtrl;
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     PCMTL pcmtl;
 
     BODY_PAR::MarkMem();
@@ -1288,7 +1288,7 @@ void COST::_Clear(void)
     if (pvNil != _prgpo)
     {
         for (ibset = 0; ibset < _cbset; ibset++)
-            ReleasePpo(&_prgpo[ibset]); // Release the PCMTL or PMTRL
+            ReleasePpo(&_prgpo[ibset]); // Release the PCMTL or PMaterial_MTRL
         FreePpv((void **)&_prgpo);
     }
     TrashVar(&_cbset);
@@ -1304,7 +1304,7 @@ bool COST::FGet(BODY *pbody)
 
     long ibset;
     PCMTL pcmtl;
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
     bool fMtrl;
 
     _Clear(); // drop previous costume, if any
@@ -1361,8 +1361,8 @@ void COST::Set(PBODY pbody, bool fAllowDifferentShape)
     {
         po = _prgpo[ibset];
         AssertPo(po, 0);
-        if (po->FIs(kclsMTRL))
-            pbody->SetPartSetMtrl(ibset, (PMTRL)_prgpo[ibset]);
+        if (po->FIs(kclsMaterial_MTRL))
+            pbody->SetPartSetMtrl(ibset, (PMaterial_MTRL)_prgpo[ibset]);
         else
             pbody->SetPartSetCmtl((PCMTL)_prgpo[ibset]);
     }
@@ -1383,8 +1383,8 @@ void COST::AssertValid(ulong grf)
         for (ibset = 0; ibset < _cbset; ibset++)
         {
             po = _prgpo[ibset];
-            if (po->FIs(kclsMTRL))
-                AssertPo((PMTRL)po, 0);
+            if (po->FIs(kclsMaterial_MTRL))
+                AssertPo((PMaterial_MTRL)po, 0);
             else
                 AssertPo((PCMTL)po, 0);
         }

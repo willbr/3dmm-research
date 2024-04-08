@@ -319,7 +319,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!MTRL::FSetShadeTable(_pcfl, kctgTmap, 0))
+    if (!Material_MTRL::FSetShadeTable(_pcfl, kctgTmap, 0))
     {
         _FGenericError(PszLit("FSetShadeTable"));
         _fDontReportInitFailure = fTrue;
@@ -4588,7 +4588,7 @@ void APP::MarkMem(void)
     AssertThis(0);
     APP_PAR::MarkMem();
     MarkMemObj(vptagm);
-    MTRL::MarkShadeTable();
+    Material_MTRL::MarkShadeTable();
     TDT::MarkActionNames();
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);

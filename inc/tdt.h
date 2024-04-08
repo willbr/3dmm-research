@@ -71,7 +71,7 @@ class TDT : public TDT_PAR
 
     long _tdts;          // TDT shape
     TAG _tagTdf;         // Tag to Three-D Font
-    PMTRL _pmtrlDefault; // MTRL for TDT's default costume
+    PMaterial_MTRL _pmtrlDefault; // Material_MTRL for TDT's default costume
     PACTN _pactnCache;   // Last-used action
     long _tdaCache;      // Action in pactnCache
 
