@@ -349,7 +349,7 @@ void MIDO::Close(long sii)
     Midi player queue.
 ***************************************************************************/
 typedef class MPQUE *PMPQUE;
-#define MPQUE_PAR SNQUE
+#define MPQUE_PAR SoundQueue
 #define kclsMPQUE 'mpqu'
 class MPQUE : public MPQUE_PAR
 {
@@ -827,7 +827,7 @@ PMIDP MIDP::PmidpNew(void)
 /***************************************************************************
     Allocate a new midi queue.
 ***************************************************************************/
-PSNQUE MIDP::_PsnqueNew(void)
+PSoundQueue MIDP::_PsnqueNew(void)
 {
     AssertThis(0);
 

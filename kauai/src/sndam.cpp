@@ -872,7 +872,7 @@ bool SDAM::_FInit(long wav)
 /***************************************************************************
     Allocate a new audioman queue.
 ***************************************************************************/
-PSNQUE SDAM::_PsnqueNew(void)
+PSoundQueue SDAM::_PsnqueNew(void)
 {
     AssertThis(0);
 

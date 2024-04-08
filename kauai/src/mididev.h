@@ -28,7 +28,7 @@ class MIDP : public MIDP_PAR
   protected:
     MIDP(void);
 
-    virtual PSNQUE _PsnqueNew(void);
+    virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:

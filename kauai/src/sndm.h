@@ -133,7 +133,7 @@ class SoundManager : public SoundManager_PAR
 /***************************************************************************
     A useful base class for devices that support multiple queues.
 ***************************************************************************/
-typedef class SNQUE *PSNQUE;
+typedef class SoundQueue *PSoundQueue;
 
 typedef class SNDMQ *PSNDMQ;
 #define SNDMQ_PAR SoundDevice
@@ -148,7 +148,7 @@ class SNDMQ : public SNDMQ_PAR
     // queue descriptor
     struct SNQD
     {
-        PSNQUE psnque;
+        PSoundQueue psnque;
         long sqn;
     };
 
@@ -160,7 +160,7 @@ class SNDMQ : public SNDMQ_PAR
     virtual bool _FInit(void);
     virtual bool _FEnsureQueue(long sqn, SNQD *psnqd, long *pisnqd);
 
-    virtual PSNQUE _PsnqueNew(void) = 0;
+    virtual PSoundQueue _PsnqueNew(void) = 0;
     virtual void _Suspend(bool fSuspend) = 0;
 
   public:
@@ -209,9 +209,9 @@ struct SNDIN
 /***************************************************************************
     Sound queue for a SNDMQ
 ***************************************************************************/
-#define SNQUE_PAR BASE
-#define kclsSNQUE 'snqu'
-class SNQUE : public SNQUE_PAR
+#define SoundQueue_PAR BASE
+#define kclsSoundQueue 'snqu'
+class SoundQueue : public SoundQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -221,7 +221,7 @@ class SNQUE : public SNQUE_PAR
     PDynamicArray _pglsndin;   // the queue
     long _isndinCur; // SNDIN that we should be playing
 
-    SNQUE(void);
+    SoundQueue(void);
 
     virtual bool _FInit(void);
     virtual void _Queue(long isndinMin) = 0;
@@ -234,7 +234,7 @@ class SNQUE : public SNQUE_PAR
     virtual void _Flush(void);
 
   public:
-    ~SNQUE(void);
+    ~SoundQueue(void);
 
     void Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
 

@@ -88,7 +88,7 @@ typedef class MISI *PMISI;
     Midi stream queue.
 ***************************************************************************/
 typedef class MSQUE *PMSQUE;
-#define MSQUE_PAR SNQUE
+#define MSQUE_PAR SoundQueue
 #define kclsMSQUE 'msqu'
 class MSQUE : public MSQUE_PAR
 {

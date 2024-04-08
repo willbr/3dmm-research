@@ -35,7 +35,7 @@ class MDPS : public MDPS_PAR
     MDPS(void);
 
     virtual bool _FInit(void);
-    virtual PSNQUE _PsnqueNew(void);
+    virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:

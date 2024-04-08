@@ -101,7 +101,7 @@ bool MDPS::_FInit(void)
 /***************************************************************************
     Allocate a new midi stream queue.
 ***************************************************************************/
-PSNQUE MDPS::_PsnqueNew(void)
+PSoundQueue MDPS::_PsnqueNew(void)
 {
     AssertThis(0);
 

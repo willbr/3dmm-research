@@ -15,7 +15,7 @@ ASSERTNAME
 RTCLASS(SoundDevice)
 RTCLASS(SoundManager)
 RTCLASS(SNDMQ)
-RTCLASS(SNQUE)
+RTCLASS(SoundQueue)
 
 long SoundDevice::_siiLast;
 
@@ -869,14 +869,14 @@ void SNDMQ::Flush()
 /***************************************************************************
     Constructor for an sound queue.
 ***************************************************************************/
-SNQUE::SNQUE(void)
+SoundQueue::SoundQueue(void)
 {
 }
 
 /***************************************************************************
     Destructor for an sound queue.
 ***************************************************************************/
-SNQUE::~SNQUE(void)
+SoundQueue::~SoundQueue(void)
 {
     AssertBaseThis(0);
 
@@ -898,11 +898,11 @@ SNQUE::~SNQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SNQUE.
+    Assert the validity of a SoundQueue.
 ***************************************************************************/
-void SNQUE::AssertValid(ulong grf)
+void SoundQueue::AssertValid(ulong grf)
 {
-    SNQUE_PAR::AssertValid(0);
+    SoundQueue_PAR::AssertValid(0);
 
     _Enter();
     AssertPo(_pglsndin, 0);
@@ -911,15 +911,15 @@ void SNQUE::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the SNQUE.
+    Mark memory for the SoundQueue.
 ***************************************************************************/
-void SNQUE::MarkMem(void)
+void SoundQueue::MarkMem(void)
 {
     AssertValid(0);
     long isndin;
     SNDIN sndin;
 
-    SNQUE_PAR::MarkMem();
+    SoundQueue_PAR::MarkMem();
 
     _Enter();
     MarkMemObj(_pglsndin);
@@ -935,7 +935,7 @@ void SNQUE::MarkMem(void)
 /***************************************************************************
     Initialize the sound queue. Allocate the _pglsndin.
 ***************************************************************************/
-bool SNQUE::_FInit(void)
+bool SoundQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
@@ -950,7 +950,7 @@ bool SNQUE::_FInit(void)
     Enter any critical section that's necessary to ensure access to
     member variables.
 ***************************************************************************/
-void SNQUE::_Enter(void)
+void SoundQueue::_Enter(void)
 {
     AssertBaseThis(0);
 }
@@ -959,7 +959,7 @@ void SNQUE::_Enter(void)
     Leave any critical section that's necessary to ensure access to
     member variables.
 ***************************************************************************/
-void SNQUE::_Leave(void)
+void SoundQueue::_Leave(void)
 {
     AssertBaseThis(0);
 }
@@ -967,7 +967,7 @@ void SNQUE::_Leave(void)
 /***************************************************************************
     Free any sounds below _isndinCur.
 ***************************************************************************/
-void SNQUE::_Flush(void)
+void SoundQueue::_Flush(void)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -988,7 +988,7 @@ void SNQUE::_Flush(void)
 /***************************************************************************
     Put the given sound on the queue.
 ***************************************************************************/
-void SNQUE::Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+void SoundQueue::Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -1023,7 +1023,7 @@ void SNQUE::Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno
 /***************************************************************************
     Return the priority of the frontmost sound in the queue.
 ***************************************************************************/
-long SNQUE::SprCur(void)
+long SoundQueue::SprCur(void)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -1047,7 +1047,7 @@ long SNQUE::SprCur(void)
 /***************************************************************************
     If the given sound is in our queue, nuke it.
 ***************************************************************************/
-void SNQUE::Stop(long sii)
+void SoundQueue::Stop(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1079,7 +1079,7 @@ void SNQUE::Stop(long sii)
 /***************************************************************************
     Nuke all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SNQUE::StopAll(long scl)
+void SoundQueue::StopAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1109,7 +1109,7 @@ void SNQUE::StopAll(long scl)
 /***************************************************************************
     If the given sound is in our queue, pause it.
 ***************************************************************************/
-void SNQUE::Pause(long sii)
+void SoundQueue::Pause(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1142,7 +1142,7 @@ void SNQUE::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SNQUE::PauseAll(long scl)
+void SoundQueue::PauseAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1172,7 +1172,7 @@ void SNQUE::PauseAll(long scl)
 /***************************************************************************
     If the given sound is in our queue, make sure it's not paused.
 ***************************************************************************/
-void SNQUE::Resume(long sii)
+void SoundQueue::Resume(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1205,7 +1205,7 @@ void SNQUE::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SNQUE::ResumeAll(long scl)
+void SoundQueue::ResumeAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1235,7 +1235,7 @@ void SNQUE::ResumeAll(long scl)
 /***************************************************************************
     Return whether the given sound is in our queue.
 ***************************************************************************/
-bool SNQUE::FPlaying(long sii)
+bool SoundQueue::FPlaying(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1263,7 +1263,7 @@ bool SNQUE::FPlaying(long sii)
     Return whether any sounds of the given sound class are in our queue.
     sclNil means any sounds at all.
 ***************************************************************************/
-bool SNQUE::FPlayingAll(long scl)
+bool SoundQueue::FPlayingAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1291,7 +1291,7 @@ bool SNQUE::FPlayingAll(long scl)
     Free anything that's not being used. This should only be called from
     the main thread.
 ***************************************************************************/
-void SNQUE::Flush(void)
+void SoundQueue::Flush(void)
 {
     AssertThis(0);
 

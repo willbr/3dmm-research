@@ -55,7 +55,7 @@ class SDAM : public SDAM_PAR
     virtual bool _FInit(long wav);
 
     // inherited methods
-    virtual PSNQUE _PsnqueNew(void);
+    virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:

@@ -169,7 +169,7 @@ class AMNOT : public AMNOT_PAR
 /***************************************************************************
     Audioman queue.
 ***************************************************************************/
-#define AMQUE_PAR SNQUE
+#define AMQUE_PAR SoundQueue
 #define kclsAMQUE 'amqu'
 class AMQUE : public AMQUE_PAR
 {
