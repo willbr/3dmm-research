@@ -55,7 +55,7 @@ enum
     FIL class
 ****************************************/
 typedef class FIL *PFIL;
-#define FIL_PAR BLL
+#define FIL_PAR BaseLinkedList
 #define kclsFIL 'FIL'
 class FIL : public FIL_PAR
 {

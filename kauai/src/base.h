@@ -11,7 +11,7 @@
     Copyright (c) Microsoft Corporation
 
     Base classes.  All classes should be derived from BASE.
-    BLL is a base class for singly linked lists.
+    BaseLinkedList is a base class for singly linked lists.
 
 ***************************************************************************/
 #ifndef BASE_H
@@ -265,29 +265,29 @@ class BASE
   public:                                                                                                              \
     class cls *rtn(void)                                                                                               \
     {                                                                                                                  \
-        return (class cls *)BLL::PbllNext();                                                                           \
+        return (class cls *)BaseLinkedList::PbllNext();                                                                           \
     }
 
-typedef class BLL *PBLL;
-#define BLL_PAR BASE
-#define kclsBLL 'BLL'
-class BLL : public BLL_PAR
+typedef class BaseLinkedList *PBaseLinkedList;
+#define BaseLinkedList_PAR BASE
+#define kclsBaseLinkedList 'BLL'
+class BaseLinkedList : public BaseLinkedList_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   private:
-    PBLL _pbllNext;
-    PBLL *_ppbllPrev;
+    PBaseLinkedList _pbllNext;
+    PBaseLinkedList *_ppbllPrev;
 
   protected:
     void _Attach(void *ppbllPrev);
 
   public:
-    BLL(void);
-    ~BLL(void);
+    BaseLinkedList(void);
+    ~BaseLinkedList(void);
 
-    PBLL PbllNext(void)
+    PBaseLinkedList PbllNext(void)
     {
         return _pbllNext;
     }

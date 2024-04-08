@@ -70,7 +70,7 @@ inline void _Leave(void)
 #define kcbBaseDebug 0
 #endif //! DEBUG
 
-RTCLASS(BLL)
+RTCLASS(BaseLinkedList)
 
 /***************************************************************************
     Returns the run-time class id (cls) of the class.
@@ -528,7 +528,7 @@ void UnmarkAllObjs(void)
 /***************************************************************************
     Linked list element constructor
 ***************************************************************************/
-BLL::BLL(void)
+BaseLinkedList::BaseLinkedList(void)
 {
     _ppbllPrev = pvNil;
     _pbllNext = pvNil;
@@ -537,7 +537,7 @@ BLL::BLL(void)
 /***************************************************************************
     Remove the element from the linked list
 ***************************************************************************/
-BLL::~BLL(void)
+BaseLinkedList::~BaseLinkedList(void)
 {
     // unlink the thing
     if (_ppbllPrev != pvNil)
@@ -548,10 +548,10 @@ BLL::~BLL(void)
     Remove the element from the linked list (if it's in one) and reattach
     it at ppbllPrev (if not pvNil).
 ***************************************************************************/
-void BLL::_Attach(void *ppbllPrev)
+void BaseLinkedList::_Attach(void *ppbllPrev)
 {
     AssertThis(0);
-    PBLL *ppbll = (PBLL *)ppbllPrev;
+    PBaseLinkedList *ppbll = (PBaseLinkedList *)ppbllPrev;
     AssertNilOrVarMem(ppbll);
 
     // unlink the thing
@@ -584,9 +584,9 @@ void BLL::_Attach(void *ppbllPrev)
 /***************************************************************************
     Check the links.
 ***************************************************************************/
-void BLL::AssertValid(ulong grf)
+void BaseLinkedList::AssertValid(ulong grf)
 {
-    BLL_PAR::AssertValid(grf);
+    BaseLinkedList_PAR::AssertValid(grf);
 
     if (_pbllNext != pvNil)
     {

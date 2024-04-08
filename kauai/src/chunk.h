@@ -69,7 +69,7 @@ const ByteOrderMask kbomKid = 0xFC000000;
     Chunky file class.
 ***************************************************************************/
 typedef class ChunkyFile *PChunkyFile;
-#define ChunkyFile_PAR BLL
+#define ChunkyFile_PAR BaseLinkedList
 #define kclsChunkyFile 'CFL'
 class ChunkyFile : public ChunkyFile_PAR
 {
