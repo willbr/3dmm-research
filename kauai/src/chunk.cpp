@@ -44,16 +44,16 @@
     The index is not updated on disk until FSave is called.
 
     The index is implemented as a general group (GeneralGroup). The fixed portion
-    of each entry is a CRP (defined below). The variable portion contains
+    of each entry is a ChunkRepresentation (defined below). The variable portion contains
     the list of children of the chunk (including ChildChunkID values) and the
     chunk name (if it has one).
 
-    The CRP indicates where in the heap the chunk data is, whether
+    The ChunkRepresentation indicates where in the heap the chunk data is, whether
     the chunk data is compressed, whether the chunk is a "loner" and how
     many parents the chunk has. Loner chunks are ones that can exist without
     a parent. When pcfl->Delete(ctg, cno) is called, the chunk's loner
     flag is cleared. If the chunk has no parents, the chunk is deleted
-    (by removing its CRP from the index and adding the space in the
+    (by removing its ChunkRepresentation from the index and adding the space in the
     heap that it occupied to the free map). We also decrement the
     parent counts of the children of the chunk. Child chunks whose
     parent count becomes zero and are not loner chunks are then deleted,
@@ -83,7 +83,7 @@ namespace Chunky {
     1	ShonK: instantiated, 10/28/93
     2	ShonK: added compression support, 2/14/95
     3	ShonK: changed format of chunk names to be a saved String, 3/30/95
-    4	ShonK: implemented support for compact index (CRP is smaller). 8/21/95
+    4	ShonK: implemented support for compact index (ChunkRepresentation is smaller). 8/21/95
     5	ShonK: added the fcrpForest flag. 9/4/95
 
 */
@@ -262,7 +262,7 @@ const ByteOrderMask kbomCrpsm = 0xFF500000L;
 
 #ifdef CHUNK_BIG_INDEX
 
-typedef CRPBG CRP;
+typedef CRPBG ChunkRepresentation;
 typedef CRPSM CRPOTH;
 const long kcbMaxCrp = kcbMaxCrpbg;
 typedef long CKID;
@@ -271,7 +271,7 @@ const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
 
 #else //! CHUNK_BIG_INDEX
 
-typedef CRPSM CRP;
+typedef CRPSM ChunkRepresentation;
 typedef CRPBG CRPOTH;
 const long kcbMaxCrp = kcbMaxCrpsm;
 typedef ushort CKID;
@@ -491,7 +491,7 @@ PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
         goto LFail;
 
-    if ((pcfl->_pggcrp = GeneralGroup::PggNew(size(CRP))) == pvNil ||
+    if ((pcfl->_pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation))) == pvNil ||
         (pcfl->_csto.pfil = FileObject::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
     {
         ReleasePpo(&pcfl);
@@ -680,7 +680,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
         goto LFail;
 
-    if (pvNil == (pcfl->_pggcrp = GeneralGroup::PggNew(size(CRP))))
+    if (pvNil == (pcfl->_pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation))))
         goto LFail;
 
     if (fCopyData)
@@ -733,14 +733,14 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
         }
         else
         {
-            CRP *qcrp;
+            ChunkRepresentation *qcrp;
             long icrp;
 
             pcfl->_GetUniqueCno(ecdf.ctg, &icrp, &ecsdT.cno);
             if (!pcfl->_FAdd(0, ecdf.ctg, ecsdT.cno, icrp, pvNil))
                 goto LFail;
 
-            qcrp = (CRP *)pcfl->_pggcrp->QvFixedGet(icrp);
+            qcrp = (ChunkRepresentation *)pcfl->_pggcrp->QvFixedGet(icrp);
             qcrp->fp = ecdf.cb > 0 ? fpSrc : 0;
             qcrp->SetCb(ecdf.cb);
             qcrp->AssignGrfcrp(ecdf.grfcrp, fcrpPacked | fcrpForest);
@@ -800,14 +800,14 @@ bool ChunkyFile::FForest(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return fFalse;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     Assert(qcrp->cki.ctg == ctg && qcrp->cki.cno == cno, 0);
     return FPure(qcrp->Grfcrp(fcrpForest));
 }
@@ -819,14 +819,14 @@ void ChunkyFile::SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     Assert(qcrp->cki.ctg == ctg && qcrp->cki.cno == cno, 0);
     if (FPure(qcrp->Grfcrp(fcrpForest)) != FPure(fForest))
     {
@@ -999,7 +999,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     long ccrpRefTot = 0;
     long ckidTot = 0;
     long cbVar, cbRgch;
-    CRP crp;
+    ChunkRepresentation crp;
     long ikid;
     FilePosition fpBase = _fInvalidMainFile ? 0 : size(ChunkyFilePrefix);
 
@@ -1186,7 +1186,7 @@ tribool ChunkyFile::_TValidIndex(void)
 {
     // WARNING: this is called by a full ChunkyFile::AssertValid().
     long icrp, icrpT;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     CGE cge;
     ulong grfcge, grfcgeIn;
     ChildChunkIdentification kid;
@@ -1198,7 +1198,7 @@ tribool ChunkyFile::_TValidIndex(void)
     ccrpRefTot = ckidTot = 0;
     for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp, &cbVar);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
         if (!FIn(qcrp->ckid, 0, cbVar / size(ChildChunkIdentification) + 1))
             return tNo;
         if (!FIn(qcrp->ccrpRef, 0, kckidMax + 1))
@@ -1219,7 +1219,7 @@ tribool ChunkyFile::_TValidIndex(void)
     // end up in an infinite loop in the orphan check.
     for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         if (qcrp->ccrpRef > 0 || qcrp->ckid == 0)
             continue;
 
@@ -1239,7 +1239,7 @@ tribool ChunkyFile::_TValidIndex(void)
                 ResumeCheckPointers();
                 return tNo;
             }
-            qcrp = (CRP *)_pggcrp->QvFixedGet(icrpT);
+            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpT);
             if (grfcge & fcgePre)
             {
                 if (qcrp->Grfcrp(fcrpMarkT))
@@ -1263,7 +1263,7 @@ tribool ChunkyFile::_TValidIndex(void)
     // this will find orphan subgraphs and validate (ccrpRef > 0).
     for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         if (qcrp->ccrpRef > 0 || qcrp->ckid == 0)
             continue;
 
@@ -1287,7 +1287,7 @@ tribool ChunkyFile::_TValidIndex(void)
                     ResumeCheckPointers();
                     return tNo;
                 }
-                qcrp = (CRP *)_pggcrp->QvFixedGet(icrpT);
+                qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpT);
                 if (qcrp->Grfcrp(fcrpMarkT))
                     grfcgeIn = fcgeSkipToSib;
                 else
@@ -1299,7 +1299,7 @@ tribool ChunkyFile::_TValidIndex(void)
     // make sure the fcrpMarkT fields are set iff (ccrpRef > 0)
     for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         if ((qcrp->ccrpRef != 0) != FPure(qcrp->Grfcrp(fcrpMarkT)))
         {
             ResumeAssertValid();
@@ -1407,7 +1407,7 @@ bool ChunkyFile::_FReadIndex(void)
         {
             pcrpbg = (CRPBG *)_pggcrp->QvFixedGet(icrp, &cbVar);
 #ifndef CHUNK_BIG_INDEX
-            // make sure we can convert this CRP to a small index CRP
+            // make sure we can convert this ChunkRepresentation to a small index ChunkRepresentation
             if (pcrpbg->cb > kcbMaxCrpsm || pcrpbg->ckid > kckidMax || pcrpbg->ccrpRef > kckidMax)
             {
                 goto LBadFile;
@@ -1520,14 +1520,14 @@ bool ChunkyFile::_FReadIndex(void)
         }
     }
 
-    if (size(CRP) != cbFixed)
+    if (size(ChunkRepresentation) != cbFixed)
     {
         // need to convert the index (from big to small or small to big)
         PGeneralGroup pggcrp;
         CRPOTH *pcrpOld;
-        CRP crp;
+        ChunkRepresentation crp;
 
-        if (pvNil == (pggcrp = GeneralGroup::PggNew(size(CRP), _pggcrp->IvMac())))
+        if (pvNil == (pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation), _pggcrp->IvMac())))
             goto LFail;
 
         for (ccrp = _pggcrp->IvMac(), icrp = 0; icrp < ccrp; icrp++)
@@ -1624,7 +1624,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
     Filename fni;
     FileLocation floSrc, floDst;
     long ccrp, icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     PFileObject pfilOld;
 
     if (_fInvalidMainFile)
@@ -1667,7 +1667,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
     ccrp = _pggcrp->IvMac();
     for (icrp = 0; icrp < ccrp; icrp++)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         floSrc.pfil = qcrp->Grfcrp(fcrpOnExtra) ? _cstoExtra.pfil : _csto.pfil;
         floSrc.fp = qcrp->fp;
         floSrc.cb = floDst.cb = qcrp->Cb();
@@ -1686,7 +1686,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
     floSrc.fp = size(ChunkyFilePrefix);
     for (icrp = 0; icrp < ccrp; icrp++)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         qcrp->ClearGrfcrp(fcrpOnExtra);
         qcrp->fp = qcrp->Cb() > 0 ? floSrc.fp : 0;
         floSrc.fp += qcrp->Cb();
@@ -1737,7 +1737,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
             _csto.fpMac = size(ChunkyFilePrefix);
             for (icrp = 0; icrp < ccrp; icrp++)
             {
-                qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+                qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
                 if (qcrp->Cb() > 0)
                     qcrp->SetGrfcrp(fcrpOnExtra);
             }
@@ -1807,8 +1807,8 @@ bool ChunkyFile::FSaveACopy(ChunkTag ctgCreator, Filename *pfni)
     AssertPo(pfni, ffniFile);
     PChunkyFile pcflDst;
     long icrp, ccrp;
-    CRP *pcrp;
-    CRP crp;
+    ChunkRepresentation *pcrp;
+    ChunkRepresentation crp;
     FileLocation floSrc, floDst;
 
     if (pvNil == (pcflDst = ChunkyFile::PcflCreate(pfni, fcflWriteEnable)))
@@ -1824,7 +1824,7 @@ bool ChunkyFile::FSaveACopy(ChunkTag ctgCreator, Filename *pfni)
 
     for (icrp = 0; icrp < ccrp; icrp++, floDst.fp += floDst.cb)
     {
-        pcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        pcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         crp = *pcrp;
 
         // get the source and destination FLOs
@@ -1876,12 +1876,12 @@ bool ChunkyFile::FOnExtra(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
         return fFalse;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     return FPure(qcrp->Grfcrp(fcrpOnExtra));
 }
 
@@ -1909,9 +1909,9 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
     AssertThis(0);
     AssertNilOrVarMem(pflo);
 
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     if (qcrp->Grfcrp(fcrpOnExtra) || qcrp->Cb() == 0)
     {
         if (pvNil != pflo)
@@ -1930,7 +1930,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
         {
             String stn;
 
-            qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
             stn.FFormatSz(PszLit("Cache: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), qcrp->cki.ctg, qcrp->cki.cno,
                           qcrp->fp, qcrp->Cb());
             DumpStn(&stn, _csto.pfil);
@@ -1949,7 +1949,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
             return fFalse;
         }
 
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         qcrp->SetGrfcrp(fcrpOnExtra);
         qcrp->fp = floDst.fp;
         if (pvNil != pflo)
@@ -1961,7 +1961,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
     {
         String stn;
 
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         stn.FFormatSz(PszLit("Fetch from extra: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), qcrp->cki.ctg, qcrp->cki.cno,
                       qcrp->fp, qcrp->Cb());
         DumpStn(&stn, _csto.pfil);
@@ -1981,9 +1981,9 @@ void ChunkyFile::_GetFlo(long icrp, PFileLocation pflo)
 
     if (!_fReadFromExtra || !_FEnsureOnExtra(icrp, pflo))
     {
-        CRP *qcrp;
+        ChunkRepresentation *qcrp;
 
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         pflo->pfil = qcrp->Grfcrp(fcrpOnExtra) ? _cstoExtra.pfil : _csto.pfil;
         pflo->fp = qcrp->fp;
         pflo->cb = qcrp->Cb();
@@ -1993,7 +1993,7 @@ void ChunkyFile::_GetFlo(long icrp, PFileLocation pflo)
         {
             String stn;
 
-            qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
             stn.FFormatSz(PszLit("Fetch from %z: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"),
                           qcrp->Grfcrp(fcrpOnExtra) ? PszLit("extra") : PszLit("main"), qcrp->cki.ctg, qcrp->cki.cno,
                           qcrp->fp, qcrp->Cb());
@@ -2013,10 +2013,10 @@ void ChunkyFile::_GetBlck(long icrp, PDataBlock pblck)
     AssertPo(pblck, 0);
 
     FileLocation flo;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     _GetFlo(icrp, &flo);
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     pblck->Set(&flo, qcrp->Grfcrp(fcrpPacked));
 }
 
@@ -2086,14 +2086,14 @@ void ChunkyFile::SetPacked(ChunkTag ctg, ChunkNumber cno, bool fPacked)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     Assert(qcrp->cki.ctg == ctg && qcrp->cki.cno == cno, 0);
     if (FPure(qcrp->Grfcrp(fcrpPacked)) != FPure(fPacked))
     {
@@ -2112,14 +2112,14 @@ bool ChunkyFile::FPacked(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return fFalse;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     Assert(qcrp->cki.ctg == ctg && qcrp->cki.cno == cno, 0);
     return FPure(qcrp->Grfcrp(fcrpPacked));
 }
@@ -2280,7 +2280,7 @@ bool ChunkyFile::_FFindCtgCno(ChunkTag ctg, ChunkNumber cno, long *picrp)
     for (icrpMin = 0, icrpLim = ccrp; icrpMin < icrpLim;)
     {
         icrp = (icrpMin + icrpLim) / 2;
-        cki = ((CRP *)_pggcrp->QvFixedGet(icrp))->cki;
+        cki = ((ChunkRepresentation *)_pggcrp->QvFixedGet(icrp))->cki;
 
         if (cki.ctg < ctg)
             icrpMin = icrp + 1;
@@ -2312,7 +2312,7 @@ void ChunkyFile::_GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno)
 
     long icrp, ccrp;
     ChunkNumber cno;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, 0, picrp))
     {
@@ -2324,7 +2324,7 @@ void ChunkyFile::_GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno)
     ccrp = _pggcrp->IvMac();
     for (icrp = *picrp + 1, cno = 1; icrp < ccrp; icrp++, cno++)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         if (qcrp->cki.ctg != ctg || qcrp->cki.cno != cno)
             break;
     }
@@ -2491,7 +2491,7 @@ bool ChunkyFile::_FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataB
     AssertIn(cb, 0, kcbMax);
     AssertNilOrPo(pblck, 0);
 
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     FileLocation flo;
 
     if (!_pggcrp->FInsert(icrp, 0))
@@ -2511,8 +2511,8 @@ bool ChunkyFile::_FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataB
     }
     Assert(flo.pfil == _csto.pfil || flo.pfil == _cstoExtra.pfil, 0);
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
-    ClearPb(qcrp, size(CRP));
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
+    ClearPb(qcrp, size(ChunkRepresentation));
     qcrp->cki.ctg = ctg;
     qcrp->cki.cno = cno;
     qcrp->fp = flo.fp;
@@ -2598,7 +2598,7 @@ bool ChunkyFile::_FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck,
     AssertNilOrPo(pblckSrc, 0);
 
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     FileLocation flo;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -2655,12 +2655,12 @@ bool ChunkyFile::_FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck,
         return fFalse;
     }
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     Assert(qcrp->cki.ctg == ctg, 0);
     Assert(qcrp->cki.cno == cno, 0);
     _FreeFpCb(qcrp->Grfcrp(fcrpOnExtra), qcrp->fp, qcrp->Cb());
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     qcrp->fp = flo.fp;
     qcrp->SetCb(flo.cb);
     if (flo.pfil == _cstoExtra.pfil)
@@ -2683,7 +2683,7 @@ void ChunkyFile::SwapData(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkN
 {
     AssertThis(0);
     long icrp1, icrp2;
-    CRP *qcrp1, *qcrp2;
+    ChunkRepresentation *qcrp1, *qcrp2;
     FilePosition fp;
     long cb;
     ulong grfcrpT;
@@ -2694,8 +2694,8 @@ void ChunkyFile::SwapData(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkN
         Bug("can't find the chunks");
         return;
     }
-    qcrp1 = (CRP *)_pggcrp->QvFixedGet(icrp1);
-    qcrp2 = (CRP *)_pggcrp->QvFixedGet(icrp2);
+    qcrp1 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp1);
+    qcrp2 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp2);
 
     fp = qcrp1->fp;
     qcrp1->fp = qcrp2->fp;
@@ -2725,7 +2725,7 @@ void ChunkyFile::SwapChildren(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, Ch
 {
     AssertThis(0);
     long icrp1, icrp2;
-    CRP *qcrp1, *qcrp2;
+    ChunkRepresentation *qcrp1, *qcrp2;
     long cb1, cb2;
 
     if (!_FFindCtgCno(ctg1, cno1, &icrp1) || !_FFindCtgCno(ctg2, cno2, &icrp2))
@@ -2735,8 +2735,8 @@ void ChunkyFile::SwapChildren(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, Ch
     }
 
     // Swap the child lists.
-    qcrp1 = (CRP *)_pggcrp->QvFixedGet(icrp1);
-    qcrp2 = (CRP *)_pggcrp->QvFixedGet(icrp2);
+    qcrp1 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp1);
+    qcrp2 = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp2);
     cb1 = LwMul(qcrp1->ckid, size(ChildChunkIdentification));
     cb2 = LwMul(qcrp2->ckid, size(ChildChunkIdentification));
     SwapVars(&qcrp1->ckid, &qcrp2->ckid);
@@ -2762,7 +2762,7 @@ void ChunkyFile::Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumbe
 {
     AssertThis(0);
     long icrpCur, icrpTarget;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     long ccrpRef;
     long rti;
 
@@ -2779,7 +2779,7 @@ void ChunkyFile::Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumbe
     if (rtiNil != rti)
         _FSetRti(ctg, cno, rtiNil);
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrpCur);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpCur);
     ccrpRef = qcrp->ccrpRef;
     qcrp->cki.ctg = ctgNew;
     qcrp->cki.cno = cnoNew;
@@ -2788,7 +2788,7 @@ void ChunkyFile::Move(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgNew, ChunkNumbe
     if (ccrpRef > 0)
     {
         // chunk has some parents
-        CRP crp;
+        ChunkRepresentation crp;
         long icrp, ikid, ikidNew;
         ChildChunkIdentification *qkid, *qrgkid;
 
@@ -2842,14 +2842,14 @@ void ChunkyFile::Delete(ChunkTag ctg, ChunkNumber cno)
     CGE cge;
     ulong grfcgeIn, grfcge;
     ChildChunkIdentification kid;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     Assert(qcrp->Grfcrp(fcrpLoner) || qcrp->ccrpRef == 0, "can't directly delete a child chunk");
     qcrp->ClearGrfcrp(fcrpLoner);
     if (qcrp->ccrpRef > 0)
@@ -2881,7 +2881,7 @@ void ChunkyFile::Delete(ChunkTag ctg, ChunkNumber cno)
                 long ikid, icrpChild;
                 ChildChunkIdentification kid;
 
-                qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+                qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
                 for (ikid = qcrp->ckid; ikid-- != 0;)
                 {
                     _pggcrp->GetRgb(icrp, _BvKid(ikid), size(kid), &kid);
@@ -2908,14 +2908,14 @@ void ChunkyFile::SetLoner(ChunkTag ctg, ChunkNumber cno, bool fLoner)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
 
     if (fLoner)
         qcrp->SetGrfcrp(fcrpLoner);
@@ -2930,14 +2930,14 @@ bool ChunkyFile::FLoner(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return fFalse;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     return FPure(qcrp->Grfcrp(fcrpLoner));
 }
 
@@ -2948,14 +2948,14 @@ long ChunkyFile::CckiRef(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {
         Bug("chunk not there");
         return 0;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     return qcrp->ccrpRef;
 }
 
@@ -2992,7 +2992,7 @@ void ChunkyFile::DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgCh
 {
     AssertThis(0);
     long icrpPar, icrpChild, ikid;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctgPar, cnoPar, &icrpPar) || !_FFindCtgCno(ctgChild, cnoChild, &icrpChild))
     {
@@ -3006,7 +3006,7 @@ void ChunkyFile::DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgCh
     }
 
     // remove the reference
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
     qcrp->ckid--;
     _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification));
 
@@ -3026,9 +3026,9 @@ void ChunkyFile::DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctgCh
 bool ChunkyFile::_FDecRefCount(long icrp)
 {
     AssertBaseThis(0);
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     if (qcrp->ccrpRef <= 0)
     {
         Bug("ref count wrong");
@@ -3043,10 +3043,10 @@ bool ChunkyFile::_FDecRefCount(long icrp)
 void ChunkyFile::_DeleteCore(long icrp)
 {
     AssertBaseThis(0);
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     ChunkIdentification cki;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     cki = qcrp->cki;
     _FreeFpCb(qcrp->Grfcrp(fcrpOnExtra), qcrp->fp, qcrp->Cb());
     _FSetRti(cki.ctg, cki.cno, rtiNil);
@@ -3201,7 +3201,7 @@ bool ChunkyFile::_FSetName(long icrp, PString pstn)
     AssertIn(icrp, 0, _pggcrp->IvMac());
     AssertNilOrPo(pstn, 0);
     long cbVar, cbOld, cbNew;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     long bvRgch;
 
     if (pstn != pvNil && pstn->Cch() > 0)
@@ -3209,7 +3209,7 @@ bool ChunkyFile::_FSetName(long icrp, PString pstn)
     else
         cbNew = 0;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp, &cbVar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
     bvRgch = qcrp->BvRgch();
     cbOld = cbVar - bvRgch;
     AssertIn(cbOld, 0, kcbMaxDataStn + 1);
@@ -3263,9 +3263,9 @@ bool ChunkyFile::_FGetName(long icrp, PString pstn)
 
     long cbRgch, bvRgch;
     long cbVar;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp, &cbVar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
     cbRgch = qcrp->CbRgch(cbVar);
     AssertIn(cbRgch, 0, kcbMaxDataStn + 1);
     if (cbRgch <= 0)
@@ -3318,7 +3318,7 @@ bool ChunkyFile::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkN
     AssertBaseThis(0);
     AssertIn(icrpPar, 0, _pggcrp->IvMac());
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     ChildChunkIdentification kid;
 
     if (!_FFindCtgCno(ctgChild, cnoChild, &icrp))
@@ -3326,7 +3326,7 @@ bool ChunkyFile::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkN
         Bug("child not there");
         return fFalse;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
     AssertIn(ikid, 0, (long)qcrp->ckid + 1);
     if (tNo != TIsDescendent(ctgChild, cnoChild, qcrp->cki.ctg, qcrp->cki.cno))
     {
@@ -3342,15 +3342,15 @@ bool ChunkyFile::_FAdoptChild(long icrpPar, long ikid, ChunkTag ctgChild, ChunkN
         AssertThis(0);
         return fFalse;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
     if (qcrp->ckid >= kckidMax)
         goto LOverFlow;
     qcrp->ckid++;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     if (qcrp->ccrpRef >= kckidMax)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
         qcrp->ckid--;
     LOverFlow:
         _pggcrp->DeleteRgb(icrpPar, _BvKid(ikid), size(ChildChunkIdentification));
@@ -3419,7 +3419,7 @@ bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki, long *pckid, PDat
     AssertNilOrVarMem(pckid);
     AssertNilOrPo(pblck, 0);
     AssertIn(icki, 0, kcbMax);
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!FIn(icki, 0, _pggcrp->IvMac()))
     {
@@ -3429,7 +3429,7 @@ bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki, long *pckid, PDat
             pblck->Free();
         return fFalse;
     }
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icki);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icki);
     if (pvNil != pcki)
         *pcki = qcrp->cki;
     if (pvNil != pckid)
@@ -3486,7 +3486,7 @@ bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, 
     AssertNilOrVarMem(pcki);
     AssertNilOrVarMem(pckid);
     AssertNilOrPo(pblck, 0);
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     long icrpMac;
     long icrp;
 
@@ -3498,7 +3498,7 @@ bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, 
     if (!FIn(icrp, 0, icrpMac))
         goto LFail;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     if (qcrp->cki.ctg != ctg)
     {
     LFail:
@@ -3524,7 +3524,7 @@ bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki, 
 long ChunkyFile::Ckid(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     long icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -3533,7 +3533,7 @@ long ChunkyFile::Ckid(ChunkTag ctg, ChunkNumber cno)
         return 0;
     }
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     return qcrp->ckid;
 }
 
@@ -3546,7 +3546,7 @@ bool ChunkyFile::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, ChildChunkIde
     AssertThis(0);
     AssertVarMem(pkid);
     AssertIn(ikid, 0, kcbMax);
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     long icrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
@@ -3556,7 +3556,7 @@ bool ChunkyFile::FGetKid(ChunkTag ctg, ChunkNumber cno, long ikid, ChildChunkIde
         return fFalse;
     }
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     if (!FIn(ikid, 0, qcrp->ckid))
     {
         TrashVar(pkid);
@@ -3609,7 +3609,7 @@ bool ChunkyFile::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID
     AssertThis(0);
     AssertVarMem(pkid);
     long ikidMin, ikidLim, ikid;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     ChildChunkIdentification *qrgkid, *qkid;
     long ckid, icrp;
 
@@ -3619,7 +3619,7 @@ bool ChunkyFile::_FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID
         goto LFail;
     }
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
     if ((ckid = qcrp->ckid) <= 0)
     {
         Assert(0 == ckid, "bad crp");
@@ -3689,10 +3689,10 @@ bool ChunkyFile::_FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChi
     AssertIn(icrpPar, 0, _pggcrp->IvMac());
 
     long ikidMin, ikidLim, ikid, ckid;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
     ChildChunkIdentification *qrgkid, *qkid;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrpPar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpPar);
     if ((ckid = qcrp->ckid) <= 0)
     {
         Assert(0 == ckid, "bad crp");
@@ -3827,7 +3827,7 @@ bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst
     ulong grfcge, grfcgeIn;
     CNOM cnom, cnomPar;
     String stn;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     bool fFreeDstOnFailure = fFalse;
     PDynamicArray pglcnom = pvNil;
@@ -3915,10 +3915,10 @@ bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst
             AssertDo(pcflDst->_FFindCtgCno(kid.cki.ctg, cnom.cnoDst, &icrpDst), "_FFindCtgCno doesn't work");
 
             // make sure the forest flags match
-            qcrp = (CRP *)_pggcrp->QvFixedGet(icrpSrc);
+            qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrpSrc);
             if (qcrp->Grfcrp(fcrpForest))
             {
-                qcrp = (CRP *)pcflDst->_pggcrp->QvFixedGet(icrpDst);
+                qcrp = (ChunkRepresentation *)pcflDst->_pggcrp->QvFixedGet(icrpDst);
                 qcrp->SetGrfcrp(fcrpForest);
             }
 
@@ -4061,13 +4061,13 @@ bool ChunkyFile::_FFindCtgRti(ChunkTag ctg, long rti, ChunkNumber cnoMin, ChunkN
 #ifdef CHUNK_BIG_INDEX
 
     long icrp, ccrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     _FFindCtgCno(ctg, cnoMin, &icrp);
     ccrp = Ccki();
     for (; icrp < ccrp; icrp++)
     {
-        qcrp = (CRP *)_pggcrp->QvFixedGet(icrp);
+        qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp);
         if (qcrp->cki.ctg != ctg)
             break; // done
         if (qcrp->rti == rti)
@@ -4142,12 +4142,12 @@ long ChunkyFile::_Rti(ChunkTag ctg, ChunkNumber cno)
 #ifdef CHUNK_BIG_INDEX
 
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
         return rtiNil;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp, &cbVar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
     return qcrp->rti;
 
 #else //! CHUNK_BIG_INDEX
@@ -4172,12 +4172,12 @@ bool ChunkyFile::_FSetRti(ChunkTag ctg, ChunkNumber cno, long rti)
 #ifdef CHUNK_BIG_INDEX
 
     long icrp;
-    CRP *qcrp;
+    ChunkRepresentation *qcrp;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
         return fFalse;
 
-    qcrp = (CRP *)_pggcrp->QvFixedGet(icrp, &cbVar);
+    qcrp = (ChunkRepresentation *)_pggcrp->QvFixedGet(icrp, &cbVar);
     qcrp->rti = rti;
     return fTrue;
 
