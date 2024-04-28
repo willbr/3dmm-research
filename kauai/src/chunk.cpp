@@ -132,7 +132,7 @@ struct ChunkyFilePrefix
 const ByteOrderMask kbomCfp = 0xB55FFC00L;
 
 // free space map entry
-struct FSM
+struct FreeSpaceMap
 {
     FP fp;
     long cb;
@@ -1101,7 +1101,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     if (_csto.pglfsm != pvNil)
     {
         long ifsm;
-        FSM fsm;
+        FreeSpaceMap fsm;
         FP fpOld;
 
         fpOld = _csto.fpMac;
@@ -1118,7 +1118,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     if (_cstoExtra.pglfsm != pvNil)
     {
         long ifsm;
-        FSM fsm;
+        FreeSpaceMap fsm;
         FP fpOld;
 
         fpOld = _cstoExtra.fpMac;
@@ -1596,17 +1596,17 @@ void ChunkyFile::_ReadFreeMap(void)
     if (_cbFreeMap > 0)
     {
         if ((_csto.pglfsm = DynamicArray::PglRead(_csto.pfil, _fpFreeMap, _cbFreeMap, &bo, &osk)) == pvNil ||
-            _csto.pglfsm->CbEntry() != size(FSM))
+            _csto.pglfsm->CbEntry() != size(FreeSpaceMap))
         {
             // it failed, but so what
             ReleasePpo(&_csto.pglfsm);
             return;
         }
         // swap bytes
-        AssertBomRglw(kbomFsm, size(FSM));
+        AssertBomRglw(kbomFsm, size(FreeSpaceMap));
         if (bo != kboCur && (cfsm = _csto.pglfsm->IvMac()) > 0)
         {
-            SwapBytesRglw(_csto.pglfsm->QvGet(0), cfsm * (size(FSM) / size(long)));
+            SwapBytesRglw(_csto.pglfsm->QvGet(0), cfsm * (size(FreeSpaceMap) / size(long)));
         }
     }
 }
@@ -2186,7 +2186,7 @@ bool ChunkyFile::_FAllocFlo(long cb, PFLO pflo, bool fForceOnExtra)
 
     CSTO *pcsto;
     long cfsm, ifsm;
-    FSM *qfsm;
+    FreeSpaceMap *qfsm;
 
     if (cb > kcbMaxCrp)
     {
@@ -2224,7 +2224,7 @@ bool ChunkyFile::_FAllocFlo(long cb, PFLO pflo, bool fForceOnExtra)
     // look for a free spot in the free space map
     if (pcsto->pglfsm != pvNil && (cfsm = pcsto->pglfsm->IvMac()) > 0)
     {
-        qfsm = (FSM *)pcsto->pglfsm->QvGet(0);
+        qfsm = (FreeSpaceMap *)pcsto->pglfsm->QvGet(0);
         for (ifsm = 0; ifsm < cfsm; ifsm++, qfsm++)
         {
             if (qfsm->cb >= cb)
@@ -3064,7 +3064,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FP fp, long cb)
 
     PDynamicArray pglfsm;
     long ifsm, ifsmMin, ifsmLim;
-    FSM fsm, fsmT;
+    FreeSpaceMap fsm, fsmT;
     CSTO *pcsto;
 
     // no space allocated to the chunk
@@ -3102,7 +3102,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FP fp, long cb)
 
     // Chunk is not at the end of the file.  We need to add it
     // to the free map.
-    if (pglfsm == pvNil && (pglfsm = pcsto->pglfsm = DynamicArray::PglNew(size(FSM), 1)) == pvNil)
+    if (pglfsm == pvNil && (pglfsm = pcsto->pglfsm = DynamicArray::PglNew(size(FreeSpaceMap), 1)) == pvNil)
     {
         // can't create the free map, just drop the space
         return;
