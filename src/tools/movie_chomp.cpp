@@ -248,7 +248,7 @@ const ByteOrderMask kbomMfp = 0x55000000;
 
 
 
-struct ACTF // Actor chunk on file
+struct ActorChunkOnFile // Actor chunk on file
 {
     short bo;        // Byte order
     short osk;       // OS kind
@@ -276,10 +276,10 @@ typedef MACTR *PMACTR;
 const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
 /***************************************************************************
-    Read the ACTF. This handles converting an ACTF that doesn't have an
+    Read the ActorChunkOnFile. This handles converting an ActorChunkOnFile that doesn't have an
     nfrmLast.
 ***************************************************************************/
-bool _FReadActf(PDataBlock pblck, ACTF *pactf)
+bool _FReadActf(PDataBlock pblck, ActorChunkOnFile *pactf)
 {
     AssertPo(pblck, 0);
     AssertVarMem(pactf);
@@ -288,9 +288,9 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
     if (!pblck->FUnpackData())
         return fFalse;
 
-    if (pblck->Cb() != size(ACTF))
+    if (pblck->Cb() != size(ActorChunkOnFile))
     {
-        if (pblck->Cb() != size(ACTF) - size(long))
+        if (pblck->Cb() != size(ActorChunkOnFile) - size(long))
             return fFalse;
         fOldActf = fTrue;
     }
@@ -300,14 +300,14 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
 
     if (fOldActf)
     {
-        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ACTF) - offset(ACTF, nfrmLast) - size(long));
+        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ActorChunkOnFile) - offset(ActorChunkOnFile, nfrmLast) - size(long));
     }
 
     if (kboOther == pactf->bo)
         SwapBytesBom(pactf, kbomActf);
     if (kboCur != pactf->bo)
     {
-        Bug("Corrupt ACTF");
+        Bug("Corrupt ActorChunkOnFile");
         return fFalse;
     }
 
@@ -1033,7 +1033,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             goto LEndChunk;
 
         case kctgActr: {
-            ACTF actf;
+            ActorChunkOnFile actf;
             // printf("ACTR\n");
             _FReadActf(&blck, &actf);
 

@@ -10,7 +10,7 @@
 
     Here's the chunk hierarchy:
 
-    Actor // contains an ACTF (origin, arid, nfrmFirst, tagTmpl...)
+    Actor // contains an ActorChunkOnFile (origin, arid, nfrmFirst, tagTmpl...)
      |
      +---PATH (chid 0) // _pglxyz (actor path)
      |
@@ -26,7 +26,7 @@ using namespace ActorEvent;
 const ChildChunkID kchidPath = 0;
 const ChildChunkID kchidGgae = 0;
 
-struct ACTF // Actor chunk on file
+struct ActorChunkOnFile // Actor chunk on file
 {
     short bo;        // Byte order
     short osk;       // OS kind
@@ -48,7 +48,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    ACTF actf;
+    ActorChunkOnFile actf;
     ChunkNumber cnoPath;
     ChunkNumber cnoGgae;
     ChunkNumber cnoTmpl;
@@ -101,7 +101,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     actf.nfrmFirst = _nfrmFirst;
     actf.nfrmLast = _nfrmLast;
     actf.tagTmpl = _tagTmpl;
-    if (!pcfl->FPutPv(&actf, size(ACTF), kctgActr, cnoActr))
+    if (!pcfl->FPutPv(&actf, size(ActorChunkOnFile), kctgActr, cnoActr))
         return fFalse;
 
     // Now write the PATH chunk:
@@ -205,10 +205,10 @@ LFail:
 }
 
 /***************************************************************************
-    Read the ACTF. This handles converting an ACTF that doesn't have an
+    Read the ActorChunkOnFile. This handles converting an ActorChunkOnFile that doesn't have an
     nfrmLast.
 ***************************************************************************/
-bool _FReadActf(PDataBlock pblck, ACTF *pactf)
+bool _FReadActf(PDataBlock pblck, ActorChunkOnFile *pactf)
 {
     AssertPo(pblck, 0);
     AssertVarMem(pactf);
@@ -217,9 +217,9 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
     if (!pblck->FUnpackData())
         return fFalse;
 
-    if (pblck->Cb() != size(ACTF))
+    if (pblck->Cb() != size(ActorChunkOnFile))
     {
-        if (pblck->Cb() != size(ACTF) - size(long))
+        if (pblck->Cb() != size(ActorChunkOnFile) - size(long))
             return fFalse;
         fOldActf = fTrue;
     }
@@ -229,14 +229,14 @@ bool _FReadActf(PDataBlock pblck, ACTF *pactf)
 
     if (fOldActf)
     {
-        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ACTF) - offset(ACTF, nfrmLast) - size(long));
+        BltPb(&pactf->nfrmLast, &pactf->nfrmLast + 1, size(ActorChunkOnFile) - offset(ActorChunkOnFile, nfrmLast) - size(long));
     }
 
     if (kboOther == pactf->bo)
         SwapBytesBom(pactf, kbomActf);
     if (kboCur != pactf->bo)
     {
-        Bug("Corrupt ACTF");
+        Bug("Corrupt ActorChunkOnFile");
         return fFalse;
     }
 
@@ -253,13 +253,13 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    ACTF actf;
+    ActorChunkOnFile actf;
     DataBlock blck;
 
     if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
         return fFalse;
 
-    Assert(kboCur == actf.bo, "bad ACTF");
+    Assert(kboCur == actf.bo, "bad ActorChunkOnFile");
     _dxyzFullRte = actf.dxyzFullRte;
     _arid = actf.arid;
     _nfrmFirst = actf.nfrmFirst;
@@ -302,15 +302,15 @@ bool Actor::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
     AssertPo(pcfl, 0);
     Assert(darid != 0, "Why call this with darid == 0?");
 
-    ACTF actf;
+    ActorChunkOnFile actf;
     DataBlock blck;
 
     if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
         return fFalse;
 
-    Assert(kboCur == actf.bo, "bad ACTF");
+    Assert(kboCur == actf.bo, "bad ActorChunkOnFile");
     actf.arid += darid;
-    return pcfl->FPutPv(&actf, size(ACTF), kctgActr, cno);
+    return pcfl->FPutPv(&actf, size(ActorChunkOnFile), kctgActr, cno);
 }
 
 /***************************************************************************
@@ -485,7 +485,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
 
-    ACTF actf;
+    ActorChunkOnFile actf;
     DataBlock blck;
     short bo;
     PTAG ptag;
@@ -498,7 +498,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
     if (pvNil == pgltag)
         goto LFail;
 
-    // Read the ACTF so we can insert tagTmpl:
+    // Read the ActorChunkOnFile so we can insert tagTmpl:
     if (!pcfl->FFind(kctgActr, cno, &blck) || !_FReadActf(&blck, &actf))
         goto LFail;
 
