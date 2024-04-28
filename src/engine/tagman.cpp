@@ -13,7 +13,7 @@
     to the local hard disk, and caching resources in RAM using chunky
     resources (the ChunkyResourceFile and ChunkyResourceManager classes).
 
-    For each source, TagManager maintains (in an SFS) a ChunkyResourceManager (Chunky Resource
+    For each source, TagManager maintains (in an SourceFileStructure) a ChunkyResourceManager (Chunky Resource
     Manager) of all the content	files on the source and a ChunkyResourceFile (Chunky
     Resource File), which is a single file on the HD which can be used
     for faster access to the source.  Both CRFs and CRMs can cache
@@ -46,7 +46,7 @@ RTCLASS(TagManager)
 const ByteOrderMask kbomSid = 0xc0000000;
 
 // Source File Structure...keeps track of known sources and caches
-struct SFS
+struct SourceFileStructure
 {
   public:
     long sid;             // ID for this source
@@ -56,7 +56,7 @@ struct SFS
     tribool tContentOnHD; // Is the content on the HD or CD?
 
   public:
-    void Clear(void) // Zeros out an SFS
+    void Clear(void) // Zeros out an SourceFileStructure
     {
         sid = ksidInvalid;
         fniHD.SetNil();
@@ -85,7 +85,7 @@ PTagManager TagManager::PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, long c
     ptagm->_cbCache = cbCache;
     ptagm->_pfninscd = pfninscd;
 
-    ptagm->_pglsfs = DynamicArray::PglNew(size(SFS));
+    ptagm->_pglsfs = DynamicArray::PglNew(size(SourceFileStructure));
     if (pvNil == ptagm->_pglsfs)
         goto LFail;
 
@@ -108,7 +108,7 @@ TagManager::~TagManager(void)
     AssertBaseThis(0);
 
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
 
     if (pvNil != _pglsfs)
     {
@@ -526,7 +526,7 @@ PChunkyResourceManager TagManager::_PcrmSourceGet(long sid, bool fDontHitCD)
     Assert(sid >= 0, "Invalid sid");
 
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
     bool fContentOnFni;
     bool fFniChanged;
     bool fExists;
@@ -537,7 +537,7 @@ PChunkyResourceManager TagManager::_PcrmSourceGet(long sid, bool fDontHitCD)
         if (sid == sfs.sid)
             goto LSetupSfs;
     }
-    // SFS for this sid doesn't exist in _pglsfs, so make one
+    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
     sfs.Clear();
     sfs.sid = sid;
     if (!_pglsfs->FAdd(&sfs, &isfs))
@@ -619,7 +619,7 @@ bool TagManager::_FDetermineIfSourceHD(long sid, bool *pfIsOnHD)
     AssertVarMem(pfIsOnHD);
 
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
     bool fContentOnFni;
     bool fExists;
 
@@ -629,7 +629,7 @@ bool TagManager::_FDetermineIfSourceHD(long sid, bool *pfIsOnHD)
         if (sid == sfs.sid)
             goto LSetupSfs;
     }
-    // SFS for this sid doesn't exist in _pglsfs, so make one
+    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
     sfs.Clear();
     sfs.sid = sid;
     if (!_pglsfs->FAdd(&sfs, &isfs))
@@ -666,7 +666,7 @@ bool TagManager::_FGetFniHD(long sid, PFilename pfniHD)
     AssertVarMem(pfniHD);
 
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
     bool fExists;
 
     for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
@@ -675,7 +675,7 @@ bool TagManager::_FGetFniHD(long sid, PFilename pfniHD)
         if (sid == sfs.sid)
             goto LSetupSFS;
     }
-    // SFS for this sid doesn't exist in _pglsfs, so make one
+    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
     sfs.Clear();
     sfs.sid = sid;
     if (!_pglsfs->FAdd(&sfs, &isfs))
@@ -700,7 +700,7 @@ bool TagManager::_FGetFniCD(long sid, PFilename pfniCD, bool fAskForCD)
     AssertVarMem(pfniCD);
 
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
     bool fFniChanged;
 
     for (isfs = 0; isfs < _pglsfs->IvMac(); isfs++)
@@ -709,7 +709,7 @@ bool TagManager::_FGetFniCD(long sid, PFilename pfniCD, bool fAskForCD)
         if (sid == sfs.sid)
             goto LSetupSFS;
     }
-    // SFS for this sid doesn't exist in _pglsfs, so make one
+    // SourceFileStructure for this sid doesn't exist in _pglsfs, so make one
     sfs.Clear();
     sfs.sid = sid;
     if (!_pglsfs->FAdd(&sfs, &isfs))
@@ -920,7 +920,7 @@ void TagManager::ClearCache(long sid, ulong grftagm)
     for (isfs = 0; isfs < isfsMac; isfs++)
     {
         long icrf, icrfMac;
-        SFS sfs;
+        SourceFileStructure sfs;
         PChunkyResourceManager pcrmSource;
 
         _pglsfs->Get(isfs, &sfs);
@@ -1106,7 +1106,7 @@ ulong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 void TagManager::AssertValid(ulong grf)
 {
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
 
     TagManager_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglsfs, 0);
@@ -1130,7 +1130,7 @@ void TagManager::MarkMem(void)
     AssertThis(0);
 
     long isfs;
-    SFS sfs;
+    SourceFileStructure sfs;
 
     TagManager_PAR::MarkMem();
     MarkMemObj(_pglsfs);
