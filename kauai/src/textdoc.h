@@ -32,7 +32,7 @@ class TXDC : public TXDC_PAR
 
   protected:
     PFileByteStream _pbsf;
-    PFIL _pfil;
+    PFileObject _pfil;
 
     TXDC(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TXDC(void);

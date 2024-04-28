@@ -419,7 +419,7 @@ PDynamicArray DynamicArray::PglRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a list from file and return it.
 ***************************************************************************/
-PDynamicArray DynamicArray::PglRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PDynamicArray DynamicArray::PglRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PglRead(&blck, pbo, posk);
@@ -777,7 +777,7 @@ PAllocatedArray AllocatedArray::PalRead(PDataBlock pblck, short *pbo, short *pos
 /***************************************************************************
     Read an allocated list from file and return it.
 ***************************************************************************/
-PAllocatedArray AllocatedArray::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedArray AllocatedArray::PalRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PalRead(&blck, pbo, posk);
@@ -1881,7 +1881,7 @@ PGeneralGroup GeneralGroup::PggRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a group from file and return it.
 ***************************************************************************/
-PGeneralGroup GeneralGroup::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PGeneralGroup GeneralGroup::PggRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PggRead(&blck, pbo, posk);
@@ -2135,7 +2135,7 @@ PAllocatedGroup AllocatedGroup::PagRead(PDataBlock pblck, short *pbo, short *pos
 /***************************************************************************
     Read an allocated group from file and return it.
 ***************************************************************************/
-PAllocatedGroup AllocatedGroup::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedGroup AllocatedGroup::PagRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PagRead(&blck, pbo, posk);

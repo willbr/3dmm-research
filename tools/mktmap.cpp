@@ -89,7 +89,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LFail;
     ReleasePpo(&ptmap);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -99,7 +99,7 @@ LUsage:
 LFail:
     ReleasePpo(&ptmap);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 

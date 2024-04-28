@@ -300,7 +300,7 @@ long _TtFromChCh(achar ch1, achar ch2)
 /***************************************************************************
     Constructor for the lexer.
 ***************************************************************************/
-LexerBase::LexerBase(PFIL pfil, bool fUnionStrings)
+LexerBase::LexerBase(PFileObject pfil, bool fUnionStrings)
 {
     AssertPo(pfil, 0);
 

@@ -317,7 +317,7 @@ void TestFni(void)
 ***************************************************************************/
 void TestFil(void)
 {
-    PFIL pfil;
+    PFileObject pfil;
     Filename fni;
 
     while (FGetFniSaveMacro(&fni, 'TEXT',
@@ -328,7 +328,7 @@ void TestFil(void)
                             PszLit("All files\0*.*\0"), NULL))
     {
         AssertDo(fni.TExists() == tNo, 0);
-        pfil = FIL::PfilCreate(&fni);
+        pfil = FileObject::PfilCreate(&fni);
         AssertPo(pfil, 0);
         AssertDo(pfil->FSetFpMac(100), 0);
         AssertDo(pfil->FpMac() == 100, 0);
@@ -338,9 +338,9 @@ void TestFil(void)
         ReleasePpo(&pfil);
     }
 
-    FIL::CloseUnmarked();
-    FIL::ClearMarks();
-    FIL::CloseUnmarked();
+    FileObject::CloseUnmarked();
+    FileObject::ClearMarks();
+    FileObject::CloseUnmarked();
 }
 
 /***************************************************************************

@@ -203,11 +203,11 @@ Movie::Movie(void) : _clok(khidMvieClock)
 
 /******************************************************************************
     _FSetPfilSave
-        Given an Filename, looks for and remembers if found the FIL associated with
-        it.  If the FIL was found, will also check to see if it's read-only.
+        Given an Filename, looks for and remembers if found the FileObject associated with
+        it.  If the FileObject was found, will also check to see if it's read-only.
 
     Returns:
-        fFalse if the FIL wasn't found.
+        fFalse if the FileObject wasn't found.
 
 ************************************************************ PETED ***********/
 bool Movie::_FSetPfilSave(PFilename pfni)
@@ -218,16 +218,16 @@ bool Movie::_FSetPfilSave(PFilename pfni)
     long lAttrib;
     String stnFile;
 
-    /* Look for the file and remember FIL if found */
+    /* Look for the file and remember FileObject if found */
     ReleasePpo(&_pfilSave);
-    _pfilSave = FIL::PfilFromFni(pfni);
+    _pfilSave = FileObject::PfilFromFni(pfni);
     if (_pfilSave == pvNil)
         return fFalse;
     _pfilSave->AddRef();
     _fFniSaveValid = fTrue;
 
-    /* Remember whether FIL is read-only; only relevant if we actually found
-        the FIL, since if we didn't, we'll prompt for a new filename later
+    /* Remember whether FileObject is read-only; only relevant if we actually found
+        the FileObject, since if we didn't, we'll prompt for a new filename later
         anyway */
     pfni->GetStnPath(&stnFile);
 #ifdef WIN
@@ -1606,7 +1606,7 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool Movie::FCopySndFileToMvie(PFIL pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
+bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pfilSrc);
@@ -2637,13 +2637,13 @@ LRetry:
     if (pfni != pvNil)
     {
         bool fSuccess;
-        PFIL pfil;
+        PFileObject pfil;
 
         //
         // If we have this file open, then we need to release it
         // so we can do the save.  We will restore our open below.
         //
-        pfil = FIL::PfilFromFni(pfni);
+        pfil = FileObject::PfilFromFni(pfni);
         if (pfil == _pfilSave)
         {
             ReleasePpo(&_pfilSave);
@@ -2663,7 +2663,7 @@ LRetry:
 
         if (pfil != pvNil)
         {
-            _pfilSave = FIL::PfilFromFni(pfni);
+            _pfilSave = FileObject::PfilFromFni(pfni);
             if (_pfilSave != pvNil)
             {
                 _pfilSave->AddRef();

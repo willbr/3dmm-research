@@ -103,7 +103,7 @@ bool TextDocumentBase::_FInit(PFilename pfni, PFileByteStream pbsf, short osk)
     AssertNilOrPo(pbsf, 0);
     achar ch;
 
-    if (pvNil != pfni && pvNil == (_pfil = FIL::PfilOpen(pfni)))
+    if (pvNil != pfni && pvNil == (_pfil = FileObject::PfilOpen(pfni)))
         return fFalse;
 
     if (pvNil != pbsf)
@@ -946,7 +946,7 @@ bool PlainTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
         fSetFni = fTrue;
     }
 
-    if (pvNil == (flo.pfil = FIL::PfilCreateTemp(pfni)))
+    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp(pfni)))
         goto LFail;
 
     flo.fp = 0;
@@ -1129,7 +1129,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber c
     AssertPo(pcfl, 0);
     DataBlock blck;
     FLO floText;
-    PFIL pfilT;
+    PFileObject pfilT;
     ChildChunkIdentification kid;
     long icact;
     long cact;

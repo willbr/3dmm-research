@@ -756,7 +756,7 @@ PStringTable_GST StringTable_GST::PgstRead(PDataBlock pblck, short *pbo, short *
 /***************************************************************************
     Read a string table from file and return it.
 ***************************************************************************/
-PStringTable_GST StringTable_GST::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PStringTable_GST StringTable_GST::PgstRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PgstRead(&blck, pbo, posk);
@@ -1002,7 +1002,7 @@ PAllocatedStringTable AllocatedStringTable::PastRead(PDataBlock pblck, short *pb
 /***************************************************************************
     Read an allocated string table from file and return it.
 ***************************************************************************/
-PAllocatedStringTable AllocatedStringTable::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedStringTable AllocatedStringTable::PastRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck;
     return PastRead(&blck, pbo, posk);

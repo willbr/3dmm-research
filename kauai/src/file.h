@@ -52,21 +52,21 @@ enum
 };
 
 /****************************************
-    FIL class
+    FileObject class
 ****************************************/
-typedef class FIL *PFIL;
-#define FIL_PAR BaseLinkedList
-#define kclsFIL 'FIL'
-class FIL : public FIL_PAR
+typedef class FileObject *PFileObject;
+#define FileObject_PAR BaseLinkedList
+#define kclsFileObject 'FIL'
+class FileObject : public FileObject_PAR
 {
     RTCLASS_DEC
-    BLL_DEC(FIL, PfilNext)
+    BLL_DEC(FileObject, PfilNext)
     ASSERT
 
   protected:
     // static member variables
     static Mutex _mutxList;
-    static PFIL _pfilFirst;
+    static PFileObject _pfilFirst;
 
     Mutex _mutx;
 
@@ -84,8 +84,8 @@ class FIL : public FIL_PAR
 #endif // WIN
 
     // private methods
-    FIL(Filename *pfni, ulong grffil);
-    ~FIL(void);
+    FileObject(Filename *pfni, ulong grffil);
+    ~FileObject(void);
 
     bool _FOpen(bool fCreate, ulong grffil);
     void _Close(bool fFinal = fFalse);
@@ -101,15 +101,15 @@ class FIL : public FIL_PAR
     static void CloseUnmarked(void);
     static void ShutDown(void);
 
-    // static methods returning a PFIL
-    static PFIL PfilFirst(void)
+    // static methods returning a PFileObject
+    static PFileObject PfilFirst(void)
     {
         return _pfilFirst;
     }
-    static PFIL PfilOpen(Filename *pfni, ulong grffil = ffilDenyWrite);
-    static PFIL PfilCreate(Filename *pfni, ulong grffil = ffilWriteEnable | ffilDenyWrite);
-    static PFIL PfilCreateTemp(Filename *pfni = pvNil);
-    static PFIL PfilFromFni(Filename *pfni);
+    static PFileObject PfilOpen(Filename *pfni, ulong grffil = ffilDenyWrite);
+    static PFileObject PfilCreate(Filename *pfni, ulong grffil = ffilWriteEnable | ffilDenyWrite);
+    static PFileObject PfilCreateTemp(Filename *pfni = pvNil);
+    static PFileObject PfilFromFni(Filename *pfni);
 
     virtual void Release(void);
     void Mark(void)
@@ -161,7 +161,7 @@ class FIL : public FIL_PAR
         *pfp += cb;
         return fTrue;
     }
-    bool FSwapNames(PFIL pfil);
+    bool FSwapNames(PFileObject pfil);
     bool FRename(Filename *pfni);
     bool FSetFni(Filename *pfni);
     void Flush(void);
@@ -180,7 +180,7 @@ enum
 typedef struct FLO *PFLO;
 struct FLO
 {
-    PFIL pfil;
+    PFileObject pfil;
     FP fp;
     long cb;
 
@@ -242,13 +242,13 @@ class DataBlock : public DataBlock_PAR
 
   public:
     DataBlock(PFLO pflo, bool fPacked = fFalse);
-    DataBlock(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);
+    DataBlock(PFileObject pfil, FP fp, long cb, bool fPacked = fFalse);
     DataBlock(HQ *phq, bool fPacked = fFalse);
     DataBlock(void);
     ~DataBlock(void);
 
     void Set(PFLO pflo, bool fPacked = fFalse);
-    void Set(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);
+    void Set(PFileObject pfil, FP fp, long cb, bool fPacked = fFalse);
     void SetHq(HQ *phq, bool fPacked = fFalse);
     void Free(void);
     HQ HqFree(bool fPackedOk = fFalse);
@@ -322,20 +322,20 @@ class MSFIL : public MSFIL_PAR
 
   protected:
     bool _fError;
-    PFIL _pfil;
+    PFileObject _pfil;
     FP _fpCur;
     void _EnsureFile(void);
 
   public:
-    MSFIL(PFIL pfil = pvNil);
+    MSFIL(PFileObject pfil = pvNil);
     ~MSFIL(void);
 
     virtual void ReportLine(PSZ psz);
     virtual void Report(PSZ psz);
     virtual bool FError(void);
 
-    void SetFile(PFIL pfil);
-    PFIL PfilRelease(void);
+    void SetFile(PFileObject pfil);
+    PFileObject PfilRelease(void);
 };
 
 #endif //! FILE_H

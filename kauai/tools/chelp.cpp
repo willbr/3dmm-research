@@ -327,7 +327,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
         {
             FLO flo;
 
-            if (pvNil == (flo.pfil = FIL::PfilOpen(pfni)))
+            if (pvNil == (flo.pfil = FileObject::PfilOpen(pfni)))
                 goto LFail;
             flo.fp = 0;
             flo.cb = flo.pfil->FpMac();

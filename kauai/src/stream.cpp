@@ -702,7 +702,7 @@ bool FileByteStream::FReplaceFlo(PFLO pflo, bool fCopy, long ib, long cbDel)
     // insert a file flo
     if (fCopy)
     {
-        if (pvNil == (flo.pfil = FIL::PfilCreateTemp()))
+        if (pvNil == (flo.pfil = FileObject::PfilCreateTemp()))
             return fFalse;
         flo.cb = pflo->cb;
         flo.fp = 0;
@@ -874,7 +874,7 @@ bool FileByteStream::FCompact(void)
         goto LShrinkGg;
     }
 
-    if (pvNil == (flo.pfil = FIL::PfilCreateTemp()))
+    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp()))
         goto LShrinkGg;
 
     flo.fp = 0;

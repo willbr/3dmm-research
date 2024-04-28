@@ -66,7 +66,7 @@ class Filename : public Filename_PAR
     RTCLASS_DEC
     ASSERT
 
-    friend class FIL;
+    friend class FileObject;
     friend class FileNameEnumerator;
 
   private:

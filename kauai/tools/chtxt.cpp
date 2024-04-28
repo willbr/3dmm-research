@@ -174,7 +174,7 @@ bool CHTDD::FCmdCompileScript(PCommand pcmd)
 void OpenSinkDoc(PMSFIL pmsfil)
 {
     PDocumentBase pdocb;
-    PFIL pfil;
+    PFileObject pfil;
     Filename fni;
     bool fTemp;
 

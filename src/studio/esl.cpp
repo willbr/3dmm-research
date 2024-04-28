@@ -1885,7 +1885,7 @@ bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
 
     Filename fni;
     String stn;
-    PFIL pfil = pvNil;
+    PFileObject pfil = pvNil;
     ChunkNumber cno;
     long sty = _fSpeech ? stySpeech : stySfx;
     long kid = _fSpeech ? kidSpeechGlass : kidFXGlass;
@@ -1931,7 +1931,7 @@ bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
     if (!_psrec->FSave(&fni))
         return fFalse;
 
-    pfil = FIL::PfilOpen(&fni, ffilNil);
+    pfil = FileObject::PfilOpen(&fni, ffilNil);
     if (pvNil == pfil)
         goto LFail;
 

@@ -546,7 +546,7 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
     };
 #pragma pack()
 
-    PFIL pfil;
+    PFileObject pfil;
     RC rc;
     long fpMac, cbBitmap, cbSrc;
     BMH bmh;
@@ -558,7 +558,7 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
     if (pvNil != ppglclr)
         *ppglclr = pvNil;
 
-    if (pvNil == (pfil = FIL::PfilOpen(pfni)))
+    if (pvNil == (pfil = FileObject::PfilOpen(pfni)))
         return fFalse;
     fpMac = pfil->FpMac();
     if (size(BMH) >= fpMac || !pfil->FReadRgbSeq(&bmh, size(BMH), &fpCur))
@@ -798,7 +798,7 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
 
     bool fRet = fFalse;
     long cbSrc;
-    PFIL pfil = pvNil;
+    PFileObject pfil = pvNil;
     FP fpCur = 0;
     BMH bmh;
 
@@ -823,7 +823,7 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
     bmh.bmih.biClrImportant = 256;
 
     /* Write the header */
-    if (pvNil == (pfil = FIL::PfilCreate(pfni)))
+    if (pvNil == (pfil = FileObject::PfilCreate(pfni)))
         goto LFail;
     if (!pfil->FWriteRgbSeq(&bmh, size(BMH), &fpCur))
         goto LFail;

@@ -30,7 +30,7 @@ void __cdecl main(long cpszs, char **prgpszs)
     byte rgb[512];
     FP fpMac, fp;
     long cbTot, clnTot, ib, cbT, cln;
-    PFIL pfil;
+    PFileObject pfil;
     String stn;
 
     if (!fniDir.FGetOpen("All files\0*.*\0", hNil))
@@ -48,7 +48,7 @@ void __cdecl main(long cpszs, char **prgpszs)
     {
         fni.GetStnPath(&stn);
 
-        if (pvNil == (pfil = FIL::PfilOpen(&fni)))
+        if (pvNil == (pfil = FileObject::PfilOpen(&fni)))
             return;
         fpMac = pfil->FpMac();
         cbTot += fpMac;

@@ -154,7 +154,7 @@ class S2BLX : public S2BLX_PAR
     virtual void _ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax);
 
   public:
-    S2BLX(PFIL pfil, bool fUnionStrings = fTrue) : S2BLX_PAR(pfil, fUnionStrings)
+    S2BLX(PFileObject pfil, bool fUnionStrings = fTrue) : S2BLX_PAR(pfil, fUnionStrings)
     {
     }
     ~S2BLX(void)
@@ -389,7 +389,7 @@ class S2B : public S2B_PAR
     ~S2B(void);
 
   public:
-    static PS2B Ps2bNew(PFIL pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, char *pszApp);
+    static PS2B Ps2bNew(PFileObject pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, char *pszApp);
     bool FConvertSI(PMSNK pmsnkErr, PMSNK pmsnkDst, PFilename pfniInc = pvNil, ulong grfs2b = fs2bNil);
 };
 

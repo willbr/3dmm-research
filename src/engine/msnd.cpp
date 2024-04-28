@@ -202,7 +202,7 @@ LFail:
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
@@ -254,7 +254,7 @@ LFail:
     The *pcno is returned
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyMidi(PFIL pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
+bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
@@ -294,7 +294,7 @@ LFail:
     Copy the wave file to a chunk in the current movie
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
+bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertPo(pcflDest, 0);
@@ -309,7 +309,7 @@ bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, Chu
     WAVEFORMATEX wfxSrc;
     LPSOUND psnd = pvNil;
     LPSOUND psndTemp = pvNil;
-    FIL *pfilNew = pvNil;
+    FileObject *pfilNew = pvNil;
     String stnNew;
     Filename fniNew;
     WAVEFORMATEX *pwfxDst = pvNil;
@@ -338,7 +338,7 @@ bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, Chu
         goto LFail;
 
     // get the original file size
-    if (pvNil == (pfilNew = FIL::PfilOpen(&fniSrc)))
+    if (pvNil == (pfilNew = FileObject::PfilOpen(&fniSrc)))
         goto LFailPushError;
     cbOriginalFile = pfilNew->FpMac();
     ReleasePpo(&pfilNew);
@@ -448,7 +448,7 @@ bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, Chu
 
     // OK, now we have the sound file converted in memory, write out the data file...
     // open file
-    pfilNew = FIL::PfilCreate(&fniNew);
+    pfilNew = FileObject::PfilCreate(&fniNew);
     if (pvNil == pfilNew)
         goto LFail;
     fpNew = 0;
@@ -515,13 +515,13 @@ bool MovieSoundMSND::FCopyWave(PFIL pfilSrc, PChunkyFile pcflDest, long sty, Chu
     if (cbCompressedFile > cbOriginalFile)
     {
         // then just use original file
-        if (pvNil == (pfilNew = FIL::PfilOpen(&fniSrc)))
+        if (pvNil == (pfilNew = FileObject::PfilOpen(&fniSrc)))
             goto LFail;
     }
     else
     {
         // then we use the newly compressed file
-        if (pvNil == (pfilNew = FIL::PfilOpen(&fniNew)))
+        if (pvNil == (pfilNew = FileObject::PfilOpen(&fniNew)))
             goto LFail;
     }
 

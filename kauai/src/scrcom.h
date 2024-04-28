@@ -264,7 +264,7 @@ class CompilerBase : public CompilerBase_PAR
     ~CompilerBase(void);
 
     virtual PScript PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
-    virtual PScript PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk);
+    virtual PScript PscptCompileFil(PFileObject pfil, bool fInFix, PMSNK pmsnk);
     virtual PScript PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
     virtual bool FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);
 };

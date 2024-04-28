@@ -20,7 +20,7 @@ ASSERTNAME
 void MarkUtilMem(void)
 {
     PChunkyFile pcfl;
-    PFIL pfil;
+    PFileObject pfil;
 
     MarkMemObj(&vsflUtil);
     MarkMemObj(&vrndUtil);
@@ -31,7 +31,7 @@ void MarkUtilMem(void)
     for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = pcfl->PcflNext())
         MarkMemObj(pcfl);
 
-    for (pfil = FIL::PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
+    for (pfil = FileObject::PfilFirst(); pfil != pvNil; pfil = pfil->PfilNext())
         MarkMemObj(pfil);
 }
 #endif // DEBUG

@@ -59,7 +59,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fniSrc)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fniSrc)))
     {
         fprintf(stderr, "Can't open source file\n\n");
         goto LFail;
@@ -139,7 +139,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     }
 
     ReleasePpo(&floSrc.pfil);
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -149,6 +149,6 @@ LUsage:
 LFail:
     ReleasePpo(&floSrc.pfil);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }

@@ -410,7 +410,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
     PDynamicArray pglmidtr = pvNil;
 
     // open the file and set up the source flo
-    if (pvNil == (flo.pfil = FIL::PfilOpen(pfni)))
+    if (pvNil == (flo.pfil = FileObject::PfilOpen(pfni)))
         return pvNil;
     flo.fp = 0;
     flo.cb = flo.pfil->FpMac();

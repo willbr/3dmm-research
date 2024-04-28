@@ -477,7 +477,7 @@ PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk
     Compile the given text file and return the executable script.
     Uses the in-fix or post-fix compiler according to fInFix.
 ***************************************************************************/
-PScript CompilerBase::PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk)
+PScript CompilerBase::PscptCompileFil(PFileObject pfil, bool fInFix, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
@@ -499,10 +499,10 @@ PScript CompilerBase::PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk)
 {
     AssertPo(pfni, ffniFile);
     AssertPo(pmsnk, 0);
-    PFIL pfil;
+    PFileObject pfil;
     PScript pscpt;
 
-    if (pvNil == (pfil = FIL::PfilOpen(pfni)))
+    if (pvNil == (pfil = FileObject::PfilOpen(pfni)))
         return pvNil;
     pscpt = PscptCompileFil(pfil, fInFix, pmsnk);
     ReleasePpo(&pfil);

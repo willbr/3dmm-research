@@ -206,7 +206,7 @@ HPIC PIC::_HpicReadWmf(Filename *pfni)
     HPIC hpic;
     long lw;
     long cb;
-    PFIL pfil;
+    PFileObject pfil;
     void *pv;
     bool fT;
     FP fp;
@@ -214,7 +214,7 @@ HPIC PIC::_HpicReadWmf(Filename *pfni)
     const long kcbMefh = 22;
     const long kcbMetaHeader = 18;
 
-    if (pvNil == (pfil = FIL::PfilOpen(pfni)))
+    if (pvNil == (pfil = FileObject::PfilOpen(pfni)))
         return hNil;
 
     // check for type of meta file

@@ -288,13 +288,13 @@ PChunkyFile ChunkyFile::_pcflFirst;
 
 #ifdef CHUNK_STATS
 bool vfDumpChunkRequests = fTrue;
-PFIL _pfilStats;
+PFileObject _pfilStats;
 FP _fpStats;
 
 /***************************************************************************
     Static method to dump a string to the chunk stats file
 ***************************************************************************/
-void ChunkyFile::DumpStn(PString pstn, PFIL pfil)
+void ChunkyFile::DumpStn(PString pstn, PFileObject pfil)
 {
     Filename fni;
     String stn;
@@ -302,7 +302,7 @@ void ChunkyFile::DumpStn(PString pstn, PFIL pfil)
     if (pvNil == _pfilStats)
     {
         stn = PszLit("ChnkStat.txt");
-        if (!fni.FGetTemp() || !fni.FSetLeaf(&stn) || pvNil == (_pfilStats = FIL::PfilCreate(&fni)))
+        if (!fni.FGetTemp() || !fni.FSetLeaf(&stn) || pvNil == (_pfilStats = FileObject::PfilCreate(&fni)))
         {
             return;
         }
@@ -373,7 +373,7 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl)
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
         goto LFail;
 
-    if ((pcfl->_csto.pfil = FIL::PfilOpen(pfni, grffil)) == pvNil || !pcfl->_FReadIndex())
+    if ((pcfl->_csto.pfil = FileObject::PfilOpen(pfni, grffil)) == pvNil || !pcfl->_FReadIndex())
     {
         goto LFail;
     }
@@ -492,7 +492,7 @@ PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl)
         goto LFail;
 
     if ((pcfl->_pggcrp = GeneralGroup::PggNew(size(CRP))) == pvNil ||
-        (pcfl->_csto.pfil = FIL::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
+        (pcfl->_csto.pfil = FileObject::PfilCreate(pfni, grffil)) == pvNil || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
     {
         ReleasePpo(&pcfl);
     LFail:
@@ -539,10 +539,10 @@ PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    PFIL pfil;
+    PFileObject pfil;
     PChunkyFile pcfl;
 
-    if ((pfil = FIL::PfilFromFni(pfni)) == pvNil)
+    if ((pfil = FileObject::PfilFromFni(pfni)) == pvNil)
         return pvNil;
     for (pcfl = _pcflFirst; pcfl != pvNil; pcfl = pcfl->PcflNext())
     {
@@ -587,7 +587,7 @@ const ByteOrderMask kbomEcdf = 0x5FFC0000L;
     Combine the indicated chunk and its children into an embedded chunk.
     If pfil is pvNil, just computes the size.
 ***************************************************************************/
-bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP fpDst, long *pcb)
+bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FP fpDst, long *pcb)
 {
     AssertThis(0);
     AssertNilOrPo(pfilDst, 0);
@@ -685,7 +685,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
 
     if (fCopyData)
     {
-        if (pvNil == (pcfl->_csto.pfil = FIL::PfilCreateTemp()) || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
+        if (pvNil == (pcfl->_csto.pfil = FileObject::PfilCreateTemp()) || !pcfl->_csto.pfil->FSetFpMac(size(ChunkyFilePrefix)))
         {
             goto LFail;
         }
@@ -1625,7 +1625,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
     FLO floSrc, floDst;
     long ccrp, icrp;
     CRP *qcrp;
-    PFIL pfilOld;
+    PFileObject pfilOld;
 
     if (_fInvalidMainFile)
     {
@@ -1658,7 +1658,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
     }
 
     // get a temp name in the same directory as the target
-    if ((floDst.pfil = FIL::PfilCreateTemp(&fni)) == pvNil)
+    if ((floDst.pfil = FileObject::PfilCreateTemp(&fni)) == pvNil)
         goto LError;
     if (!floDst.pfil->FSetFpMac(size(ChunkyFilePrefix)))
         goto LFail;
@@ -1798,7 +1798,7 @@ bool ChunkyFile::_FWriteIndex(ChunkTag ctgCreator)
 }
 
 /***************************************************************************
-    Save a copy of the chunky file out to *pfni.  The ChunkyFile and its FIL
+    Save a copy of the chunky file out to *pfni.  The ChunkyFile and its FileObject
     are untouched.
 ***************************************************************************/
 bool ChunkyFile::FSaveACopy(ChunkTag ctgCreator, Filename *pfni)
@@ -2168,7 +2168,7 @@ bool ChunkyFile::_FCreateExtra(void)
     Assert(_cstoExtra.pfil == pvNil, 0);
     Assert(_cstoExtra.pglfsm == pvNil, 0);
 
-    if (pvNil == (_cstoExtra.pfil = FIL::PfilCreateTemp()))
+    if (pvNil == (_cstoExtra.pfil = FileObject::PfilCreateTemp()))
         return fFalse;
 
     _cstoExtra.fpMac = 0;

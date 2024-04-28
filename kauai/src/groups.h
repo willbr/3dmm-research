@@ -159,7 +159,7 @@ class DynamicArray : public DynamicArray_PAR
     // static methods
     static PDynamicArray PglNew(long cb, long cvInit = 0);
     static PDynamicArray PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PDynamicArray PglRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglRead(PFileObject pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PDynamicArray PglDup(void);
@@ -220,7 +220,7 @@ class AllocatedArray : public AllocatedArray_PAR
     // static methods
     static PAllocatedArray PalNew(long cb, long cvInit = 0);
     static PAllocatedArray PalRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAllocatedArray PalRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedArray PalRead(PFileObject pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PAllocatedArray PalDup(void);
@@ -328,7 +328,7 @@ class GeneralGroup : public GeneralGroup_PAR
     // static methods
     static PGeneralGroup PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
     static PGeneralGroup PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGeneralGroup PggRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggRead(PFileObject pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PGeneralGroup PggDup(void);
@@ -363,7 +363,7 @@ class AllocatedGroup : public AllocatedGroup_PAR
     // static methods
     static PAllocatedGroup PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
     static PAllocatedGroup PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAllocatedGroup PagRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagRead(PFileObject pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PAllocatedGroup PagDup(void);
@@ -475,7 +475,7 @@ class StringTable_GST : public StringTable_GST_PAR
     // static methods
     static PStringTable_GST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
     static PStringTable_GST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PStringTable_GST PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstRead(PFileObject pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PStringTable_GST PgstDup(void);
@@ -510,7 +510,7 @@ class AllocatedStringTable : public AllocatedStringTable_PAR
     // static methods
     static PAllocatedStringTable PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
     static PAllocatedStringTable PastRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAllocatedStringTable PastRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedStringTable PastRead(PFileObject pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
     PAllocatedStringTable PastDup(void);

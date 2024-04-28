@@ -131,7 +131,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     bool fIncNext = fFalse, fHaveRoundXF = fFalse, fFixWrap = fTrue;
     uint mdVerbose, iRound = 3, iRet = 1, iRoundXF;
     Filename fniSrc, fniDst, fniInc;
-    PFIL pfilSrc = pvNil;
+    PFileObject pfilSrc = pvNil;
     FILE *pfileDst = pvNil;
     MSSIO *pmssioErr = pvNil, *pmssioDst = pvNil;
     S2B *ps2b = pvNil;
@@ -273,7 +273,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
         printf("Invalid script file name\n");
         goto LUsage;
     }
-    else if ((pfilSrc = FIL::PfilOpen(&fniSrc)) == pvNil)
+    else if ((pfilSrc = FileObject::PfilOpen(&fniSrc)) == pvNil)
     {
         fniSrc.GetStnPath(&stnSrc);
         printf("Could not open source file (%s)\n", stnSrc.Psz());
@@ -350,7 +350,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
 
 LUsage:
     ReleasePpo(&pfilSrc);
-    Assert(FIL::PfilFirst() == pvNil, "Files left in the file chain");
+    Assert(FileObject::PfilFirst() == pvNil, "Files left in the file chain");
     if (pfileDst != pvNil)
         fclose(pfileDst);
 
@@ -479,7 +479,7 @@ void S2BLX::MarkMem(void)
 |	S2BLX member and will fail if it cannot.
 |
 |	Arguments:
-|		PFIL pfilSrc    -- file to read script from
+|		PFileObject pfilSrc    -- file to read script from
 |		bool fSwapHand  -- the rest are all passed to the S2B constructor
 |		bool mdVerbose
 |		int iRound
@@ -488,7 +488,7 @@ void S2BLX::MarkMem(void)
 |	Returns: a pointer to the new S2B instance, pvNil if it fails
 |
 -------------------------------------------------------------PETED-----------*/
-PS2B S2B::Ps2bNew(PFIL pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
+PS2B S2B::Ps2bNew(PFileObject pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
 {
     PS2B ps2b = NewObj S2B(fSwapHand, mdVerbose, iRound, iRoundXF, pszApp);
 
@@ -508,7 +508,7 @@ PS2B S2B::Ps2bNew(PFIL pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int 
 |	some pointers to pvNil.
 |
 |	Arguments:
-|		PFIL pfilSrc -- used to initialize the S2BLX
+|		PFileObject pfilSrc -- used to initialize the S2BLX
 |
 -------------------------------------------------------------PETED-----------*/
 S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
@@ -1689,7 +1689,7 @@ bool S2B::_FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dx
     short *prgsw = pvNil;
     float *prgfl = pvNil;
     Filename fni;
-    FIL *pfil = pvNil;
+    FileObject *pfil = pvNil;
 
     /* Try to find and open the SoftImage data file */
     if (!_stnT.FFormatSz(kszZpic, pstnBkgd, iCam))
@@ -1700,7 +1700,7 @@ bool S2B::_FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dx
     _ps2blx->GetFni(&fni);
     if (fni.FSetLeaf(&_stnT, kftgZpic))
     {
-        if ((pfil = FIL::PfilOpen(&fni)) != pvNil)
+        if ((pfil = FileObject::PfilOpen(&fni)) != pvNil)
         {
             bool fWroteZbmp = fFalse;
             short *psw, *prgsw;
@@ -1708,7 +1708,7 @@ bool S2B::_FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dx
             float fl, *prgfl;
             Filename fniZbmp;
             FP fpZbmp;
-            FIL *pfilZbmp = pvNil;
+            FileObject *pfilZbmp = pvNil;
             FP fpRead = 0;
             ZBMPF zbmpf;
 
@@ -1786,7 +1786,7 @@ bool S2B::_FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dx
                 _ps2blx->GetFni(&fniZbmp);
                 if (fniZbmp.FSetLeaf(&_stnT, kftgZbmp))
                 {
-                    pfilZbmp = FIL::PfilCreate(&fniZbmp);
+                    pfilZbmp = FileObject::PfilCreate(&fniZbmp);
                     fpZbmp = 0;
                     if (pfilZbmp != pvNil)
                     {
@@ -1923,14 +1923,14 @@ void S2B::_Bmat34FromVec3(BVEC3 *pbvec3, BMAT34 *pbmat34)
 void S2B::_ReadLite(PString pstnLite, LightPosition *plite)
 {
     Filename fni;
-    FIL *pfil;
+    FileObject *pfil;
 
     /* Attempt to open the file */
     _ps2blx->GetFni(&fni);
     if (fni.FSetLeaf(pstnLite, kftgALite))
     {
         Assert(fni.Ftg() == kftgALite, "Light file has wrong extension");
-        if ((pfil = FIL::PfilOpen(&fni)) != pvNil)
+        if ((pfil = FileObject::PfilOpen(&fni)) != pvNil)
         {
             bool fGotTok;
             BVEC3 bvec3Int = {BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(0)};
@@ -2001,14 +2001,14 @@ void S2B::_ReadCam(PString pstnCam, CameraPosition *pcam, PDynamicArray *ppglapo
 {
     bool fGotActorPos = fFalse;
     Filename fni;
-    FIL *pfil;
+    FileObject *pfil;
 
     /* Attempt to open the camera file */
     _ps2blx->GetFni(&fni);
     if (fni.FSetLeaf(pstnCam, kftgACam))
     {
         Assert(fni.Ftg() == kftgACam, "Camera file has wrong extension");
-        if ((pfil = FIL::PfilOpen(&fni)) != pvNil)
+        if ((pfil = FileObject::PfilOpen(&fni)) != pvNil)
         {
             bool fGotTok;
             BVEC3 bvec3Int;

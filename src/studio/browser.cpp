@@ -2209,7 +2209,7 @@ bool BRWM::FCmdFile(PCommand pcmd)
 
     Filename fni;
     long kidBrws;
-    PFIL pfil = pvNil; // Wave or midi file
+    PFileObject pfil = pvNil; // Wave or midi file
     PChunkyFile pcfl = pvNil; // Movie file
     long icki;
     long ccki;
@@ -2302,7 +2302,7 @@ bool BRWM::FCmdFile(PCommand pcmd)
     }
 
     // Import sound from a wave or midi file
-    pfil = FIL::PfilOpen(&fni);
+    pfil = FileObject::PfilOpen(&fni);
     if (pvNil == pfil)
         goto LEnd; // Error will have been reported
 

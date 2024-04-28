@@ -476,7 +476,7 @@ tribool Filename::TExists(void)
 bool Filename::FDelete(void)
 {
     AssertThis(ffniFile);
-    Assert(FIL::PfilFromFni(this) == pvNil, "file is open");
+    Assert(FileObject::PfilFromFni(this) == pvNil, "file is open");
 
     if (DeleteFile(_stnFile.Psz()))
         return fTrue;

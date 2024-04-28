@@ -132,7 +132,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         if (!pcflMerge->FSave('CHMR'))
             goto LFail;
         pcflMerge->GetFni(&fniT);
-        if (pvNil == (floSrc.pfil = FIL::PfilFromFni(&fniT)))
+        if (pvNil == (floSrc.pfil = FileObject::PfilFromFni(&fniT)))
         {
             Bug("what happened?");
             goto LFail;
@@ -140,7 +140,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         floSrc.fp = 0;
         floSrc.cb = floSrc.pfil->FpMac();
 
-        if (pvNil == (floDst.pfil = FIL::PfilCreate(&fniSrc)))
+        if (pvNil == (floDst.pfil = FileObject::PfilCreate(&fniSrc)))
             goto LFail;
         floDst.fp = 0;
         floDst.cb = floSrc.cb;
@@ -158,7 +158,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
             goto LFail;
     }
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -166,7 +166,7 @@ LUsage:
     fprintf(stderr, "%s", "Usage:  chmerge [-r] <srcFile0> [<srcFile1> ...] <dstFile>\n\n");
 
 LFail:
-    FIL::ShutDown();
+    FileObject::ShutDown();
     fprintf(stderr, "Something failed\n");
     return 1;
 }

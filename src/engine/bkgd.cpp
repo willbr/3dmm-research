@@ -589,7 +589,7 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
 
     String stnFile;
     Filename fni;
-    PFIL pfil = pvNil;
+    PFileObject pfil = pvNil;
     String stnData;
     FP fp;
     long xr1 = BrScalarToInt(xrPlace);
@@ -604,9 +604,9 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     if (!fni.FBuildFromPath(&stnFile))
         goto LFail;
     if (fni.TExists() == tYes)
-        pfil = FIL::PfilOpen(&fni, ffilWriteEnable);
+        pfil = FileObject::PfilOpen(&fni, ffilWriteEnable);
     else
-        pfil = FIL::PfilCreate(&fni);
+        pfil = FileObject::PfilCreate(&fni);
     if (pvNil == pfil)
         goto LFail;
     if (!stnData.FFormatSz("NEW_ACTOR_POS %d.%06d %d.%06d %d.%06d\n\r", xr1, xr2, yr1, yr2, zr1, zr2))

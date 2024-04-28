@@ -65,7 +65,7 @@ bool TXDC::_FInit(PFilename pfni, PFileByteStream pbsf)
 
     if (pvNil != pfni)
     {
-        if (pvNil == (_pfil = FIL::PfilOpen(pfni)))
+        if (pvNil == (_pfil = FileObject::PfilOpen(pfni)))
             return fFalse;
     }
 
@@ -141,7 +141,7 @@ bool TXDC::FSaveToFni(Filename *pfni, bool fSetFni)
         fSetFni = fTrue;
     }
 
-    if (pvNil == (flo.pfil = FIL::PfilCreateTemp(pfni)))
+    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp(pfni)))
         goto LFail;
 
     flo.fp = 0;

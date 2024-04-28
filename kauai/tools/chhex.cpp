@@ -1152,7 +1152,7 @@ bool DOCH::_FRead(PDataBlock pblck)
     if (!pblck->FUnpackData())
         return fFalse;
 
-    if (pvNil == (flo.pfil = FIL::PfilCreateTemp()))
+    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp()))
         return fFalse;
     flo.fp = 0;
     flo.cb = pblck->Cb();

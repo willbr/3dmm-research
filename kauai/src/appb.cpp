@@ -693,7 +693,7 @@ void ApplicationBase::_CleanUp(void)
 #endif // WIN
 
     GraphicsObject::ShutDown();
-    FIL::ShutDown();
+    FileObject::ShutDown();
 #ifdef WIN
     _ShutDownViewer();
 #endif // WIN
@@ -1793,7 +1793,7 @@ static Mutex _mutxWarn;
 ***************************************************************************/
 void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
 {
-    static PFIL _pfilWarn;
+    static PFileObject _pfilWarn;
     static bool _fInWarn;
     static FP _fpCur;
     String stn;
@@ -1821,10 +1821,10 @@ void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
         if (!fni.FSetLeaf(&stn, kftgText))
             goto LDone;
 
-        ftg = FIL::vftgCreator;
-        FIL::vftgCreator = 'ttxt';
-        _pfilWarn = FIL::PfilCreate(&fni);
-        FIL::vftgCreator = ftg;
+        ftg = FileObject::vftgCreator;
+        FileObject::vftgCreator = 'ttxt';
+        _pfilWarn = FileObject::PfilCreate(&fni);
+        FileObject::vftgCreator = ftg;
         if (pvNil == _pfilWarn)
             goto LDone;
     }

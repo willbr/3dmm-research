@@ -4040,7 +4040,7 @@ bool APP::_FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc)
     String stnUserDoc;
     String stn;
     Filename fniTemp;
-    PFIL pfil = pvNil;
+    PFileObject pfil = pvNil;
     DataBlock blck;
     DWORD dwProcId;
 
@@ -4057,7 +4057,7 @@ bool APP::_FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc)
         if (!fniTemp.FDelete())
             goto LFail;
     }
-    pfil = FIL::PfilCreate(&fniTemp);
+    pfil = FileObject::PfilCreate(&fniTemp);
     if (pvNil == pfil)
         goto LFail;
     if (!pfil->FSetFpMac(stnUserDoc.CbData()))
@@ -4092,7 +4092,7 @@ bool APP::_FProcessOpenDocCmd(void)
     String stnUserDoc;
     String stn;
     Filename fniTemp;
-    PFIL pfil = pvNil;
+    PFileObject pfil = pvNil;
     Filename fniUserDoc;
     DataBlock blck;
 
@@ -4115,7 +4115,7 @@ bool APP::_FProcessOpenDocCmd(void)
         goto LFail;
 
     // Read the document filename from temp file
-    pfil = FIL::PfilOpen(&fniTemp);
+    pfil = FileObject::PfilOpen(&fniTemp);
     if (pvNil == pfil)
         goto LFail;
     blck.Set(pfil, 0, pfil->FpMac());

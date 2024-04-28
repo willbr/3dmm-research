@@ -150,7 +150,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LFail;
     }
 
-    if (pvNil == (flo.pfil = FIL::PfilCreate(&fniDst)))
+    if (pvNil == (flo.pfil = FileObject::PfilCreate(&fniDst)))
     {
         fprintf(stderr, "Couldn't create destination file\n\n");
         goto LFail;
@@ -193,7 +193,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     }
 
     ReleasePpo(&flo.pfil);
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -207,7 +207,7 @@ LFail:
         flo.pfil->SetTemp();
     ReleasePpo(&flo.pfil);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 

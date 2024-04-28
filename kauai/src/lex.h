@@ -121,7 +121,7 @@ class LexerBase : public LexerBase_PAR
   protected:
     static ushort _mpchgrfct[];
 
-    PFIL _pfil; // exactly one of _pfil, _pbsf should be non-nil
+    PFileObject _pfil; // exactly one of _pfil, _pbsf should be non-nil
     PFileByteStream _pbsf;
     String _stnFile;
     long _lwLine;  // which line
@@ -156,7 +156,7 @@ class LexerBase : public LexerBase_PAR
     bool _FReadControlCh(achar *pch);
 
   public:
-    LexerBase(PFIL pfil, bool fUnionStrings = fTrue);
+    LexerBase(PFileObject pfil, bool fUnionStrings = fTrue);
     LexerBase(PFileByteStream pbsf, PString pstnFile, bool fUnionStrings = fTrue);
     ~LexerBase(void);
 

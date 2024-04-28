@@ -82,7 +82,7 @@ class ChunkyFile : public ChunkyFile_PAR
     // chunk storage
     struct CSTO
     {
-        PFIL pfil;  // the file
+        PFileObject pfil;  // the file
         FP fpMac;   // logical end of file (for writing new chunks)
         PDynamicArray pglfsm; // free space map
     };
@@ -167,7 +167,7 @@ class ChunkyFile : public ChunkyFile_PAR
     static void ClearMarks(void);
     static void CloseUnmarked(void);
 #ifdef CHUNK_STATS
-    static void DumpStn(PString pstn, PFIL pfil = pvNil);
+    static void DumpStn(PString pstn, PFileObject pfil = pvNil);
 #endif // CHUNK_STATS
 
     virtual void Release(void);
@@ -258,7 +258,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid, long *pikid);
 
     // Serialized chunk forests
-    bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFIL pfilDst, FP fpDst, long *pcb);
+    bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FP fpDst, long *pcb);
     static PChunkyFile PcflReadForestFromFlo(PFLO pflo, bool fCopyData);
     bool FForest(ChunkTag ctg, ChunkNumber cno);
     void SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest = fTrue);

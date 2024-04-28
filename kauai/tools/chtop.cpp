@@ -207,7 +207,7 @@ bool HEDO::FExportText(void)
 {
     AssertThis(0);
     Filename fni;
-    PFIL pfil;
+    PFileObject pfil;
     MSFIL msfil;
 
     if (!FGetFniSaveMacro(&fni, 'TEXT',
@@ -218,7 +218,7 @@ bool HEDO::FExportText(void)
         return fFalse;
     }
 
-    if (pvNil == (pfil = FIL::PfilCreate(&fni)))
+    if (pvNil == (pfil = FileObject::PfilCreate(&fni)))
     {
         vpappb->TGiveAlertSz(PszLit("Can't create destination file!"), bkOk, cokExclamation);
         return fFalse;
@@ -1529,7 +1529,7 @@ bool HEDG::FCmdDump(PCommand pcmd)
     ChunkIdentification cki;
     PDocumentBase pdocb;
     Filename fni;
-    PFIL pfil;
+    PFileObject pfil;
     long cpMac;
     long cp;
     long cch;
@@ -1545,7 +1545,7 @@ bool HEDG::FCmdDump(PCommand pcmd)
         return fTrue;
     }
 
-    if (pvNil == (pfil = FIL::PfilCreate(&fni)))
+    if (pvNil == (pfil = FileObject::PfilCreate(&fni)))
         return fTrue;
     fpCur = 0;
 

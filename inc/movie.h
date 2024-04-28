@@ -554,7 +554,7 @@ class Movie : public Movie_PAR
     long _aridLim; // Highest actor id in use.
 
     PChunkyResourceFile _pcrfAutoSave; // ChunkyResourceFile/ChunkyFile of auto save file.
-    PFIL _pfilSave;     // User's document
+    PFileObject _pfilSave;     // User's document
 
     ChunkNumber _cno; // ChunkNumber of movie in current file.
 
@@ -742,7 +742,7 @@ class Movie : public Movie_PAR
     {
         return TagManager::FSaveTag(ptag, _pcrfAutoSave, fTrue);
     }
-    bool FCopySndFileToMvie(PFIL pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
+    bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
     bool FCopyMsndFromPcfl(PChunkyFile pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);

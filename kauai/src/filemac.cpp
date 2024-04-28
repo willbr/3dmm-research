@@ -22,7 +22,7 @@ ASSERTNAME
         ffilWriteEnable | ffilDenyRead | ffilDenyWrite
         ffilDenyWrite
 ***************************************************************************/
-bool FIL::_FOpen(bool fCreate, ulong grffil)
+bool FileObject::_FOpen(bool fCreate, ulong grffil)
 {
     AssertBaseThis(0);
     AssertPo(&_fni, ffniFile);
@@ -78,7 +78,7 @@ bool FIL::_FOpen(bool fCreate, ulong grffil)
 /***************************************************************************
     Close the file.
 ***************************************************************************/
-void FIL::_Close(void)
+void FileObject::_Close(void)
 {
     AssertBaseThis(0);
 
@@ -99,7 +99,7 @@ void FIL::_Close(void)
 /***************************************************************************
     Flush the file (and its volume?).
 ***************************************************************************/
-void FIL::Flush(void)
+void FileObject::Flush(void)
 {
     AssertThis(0);
     FlushVol(pvNil, _fni._fss.vRefNum);
@@ -108,7 +108,7 @@ void FIL::Flush(void)
 /***************************************************************************
     Seek to the given fp.
 ***************************************************************************/
-void FIL::_SetFpPos(FP fp)
+void FileObject::_SetFpPos(FP fp)
 {
     AssertThis(0);
     if (_el < kelSeek && SetFPos(_fref, fsFromStart, fp) != noErr)
@@ -121,7 +121,7 @@ void FIL::_SetFpPos(FP fp)
 /***************************************************************************
     Set the length of the file.
 ***************************************************************************/
-bool FIL::FSetFpMac(FP fp)
+bool FileObject::FSetFpMac(FP fp)
 {
     AssertThis(0);
     AssertIn(fp, 0, kcbMax);
@@ -142,7 +142,7 @@ bool FIL::FSetFpMac(FP fp)
 /***************************************************************************
     Return the length of the file.
 ***************************************************************************/
-FP FIL::FpMac(void)
+FP FileObject::FpMac(void)
 {
     AssertThis(0);
     FP fp;
@@ -158,7 +158,7 @@ FP FIL::FpMac(void)
 /***************************************************************************
     Read a block from the file.
 ***************************************************************************/
-bool FIL::FReadRgb(void *pv, long cb, FP fp)
+bool FileObject::FReadRgb(void *pv, long cb, FP fp)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -184,7 +184,7 @@ bool FIL::FReadRgb(void *pv, long cb, FP fp)
 /***************************************************************************
     Write a block to the file.
 ***************************************************************************/
-bool FIL::FWriteRgb(void *pv, long cb, FP fp)
+bool FileObject::FWriteRgb(void *pv, long cb, FP fp)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -209,7 +209,7 @@ bool FIL::FWriteRgb(void *pv, long cb, FP fp)
 /***************************************************************************
     Swap the names of the two files.  They should be in the same directory.
 ***************************************************************************/
-bool FIL::FSwapNames(PFIL pfil)
+bool FileObject::FSwapNames(PFileObject pfil)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
@@ -240,7 +240,7 @@ bool FIL::FSwapNames(PFIL pfil)
 /***************************************************************************
     Rename the file.
 ***************************************************************************/
-bool FIL::FRename(Filename *pfni)
+bool FileObject::FRename(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);

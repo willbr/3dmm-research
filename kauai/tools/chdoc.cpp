@@ -1623,7 +1623,7 @@ bool DCD::FCmdAddFileChunk(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     ChunkIdentification cki;
-    PFIL pfil;
+    PFileObject pfil;
     DataBlock blck;
     long lnOld;
     Filename fni;
@@ -1636,7 +1636,7 @@ bool DCD::FCmdAddFileChunk(PCommand pcmd)
     // get the fni of the file to add
     if (!FGetFniOpenMacro(&fni, pvNil, 0, PszLit("All files\0*.*\0"), vwig.hwndApp))
         goto LCancel;
-    if (pvNil == (pfil = FIL::PfilOpen(&fni)))
+    if (pvNil == (pfil = FileObject::PfilOpen(&fni)))
     {
         vpappb->TGiveAlertSz(PszLit("Opening file failed"), bkOk, cokExclamation);
         goto LCancel;

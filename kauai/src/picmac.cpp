@@ -127,14 +127,14 @@ bool PIC::FWrite(PDataBlock pblck)
 PPIC PIC::PpicReadNative(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    PFIL pfil;
+    PFileObject pfil;
     FP fpMac;
     HPIC hpic;
     PPIC ppic;
     bool fT;
     SystemRectangle rcs;
 
-    if (pfni->Ftg() != kftgPict || pvNil == (pfil = FIL::PfilOpen(pfni)))
+    if (pfni->Ftg() != kftgPict || pvNil == (pfil = FileObject::PfilOpen(pfni)))
     {
         return pvNil;
     }

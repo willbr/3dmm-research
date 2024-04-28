@@ -341,7 +341,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsn
     PSZ pszErr = pvNil;
     FLO flo;
 
-    if (pvNil == (flo.pfil = FIL::PfilCreate(pfniDst)))
+    if (pvNil == (flo.pfil = FileObject::PfilCreate(pfniDst)))
     {
         pszErr = PszLit("Couldn't create destination file\n");
         goto LFail;

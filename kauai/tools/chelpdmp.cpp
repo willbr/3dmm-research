@@ -24,7 +24,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     schar chs;
     String stn;
     Filename fni;
-    PFIL pfil = pvNil;
+    PFileObject pfil = pvNil;
     PMSNK pmsnk = pvNil;
     PChunkyFile pcflSrc = pvNil;
 
@@ -84,7 +84,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         pmsnk = NewObj MSSIO(stdout);
     else
     {
-        if (pvNil == (pfil = FIL::PfilCreate(&fni)))
+        if (pvNil == (pfil = FileObject::PfilCreate(&fni)))
         {
             fprintf(stderr, "Couldn't create destination file");
             goto LFail;
@@ -105,7 +105,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LFail;
     }
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -115,7 +115,7 @@ LUsage:
 LFail:
     if (pvNil != pfil)
         pfil->SetTemp();
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 

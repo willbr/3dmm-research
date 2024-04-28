@@ -642,7 +642,7 @@ void Compiler::_ParseBodyFile(void)
         return;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fni)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fni)))
     {
         _Error(ertOpenFile);
         return;
@@ -928,7 +928,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
         return;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fni)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fni)))
     {
         _Error(ertReadCursor);
         goto LFail;
@@ -1703,7 +1703,7 @@ void Compiler::_EndSubFile(void)
         ChunkIdentification cki;
         long cbTot, cbT;
         FP fpDst;
-        PFIL pfilDst = pvNil;
+        PFileObject pfilDst = pvNil;
         bool fRet = fFalse;
 
         // get the size of the data
@@ -1720,7 +1720,7 @@ void Compiler::_EndSubFile(void)
         // setup pfilDst and fpDst for writing the chunk trees
         if (csfc.fPack)
         {
-            pfilDst = FIL::PfilCreateTemp();
+            pfilDst = FileObject::PfilCreateTemp();
             fpDst = 0;
         }
         else
@@ -1996,7 +1996,7 @@ PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pm
     FLO flo;
     bool fRet;
 
-    if (pvNil == (flo.pfil = FIL::PfilOpen(pfniSrc)))
+    if (pvNil == (flo.pfil = FileObject::PfilOpen(pfniSrc)))
     {
         pmsnk->ReportLine(PszLit("opening source file failed"));
         return pvNil;

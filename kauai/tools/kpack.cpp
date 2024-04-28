@@ -122,7 +122,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fniSrc)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fniSrc)))
     {
         fprintf(stderr, "Can't open source file\n\n");
         goto LFail;
@@ -130,7 +130,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     floSrc.fp = 0;
     floSrc.cb = floSrc.pfil->FpMac();
 
-    if (fniDst.FEqual(&fniSrc) || pvNil == (floDst.pfil = FIL::PfilCreate(&fniDst)))
+    if (fniDst.FEqual(&fniSrc) || pvNil == (floDst.pfil = FileObject::PfilCreate(&fniDst)))
     {
         fprintf(stderr, "Can't create destination file\n\n");
         goto LFail;
@@ -201,7 +201,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     ReleasePpo(&floSrc.pfil);
     ReleasePpo(&floDst.pfil);
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -214,7 +214,7 @@ LFail:
     ReleasePpo(&floDst.pfil);
     ReleasePpo(&floSrc.pfil);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 

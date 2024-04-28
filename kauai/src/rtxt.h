@@ -98,7 +98,7 @@ class TextDocumentBase : public TextDocumentBase_PAR
     MARKMEM
 
   protected:
-    PFIL _pfil;
+    PFileObject _pfil;
     PFileByteStream _pbsf;
     AbstractColor _acrBack;
     long _dxpDef; // default width of the document
