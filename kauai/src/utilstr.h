@@ -105,10 +105,10 @@ enum
     String types
 ***************************************************************************/
 typedef achar *PZString;
-typedef achar *PST;
+typedef achar *PPascalString;
 typedef achar *PSTZ;
 typedef achar ZString[kcchTotSz];
-typedef achar ST[kcchTotSt];
+typedef achar PascalString[kcchTotSt];
 typedef achar STZ[kcchTotStz];
 typedef schar *PSZS;
 typedef schar SZS[kcchTotSz];
@@ -119,7 +119,7 @@ typedef schar SZS[kcchTotSz];
 #ifdef DEBUG
 void AssertRgch(achar *prgch, long cch);
 void AssertStz(PSTZ pstz);
-void AssertSt(PST pst);
+void AssertSt(PPascalString pst);
 void AssertSz(PZString psz);
 void AssertNilOrSz(PZString psz);
 #else
@@ -134,7 +134,7 @@ void AssertNilOrSz(PZString psz);
     Testing validity of an stz or st
 ***************************************************************************/
 bool FValidStz(PSTZ pstz);
-bool FValidSt(PST pst);
+bool FValidSt(PPascalString pst);
 
 /***************************************************************************
     Cch means the number of characters (not including prefix and termination
@@ -146,12 +146,12 @@ inline long CchTotSz(PZString psz)
 {
     return CchSz(psz) + kcchExtraSz;
 }
-inline long CchSt(PST pst)
+inline long CchSt(PPascalString pst)
 {
     AssertSt(pst);
     return (long)(byte)pst[0];
 }
-inline long CchTotSt(PST pst)
+inline long CchTotSt(PPascalString pst)
 {
     AssertSt(pst);
     return (long)(byte)pst[0] + kcchExtraSt;
@@ -167,7 +167,7 @@ inline long CchTotStz(PSTZ pstz)
     return (long)(byte)pstz[0] + kcchExtraStz;
 }
 
-inline achar *PrgchSt(PST pst)
+inline achar *PrgchSt(PPascalString pst)
 {
     return pst + 1;
 }
@@ -270,7 +270,7 @@ long CchTranslateRgb(void *pvSrc, long cbSrc, short oskSrc, achar *prgchDst, lon
     koskCur uses.
 ***************************************************************************/
 void TranslateRgch(achar *prgch, long cch, short osk, bool fToCur = fTrue);
-inline void TranslateSt(PST pst, short osk, bool fToCur = fTrue)
+inline void TranslateSt(PPascalString pst, short osk, bool fToCur = fTrue)
 {
     TranslateRgch(pst + 1, CchSt(pst), osk, fToCur);
 }
@@ -347,7 +347,7 @@ class String
         AssertThis(0);
         return _rgch + 1;
     }
-    PST Pst(void)
+    PPascalString Pst(void)
     {
         AssertThis(0);
         return _rgch;
@@ -374,7 +374,7 @@ class String
     {
         SetRgch(pszSrc, CchSz(pszSrc));
     }
-    void SetSt(PST pstSrc)
+    void SetSt(PPascalString pstSrc)
     {
         SetRgch(PrgchSt(pstSrc), CchSt(pstSrc));
     }
@@ -403,7 +403,7 @@ class String
         AssertThis(0);
         CopyPb(Psz(), pszDst, (Cch() + kcchExtraSz) * size(achar));
     }
-    void GetSt(PST pstDst)
+    void GetSt(PPascalString pstDst)
     {
         AssertThis(0);
         CopyPb(Pst(), pstDst, (Cch() + kcchExtraSt) * size(achar));

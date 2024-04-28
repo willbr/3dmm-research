@@ -78,7 +78,7 @@ bool Filename::FGetOpen(FileType *prgftg, short cftg)
 /***************************************************************************
     Get an fni (for saving) from the user.
 ***************************************************************************/
-bool Filename::FGetSave(FileType ftg, PST pstPrompt, PST pstDefault)
+bool Filename::FGetSave(FileType ftg, PPascalString pstPrompt, PPascalString pstDefault)
 {
     AssertThis(0);
     AssertNilOrSt(pstPrompt);

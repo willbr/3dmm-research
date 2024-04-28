@@ -327,7 +327,7 @@ void VirtualStringTable::GetRgch(long istn, achar *prgch, long cchMax, long *pcc
     AssertIn(cchMax, 0, kcbMax);
     AssertPvCb(prgch, cchMax * size(achar));
     AssertVarMem(pcch);
-    PST qst = _Qst(istn);
+    PPascalString qst = _Qst(istn);
 
     *pcch = LwMin(cchMax, CchSt(qst));
     CopyPb(PrgchSt(qst), prgch, *pcch * size(achar));
@@ -369,7 +369,7 @@ bool VirtualStringTable::FFindRgch(achar *prgch, long cch, long *pistn, ulong gr
     AssertPvCb(prgch, cch * size(achar));
     AssertVarMem(pistn);
     long istn, bst;
-    PST qst;
+    PPascalString qst;
 
     for (istn = 0; istn < _ivMac; istn++)
     {
@@ -508,7 +508,7 @@ void VirtualStringTable::_RemoveSt(long bst)
     byte *qb;
 
     qb = _Qb1(bst);
-    cb = CchTotSt((PST)qb) * size(achar);
+    cb = CchTotSt((PPascalString)qb) * size(achar);
     AssertIn(bst + cb, 0, _bstMac + 1);
     if (bst + cb < _bstMac)
     {
@@ -565,7 +565,7 @@ void VirtualStringTable::_TranslateGrst(short osk, bool fToCur)
     for (bst = 0; bst < _bstMac;)
     {
         TranslateSt((achar *)(qb + bst), osk, fToCur);
-        bst += CchTotSt((PST)(qb + bst)) * size(achar);
+        bst += CchTotSt((PPascalString)(qb + bst)) * size(achar);
     }
 }
 
@@ -697,7 +697,7 @@ void VirtualStringTable::AssertValid(ulong grfobj)
             }
             AssertIn(bst, 0, _bstMac);
             AssertSt((achar *)_Qb1(bst));
-            cchTot += CchTotSt((PST)_Qb1(bst));
+            cchTot += CchTotSt((PPascalString)_Qb1(bst));
         }
         Assert(cchTot * size(achar) == _bstMac, "grst wrong size");
         Assert(cbstFree == _cbstFree || _cbstFree == cvNil && cbstFree == 0, "bad _cbstFree");

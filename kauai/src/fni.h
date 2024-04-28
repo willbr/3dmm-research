@@ -90,7 +90,7 @@ class Filename : public Filename_PAR
 // building FNIs
 #ifdef MAC
     bool FGetOpen(FileType *prgftg, short cftg);
-    bool FGetSave(FileType ftg, PST pstPrompt, PST pstDefault);
+    bool FGetSave(FileType ftg, PPascalString pstPrompt, PPascalString pstDefault);
     bool FBuild(long lwVol, long lwDir, PString pstn, FileType ftg);
 #elif defined(WIN)
     bool FGetOpen(achar *prgchFilter, HWND hwndOwner);

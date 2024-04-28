@@ -969,7 +969,7 @@ void String::AssertValid(ulong grf)
 /***************************************************************************
     Check the validity of an st (make sure no zeros are in it).
 ***************************************************************************/
-bool FValidSt(PST pst)
+bool FValidSt(PPascalString pst)
 {
     AssertVarMem(pst);
     achar *pch;
@@ -1490,7 +1490,7 @@ void AssertOsk(short osk)
 /***************************************************************************
     Check the validity of an st (make sure no zeros are in it).
 ***************************************************************************/
-void AssertSt(PST pst)
+void AssertSt(PPascalString pst)
 {
     Assert(FValidSt(pst), "bad st");
 }
@@ -1515,7 +1515,7 @@ void AssertSz(PZString psz)
 /***************************************************************************
     Check the validity of an st, nil is allowed.
 ***************************************************************************/
-void AssertNilOrSt(PST pst)
+void AssertNilOrSt(PPascalString pst)
 {
     if (pst != pvNil)
         AssertSt(pst);

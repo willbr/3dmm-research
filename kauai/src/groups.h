@@ -413,7 +413,7 @@ class VirtualStringTable : public VirtualStringTable_PAR
     {
         return (long *)_Qb2(LwMul(ibst, _cbEntry));
     }
-    PST _Qst(long ibst);
+    PPascalString _Qst(long ibst);
     void _RemoveSt(long bst);
     void _AppendRgch(achar *prgch, long cch);
     void _SwapBytesRgbst(void);

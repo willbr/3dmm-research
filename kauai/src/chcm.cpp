@@ -469,7 +469,7 @@ void Compiler::_AppendString(PString pstnValue)
         break;
     case smSt:
         pv = pstnValue->Pst();
-        cb = CchTotSt((PST)pv) * size(achar);
+        cb = CchTotSt((PPascalString)pv) * size(achar);
         break;
     }
 
@@ -2145,7 +2145,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("CHUNK"),     ttChunk,     PszLit("ENDCHUNK"),   ttEndChunk,   PszLit("ADOPT"),   ttAdopt,
     PszLit("CHILD"),     ttChild,     PszLit("PARENT"),     ttParent,     PszLit("BO"),      ttBo,
     PszLit("OSK"),       ttOsk,       PszLit("String"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
-    PszLit("ZString"),        ttModeSz,    PszLit("ST"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
+    PszLit("ZString"),        ttModeSz,    PszLit("PascalString"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
     PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
