@@ -296,7 +296,7 @@ class CGE : public CGE_PAR
 
   private:
     // data enumeration push state
-    struct DPS
+    struct DataEnumerationPushState
     {
         ChildChunkIdentification kid;
         long ikid;
@@ -314,7 +314,7 @@ class CGE : public CGE_PAR
     long _es;    // current state
     PChunkyFile _pcfl;  // the chunky file
     PDynamicArray _pgldps; // our stack of DPSs
-    DPS _dps;    // the current DPS
+    DataEnumerationPushState _dps;    // the current DataEnumerationPushState
 
   public:
     CGE(void);

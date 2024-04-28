@@ -4407,7 +4407,7 @@ bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar,
         if (_pcfl->Ckid(pkid->cki.ctg, pkid->cki.cno) > 0)
         {
             // child has children, need to push the dps
-            if (_pgldps == pvNil && (_pgldps = DynamicArray::PglNew(size(DPS), 10)) == pvNil || !_pgldps->FPush(&_dps))
+            if (_pgldps == pvNil && (_pgldps = DynamicArray::PglNew(size(DataEnumerationPushState), 10)) == pvNil || !_pgldps->FPush(&_dps))
             {
                 // mem failure, pretend it has no children
                 *pgrfcgeOut |= fcgeError;
