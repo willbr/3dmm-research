@@ -152,7 +152,7 @@ enum
 // Chunk Representation (big version) - fixed element in pggcrp
 // variable part of group element is an rgkid and stn data (the name)
 const long kcbMaxCrpbg = klwMax;
-struct CRPBG
+struct ChunkRepresentationBig
 {
     ChunkIdentification cki;      // chunk id
     FilePosition fp;        // location on file
@@ -262,7 +262,7 @@ const ByteOrderMask kbomCrpsm = 0xFF500000L;
 
 #ifdef CHUNK_BIG_INDEX
 
-typedef CRPBG ChunkRepresentation;
+typedef ChunkRepresentationBig ChunkRepresentation;
 typedef CRPSM ChunkRepresentationOther;
 const long kcbMaxCrp = kcbMaxCrpbg;
 typedef long CKID;
@@ -272,7 +272,7 @@ const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
 #else //! CHUNK_BIG_INDEX
 
 typedef CRPSM ChunkRepresentation;
-typedef CRPBG ChunkRepresentationOther;
+typedef ChunkRepresentationBig ChunkRepresentationOther;
 const long kcbMaxCrp = kcbMaxCrpsm;
 typedef ushort CKID;
 const long kckidMax = ksuMax;
@@ -1389,23 +1389,23 @@ bool ChunkyFile::_FReadIndex(void)
     }
 
     cbFixed = _pggcrp->CbFixed();
-    if (cbFixed != size(CRPBG) && (fOldIndex || cbFixed != size(CRPSM)))
+    if (cbFixed != size(ChunkRepresentationBig) && (fOldIndex || cbFixed != size(CRPSM)))
         return fFalse;
 
     // Clean the index
     AssertBomRglw(kbomKid, size(ChildChunkIdentification));
     _pggcrp->Lock();
 
-    if (cbFixed == size(CRPBG))
+    if (cbFixed == size(ChunkRepresentationBig))
     {
         // Big index
-        CRPBG *pcrpbg;
+        ChunkRepresentationBig *pcrpbg;
 
         bom = (bo != kboCur) ? (fOldIndex ? kbomCrpbgBytes : kbomCrpbgGrfcrp) : bomNil;
 
         for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
         {
-            pcrpbg = (CRPBG *)_pggcrp->QvFixedGet(icrp, &cbVar);
+            pcrpbg = (ChunkRepresentationBig *)_pggcrp->QvFixedGet(icrp, &cbVar);
 #ifndef CHUNK_BIG_INDEX
             // make sure we can convert this ChunkRepresentation to a small index ChunkRepresentation
             if (pcrpbg->cb > kcbMaxCrpsm || pcrpbg->ckid > kckidMax || pcrpbg->ccrpRef > kckidMax)
