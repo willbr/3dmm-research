@@ -120,7 +120,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     }
 
     fCompile = fFalse;
-    stn = PszLit("C:/Users/wjbr/src/3DMMForever/build/input.3mm");
+    stn = PszLit("C:/Users/wjbr/src/lib3dmm/walk.3mm");
     AssertDo(fniSrc.FBuildFromPath(&stn), 0);
 
     if (fniSrc.Ftg() == ftgNil)
