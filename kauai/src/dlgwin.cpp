@@ -504,7 +504,7 @@ void Dialog::_GetEditText(long idit, PString pstn)
     AssertPo(pstn, 0);
     HDLG hdlg;
     DialogItem dit;
-    SZ sz;
+    ZString sz;
 
     GetDit(idit, &dit);
     hdlg = (HDLG)_pgob->Hwnd();

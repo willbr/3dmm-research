@@ -31,7 +31,7 @@ String::String(String &stnSrc)
 /***************************************************************************
     Constructor for a string based on an sz.
 ***************************************************************************/
-String::String(PSZ pszSrc)
+String::String(PZString pszSrc)
 {
     long cch = LwBound(CchSz(pszSrc), 0, kcchMaxStn + 1);
 
@@ -561,7 +561,7 @@ bool String::FFormat(PString pstnFormat, ...)
 /***************************************************************************
     See comments for String::FFormat
 ***************************************************************************/
-bool String::FFormatSz(PSZ pszFormat, ...)
+bool String::FFormatSz(PZString pszFormat, ...)
 {
     AssertThis(0);
     AssertSz(pszFormat);
@@ -816,7 +816,7 @@ bool String::FGetLw(long *plw, long lwBase)
     long lwDigit;
     achar ch;
     bool fNegative = fFalse;
-    PSZ psz = Psz();
+    PZString psz = Psz();
 
     if (lwBase < 2)
     {
@@ -996,7 +996,7 @@ bool FValidStz(PSTZ pstz)
 /***************************************************************************
     Find the length of a zero terminated string.
 ***************************************************************************/
-long CchSz(PSZ psz)
+long CchSz(PZString psz)
 {
     // WARNING: don't call AssertSz, since AssertSz calls CchSz!
     AssertVarMem(psz);
@@ -1506,7 +1506,7 @@ void AssertStz(PSTZ pstz)
 /***************************************************************************
     Make sure the sz isn't too long.
 ***************************************************************************/
-void AssertSz(PSZ psz)
+void AssertSz(PZString psz)
 {
     // CchSz does all the asserting we need
     long cch = CchSz(psz);
@@ -1533,7 +1533,7 @@ void AssertNilOrStz(PSTZ pstz)
 /***************************************************************************
     Check the validity of an sz, nil is allowed.
 ***************************************************************************/
-void AssertNilOrSz(PSZ psz)
+void AssertNilOrSz(PZString psz)
 {
     if (psz != pvNil)
         AssertSz(psz);

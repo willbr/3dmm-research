@@ -248,7 +248,7 @@ bool MenuBar::FRemoveListCid(long cid, long lw0, PString pstn)
     AssertNilOrPo(pstn, 0);
     long imlst, ilw, cch;
     MLST mlst;
-    SZ sz;
+    ZString sz;
     HMENU hmenuPrev;
     long dimni;
     long lw;
@@ -442,7 +442,7 @@ bool MenuBar::FChangeListCid(long cid, long lwOld, PString pstnOld, long lwNew, 
     AssertNilOrPo(pstnNew, 0);
     long imlst, ilw, cch, lw;
     MLST mlst;
-    SZ sz;
+    ZString sz;
     bool fRet = fTrue;
 
     if (pvNil == _pglmlst)
@@ -494,7 +494,7 @@ bool MenuBar::_FGetCmdForWcid(long wcid, PCommand pcmd)
     if (wcid >= wcidListBase && _FFindMlst(wcid, &mlst))
     {
         long lw, cch;
-        SZ sz;
+        ZString sz;
         String stn;
 
         mlst.pgllw->Get(wcid - mlst.wcidList, &lw);
@@ -553,7 +553,7 @@ bool MenuBar::_FInitLists(void)
     HMENU hmenu;
     long cid;
     MLST mlst;
-    SZ sz;
+    ZString sz;
     String stn;
     long onn;
     long wcidList = wcidListBase;

@@ -83,7 +83,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 
     struct LANG
     {
-        PSZ psz;
+        PZString psz;
         long sclid;
     };
     static LANG _rglang[] = {
@@ -130,7 +130,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     // parse the command line and load any resource files and help files
     Filename fni;
     bool fQuote, fRes, fSkip;
-    PSZ psz = vwig.pszCmdLine;
+    PZString psz = vwig.pszCmdLine;
 
     // skip the first token since it is the path
     fSkip = fTrue;

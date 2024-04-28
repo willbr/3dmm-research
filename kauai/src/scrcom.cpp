@@ -101,8 +101,8 @@ namespace ScriptCompiler {
 RTCLASS(CompilerBase)
 
 // common error messages
-PSZ _pszOom = PszLit("Out of memory");
-PSZ _pszSyntax = PszLit("Syntax error");
+PZString _pszOom = PszLit("Out of memory");
+PZString _pszSyntax = PszLit("Syntax error");
 
 // name to op lookup table for post-fix compilation
 StringOpcodeMap _rgszop[] = {
@@ -198,7 +198,7 @@ StringOpcodeArgumentMap _rgarop[] = {
     {opNil, pvNil, 0, 0, 0, fTrue},
 };
 
-PSZ _rgpszKey[] = {
+PZString _rgpszKey[] = {
     PszLit("If"), PszLit("Elif"), PszLit("Else"), PszLit("End"), PszLit("While"), PszLit("Break"), PszLit("Continue"),
 };
 
@@ -558,7 +558,7 @@ short CompilerBase::_SwMin(void)
 /***************************************************************************
     An error occured.  Report it to the message sink.
 ***************************************************************************/
-void CompilerBase::_ReportError(PSZ psz)
+void CompilerBase::_ReportError(PZString psz)
 {
     AssertThis(0);
     AssertPo(_plexb, 0);
@@ -2562,7 +2562,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     String stn;
     DataVersion dver;
     PDynamicArray pgllw = pscpt->_pgllw;
-    PSZ pszError = pvNil;
+    PZString pszError = pvNil;
     AssertPo(pgllw, 0);
     Assert(pgllw->CbEntry() == size(long), "bad script");
 
@@ -2731,7 +2731,7 @@ void RuntimeVariableName::SetFromStn(PString pstn)
     byte bT;
     long lw, ib, ibDst, cbit;
     long cch = pstn->Cch();
-    PSZ psz = pstn->Psz();
+    PZString psz = pstn->Psz();
 
     // There are 52 letters, plus 10 digits, plus the underscore character,
     // giving a total of 63 valid identifier characters.  We encode these

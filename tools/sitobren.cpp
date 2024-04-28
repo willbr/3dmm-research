@@ -143,7 +143,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
         goto LUsage;
     while (--cpsz)
     {
-        PSZ pszParm = *ppszParm;
+        PZString pszParm = *ppszParm;
 
         if (fIncNext)
         {
@@ -483,12 +483,12 @@ void S2BLX::MarkMem(void)
 |		bool fSwapHand  -- the rest are all passed to the S2B constructor
 |		bool mdVerbose
 |		int iRound
-|		PSZ pszApp
+|		PZString pszApp
 |
 |	Returns: a pointer to the new S2B instance, pvNil if it fails
 |
 -------------------------------------------------------------PETED-----------*/
-PS2B S2B::Ps2bNew(PFileObject pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
+PS2B S2B::Ps2bNew(PFileObject pfilSrc, bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PZString pszApp)
 {
     PS2B ps2b = NewObj S2B(fSwapHand, mdVerbose, iRound, iRoundXF, pszApp);
 
@@ -511,7 +511,7 @@ PS2B S2B::Ps2bNew(PFileObject pfilSrc, bool fSwapHand, uint mdVerbose, int iRoun
 |		PFileObject pfilSrc -- used to initialize the S2BLX
 |
 -------------------------------------------------------------PETED-----------*/
-S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PSZ pszApp)
+S2B::S2B(bool fSwapHand, uint mdVerbose, int iRound, int iRoundXF, PZString pszApp)
 {
     short bo;
     Filename fni;
@@ -808,7 +808,7 @@ LFail:
     data into the appropriate variable for the given token.
 
     Arguments:
-        PSZ pszResult       -- Error string for command
+        PZString pszResult       -- Error string for command
         bool *pfGotTok      -- pointer to flag to set based on lex state
         const SCRP rgscrp[] -- description of command parameters
         ...                 -- Additional variable parameters
@@ -818,7 +818,7 @@ LFail:
         lexer, *pfGotTok is set to fTrue, otherwise it's set to fFalse.
 
 ************************************************************ PETED ***********/
-bool S2B::_FReadCmdline(PSZ pszResult, bool *pfGotTok, const SCRP rgscrp[], ...)
+bool S2B::_FReadCmdline(PZString pszResult, bool *pfGotTok, const SCRP rgscrp[], ...)
 {
     AssertVarMem(pfGotTok);
     Assert(kcscrpMax <= size(long) * 8, "Too many parms");
@@ -4808,7 +4808,7 @@ bool S2BLX::FTextFromS2btk(PS2BTK ps2btk, PString pstn)
     Warning proc called by Warn() macro
 
 ***************************************************************************/
-void WarnProc(PSZ pszFile, long lwLine, PSZ pszMessage)
+void WarnProc(PZString pszFile, long lwLine, PZString pszMessage)
 {
     if (_fEnableWarnings)
     {
@@ -4824,7 +4824,7 @@ void WarnProc(PSZ pszFile, long lwLine, PSZ pszMessage)
     Returning true breaks into the debugger.
 
 ***************************************************************************/
-bool FAssertProc(PSZ pszFile, long lwLine, PSZ pszMessage, void *pv, long cb)
+bool FAssertProc(PZString pszFile, long lwLine, PZString pszMessage, void *pv, long cb)
 {
     fprintf(stderr, "An assert occurred: \n");
     if (pszMessage != pvNil)

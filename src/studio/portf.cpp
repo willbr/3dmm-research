@@ -41,7 +41,7 @@ bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFi
     String stnFilterLabel;
     String stnFilterExt;
     int cChLabel, cChExt;
-    SZ szFilter;
+    ZString szFilter;
     bool fRet;
 
     AssertVarMem(pfni);
@@ -60,7 +60,7 @@ bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFi
         return fFalse;
 
     // Kauai does not like internal null chars in an String. So build
-    // up the final final string as an SZ.
+    // up the final final string as an ZString.
 
     cChLabel = stnFilterLabel.Cch();
     cChExt = stnFilterExt.Cch();
@@ -116,13 +116,13 @@ bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFi
 bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, Filename *pfniInitialDir, ulong grfPrevType,
                      ChunkNumber cnoWave)
 {
-    SZ szFile;
+    ZString szFile;
     DLGINFO diPortfolio;
     OPENFILENAME ofn;
     String stn;
     bool fOKed;
     String stnInitialDir;
-    SZ szInitialDir;
+    ZString szInitialDir;
 
     AssertPo(pfni, 0);
     AssertNilOrPo(pfniInitialDir, 0);
@@ -243,9 +243,9 @@ bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTS
     String stnFile, stnErr;
     Filename fniUserDir;
     String stnUserDir;
-    SZ szUserDir;
-    SZ szDefFileName;
-    SZ szFileTitle;
+    ZString szUserDir;
+    ZString szDefFileName;
+    ZString szFileTitle;
 
     AssertPo(pfni, 0);
     AssertNilOrPo(pstnDefFileName, 0);
@@ -617,11 +617,11 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             case IDC_BUTTON3: {
                 Filename fniUserDir;
                 String stnUserDir;
-                SZ szUserDir;
-                SZ szCurFile;
+                ZString szUserDir;
+                ZString szCurFile;
                 HWND hwndDlg = GetParent(hwndCustom);
 
-                // The user has pressed the Go To User's Home Folder btn. So get a SZ
+                // The user has pressed the Go To User's Home Folder btn. So get a ZString
                 // for the user's home folder.
 
                 vapp.GetFniUser(&fniUserDir);
@@ -1014,7 +1014,7 @@ void RepaintPortfolio(HWND hwndCustom)
 {
     PAINTSTRUCT ps;
     TEXTMETRIC tmCaption;
-    SZ szCaption;
+    ZString szCaption;
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
     PMaskedBitmapMBMP pmbmp, pmbmpBtn;
     int iBtn;
@@ -1214,7 +1214,7 @@ void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, SystemRectangle 
     PChunkyFile pcfl;
     PMaskedBitmapMBMP pmbmp;
     Filename fni;
-    SZ szFile;
+    ZString szFile;
     ErrorStack ersT;
     ErrorStack *pers;
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);

@@ -517,7 +517,7 @@ enum
     Put an alert up.  Return which button was hit.  Returns tYes for yes
     or ok; tNo for no; tMaybe for cancel.
 ***************************************************************************/
-bool ApplicationBase::TGiveAlertSz(PSZ psz, long bk, long cok)
+bool ApplicationBase::TGiveAlertSz(PZString psz, long bk, long cok)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -596,7 +596,7 @@ bool ApplicationBase::_FInitDebug(void)
     Assert proc.
     REVIEW shonk: Mac FAssertProcApp: flesh out and fix for unicode.
 ***************************************************************************/
-bool ApplicationBase::FAssertProcApp(PSZ pszFile, long lwLine, PSZ pszMsg, void *pv, long cb)
+bool ApplicationBase::FAssertProcApp(PZString pszFile, long lwLine, PZString pszMsg, void *pv, long cb)
 {
     short bid;
     achar stLine[kcbMaxSt];

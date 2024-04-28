@@ -130,14 +130,14 @@ enum
 struct StringOpcodeMap
 {
     long op;
-    PSZ psz;
+    PZString psz;
 };
 
 // structure to map a string to an opcode and argument information (in-fix)
 struct StringOpcodeArgumentMap
 {
     long op;
-    PSZ psz;
+    PZString psz;
     long clwFixed;   // number of fixed arguments
     long clwVar;     // number of arguments per variable group
     long cactMinVar; // minimum number of variable groups
@@ -220,7 +220,7 @@ class CompilerBase : public CompilerBase_PAR
     void _AddLabelLw(long lw);
     void _PushLabelRequestLw(long lw);
 
-    virtual void _ReportError(PSZ psz);
+    virtual void _ReportError(PZString psz);
     virtual short _SwCur(void);
     virtual short _SwBack(void);
     virtual short _SwMin(void);

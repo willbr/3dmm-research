@@ -70,12 +70,12 @@ class SourceEmitter : public SourceEmitter_PAR
     bool FDumpScript(PScript pscpt, PCompilerBase psccb);
 
     // General sz emitting routines
-    void DumpSz(PSZ psz)
+    void DumpSz(PZString psz)
     {
         AssertThis(fchseDump);
         _pmsnkDump->ReportLine(psz);
     }
-    void Error(PSZ psz)
+    void Error(PZString psz)
     {
         AssertThis(fchseNil);
         _fError = fTrue;

@@ -116,7 +116,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     PMODL pmodl;
     ChunkNumber cnoModl;
     PChunkyResourceFile pcrf;
-    PSZ psz;
+    PZString psz;
     long cch;
     long lw;
     PDynamicArray pglkid;
@@ -234,7 +234,7 @@ bool _fEnableWarnings = fTrue;
 /***************************************************************************
     Warning proc called by Warn() macro
 ***************************************************************************/
-void WarnProc(PSZ pszFile, long lwLine, PSZ pszMessage)
+void WarnProc(PZString pszFile, long lwLine, PZString pszMessage)
 {
     if (_fEnableWarnings)
     {
@@ -250,7 +250,7 @@ void WarnProc(PSZ pszFile, long lwLine, PSZ pszMessage)
 /***************************************************************************
     Returning true breaks into the debugger.
 ***************************************************************************/
-bool FAssertProc(PSZ pszFile, long lwLine, PSZ pszMessage, void *pv, long cb)
+bool FAssertProc(PZString pszFile, long lwLine, PZString pszMessage, void *pv, long cb)
 {
     fprintf(stderr, "An assert occurred: \n");
     if (pszMessage != pvNil)

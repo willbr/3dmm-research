@@ -14,13 +14,13 @@
 ASSERTNAME
 
 const ulong kfpError = 0xFFFFFFFF;
-priv HANDLE _HfileOpen(PSZ pszFile, bool fCreate, ulong grffil);
+priv HANDLE _HfileOpen(PZString pszFile, bool fCreate, ulong grffil);
 
 /***************************************************************************
     Open or create the file by calling CreateFile.  Returns hBadWin on
     failure.
 ***************************************************************************/
-priv HANDLE _HfileOpen(PSZ psz, bool fCreate, ulong grffil)
+priv HANDLE _HfileOpen(PZString psz, bool fCreate, ulong grffil)
 {
     ulong luAccess = GENERIC_READ;
     ulong luShare = 0;

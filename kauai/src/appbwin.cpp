@@ -73,7 +73,7 @@ bool ApplicationBase::_FInitOS(void)
 {
     AssertThis(0);
     String stnApp;
-    PSZ pszAppWndCls = PszLit("APP");
+    PZString pszAppWndCls = PszLit("APP");
 
     // get the app name
     GetStnAppName(&stnApp);
@@ -840,7 +840,7 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     const long kclwChain = 10;
     String stn0, stn1, stn2;
     int tmc;
-    PSZ psz;
+    PZString psz;
     long cact;
     long *plw;
     long ilw;
@@ -999,7 +999,7 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     Put an alert up. Return which button was hit. Returns tYes for yes
     or ok; tNo for no; tMaybe for cancel.
 ***************************************************************************/
-tribool ApplicationBase::TGiveAlertSz(PSZ psz, long bk, long cok)
+tribool ApplicationBase::TGiveAlertSz(PZString psz, long bk, long cok)
 {
     AssertThis(0);
     AssertSz(psz);

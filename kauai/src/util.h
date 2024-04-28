@@ -47,12 +47,12 @@
 #define _UNICODE
 #endif // UNICODE
 
-// windef.h typedef's PSZ to char *, this fools it into using PSZS instead
-#define PSZ PSZS
+// windef.h typedef's PZString to char *, this fools it into using PSZS instead
+#define PZString PSZS
 #include <windows.h>
 #include <windowsx.h>
 #include <vfw.h>
-#undef PSZ
+#undef PZString
 
 #define MIR(foo) MAKEINTRESOURCE(foo)
 typedef HBITMAP HBMP;

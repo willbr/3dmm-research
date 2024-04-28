@@ -168,7 +168,7 @@ class Interpreter : public Interpreter_PAR
     virtual short _SwMin(void);
 
 #ifdef DEBUG
-    void _WarnSz(PSZ psz, ...);
+    void _WarnSz(PZString psz, ...);
 #endif // DEBUG
 
   public:

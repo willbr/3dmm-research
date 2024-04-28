@@ -45,7 +45,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     PDocumentDisplayGraphicsObject pddg;
     PDocumentBase pdocb;
     long lw;
-    PSZ psz = vwig.pszCmdLine;
+    PZString psz = vwig.pszCmdLine;
 
     fSkip = fTrue;
     fScript = fFalse;

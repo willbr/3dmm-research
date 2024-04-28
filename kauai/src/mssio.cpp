@@ -26,7 +26,7 @@ MessageSinkIO::MessageSinkIO(FILE *pfile)
 /***************************************************************************
     Prints a message to stderr.
 ***************************************************************************/
-void MessageSinkIO::ReportLine(PSZ psz)
+void MessageSinkIO::ReportLine(PZString psz)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -41,7 +41,7 @@ void MessageSinkIO::ReportLine(PSZ psz)
 /***************************************************************************
     Dump a line to stdout.
 ***************************************************************************/
-void MessageSinkIO::Report(PSZ psz)
+void MessageSinkIO::Report(PZString psz)
 {
     AssertThis(0);
     AssertSz(psz);

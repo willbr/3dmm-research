@@ -353,7 +353,7 @@ class APP : public APP_PAR
     void EnableAccel(void);
 
     // Registry access function
-    bool FGetSetRegKey(PSZ pszValueName, void *pvData, long cbData, ulong grfreg = fregSetDefault,
+    bool FGetSetRegKey(PZString pszValueName, void *pvData, long cbData, ulong grfreg = fregSetDefault,
                        bool *pfNoValue = pvNil);
 
     // Movie handoff routines

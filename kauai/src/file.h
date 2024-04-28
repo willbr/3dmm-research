@@ -304,8 +304,8 @@ class MessageSink : public MessageSink_PAR
     RTCLASS_INLINE(MessageSink)
 
   public:
-    virtual void ReportLine(PSZ psz) = 0;
-    virtual void Report(PSZ psz) = 0;
+    virtual void ReportLine(PZString psz) = 0;
+    virtual void Report(PZString psz) = 0;
     virtual bool FError(void) = 0;
 };
 
@@ -330,8 +330,8 @@ class MessageSinkFile : public MessageSinkFile_PAR
     MessageSinkFile(PFileObject pfil = pvNil);
     ~MessageSinkFile(void);
 
-    virtual void ReportLine(PSZ psz);
-    virtual void Report(PSZ psz);
+    virtual void ReportLine(PZString psz);
+    virtual void Report(PZString psz);
     virtual bool FError(void);
 
     void SetFile(PFileObject pfil);

@@ -72,7 +72,7 @@ enum
 // lookup table for keywords
 struct KEYTT
 {
-    PSZ pszKeyword;
+    PZString pszKeyword;
     long tt;
 };
 
@@ -212,9 +212,9 @@ class Compiler : public Compiler_PAR
         PString pstn;
     };
 
-    void _Error(long ert, PSZ pszMessage = pvNil);
+    void _Error(long ert, PZString pszMessage = pvNil);
     void _GetRgbFromLw(long lw, byte *prgb);
-    void _ErrorOnData(PSZ pszPreceed);
+    void _ErrorOnData(PZString pszPreceed);
     bool _FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp);
     bool _FGetCleanTok(Token *ptok, bool fEofOk = fFalse);
     void _SkipPastTok(long tt);

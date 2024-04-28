@@ -671,7 +671,7 @@ bool FileNameEnumerator::FNextFni(Filename *pfni, ulong *pgrffneOut, ulong grffn
         int ich;
         bool fT;
         FileType *pftg;
-        PSZ pszExt;
+        PZString pszExt;
         CInfoPBRec iob;
         achar stz[kcbMaxStz];
 

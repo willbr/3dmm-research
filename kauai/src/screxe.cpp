@@ -744,7 +744,7 @@ void Interpreter::_Error(bool fAssert)
 /***************************************************************************
     Emits a warning with the given format string and optional parameters.
 ***************************************************************************/
-void Interpreter::_WarnSz(PSZ psz, ...)
+void Interpreter::_WarnSz(PZString psz, ...)
 {
     AssertThis(0);
     AssertSz(psz);

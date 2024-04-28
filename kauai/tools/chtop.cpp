@@ -3731,7 +3731,7 @@ void _TokenizeStn(PString pstn)
 {
     AssertPo(pstn, 0);
     bool fDigitOk;
-    SZ sz;
+    ZString sz;
     achar ch;
     achar *pch;
 

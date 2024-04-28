@@ -49,8 +49,8 @@ const ulong kdtsMaxResSwitchDlg = 15 * kdtsSecond;
 // 2MB cache per source for TagManager
 const ulong kcbCacheTagm = 2048 * 1024;
 
-static PSZ kpszAppWndCls = PszLit("3DMOVIE");
-const PSZ kpszOpenFile = PszLit("3DMMOpen.tmp");
+static PZString kpszAppWndCls = PszLit("3DMOVIE");
+const PZString kpszOpenFile = PszLit("3DMMOpen.tmp");
 
 const long klwOpenDoc = 0x12123434; // arbitrary wParam for WM_USER
 
@@ -142,7 +142,7 @@ void APP::GetStnAppName(PString pstn)
     if (_stnAppName.Cch() == 0)
     {
 #ifdef WIN
-        SZ sz;
+        ZString sz;
 
         if (0 != LoadString(vwig.hinst, stidAppName, sz, kcchMaxSz))
             _stnAppName = sz;
@@ -1183,7 +1183,7 @@ bool APP::_FGetUserDirectories(void)
     AssertPo(&_fniMsKidsDir, ffniDir);
     Assert(_stnUser.Cch() > 0, "need valid stnUser!");
 
-    SZ szDir;
+    ZString szDir;
     String stn;
     String stnT;
     String stnUsers;
@@ -1273,17 +1273,17 @@ bool APP::_FGetUserName(void)
 
 #ifdef WIN
     bool fRet = fTrue;
-    DWORD dwCbUser = size(SZ);
-    SZ szT;
+    DWORD dwCbUser = size(ZString);
+    ZString szT;
 
     switch (WNetGetUser(NULL, szT, &dwCbUser))
     {
     case ERROR_EXTENDED_ERROR: {
         DWORD dwError;
-        SZ szProvider;
+        ZString szProvider;
         String stnMessage;
 
-        if (WNetGetLastError(&dwError, szT, size(SZ), szProvider, size(SZ)) == NO_ERROR)
+        if (WNetGetLastError(&dwError, szT, size(ZString), szProvider, size(ZString)) == NO_ERROR)
         {
             String stnFormat;
 
@@ -1388,7 +1388,7 @@ bool APP::_FWriteUserData(void)
 
 
     Arguments:
-        PSZ pszValueName  --  The value name
+        PZString pszValueName  --  The value name
         void *pvData      --  pointer to buffer to read or write key into or from
         long cbData       --  size of the buffer
         ulong grfreg      --  flags describing what we should do
@@ -1398,7 +1398,7 @@ bool APP::_FWriteUserData(void)
     Returns:  fTrue if all actions necessary could be performed
 
 ************************************************************ PETED ***********/
-bool APP::FGetSetRegKey(PSZ pszValueName, void *pvData, long cbData, ulong grfreg, bool *pfNoValue)
+bool APP::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData, ulong grfreg, bool *pfNoValue)
 {
     AssertBaseThis(0);
     AssertSz(pszValueName);
@@ -1435,9 +1435,9 @@ bool APP::FGetSetRegKey(PSZ pszValueName, void *pvData, long cbData, ulong grfre
         else if (fString)
         {
             if (!fSetKey)
-                dwCbData = CchSz((PSZ)pvData) + kcchExtraSz;
+                dwCbData = CchSz((PZString)pvData) + kcchExtraSz;
             else
-                Assert(CchSz((PSZ)pvData) < cbData, "Invalid string for reg key");
+                Assert(CchSz((PZString)pvData) < cbData, "Invalid string for reg key");
             dwType = REG_SZ;
         }
         else
@@ -1578,10 +1578,10 @@ bool APP::_FReadTitlesFromReg(PStringTable_GST *ppgst)
     HKEY hkey = 0;
     DWORD dwDisposition;
     DWORD iValue;
-    SZ szSid;
+    ZString szSid;
     String stnSid;
     DWORD cchSid = kcchMaxSz;
-    SZ szTitle;
+    ZString szTitle;
     String stnTitle;
     DWORD cchTitle = kcchMaxSz;
     PStringTable_GST pgst;
@@ -2141,7 +2141,7 @@ void APP::_ParseCommandLine(void)
     AssertBaseThis(0);
 
 #ifdef WIN
-    SZ sz;
+    ZString sz;
     String stn;
     achar *pch;
     achar *pchT;
@@ -2274,7 +2274,7 @@ bool APP::_FEnsureProductNames(void)
     if (_stnProductLong.Cch() == 0)
     {
 #ifdef WIN
-        SZ sz;
+        ZString sz;
 
         if (0 == LoadString(vwig.hinst, stid3DMovieNameLong, sz, kcchMaxSz))
             return fFalse;
@@ -2303,12 +2303,12 @@ bool APP::_FFindMsKidsDir(void)
     Assert(_stnProductLong.Cch() > 0 && _stnProductShort.Cch() > 0, "_stnProductLong and _stnProductShort must exist");
 
     Filename fni;
-    SZ szMsKidsDir;
+    ZString szMsKidsDir;
     String stn;
     String stnUsers;
 
     // szMsKidsDir[0] = chNil;
-    // if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(SZ), fregMachine | fregString))
+    // if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(ZString), fregMachine | fregString))
     // {
     //     Warn("Missing InstallDirectory registry entry or registry error");
     // }
@@ -3437,19 +3437,19 @@ bool APP::FCmdInfo(PCommand pcmd)
 #ifdef WIN
 #ifdef UNICODE
 typedef LONG(WINAPI *PFNCHDS)(LPDEVMODEW lpDevMode, DWORD dwFlags);
-const PSZ kpszChds = PszLit("ChangeDisplaySettingsW");
+const PZString kpszChds = PszLit("ChangeDisplaySettingsW");
 #else
 typedef LONG(WINAPI *PFNCHDS)(LPDEVMODEA lpDevMode, DWORD dwFlags);
-const PSZ kpszChds = PszLit("ChangeDisplaySettingsA");
+const PZString kpszChds = PszLit("ChangeDisplaySettingsA");
 #endif // !UNICODE
 
 #ifdef BUG1920
 #ifdef UNICODE
 typedef BOOL(WINAPI *PFNENUM)(LPCWSTR lpszDeviceName, DWORD iModeNum, LPDEVMODEW lpDevMode);
-const PSZ kpszEnum = PszLit("EnumDisplaySettingsW");
+const PZString kpszEnum = PszLit("EnumDisplaySettingsW");
 #else
 typedef BOOL(WINAPI *PFNENUM)(LPCSTR lpszDeviceName, DWORD iModeNum, LPDEVMODEA lpDevMode);
-const PSZ kpszEnum = PszLit("EnumDisplaySettingsA");
+const PZString kpszEnum = PszLit("EnumDisplaySettingsA");
 #endif // !UNICODE
 #endif // BUG1920
 #endif // WIN

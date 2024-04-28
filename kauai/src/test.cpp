@@ -352,7 +352,7 @@ void TestGg(void)
     ulong grf;
     long cb, iv;
     byte *qb;
-    PSZ psz = PszLit("0123456789ABCDEFG");
+    PZString psz = PszLit("0123456789ABCDEFG");
     achar rgch[100];
 
     AssertDo((pgg = GeneralGroup::PggNew(0)) != pvNil, 0);
@@ -435,7 +435,7 @@ void TestCfl(void)
     {
         ChunkTag ctg;
         ChunkNumber cno;
-        PSZ psz;
+        PZString psz;
         short relPar1, relPar2;
     };
 

@@ -58,7 +58,7 @@ bool Filename::FGetOpen(achar *prgchFilter, HWND hwndOwner)
     AssertNilOrVarMem(prgchFilter);
 
     OFN ofn;
-    SZ sz;
+    ZString sz;
 
     ClearPb(&ofn, size(OFN));
     SetNil();
@@ -95,7 +95,7 @@ bool Filename::FGetSave(achar *prgchFilter, HWND hwndOwner)
     AssertNilOrVarMem(prgchFilter);
 
     OFN ofn;
-    SZ sz;
+    ZString sz;
 
     ClearPb(&ofn, size(OFN));
     SetNil();
@@ -134,7 +134,7 @@ bool Filename::FBuildFromPath(PString pstn, FileType ftgDef)
 
     long cch;
     achar *pchT;
-    SZ sz;
+    ZString sz;
 
     if (kftgDir != ftgDef)
     {
@@ -208,9 +208,9 @@ bool Filename::FSearchInPath(PString pstn, PString pstnEnv)
     AssertNilOrPo(pstnEnv, 0);
 
     long cch;
-    SZ sz;
+    ZString sz;
     achar *pchT;
-    PSZ psz = (pstnEnv == pvNil) ? pvNil : pstnEnv->Psz();
+    PZString psz = (pstnEnv == pvNil) ? pvNil : pstnEnv->Psz();
 
     if ((cch = SearchPath(psz, pstn->Psz(), pvNil, kcchMaxSz, sz, &pchT)) == 0 || cch > kcchMaxSz)
     {
@@ -268,7 +268,7 @@ bool Filename::FGetTemp(void)
     if (_fniTemp._ftg != kftgDir)
     {
         // get the temp directory
-        SZ sz;
+        ZString sz;
 
         if (GetTempPath(kcchMaxSz, sz) == 0)
         {
@@ -299,7 +299,7 @@ ulong Filename::Grfvk(void)
 {
     AssertThis(ffniDir | ffniFile);
     String stn;
-    PSZ psz;
+    PZString psz;
     ulong grfvk = fvkNil;
 
     psz = _stnFile.Psz();
@@ -402,7 +402,7 @@ void Filename::GetLeaf(PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
     achar *pch;
-    PSZ psz = _stnFile.Psz();
+    PZString psz = _stnFile.Psz();
 
     for (pch = psz + _stnFile.Cch(); pch-- > psz && *pch != '\\' && *pch != '/';)
     {
@@ -589,7 +589,7 @@ bool Filename::FUpDir(PString pstn, ulong grffni)
 
     long cch;
     achar *pchT;
-    SZ sz;
+    ZString sz;
     String stn;
 
     stn = _stnFile;
@@ -638,9 +638,9 @@ void Filename::AssertValid(ulong grffni)
     Filename_PAR::AssertValid(0);
     AssertPo(&_stnFile, 0);
 
-    SZ szT;
+    ZString szT;
     long cch;
-    PSZ pszT;
+    PZString pszT;
 
     if (grffni == 0)
         grffni = ffniEmpty | ffniDir | ffniFile;
@@ -682,7 +682,7 @@ long Filename::_CchExt(void)
 {
     AssertBaseThis(0);
     long cch;
-    PSZ psz = _stnFile.Psz();
+    PZString psz = _stnFile.Psz();
     achar *pch = psz + _stnFile.Cch() - 1;
 
     for (cch = 1; cch <= kcchsMaxExt + 1 && pch >= psz; cch++, pch--)
@@ -740,7 +740,7 @@ bool Filename::_FChangeLeaf(PString pstn)
     AssertNilOrPo(pstn, 0);
 
     achar *pch;
-    PSZ psz;
+    PZString psz;
     long cchBase, cch;
 
     psz = _stnFile.Psz();

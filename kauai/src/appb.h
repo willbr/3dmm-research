@@ -261,7 +261,7 @@ class ApplicationBase : public ApplicationBase_PAR
     virtual long DypTextDef(void);
 
     // basic alert handling
-    virtual tribool TGiveAlertSz(PSZ psz, long bk, long cok);
+    virtual tribool TGiveAlertSz(PZString psz, long bk, long cok);
 
     // common commands
     virtual bool FCmdQuit(PCommand pcmd);

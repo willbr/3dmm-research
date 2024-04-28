@@ -1397,7 +1397,7 @@ PFileObject MessageSinkFile::PfilRelease(void)
 /***************************************************************************
     Dump a line to the file.
 ***************************************************************************/
-void MessageSinkFile::ReportLine(PSZ psz)
+void MessageSinkFile::ReportLine(PZString psz)
 {
     AssertThis(0);
     AssertNilOrPo(_pfil, 0);
@@ -1413,7 +1413,7 @@ void MessageSinkFile::ReportLine(PSZ psz)
 /***************************************************************************
     Dump some text to the file.
 ***************************************************************************/
-void MessageSinkFile::Report(PSZ psz)
+void MessageSinkFile::Report(PZString psz)
 {
     AssertThis(0);
     AssertNilOrPo(_pfil, 0);

@@ -108,7 +108,7 @@ bool SPLC::_FEnsureDll(SC_LID sclid)
     HKEY hkey;
     long cb, lwType;
     String stn;
-    SZ sz;
+    ZString sz;
 
     stn.FFormatSz(PszLit("SOFTWARE\\Microsoft\\Shared Tools\\Proofing Tools") PszLit("\\Spelling\\%d\\Normal"), sclid);
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, stn.Psz(), 0, KEY_QUERY_VALUE, &hkey))
@@ -168,7 +168,7 @@ bool SPLC::_FEnsureMainDict(SC_LID sclid, PFilename pfni)
     HKEY hkey;
     long cb, lwType;
     String stn;
-    SZ sz;
+    ZString sz;
 
     stn.FFormatSz(PszLit("SOFTWARE\\Microsoft\\Shared Tools\\Proofing Tools") PszLit("\\Spelling\\%d\\Normal"), sclid);
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, stn.Psz(), 0, KEY_QUERY_VALUE, &hkey))
@@ -221,7 +221,7 @@ bool SPLC::_FEnsureUserDict(PString pstnCustom, PFilename pfniDef)
 #ifdef WIN
     HKEY hkey;
     long cb, lwType;
-    SZ sz;
+    ZString sz;
     String stn;
     Filename fni;
 
@@ -273,7 +273,7 @@ LError:
 /***************************************************************************
     Load a particular dictionary given its path.
 ***************************************************************************/
-bool SPLC::_FLoadDictionary(SC_LID sclid, PSZ psz, SC_MDRS *pmdrs)
+bool SPLC::_FLoadDictionary(SC_LID sclid, PZString psz, SC_MDRS *pmdrs)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -296,7 +296,7 @@ bool SPLC::_FLoadDictionary(SC_LID sclid, PSZ psz, SC_MDRS *pmdrs)
 /***************************************************************************
     Load a particular user dictionary given its path.
 ***************************************************************************/
-bool SPLC::_FLoadUserDictionary(PSZ psz, SC_UDR *pudr, bool fCreate)
+bool SPLC::_FLoadUserDictionary(PZString psz, SC_UDR *pudr, bool fCreate)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -352,7 +352,7 @@ bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PS
     SC_SIB sib;
     SC_SRB srb;
     SC_SEC sec;
-    SZ sz;
+    ZString sz;
     byte bRate;
 
     pstnReplace->SetNil();

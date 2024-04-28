@@ -18,7 +18,7 @@ RTCLASS(Compiler)
 RTCLASS(CompilerLexer)
 RTCLASS(Decompiler)
 
-PSZ _mpertpsz[] = {
+PZString _mpertpsz[] = {
     PszLit("no error"),
     PszLit("Internal allocation error"),                      // ertOom
     PszLit("Can't open the given file"),                      // ertOpenFile
@@ -135,7 +135,7 @@ void Compiler::MarkMem(void)
     Registers an error, prints error message with filename and line number.
     pszMessage may be nil.
 ***************************************************************************/
-void Compiler::_Error(long ert, PSZ pszMessage)
+void Compiler::_Error(long ert, PZString pszMessage)
 {
     AssertThis(0);
     AssertIn(ert, ertNil, ertLim);
@@ -196,7 +196,7 @@ void Compiler::_GetRgbFromLw(long lw, byte *prgb)
     Checks if data is already in the buffer (and issues an error) for a
     non-buffer command such as metafile import.
 ***************************************************************************/
-void Compiler::_ErrorOnData(PSZ pszPreceed)
+void Compiler::_ErrorOnData(PZString pszPreceed)
 {
     AssertThis(0);
     AssertSz(pszPreceed);
@@ -465,7 +465,7 @@ void Compiler::_AppendString(PString pstnValue)
         break;
     case smSz:
         pv = pstnValue->Psz();
-        cb = CchTotSz((PSZ)pv) * size(achar);
+        cb = CchTotSz((PZString)pv) * size(achar);
         break;
     case smSt:
         pv = pstnValue->Pst();
@@ -2145,7 +2145,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("CHUNK"),     ttChunk,     PszLit("ENDCHUNK"),   ttEndChunk,   PszLit("ADOPT"),   ttAdopt,
     PszLit("CHILD"),     ttChild,     PszLit("PARENT"),     ttParent,     PszLit("BO"),      ttBo,
     PszLit("OSK"),       ttOsk,       PszLit("String"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
-    PszLit("SZ"),        ttModeSz,    PszLit("ST"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
+    PszLit("ZString"),        ttModeSz,    PszLit("ST"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
     PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
@@ -2280,7 +2280,7 @@ bool CompilerLexer::FGetPath(Filename *pfni)
 
 #ifdef WIN
     static achar _szInclude[1024];
-    SZ szT;
+    ZString szT;
 
     if (_szInclude[0] == 0)
     {
