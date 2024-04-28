@@ -40,9 +40,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_5=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_0, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1e"
 	ITEM
@@ -179,9 +179,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_A=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1e"
 	ITEM
@@ -283,9 +283,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_7=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon4"
 	ITEM
@@ -361,9 +361,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_0=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1d"
 	ITEM
@@ -481,9 +481,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_4, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1d"
 	ITEM
@@ -593,9 +593,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_C=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_5, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1e"
 	ITEM
@@ -704,9 +704,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_8=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_6, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1d"
 	ITEM
@@ -788,9 +788,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_7, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon4"
 	ITEM
@@ -861,9 +861,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_6=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_16042, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonBlank"
 	ITEM
@@ -1072,9 +1072,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_16047, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobMapHere"
 	ITEM
@@ -1160,9 +1160,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_B=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_16048, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1d"
 	ITEM
@@ -1266,9 +1266,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_9=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_16051, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloon1d"
 	ITEM

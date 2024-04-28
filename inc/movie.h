@@ -560,7 +560,7 @@ class Movie : public Movie_PAR
 
     String _stnTitle; // Title of the movie
 
-    PStringTable _pgstmactr;             // StringTable of actors in the movie (for roll call)
+    PStringTable_GST _pgstmactr;             // StringTable_GST of actors in the movie (for roll call)
     PScene _pscenOpen;            // Index of current open scene.
     long _cscen;                 // Number of scenes in the movie.
     long _iscen;                 // Number of scene open in the movie.
@@ -644,7 +644,7 @@ class Movie : public Movie_PAR
     static PMovie PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni = pvNil, ChunkNumber cno = cnoNil);
     // Create a movie and read it if
     //   pfni != pvNil
-    static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable *ppgst, long *paridLim = pvNil);
+    static bool FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, long *paridLim = pvNil);
     // reads roll call for a given movie
     void ForceSaveAs(void)
     {

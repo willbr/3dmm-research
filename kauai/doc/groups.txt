@@ -2,7 +2,7 @@
 
 	Collection classes:  General List (DynamicArray), Allocated List (AllocatedArray),
 	General Group (GeneralGroup),  Allocated Group (AllocatedGroup),
-	General String Table (StringTable), Allocated String Table (AllocatedStringTable).
+	General String Table (StringTable_GST), Allocated String Table (AllocatedStringTable).
 
 ***************************************************************************/
 
@@ -37,8 +37,8 @@
 		deleted.  Entries can be free.  Call FFree to determine
 		if an entry is free.
 
-	class StringTable;
-	typedef class StringTable *PStringTable;
+	class StringTable_GST;
+	typedef class StringTable_GST *PStringTable_GST;
 		A string table.  Can also store a fixed size piece of "extra"
 		data for each string.
 
@@ -65,14 +65,14 @@
 	PAllocatedArray   AllocatedArray::PalNew(long cb, long cvInit = 0);
 	PGeneralGroup   GeneralGroup::PggNew(long cvInit = 0, long cbInit = 0);
 	PAllocatedGroup   AllocatedGroup::PagNew(long cvInit = 0, long cbInit = 0);
-	PStringTable StringTable::PgstNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
+	PStringTable_GST StringTable_GST::PgstNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 	PAllocatedStringTable AllocatedStringTable::PastNew(long cbExtra, long cstzInit = 0, long cchInit = 0);
 		These are static methods (not invoked from an object) that
 		allocate a new object of the appropriate class.  For DynamicArray and
 		AllocatedArray classes, cb is the size of the elements and cvInit is the
-		number of elements to reserve space for.  For StringTable and AllocatedStringTable, cbExtra
+		number of elements to reserve space for.  For StringTable_GST and AllocatedStringTable, cbExtra
 		is the amount of extra data associated with each string.  For
-		GeneralGroup, AllocatedGroup, StringTable and AllocatedStringTable, cvInit/cstzInit are how many entries to make room
+		GeneralGroup, AllocatedGroup, StringTable_GST and AllocatedStringTable, cvInit/cstzInit are how many entries to make room
 		for and cbInit/cchInit are the total number of bytes to allow for
 		these entries.  These values are as in FEnsureSpace.
 
@@ -80,7 +80,7 @@
 	PAllocatedArray   AllocatedArray::PalRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PGeneralGroup   GeneralGroup::PggRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAllocatedGroup   AllocatedGroup::PagRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
-	PStringTable StringTable::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
+	PStringTable_GST StringTable_GST::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 	PAllocatedStringTable AllocatedStringTable::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk);
 		Static methods to read an object from disk.  pbo and posk may be
 		nil.  *pbo is set to the byte order of the object and *posk is
@@ -96,7 +96,7 @@
 			short bo = kboCur, short osk = koskCur);
 	bool  AllocatedGroup::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool StringTable::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
+	bool StringTable_GST::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
 	bool AllocatedStringTable::FWrite(PFIL pfil, FP fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
@@ -105,13 +105,13 @@
 		different from kboCur and koskCur, these will adjust the byte
 		order and/or osk before writing the data.  Obviously, client
 		managed data is not adjusted.  REVIEW shonk: should strings
-		in an StringTable/AllocatedStringTable be handled automatically.
+		in an StringTable_GST/AllocatedStringTable be handled automatically.
 
 	long  DynamicArray::CbOnFile(void);
 	long  AllocatedArray::CbOnFile(void);
 	long  GeneralGroup::CbOnFile(void);
 	long  AllocatedGroup::CbOnFile(void);
-	long StringTable::CbOnFile(void);
+	long StringTable_GST::CbOnFile(void);
 	long AllocatedStringTable::CbOnFile(void);
 		Returns the amount of space required to write the object to
 		disk.
@@ -120,7 +120,7 @@
 	long  AllocatedArray::IvMac(void);
 	long  GeneralGroup::IvMac(void);
 	long  AllocatedGroup::IvMac(void);
-	long StringTable::IstzMac(void);
+	long StringTable_GST::IstzMac(void);
 	long AllocatedStringTable::IstzMac(void);
 		Returns the number of active items.  For AllocatedArray, AllocatedGroup and AllocatedStringTable, this
 		is the lim of legal indices, not the number of non-free
@@ -130,7 +130,7 @@
 	void  AllocatedArray::Delete(long iv);
 	void  GeneralGroup::Delete(long iv);
 	void  AllocatedGroup::Delete(long iv);
-	void StringTable::Delete(long istz);
+	void StringTable_GST::Delete(long istz);
 	void AllocatedStringTable::Delete(long istz);
 		Deletes the indicated element.  For AllocatedArray, AllocatedGroup and AllocatedStringTable, indices of
 		remaining items don't change (ie, a hole is created).  For the other
@@ -295,22 +295,22 @@
 	String Table specific methods
 ****************************************/
 
-	bool StringTable::FEnsureSpace(long cstzAdd, long cchAdd, short grfgrp);
+	bool StringTable_GST::FEnsureSpace(long cstzAdd, long cchAdd, short grfgrp);
 	bool AllocatedStringTable::FEnsureSpace(long cstzAdd, long cchAdd, short grfgrp);
 		Make sure there is room for at least cstzAdd additional strings,
 		using cchAdd bytes of space.  To close up the string table
 		use FEnsureSpace(0, 0, fgrpShrink).
 
-	bool StringTable::FInsertRgch(long istz, char *prgch, long cch, void *pvExtra);
-	bool StringTable::FInsertStz(long istz, char *pstz, void *pvExtra);
-	bool StringTable::FInsertSt(long istz, char *pst, void *pvExtra);
-	bool StringTable::FInsertSz(long istz, char *psz, void *pvExtra);
+	bool StringTable_GST::FInsertRgch(long istz, char *prgch, long cch, void *pvExtra);
+	bool StringTable_GST::FInsertStz(long istz, char *pstz, void *pvExtra);
+	bool StringTable_GST::FInsertSt(long istz, char *pst, void *pvExtra);
+	bool StringTable_GST::FInsertSz(long istz, char *psz, void *pvExtra);
 		Insert a new string at location istz.  pvExtra may be nil.
 
-	bool StringTable::FAddRgch(char *prgch, long cch, void *pvExtra, long *pistz);
-	bool StringTable::FAddStz(char *pstz, void *pvExtra, long *pistz);
-	bool StringTable::FAddSt(char *pst, void *pvExtra, long *pistz);
-	bool StringTable::FAddSz(char *psz, void *pvExtra, long *pistz);
+	bool StringTable_GST::FAddRgch(char *prgch, long cch, void *pvExtra, long *pistz);
+	bool StringTable_GST::FAddStz(char *pstz, void *pvExtra, long *pistz);
+	bool StringTable_GST::FAddSt(char *pst, void *pvExtra, long *pistz);
+	bool StringTable_GST::FAddSz(char *psz, void *pvExtra, long *pistz);
 	bool AllocatedStringTable::FAddRgch(char *prgch, long cch, void *pvExtra, long *pistz);
 	bool AllocatedStringTable::FAddStz(char *pstz, void *pvExtra, long *pistz);
 	bool AllocatedStringTable::FAddSt(char *pst, void *pvExtra, long *pistz);
@@ -318,44 +318,44 @@
 		Append a string to the string table.  pistz may be nil.  If not,
 		*pistz is set the index of the new string.  pvExtra may be nil.
 
-	void StringTable::GetExtra(long istz, void *pv);
+	void StringTable_GST::GetExtra(long istz, void *pv);
 	void AllocatedStringTable::GetExtra(long istz, void *pv);
 		Fill pv with the extra data for the string.  Asserts that cbExtra
 		is > 0.
 
-	void StringTable::PutExtra(long istz, void *pv);
+	void StringTable_GST::PutExtra(long istz, void *pv);
 	void AllocatedStringTable::PutExtra(long istz, void *pv);
 		Set the extra data for the string.  Asserts that cbExtra is > 0.
 
-	void StringTable::GetStz(long istz, char *pstz);
-	void StringTable::GetSt(long istz, char *pst);
-	void StringTable::GetSz(long istz, char *psz);
+	void StringTable_GST::GetStz(long istz, char *pstz);
+	void StringTable_GST::GetSt(long istz, char *pst);
+	void StringTable_GST::GetSz(long istz, char *psz);
 	void AllocatedStringTable::GetStz(long istz, char *pstz);
 	void AllocatedStringTable::GetSt(long istz, char *pst);
 	void AllocatedStringTable::GetSz(long istz, char *psz);
 		Get the istz'th string.  pstz/pst/psz must point to a buffer at least
 		kcbMaxStz/kcbMaxSt/kcbMaxSz bytes long.
 
-	bool StringTable::FPutRgch(long istz, char *prgch, long cch);
-	bool StringTable::FPutStz(long istz, char *pstz);
-	bool StringTable::FPutSt(long istz, char *pst);
-	bool StringTable::FPutSz(long istz, char *psz);
+	bool StringTable_GST::FPutRgch(long istz, char *prgch, long cch);
+	bool StringTable_GST::FPutStz(long istz, char *pstz);
+	bool StringTable_GST::FPutSt(long istz, char *pst);
+	bool StringTable_GST::FPutSz(long istz, char *psz);
 	bool AllocatedStringTable::FPutRgch(long istz, char *prgch, long cch);
 	bool AllocatedStringTable::FPutStz(long istz, char *pstz);
 	bool AllocatedStringTable::FPutSt(long istz, char *pst);
 	bool AllocatedStringTable::FPutSz(long istz, char *psz);
 		Replace the istz'th string.
 
-	bool StringTable::FFindStz(char *pstz, long *pistz, ulong grfstb = fstbNil);
-	bool StringTable::FFindSt(char *pst, long *pistz, ulong grfstb = fstbNil);
-	bool StringTable::FFindSz(char *psz, long *pistz, ulong grfstb = fstbNil);
+	bool StringTable_GST::FFindStz(char *pstz, long *pistz, ulong grfstb = fstbNil);
+	bool StringTable_GST::FFindSt(char *pst, long *pistz, ulong grfstb = fstbNil);
+	bool StringTable_GST::FFindSz(char *psz, long *pistz, ulong grfstb = fstbNil);
 	bool AllocatedStringTable::FFindStz(char *pstz, long *pistz, ulong grfstb = fstbNil);
 	bool AllocatedStringTable::FFindSt(char *pst, long *pistz, ulong grfstb = fstbNil);
 	bool AllocatedStringTable::FFindSz(char *psz, long *pistz, ulong grfstb = fstbNil);
 		Finds the given string in the string table.  If fstbSorted is specified,
-		and this is an StringTable, a binary search is performed.  If the string is
+		and this is an StringTable_GST, a binary search is performed.  If the string is
 		not found, false is returned.  If the string is not found and this is
-		an StringTable and fstbSorted was specified, *pistz will be filled with where
+		an StringTable_GST and fstbSorted was specified, *pistz will be filled with where
 		the string should be inserted to maintain the sorting.  In other cases,
 		if the string is not found, *pistz is filled with IstzMac().
 

@@ -346,14 +346,14 @@ void DumpSourceList(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     DataBlock data_block;
 
     ChildChunkIdentification kid;
-    PStringTable pgstSource;
+    PStringTable_GST pgstSource;
 
     printf("\tsource_list = {\n");
 
     if (pcflSrc->FGetKidChidCtg(kctgMvie, movie_chunk_number, kchidGstSource, kctgGst, &kid) &&
         pcflSrc->FFind(kid.cki.ctg, kid.cki.cno, &data_block))
     {
-        pgstSource = StringTable::PgstRead(&data_block, &bo, &osk);
+        pgstSource = StringTable_GST::PgstRead(&data_block, &bo, &osk);
         if (pvNil != pgstSource)
         {
             String stn1;
@@ -412,7 +412,7 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
     ChildChunkIdentification kid;
     short bo =  1;
     short osk=771;
-    PStringTable ppgst;
+    PStringTable_GST ppgst;
 
     puts("\trollcall = {");
 
@@ -423,7 +423,7 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
         goto LFail;
     }
 
-    ppgst = StringTable::PgstRead(&data_block, &bo);
+    ppgst = StringTable_GST::PgstRead(&data_block, &bo);
     if (pvNil != ppgst)
     {
         String stn1;
@@ -1401,7 +1401,7 @@ bool MovieDecompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
     bool fPacked = pblck->FPacked(&cfmt);
     bool fRet;
 
-    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable::PgstRead(pblck, &bo, &osk);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable_GST::PgstRead(pblck, &bo, &osk);
     if (pvNil == pgstb)
         return fFalse;
 

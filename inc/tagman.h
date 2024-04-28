@@ -90,7 +90,7 @@ class TagManager : public TagManager_PAR
     Filename _fniHDRoot;     // Root HD directory to search for content
     long _cbCache;      // Size of RAM Cache on files in ChunkyResourceManager for each source
     PDynamicArray _pglsfs;        // DynamicArray of source file structs
-    PStringTable _pgstSource;   // String table of source descriptions
+    PStringTable_GST _pgstSource;   // String table of source descriptions
     PFNINSCD _pfninscd; // Function to call when source is not found
 
   protected:
@@ -119,8 +119,8 @@ class TagManager : public TagManager_PAR
     ~TagManager(void);
 
     // GstSource stuff:
-    PStringTable PgstSource(void);
-    bool FMergeGstSource(PStringTable pgst, short bo, short osk);
+    PStringTable_GST PgstSource(void);
+    bool FMergeGstSource(PStringTable_GST pgst, short bo, short osk);
     bool FAddStnSource(PString pstnMerged, long sid);
     bool FGetSid(PString pstn, long *psid); // pstn can be short or long
 

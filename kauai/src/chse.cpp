@@ -387,7 +387,7 @@ void SourceEmitter::DumpGroup(PVirtualGroup pggb)
 }
 
 /******************************************************************************
-    Dumps a StringTable or AllocatedStringTable, including the StringTable or AllocatedStringTable directive. pggb is the StringTable or
+    Dumps a StringTable_GST or AllocatedStringTable, including the StringTable_GST or AllocatedStringTable directive. pggb is the StringTable_GST or
     AllocatedStringTable to dump.
 ******************************************************************************/
 bool SourceEmitter::FDumpStringTable(PVirtualStringTable pgstb)
@@ -402,9 +402,9 @@ bool SourceEmitter::FDumpStringTable(PVirtualStringTable pgstb)
     void *pvExtra = pvNil;
     bool fAst = pgstb->FIs(kclsAllocatedStringTable);
 
-    Assert(fAst || pgstb->FIs(kclsStringTable), "neither a StringTable or AllocatedStringTable!");
+    Assert(fAst || pgstb->FIs(kclsStringTable_GST), "neither a StringTable_GST or AllocatedStringTable!");
 
-    // have a valid StringTable or AllocatedStringTable -- print it out in readable format
+    // have a valid StringTable_GST or AllocatedStringTable -- print it out in readable format
     cbExtra = pgstb->CbExtra();
     AssertIn(cbExtra, 0, kcbMax);
     ivMac = pgstb->IvMac();

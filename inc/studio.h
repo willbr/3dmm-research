@@ -55,7 +55,7 @@ class Studio : public Studio_PAR
 
   protected:
     PChunkyResourceManager _pcrm;
-    PStringTable _pgstMisc;
+    PStringTable_GST _pgstMisc;
     PMovie _pmvie;
     PSMCC _psmcc;
     PDynamicArray _pglpbrcn;

@@ -72,7 +72,7 @@ class MPFNT : public MPFNT_PAR
     }
 
   public:
-    static PMPFNT PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable pgst);
+    static PMPFNT PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst);
 
     virtual bool FCmdSelIdle(PCommand pcmd);
 };

@@ -266,7 +266,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     DataBlock blck;
     short bo;
     short osk;
-    PStringTable pgstSource;
+    PStringTable_GST pgstSource;
 
     //
     // Create the movie object
@@ -291,7 +291,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     if (pvNil == pfni)
     {
-        pmvie->_pgstmactr = StringTable::PgstNew(size(MACTR));
+        pmvie->_pgstmactr = StringTable_GST::PgstNew(size(MACTR));
         if (pmvie->_pgstmactr == pvNil)
         {
             goto LFail;
@@ -373,7 +373,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     if (pcfl->FGetKidChidCtg(kctgMvie, cno, kchidGstSource, kctgGst, &kid) &&
         pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
-        pgstSource = StringTable::PgstRead(&blck, &bo, &osk);
+        pgstSource = StringTable_GST::PgstRead(&blck, &bo, &osk);
         if (pvNil != pgstSource)
         {
             // Ignore result...we can survive failure
@@ -439,24 +439,24 @@ LFail:
 /******************************************************************************
     FReadRollCall
         Reads the roll call off file for a given movie.  Will swapbytes the
-        extra data in the StringTable if necessary, and will report back on the
+        extra data in the StringTable_GST if necessary, and will report back on the
         highest arid found.
 
     Arguments:
         PChunkyFile pcfl       -- the file the movie is on
         PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's Actor tags
         ChunkNumber cno         -- the cno of the movie
-        PStringTable *ppgst     -- the PStringTable to fill in
+        PStringTable_GST *ppgst     -- the PStringTable_GST to fill in
         long *paridLim  -- the max arid to update
 
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable *ppgst, long *paridLim)
+bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, long *paridLim)
 {
     AssertPo(pcrf, 0);
     AssertVarMem(ppgst);
-    Assert(*ppgst == pvNil, "Overwriting existing StringTable");
+    Assert(*ppgst == pvNil, "Overwriting existing StringTable_GST");
     AssertNilOrVarMem(paridLim);
 
     short bo;
@@ -472,7 +472,7 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTabl
         goto LFail;
     }
 
-    *ppgst = StringTable::PgstRead(&blck, &bo);
+    *ppgst = StringTable_GST::PgstRead(&blck, &bo);
     if (*ppgst == pvNil)
         goto LFail;
 
@@ -2453,7 +2453,7 @@ bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
     MovieFilePrefix mfp;
     ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
     PChunkyFile pcfl;
-    PStringTable pgstSource = pvNil;
+    PStringTable_GST pgstSource = pvNil;
 
     if (_pcrfAutoSave == pvNil)
     {
@@ -4968,9 +4968,9 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 
     long imactr, imactrMac, icnoMac = 0;
     PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
-    PStringTable pgstmactr = pvNil;
+    PStringTable_GST pgstmactr = pvNil;
 
-    /* Update the roll call StringTable */
+    /* Update the roll call StringTable_GST */
     if (!FReadRollCall(_pcrfAutoSave, cno, &pgstmactr))
     {
         pgstmactr = pvNil;

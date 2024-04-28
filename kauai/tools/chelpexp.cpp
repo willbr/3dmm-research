@@ -15,7 +15,7 @@ ASSERTNAME
 
 static bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
 static bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentification *pkid, ChunkIdentification *pckiPar);
-static void _AppendHelpStnLw(PString pstn, PStringTable pgst, long istn, long lw);
+static void _AppendHelpStnLw(PString pstn, PStringTable_GST pgst, long istn, long lw);
 
 /***************************************************************************
     Export the help topics in their textual representation for compilation
@@ -27,7 +27,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
     AssertPo(pcfl, 0);
 
     DataBlock blck;
-    PStringTable pgst;
+    PStringTable_GST pgst;
     long icki;
     ChunkIdentification cki, ckiPar;
     ChildChunkIdentification kid;
@@ -74,7 +74,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
     {
         // read the string table if it's there
         if (pcfl->FGetKidChidCtg(cki.ctg, cki.cno, 0, kctgGst, &kid) &&
-            (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = StringTable::PgstRead(&blck)) ||
+            (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = StringTable_GST::PgstRead(&blck)) ||
              pgst->IvMac() != 6 && (pgst->IvMac() != 5 || !pgst->FAddRgch(PszLit(""), 0))))
         {
             goto LFail;
@@ -208,12 +208,12 @@ bool _FWriteHelpChunk(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentifi
 
     if (pkid->cki.ctg == kctgGst)
     {
-        PStringTable pgst;
+        PStringTable_GST pgst;
         short bo, osk;
         bool fPacked = blck.FPacked();
         bool fRet;
 
-        pgst = StringTable::PgstRead(&blck, &bo, &osk);
+        pgst = StringTable_GST::PgstRead(&blck, &bo, &osk);
         if (pvNil == pgst)
             return fFalse;
 
@@ -441,7 +441,7 @@ bool _FWriteHelpPropAg(PChunkyFile pcfl, PSourceEmitter pchse, ChildChunkIdentif
 /***************************************************************************
     Append a string or number.
 ***************************************************************************/
-void _AppendHelpStnLw(PString pstn, PStringTable pgst, long istn, long lw)
+void _AppendHelpStnLw(PString pstn, PStringTable_GST pgst, long istn, long lw)
 {
     AssertPo(pstn, 0);
     AssertNilOrPo(pgst, 0);

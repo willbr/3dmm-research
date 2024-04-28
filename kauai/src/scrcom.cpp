@@ -605,7 +605,7 @@ void CompilerBase::_PushString(PString pstn)
         return;
 
     AssertPo(_pscpt, 0);
-    if (pvNil == _pscpt->_pgstLiterals && pvNil == (_pscpt->_pgstLiterals = StringTable::PgstNew()) ||
+    if (pvNil == _pscpt->_pgstLiterals && pvNil == (_pscpt->_pgstLiterals = StringTable_GST::PgstNew()) ||
         !_pscpt->_pgstLiterals->FAddStn(pstn, pvNil, &istn))
     {
         _ReportError(_pszOom);
@@ -715,7 +715,7 @@ void CompilerBase::_AddLabel(PString pstn)
     long lw;
     long istn;
 
-    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = StringTable::PgstNew(size(long), 5, 100)))
+    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = StringTable_GST::PgstNew(size(long), 5, 100)))
     {
         _ReportError(_pszOom);
         return;
@@ -754,7 +754,7 @@ void CompilerBase::_PushLabelRequest(PString pstn)
     if (_fError)
         return;
 
-    if (pvNil == _pgstReq && pvNil == (_pgstReq = StringTable::PgstNew(size(long), 10, 200)))
+    if (pvNil == _pgstReq && pvNil == (_pgstReq = StringTable_GST::PgstNew(size(long), 10, 200)))
     {
         _ReportError(_pszOom);
         return;
@@ -2285,7 +2285,7 @@ void CompilerBase::_AddNameRef(PString pstn, long *pistn)
     AssertPo(pstn, 0);
     AssertVarMem(pistn);
 
-    if (pvNil == _pgstNames && pvNil == (_pgstNames = StringTable::PgstNew(0, 5, 100)))
+    if (pvNil == _pgstNames && pvNil == (_pgstNames = StringTable_GST::PgstNew(0, 5, 100)))
     {
         *pistn = 0;
         _ReportError(_pszOom);

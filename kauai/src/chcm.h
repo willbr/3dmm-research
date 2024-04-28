@@ -36,7 +36,7 @@ enum
     ttAl,                // AllocatedArray command
     ttGg,                // GeneralGroup command
     ttAg,                // AllocatedGroup command
-    ttGst,               // StringTable command
+    ttGst,               // StringTable_GST command
     ttAst,               // AllocatedStringTable command
     ttScript,            // infix script
     ttScriptP,           // postfix script
@@ -90,7 +90,7 @@ class CompilerLexer : public CompilerLexer_PAR
     NOCOPY(CompilerLexer)
 
   protected:
-    PStringTable _pgstVariables;
+    PStringTable_GST _pgstVariables;
 
     bool _FDoSet(PToken ptok);
 

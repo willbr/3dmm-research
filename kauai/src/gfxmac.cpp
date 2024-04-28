@@ -1173,7 +1173,7 @@ bool FontList::FInit(void)
     hmenu = NewMenu(1001, (byte *)"\pFont");
     AddResMenu(hmenu, 'FONT');
     cstz = CountMItems(hmenu);
-    if ((_pgst = StringTable::PgstNew(size(long), cstz + 1, (cstz + 1) * 15)) == pvNil)
+    if ((_pgst = StringTable_GST::PgstNew(size(long), cstz + 1, (cstz + 1) * 15)) == pvNil)
         goto LFail;
 
     for (istz = 0; istz < cstz; istz++)

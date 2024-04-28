@@ -145,10 +145,10 @@ namespace Group {
    typedef class AllocatedGroup *PAllocatedGroup;
 
    class VirtualStringTable;
-   class StringTable;
+   class StringTable_GST;
    class AllocatedStringTable;
    typedef class VirtualStringTable *PVirtualStringTable;
-   typedef class StringTable *PStringTable;
+   typedef class StringTable_GST *PStringTable_GST;
    typedef class AllocatedStringTable *PAllocatedStringTable;
 }
 

@@ -1796,7 +1796,7 @@ bool FontList::FInit(void)
     LOGFONT lgf;
     HFONT hfnt;
 
-    if (pvNil == (_pgst = StringTable::PgstNew(offset(LOGFONT, lfFaceName))))
+    if (pvNil == (_pgst = StringTable_GST::PgstNew(offset(LOGFONT, lfFaceName))))
         goto LFail;
 
     // Make sure to explicitly add the system font since EnumFonts() won't.
@@ -1819,12 +1819,12 @@ bool FontList::FInit(void)
 
 /***************************************************************************
     -- Font enumuration callback.
-    -- If font is TrueType, it is added to the StringTable.
+    -- If font is TrueType, it is added to the StringTable_GST.
 ***************************************************************************/
 int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam)
 {
     long istz;
-    PStringTable pgst = (PStringTable)luParam;
+    PStringTable_GST pgst = (PStringTable_GST)luParam;
     AssertPo(pgst, 0);
 
     if (luType != TRUETYPE_FONTTYPE)

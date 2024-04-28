@@ -210,7 +210,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new font menu
 ***************************************************************************/
-PMPFNT MPFNT::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable pgst)
+PMPFNT MPFNT::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
@@ -228,7 +228,7 @@ PMPFNT MPFNT::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PComm
 
     if (pgst->CbExtra() != size(long))
     {
-        Bug("StringTable CbExtra isn't the right size for an onn");
+        Bug("StringTable_GST CbExtra isn't the right size for an onn");
         return pvNil;
     }
 

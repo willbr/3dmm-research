@@ -10,7 +10,7 @@
     Basic collection classes (continued from groups.cpp):
         General List (DynamicArray), Allocated List (AllocatedArray),
         General Group (GeneralGroup), Allocated Group (AllocatedGroup),
-        General String Table (StringTable), Allocated String Table (AllocatedStringTable).
+        General String Table (StringTable_GST), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
@@ -18,7 +18,7 @@
                         +-> VirtualGroup -+-> GeneralGroup
                         |        +-> AllocatedGroup
                         |
-                        +-> VirtualStringTable-+-> StringTable
+                        +-> VirtualStringTable-+-> StringTable_GST
                                  +-> AllocatedStringTable
 
 ***************************************************************************/
@@ -28,7 +28,7 @@ ASSERTNAME
 namespace Group {
 
 RTCLASS(VirtualStringTable)
-RTCLASS(StringTable)
+RTCLASS(StringTable_GST)
 RTCLASS(AllocatedStringTable)
 
 /***************************************************************************
@@ -359,7 +359,7 @@ bool VirtualStringTable::FFindStn(PString pstn, long *pistn, ulong grfgst)
 
 /***************************************************************************
     Search for the string in the string table.  This version does a linear
-    search.  StringTable overrides this to do a binary search if fgstSorted is
+    search.  StringTable_GST overrides this to do a binary search if fgstSorted is
     passed in grfgst.
 ***************************************************************************/
 bool VirtualStringTable::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
@@ -709,15 +709,15 @@ void VirtualStringTable::AssertValid(ulong grfobj)
     Allocate a new string table and ensure that it has space for cstnInit
     strings, totalling cchInit characters.
 ***************************************************************************/
-PStringTable StringTable::PgstNew(long cbExtra, long cstnInit, long cchInit)
+PStringTable_GST StringTable_GST::PgstNew(long cbExtra, long cstnInit, long cchInit)
 {
     AssertIn(cbExtra, 0, kcbMax);
     Assert(cbExtra % size(long) == 0, "cbExtra not multiple of size(long)");
     AssertIn(cstnInit, 0, kcbMax);
     AssertIn(cchInit, 0, kcbMax);
-    PStringTable pgst;
+    PStringTable_GST pgst;
 
-    if ((pgst = NewObj StringTable(cbExtra)) == pvNil)
+    if ((pgst = NewObj StringTable_GST(cbExtra)) == pvNil)
         return pvNil;
     if ((cstnInit > 0 || cchInit > 0) && !pgst->FEnsureSpace(cstnInit, cchInit, fgrpNil))
     {
@@ -731,15 +731,15 @@ PStringTable StringTable::PgstNew(long cbExtra, long cstnInit, long cchInit)
 /***************************************************************************
     Read a string table from a block and return it.
 ***************************************************************************/
-PStringTable StringTable::PgstRead(PDataBlock pblck, short *pbo, short *posk)
+PStringTable_GST StringTable_GST::PgstRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PStringTable pgst;
+    PStringTable_GST pgst;
 
-    if ((pgst = NewObj StringTable(0)) == pvNil)
+    if ((pgst = NewObj StringTable_GST(0)) == pvNil)
         goto LFail;
     if (!pgst->_FRead(pblck, pbo, posk))
     {
@@ -756,19 +756,19 @@ PStringTable StringTable::PgstRead(PDataBlock pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a string table from file and return it.
 ***************************************************************************/
-PStringTable StringTable::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PStringTable_GST StringTable_GST::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
 {
     DataBlock blck(pfil, fp, cb);
     return PgstRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Duplicate this StringTable.
+    Duplicate this StringTable_GST.
 ***************************************************************************/
-PStringTable StringTable::PgstDup(void)
+PStringTable_GST StringTable_GST::PgstDup(void)
 {
     AssertThis(0);
-    PStringTable pgst;
+    PStringTable_GST pgst;
 
     if (pvNil == (pgst = PgstNew(_cbEntry - size(long))))
         return pvNil;
@@ -783,7 +783,7 @@ PStringTable StringTable::PgstDup(void)
 /***************************************************************************
     Append a string to the string table.
 ***************************************************************************/
-bool StringTable::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
+bool StringTable_GST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcchMaxGst + 1);
@@ -807,7 +807,7 @@ bool StringTable::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
     is passed in, this does a binary search for the string; otherwise it
     does a linear search.
 ***************************************************************************/
-bool StringTable::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
+bool StringTable_GST::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcchMaxGst);
@@ -850,7 +850,7 @@ bool StringTable::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
 /***************************************************************************
     Insert a new entry into the string text.
 ***************************************************************************/
-bool StringTable::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
+bool StringTable_GST::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac + 1);
@@ -892,7 +892,7 @@ bool StringTable::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
 /***************************************************************************
     Insert an stn into the string table
 ***************************************************************************/
-bool StringTable::FInsertStn(long istn, PString pstn, void *pvExtra)
+bool StringTable_GST::FInsertStn(long istn, PString pstn, void *pvExtra)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac + 1);
@@ -905,7 +905,7 @@ bool StringTable::FInsertStn(long istn, PString pstn, void *pvExtra)
 /***************************************************************************
     Delete the string at location istn.
 ***************************************************************************/
-void StringTable::Delete(long istn)
+void StringTable_GST::Delete(long istn)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac);
@@ -930,7 +930,7 @@ void StringTable::Delete(long istn)
     ivTarget moves to (ivTarget + 1).  Everything in between is shifted
     appropriately.  ivTarget is allowed to be equal to IvMac().
 ***************************************************************************/
-void StringTable::Move(long ivSrc, long ivTarget)
+void StringTable_GST::Move(long ivSrc, long ivTarget)
 {
     AssertThis(0);
     AssertIn(ivSrc, 0, _ivMac);
@@ -944,10 +944,10 @@ void StringTable::Move(long ivSrc, long ivTarget)
 /***************************************************************************
     Validate a string table.
 ***************************************************************************/
-void StringTable::AssertValid(ulong grfobj)
+void StringTable_GST::AssertValid(ulong grfobj)
 {
-    StringTable_PAR::AssertValid(grfobj);
-    AssertVar(_cbstFree == cvNil, "bad _cbstFree in StringTable", &_cbstFree);
+    StringTable_GST_PAR::AssertValid(grfobj);
+    AssertVar(_cbstFree == cvNil, "bad _cbstFree in StringTable_GST", &_cbstFree);
 }
 #endif // DEBUG
 

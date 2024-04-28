@@ -10,7 +10,7 @@
     Basic collection classes:
         General List (DynamicArray), Allocated List (AllocatedArray),
         General Group (GeneralGroup), Allocated Group (AllocatedGroup),
-        General String Table (StringTable), Allocated String Table (AllocatedStringTable).
+        General String Table (StringTable_GST), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
@@ -18,7 +18,7 @@
                         +-> VirtualGroup -+-> GeneralGroup
                         |        +-> AllocatedGroup
                         |
-                        +-> VirtualStringTable-+-> StringTable
+                        +-> VirtualStringTable-+-> StringTable_GST
                                  +-> AllocatedStringTable
 
 ***************************************************************************/
@@ -1253,7 +1253,7 @@ bool VirtualGroup::FFree(long iv)
 /***************************************************************************
     Ensures that there is room to add at least cvAdd new entries with
     a total of cbAdd bytes (among the variable parts of the elements).
-    If there is more than enough room and fgrpShrink is passed, the StringTable
+    If there is more than enough room and fgrpShrink is passed, the StringTable_GST
     will shrink.
 ***************************************************************************/
 bool VirtualGroup::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)

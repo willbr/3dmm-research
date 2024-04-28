@@ -255,7 +255,7 @@ class BRCNL : public BRCNL_PAR
     long cthumCD;
     ChunkIdentification ckiRoot;
     PDynamicArray pglthd;
-    PStringTable pgst;
+    PStringTable_GST pgst;
     PChunkyResourceManager pcrm;
 };
 
@@ -354,7 +354,7 @@ class BCLS : public BCLS_PAR
     MARKMEM
 
   protected:
-    PStringTable _pgst;
+    PStringTable_GST _pgst;
 
   protected:
     BCLS(void)
@@ -366,16 +366,16 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable pgst, PDynamicArray pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable_GST pgst, PDynamicArray pglthd);
     bool _FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, PStringTable pgst = pvNil,
+    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
-    PStringTable Pgst(void)
+    PStringTable_GST Pgst(void)
     {
         return _pgst;
     }
@@ -413,7 +413,7 @@ class BRWL : public BRWL_PAR
     // Thumnail descriptor lists
     PChunkyResourceManager _pcrm;  // Chunky resource manager
     PDynamicArray _pglthd; // Thumbnail descriptor	gl
-    PStringTable _pgst;  // Chunk name
+    PStringTable_GST _pgst;  // Chunk name
 
     // Browser Search (List) parameters
     BWS _bws;         // Selection type flag
@@ -475,7 +475,7 @@ class BRWT : public BRWT_PAR
     MARKMEM
 
   protected:
-    PStringTable _pgst;
+    PStringTable_GST _pgst;
     bool _fEnableAccel;
 
     virtual long _Cthum(void)
@@ -499,7 +499,7 @@ class BRWT : public BRWT_PAR
     ~BRWT(void);
 
     static PBRWT PbrwtNew(PResourceCache prca, long kidPar, long kidBrwt);
-    void SetGst(PStringTable pgst);
+    void SetGst(PStringTable_GST pgst);
     bool FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
 };

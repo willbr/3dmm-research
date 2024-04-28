@@ -193,9 +193,9 @@ class CompilerBase : public CompilerBase_PAR
     PDynamicArray _pgletnTree;    // expression tree (in-fix only)
     PDynamicArray _pgletnStack;   // token stack for building expression tree (in-fix only)
     PDynamicArray _pglcstd;       // control structure stack (in-fix only)
-    PStringTable _pgstNames;    // encountered names (in-fix only)
-    PStringTable _pgstLabel;    // encountered labels, sorted, extra long is label value
-    PStringTable _pgstReq;      // label references, extra long is address of reference
+    PStringTable_GST _pgstNames;    // encountered names (in-fix only)
+    PStringTable_GST _pgstLabel;    // encountered labels, sorted, extra long is label value
+    PStringTable_GST _pgstReq;      // label references, extra long is address of reference
     long _ilwOpLast;    // address of the last opcode
     long _lwLastLabel;  // for internal temporary labels
     bool _fError : 1;   // whether an error has occured during compiling

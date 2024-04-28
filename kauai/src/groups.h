@@ -13,7 +13,7 @@
     Basic collection classes:
         General List (DynamicArray), Allocated List (AllocatedArray),
         General Group (GeneralGroup), Allocated Group (AllocatedGroup),
-        General String Table (StringTable), Allocated String Table (AllocatedStringTable).
+        General String Table (StringTable_GST), Allocated String Table (AllocatedStringTable).
 
         BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
                         |        +-> AllocatedArray
@@ -21,7 +21,7 @@
                         +-> VirtualGroup -+-> GeneralGroup
                         |        +-> AllocatedGroup
                         |
-                        +-> VirtualStringTable-+-> StringTable
+                        +-> VirtualStringTable-+-> StringTable_GST
                                  +-> AllocatedStringTable
 
 ***************************************************************************/
@@ -388,7 +388,7 @@ const long kcchMaxGst = kcchMaxStn;
 
 /****************************************
     VirtualStringTable is a virtual class supporting
-    StringTable and AllocatedStringTable.
+    StringTable_GST and AllocatedStringTable.
 ****************************************/
 #define VirtualStringTable_PAR GroupBase
 #define kclsVirtualStringTable 'GSTB'
@@ -459,26 +459,26 @@ class VirtualStringTable : public VirtualStringTable_PAR
 /****************************************
     String table
 ****************************************/
-#define StringTable_PAR VirtualStringTable
-#define kclsStringTable 'GST'
-class StringTable : public StringTable_PAR
+#define StringTable_GST_PAR VirtualStringTable
+#define kclsStringTable_GST 'GST'
+class StringTable_GST : public StringTable_GST_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    StringTable(long cbExtra) : VirtualStringTable(cbExtra, fgstNil)
+    StringTable_GST(long cbExtra) : VirtualStringTable(cbExtra, fgstNil)
     {
     }
 
   public:
     // static methods
-    static PStringTable PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PStringTable PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PStringTable PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PStringTable_GST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PStringTable PgstDup(void);
+    PStringTable_GST PgstDup(void);
 
     // methods required by parent class
     virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);

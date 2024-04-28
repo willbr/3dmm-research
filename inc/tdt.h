@@ -67,7 +67,7 @@ class TDT : public TDT_PAR
     MARKMEM
 
   protected:
-    static PStringTable _pgstAction; // Action names
+    static PStringTable_GST _pgstAction; // Action names
 
     long _tdts;          // TDT shape
     TAG _tagTdf;         // Tag to Three-D Font
@@ -92,7 +92,7 @@ class TDT : public TDT_PAR
                      BRS dyrTotal);
 
   public:
-    static bool FSetActionNames(PStringTable pgstAction);
+    static bool FSetActionNames(PStringTable_GST pgstAction);
 #ifdef DEBUG
     static void MarkActionNames(void);
 #endif

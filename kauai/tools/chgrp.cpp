@@ -4,7 +4,7 @@
 /***************************************************************************
 
     Handles editing a chunk consisting of a group
-    (DynamicArray, AllocatedArray, GeneralGroup, AllocatedGroup, StringTable, AllocatedStringTable)
+    (DynamicArray, AllocatedArray, GeneralGroup, AllocatedGroup, StringTable_GST, AllocatedStringTable)
 
 ***************************************************************************/
 #include "ched.h"
@@ -32,7 +32,7 @@ RTCLASS(DCST)
 /***************************************************************************
     Constructor for a group document.  cls indicates which group class
     the edited chunk belongs to.  cls should be one of DynamicArray, AllocatedArray, GeneralGroup, AllocatedGroup,
-    StringTable, AllocatedStringTable.
+    StringTable_GST, AllocatedStringTable.
 ***************************************************************************/
 DOCG::DOCG(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
 {
@@ -146,7 +146,7 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAllocatedGroup:
             dlid = dlidGgbNew;
             break;
-        case kclsStringTable:
+        case kclsStringTable_GST:
         case kclsAllocatedStringTable:
             dlid = dlidGstbNew;
             break;
@@ -182,8 +182,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAllocatedGroup:
             _pgrpb = AllocatedGroup::PagNew(cb);
             break;
-        case kclsStringTable:
-            _pgrpb = StringTable::PgstNew(cb * size(long));
+        case kclsStringTable_GST:
+            _pgrpb = StringTable_GST::PgstNew(cb * size(long));
             break;
         case kclsAllocatedStringTable:
             _pgrpb = AllocatedStringTable::PastNew(cb * size(long));
@@ -214,8 +214,8 @@ bool DOCG::_FRead(PDataBlock pblck)
         case kclsAllocatedGroup:
             _pgrpb = AllocatedGroup::PagRead(pblck, &_bo, &_osk);
             break;
-        case kclsStringTable:
-            _pgrpb = StringTable::PgstRead(pblck, &_bo, &_osk);
+        case kclsStringTable_GST:
+            _pgrpb = StringTable_GST::PgstRead(pblck, &_bo, &_osk);
             break;
         case kclsAllocatedStringTable:
             _pgrpb = AllocatedStringTable::PastRead(pblck, &_bo, &_osk);
@@ -248,7 +248,7 @@ PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
     case kclsAllocatedGroup:
         pddg = DCGG::PdcggNew(this, (PVirtualGroup)_pgrpb, _cls, pgcb);
         break;
-    case kclsStringTable:
+    case kclsStringTable_GST:
     case kclsAllocatedStringTable:
         pddg = DCST::PdcstNew(this, (PVirtualStringTable)_pgrpb, _cls, pgcb);
         break;
@@ -293,7 +293,7 @@ void DOCG::AssertValid(ulong grf)
     case kclsAllocatedArray:
     case kclsGeneralGroup:
     case kclsAllocatedGroup:
-    case kclsStringTable:
+    case kclsStringTable_GST:
     case kclsAllocatedStringTable:
         break;
     default:
@@ -333,7 +333,7 @@ DCGB::DCGB(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long clnItem, PGCB p
         BugVar("bad cls value", &_cls);
     case kclsDynamicArray:
     case kclsGeneralGroup:
-    case kclsStringTable:
+    case kclsStringTable_GST:
 #endif // DEBUG
         _fAllocated = fFalse;
         break;
@@ -1103,18 +1103,18 @@ bool DCGG::FCmdAddItem(PCommand pcmd)
 
 /***************************************************************************
     Constructor for the DCST class.  This class displays (and allows
-    editing of) a StringTable or AllocatedStringTable.
+    editing of) a StringTable_GST or AllocatedStringTable.
 ***************************************************************************/
 DCST::DCST(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCST for the StringTable or AllocatedStringTable.
+    Static method to create a new DCST for the StringTable_GST or AllocatedStringTable.
 ***************************************************************************/
 PDCST DCST::PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb)
 {
-    AssertVar(cls == kclsStringTable || cls == kclsAllocatedStringTable, "bad cls", &cls);
+    AssertVar(cls == kclsStringTable_GST || cls == kclsAllocatedStringTable, "bad cls", &cls);
     PDCST pdcst;
 
     if (pvNil == (pdcst = NewObj DCST(pdocb, pgstb, cls, pgcb)))
@@ -1269,8 +1269,8 @@ bool DCST::FCmdAddItem(PCommand pcmd)
     case cidInsertItem:
         if (_fAllocated)
             break;
-        Assert(pgstb->FIs(kclsStringTable), "bad grpb");
-        fT = ((PStringTable)pgstb)->FInsertStn(ivNew = _ivCur, &stn, pvNil);
+        Assert(pgstb->FIs(kclsStringTable_GST), "bad grpb");
+        fT = ((PStringTable_GST)pgstb)->FInsertStn(ivNew = _ivCur, &stn, pvNil);
     }
     if (!fT)
         return fTrue;
@@ -1449,7 +1449,7 @@ bool DOCI::_FWrite(long iv)
             ((PVirtualGroup)_pgrpb)->PutFixed(iv, pv);
         }
         break;
-    case kclsStringTable:
+    case kclsStringTable_GST:
     case kclsAllocatedStringTable:
         if (_dln == 0)
         {
@@ -1458,7 +1458,7 @@ bool DOCI::_FWrite(long iv)
         }
         else
         {
-            Assert(cb == ((PVirtualStringTable)_pgrpb)->CbExtra(), "bad cb in StringTable/AllocatedStringTable");
+            Assert(cb == ((PVirtualStringTable)_pgrpb)->CbExtra(), "bad cb in StringTable_GST/AllocatedStringTable");
             ((PVirtualStringTable)_pgrpb)->PutExtra(iv, pv);
         }
         break;
@@ -1501,7 +1501,7 @@ HQ DOCI::_HqRead(void)
         else
             cb = ((PVirtualGroup)_pgrpb)->CbFixed();
         break;
-    case kclsStringTable:
+    case kclsStringTable_GST:
     case kclsAllocatedStringTable:
         if (_dln == 0)
         {
@@ -1534,7 +1534,7 @@ HQ DOCI::_HqRead(void)
         else
             ((PVirtualGroup)_pgrpb)->GetFixed(_iv, pv);
         break;
-    case kclsStringTable:
+    case kclsStringTable_GST:
     case kclsAllocatedStringTable:
         if (_dln == 0)
             CopyPb(stn.Prgch(), pv, stn.Cch() * size(achar));

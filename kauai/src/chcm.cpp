@@ -50,7 +50,7 @@ PSZ _mpertpsz[] = {
     PszLit("Syntax error"),                                   // ertSyntax
     PszLit("Invalid GeneralGroup or AllocatedGroup declaration"),                   // ertGroupHead
     PszLit("Invalid size for fixed group data"),              // ertGroupEntrySize
-    PszLit("Invalid StringTable or AllocatedStringTable declaration"),                 // ertGstHead
+    PszLit("Invalid StringTable_GST or AllocatedStringTable declaration"),                 // ertGstHead
     PszLit("Invalid size for extra string table data"),       // ertGstEntrySize
     PszLit("Script compilation failed"),                      // ertScript
     PszLit("Invalid ADOPT declaration"),                      // ertAdoptHead
@@ -1480,7 +1480,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
         return;
     }
 
-    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastNew(cbExtra) : (PVirtualStringTable)StringTable::PgstNew(cbExtra);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastNew(cbExtra) : (PVirtualStringTable)StringTable_GST::PgstNew(cbExtra);
     if (pvNil == pgstb || cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
     {
         _Error(ertOom);
@@ -1570,7 +1570,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkN
 
     if (pvNil != pglivFree)
     {
-        Assert(fAst, "why did StringTable have free entries?");
+        Assert(fAst, "why did StringTable_GST have free entries?");
         for (iiv = pglivFree->IvMac(); iiv-- > 0;)
         {
             pglivFree->Get(iiv, &iv);
@@ -2150,7 +2150,7 @@ static KEYTT _rgkeytt[] = {
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
     PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
     PszLit("AllocatedArray"),        ttAl,        PszLit("GeneralGroup"),         ttGg,         PszLit("AllocatedGroup"),      ttAg,
-    PszLit("StringTable"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
+    PszLit("StringTable_GST"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
     PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
     PszLit("LONER"),     ttLoner,     PszLit("CURSOR"),     ttCursor,     PszLit("PALETTE"), ttPalette,
     PszLit("PREPACKED"), ttPrePacked, PszLit("PACK"),       ttPack,       PszLit("PACKFMT"), ttPackFmt,
@@ -2313,7 +2313,7 @@ bool CompilerLexer::_FDoSet(PToken ptok)
 
     lw = 0;
     istn = ivNil;
-    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = StringTable::PgstNew(size(long))))
+    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = StringTable_GST::PgstNew(size(long))))
     {
         if (_pgstVariables->FFindStn(&ptok->stn, &istn, fgstSorted))
             _pgstVariables->GetExtra(istn, &lw);
@@ -2704,7 +2704,7 @@ bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
     bool fPacked = pblck->FPacked(&cfmt);
     bool fRet;
 
-    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable::PgstRead(pblck, &bo, &osk);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable_GST::PgstRead(pblck, &bo, &osk);
     if (pvNil == pgstb)
         return fFalse;
 

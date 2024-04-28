@@ -85,7 +85,7 @@ class FontList : public FontList_PAR
 #ifdef WIN
     friend int CALLBACK _FEnumFont(LOGFONT *plgf, TEXTMETRIC *ptxm, ulong luType, LPARAM luParam);
 #endif // WIN
-    PStringTable _pgst;
+    PStringTable_GST _pgst;
     long _onnSystem;
 
   public:

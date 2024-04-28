@@ -107,10 +107,10 @@ class APP : public APP_PAR
     Filename _fniPortfolioDoc;  // document last opened in portfolio
     PMovie _pmvieHandoff;   // Stores movie for studio to use
     PKidWorld _pkwa;            // Kidworld for App
-    PStringTable _pgstBuildingFiles;
-    PStringTable _pgstStudioFiles;
-    PStringTable _pgstSharedFiles;
-    PStringTable _pgstApp;        // Misc. app global strings
+    PStringTable_GST _pgstBuildingFiles;
+    PStringTable_GST _pgstStudioFiles;
+    PStringTable_GST _pgstSharedFiles;
+    PStringTable_GST _pgstApp;        // Misc. app global strings
     String _stnAppName;      // App name
     String _stnProductLong;  // Long version of product name
     String _stnProductShort; // Short version of product name
@@ -156,7 +156,7 @@ class APP : public APP_PAR
     void _SkipToSpace(char **ppch);
     void _SkipSpace(char **ppch);
     bool _FEnsureProductNames(void);
-    bool _FFindProductDir(PStringTable pgst);
+    bool _FFindProductDir(PStringTable_GST pgst);
     bool _FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni);
     bool _FFindMsKidsDir(void);
     bool _FFindMsKidsDirAt(Filename *path);
@@ -173,13 +173,13 @@ class APP : public APP_PAR
     bool _FOpenResourceFile(void);
     bool _FInitKidworld(void);
     bool _FInitProductNames(void);
-    bool _FReadTitlesFromReg(PStringTable *ppgst);
+    bool _FReadTitlesFromReg(PStringTable_GST *ppgst);
     bool _FInitTdt(void);
-    PStringTable _PgstRead(ChunkNumber cno);
+    PStringTable_GST _PgstRead(ChunkNumber cno);
     bool _FReadStringTables(void);
     bool _FSetWindowTitle(void);
     bool _FInitCrm(void);
-    bool _FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles);
+    bool _FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles);
     bool _FInitBuilding(void);
     bool _FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
     void _GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle);

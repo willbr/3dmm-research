@@ -40,9 +40,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_5=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_0, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonLabel"
 	ITEM
@@ -114,9 +114,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_6=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonLabel"
 	ITEM
@@ -186,9 +186,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonLabel"
 	ITEM
@@ -258,9 +258,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonLabel"
 	ITEM
@@ -330,9 +330,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_0=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_4, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonLabel"
 	ITEM
@@ -402,9 +402,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_5, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonLabel"
 	ITEM

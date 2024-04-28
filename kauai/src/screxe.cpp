@@ -303,7 +303,7 @@ void Interpreter::_AddParameters(long *prglw, long clw)
     Put the literal strings into the registry.  And assign the string id's
     to the internal string variables.
 ***************************************************************************/
-void Interpreter::_AddStrings(PStringTable pgst)
+void Interpreter::_AddStrings(PStringTable_GST pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -1007,7 +1007,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PStringTable pgst;
+    PStringTable_GST pgst;
     PGenericCacheableObject pcabo;
     short bo;
 
@@ -1019,7 +1019,7 @@ bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         return fFalse;
     *pcb = pblck->Cb();
 
-    if (pvNil == (pgst = StringTable::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(long))
+    if (pvNil == (pgst = StringTable_GST::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(long))
     {
         goto LFail;
     }
@@ -1056,7 +1056,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
     PGenericCacheableObject pcabo;
-    PStringTable pgst;
+    PStringTable_GST pgst;
     long istn, stid;
     String stn;
     bool fFail;
@@ -1084,8 +1084,8 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
         return;
     }
 
-    Assert(pcabo->po->FIs(kclsStringTable), 0);
-    pgst = (PStringTable)pcabo->po;
+    Assert(pcabo->po->FIs(kclsStringTable_GST), 0);
+    pgst = (PStringTable_GST)pcabo->po;
     Assert(pgst->CbExtra() == size(long), 0);
 
     fFail = fFalse;
@@ -1359,7 +1359,7 @@ PScript Script::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     DataBlock blck;
     PScript pscpt = pvNil;
     PDynamicArray pgllw = pvNil;
-    PStringTable pgst = pvNil;
+    PStringTable_GST pgst = pvNil;
 
     if (!pcfl->FFind(ctg, cno, &blck))
         goto LFail;
@@ -1370,7 +1370,7 @@ PScript Script::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     }
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgScriptStrs, &kid))
     {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = StringTable::PgstRead(&blck)))
+        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = StringTable_GST::PgstRead(&blck)))
         {
             goto LFail;
         }
@@ -1664,7 +1664,7 @@ bool StringRegistry::_FFind(long stid, long *pistn)
 }
 
 /***************************************************************************
-    Make sure the StringTable exists.
+    Make sure the StringTable_GST exists.
 ***************************************************************************/
 bool StringRegistry::_FEnsureGst(void)
 {
@@ -1672,7 +1672,7 @@ bool StringRegistry::_FEnsureGst(void)
 
     if (pvNil != _pgst)
         return fTrue;
-    _pgst = StringTable::PgstNew(size(long));
+    _pgst = StringTable_GST::PgstNew(size(long));
     AssertThis(0);
 
     return pvNil != _pgst;

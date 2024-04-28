@@ -40,9 +40,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_D=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_0, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon3"
 	ITEM
@@ -111,9 +111,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2A=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon3"
 	ITEM
@@ -228,9 +228,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3E=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -334,9 +334,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_34=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -429,9 +429,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_52=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_4, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -548,9 +548,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_6=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_5, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon2"
 	ITEM
@@ -663,9 +663,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_47=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_6, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon8"
 	ITEM
@@ -737,9 +737,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_7=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_7, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -830,9 +830,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_49=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_8, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -949,9 +949,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1F=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_9, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon2"
 	ITEM
@@ -1061,9 +1061,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_9=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_A, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon8"
 	ITEM
@@ -1134,9 +1134,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_E=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_B, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -1229,9 +1229,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_32=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_C, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -1348,9 +1348,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_16=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_D, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon2"
 	ITEM
@@ -1453,9 +1453,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1E=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_E, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon4"
 	ITEM
@@ -1526,9 +1526,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_C=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_F, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -1621,9 +1621,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_A=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_10, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -1741,9 +1741,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_11, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon2"
 	ITEM
@@ -1845,9 +1845,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4C=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_12, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon4"
 	ITEM
@@ -1918,9 +1918,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_39=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_13, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -2013,9 +2013,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_F=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_14, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -2142,9 +2142,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_13=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_15, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon2"
 	ITEM
@@ -2250,9 +2250,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_15=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_16, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon4"
 	ITEM
@@ -2323,9 +2323,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_10=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_17, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -2401,9 +2401,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_17=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_18, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -2532,9 +2532,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_18=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_19, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -2653,9 +2653,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1B=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1A, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -2756,9 +2756,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_12=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1B, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -2884,9 +2884,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_11=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1C, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -2987,9 +2987,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_41=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1D, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon3"
 	ITEM
@@ -3106,9 +3106,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_8=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1E, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon4"
 	ITEM
@@ -3182,9 +3182,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_36=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_1F, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -3258,9 +3258,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_40=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_20, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -3368,9 +3368,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_22=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_21, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -3470,9 +3470,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_B=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_22, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -3590,9 +3590,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1C=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_23, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -3710,9 +3710,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2D=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_24, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -3781,9 +3781,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_19=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_25, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -3872,9 +3872,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_28=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_26, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -3984,9 +3984,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_33=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_27, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4059,9 +4059,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_25=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_28, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4132,9 +4132,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1A=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_29, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4210,9 +4210,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3D=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2A, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -4305,9 +4305,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_43=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2B, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4423,9 +4423,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_30=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2C, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4494,9 +4494,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_21=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2D, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4570,9 +4570,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_45=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2E, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4684,9 +4684,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_29=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_2F, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4758,9 +4758,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3C=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_30, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -4866,9 +4866,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_24=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_31, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -4983,9 +4983,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_31=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_32, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5056,9 +5056,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_27=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_33, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5147,9 +5147,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_26=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_34, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5259,9 +5259,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_35=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_35, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5332,9 +5332,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3F=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_36, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5410,9 +5410,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2B=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_37, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -5507,9 +5507,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_38=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_38, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5624,9 +5624,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2F=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_39, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5695,9 +5695,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3A=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3A, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5771,9 +5771,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3B=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3B, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5884,9 +5884,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3C, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -5958,9 +5958,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2E=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3D, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -6066,9 +6066,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_0=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3E, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -6185,9 +6185,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_2C=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_3F, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -6257,9 +6257,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_23=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_40, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloon6"
 	ITEM
@@ -6330,9 +6330,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_1D=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_41, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobCalloutBalloonP"
 	ITEM
@@ -6434,9 +6434,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_3=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_42, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -6526,9 +6526,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_5=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_43, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -6643,9 +6643,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_37=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_44, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -6752,9 +6752,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_48=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_45, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -6863,9 +6863,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4D=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_46, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -6981,9 +6981,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_50=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_47, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7100,9 +7100,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4A=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_48, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7215,9 +7215,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4B=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_49, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7332,9 +7332,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_46=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_4A, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7447,9 +7447,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4E=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_4B, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7574,9 +7574,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_44=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_50, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7676,9 +7676,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_51=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_51, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7778,9 +7778,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_4F=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_52, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -7921,9 +7921,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_14=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_64, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -8046,9 +8046,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_42=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_66, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM
@@ -8169,9 +8169,9 @@ ENDCHUNK
 #ifndef NO_HELP_SYMBOLS
 SET _help_cno++
 SET _help_47535420_20=_help_cno
-CHUNK('StringTable ', _help_cno, __HELP_NAME("")) __HELP_PACK2
+CHUNK('StringTable_GST ', _help_cno, __HELP_NAME("")) __HELP_PACK2
 PARENT('HTOP', _help_48544F50_67, 0x0)
-	StringTable(0)
+	StringTable_GST(0)
 	ITEM
 		"kgobBalloonHotHelp"
 	ITEM

@@ -50,7 +50,7 @@ class Script : public Script_PAR
 
   protected:
     PDynamicArray _pgllw;
-    PStringTable _pgstLiterals;
+    PStringTable_GST _pgstLiterals;
 
     Script(void)
     {
@@ -82,7 +82,7 @@ class StringRegistry : public StringRegistry_PAR
 
   protected:
     long _stidLast;
-    PStringTable _pgst;
+    PStringTable_GST _pgst;
 
     bool _FFind(long stid, long *pistn);
     bool _FEnsureGst(void);
@@ -152,7 +152,7 @@ class Interpreter : public Interpreter_PAR
     void _LenStr(long stid);
 
     virtual void _AddParameters(long *prglw, long clw);
-    virtual void _AddStrings(PStringTable pgst);
+    virtual void _AddStrings(PStringTable_GST pgst);
     virtual bool _FExecVarOp(long op, RuntimeVariableName *prtvn);
     virtual bool _FExecOp(long op);
     virtual void _PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn);

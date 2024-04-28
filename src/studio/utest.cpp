@@ -1522,7 +1522,7 @@ bool APP::_FInitProductNames(void)
 {
     AssertBaseThis(0);
 
-    PStringTable pgst;
+    PStringTable_GST pgst;
     DataBlock blck;
 
     // Use kcbCacheTagm of cache per source, don't cache on CD
@@ -1569,7 +1569,7 @@ LFail:
 /***************************************************************************
     Read the sids and titles of installed 3DMovie products from the registry
 ***************************************************************************/
-bool APP::_FReadTitlesFromReg(PStringTable *ppgst)
+bool APP::_FReadTitlesFromReg(PStringTable_GST *ppgst)
 {
     AssertBaseThis(0);
     AssertVarMem(ppgst);
@@ -1584,10 +1584,10 @@ bool APP::_FReadTitlesFromReg(PStringTable *ppgst)
     SZ szTitle;
     String stnTitle;
     DWORD cchTitle = kcchMaxSz;
-    PStringTable pgst;
+    PStringTable_GST pgst;
     long sid;
 
-    if ((pgst = StringTable::PgstNew(size(long))) == pvNil)
+    if ((pgst = StringTable_GST::PgstNew(size(long))) == pvNil)
         goto LFail;
     if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, kszProductsKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL,
                        &hkey, &dwDisposition) != ERROR_SUCCESS)
@@ -1644,7 +1644,7 @@ bool APP::_FInitTdt(void)
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    PStringTable pgst;
+    PStringTable_GST pgst;
 
     // set TDT action names
     pgst = _PgstRead(kcnoGstAction);
@@ -1661,15 +1661,15 @@ bool APP::_FInitTdt(void)
 }
 
 /***************************************************************************
-    Read and byte-swap a StringTable from _pcfl.  Assumes that extra data, if any,
+    Read and byte-swap a StringTable_GST from _pcfl.  Assumes that extra data, if any,
     is a long.
 ***************************************************************************/
-PStringTable APP::_PgstRead(ChunkNumber cno)
+PStringTable_GST APP::_PgstRead(ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    PStringTable pgst;
+    PStringTable_GST pgst;
     DataBlock blck;
     short bo;
     short osk;
@@ -1678,7 +1678,7 @@ PStringTable APP::_PgstRead(ChunkNumber cno)
 
     if (!_pcfl->FFind(kctgGst, cno, &blck))
         return pvNil;
-    pgst = StringTable::PgstRead(&blck, &bo, &osk);
+    pgst = StringTable_GST::PgstRead(&blck, &bo, &osk);
     if (pvNil == pgst)
         return pvNil;
     Assert(pgst->CbExtra() == 0 || pgst->CbExtra() == size(long), "unexpected extra size");
@@ -1845,7 +1845,7 @@ LFail:
     it is filled in with the positions in the ChunkyResourceManager of each of the loaded
     crfs.
 ***************************************************************************/
-bool APP::_FAddToCrm(PStringTable pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles)
+bool APP::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles)
 {
     AssertBaseThis(0);
     AssertPo(&_fniProductDir, ffniDir);
@@ -2380,7 +2380,7 @@ bool APP::_FFindMsKidsDirAt(Filename *path)
         second, the registry of installed products.
     This routine updates _stnProductLong and _stnProductShort on return.
 ***************************************************************************/
-bool APP::_FFindProductDir(PStringTable pgst)
+bool APP::_FFindProductDir(PStringTable_GST pgst)
 {
     AssertBaseThis(0);
     AssertVarMem(pgst);
