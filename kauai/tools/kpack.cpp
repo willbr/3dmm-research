@@ -221,7 +221,7 @@ LFail:
 /***************************************************************************
     Get a long value from a string. If the string isn't a number and the
     length is <= 4, assumes the characters are to be packed into a long
-    (ala CTGs and FTGs).
+    (ala ChunkTags and FileTypes).
 ***************************************************************************/
 bool _FGetLwFromSzs(PSZS pszs, long *plw)
 {

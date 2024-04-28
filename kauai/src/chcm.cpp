@@ -2516,7 +2516,7 @@ bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
         _pcfl->FGetName(cki.ctg, cki.cno, &stnName);
         _chse.DumpHeader(cki.ctg, cki.cno, &stnName);
 
-        // look for special CTGs
+        // look for special ChunkTags
         ctg = cki.ctg;
 
         // handle 4 character ctg's

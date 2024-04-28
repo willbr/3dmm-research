@@ -960,7 +960,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
         _pcfl->FGetName(cki.ctg, cki.cno, &stnName);
         _chse.DumpHeader(cki.ctg, cki.cno, &stnName);
 
-        // look for special CTGs
+        // look for special ChunkTags
         ctg = cki.ctg;
 
         // stnTag.FFormatSz(PszLit("%f"), ctg);

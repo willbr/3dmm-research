@@ -264,7 +264,7 @@ BEGIN
     CONTROL         "&Hide Listed Chunks",4,"Button",BS_AUTOCHECKBOX | 
                     WS_TABSTOP,13,29,94,10
     EDITTEXT        5,34,56,132,12,ES_AUTOHSCROLL
-    RTEXT           "CTGs:",6,6,58,24,7
+    RTEXT           "ChunkTags:",6,6,58,24,7
 END
 
 dlidScriptCache DIALOG DISCARDABLE  0, 0, 211, 56
