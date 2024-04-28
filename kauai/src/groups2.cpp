@@ -70,7 +70,7 @@ bool VirtualStringTable::_FDup(PVirtualStringTable pgstbDst)
 }
 
 // string table on file
-struct GSTF
+struct StringTableOnFile
 {
     short bo;
     short osk;
@@ -87,7 +87,7 @@ const ByteOrderMask kbomGstf = 0x5FF00000L;
 long VirtualStringTable::CbOnFile(void)
 {
     AssertThis(0);
-    return size(GSTF) + LwMul(_ivMac, _cbEntry) + _bstMac;
+    return size(StringTableOnFile) + LwMul(_ivMac, _cbEntry) + _bstMac;
 }
 
 /***************************************************************************
@@ -104,7 +104,7 @@ bool VirtualStringTable::FWrite(PDataBlock pblck, short bo, short osk)
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
 
-    GSTF gstf;
+    StringTableOnFile gstf;
     bool fRet;
 
     if (osk != koskCur)
@@ -159,7 +159,7 @@ bool VirtualStringTable::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    GSTF gstf;
+    StringTableOnFile gstf;
     long cbT;
     short bo;
     long cb;
