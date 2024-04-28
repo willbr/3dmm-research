@@ -1707,9 +1707,9 @@ bool S2B::_FZbmpFromZpic(PString pstnBkgd, ChunkNumber cnoPar, int iCam, long dx
             long cPix = dxp * dyp, cbSw, cbBuf, cbLeft;
             float fl, *prgfl;
             Filename fniZbmp;
-            FP fpZbmp;
+            FilePosition fpZbmp;
             FileObject *pfilZbmp = pvNil;
-            FP fpRead = 0;
+            FilePosition fpRead = 0;
             ZBMPF zbmpf;
 
             /* Allocate buffer for Zbmp and buffer for reading */

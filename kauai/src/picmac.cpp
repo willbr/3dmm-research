@@ -128,7 +128,7 @@ PPIC PIC::PpicReadNative(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     PFileObject pfil;
-    FP fpMac;
+    FilePosition fpMac;
     HPIC hpic;
     PPIC ppic;
     bool fT;

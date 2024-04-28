@@ -1534,7 +1534,7 @@ bool HEDG::FCmdDump(PCommand pcmd)
     long cp;
     long cch;
     bool fFirst;
-    FP fpCur;
+    FilePosition fpCur;
 
     PHETD phetd = pvNil;
     PHEDO phedo = Phedo();

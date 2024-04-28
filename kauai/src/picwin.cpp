@@ -209,7 +209,7 @@ HPIC PIC::_HpicReadWmf(Filename *pfni)
     PFileObject pfil;
     void *pv;
     bool fT;
-    FP fp;
+    FilePosition fp;
 
     const long kcbMefh = 22;
     const long kcbMetaHeader = 18;

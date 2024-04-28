@@ -393,7 +393,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
     };
 
     FileLocation flo;
-    FP fp;
+    FilePosition fp;
     MIDHED midhed;
     MIDCHD midchd;
     MIDTR midtr;

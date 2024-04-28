@@ -76,29 +76,29 @@
 		for and cbInit/cchInit are the total number of bytes to allow for
 		these entries.  These values are as in FEnsureSpace.
 
-	PDynamicArray   DynamicArray::PglRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk);
-	PAllocatedArray   AllocatedArray::PalRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk);
-	PGeneralGroup   GeneralGroup::PggRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk);
-	PAllocatedGroup   AllocatedGroup::PagRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk);
-	PStringTable_GST StringTable_GST::PgstRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk);
-	PAllocatedStringTable AllocatedStringTable::PastRead(PFileObject pfil, FP fp, long cb, short *pbo, short *posk);
+	PDynamicArray   DynamicArray::PglRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk);
+	PAllocatedArray   AllocatedArray::PalRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk);
+	PGeneralGroup   GeneralGroup::PggRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk);
+	PAllocatedGroup   AllocatedGroup::PagRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk);
+	PStringTable_GST StringTable_GST::PgstRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk);
+	PAllocatedStringTable AllocatedStringTable::PastRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk);
 		Static methods to read an object from disk.  pbo and posk may be
 		nil.  *pbo is set to the byte order of the object and *posk is
 		set to the osk (Operating System Kind) that wrote the object.
 		Use *pbo to do byte swapping after reading and *posk to do string
 		translation after reading.
 
-	bool  DynamicArray::FWrite(PFileObject pfil, FP fp, long *pcb = pvNil,
+	bool  DynamicArray::FWrite(PFileObject pfil, FilePosition fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool  AllocatedArray::FWrite(PFileObject pfil, FP fp, long *pcb = pvNil,
+	bool  AllocatedArray::FWrite(PFileObject pfil, FilePosition fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool  GeneralGroup::FWrite(PFileObject pfil, FP fp, long *pcb = pvNil,
+	bool  GeneralGroup::FWrite(PFileObject pfil, FilePosition fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool  AllocatedGroup::FWrite(PFileObject pfil, FP fp, long *pcb = pvNil,
+	bool  AllocatedGroup::FWrite(PFileObject pfil, FilePosition fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool StringTable_GST::FWrite(PFileObject pfil, FP fp, long *pcb = pvNil,
+	bool StringTable_GST::FWrite(PFileObject pfil, FilePosition fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
-	bool AllocatedStringTable::FWrite(PFileObject pfil, FP fp, long *pcb = pvNil,
+	bool AllocatedStringTable::FWrite(PFileObject pfil, FilePosition fp, long *pcb = pvNil,
 			short bo = kboCur, short osk = koskCur);
 		Write the object to disk.  If pcb is not nil, sets *pcb to the
 		amount of space used.  If bo and osk are specified as something

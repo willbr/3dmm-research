@@ -28,7 +28,7 @@ void __cdecl main(long cpszs, char **prgpszs)
     Filename fniDir, fni;
     FileType rgftg[2];
     byte rgb[512];
-    FP fpMac, fp;
+    FilePosition fpMac, fp;
     long cbTot, clnTot, ib, cbT, cln;
     PFileObject pfil;
     String stn;

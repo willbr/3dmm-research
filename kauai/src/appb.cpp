@@ -1795,7 +1795,7 @@ void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
 {
     static PFileObject _pfilWarn;
     static bool _fInWarn;
-    static FP _fpCur;
+    static FilePosition _fpCur;
     String stn;
     String stnFile;
     String stnMsg;

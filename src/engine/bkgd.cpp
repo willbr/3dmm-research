@@ -591,7 +591,7 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     Filename fni;
     PFileObject pfil = pvNil;
     String stnData;
-    FP fp;
+    FilePosition fp;
     long xr1 = BrScalarToInt(xrPlace);
     long xr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(xrPlace - BrIntToScalar(xr1))));
     long yr1 = BrScalarToInt(yrPlace);

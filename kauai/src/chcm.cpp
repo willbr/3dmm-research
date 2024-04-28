@@ -1702,7 +1702,7 @@ void Compiler::_EndSubFile(void)
         long icki;
         ChunkIdentification cki;
         long cbTot, cbT;
-        FP fpDst;
+        FilePosition fpDst;
         PFileObject pfilDst = pvNil;
         bool fRet = fFalse;
 

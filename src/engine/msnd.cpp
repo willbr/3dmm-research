@@ -325,7 +325,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
     DWORD dwLength;
     long cbOriginalFile = 0;
     long cbCompressedFile = 0;
-    FP fpNew;
+    FilePosition fpNew;
 
     pfilSrc->GetFni(&fniSrc);
     if (pvNil == pstn)

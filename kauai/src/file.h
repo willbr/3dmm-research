@@ -27,7 +27,7 @@ const short kboOther = 0x0100;
     Basic types
 ****************************************/
 
-typedef long FP;
+typedef long FilePosition;
 
 enum
 {
@@ -89,7 +89,7 @@ class FileObject : public FileObject_PAR
 
     bool _FOpen(bool fCreate, ulong grffil);
     void _Close(bool fFinal = fFalse);
-    void _SetFpPos(FP fp);
+    void _SetFpPos(FilePosition fp);
 
   public:
     // public static members
@@ -141,10 +141,10 @@ class FileObject : public FileObject_PAR
     }
     void GetStnPath(PString pstn);
 
-    bool FSetFpMac(FP fp);
-    FP FpMac(void);
-    bool FReadRgb(void *pv, long cb, FP fp);
-    bool FReadRgbSeq(void *pv, long cb, FP *pfp)
+    bool FSetFpMac(FilePosition fp);
+    FilePosition FpMac(void);
+    bool FReadRgb(void *pv, long cb, FilePosition fp);
+    bool FReadRgbSeq(void *pv, long cb, FilePosition *pfp)
     {
         AssertVarMem(pfp);
         if (!FReadRgb(pv, cb, *pfp))
@@ -152,8 +152,8 @@ class FileObject : public FileObject_PAR
         *pfp += cb;
         return fTrue;
     }
-    bool FWriteRgb(void *pv, long cb, FP fp);
-    bool FWriteRgbSeq(void *pv, long cb, FP *pfp)
+    bool FWriteRgb(void *pv, long cb, FilePosition fp);
+    bool FWriteRgbSeq(void *pv, long cb, FilePosition *pfp)
     {
         AssertVarMem(pfp);
         if (!FWriteRgb(pv, cb, *pfp))
@@ -181,7 +181,7 @@ typedef struct FileLocation *PFileLocation;
 struct FileLocation
 {
     PFileObject pfil;
-    FP fp;
+    FilePosition fp;
     long cb;
 
     bool FRead(void *pv)
@@ -192,11 +192,11 @@ struct FileLocation
     {
         return FWriteRgb(pv, cb, 0);
     }
-    bool FReadRgb(void *pv, long cbRead, FP dfp);
-    bool FWriteRgb(void *pv, long cbWrite, FP dfp);
+    bool FReadRgb(void *pv, long cbRead, FilePosition dfp);
+    bool FWriteRgb(void *pv, long cbWrite, FilePosition dfp);
     bool FCopy(PFileLocation pfloDst);
-    bool FReadHq(HQ *phq, long cbRead, FP dfp = 0);
-    bool FWriteHq(HQ hq, FP dfp = 0);
+    bool FReadHq(HQ *phq, long cbRead, FilePosition dfp = 0);
+    bool FWriteHq(HQ hq, FilePosition dfp = 0);
     bool FReadHq(HQ *phq)
     {
         return FReadHq(phq, cb, 0);
@@ -242,13 +242,13 @@ class DataBlock : public DataBlock_PAR
 
   public:
     DataBlock(PFileLocation pflo, bool fPacked = fFalse);
-    DataBlock(PFileObject pfil, FP fp, long cb, bool fPacked = fFalse);
+    DataBlock(PFileObject pfil, FilePosition fp, long cb, bool fPacked = fFalse);
     DataBlock(HQ *phq, bool fPacked = fFalse);
     DataBlock(void);
     ~DataBlock(void);
 
     void Set(PFileLocation pflo, bool fPacked = fFalse);
-    void Set(PFileObject pfil, FP fp, long cb, bool fPacked = fFalse);
+    void Set(PFileObject pfil, FilePosition fp, long cb, bool fPacked = fFalse);
     void SetHq(HQ *phq, bool fPacked = fFalse);
     void Free(void);
     HQ HqFree(bool fPackedOk = fFalse);
@@ -323,7 +323,7 @@ class MSFIL : public MSFIL_PAR
   protected:
     bool _fError;
     PFileObject _pfil;
-    FP _fpCur;
+    FilePosition _fpCur;
     void _EnsureFile(void);
 
   public:

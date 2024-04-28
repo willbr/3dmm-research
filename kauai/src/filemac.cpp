@@ -108,7 +108,7 @@ void FileObject::Flush(void)
 /***************************************************************************
     Seek to the given fp.
 ***************************************************************************/
-void FileObject::_SetFpPos(FP fp)
+void FileObject::_SetFpPos(FilePosition fp)
 {
     AssertThis(0);
     if (_el < kelSeek && SetFPos(_fref, fsFromStart, fp) != noErr)
@@ -121,7 +121,7 @@ void FileObject::_SetFpPos(FP fp)
 /***************************************************************************
     Set the length of the file.
 ***************************************************************************/
-bool FileObject::FSetFpMac(FP fp)
+bool FileObject::FSetFpMac(FilePosition fp)
 {
     AssertThis(0);
     AssertIn(fp, 0, kcbMax);
@@ -142,10 +142,10 @@ bool FileObject::FSetFpMac(FP fp)
 /***************************************************************************
     Return the length of the file.
 ***************************************************************************/
-FP FileObject::FpMac(void)
+FilePosition FileObject::FpMac(void)
 {
     AssertThis(0);
-    FP fp;
+    FilePosition fp;
 
     if (_el < kelSeek && GetEOF(_fref, &fp) != noErr)
     {
@@ -158,14 +158,14 @@ FP FileObject::FpMac(void)
 /***************************************************************************
     Read a block from the file.
 ***************************************************************************/
-bool FileObject::FReadRgb(void *pv, long cb, FP fp)
+bool FileObject::FReadRgb(void *pv, long cb, FilePosition fp)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
     AssertIn(fp, 0, klwMax);
     AssertPvCb(pv, cb);
 
-    Debug(FP dfp = FpMac() - fp;)
+    Debug(FilePosition dfp = FpMac() - fp;)
 
         _SetFpPos(fp);
     if (_el >= kelRead)
@@ -184,7 +184,7 @@ bool FileObject::FReadRgb(void *pv, long cb, FP fp)
 /***************************************************************************
     Write a block to the file.
 ***************************************************************************/
-bool FileObject::FWriteRgb(void *pv, long cb, FP fp)
+bool FileObject::FWriteRgb(void *pv, long cb, FilePosition fp)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);

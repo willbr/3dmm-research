@@ -365,7 +365,7 @@ priv bool _FRangeIn(long cbTot, long cb, long ib)
 /***************************************************************************
     Read a piece of a flo into pv.
 ***************************************************************************/
-bool FileLocation::FReadRgb(void *pv, long cbRead, FP dfp)
+bool FileLocation::FReadRgb(void *pv, long cbRead, FilePosition dfp)
 {
     AssertThis(ffloReadable);
 
@@ -383,7 +383,7 @@ bool FileLocation::FReadRgb(void *pv, long cbRead, FP dfp)
 /***************************************************************************
     Write a piece of a flo from pv.
 ***************************************************************************/
-bool FileLocation::FWriteRgb(void *pv, long cbWrite, FP dfp)
+bool FileLocation::FWriteRgb(void *pv, long cbWrite, FilePosition dfp)
 {
     AssertThis(0);
 
@@ -445,7 +445,7 @@ LFail:
 /***************************************************************************
     Allocate an hq and read the flo into it.
 ***************************************************************************/
-bool FileLocation::FReadHq(HQ *phq, long cbRead, FP dfp)
+bool FileLocation::FReadHq(HQ *phq, long cbRead, FilePosition dfp)
 {
     AssertThis(ffloReadable);
     AssertVarMem(phq);
@@ -503,7 +503,7 @@ bool FileLocation::FTranslate(short osk)
     long cchDst, cch;
     long cbBlock, cbT;
     PFileObject pfilNew;
-    FP fpSrc, fpDst;
+    FilePosition fpSrc, fpDst;
     bool fRet = fFalse;
 
     // look for a unicode byte order signature
@@ -616,7 +616,7 @@ void FileLocation::AssertValid(ulong grfflo)
     AssertPo(pfil, 0);
     AssertIn(fp, 0, kcbMax);
     AssertIn(cb, 0, kcbMax);
-    FP fpMac = pfil->FpMac();
+    FilePosition fpMac = pfil->FpMac();
 
     if (pfil->ElError() < kelSeek)
     {
@@ -645,7 +645,7 @@ DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(PFileObject pfil, FP fp, long cb, bool fPacked)
+DataBlock::DataBlock(PFileObject pfil, FilePosition fp, long cb, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pfil, 0);
@@ -717,7 +717,7 @@ void DataBlock::Set(PFileLocation pflo, bool fPacked)
 /***************************************************************************
     Set the data block to refer to the given range on the file.
 ***************************************************************************/
-void DataBlock::Set(PFileObject pfil, FP fp, long cb, bool fPacked)
+void DataBlock::Set(PFileObject pfil, FilePosition fp, long cb, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pfil, 0);

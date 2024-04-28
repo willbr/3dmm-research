@@ -83,7 +83,7 @@ class ChunkyFile : public ChunkyFile_PAR
     struct CSTO
     {
         PFileObject pfil;  // the file
-        FP fpMac;   // logical end of file (for writing new chunks)
+        FilePosition fpMac;   // logical end of file (for writing new chunks)
         PDynamicArray pglfsm; // free space map
     };
 
@@ -98,7 +98,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _fInvalidMainFile : 1;
 
     // for deferred reading of the free map
-    FP _fpFreeMap;
+    FilePosition _fpFreeMap;
     long _cbFreeMap;
 
 #ifndef CHUNK_BIG_INDEX
@@ -132,7 +132,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FAllocFlo(long cb, PFileLocation pflo, bool fForceOnExtra = fFalse);
     bool _FFindCtgCno(ChunkTag ctg, ChunkNumber cno, long *picrp);
     void _GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno);
-    void _FreeFpCb(bool fOnExtra, FP fp, long cb);
+    void _FreeFpCb(bool fOnExtra, FilePosition fp, long cb);
     bool _FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataBlock pblck);
     bool _FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv);
     bool _FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone);
@@ -258,7 +258,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FGetIkid(ChunkTag ctgPar, ChunkNumber cnoPar, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid, long *pikid);
 
     // Serialized chunk forests
-    bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FP fpDst, long *pcb);
+    bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FilePosition fpDst, long *pcb);
     static PChunkyFile PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData);
     bool FForest(ChunkTag ctg, ChunkNumber cno);
     void SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest = fTrue);

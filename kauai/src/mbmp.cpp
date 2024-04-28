@@ -551,7 +551,7 @@ bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, long *pdx
     long fpMac, cbBitmap, cbSrc;
     BMH bmh;
     bool fRet, fRle;
-    FP fpCur = 0;
+    FilePosition fpCur = 0;
 
     if (pvNil != pprgb)
         *pprgb = pvNil;
@@ -799,7 +799,7 @@ bool FWriteBitmap(Filename *pfni, byte *prgb, PDynamicArray pglclr, long dxp, lo
     bool fRet = fFalse;
     long cbSrc;
     PFileObject pfil = pvNil;
-    FP fpCur = 0;
+    FilePosition fpCur = 0;
     BMH bmh;
 
     cbSrc = CbRoundToLong(dxp) * dyp;

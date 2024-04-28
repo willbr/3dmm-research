@@ -121,10 +121,10 @@ struct ChunkyFilePrefix
     short bo;       // byte order
     short osk;      // which system wrote this
 
-    FP fpMac;     // logical end of file
-    FP fpIndex;   // location of chunky index
+    FilePosition fpMac;     // logical end of file
+    FilePosition fpIndex;   // location of chunky index
     long cbIndex; // size of chunky index
-    FP fpMap;     // location of free space map
+    FilePosition fpMap;     // location of free space map
     long cbMap;   // size of free space map (may be 0)
 
     long rglwReserved[23]; // reserved for future use - should be zero
@@ -134,7 +134,7 @@ const ByteOrderMask kbomCfp = 0xB55FFC00L;
 // free space map entry
 struct FreeSpaceMap
 {
-    FP fp;
+    FilePosition fp;
     long cb;
 };
 const ByteOrderMask kbomFsm = 0xF0000000L;
@@ -155,7 +155,7 @@ const long kcbMaxCrpbg = klwMax;
 struct CRPBG
 {
     ChunkIdentification cki;      // chunk id
-    FP fp;        // location on file
+    FilePosition fp;        // location on file
     long cb;      // size of data on file
     long ckid;    // number of owned chunks
     long ccrpRef; // number of owners of this chunk
@@ -219,7 +219,7 @@ const ulong kgrfcrpAll = (1 << kcbitGrfcrp) - 1;
 struct CRPSM
 {
     ChunkIdentification cki;          // chunk id
-    FP fp;            // location on file
+    FilePosition fp;            // location on file
     ulong luGrfcrpCb; // low byte is the grfcrp, high 3 bytes is cb
     ushort ckid;      // number of owned chunks
     ushort ccrpRef;   // number of owners of this chunk
@@ -289,7 +289,7 @@ PChunkyFile ChunkyFile::_pcflFirst;
 #ifdef CHUNK_STATS
 bool vfDumpChunkRequests = fTrue;
 PFileObject _pfilStats;
-FP _fpStats;
+FilePosition _fpStats;
 
 /***************************************************************************
     Static method to dump a string to the chunk stats file
@@ -587,7 +587,7 @@ const ByteOrderMask kbomEcdf = 0x5FFC0000L;
     Combine the indicated chunk and its children into an embedded chunk.
     If pfil is pvNil, just computes the size.
 ***************************************************************************/
-bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FP fpDst, long *pcb)
+bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FilePosition fpDst, long *pcb)
 {
     AssertThis(0);
     AssertNilOrPo(pfilDst, 0);
@@ -671,7 +671,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     PChunkyFile pcfl;
     ECDF ecdf;
     ECSD ecsdT, ecsdCur;
-    FP fpSrc, fpLimSrc;
+    FilePosition fpSrc, fpLimSrc;
     PDynamicArray pglecsd = pvNil;
 
     if (pvNil == (pglecsd = DynamicArray::PglNew(size(ECSD))))
@@ -1001,7 +1001,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     long cbVar, cbRgch;
     CRP crp;
     long ikid;
-    FP fpBase = _fInvalidMainFile ? 0 : size(ChunkyFilePrefix);
+    FilePosition fpBase = _fInvalidMainFile ? 0 : size(ChunkyFilePrefix);
 
     Assert(!_fInvalidMainFile || _fAddToExtra, 0);
 
@@ -1102,7 +1102,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     {
         long ifsm;
         FreeSpaceMap fsm;
-        FP fpOld;
+        FilePosition fpOld;
 
         fpOld = _csto.fpMac;
         for (ifsm = _csto.pglfsm->IvMac(); ifsm-- != 0;)
@@ -1119,7 +1119,7 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     {
         long ifsm;
         FreeSpaceMap fsm;
-        FP fpOld;
+        FilePosition fpOld;
 
         fpOld = _cstoExtra.fpMac;
         for (ifsm = _cstoExtra.pglfsm->IvMac(); ifsm-- != 0;)
@@ -1327,7 +1327,7 @@ bool ChunkyFile::_FReadIndex(void)
     Assert(!_fInvalidMainFile, 0);
 
     ChunkyFilePrefix cfp;
-    FP fpMac;
+    FilePosition fpMac;
     short bo;
     short osk;
     long cbVar;
@@ -2684,7 +2684,7 @@ void ChunkyFile::SwapData(ChunkTag ctg1, ChunkNumber cno1, ChunkTag ctg2, ChunkN
     AssertThis(0);
     long icrp1, icrp2;
     CRP *qcrp1, *qcrp2;
-    FP fp;
+    FilePosition fp;
     long cb;
     ulong grfcrpT;
     const ulong kgrfcrpMask = fcrpOnExtra | fcrpPacked | fcrpForest;
@@ -3056,7 +3056,7 @@ void ChunkyFile::_DeleteCore(long icrp)
 /***************************************************************************
     Add the (fp, cb) to the free map.
 ***************************************************************************/
-void ChunkyFile::_FreeFpCb(bool fOnExtra, FP fp, long cb)
+void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, long cb)
 {
     AssertBaseThis(0);
     Assert(cb > 0 || cb == 0 && fp == 0, "bad cb");

@@ -127,8 +127,8 @@ class LexerBase : public LexerBase_PAR
     long _lwLine;  // which line
     long _ichLine; // which character on the line
 
-    FP _fpCur;
-    FP _fpMac;
+    FilePosition _fpCur;
+    FilePosition _fpMac;
     long _ichLim;
     long _ichCur;
     achar _rgch[kcchLexbBuf];

@@ -19,7 +19,7 @@
 		File location class.  Has fields for a pfil, fp and cb.
 		Legal as auto.
 
-	typedef long FP;
+	typedef long FilePosition;
 		A file position (index into a file).
 
 
@@ -155,18 +155,18 @@ check for an error.
 	void FileObject::GetFni(Filename *pfni);
 		Gets the file name.
 
-	void FileObject::SetFpPos(FP fp);
+	void FileObject::SetFpPos(FilePosition fp);
 		Sets the file position.
 
-	FP FileObject::FpPos(void);
+	FilePosition FileObject::FpPos(void);
 		Returns the current file position.  If there has been a seek error
 		(or higher level error), returns 0.
 
-	bool FileObject::FSetFpMac(FP fp);
+	bool FileObject::FSetFpMac(FilePosition fp);
 		Sets the end of file.  Files can not be shrunk using this.  This
 		asserts that the passed fp is greater than the current end of file.
 
-	FP FileObject::FpMac(void);
+	FilePosition FileObject::FpMac(void);
 		Returns the length of the file.  If there has been a seek error
 		(or higher level error), returns 0.
 
@@ -200,11 +200,11 @@ are legal.
 	bool FileLocation::FWrite(void *pv);
 		Write data from pv to the file.
 
-	bool FileLocation::FReadRgb(void *pv, long cb, FP dfp);
+	bool FileLocation::FReadRgb(void *pv, long cb, FilePosition dfp);
 		Read cb bytes of data from dfp into the flo into pv.  Asserts the
 		range is totally contained within the flo.
 
-	bool FileLocation::FWriteRgb(void *pv, long cb, FP dfp);
+	bool FileLocation::FWriteRgb(void *pv, long cb, FilePosition dfp);
 		Write cb bytes of data from pv to dfp into the flo.  Asserts the
 		range is totally contained within the flo.
 
