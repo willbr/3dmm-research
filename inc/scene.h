@@ -93,7 +93,7 @@ enum
     fscenAll = 0xFFFF
 };
 
-typedef struct SSE *PSSE;
+typedef struct SceneSoundEvent *PSceneSoundEvent;
 typedef struct TagChildPair *PTagChildPair;
 
 typedef class Scene *PScene;
@@ -148,7 +148,7 @@ class Scene : public Scene_PAR
     PTBOX _ptboxSelected; // Currently selected tbox, if any
     TRANS _trans;         // Transition at the end of the scene.
     PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
-    PSSE _psseBkgd;       // Background scene sound (starts playing
+    PSceneSoundEvent _psseBkgd;       // Background scene sound (starts playing
                           // at start time even if snd event is
                           // earlier)
     long _nfrmSseBkgd;    // Frame at which _psseBkgd starts
@@ -313,7 +313,7 @@ class Scene : public Scene_PAR
     bool FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty); // Adds a sound to the current frame, and undo
     void RemSndCore(long sty);                                            // Removes the sound from current frame.
     bool FRemSnd(long sty);                             // Removes the sound from current frame, and undo
-    bool FGetSnd(long sty, bool *pfFound, PSSE *ppsse); // Allows for retrieval of sounds.
+    bool FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse); // Allows for retrieval of sounds.
     void PlayBkgdSnd(void);
     bool FQuerySnd(long sty, PDynamicArray *pgltagSnd, long *pvlm, bool *pfLoop);
     void SetSndVlmCore(long sty, long vlmNew);

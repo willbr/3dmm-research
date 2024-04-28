@@ -204,7 +204,7 @@ const auto kbomScenh = 0x5FC00000;
 enum SEVT
 {                   // StartEv	FrmEv	Param
     sevtAddActr,    //    X		  		pactr/chid
-    sevtPlaySnd,    // 	  		  X		SSE (Scene Sound Event)
+    sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
     sevtAddTbox,    // 	  X				ptbox/chid
     sevtChngCamera, // 			  X		icam
     sevtSetBkgd,    // 	  X				Background Tag
@@ -537,11 +537,11 @@ void DumpFrameEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
     switch (sev.sevt)
     {
     case sevtPlaySnd: {
-        // PSSE psse;
+        // PSceneSoundEvent psse;
 
         // printf("sevtPlaySnd\n");
 
-        // psse = SSE::PsseDupFromGg(pggsevFrm, isevFrm);
+        // psse = SceneSoundEvent::PsseDupFromGg(pggsevFrm, isevFrm);
         // if (pvNil == psse)
         // {
         //     goto LFail;
@@ -1099,11 +1099,11 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 switch (sev.sevt)
                 {
                 case sevtPlaySnd: {
-                    // PSSE psse;
+                    // PSceneSoundEvent psse;
 
                     // printf("sevtPlaySnd\n");
 
-                    // psse = SSE::PsseDupFromGg(pggsevFrm, isevFrm);
+                    // psse = SceneSoundEvent::PsseDupFromGg(pggsevFrm, isevFrm);
                     // if (pvNil == psse)
                     // {
                     //     goto LFail;

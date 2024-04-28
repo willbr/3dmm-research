@@ -50,7 +50,7 @@ ASSERTNAME
 enum SEVT
 {                   // StartEv	FrmEv	Param
     sevtAddActr,    //    X		  		pactr/chid
-    sevtPlaySnd,    // 	  		  X		SSE (Scene Sound Event)
+    sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
     sevtAddTbox,    // 	  X				ptbox/chid
     sevtChngCamera, // 			  X		icam
     sevtSetBkgd,    // 	  X				Background Tag
@@ -111,47 +111,47 @@ struct TagChildPair
 };
 
 /****************************************
-    SSE - scene sound event
+    SceneSoundEvent - scene sound event
 ****************************************/
 const ByteOrderMask kbomSse = 0xFF000000;
-typedef struct SSE *PSSE;
-struct SSE
+typedef struct SceneSoundEvent *PSceneSoundEvent;
+struct SceneSoundEvent
 {
     long vlm;
     long sty; // sound type
     bool fLoop;
     long ctagc;
-    //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SSE
+    //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SceneSoundEvent
 
   protected:
     static long _Cb(long ctagc)
     {
-        return size(SSE) + LwMul(ctagc, size(TagChildPair));
+        return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
     }
-    SSE(void){};
+    SceneSoundEvent(void){};
 
   public:
-    static PSSE PsseNew(long ctagc);
-    static PSSE PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc);
-    static PSSE PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags = fTrue);
+    static PSceneSoundEvent PsseNew(long ctagc);
+    static PSceneSoundEvent PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc);
+    static PSceneSoundEvent PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags = fTrue);
 
     PTAG Ptag(long itagc)
     {
-        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
         return &(prgtagc[itagc].tag);
     }
     PTagChildPair Ptagc(long itagc)
     {
-        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
         return &(prgtagc[itagc]);
     }
     ChildChunkID *Pchid(long itagc)
     {
-        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
         return &(prgtagc[itagc].chid);
     }
-    PSSE PsseAddTagChid(PTAG ptag, long chid);
-    PSSE PsseDup(void);
+    PSceneSoundEvent PsseAddTagChid(PTAG ptag, long chid);
+    PSceneSoundEvent PsseDup(void);
     void PlayAllSounds(PMovie pmvie, ulong dtsStart = 0);
     void SwapBytes(void)
     {
@@ -166,10 +166,10 @@ struct SSE
     }
     long Cb(void)
     {
-        return size(SSE) + LwMul(ctagc, size(TagChildPair));
+        return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
     }
 };
-void ReleasePpsse(PSSE *ppsse);
+void ReleasePpsse(PSceneSoundEvent *ppsse);
 
 //
 // Undo object for chopping operation.
@@ -383,7 +383,7 @@ class SUNS : public SUNS_PAR
     ASSERT
 
   protected:
-    PSSE _psse; // may be pvNil
+    PSceneSoundEvent _psse; // may be pvNil
     long _sty;  // sty to use if _psse is pvNil
 
     SUNS(void)
@@ -394,9 +394,9 @@ class SUNS : public SUNS_PAR
     static PSUNS PsunsNew(void);
     ~SUNS(void);
 
-    bool FSetSnd(PSSE psse)
+    bool FSetSnd(PSceneSoundEvent psse)
     {
-        PSSE psseDup = psse->PsseDup();
+        PSceneSoundEvent psseDup = psse->PsseDup();
         if (psseDup == pvNil)
             return fFalse;
         ReleasePpsse(&_psse);
@@ -635,9 +635,9 @@ Scene::~Scene(void)
                 break;
 
             case sevtPlaySnd: {
-                PSSE psse;
+                PSceneSoundEvent psse;
                 long itagc;
-                psse = (PSSE)_pggsevFrm->QvGet(isev);
+                psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
                 for (itagc = 0; itagc < psse->ctagc; itagc++)
                 {
                     TagManager::CloseTag(psse->Ptag(itagc));
@@ -1364,13 +1364,13 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
     switch (psev->sevt)
     {
     case sevtPlaySnd:
-        PSSE psse;
+        PSceneSoundEvent psse;
 
-        psse = (PSSE)qvVar;
+        psse = (PSceneSoundEvent)qvVar;
         // If it's midi, copy it to _psseBkgd
         if (psse->sty == styMidi)
         {
-            PSSE psseDup;
+            PSceneSoundEvent psseDup;
             psseDup = psse->PsseDup();
             if (psseDup == pvNil)
                 return fFalse;
@@ -1666,8 +1666,8 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     AssertIn(sty, 0, styLim);
 
     SEV sev;
-    PSSE psseOld;
-    PSSE psseNew;
+    PSceneSoundEvent psseOld;
+    PSceneSoundEvent psseNew;
     long isev;
     ChildChunkID chid;
     long isevSnd = ivNil;
@@ -1685,7 +1685,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
             break;
         if (sev.sevt == sevtPlaySnd)
         {
-            psseOld = (PSSE)_pggsevFrm->QvGet(isev);
+            psseOld = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
             if (psseOld->sty == sty)
             {
                 // Found a match, which we will either add to or replace
@@ -1729,7 +1729,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
         }
         // Create new event, replace any old event of same sty
         itagBase = 0;
-        psseNew = SSE::PsseNew(vlm, sty, fLoop, ctag, prgtagc);
+        psseNew = SceneSoundEvent::PsseNew(vlm, sty, fLoop, ctag, prgtagc);
         FreePpv((void **)&prgtagc);
         if (pvNil == psseNew)
         {
@@ -1743,9 +1743,9 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
         if (isevSnd != ivNil)
         {
             // Delete old event, if any
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itagc;
-            psse = (PSSE)_pggsevFrm->QvGet(isevSnd);
+            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isevSnd);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
                 TagManager::CloseTag(psse->Ptag(itagc));
@@ -1757,7 +1757,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     else // we're queueing
     {
         // Add this sound to isevSnd
-        psseOld = SSE::PsseDupFromGg(_pggsevFrm, isevSnd);
+        psseOld = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isevSnd);
         if (pvNil == psseOld)
         {
             return fFalse;
@@ -1851,8 +1851,8 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
     AssertIn(sty, 0, styLim);
 
     SEV sev;
-    PSSE psseOld;
-    PSSE psseNew;
+    PSceneSoundEvent psseOld;
+    PSceneSoundEvent psseNew;
     long isev;
     long isevSnd = ivNil;
 
@@ -1866,7 +1866,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
             break;
         if (sev.sevt == sevtPlaySnd)
         {
-            psseOld = (PSSE)_pggsevFrm->QvGet(isev);
+            psseOld = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
             if (psseOld->sty == sty)
             {
                 // Found a match, which we will either add to or replace
@@ -1887,7 +1887,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
     if (!fQueue)
     {
         // Create new event, replace any old event of same sty
-        psseNew = SSE::PsseNew(vlm, sty, fLoop, ctagc, prgtagc);
+        psseNew = SceneSoundEvent::PsseNew(vlm, sty, fLoop, ctagc, prgtagc);
         if (pvNil == psseNew)
             return fFalse;
         if (!_FAddSev(&sev, psseNew->Cb(), psseNew))
@@ -1898,9 +1898,9 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
         if (isevSnd != ivNil)
         {
             // Delete old event, if any
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itagc;
-            psse = (PSSE)_pggsevFrm->QvGet(isevSnd);
+            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isevSnd);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
                 TagManager::CloseTag(psse->Ptag(itagc));
@@ -1949,7 +1949,7 @@ bool Scene::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
     AssertIn(sty, 0, styLim);
 
     PSUNS psuns;
-    PSSE psse;
+    PSceneSoundEvent psse;
     bool fFound;
 
     // Create a SUNS with nil _psse
@@ -2028,14 +2028,14 @@ void Scene::RemSndCore(long sty)
             return;
         }
 
-        if ((qsev->sevt == sevtPlaySnd) && ((PSSE)_pggsevFrm->QvGet(isev))->sty == sty)
+        if ((qsev->sevt == sevtPlaySnd) && ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty == sty)
         {
             //
             // Remove it
             //
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itagc;
-            psse = (PSSE)_pggsevFrm->QvGet(isev);
+            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
                 TagManager::CloseTag(psse->Ptag(itagc));
@@ -2077,7 +2077,7 @@ bool Scene::FRemSnd(long sty)
     AssertIn(sty, 0, styLim);
 
     PSUNS psuns;
-    PSSE psse = pvNil;
+    PSceneSoundEvent psse = pvNil;
     long isev;
     PSEV qsev;
 
@@ -2101,9 +2101,9 @@ bool Scene::FRemSnd(long sty)
             return fTrue;
         }
 
-        if ((qsev->sevt == sevtPlaySnd) && ((PSSE)_pggsevFrm->QvGet(isev))->sty == sty)
+        if ((qsev->sevt == sevtPlaySnd) && ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty == sty)
         {
-            psse = SSE::PsseDupFromGg(_pggsevFrm, isev);
+            psse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isev);
             if (psse == pvNil)
             {
                 return fFalse;
@@ -2137,13 +2137,13 @@ bool Scene::FRemSnd(long sty)
  * Parameters:
  *	sty - sound type to search for
  *  pfFound - set to fTrue if a sound is found, else fFalse
- *  ppsse - gets a pointer to the SSE if it is found
+ *  ppsse - gets a pointer to the SceneSoundEvent if it is found
  *
  * Returns:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
+bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2167,9 +2167,9 @@ bool Scene::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
 
         if (qsev->sevt == sevtPlaySnd)
         {
-            if (sty == ((PSSE)_pggsevFrm->QvGet(isev))->sty)
+            if (sty == ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty)
             {
-                *ppsse = SSE::PsseDupFromGg(_pggsevFrm, isev);
+                *ppsse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isev);
                 if (*ppsse == pvNil)
                 {
                     return fFalse; // memory error
@@ -2235,7 +2235,7 @@ bool Scene::FQuerySnd(long sty, PDynamicArray *ppgltagSnd, long *pvlm, bool *pfL
     AssertVarMem(pvlm);
     AssertVarMem(pfLoop);
 
-    PSSE psse;
+    PSceneSoundEvent psse;
     bool fFound;
     long itag;
 
@@ -2288,7 +2288,7 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
 
     PSEV qsev;
     long isev;
-    PSSE psse;
+    PSceneSoundEvent psse;
 
     //
     // Check event list.
@@ -2305,7 +2305,7 @@ void Scene::SetSndVlmCore(long sty, long vlmNew)
 
         if (qsev->sevt == sevtPlaySnd)
         {
-            psse = ((PSSE)_pggsevFrm->QvGet(isev));
+            psse = ((PSceneSoundEvent)_pggsevFrm->QvGet(isev));
             if (sty == psse->sty)
             {
                 psse->vlm = vlmNew;
@@ -3883,10 +3883,10 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         {
         case sevtPlaySnd:
 
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itag;
 
-            psse = SSE::PsseDupFromGg(pscen->_pggsevFrm, isevFrm, fFalse);
+            psse = SceneSoundEvent::PsseDupFromGg(pscen->_pggsevFrm, isevFrm, fFalse);
             if (pvNil == psse)
                 goto LFail1;
 
@@ -3905,7 +3905,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
                     goto LFail1;
                 }
             }
-            // Put SSE with opened tags back in GeneralGroup
+            // Put SceneSoundEvent with opened tags back in GeneralGroup
             pscen->_pggsevFrm->Put(isevFrm, psse);
             FreePpv((void **)&psse); // don't ReleasePpsse because GeneralGroup keeps the tags
             break;
@@ -4072,13 +4072,13 @@ LFail1:
             break;
 
         case sevtPlaySnd:
-            PSSE qsse;
+            PSceneSoundEvent qsse;
             long itag;
 
-            qsse = (PSSE)pscen->_pggsevFrm->QvGet(isevFrm);
+            qsse = (PSceneSoundEvent)pscen->_pggsevFrm->QvGet(isevFrm);
             if (qsse->Cb() != (pscen->_pggsevFrm->CbFixed() + pscen->_pggsevFrm->Cb(isevFrm)))
             {
-                Bug("Wrong size for SSE in GeneralGroup");
+                Bug("Wrong size for SceneSoundEvent in GeneralGroup");
                 continue;
             }
 
@@ -4088,7 +4088,7 @@ LFail1:
                 can be safe-not-sorry.  */
             for (itag = 0; itag < qsse->ctagc; itag++)
             {
-                qsse = (PSSE)pscen->_pggsevFrm->QvGet(isevFrm);
+                qsse = (PSceneSoundEvent)pscen->_pggsevFrm->QvGet(isevFrm);
                 TagManager::CloseTag(qsse->Ptag(itag));
             }
             break;
@@ -4232,11 +4232,11 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         {
         case sevtPlaySnd: {
             bool fSuccess = fFalse;
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itag;
             ChildChunkIdentification kid;
 
-            psse = SSE::PsseDupFromGg(_pggsevFrm, isevFrm);
+            psse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isevFrm);
             if (pvNil == psse)
             {
                 goto LFail;
@@ -4528,14 +4528,14 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     for (isev = 0; isev < isevMac; isev++)
     {
         long itag;
-        PSSE psse;
+        PSceneSoundEvent psse;
         SEV sev;
 
         sev = *(PSEV)_pggsevFrm->QvFixedGet(isev);
         if (sev.sevt != sevtPlaySnd)
             continue;
 
-        psse = (PSSE)_pggsevFrm->QvGet(isev);
+        psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
         for (itag = 0; itag < psse->ctagc; itag++)
         {
             if (psse->Ptag(itag)->sid == ksidUseCrf)
@@ -5260,10 +5260,10 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
 
         case sevtPlaySnd:
 
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itag;
 
-            psse = SSE::PsseDupFromGg(pggsev, isev, fFalse);
+            psse = SceneSoundEvent::PsseDupFromGg(pggsev, isev, fFalse);
             if (pvNil == psse)
             {
                 ReleasePpo(&pggsev);
@@ -5987,7 +5987,7 @@ bool SUNS::FDo(PDocumentBase pdocb)
 
     long isevSnd = ivNil;
     bool fFound;
-    PSSE psseOld = pvNil;
+    PSceneSoundEvent psseOld = pvNil;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -6108,7 +6108,7 @@ void SUNS::AssertValid(ulong grf)
     SUNS_PAR::AssertValid(grf);
     if (_psse != pvNil)
     {
-        AssertPvCb(_psse, size(SSE));
+        AssertPvCb(_psse, size(SceneSoundEvent));
         AssertPvCb(_psse, _psse->Cb());
         Assert(_sty == _psse->sty, "sty's don't match");
     }
@@ -7145,13 +7145,13 @@ void SUNC::AssertValid(ulong grf)
 #endif
 
 /***************************************************************************
-    Static function to allocate a SSE with room for ctag TAGs.
+    Static function to allocate a SceneSoundEvent with room for ctag TAGs.
 ***************************************************************************/
-PSSE SSE::PsseNew(long ctag)
+PSceneSoundEvent SceneSoundEvent::PsseNew(long ctag)
 {
     Assert(ctag > 0, 0);
 
-    PSSE psse;
+    PSceneSoundEvent psse;
 
     if (!FAllocPv((void **)&psse, _Cb(ctag), fmemNil, mprNormal))
         return pvNil;
@@ -7159,13 +7159,13 @@ PSSE SSE::PsseNew(long ctag)
 }
 
 /***************************************************************************
-    Creates a new SSE
+    Creates a new SceneSoundEvent
 ***************************************************************************/
-PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc)
+PSceneSoundEvent SceneSoundEvent::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc)
 {
     Assert(ctagc > 0, 0);
     AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
-    PSSE psse;
+    PSceneSoundEvent psse;
     long itagc;
 
     psse = PsseNew(ctagc);
@@ -7184,16 +7184,16 @@ PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgt
 }
 
 /***************************************************************************
-    Properly cleans up and frees a SSE
+    Properly cleans up and frees a SceneSoundEvent
 ***************************************************************************/
-void ReleasePpsse(PSSE *ppsse)
+void ReleasePpsse(PSceneSoundEvent *ppsse)
 {
     AssertVarMem(ppsse);
 
     if (*ppsse == pvNil)
         return;
 
-    PSSE psse = *ppsse;
+    PSceneSoundEvent psse = *ppsse;
     long itagc;
 
     AssertIn(psse->ctagc, 0, 1000); // sanity check on ctagc
@@ -7209,21 +7209,21 @@ void ReleasePpsse(PSSE *ppsse)
 }
 
 /***************************************************************************
-    Static function to allocate and read a SSE from a GeneralGroup.  This is tricky
-    because I can't do a pgg->Get() since the SSE is variable-sized, and
+    Static function to allocate and read a SceneSoundEvent from a GeneralGroup.  This is tricky
+    because I can't do a pgg->Get() since the SceneSoundEvent is variable-sized, and
     I need to do QvGet twice since I'm allocating memory in this function.
 ***************************************************************************/
-PSSE SSE::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
+PSceneSoundEvent SceneSoundEvent::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
 {
     AssertPo(pgg, 0);
     AssertIn(iv, 0, pgg->IvMac());
-    Assert(pgg->Cb(iv) >= size(SSE), "variable part too small");
+    Assert(pgg->Cb(iv) >= size(SceneSoundEvent), "variable part too small");
 
     long ctagc;
-    PSSE psse;
+    PSceneSoundEvent psse;
     long itagc;
 
-    ctagc = ((PSSE)pgg->QvGet(iv))->ctagc;
+    ctagc = ((PSceneSoundEvent)pgg->QvGet(iv))->ctagc;
 
     psse = PsseNew(ctagc);
     CopyPb(pgg->QvGet(iv), psse, _Cb(ctagc));
@@ -7249,19 +7249,19 @@ PSSE SSE::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
 }
 
 /***************************************************************************
-    Returns a PSSE just like this SSE except with ptag & chid added
+    Returns a PSceneSoundEvent just like this SceneSoundEvent except with ptag & chid added
 ***************************************************************************/
-PSSE SSE::PsseAddTagChid(PTAG ptag, long chid)
+PSceneSoundEvent SceneSoundEvent::PsseAddTagChid(PTAG ptag, long chid)
 {
     AssertVarMem(ptag);
 
-    PSSE psseNew;
+    PSceneSoundEvent psseNew;
     TagChildPair tagc;
 
     tagc.tag = *ptag;
     tagc.chid = chid;
 
-    psseNew = SSE::PsseNew(ctagc + 1);
+    psseNew = SceneSoundEvent::PsseNew(ctagc + 1);
     if (pvNil == psseNew)
         return pvNil;
 
@@ -7273,27 +7273,27 @@ PSSE SSE::PsseAddTagChid(PTAG ptag, long chid)
 }
 
 /***************************************************************************
-    Return a duplicate of this SSE
+    Return a duplicate of this SceneSoundEvent
 ***************************************************************************/
-PSSE SSE::PsseDup(void)
+PSceneSoundEvent SceneSoundEvent::PsseDup(void)
 {
-    PSSE psse;
+    PSceneSoundEvent psse;
     long itagc;
 
-    if (!FAllocPv((void **)&psse, size(SSE) + LwMul(ctagc, size(TagChildPair)), fmemNil, mprNormal))
+    if (!FAllocPv((void **)&psse, size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair)), fmemNil, mprNormal))
     {
         return pvNil;
     }
-    CopyPb(this, psse, size(SSE) + LwMul(ctagc, size(TagChildPair)));
+    CopyPb(this, psse, size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair)));
     for (itagc = 0; itagc < psse->ctagc; itagc++)
         TagManager::DupTag(psse->Ptag(itagc));
     return psse;
 }
 
 /***************************************************************************
-    Play all sounds in this SSE	-> Enqueue the sounds in the SSE
+    Play all sounds in this SceneSoundEvent	-> Enqueue the sounds in the SceneSoundEvent
 ***************************************************************************/
-void SSE::PlayAllSounds(PMovie pmvie, ulong dtsStart)
+void SceneSoundEvent::PlayAllSounds(PMovie pmvie, ulong dtsStart)
 {
     PMSND pmsnd;
     long itag;
