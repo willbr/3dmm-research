@@ -87,7 +87,7 @@ class STBL : public STBL_PAR
         return E_NOTIMPL;
     }
 
-    static PSTBL PstblNew(FLO *pflo, bool fPacked);
+    static PSTBL PstblNew(FileLocation *pflo, bool fPacked);
     long CbMem(void)
     {
         return size(STBL) + _blck.CbMem();

@@ -130,7 +130,7 @@ void SourceEmitter::DumpBlck(PDataBlock pblck)
     AssertThis(fchseDump);
     AssertPo(pblck, 0);
 
-    FLO flo;
+    FileLocation flo;
 
     if (pblck->FPacked())
         DumpSz(PszLit("PREPACKED"));

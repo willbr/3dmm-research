@@ -154,14 +154,14 @@ REVIEW shonk: assert and check for cycles.
 	void ChunkyFile::GetFni(Filename *pfni);
 		Get the file name.
 
-	bool ChunkyFile::FFind(ChunkTag ctg, ChunkNumber cno, FLO *pflo);
+	bool ChunkyFile::FFind(ChunkTag ctg, ChunkNumber cno, FileLocation *pflo);
 		Look for the chunk and fill in *pflo with the location of its data.
 
 	HQ ChunkyFile::HqGet(ChunkTag ctg, ChunkNumber cno);
 		Read the chunk into an hq.  Returns hqNil if there is no such
 		chunk or on memory failure.
 
-	bool ChunkyFile::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, FLO *pflo);
+	bool ChunkyFile::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, FileLocation *pflo);
 		Adds a chunk to the file.  Fills in *pcno with the cno for the
 		chunk and fills in *pflo with the space on file allocated for
 		the chunk.
@@ -173,7 +173,7 @@ REVIEW shonk: assert and check for cycles.
 		if cb is zero.
 
 	bool ChunkyFile::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
-			long cb, ChunkTag ctg, ChunkNumber *pcno, FLO *pflo);
+			long cb, ChunkTag ctg, ChunkNumber *pcno, FileLocation *pflo);
 	bool ChunkyFile::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
 			void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
 	bool ChunkyFile::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
@@ -181,7 +181,7 @@ REVIEW shonk: assert and check for cycles.
 		These atomize the adding of a chunk and adopting the new chunk by
 		(ctgPar, cnoPar).
 
-	bool ChunkyFile::FPut(long cb, ChunkTag ctg, ChunkNumber cno, FLO *pflo);
+	bool ChunkyFile::FPut(long cb, ChunkTag ctg, ChunkNumber cno, FileLocation *pflo);
 		Replaces (or creates) the indicated chunk.  Use this with caution.
 		You may be nuking an existing chunk by calling this.  Preserves
 		any existing children of the node.

@@ -159,7 +159,7 @@ STDMETHODIMP STBL::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *
 /***************************************************************************
     Static method to create a new stream wrapper around a flo.
 ***************************************************************************/
-PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
+PSTBL STBL::PstblNew(FileLocation *pflo, bool fPacked)
 {
     AssertPo(pflo, ffloReadable);
     PSTBL pstbl;
@@ -268,7 +268,7 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    FLO flo;
+    FileLocation flo;
     bool fPacked;
     PCAMS pcams = pvNil;
     PSTBL pstbl = pvNil;

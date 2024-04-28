@@ -59,7 +59,7 @@ class BSM : public BSM_PAR
     }
     void FetchRgb(long ib, long cb, void *prgb);
     bool FReplace(void *prgb, long cbIns, long ib, long cbDel);
-    bool FWriteRgb(PFLO pflo, long ib = 0);
+    bool FWriteRgb(PFileLocation pflo, long ib = 0);
     bool FWriteRgb(PDataBlock pblck, long ib = 0);
 };
 
@@ -83,7 +83,7 @@ class FileByteStream : public FileByteStream_PAR
     long _IfloFind(long ib, long *pib, long *pcb = pvNil);
     bool _FEnsureSplit(long ib, long *piflo = pvNil);
     void _AttemptMerge(long ibMin, long ibLim);
-    bool _FReplaceCore(void *prgb, long cbIns, PFLO pflo, long ib, long cbDel);
+    bool _FReplaceCore(void *prgb, long cbIns, PFileLocation pflo, long ib, long cbDel);
 
   public:
     FileByteStream(void);
@@ -95,9 +95,9 @@ class FileByteStream : public FileByteStream_PAR
     }
     void FetchRgb(long ib, long cb, void *prgb);
     bool FReplace(void *prgb, long cbIns, long ib, long cbDel);
-    bool FReplaceFlo(PFLO pflo, bool fCopy, long ib, long cbDel);
+    bool FReplaceFlo(PFileLocation pflo, bool fCopy, long ib, long cbDel);
     bool FReplaceBsf(PFileByteStream pbsfSrc, long ibSrc, long cbSrc, long ibDst, long cbDel);
-    bool FWriteRgb(PFLO pflo, long ib = 0);
+    bool FWriteRgb(PFileLocation pflo, long ib = 0);
     bool FWriteRgb(PDataBlock pblck, long ib = 0);
     bool FCompact(void);
 };

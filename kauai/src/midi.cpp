@@ -392,7 +392,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
         MIDEV midevCur;
     };
 
-    FLO flo;
+    FileLocation flo;
     FP fp;
     MIDHED midhed;
     MIDCHD midchd;

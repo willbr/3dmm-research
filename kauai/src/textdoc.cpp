@@ -79,7 +79,7 @@ bool TXDC::_FInit(PFilename pfni, PFileByteStream pbsf)
     else if (pvNil != _pfil && _pfil->FpMac() > 0)
     {
         // initialize the FileByteStream to just point to the file
-        FLO flo;
+        FileLocation flo;
 
         flo.pfil = _pfil;
         flo.fp = 0;
@@ -126,7 +126,7 @@ bool TXDC::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
-    FLO flo;
+    FileLocation flo;
     Filename fniT;
 
     if (pvNil == pfni)

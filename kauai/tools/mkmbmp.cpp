@@ -24,7 +24,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fniSrc, fniDst;
     String stn;
     char chs;
-    FLO flo;
+    FileLocation flo;
     long lwSig;
     PMaskedBitmapMBMP pmbmp = pvNil;
     long cfni = 0;

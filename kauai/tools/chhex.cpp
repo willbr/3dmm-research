@@ -1146,7 +1146,7 @@ PDOCH DOCH::PdochNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkN
 ***************************************************************************/
 bool DOCH::_FRead(PDataBlock pblck)
 {
-    FLO flo;
+    FileLocation flo;
     bool fRet;
 
     if (!pblck->FUnpackData())

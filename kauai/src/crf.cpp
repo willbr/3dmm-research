@@ -49,10 +49,10 @@ BaseCacheableObject::~BaseCacheableObject(void)
 }
 
 /***************************************************************************
-    Write the BaseCacheableObject to a FLO - just make the FLO a DataBlock and write to
+    Write the BaseCacheableObject to a FileLocation - just make the FileLocation a DataBlock and write to
     the block.
 ***************************************************************************/
-bool BaseCacheableObject::FWriteFlo(PFLO pflo)
+bool BaseCacheableObject::FWriteFlo(PFileLocation pflo)
 {
     AssertThis(0);
     AssertPo(pflo, 0);

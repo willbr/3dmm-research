@@ -147,7 +147,7 @@ class TextDocumentBase : public TextDocumentBase_PAR
 
     virtual void FetchRgch(long cp, long ccp, achar *prgch);
     virtual bool FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
+    virtual bool FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
                              ulong grfdoc = fdocUpdate);
     virtual bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
     virtual bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
@@ -334,7 +334,7 @@ class RichTextDocument : public RichTextDocument_PAR
     virtual bool _FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
     virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
-    bool _FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
+    bool _FReplaceCore(void *prgch, PFileLocation pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
                        PCHP pchp, PPAP ppap, ulong grfdoc);
 
     static bool _FSprmInAg(byte sprm);
@@ -353,14 +353,14 @@ class RichTextDocument : public RichTextDocument_PAR
                    bool fExpand = fTrue, ulong grfdoc = fdocUpdate);
 
     virtual bool FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
+    virtual bool FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
                              ulong grfdoc = fdocUpdate);
     virtual bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
     virtual bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
                               ulong grfdoc = fdocUpdate);
     bool FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
                       ulong grfdoc = fdocUpdate);
-    bool FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap = pvNil, short osk = koskCur,
+    bool FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap = pvNil, short osk = koskCur,
                      ulong grfdoc = fdocUpdate);
     bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
                      ulong grfdoc = fdocUpdate);

@@ -23,7 +23,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fniSrc, fniDst;
     String stn;
     char chs;
-    FLO floSrc, floDst;
+    FileLocation floSrc, floDst;
     long lwSig;
     DataBlock blck;
     bool fPacked;

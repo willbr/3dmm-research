@@ -15,7 +15,7 @@
 	typedef class FileObject *PFileObject;
 		Low level file class.
 
-	class FLO;
+	class FileLocation;
 		File location class.  Has fields for a pfil, fp and cb.
 		Legal as auto.
 
@@ -188,27 +188,27 @@ check for an error.
 
 
 /****************************************
-	FLO methods
+	FileLocation methods
 ****************************************/
 
-FLO is an auto class: new is illegal; auto, member and global declarations
+FileLocation is an auto class: new is illegal; auto, member and global declarations
 are legal.
 
-	bool FLO::FRead(void *pv);
+	bool FileLocation::FRead(void *pv);
 		Read data from the flo into pv.
 
-	bool FLO::FWrite(void *pv);
+	bool FileLocation::FWrite(void *pv);
 		Write data from pv to the file.
 
-	bool FLO::FReadRgb(void *pv, long cb, FP dfp);
+	bool FileLocation::FReadRgb(void *pv, long cb, FP dfp);
 		Read cb bytes of data from dfp into the flo into pv.  Asserts the
 		range is totally contained within the flo.
 
-	bool FLO::FWriteRgb(void *pv, long cb, FP dfp);
+	bool FileLocation::FWriteRgb(void *pv, long cb, FP dfp);
 		Write cb bytes of data from pv to dfp into the flo.  Asserts the
 		range is totally contained within the flo.
 
-	bool FLO::FCopy(FLO *pfloDest);
+	bool FileLocation::FCopy(FileLocation *pfloDest);
 		Copy data from one flo to the other.  Asserts the cb's are
 		equal.
 

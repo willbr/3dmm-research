@@ -325,7 +325,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
         fRet = fFalse;
         if (pvNil != pfni)
         {
-            FLO flo;
+            FileLocation flo;
 
             if (pvNil == (flo.pfil = FileObject::PfilOpen(pfni)))
                 goto LFail;

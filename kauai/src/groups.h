@@ -107,7 +107,7 @@ class GroupBase : public GroupBase_PAR
     virtual void Delete(long iv) = 0;
 
     // writing
-    virtual bool FWriteFlo(PFLO pflo, short bo = kboCur, short osk = koskCur);
+    virtual bool FWriteFlo(PFileLocation pflo, short bo = kboCur, short osk = koskCur);
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur) = 0;
     virtual long CbOnFile(void) = 0;
 };

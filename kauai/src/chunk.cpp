@@ -594,7 +594,7 @@ bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfil
     AssertNilOrVarMem(pcb);
     CGE cge;
     ECDF ecdf;
-    FLO floSrc, floDst;
+    FileLocation floSrc, floDst;
     ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
     ulong grfcge;
@@ -652,10 +652,10 @@ bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfil
 /***************************************************************************
     Static method to read a serialized chunk stream (as written by a series
     of calls to FWriteChunkTree) and create a ChunkyFile around it. If fCopyData
-    is false, we construct the ChunkyFile to use pointers to the data in the FLO.
+    is false, we construct the ChunkyFile to use pointers to the data in the FileLocation.
     Otherwise, we copy the data to a new file.
 ***************************************************************************/
-PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFLO pflo, bool fCopyData)
+PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData)
 {
     AssertVarMem(pflo);
     AssertPo(pflo->pfil, 0);
@@ -845,7 +845,7 @@ void ChunkyFile::SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest)
 PChunkyFile ChunkyFile::PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData)
 {
     AssertThis(0);
-    FLO flo;
+    FileLocation flo;
 
     if (!FFindFlo(ctg, cno, &flo))
         return pvNil;
@@ -1622,7 +1622,7 @@ bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni)
     AssertNilOrPo(pfni, ffniFile);
 
     Filename fni;
-    FLO floSrc, floDst;
+    FileLocation floSrc, floDst;
     long ccrp, icrp;
     CRP *qcrp;
     PFileObject pfilOld;
@@ -1809,12 +1809,12 @@ bool ChunkyFile::FSaveACopy(ChunkTag ctgCreator, Filename *pfni)
     long icrp, ccrp;
     CRP *pcrp;
     CRP crp;
-    FLO floSrc, floDst;
+    FileLocation floSrc, floDst;
 
     if (pvNil == (pcflDst = ChunkyFile::PcflCreate(pfni, fcflWriteEnable)))
         goto LError;
 
-    // initialize the destination FLO.
+    // initialize the destination FileLocation.
     floDst.pfil = pcflDst->_csto.pfil;
     floDst.fp = size(ChunkyFilePrefix);
 
@@ -1904,7 +1904,7 @@ bool ChunkyFile::FEnsureOnExtra(ChunkTag ctg, ChunkNumber cno)
     Make sure the given chunk's data is on the extra file. Optionally get
     the flo for the data.
 ***************************************************************************/
-bool ChunkyFile::_FEnsureOnExtra(long icrp, FLO *pflo)
+bool ChunkyFile::_FEnsureOnExtra(long icrp, FileLocation *pflo)
 {
     AssertThis(0);
     AssertNilOrVarMem(pflo);
@@ -1923,7 +1923,7 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FLO *pflo)
     }
     else
     {
-        FLO floSrc, floDst;
+        FileLocation floSrc, floDst;
 
 #ifdef CHUNK_STATS
         if (vfDumpChunkRequests)
@@ -1972,9 +1972,9 @@ bool ChunkyFile::_FEnsureOnExtra(long icrp, FLO *pflo)
 }
 
 /***************************************************************************
-    Get the FLO from the chunk.
+    Get the FileLocation from the chunk.
 ***************************************************************************/
-void ChunkyFile::_GetFlo(long icrp, PFLO pflo)
+void ChunkyFile::_GetFlo(long icrp, PFileLocation pflo)
 {
     AssertThis(0);
     AssertVarMem(pflo);
@@ -2012,7 +2012,7 @@ void ChunkyFile::_GetBlck(long icrp, PDataBlock pblck)
     AssertThis(0);
     AssertPo(pblck, 0);
 
-    FLO flo;
+    FileLocation flo;
     CRP *qcrp;
 
     _GetFlo(icrp, &flo);
@@ -2046,7 +2046,7 @@ bool ChunkyFile::FFind(ChunkTag ctg, ChunkNumber cno, DataBlock *pblck)
 /***************************************************************************
     Map the (ctg, cno) to a pflo.
 ***************************************************************************/
-bool ChunkyFile::FFindFlo(ChunkTag ctg, ChunkNumber cno, PFLO pflo)
+bool ChunkyFile::FFindFlo(ChunkTag ctg, ChunkNumber cno, PFileLocation pflo)
 {
     AssertThis(0);
     AssertVarMem(pflo);
@@ -2178,7 +2178,7 @@ bool ChunkyFile::_FCreateExtra(void)
 /***************************************************************************
     Find a place to put a block the given size.
 ***************************************************************************/
-bool ChunkyFile::_FAllocFlo(long cb, PFLO pflo, bool fForceOnExtra)
+bool ChunkyFile::_FAllocFlo(long cb, PFileLocation pflo, bool fForceOnExtra)
 {
     AssertBaseThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -2190,7 +2190,7 @@ bool ChunkyFile::_FAllocFlo(long cb, PFLO pflo, bool fForceOnExtra)
 
     if (cb > kcbMaxCrp)
     {
-        Bug("Requested FLO too big");
+        Bug("Requested FileLocation too big");
         return fFalse;
     }
 
@@ -2492,7 +2492,7 @@ bool ChunkyFile::_FAdd(long cb, ChunkTag ctg, ChunkNumber cno, long icrp, PDataB
     AssertNilOrPo(pblck, 0);
 
     CRP *qcrp;
-    FLO flo;
+    FileLocation flo;
 
     if (!_pggcrp->FInsert(icrp, 0))
     {
@@ -2599,7 +2599,7 @@ bool ChunkyFile::_FPut(long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck,
 
     long icrp;
     CRP *qcrp;
-    FLO flo;
+    FileLocation flo;
 
     if (!_FFindCtgCno(ctg, cno, &icrp))
     {

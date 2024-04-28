@@ -141,7 +141,7 @@ bool TextDocumentBase::_FInit(PFilename pfni, PFileByteStream pbsf, short osk)
 bool TextDocumentBase::_FLoad(short osk)
 {
     // initialize the FileByteStream to just point to the file
-    FLO flo;
+    FileLocation flo;
     bool fRet = fFalse;
 
     if (pvNil == (flo.pfil = _pfil) || 0 == (flo.cb = _pfil->FpMac()))
@@ -752,16 +752,16 @@ bool TextDocumentBase::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpD
 }
 
 /***************************************************************************
-    Replace cp to cp + ccpDel with the characters in the given FLO.
+    Replace cp to cp + ccpDel with the characters in the given FileLocation.
 ***************************************************************************/
-bool TextDocumentBase::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
+bool TextDocumentBase::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pflo, 0);
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     bool fRet = fFalse;
-    FLO flo = *pflo;
+    FileLocation flo = *pflo;
 
     flo.pfil->AddRef();
     if (flo.FTranslate(osk) &&
@@ -931,7 +931,7 @@ bool PlainTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(fobjAssertFull);
     AssertNilOrPo(pfni, ffniFile);
-    FLO flo;
+    FileLocation flo;
     Filename fniT;
 
     if (pvNil == pfni)
@@ -1128,7 +1128,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber c
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
-    FLO floText;
+    FileLocation floText;
     PFileObject pfilT;
     ChildChunkIdentification kid;
     long icact;
@@ -1409,7 +1409,7 @@ bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki,
 
     if (fRedirectText)
     {
-        FLO flo;
+        FileLocation flo;
         AssertDo(blckText.FGetFlo(&flo), 0);
         _pbsf->FReplaceFlo(&flo, fFalse, 0, _pbsf->IbMac() - size(achar));
         ReleasePpo(&flo.pfil);
@@ -2530,7 +2530,7 @@ bool RichTextDocument::FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpD
     using the given chp and pap. If ccpIns is zero, prgch can be nil. pchp
     and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
+bool RichTextDocument::_FReplaceCore(void *prgch, PFileLocation pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
                          PCHP pchp, PPAP ppap, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
@@ -2625,16 +2625,16 @@ bool RichTextDocument::_FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PFileBy
 }
 
 /***************************************************************************
-    Replace cp to cp + ccpDel with the characters in the given FLO.
+    Replace cp to cp + ccpDel with the characters in the given FileLocation.
 ***************************************************************************/
-bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
+bool RichTextDocument::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, short osk, ulong grfdoc)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pflo, 0);
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     long ccpIns;
-    FLO flo = *pflo;
+    FileLocation flo = *pflo;
 
     flo.pfil->AddRef();
     if (!flo.FTranslate(osk))
@@ -2667,10 +2667,10 @@ bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, 
 }
 
 /***************************************************************************
-    Replace cp to cp + ccpDel with the characters in the given FLO, using
+    Replace cp to cp + ccpDel with the characters in the given FileLocation, using
     the given chp and pap. pchp and/or ppap can be nil.
 ***************************************************************************/
-bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap, short osk, ulong grfdoc)
+bool RichTextDocument::FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap, short osk, ulong grfdoc)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -2679,7 +2679,7 @@ bool RichTextDocument::FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, 
     AssertNilOrVarMem(pchp);
     AssertNilOrVarMem(ppap);
     bool fRet;
-    FLO flo = *pflo;
+    FileLocation flo = *pflo;
 
     flo.pfil->AddRef();
     fRet = flo.FTranslate(osk) && _FReplaceCore(pvNil, &flo, fCopy && pflo->pfil == flo.pfil, pvNil, 0, pflo->cb, cp,

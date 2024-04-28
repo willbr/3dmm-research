@@ -16,7 +16,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fniSrc, fniDst;
     Filename fniPalette;
     String stn;
-    FLO floSrc;
+    FileLocation floSrc;
     long lwSig;
     DataBlock blck;
     bool fPacked;

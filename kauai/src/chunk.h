@@ -129,7 +129,7 @@ class ChunkyFile : public ChunkyFile_PAR
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTag ctgCreator);
     bool _FCreateExtra(void);
-    bool _FAllocFlo(long cb, PFLO pflo, bool fForceOnExtra = fFalse);
+    bool _FAllocFlo(long cb, PFileLocation pflo, bool fForceOnExtra = fFalse);
     bool _FFindCtgCno(ChunkTag ctg, ChunkNumber cno, long *picrp);
     void _GetUniqueCno(ChunkTag ctg, long *picrp, ChunkNumber *pcno);
     void _FreeFpCb(bool fOnExtra, FP fp, long cb);
@@ -146,9 +146,9 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FFindChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
     bool _FSetName(long icrp, PString pstn);
     bool _FGetName(long icrp, PString pstn);
-    void _GetFlo(long icrp, PFLO pflo);
+    void _GetFlo(long icrp, PFileLocation pflo);
     void _GetBlck(long icrp, PDataBlock pblck);
-    bool _FEnsureOnExtra(long icrp, FLO *pflo = pvNil);
+    bool _FEnsureOnExtra(long icrp, FileLocation *pflo = pvNil);
 
     long _Rti(ChunkTag ctg, ChunkNumber cno);
     bool _FSetRti(ChunkTag ctg, ChunkNumber cno, long rti);
@@ -200,7 +200,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool FOnExtra(ChunkTag ctg, ChunkNumber cno);
     bool FEnsureOnExtra(ChunkTag ctg, ChunkNumber cno);
     bool FFind(ChunkTag ctg, ChunkNumber cno, DataBlock *pblck = pvNil);
-    bool FFindFlo(ChunkTag ctg, ChunkNumber cno, PFLO pflo);
+    bool FFindFlo(ChunkTag ctg, ChunkNumber cno, PFileLocation pflo);
     bool FReadHq(ChunkTag ctg, ChunkNumber cno, HQ *phq);
     void SetPacked(ChunkTag ctg, ChunkNumber cno, bool fPacked);
     bool FPacked(ChunkTag ctg, ChunkNumber cno);
@@ -259,7 +259,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
     // Serialized chunk forests
     bool FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfilDst, FP fpDst, long *pcb);
-    static PChunkyFile PcflReadForestFromFlo(PFLO pflo, bool fCopyData);
+    static PChunkyFile PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData);
     bool FForest(ChunkTag ctg, ChunkNumber cno);
     void SetForest(ChunkTag ctg, ChunkNumber cno, bool fForest = fTrue);
     PChunkyFile PcflReadForest(ChunkTag ctg, ChunkNumber cno, bool fCopyData);

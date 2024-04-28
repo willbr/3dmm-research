@@ -134,7 +134,7 @@ bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 }
 
 /***************************************************************************
-    Write a TextureMap to the given FLO
+    Write a TextureMap to the given FileLocation
 ***************************************************************************/
 bool TextureMap::FWrite(PDataBlock pblck)
 {
@@ -339,7 +339,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsn
     bool fRet = fFalse;
     long lwSig;
     PSZ pszErr = pvNil;
-    FLO flo;
+    FileLocation flo;
 
     if (pvNil == (flo.pfil = FileObject::PfilCreate(pfniDst)))
     {

@@ -211,8 +211,8 @@ bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long 
 
     MovieSoundFile msndf;
     ChunkNumber cno;
-    FLO floSrc;
-    FLO floDest;
+    FileLocation floSrc;
+    FileLocation floDest;
 
     msndf.bo = kboCur;
     msndf.osk = koskCur;

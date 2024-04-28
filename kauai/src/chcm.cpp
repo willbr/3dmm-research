@@ -633,7 +633,7 @@ void Compiler::_ParseBodyFile(void)
 {
     AssertThis(0);
     Filename fni;
-    FLO floSrc;
+    FileLocation floSrc;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -909,7 +909,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     Filename fni;
     DataBlock blck;
-    FLO floSrc;
+    FileLocation floSrc;
     Token tok;
     long ccurdir, cbBits;
     CURF curf;
@@ -1725,7 +1725,7 @@ void Compiler::_EndSubFile(void)
         }
         else
         {
-            FLO floDst;
+            FileLocation floDst;
 
             // resize the chunk
             if (!csfc.pcfl->FPut(cbTot, csfc.ctg, csfc.cno))
@@ -1993,7 +1993,7 @@ PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pm
     AssertPo(pmsnk, 0);
     FileByteStream bsfSrc;
     String stnFile;
-    FLO flo;
+    FileLocation flo;
     bool fRet;
 
     if (pvNil == (flo.pfil = FileObject::PfilOpen(pfniSrc)))

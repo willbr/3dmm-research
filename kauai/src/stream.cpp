@@ -131,7 +131,7 @@ bool BSM::FReplace(void *prgb, long cbIns, long ib, long cbDel)
 /***************************************************************************
     Write the byte stream to a file.
 ***************************************************************************/
-bool BSM::FWriteRgb(PFLO pflo, long ib)
+bool BSM::FWriteRgb(PFileLocation pflo, long ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -238,7 +238,7 @@ FileByteStream::~FileByteStream(void)
 {
     AssertThis(fobjAssertFull);
     long iflo;
-    FLO flo;
+    FileLocation flo;
 
     if (0 < _ibMac)
     {
@@ -264,7 +264,7 @@ long FileByteStream::_IfloFind(long ib, long *pib, long *pcb)
     AssertVarMem(pib);
     AssertNilOrVarMem(pcb);
     long iflo, cb;
-    FLO flo;
+    FileLocation flo;
 
     iflo = 0;
     if (_ibMac > 0)
@@ -297,11 +297,11 @@ bool FileByteStream::_FEnsureSplit(long ib, long *piflo)
     AssertIn(ib, 0, _ibMac + 1);
     AssertNilOrVarMem(piflo);
     long iflo, ibMin, cbT;
-    FLO flo;
+    FileLocation flo;
 
     if (pvNil == _pggflo)
     {
-        if (pvNil == (_pggflo = GeneralGroup::PggNew(size(FLO))))
+        if (pvNil == (_pggflo = GeneralGroup::PggNew(size(FileLocation))))
             return fFalse;
         // REVIEW shonk: what values should we use for SetMinGrow?
         //_pggflo->SetMinGrow(2, 100);
@@ -356,7 +356,7 @@ void FileByteStream::_AttemptMerge(long ibMin, long ibLim)
     AssertIn(ibMin, 0, _ibMac + 1);
     AssertIn(ibLim, ibMin, _ibMac + 1);
     long iflo, ib;
-    FLO flo, floT;
+    FileLocation flo, floT;
 
     if (pvNil == _pggflo)
         return;
@@ -404,7 +404,7 @@ bool FileByteStream::FReplaceBsf(PFileByteStream pbsfSrc, long ibSrc, long cbSrc
     long ifloMinSrc, ifloLimSrc, ifloMinWhole, ifloDst, iflo;
     long ibMinSrc, ibLimSrc, ibMinWhole, ib;
     long cbMinFlo, cbLimFlo, cbIns, cbT;
-    FLO flo;
+    FileLocation flo;
     byte *pb;
     bool fRet;
 
@@ -541,7 +541,7 @@ bool FileByteStream::FReplace(void *prgb, long cbIns, long ib, long cbDel)
     AssertPvCb(prgb, cbIns);
     long ibT;
     long iflo, cbT;
-    FLO flo;
+    FileLocation flo;
 
     if (cbDel == 0 && cbIns == 0)
         return fTrue;
@@ -673,14 +673,14 @@ LTryMerge:
 /***************************************************************************
     Replace the range [ib, ib + cbDel) with the flo.
 ***************************************************************************/
-bool FileByteStream::FReplaceFlo(PFLO pflo, bool fCopy, long ib, long cbDel)
+bool FileByteStream::FReplaceFlo(PFileLocation pflo, bool fCopy, long ib, long cbDel)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pflo, ffloReadable);
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(cbDel, 0, _ibMac - ib + 1);
     long iflo;
-    FLO flo;
+    FileLocation flo;
     bool fRet;
 
     if (pflo->cb <= 0)
@@ -747,7 +747,7 @@ void FileByteStream::FetchRgb(long ib, long cb, void *prgb)
     AssertIn(cb, 0, _ibMac - ib + 1);
     AssertPvCb(prgb, cb);
     long iflo, cbT, ibMin;
-    FLO flo;
+    FileLocation flo;
 
     iflo = _IfloFind(ib, &ibMin);
     ib -= ibMin;
@@ -783,7 +783,7 @@ void FileByteStream::FetchRgb(long ib, long cb, void *prgb)
 /***************************************************************************
     Write a portion of a FileByteStream to the given flo.
 ***************************************************************************/
-bool FileByteStream::FWriteRgb(PFLO pflo, long ib)
+bool FileByteStream::FWriteRgb(PFileLocation pflo, long ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -802,7 +802,7 @@ bool FileByteStream::FWriteRgb(PDataBlock pblck, long ib)
     AssertIn(ib, 0, _ibMac + 1);
     AssertIn(pblck->Cb(), 0, kcbMax);
     long iflo;
-    FLO flo;
+    FileLocation flo;
     long cb, ibT, ibDst;
     long cbWrite = pblck->Cb();
     bool fRet = fTrue;
@@ -865,7 +865,7 @@ bool FileByteStream::FWriteRgb(PDataBlock pblck, long ib)
 bool FileByteStream::FCompact(void)
 {
     AssertThis(fobjAssertFull);
-    FLO flo;
+    FileLocation flo;
     bool fRet = fFalse;
 
     if (_ibMac == 0 || _pggflo->IvMac() == 1 && _pggflo->Cb(1) == 0)
@@ -907,7 +907,7 @@ void FileByteStream::AssertValid(ulong grfobj)
         return;
 
     long cb, cbT, iflo;
-    FLO flo;
+    FileLocation flo;
 
     for (cb = 0, iflo = _pggflo->IvMac(); iflo-- > 0;)
     {

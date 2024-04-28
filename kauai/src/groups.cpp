@@ -173,7 +173,7 @@ bool GroupBase::_FDup(PGroupBase pgrpbDst, long cb1, long cb2)
 /***************************************************************************
     Write a group to a flo.
 ***************************************************************************/
-bool GroupBase::FWriteFlo(PFLO pflo, short bo, short osk)
+bool GroupBase::FWriteFlo(PFileLocation pflo, short bo, short osk)
 {
     DataBlock blck(pflo);
     return FWrite(&blck, bo, osk);

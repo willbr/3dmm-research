@@ -127,7 +127,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     if (fPreOrder)
     {
-        FLO floSrc, floDst;
+        FileLocation floSrc, floDst;
 
         if (!pcflMerge->FSave('CHMR'))
             goto LFail;

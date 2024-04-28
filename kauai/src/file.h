@@ -177,8 +177,8 @@ enum
     ffloReadable,
 };
 
-typedef struct FLO *PFLO;
-struct FLO
+typedef struct FileLocation *PFileLocation;
+struct FileLocation
 {
     PFileObject pfil;
     FP fp;
@@ -194,7 +194,7 @@ struct FLO
     }
     bool FReadRgb(void *pv, long cbRead, FP dfp);
     bool FWriteRgb(void *pv, long cbWrite, FP dfp);
-    bool FCopy(PFLO pfloDst);
+    bool FCopy(PFileLocation pfloDst);
     bool FReadHq(HQ *phq, long cbRead, FP dfp = 0);
     bool FWriteHq(HQ hq, FP dfp = 0);
     bool FReadHq(HQ *phq)
@@ -233,7 +233,7 @@ class DataBlock : public DataBlock_PAR
     bool _fPacked;
 
     // for file based blocks
-    FLO _flo;
+    FileLocation _flo;
 
     // for memory based blocks
     HQ _hq;
@@ -241,13 +241,13 @@ class DataBlock : public DataBlock_PAR
     long _ibLim;
 
   public:
-    DataBlock(PFLO pflo, bool fPacked = fFalse);
+    DataBlock(PFileLocation pflo, bool fPacked = fFalse);
     DataBlock(PFileObject pfil, FP fp, long cb, bool fPacked = fFalse);
     DataBlock(HQ *phq, bool fPacked = fFalse);
     DataBlock(void);
     ~DataBlock(void);
 
-    void Set(PFLO pflo, bool fPacked = fFalse);
+    void Set(PFileLocation pflo, bool fPacked = fFalse);
     void Set(PFileObject pfil, FP fp, long cb, bool fPacked = fFalse);
     void SetHq(HQ *phq, bool fPacked = fFalse);
     void Free(void);
@@ -280,9 +280,9 @@ class DataBlock : public DataBlock_PAR
     }
 
     // writing a block to a flo or another blck.
-    bool FWriteToFlo(PFLO pfloDst, bool fPackedOk = fFalse);
+    bool FWriteToFlo(PFileLocation pfloDst, bool fPackedOk = fFalse);
     bool FWriteToBlck(PDataBlock pblckDst, bool fPackedOk = fFalse);
-    bool FGetFlo(PFLO pflo, bool fPackedOk = fFalse);
+    bool FGetFlo(PFileLocation pflo, bool fPackedOk = fFalse);
 
     // packing and unpacking
     bool FPacked(long *pcfmt = pvNil);

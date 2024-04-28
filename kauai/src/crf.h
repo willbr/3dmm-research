@@ -86,7 +86,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     // chunky file.  Here are some useful prototypes so that the users of those
     // objects don't need to know what the actual class is.
     virtual bool FWrite(PDataBlock pblck);
-    virtual bool FWriteFlo(PFLO pflo);
+    virtual bool FWriteFlo(PFileLocation pflo);
     virtual long CbOnFile(void);
 };
 

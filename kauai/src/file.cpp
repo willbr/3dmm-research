@@ -365,7 +365,7 @@ priv bool _FRangeIn(long cbTot, long cb, long ib)
 /***************************************************************************
     Read a piece of a flo into pv.
 ***************************************************************************/
-bool FLO::FReadRgb(void *pv, long cbRead, FP dfp)
+bool FileLocation::FReadRgb(void *pv, long cbRead, FP dfp)
 {
     AssertThis(ffloReadable);
 
@@ -383,7 +383,7 @@ bool FLO::FReadRgb(void *pv, long cbRead, FP dfp)
 /***************************************************************************
     Write a piece of a flo from pv.
 ***************************************************************************/
-bool FLO::FWriteRgb(void *pv, long cbWrite, FP dfp)
+bool FileLocation::FWriteRgb(void *pv, long cbWrite, FP dfp)
 {
     AssertThis(0);
 
@@ -401,7 +401,7 @@ bool FLO::FWriteRgb(void *pv, long cbWrite, FP dfp)
 /***************************************************************************
     Copy data from this flo to another.
 ***************************************************************************/
-bool FLO::FCopy(PFLO pfloDst)
+bool FileLocation::FCopy(PFileLocation pfloDst)
 {
     AssertThis(ffloReadable);
     AssertPo(pfloDst, 0);
@@ -445,7 +445,7 @@ LFail:
 /***************************************************************************
     Allocate an hq and read the flo into it.
 ***************************************************************************/
-bool FLO::FReadHq(HQ *phq, long cbRead, FP dfp)
+bool FileLocation::FReadHq(HQ *phq, long cbRead, FP dfp)
 {
     AssertThis(ffloReadable);
     AssertVarMem(phq);
@@ -469,7 +469,7 @@ bool FLO::FReadHq(HQ *phq, long cbRead, FP dfp)
 /***************************************************************************
     Write the contents of an hq to the flo.
 ***************************************************************************/
-bool FLO::FWriteHq(HQ hq, long dfp)
+bool FileLocation::FWriteHq(HQ hq, long dfp)
 {
     AssertThis(0);
     AssertHq(hq);
@@ -492,7 +492,7 @@ bool FLO::FWriteHq(HQ hq, long dfp)
     If the text changes, creates a temp file and redirects the flo to the
     temp file (and releases a ref count on the pfil).
 ***************************************************************************/
-bool FLO::FTranslate(short osk)
+bool FileLocation::FTranslate(short osk)
 {
     AssertThis(0);
     short oskSig;
@@ -609,9 +609,9 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert this is a valif FLO.
+    Assert this is a valif FileLocation.
 ***************************************************************************/
-void FLO::AssertValid(ulong grfflo)
+void FileLocation::AssertValid(ulong grfflo)
 {
     AssertPo(pfil, 0);
     AssertIn(fp, 0, kcbMax);
@@ -630,7 +630,7 @@ void FLO::AssertValid(ulong grfflo)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(PFLO pflo, bool fPacked)
+DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pflo, 0);
@@ -702,7 +702,7 @@ DataBlock::~DataBlock(void)
 /***************************************************************************
     Set the data block to refer to the given flo.
 ***************************************************************************/
-void DataBlock::Set(PFLO pflo, bool fPacked)
+void DataBlock::Set(PFileLocation pflo, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -1045,7 +1045,7 @@ bool DataBlock::FWriteHq(HQ hq, long ib, bool fPackedOk)
 /***************************************************************************
     Write the block to a flo.
 ***************************************************************************/
-bool DataBlock::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
+bool DataBlock::FWriteToFlo(PFileLocation pfloDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pfloDst, 0);
@@ -1114,7 +1114,7 @@ bool DataBlock::FWriteToBlck(PDataBlock pblckDst, bool fPackedOk)
 /***************************************************************************
     Get a flo to the data in the block.
 ***************************************************************************/
-bool DataBlock::FGetFlo(PFLO pflo, bool fPackedOk)
+bool DataBlock::FGetFlo(PFileLocation pflo, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(pflo);
