@@ -3730,27 +3730,27 @@ bool ChunkyFile::_FFindChild(long icrpPar, ChunkTag ctgChild, ChunkNumber cnoChi
 }
 
 // cno map entry
-struct CNOM
+struct ChunkNumberMapEntry
 {
     ChunkTag ctg;
     ChunkNumber cnoSrc;
     ChunkNumber cnoDst;
 };
 
-bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom = pvNil, long *picnom = pvNil);
-bool _FAddCnom(PDynamicArray *ppglcnom, CNOM *pcnom);
+bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom = pvNil, long *picnom = pvNil);
+bool _FAddCnom(PDynamicArray *ppglcnom, ChunkNumberMapEntry *pcnom);
 
 /***************************************************************************
     Look for a cnom for the given (ctg, cno). Whether or not it exists,
     fill *picnom with where it would go in the pglcnom.
 ***************************************************************************/
-bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcnom, long *picnom)
+bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, ChunkNumberMapEntry *pcnom, long *picnom)
 {
     AssertNilOrPo(pglcnom, 0);
     AssertNilOrVarMem(pcnom);
     AssertNilOrVarMem(picnom);
     long ivMin, ivLim, iv;
-    CNOM cnom;
+    ChunkNumberMapEntry cnom;
 
     if (pvNil == pglcnom)
     {
@@ -3791,14 +3791,14 @@ bool _FFindCnom(PDynamicArray pglcnom, ChunkTag ctg, ChunkNumber cno, CNOM *pcno
 /***************************************************************************
     Add a cnom to the *ppglcnom. Allocated *ppglcnom if it is nil.
 ***************************************************************************/
-bool _FAddCnom(PDynamicArray *ppglcnom, CNOM *pcnom)
+bool _FAddCnom(PDynamicArray *ppglcnom, ChunkNumberMapEntry *pcnom)
 {
     AssertVarMem(ppglcnom);
     AssertNilOrPo(*ppglcnom, 0);
     AssertVarMem(pcnom);
     long icnom;
 
-    if (pvNil == *ppglcnom && pvNil == (*ppglcnom = DynamicArray::PglNew(size(CNOM))))
+    if (pvNil == *ppglcnom && pvNil == (*ppglcnom = DynamicArray::PglNew(size(ChunkNumberMapEntry))))
         return fFalse;
 
     AssertDo(!_FFindCnom(*ppglcnom, pcnom->ctg, pcnom->cnoSrc, pvNil, &icnom), "why is this cnom already in the gl?");
@@ -3825,7 +3825,7 @@ bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst
     ChunkIdentification ckiPar;
     DataBlock blckSrc;
     ulong grfcge, grfcgeIn;
-    CNOM cnom, cnomPar;
+    ChunkNumberMapEntry cnom, cnomPar;
     String stn;
     ChunkRepresentation *qcrp;
 
