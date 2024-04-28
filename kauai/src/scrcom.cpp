@@ -2546,7 +2546,7 @@ void CompilerBase::_CompileIn(void)
 }
 
 /***************************************************************************
-    Disassemble the script into a message sink (MSNK) and return whether
+    Disassemble the script into a message sink (MessageSink) and return whether
     there was an error.
 ***************************************************************************/
 bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)

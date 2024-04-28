@@ -6,7 +6,7 @@
     Project: Kauai
     Copyright (c) Microsoft Corporation
 
-    A message sink (MSNK) wrapper around a stdio file.
+    A message sink (MessageSink) wrapper around a stdio file.
 
 ***************************************************************************/
 #include <stdio.h>

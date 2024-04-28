@@ -296,12 +296,12 @@ class DataBlock : public DataBlock_PAR
 /***************************************************************************
     Message sink class. Basic interface for output streaming.
 ***************************************************************************/
-typedef class MSNK *PMSNK;
-#define MSNK_PAR BASE
-#define kclsMSNK 'MSNK'
-class MSNK : public MSNK_PAR
+typedef class MessageSink *PMSNK;
+#define MessageSink_PAR BASE
+#define kclsMessageSink 'MSNK'
+class MessageSink : public MessageSink_PAR
 {
-    RTCLASS_INLINE(MSNK)
+    RTCLASS_INLINE(MessageSink)
 
   public:
     virtual void ReportLine(PSZ psz) = 0;
@@ -313,7 +313,7 @@ class MSNK : public MSNK_PAR
     File based message sink.
 ***************************************************************************/
 typedef class MSFIL *PMSFIL;
-#define MSFIL_PAR MSNK
+#define MSFIL_PAR MessageSink
 #define kclsMSFIL 'msfl'
 class MSFIL : public MSFIL_PAR
 {
