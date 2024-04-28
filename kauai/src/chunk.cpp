@@ -263,7 +263,7 @@ const ByteOrderMask kbomCrpsm = 0xFF500000L;
 #ifdef CHUNK_BIG_INDEX
 
 typedef CRPBG ChunkRepresentation;
-typedef CRPSM CRPOTH;
+typedef CRPSM ChunkRepresentationOther;
 const long kcbMaxCrp = kcbMaxCrpbg;
 typedef long CKID;
 const long kckidMax = kcbMax;
@@ -272,7 +272,7 @@ const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
 #else //! CHUNK_BIG_INDEX
 
 typedef CRPSM ChunkRepresentation;
-typedef CRPBG CRPOTH;
+typedef CRPBG ChunkRepresentationOther;
 const long kcbMaxCrp = kcbMaxCrpsm;
 typedef ushort CKID;
 const long kckidMax = ksuMax;
@@ -1524,7 +1524,7 @@ bool ChunkyFile::_FReadIndex(void)
     {
         // need to convert the index (from big to small or small to big)
         PGeneralGroup pggcrp;
-        CRPOTH *pcrpOld;
+        ChunkRepresentationOther *pcrpOld;
         ChunkRepresentation crp;
 
         if (pvNil == (pggcrp = GeneralGroup::PggNew(size(ChunkRepresentation), _pggcrp->IvMac())))
@@ -1532,7 +1532,7 @@ bool ChunkyFile::_FReadIndex(void)
 
         for (ccrp = _pggcrp->IvMac(), icrp = 0; icrp < ccrp; icrp++)
         {
-            pcrpOld = (CRPOTH *)_pggcrp->QvFixedGet(icrp, &cbVar);
+            pcrpOld = (ChunkRepresentationOther *)_pggcrp->QvFixedGet(icrp, &cbVar);
             crp.cki = pcrpOld->cki;
             crp.fp = pcrpOld->fp;
             crp.SetCb(pcrpOld->Cb());
