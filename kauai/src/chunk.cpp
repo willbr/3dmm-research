@@ -661,7 +661,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     AssertPo(pflo->pfil, 0);
 
     // embedded chunk stack descriptor
-    struct ECSD
+    struct EmbeddedChunkStackDescriptor
     {
         ChunkTag ctg;
         ChunkNumber cno;
@@ -670,11 +670,11 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
 
     PChunkyFile pcfl;
     EmbeddedChunkDescriptorOnFile ecdf;
-    ECSD ecsdT, ecsdCur;
+    EmbeddedChunkStackDescriptor ecsdT, ecsdCur;
     FilePosition fpSrc, fpLimSrc;
     PDynamicArray pglecsd = pvNil;
 
-    if (pvNil == (pglecsd = DynamicArray::PglNew(size(ECSD))))
+    if (pvNil == (pglecsd = DynamicArray::PglNew(size(EmbeddedChunkStackDescriptor))))
         goto LFail;
 
     if ((pcfl = NewObj ChunkyFile()) == pvNil)
