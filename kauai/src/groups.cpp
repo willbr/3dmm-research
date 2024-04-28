@@ -1086,7 +1086,7 @@ VirtualGroup::VirtualGroup(long cbFixed, bool fAllowFree)
     // use some reasonable values for _cbMinGrow* - code can always set
     // set these to something else
     _cbMinGrow1 = LwMin(1024, 16 * cbFixed);
-    _cbMinGrow2 = 16 * size(LOC);
+    _cbMinGrow2 = 16 * size(LogicalOffsetAndCount);
     AssertThis(fobjAssertFull);
 }
 
@@ -1099,7 +1099,7 @@ bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
     AssertPo(pggbDst, fobjAssertFull);
     Assert(_cbFixed == pggbDst->_cbFixed, "why do these have different sized fixed portions?");
 
-    if (!VirtualGroup_PAR::_FDup(pggbDst, _bvMac, LwMul(_ivMac, size(LOC))))
+    if (!VirtualGroup_PAR::_FDup(pggbDst, _bvMac, LwMul(_ivMac, size(LogicalOffsetAndCount))))
         return fFalse;
 
     pggbDst->_bvMac = _bvMac;
@@ -1128,7 +1128,7 @@ const ByteOrderMask kbomGgf = 0x5FF00000L;
 long VirtualGroup::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
-    return size(GGF) + LwMul(_ivMac, size(LOC)) + _bvMac;
+    return size(GGF) + LwMul(_ivMac, size(LogicalOffsetAndCount)) + _bvMac;
 }
 
 /***************************************************************************
@@ -1151,20 +1151,20 @@ bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
     ggf.bvMac = _bvMac;
     ggf.clocFree = _clocFree;
     ggf.cbFixed = _cbFixed;
-    AssertBomRglw(kbomLoc, size(LOC));
+    AssertBomRglw(kbomLoc, size(LogicalOffsetAndCount));
     if (kboOther == bo)
     {
         // swap the stuff
         SwapBytesBom(&ggf, kbomGgf);
         Assert(ggf.bo == bo, "wrong bo");
         Assert(ggf.osk == osk, "osk not invariant under byte swapping");
-        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LOC), size(long)));
+        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LogicalOffsetAndCount), size(long)));
     }
-    fRet = _FWrite(pblck, &ggf, size(ggf), _bvMac, LwMul(_ivMac, size(LOC)));
+    fRet = _FWrite(pblck, &ggf, size(ggf), _bvMac, LwMul(_ivMac, size(LogicalOffsetAndCount)));
     if (kboOther == bo)
     {
         // swap the rgloc back
-        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LOC), size(long)));
+        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LogicalOffsetAndCount), size(long)));
     }
     return fRet;
 }
@@ -1204,7 +1204,7 @@ bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
         SwapBytesBom(&ggf, kbomGgf);
 
     cb -= size(ggf);
-    cbT = ggf.ilocMac * size(LOC);
+    cbT = ggf.ilocMac * size(LogicalOffsetAndCount);
     if (ggf.bo != kboCur || ggf.bvMac < 0 || ggf.ilocMac < 0 || cb != cbT + ggf.bvMac || ggf.cbFixed < 0 ||
         ggf.cbFixed >= kcbMax || (ggf.clocFree == cvNil) != (_clocFree == cvNil) ||
         ggf.clocFree != cvNil && (ggf.clocFree < 0 || ggf.clocFree >= ggf.ilocMac))
@@ -1219,11 +1219,11 @@ bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
     _clocFree = ggf.clocFree;
     _cbFixed = ggf.cbFixed;
     fRet = _FReadData(pblck, cb - cbT, cbT, size(ggf));
-    AssertBomRglw(kbomLoc, size(LOC));
+    AssertBomRglw(kbomLoc, size(LogicalOffsetAndCount));
     if (bo == kboOther && fRet)
     {
         // adjust the byte order on the loc's.
-        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LOC), size(long)));
+        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LogicalOffsetAndCount), size(long)));
     }
 
 LFail:
@@ -1239,7 +1239,7 @@ bool VirtualGroup::FFree(long iv)
 {
     AssertBaseThis(0);
     AssertIn(iv, 0, kcbMax);
-    LOC *qloc;
+    LogicalOffsetAndCount *qloc;
 
     if (!FIn(iv, 0, _ivMac))
         return fTrue;
@@ -1270,14 +1270,14 @@ bool VirtualGroup::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
         clocAdd = LwMax(0, cvAdd - _clocFree);
 
     // we waste at most (size(long) - 1) bytes per element
-    if (clocAdd > kcbMax / size(LOC) - _ivMac || cvAdd > (kcbMax / (_cbFixed + size(long) - 1)) - _bvMac ||
+    if (clocAdd > kcbMax / size(LogicalOffsetAndCount) - _ivMac || cvAdd > (kcbMax / (_cbFixed + size(long) - 1)) - _bvMac ||
         cbAdd > kcbMax - _bvMac - cvAdd * (_cbFixed + size(long) - 1))
     {
         Bug("why is this group growing so large?");
         return fFalse;
     }
 
-    return _FEnsureSizes(_bvMac + cbAdd + LwMul(cvAdd, _cbFixed + size(long) - 1), LwMul(_ivMac + clocAdd, size(LOC)),
+    return _FEnsureSizes(_bvMac + cbAdd + LwMul(cvAdd, _cbFixed + size(long) - 1), LwMul(_ivMac + clocAdd, size(LogicalOffsetAndCount)),
                          grfgrp);
 }
 
@@ -1291,7 +1291,7 @@ void VirtualGroup::SetMinGrow(long cvAdd, long cbAdd)
     AssertIn(cbAdd, 0, kcbMax);
 
     _cbMinGrow1 = CbRoundToLong(cbAdd + LwMul(cvAdd, _cbFixed + size(long) - 1));
-    _cbMinGrow2 = LwMul(cvAdd, size(LOC));
+    _cbMinGrow2 = LwMul(cvAdd, size(LogicalOffsetAndCount));
 }
 
 /***************************************************************************
@@ -1327,7 +1327,7 @@ void VirtualGroup::_AdjustLocs(long bvMin, long bvLim, long dcb)
     AssertIn(dcb, -_bvMac, kcbMax);
     Assert((dcb % size(long)) == 0, "dcb not divisible by size(long)");
     long cloc;
-    LOC *qloc;
+    LogicalOffsetAndCount *qloc;
 
     if (FIn(_bvMac, bvMin, bvLim))
         _bvMac += dcb;
@@ -1353,7 +1353,7 @@ void *VirtualGroup::QvFixedGet(long iv, long *pcbVar)
     Assert(!FFree(iv), "element free!");
     AssertNilOrVarMem(pcbVar);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     loc = *_Qloc(iv);
     if (pcbVar != pvNil)
@@ -1383,7 +1383,7 @@ void VirtualGroup::GetFixed(long iv, void *pv)
     Assert(!FFree(iv), "element free!");
     AssertPvCb(pv, _cbFixed);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     loc = *_Qloc(iv);
     AssertIn(loc.cb, _cbFixed, _bvMac - loc.bv + 1);
@@ -1401,7 +1401,7 @@ void VirtualGroup::PutFixed(long iv, void *pv)
     Assert(!FFree(iv), "element free!");
     AssertPvCb(pv, _cbFixed);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     loc = *_Qloc(iv);
     AssertIn(loc.cb, _cbFixed, _bvMac - loc.bv + 1);
@@ -1433,7 +1433,7 @@ void *VirtualGroup::QvGet(long iv, long *pcb)
     Assert(!FFree(iv), "element free!");
     AssertNilOrVarMem(pcb);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     loc = *_Qloc(iv);
     if (pcb != pvNil)
@@ -1463,7 +1463,7 @@ void VirtualGroup::Get(long iv, void *pv)
     AssertIn(iv, 0, _ivMac);
     Assert(!FFree(iv), "element free!");
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     loc = *_Qloc(iv);
     AssertPvCb(pv, loc.cb - _cbFixed);
@@ -1479,7 +1479,7 @@ void VirtualGroup::Put(long iv, void *pv)
     AssertIn(iv, 0, _ivMac);
     Assert(!FFree(iv), "element free!");
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     loc = *_Qloc(iv);
     AssertPvCb(pv, loc.cb - _cbFixed);
@@ -1527,7 +1527,7 @@ void VirtualGroup::GetRgb(long iv, long bv, long cb, void *pv)
     Assert(!FFree(iv), "element free!");
     AssertPvCb(pv, cb);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     bv += _cbFixed;
     loc = *_Qloc(iv);
@@ -1547,7 +1547,7 @@ void VirtualGroup::PutRgb(long iv, long bv, long cb, void *pv)
     Assert(!FFree(iv), "element free!");
     AssertPvCb(pv, cb);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
 
     bv += _cbFixed;
     loc = *_Qloc(iv);
@@ -1567,8 +1567,8 @@ void VirtualGroup::DeleteRgb(long iv, long bv, long cb)
     AssertIn(iv, 0, _ivMac);
     Assert(!FFree(iv), "element free!");
 
-    LOC loc;
-    LOC *qloc;
+    LogicalOffsetAndCount loc;
+    LogicalOffsetAndCount *qloc;
     long cbDel;
     byte *qb;
 
@@ -1609,7 +1609,7 @@ bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
     Assert(!FFree(iv), "element free!");
     AssertIn(cb, 1, kcbMax);
 
-    LOC loc;
+    LogicalOffsetAndCount loc;
     long cbAdd;
     byte *qb;
 
@@ -1625,7 +1625,7 @@ bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
     {
         long bvT;
 
-        if (!_FEnsureSizes(_bvMac + cbAdd, LwMul(_ivMac, size(LOC)), fgrpNil))
+        if (!_FEnsureSizes(_bvMac + cbAdd, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
             return fFalse;
 
         // move later entries back
@@ -1678,8 +1678,8 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
     AssertIn(cb, 0, Cb(ivSrc) + 1 - bvSrc);
     AssertIn(bvDst, 0, Cb(ivDst) + 1);
 
-    LOC *qloc;
-    LOC locSrc, locDst;
+    LogicalOffsetAndCount *qloc;
+    LogicalOffsetAndCount locSrc, locDst;
     long cbMove, cbT;
 
     locSrc = *_Qloc(ivSrc);
@@ -1691,7 +1691,7 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
     if (cbT > 0)
     {
         Assert(cb % size(long) != 0, "why are we here when cb is a multiple of size(long)?");
-        if (!_FEnsureSizes(_bvMac + cbT, LwMul(_ivMac, size(LOC)), fgrpNil))
+        if (!_FEnsureSizes(_bvMac + cbT, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
             return fFalse;
     }
 
@@ -1793,7 +1793,7 @@ void VirtualGroup::Merge(long ivSrc, long ivDst)
 ***************************************************************************/
 void VirtualGroup::AssertValid(ulong grfobj)
 {
-    LOC loc;
+    LogicalOffsetAndCount loc;
     long iloc;
     long cbTot, clocFree;
 
@@ -1801,7 +1801,7 @@ void VirtualGroup::AssertValid(ulong grfobj)
     AssertIn(_ivMac, 0, kcbMax);
     AssertIn(_bvMac, 0, kcbMax);
     Assert(_Cb1() >= _bvMac, "group area too small");
-    Assert(_Cb2() >= LwMul(_ivMac, size(LOC)), "rgloc area too small");
+    Assert(_Cb2() >= LwMul(_ivMac, size(LogicalOffsetAndCount)), "rgloc area too small");
     Assert(_clocFree == cvNil || _clocFree == 0 || _clocFree > 0 && _clocFree < _ivMac, "_clocFree is wrong");
     AssertIn(_cbFixed, 0, kcbMax);
 
@@ -1915,21 +1915,21 @@ bool GeneralGroup::FInsert(long iv, long cb, void *pv, void *pvFixed)
     AssertIn(iv, 0, _ivMac + 1);
 
     byte *qb;
-    LOC loc;
-    LOC *qloc;
+    LogicalOffsetAndCount loc;
+    LogicalOffsetAndCount *qloc;
 
     cb += _cbFixed;
     loc.cb = cb;
     loc.bv = cb == 0 ? 0 : _bvMac;
     cb = CbRoundToLong(cb);
 
-    if (!_FEnsureSizes(_bvMac + cb, LwMul(_ivMac + 1, size(LOC)), fgrpNil))
+    if (!_FEnsureSizes(_bvMac + cb, LwMul(_ivMac + 1, size(LogicalOffsetAndCount)), fgrpNil))
         return fFalse;
 
     // make room for the entry
     qloc = _Qloc(iv);
     if (iv < _ivMac)
-        BltPb(qloc, qloc + 1, LwMul(_ivMac - iv, size(LOC)));
+        BltPb(qloc, qloc + 1, LwMul(_ivMac - iv, size(LogicalOffsetAndCount)));
     *qloc = loc;
 
     if (pvNil != pv && cb > 0)
@@ -1970,7 +1970,7 @@ bool GeneralGroup::FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, lo
     AssertIn(ivSrc, 0, pggSrc->IvMac() + 1 - cv);
     AssertIn(ivDst, 0, _ivMac + 1);
     long cb, cbFixed, iv, ivLim;
-    LOC loc;
+    LogicalOffsetAndCount loc;
     byte *pb;
 
     if ((cbFixed = pggSrc->CbFixed()) != CbFixed())
@@ -2029,14 +2029,14 @@ void GeneralGroup::Delete(long iv)
 {
     AssertThis(fobjAssertFull);
     AssertIn(iv, 0, _ivMac);
-    LOC *qloc;
-    LOC loc;
+    LogicalOffsetAndCount *qloc;
+    LogicalOffsetAndCount loc;
 
     qloc = _Qloc(iv);
     loc = *qloc;
     if (iv < --_ivMac)
-        BltPb(qloc + 1, qloc, LwMul(_ivMac - iv, size(LOC)));
-    TrashPvCb(_Qloc(_ivMac), size(LOC));
+        BltPb(qloc + 1, qloc, LwMul(_ivMac - iv, size(LogicalOffsetAndCount)));
+    TrashPvCb(_Qloc(_ivMac), size(LogicalOffsetAndCount));
     if (loc.cb > 0)
         _RemoveRgb(loc.bv, CbRoundToLong(loc.cb));
     AssertThis(fobjAssertFull);
@@ -2056,7 +2056,7 @@ void GeneralGroup::Move(long ivSrc, long ivTarget)
     AssertIn(ivSrc, 0, _ivMac);
     AssertIn(ivTarget, 0, _ivMac + 1);
 
-    MoveElement(_Qloc(0), size(LOC), ivSrc, ivTarget);
+    MoveElement(_Qloc(0), size(LogicalOffsetAndCount), ivSrc, ivTarget);
     AssertThis(0);
 }
 
@@ -2069,7 +2069,7 @@ void GeneralGroup::Swap(long iv1, long iv2)
     AssertIn(iv1, 0, _ivMac);
     AssertIn(iv2, 0, _ivMac);
 
-    SwapPb(_Qloc(iv1), _Qloc(iv2), size(LOC));
+    SwapPb(_Qloc(iv1), _Qloc(iv2), size(LogicalOffsetAndCount));
     AssertThis(0);
 }
 
@@ -2170,8 +2170,8 @@ bool AllocatedGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
 
     long iloc;
     byte *qb;
-    LOC loc;
-    LOC *qloc;
+    LogicalOffsetAndCount loc;
+    LogicalOffsetAndCount *qloc;
 
     cb += _cbFixed;
     AssertIn(cb, 0, kcbMax);
@@ -2197,7 +2197,7 @@ bool AllocatedGroup::FAdd(long cb, long *piv, void *pv, void *pvFixed)
     loc.bv = cb == 0 ? 0 : _bvMac;
     cb = CbRoundToLong(cb);
 
-    if (!_FEnsureSizes(_bvMac + cb, LwMul(_ivMac, size(LOC)), fgrpNil))
+    if (!_FEnsureSizes(_bvMac + cb, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
     {
         if (iloc == _ivMac - 1)
             _ivMac--;
@@ -2245,8 +2245,8 @@ void AllocatedGroup::Delete(long iv)
     AssertIn(iv, 0, _ivMac);
     Assert(!FFree(iv), "entry already free!");
 
-    LOC *qloc;
-    LOC loc;
+    LogicalOffsetAndCount *qloc;
+    LogicalOffsetAndCount loc;
 
     qloc = _Qloc(iv);
     loc = *qloc;
@@ -2256,7 +2256,7 @@ void AllocatedGroup::Delete(long iv)
         // move _ivMac back past any free entries on the end
         while (--_ivMac > 0 && (--qloc)->bv == bvNil)
             _clocFree--;
-        TrashPvCb(_Qloc(_ivMac), LwMul(iv - _ivMac + 1, size(LOC)));
+        TrashPvCb(_Qloc(_ivMac), LwMul(iv - _ivMac + 1, size(LogicalOffsetAndCount)));
     }
     else
     {

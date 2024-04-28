@@ -250,7 +250,7 @@ class VirtualGroup : public VirtualGroup_PAR
     ASSERT
 
   protected:
-    struct LOC
+    struct LogicalOffsetAndCount
     {
         long bv;
         long cb;
@@ -265,9 +265,9 @@ class VirtualGroup : public VirtualGroup_PAR
 
     void _RemoveRgb(long bv, long cb);
     void _AdjustLocs(long bvMin, long bvLim, long dcb);
-    LOC *_Qloc(long iloc)
+    LogicalOffsetAndCount *_Qloc(long iloc)
     {
-        return (LOC *)_Qb2(LwMul(iloc, size(LOC)));
+        return (LogicalOffsetAndCount *)_Qb2(LwMul(iloc, size(LogicalOffsetAndCount)));
     }
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
