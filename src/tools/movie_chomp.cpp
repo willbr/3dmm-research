@@ -54,7 +54,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     PChunkyFile pcfl;
     String stn;
     char *pszs;
-    MSSIO mssioError(stderr);
+    MessageSinkIO mssioError(stderr);
     bool fCompile = fTrue;
     bool fCompileMovie = fFalse;
 
@@ -145,7 +145,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     else
     {
         bool fRet;
-        MSSIO mssioDump(stdout);
+        MessageSinkIO mssioDump(stdout);
         MessageSinkFile msfilDump;
         MovieDecompiler chdc;
 

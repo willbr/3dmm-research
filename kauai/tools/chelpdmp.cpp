@@ -81,7 +81,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
 
     if (fni.Ftg() == ftgNil)
-        pmsnk = NewObj MSSIO(stdout);
+        pmsnk = NewObj MessageSinkIO(stdout);
     else
     {
         if (pvNil == (pfil = FileObject::PfilCreate(&fni)))

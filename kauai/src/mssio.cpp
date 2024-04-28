@@ -17,7 +17,7 @@ ASSERTNAME
 /***************************************************************************
     Constructor for a standard I/O message sink.
 ***************************************************************************/
-MSSIO::MSSIO(FILE *pfile)
+MessageSinkIO::MessageSinkIO(FILE *pfile)
 {
     _pfile = pfile;
     _fError = fFalse;
@@ -26,7 +26,7 @@ MSSIO::MSSIO(FILE *pfile)
 /***************************************************************************
     Prints a message to stderr.
 ***************************************************************************/
-void MSSIO::ReportLine(PSZ psz)
+void MessageSinkIO::ReportLine(PSZ psz)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -41,7 +41,7 @@ void MSSIO::ReportLine(PSZ psz)
 /***************************************************************************
     Dump a line to stdout.
 ***************************************************************************/
-void MSSIO::Report(PSZ psz)
+void MessageSinkIO::Report(PSZ psz)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -56,7 +56,7 @@ void MSSIO::Report(PSZ psz)
 /***************************************************************************
     Return whether there has been an error writing to this message sink.
 ***************************************************************************/
-bool MSSIO::FError(void)
+bool MessageSinkIO::FError(void)
 {
     AssertThis(0);
     return _fError;

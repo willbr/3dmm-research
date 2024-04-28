@@ -28,7 +28,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     PTextureMap ptmap = pvNil;
     long cfni = 0;
     bool fCompress = fFalse;
-    MSSIO mssioErr(stderr);
+    MessageSinkIO mssioErr(stderr);
 
 #ifdef UNICODE
     fprintf(stderr, "\nMicrosoft (R) Make Tmap Utility (Unicode; " __DATE__ "; " __TIME__ ")\n");

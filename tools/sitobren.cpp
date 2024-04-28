@@ -133,7 +133,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     Filename fniSrc, fniDst, fniInc;
     PFileObject pfilSrc = pvNil;
     FILE *pfileDst = pvNil;
-    MSSIO *pmssioErr = pvNil, *pmssioDst = pvNil;
+    MessageSinkIO *pmssioErr = pvNil, *pmssioDst = pvNil;
     S2B *ps2b = pvNil;
     ulong grfs2b = fs2bNil;
 
@@ -331,11 +331,11 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     if (ps2b == pvNil)
         goto LOom;
 
-    pmssioErr = NewObj MSSIO(stderr);
+    pmssioErr = NewObj MessageSinkIO(stderr);
     if (pmssioErr == pvNil)
         goto LOom;
 
-    pmssioDst = NewObj MSSIO(pfileDst);
+    pmssioDst = NewObj MessageSinkIO(pfileDst);
     if (pmssioDst == pvNil)
     {
     LOom:
