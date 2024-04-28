@@ -216,7 +216,7 @@ const ByteOrderMask kbomCrpbgBytes = 0xFFFE0000L;
 const long kcbMaxCrpsm = 0x00FFFFFF;
 const long kcbitGrfcrp = 8;
 const ulong kgrfcrpAll = (1 << kcbitGrfcrp) - 1;
-struct CRPSM
+struct ChunkRepresentationSmall
 {
     ChunkIdentification cki;          // chunk id
     FilePosition fp;            // location on file
@@ -263,7 +263,7 @@ const ByteOrderMask kbomCrpsm = 0xFF500000L;
 #ifdef CHUNK_BIG_INDEX
 
 typedef ChunkRepresentationBig ChunkRepresentation;
-typedef CRPSM ChunkRepresentationOther;
+typedef ChunkRepresentationSmall ChunkRepresentationOther;
 const long kcbMaxCrp = kcbMaxCrpbg;
 typedef long CKID;
 const long kckidMax = kcbMax;
@@ -271,7 +271,7 @@ const ByteOrderMask kbomCrpsm = kbomCrpbgGrfcrp;
 
 #else //! CHUNK_BIG_INDEX
 
-typedef CRPSM ChunkRepresentation;
+typedef ChunkRepresentationSmall ChunkRepresentation;
 typedef ChunkRepresentationBig ChunkRepresentationOther;
 const long kcbMaxCrp = kcbMaxCrpsm;
 typedef ushort CKID;
@@ -1389,7 +1389,7 @@ bool ChunkyFile::_FReadIndex(void)
     }
 
     cbFixed = _pggcrp->CbFixed();
-    if (cbFixed != size(ChunkRepresentationBig) && (fOldIndex || cbFixed != size(CRPSM)))
+    if (cbFixed != size(ChunkRepresentationBig) && (fOldIndex || cbFixed != size(ChunkRepresentationSmall)))
         return fFalse;
 
     // Clean the index
@@ -1488,13 +1488,13 @@ bool ChunkyFile::_FReadIndex(void)
     else
     {
         // Small index
-        Assert(size(CRPSM) == cbFixed, 0);
-        CRPSM *pcrpsm;
+        Assert(size(ChunkRepresentationSmall) == cbFixed, 0);
+        ChunkRepresentationSmall *pcrpsm;
 
         bom = (bo != kboCur) ? kbomCrpsm : bomNil;
         for (icrp = _pggcrp->IvMac(); icrp-- != 0;)
         {
-            pcrpsm = (CRPSM *)_pggcrp->QvFixedGet(icrp, &cbVar);
+            pcrpsm = (ChunkRepresentationSmall *)_pggcrp->QvFixedGet(icrp, &cbVar);
             if (!FIn(cbVar, 0, kcbMax))
                 goto LBadFile;
             if (bomNil != bom)
