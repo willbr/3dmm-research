@@ -80,7 +80,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     // chunk storage
-    struct CSTO
+    struct ChunkStorage
     {
         PFileObject pfil;  // the file
         FilePosition fpMac;   // logical end of file (for writing new chunks)
@@ -88,8 +88,8 @@ class ChunkyFile : public ChunkyFile_PAR
     };
 
     PGeneralGroup _pggcrp;     // the index
-    CSTO _csto;      // the main file
-    CSTO _cstoExtra; // the scratch file
+    ChunkStorage _csto;      // the main file
+    ChunkStorage _cstoExtra; // the scratch file
 
     bool _fAddToExtra : 1;
     bool _fMark : 1;

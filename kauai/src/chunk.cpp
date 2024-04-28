@@ -399,7 +399,7 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl)
 bool ChunkyFile::FReopen(void)
 {
     AssertThis(0);
-    CSTO csto, cstoExtra;
+    ChunkStorage csto, cstoExtra;
     PGeneralGroup pggcrp;
 #ifndef CHUNK_BIG_INDEX
     PDynamicArray pglrtie;
@@ -2184,7 +2184,7 @@ bool ChunkyFile::_FAllocFlo(long cb, PFileLocation pflo, bool fForceOnExtra)
     AssertIn(cb, 0, kcbMax);
     AssertVarMem(pflo);
 
-    CSTO *pcsto;
+    ChunkStorage *pcsto;
     long cfsm, ifsm;
     FreeSpaceMap *qfsm;
 
@@ -3065,7 +3065,7 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, long cb)
     PDynamicArray pglfsm;
     long ifsm, ifsmMin, ifsmLim;
     FreeSpaceMap fsm, fsmT;
-    CSTO *pcsto;
+    ChunkStorage *pcsto;
 
     // no space allocated to the chunk
     if (cb == 0)
