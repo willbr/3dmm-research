@@ -845,7 +845,7 @@ bool TagManager::FCacheTagToHD(PTAG ptag, bool fCacheChildChunks)
     {
         // Cache the chunk specified by the tag, and all its child
         // chunks.
-        CGE cge;
+        ChunkGraphEnumerator cge;
         ChildChunkIdentification kid;
         ulong grfcgeIn = 0;
         ulong grfcgeOut;

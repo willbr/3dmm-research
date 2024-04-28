@@ -4998,7 +4998,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
         PDynamicArray pglcno;
         ChunkIdentification ckiParLast = {ctgNil, cnoNil}, ckiPar;
         ChildChunkIdentification kid;
-        CGE cge;
+        ChunkGraphEnumerator cge;
 
         if ((pglcno = DynamicArray::PglNew(size(ChunkNumber))) == pvNil)
             goto LFail;

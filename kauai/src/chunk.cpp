@@ -322,7 +322,7 @@ void ChunkyFile::DumpStn(PString pstn, PFileObject pfil)
 #endif // CHUNK_STATS
 
 RTCLASS(ChunkyFile)
-RTCLASS(CGE)
+RTCLASS(ChunkGraphEnumerator)
 
 /***************************************************************************
     Constructor for ChunkyFile - private.
@@ -558,12 +558,12 @@ PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
     be combined into a single stream by the following rules:
 
     CF stands for a chunk forest. CT stands for a chunk tree.
-    ECDF(n, m) stands for an ECDF structure with cb == n and ckid == m.
+    EmbeddedChunkDescriptorOnFile(n, m) stands for an EmbeddedChunkDescriptorOnFile structure with cb == n and ckid == m.
     data(n) stands for n bytes of data.
 
         CF -> (empty)
         CF -> CT CF
-        CT -> ECDF(n, 0) data(n)
+        CT -> EmbeddedChunkDescriptorOnFile(n, 0) data(n)
         CT -> EDCF(n, m) data(n) CT CT ... CT (m times)
 
     ChunkyFile::FWriteChunkTree writes a CT from a chunk and its children.
@@ -571,7 +571,7 @@ PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
     ChunkyFile::PcflReadForestFromFlo reads a CF from a flo and creates a ChunkyFile
     around the data.
 ***************************************************************************/
-struct ECDF
+struct EmbeddedChunkDescriptorOnFile
 {
     short bo;
     short osk;
@@ -592,8 +592,8 @@ bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfil
     AssertThis(0);
     AssertNilOrPo(pfilDst, 0);
     AssertNilOrVarMem(pcb);
-    CGE cge;
-    ECDF ecdf;
+    ChunkGraphEnumerator cge;
+    EmbeddedChunkDescriptorOnFile ecdf;
     FileLocation floSrc, floDst;
     ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
@@ -613,7 +613,7 @@ bool ChunkyFile::FWriteChunkTree(ChunkTag ctg, ChunkNumber cno, PFileObject pfil
 
         AssertDo(FFindFlo(kid.cki.ctg, kid.cki.cno, &floSrc), 0);
         if (pvNil != pcb)
-            *pcb += size(ECDF) + floSrc.cb;
+            *pcb += size(EmbeddedChunkDescriptorOnFile) + floSrc.cb;
 
         if (pvNil != pfilDst)
         {
@@ -669,7 +669,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     };
 
     PChunkyFile pcfl;
-    ECDF ecdf;
+    EmbeddedChunkDescriptorOnFile ecdf;
     ECSD ecsdT, ecsdCur;
     FilePosition fpSrc, fpLimSrc;
     PDynamicArray pglecsd = pvNil;
@@ -1187,7 +1187,7 @@ tribool ChunkyFile::_TValidIndex(void)
     // WARNING: this is called by a full ChunkyFile::AssertValid().
     long icrp, icrpT;
     ChunkRepresentation *qcrp;
-    CGE cge;
+    ChunkGraphEnumerator cge;
     ulong grfcge, grfcgeIn;
     ChildChunkIdentification kid;
     long cbVar;
@@ -2839,7 +2839,7 @@ void ChunkyFile::Delete(ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     long icrp;
-    CGE cge;
+    ChunkGraphEnumerator cge;
     ulong grfcgeIn, grfcge;
     ChildChunkIdentification kid;
     ChunkRepresentation *qcrp;
@@ -2966,7 +2966,7 @@ long ChunkyFile::CckiRef(ChunkTag ctg, ChunkNumber cno)
 tribool ChunkyFile::TIsDescendent(ChunkTag ctg, ChunkNumber cno, ChunkTag ctgSub, ChunkNumber cnoSub)
 {
     AssertThis(0);
-    CGE cge;
+    ChunkGraphEnumerator cge;
     ChildChunkIdentification kid;
     ulong grfcge;
 
@@ -3820,7 +3820,7 @@ bool ChunkyFile::_FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst
 
     long icrpSrc, icrpDst;
     long rtiSrc;
-    CGE cge;
+    ChunkGraphEnumerator cge;
     ChildChunkIdentification kid;
     ChunkIdentification ckiPar;
     DataBlock blckSrc;
@@ -3984,7 +3984,7 @@ bool ChunkyFile::_FFindMatch(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pc
     long rtiSrc, rtiKid;
     long ckidSrc;
     ChunkNumber cnoMin, cnoDst;
-    CGE cgeSrc, cgeDst;
+    ChunkGraphEnumerator cgeSrc, cgeDst;
     ChildChunkIdentification kidSrc, kidDst;
     ChunkIdentification ckiParSrc, ckiParDst;
     ulong grfcgeSrc, grfcgeDst;
@@ -4266,7 +4266,7 @@ bool ChunkyFile::_FFindRtie(ChunkTag ctg, ChunkNumber cno, RTIE *prtie, long *pi
 /***************************************************************************
     Constructor for chunk graph enumerator.
 ***************************************************************************/
-CGE::CGE(void)
+ChunkGraphEnumerator::ChunkGraphEnumerator(void)
 {
     AssertThisMem();
 
@@ -4278,7 +4278,7 @@ CGE::CGE(void)
 /***************************************************************************
     Destructor for chunk graph enumerator.
 ***************************************************************************/
-CGE::~CGE(void)
+ChunkGraphEnumerator::~ChunkGraphEnumerator(void)
 {
     AssertThis(0);
     ReleasePpo(&_pgldps);
@@ -4288,9 +4288,9 @@ CGE::~CGE(void)
 /***************************************************************************
     Assert the validity of the cge
 ***************************************************************************/
-void CGE::AssertValid(ulong grf)
+void ChunkGraphEnumerator::AssertValid(ulong grf)
 {
-    CGE_PAR::AssertValid(0);
+    ChunkGraphEnumerator_PAR::AssertValid(0);
     AssertIn(_es, esStart, esDone + 1);
     if (FIn(_es, esStart, esDone))
     {
@@ -4304,10 +4304,10 @@ void CGE::AssertValid(ulong grf)
 /***************************************************************************
     Mark memory used by the cge.
 ***************************************************************************/
-void CGE::MarkMem(void)
+void ChunkGraphEnumerator::MarkMem(void)
 {
     AssertThis(0);
-    CGE_PAR::MarkMem();
+    ChunkGraphEnumerator_PAR::MarkMem();
     MarkMemObj(_pgldps);
 }
 #endif // DEBUG
@@ -4315,7 +4315,7 @@ void CGE::MarkMem(void)
 /***************************************************************************
     Start a new enumeration.
 ***************************************************************************/
-void CGE::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -4351,7 +4351,7 @@ void CGE::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
         fcgeRoot:  *pkid is valid (except the chid value); *pckiPar is
             invalid; the node is the root of the enumeration
 ***************************************************************************/
-bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
+bool ChunkGraphEnumerator::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn)
 {
     AssertThis(0);
     AssertVarMem(pkid);

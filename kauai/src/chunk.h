@@ -285,14 +285,14 @@ enum
     fcgeError = 0x0080
 };
 
-#define CGE_PAR BASE
-#define kclsCGE 'CGE'
-class CGE : public CGE_PAR
+#define ChunkGraphEnumerator_PAR BASE
+#define kclsChunkGraphEnumerator 'CGE'
+class ChunkGraphEnumerator : public ChunkGraphEnumerator_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CGE)
+    NOCOPY(ChunkGraphEnumerator)
 
   private:
     // data enumeration push state
@@ -317,8 +317,8 @@ class CGE : public CGE_PAR
     DataEnumerationPushState _dps;    // the current DataEnumerationPushState
 
   public:
-    CGE(void);
-    ~CGE(void);
+    ChunkGraphEnumerator(void);
+    ~ChunkGraphEnumerator(void);
 
     void Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     bool FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);

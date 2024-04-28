@@ -31,7 +31,7 @@ bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk)
     long icki;
     ChunkIdentification cki, ckiPar;
     ChildChunkIdentification kid;
-    CGE cge;
+    ChunkGraphEnumerator cge;
     ulong grfcge;
     TopicFile htopf;
     SourceEmitter chse;

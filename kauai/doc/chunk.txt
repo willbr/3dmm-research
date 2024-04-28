@@ -13,7 +13,7 @@
 	typedef class ChunkyFile *PChunkyFile;
 		A chunky file.
 
-	class CGE;
+	class ChunkGraphEnumerator;
 		An auto class to enumerate over a subgraph of a chunky file.
 		It is illegal to assign a cge to another cge.
 
@@ -254,15 +254,15 @@ REVIEW shonk: assert and check for cycles.
 
 
 /****************************************
-	CGE methods
+	ChunkGraphEnumerator methods
 ****************************************/
 
-	void CGE::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+	void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 		This initializes an enumeration and must be called before
 		GrfcgeNextKid is called.  The enumeration is over the given
 		node and all of its descendents.
 
-	bool CGE::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar,
+	bool ChunkGraphEnumerator::FNextKid(ChildChunkIdentification *pkid, ChunkIdentification *pckiPar,
 			ulong *pgrfcgeOut, ulong grfcgeIn);
 		Fetches the next node in the graph enumeration.  Returns fFalse
 		iff the enumeration is done (there are no more nodes).  Generally,
