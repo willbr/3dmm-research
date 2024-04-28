@@ -102,7 +102,7 @@ class ChunkyFile : public ChunkyFile_PAR
     long _cbFreeMap;
 
 #ifndef CHUNK_BIG_INDEX
-    struct RTIE
+    struct RuntimeIDEntry
     {
         ChunkTag ctg;
         ChunkNumber cno;
@@ -111,7 +111,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
     PDynamicArray _pglrtie;
 
-    bool _FFindRtie(ChunkTag ctg, ChunkNumber cno, RTIE *prtie = pvNil, long *pirtie = pvNil);
+    bool _FFindRtie(ChunkTag ctg, ChunkNumber cno, RuntimeIDEntry *prtie = pvNil, long *pirtie = pvNil);
 #endif //! CHUNK_BIG_INDEX
 
     // static member variables

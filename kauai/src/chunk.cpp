@@ -1141,19 +1141,19 @@ void ChunkyFile::AssertValid(ulong grfcfl)
     if (pvNil != _pglrtie && _pglrtie->IvMac() > 0)
     {
         long irtie;
-        RTIE rtie, rtiePrev;
+        RuntimeIDEntry rtie, rtiePrev;
         long icrp;
 
         irtie = _pglrtie->IvMac() - 1;
         _pglrtie->Get(irtie, &rtie);
-        Assert(rtiNil != rtie.rti && _FFindCtgCno(rtie.ctg, rtie.cno, &icrp), "Bad RTIE");
+        Assert(rtiNil != rtie.rti && _FFindCtgCno(rtie.ctg, rtie.cno, &icrp), "Bad RuntimeIDEntry");
 
         while (irtie-- > 0)
         {
             rtiePrev = rtie;
             _pglrtie->Get(irtie, &rtie);
-            Assert(rtiNil != rtie.rti && _FFindCtgCno(rtie.ctg, rtie.cno, &icrp), "Bad RTIE");
-            Assert(rtie.ctg < rtiePrev.ctg || rtie.ctg == rtiePrev.ctg && rtie.cno < rtiePrev.cno, "RTIE out of order");
+            Assert(rtiNil != rtie.rti && _FFindCtgCno(rtie.ctg, rtie.cno, &icrp), "Bad RuntimeIDEntry");
+            Assert(rtie.ctg < rtiePrev.ctg || rtie.ctg == rtiePrev.ctg && rtie.cno < rtiePrev.cno, "RuntimeIDEntry out of order");
         }
     }
 #endif //! CHUNK_BIG_INDEX
@@ -4082,7 +4082,7 @@ bool ChunkyFile::_FFindCtgRti(ChunkTag ctg, long rti, ChunkNumber cnoMin, ChunkN
 #else //! CHUNK_BIG_INDEX
 
     long irtie, crtie;
-    RTIE rtie;
+    RuntimeIDEntry rtie;
 
     if (pvNil != _pglrtie && 0 < (crtie = _pglrtie->IvMac()))
     {
@@ -4152,7 +4152,7 @@ long ChunkyFile::_Rti(ChunkTag ctg, ChunkNumber cno)
 
 #else //! CHUNK_BIG_INDEX
 
-    RTIE rtie;
+    RuntimeIDEntry rtie;
 
     if (!_FFindRtie(ctg, cno, &rtie))
         return rtiNil;
@@ -4183,7 +4183,7 @@ bool ChunkyFile::_FSetRti(ChunkTag ctg, ChunkNumber cno, long rti)
 
 #else //! CHUNK_BIG_INDEX
 
-    RTIE rtie;
+    RuntimeIDEntry rtie;
     long irtie;
 
     if (_FFindRtie(ctg, cno, &rtie, &irtie))
@@ -4204,7 +4204,7 @@ bool ChunkyFile::_FSetRti(ChunkTag ctg, ChunkNumber cno, long rti)
     rtie.ctg = ctg;
     rtie.cno = cno;
     rtie.rti = rti;
-    if (pvNil == _pglrtie && pvNil == (_pglrtie = DynamicArray::PglNew(size(RTIE), 1)))
+    if (pvNil == _pglrtie && pvNil == (_pglrtie = DynamicArray::PglNew(size(RuntimeIDEntry), 1)))
         return fFalse;
 
     return _pglrtie->FInsert(irtie, &rtie);
@@ -4214,16 +4214,16 @@ bool ChunkyFile::_FSetRti(ChunkTag ctg, ChunkNumber cno, long rti)
 
 #ifndef CHUNK_BIG_INDEX
 /***************************************************************************
-    Look for an RTIE entry for the given (ctg, cno).
+    Look for an RuntimeIDEntry entry for the given (ctg, cno).
 ***************************************************************************/
-bool ChunkyFile::_FFindRtie(ChunkTag ctg, ChunkNumber cno, RTIE *prtie, long *pirtie)
+bool ChunkyFile::_FFindRtie(ChunkTag ctg, ChunkNumber cno, RuntimeIDEntry *prtie, long *pirtie)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(prtie);
     AssertNilOrVarMem(pirtie);
 
     long ivMin, ivLim, iv;
-    RTIE rtie;
+    RuntimeIDEntry rtie;
 
     if (pvNil == _pglrtie)
     {
