@@ -2415,7 +2415,7 @@ bool DCD::FCmdImportScript(PCommand pcmd)
     long lnOld;
     Filename fni;
     bool fCreated;
-    MSFIL msfil;
+    MessageSinkFile msfil;
     PScript pscpt = pvNil;
 
     // save and clear the sel
@@ -2610,7 +2610,7 @@ bool DCD::FCmdDisasmScript(PCommand pcmd)
     PScript pscpt;
     GraphicsObjectCompiler sccg;
     Filename fni;
-    MSFIL msfil, msfilError;
+    MessageSinkFile msfil, msfilError;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;

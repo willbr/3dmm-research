@@ -747,6 +747,6 @@ class CHTDD : public CHTDD_PAR
     virtual bool FCmdCompileScript(PCommand pcmd);
 };
 
-void OpenSinkDoc(PMSFIL pmsfil);
+void OpenSinkDoc(PMessageSinkFile pmsfil);
 
 #endif //! CHDOC_H

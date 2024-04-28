@@ -208,7 +208,7 @@ bool HEDO::FExportText(void)
     AssertThis(0);
     Filename fni;
     PFileObject pfil;
-    MSFIL msfil;
+    MessageSinkFile msfil;
 
     if (!FGetFniSaveMacro(&fni, 'TEXT',
                           "\x9"

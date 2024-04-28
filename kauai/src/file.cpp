@@ -19,7 +19,7 @@ Mutex FileObject::_mutxList;
 
 RTCLASS(FileObject)
 RTCLASS(DataBlock)
-RTCLASS(MSFIL)
+RTCLASS(MessageSinkFile)
 
 /***************************************************************************
     Constructor for a file.
@@ -1327,7 +1327,7 @@ void DataBlock::MarkMem(void)
 /***************************************************************************
     Constructor for a file based message sink.
 ***************************************************************************/
-MSFIL::MSFIL(PFileObject pfil)
+MessageSinkFile::MessageSinkFile(PFileObject pfil)
 {
     AssertNilOrPo(pfil, 0);
 
@@ -1341,7 +1341,7 @@ MSFIL::MSFIL(PFileObject pfil)
 /***************************************************************************
     Destructor for a file based message sink.
 ***************************************************************************/
-MSFIL::~MSFIL(void)
+MessageSinkFile::~MessageSinkFile(void)
 {
     AssertThis(0);
     ReleasePpo(&_pfil);
@@ -1349,20 +1349,20 @@ MSFIL::~MSFIL(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSFIL.
+    Assert the validity of a MessageSinkFile.
 ***************************************************************************/
-void MSFIL::AssertValid(ulong grf)
+void MessageSinkFile::AssertValid(ulong grf)
 {
-    MSFIL_PAR::AssertValid(0);
+    MessageSinkFile_PAR::AssertValid(0);
     AssertNilOrPo(_pfil, 0);
     Assert(_fError || pvNil == _pfil || _fpCur == _pfil->FpMac() || _pfil->ElError() != elNil, "bad _fpCur");
 }
 #endif // DEBUG
 
 /***************************************************************************
-    Set the current file to use for the MSFIL.
+    Set the current file to use for the MessageSinkFile.
 ***************************************************************************/
-void MSFIL::SetFile(PFileObject pfil)
+void MessageSinkFile::SetFile(PFileObject pfil)
 {
     AssertThis(0);
     AssertNilOrPo(pfil, 0);
@@ -1386,7 +1386,7 @@ void MSFIL::SetFile(PFileObject pfil)
 /***************************************************************************
     Return the output file and give the caller our reference count on it.
 ***************************************************************************/
-PFileObject MSFIL::PfilRelease(void)
+PFileObject MessageSinkFile::PfilRelease(void)
 {
     AssertThis(0);
     PFileObject pfil = _pfil;
@@ -1397,7 +1397,7 @@ PFileObject MSFIL::PfilRelease(void)
 /***************************************************************************
     Dump a line to the file.
 ***************************************************************************/
-void MSFIL::ReportLine(PSZ psz)
+void MessageSinkFile::ReportLine(PSZ psz)
 {
     AssertThis(0);
     AssertNilOrPo(_pfil, 0);
@@ -1413,7 +1413,7 @@ void MSFIL::ReportLine(PSZ psz)
 /***************************************************************************
     Dump some text to the file.
 ***************************************************************************/
-void MSFIL::Report(PSZ psz)
+void MessageSinkFile::Report(PSZ psz)
 {
     AssertThis(0);
     AssertNilOrPo(_pfil, 0);
@@ -1434,7 +1434,7 @@ void MSFIL::Report(PSZ psz)
 /***************************************************************************
     Return whether there has been an error writing to this message sink.
 ***************************************************************************/
-bool MSFIL::FError(void)
+bool MessageSinkFile::FError(void)
 {
     AssertThis(0);
     return _fError;

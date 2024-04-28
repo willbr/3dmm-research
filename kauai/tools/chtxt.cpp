@@ -89,7 +89,7 @@ bool CHTDD::FCmdCompileChunky(PCommand pcmd)
     Filename fni;
     PChunkyFile pcfl;
     String stnFile;
-    MSFIL msfil;
+    MessageSinkFile msfil;
     Chunky::Compiler chcm;
     PDOC pdoc;
 
@@ -130,7 +130,7 @@ bool CHTDD::FCmdCompileScript(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
     GraphicsObjectCompiler sccg;
-    MSFIL msfil;
+    MessageSinkFile msfil;
     String stnFile;
     PScript pscpt;
     PDOC pdoc = pvNil;
@@ -171,7 +171,7 @@ bool CHTDD::FCmdCompileScript(PCommand pcmd)
 /***************************************************************************
     Open the file based message sink file as a chunky text document.
 ***************************************************************************/
-void OpenSinkDoc(PMSFIL pmsfil)
+void OpenSinkDoc(PMessageSinkFile pmsfil)
 {
     PDocumentBase pdocb;
     PFileObject pfil;

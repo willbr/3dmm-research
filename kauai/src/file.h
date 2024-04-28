@@ -312,10 +312,10 @@ class MessageSink : public MessageSink_PAR
 /***************************************************************************
     File based message sink.
 ***************************************************************************/
-typedef class MSFIL *PMSFIL;
-#define MSFIL_PAR MessageSink
-#define kclsMSFIL 'msfl'
-class MSFIL : public MSFIL_PAR
+typedef class MessageSinkFile *PMessageSinkFile;
+#define MessageSinkFile_PAR MessageSink
+#define kclsMessageSinkFile 'msfl'
+class MessageSinkFile : public MessageSinkFile_PAR
 {
     ASSERT
     RTCLASS_DEC
@@ -327,8 +327,8 @@ class MSFIL : public MSFIL_PAR
     void _EnsureFile(void);
 
   public:
-    MSFIL(PFileObject pfil = pvNil);
-    ~MSFIL(void);
+    MessageSinkFile(PFileObject pfil = pvNil);
+    ~MessageSinkFile(void);
 
     virtual void ReportLine(PSZ psz);
     virtual void Report(PSZ psz);

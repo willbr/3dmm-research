@@ -89,7 +89,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
             fprintf(stderr, "Couldn't create destination file");
             goto LFail;
         }
-        pmsnk = NewObj MSFIL(pfil);
+        pmsnk = NewObj MessageSinkFile(pfil);
     }
 
     if (pvNil == pmsnk)

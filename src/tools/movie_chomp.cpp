@@ -146,7 +146,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     {
         bool fRet;
         MSSIO mssioDump(stdout);
-        MSFIL msfilDump;
+        MessageSinkFile msfilDump;
         MovieDecompiler chdc;
 
         if (pvNil == (pcfl = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
