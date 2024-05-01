@@ -123,7 +123,7 @@ bool CommandHandler::_FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme)
     AssertThis(0);
     AssertVarMem(pcmme);
     Assert(cid != cidNil, "why is the cid nil?");
-    CMM *pcmm;
+    CommandMap *pcmm;
     CMME *pcmmeT;
     CMME *pcmmeDef = pvNil;
 

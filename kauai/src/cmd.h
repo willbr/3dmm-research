@@ -99,18 +99,18 @@ const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
     static CMME _rgcmme##cls[];                                                                                        \
                                                                                                                        \
   protected:                                                                                                           \
-    static CMM _cmm##cls;                                                                                              \
-    virtual CMM *Pcmm(void)                                                                                            \
+    static CommandMap _cmm##cls;                                                                                              \
+    virtual CommandMap *Pcmm(void)                                                                                            \
     {                                                                                                                  \
         return &_cmm##cls;                                                                                             \
     }
 
 // for defining the command map in a .cpp file
 #define BEGIN_CMD_MAP_BASE(cls)                                                                                        \
-    cls::CMM cls::_cmm##cls = {pvNil, cls::_rgcmme##cls};                                                              \
+    cls::CommandMap cls::_cmm##cls = {pvNil, cls::_rgcmme##cls};                                                              \
     cls::CMME cls::_rgcmme##cls[] = {
 #define BEGIN_CMD_MAP(cls, clsBase)                                                                                    \
-    cls::CMM cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls};                                          \
+    cls::CommandMap cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls};                                          \
     cls::CMME cls::_rgcmme##cls[] = {
 
 #define ON_CID(cid, pfncmd, pfneds, grfcmm) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, grfcmm},
@@ -162,9 +162,9 @@ class CommandHandler : public CommandHandler_PAR
     };
 
     // command map
-    struct CMM
+    struct CommandMap
     {
-        CMM *pcmmBase;
+        CommandMap *pcmmBase;
         CMME *prgcmme;
     };
 
