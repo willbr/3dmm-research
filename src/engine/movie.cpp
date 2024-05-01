@@ -4591,7 +4591,7 @@ bool Movie::FPause(WIT wit, long dts)
 void CMVI::MarkMem(void)
 {
     long iv, ivMac;
-    MVIED mvied;
+    MovieDescriptor mvied;
     SceneDescriptor scend;
 
     ivMac = pglmvied->IvMac();
@@ -4635,7 +4635,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
 
     long iscen = 0, iscenMac = Cscen(), imvied;
     SceneDescriptor scend;
-    MVIED mvied;
+    MovieDescriptor mvied;
     PChunkyFile pcfl;
 
     scend.imvied = ivNil;
@@ -4654,7 +4654,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
         goto LFail;
     }
 
-    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = DynamicArray::PglNew(size(MVIED))) == pvNil)
+    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = DynamicArray::PglNew(size(MovieDescriptor))) == pvNil)
     {
         goto LFail;
     }
@@ -4770,7 +4770,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
     /* Copy all the external movie chunks into this movie */
     for (imvied = 0; imvied < imviedMac; imvied++)
     {
-        MVIED mvied;
+        MovieDescriptor mvied;
 
         pglmviedNew->Get(imvied, &mvied);
 
@@ -4796,7 +4796,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
     {
         ChunkNumber cnoScen = cnoNil;
         SceneDescriptor scend;
-        MVIED mvied;
+        MovieDescriptor mvied;
 
         pcmvi->pglscend->Get(iscend, &scend);
         pglmviedNew->Get(scend.imvied, &mvied);
@@ -4934,13 +4934,13 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
 LFail:
     if (pglmviedNew != pvNil)
     {
-        /* Remove any copied movies; leave the first MVIED alone */
+        /* Remove any copied movies; leave the first MovieDescriptor alone */
         while (imvied-- > 1)
         {
-            MVIED mvied;
+            MovieDescriptor mvied;
 
             pglmviedNew->Get(imvied, &mvied);
-            Assert(mvied.pcrf == pcrf, "Invalid MVIED during cleanup");
+            Assert(mvied.pcrf == pcrf, "Invalid MovieDescriptor during cleanup");
             pcfl->Delete(kctgMvie, mvied.cno);
             ReleasePpo(&mvied.pcrf);
         }
@@ -5091,7 +5091,7 @@ LFail:
     EmptyCmvi
         Frees up the memory used by the CMVI.  For each scene in the
         DynamicArray of SCENDs, releases memory that the SceneDescriptor referred to.  Likewise
-        for each MVIED in the DynamicArray of MVIEDs.
+        for each MovieDescriptor in the DynamicArray of MVIEDs.
 
     Arguments:
         PCMVI pcmvi -- the CMVI to empty
@@ -5127,7 +5127,7 @@ void CMVI::Empty(void)
 
         while (imvied-- > 0)
         {
-            MVIED mvied;
+            MovieDescriptor mvied;
 
             pgl->Get(imvied, &mvied);
             ReleasePpo(&mvied.pcrf);

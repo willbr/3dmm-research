@@ -502,7 +502,7 @@ typedef struct _scend
 {
     /* The first fields are private...the client shouldn't change them, and
         in fact, generally shouldn't even look at them */
-    long imvied;     // index of the MVIED for this scene
+    long imvied;     // index of the MovieDescriptor for this scene
     ChunkNumber cno;         // the ChunkNumber of this scene chunk
     ChildChunkID chid;       // the original ChildChunkID
     PMaskedBitmapMBMP pmbmp;     // pointer to thumbnail MaskedBitmapMBMP
@@ -517,7 +517,7 @@ typedef struct _mvied
     PChunkyResourceFile pcrf;    // the file this scene's movie is in
     ChunkNumber cno;      // ChunkNumber of the Movie chunk
     long aridLim; // _aridLim from the Movie
-} MVIED, *PMVIED;
+} MovieDescriptor, *PMovieDescriptor;
 
 /* A Composite MoVIe */
 typedef struct _cmvi
