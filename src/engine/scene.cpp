@@ -35,9 +35,9 @@
 
             BASE ---> UndoBase ---> MovieUndo ---> SceneUndoSound
 
-        Scene Title Undo Object (SUNT)
+        Scene Title Undo Object (SceneUndoTitle)
 
-            BASE ---> UndoBase ---> MovieUndo ---> SUNT
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoTitle
 
 ***************************************************************************/
 
@@ -416,11 +416,11 @@ class SceneUndoSound : public SceneUndoSound_PAR
 //
 // Undo object for title operations
 //
-typedef class SUNT *PSUNT;
+typedef class SceneUndoTitle *PSceneUndoTitle;
 
-#define SUNT_PAR MovieUndo
-#define kclsSUNT 'SUNT'
-class SUNT : public SUNT_PAR
+#define SceneUndoTitle_PAR MovieUndo
+#define kclsSceneUndoTitle 'SUNT'
+class SceneUndoTitle : public SceneUndoTitle_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -428,13 +428,13 @@ class SUNT : public SUNT_PAR
 
   protected:
     String _stn;
-    SUNT(void)
+    SceneUndoTitle(void)
     {
     }
 
   public:
-    static PSUNT PsuntNew(void);
-    ~SUNT(void);
+    static PSceneUndoTitle PsuntNew(void);
+    ~SceneUndoTitle(void);
 
     void SetName(PString pstn)
     {
@@ -447,7 +447,7 @@ class SUNT : public SUNT_PAR
 };
 
 RTCLASS(Scene)
-RTCLASS(SUNT)
+RTCLASS(SceneUndoTitle)
 RTCLASS(SceneUndoSound)
 RTCLASS(SceneActorUndo)
 RTCLASS(SceneUndoBackground)
@@ -867,9 +867,9 @@ bool Scene::FSetName(PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    PSUNT psunt;
+    PSceneUndoTitle psunt;
 
-    psunt = SUNT::PsuntNew();
+    psunt = SceneUndoTitle::PsuntNew();
 
     if (psunt != pvNil)
     {
@@ -5846,10 +5846,10 @@ LFail:
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNT SUNT::PsuntNew()
+PSceneUndoTitle SceneUndoTitle::PsuntNew()
 {
-    PSUNT psunt;
-    psunt = NewObj SUNT();
+    PSceneUndoTitle psunt;
+    psunt = NewObj SceneUndoTitle();
     return (psunt);
 }
 
@@ -5858,7 +5858,7 @@ PSUNT SUNT::PsuntNew()
  * Destructor for scene naming undo objects
  *
  ****************************************************/
-SUNT::~SUNT(void)
+SceneUndoTitle::~SceneUndoTitle(void)
 {
     AssertBaseThis(0);
 }
@@ -5874,7 +5874,7 @@ SUNT::~SUNT(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNT::FDo(PDocumentBase pdocb)
+bool SceneUndoTitle::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -5907,7 +5907,7 @@ bool SUNT::FDo(PDocumentBase pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNT::FUndo(PDocumentBase pdocb)
+bool SceneUndoTitle::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -5916,7 +5916,7 @@ bool SUNT::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNT
+ * Mark memory used by the SceneUndoTitle
  *
  * Parameters:
  * 	None.
@@ -5925,16 +5925,16 @@ bool SUNT::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void SUNT::MarkMem(void)
+void SceneUndoTitle::MarkMem(void)
 {
     AssertThis(0);
-    SUNT_PAR::MarkMem();
+    SceneUndoTitle_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNT.
+    Assert the validity of the SceneUndoTitle.
 ***************************************************************************/
-void SUNT::AssertValid(ulong grf)
+void SceneUndoTitle::AssertValid(ulong grf)
 {
 }
 #endif
