@@ -60,7 +60,7 @@ enum SceneEventType
 //
 // Struct for saving event pause information
 //
-struct SEVP
+struct SceneEventPause
 {
     WaitReason wit;
     long dts;
@@ -3191,7 +3191,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
     SEV sev;
     long isev;
     PSEV qsev;
-    SEVP sevp;
+    SceneEventPause sevp;
     WaitReason witOld;
     long dtsOld;
 
@@ -4285,7 +4285,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
             break;
 
         case sevtPause:
-            if (!pggFrmTemp->FInsert(isevFrm, size(SEVP), _pggsevFrm->QvGet(isevFrm), &sev))
+            if (!pggFrmTemp->FInsert(isevFrm, size(SceneEventPause), _pggsevFrm->QvGet(isevFrm), &sev))
             {
                 goto LFail;
             }

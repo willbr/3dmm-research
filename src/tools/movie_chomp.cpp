@@ -214,7 +214,7 @@ enum SceneEventType
 //
 // Struct for saving event pause information
 //
-struct SEVP
+struct SceneEventPause
 {
     WaitReason wit;
     long dts;
@@ -558,8 +558,8 @@ void DumpFrameEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
     }
 
     case sevtPause: {
-        // SEVP sevp;
-        // sevp = *(*SEVP)pggsevFrm->QvGet(isevFrm);
+        // SceneEventPause sevp;
+        // sevp = *(*SceneEventPause)pggsevFrm->QvGet(isevFrm);
         printf("%*.s" "sevtPause\n", indent, "");
         break;
     }
@@ -1120,8 +1120,8 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 }
 
                 case sevtPause: {
-                    // SEVP sevp;
-                    // sevp = *(*SEVP)pggsevFrm->QvGet(isevFrm);
+                    // SceneEventPause sevp;
+                    // sevp = *(*SceneEventPause)pggsevFrm->QvGet(isevFrm);
                     printf("sevtPause\n");
                     break;
                 }
