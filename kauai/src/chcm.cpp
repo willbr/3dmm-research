@@ -703,7 +703,7 @@ void Compiler::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
     AssertThis(0);
     Filename fni;
     DataBlock blck;
-    PPIC ppic;
+    PPicture ppic;
     Token tok;
 
     if (!_pchlx->FGetPath(&fni))
@@ -713,7 +713,7 @@ void Compiler::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
         return;
     }
 
-    if (pvNil == (ppic = PIC::PpicReadNative(&fni)))
+    if (pvNil == (ppic = Picture::PpicReadNative(&fni)))
     {
         _Error(ertReadMeta);
         return;

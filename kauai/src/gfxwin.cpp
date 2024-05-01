@@ -777,10 +777,10 @@ PGraphicsPort GraphicsPort::PgptNewPic(RC *prc)
     Closes a metafile based GraphicsPort and returns the picture produced from
     drawing into the GraphicsPort.
 ***************************************************************************/
-PPIC GraphicsPort::PpicRelease(void)
+PPicture GraphicsPort::PpicRelease(void)
 {
     AssertThis(0);
-    PPIC ppic;
+    PPicture ppic;
     HPIC hpic;
 
     if (!_fMetaFile)
@@ -798,7 +798,7 @@ PPIC GraphicsPort::PpicRelease(void)
     _hdc = hNil;
     if (hNil == hpic)
         goto LFail;
-    if (pvNil == (ppic = PIC::PpicNew(hpic, &_rcOff)))
+    if (pvNil == (ppic = Picture::PpicNew(hpic, &_rcOff)))
     {
         DeleteEnhMetaFile(hpic);
     LFail:
@@ -1620,7 +1620,7 @@ void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, S
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GraphicsPort::DrawPic(PPIC ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
+void GraphicsPort::DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
     AssertPo(ppic, 0);

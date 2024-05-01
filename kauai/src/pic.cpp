@@ -13,20 +13,20 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(PIC)
+RTCLASS(Picture)
 
 /***************************************************************************
-    Static method to create a new PIC based on the given HPIC with
+    Static method to create a new Picture based on the given HPIC with
     bounding rectangle *prc. If this fails, it is the callers responsibility
     to free the hpic. If it succeeds, the ppic returned owns the hpic.
 ***************************************************************************/
-PPIC PIC::PpicNew(HPIC hpic, RC *prc)
+PPicture Picture::PpicNew(HPIC hpic, RC *prc)
 {
     Assert(hpic != hNil, "nil hpic");
     AssertVarMem(prc);
-    PPIC ppic;
+    PPicture ppic;
 
-    if (pvNil == (ppic = NewObj PIC))
+    if (pvNil == (ppic = NewObj Picture))
         return pvNil;
 
     ppic->_hpic = hpic;
@@ -38,7 +38,7 @@ PPIC PIC::PpicNew(HPIC hpic, RC *prc)
 /***************************************************************************
     Get the natural rectangle for the picture.
 ***************************************************************************/
-void PIC::GetRc(RC *prc)
+void Picture::GetRc(RC *prc)
 {
     AssertThis(0);
     *prc = _rc;
@@ -48,7 +48,7 @@ void PIC::GetRc(RC *prc)
     Add the picture to the chunky file. The OS specific representation
     will be a child of the chunk and have the given chid value.
 ***************************************************************************/
-bool PIC::FAddToCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChunkID chid)
+bool Picture::FAddToCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChunkID chid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -74,7 +74,7 @@ bool PIC::FAddToCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno, ChildChun
     OS specific representation will be a child of the chunk and have the
     given chid value.
 ***************************************************************************/
-bool PIC::FPutInCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
+bool Picture::FPutInCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -113,21 +113,21 @@ bool PIC::FPutInCfl(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkI
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a PIC.
+    Assert the validity of a Picture.
 ***************************************************************************/
-void PIC::AssertValid(ulong grf)
+void Picture::AssertValid(ulong grf)
 {
-    PIC_PAR::AssertValid(0);
+    Picture_PAR::AssertValid(0);
     Assert(_hpic != hNil, "bad hpic");
 }
 #endif // DEBUG
 
 /***************************************************************************
-    A PFNRPO to read PIC 0 from a GRAF chunk.
+    A PFNRPO to read Picture 0 from a GRAF chunk.
 ***************************************************************************/
 bool FReadMainPic(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
-    PPIC ppic;
+    PPicture ppic;
 
     if (pvNil == ppbaco)
     {
@@ -136,7 +136,7 @@ bool FReadMainPic(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PDataBlock pb
         return fTrue;
     }
 
-    if (pvNil == (ppic = PIC::PpicFetch(pcfl, ctg, cno)))
+    if (pvNil == (ppic = Picture::PpicFetch(pcfl, ctg, cno)))
     {
         TrashVar(pcb);
         TrashVar(ppbaco);

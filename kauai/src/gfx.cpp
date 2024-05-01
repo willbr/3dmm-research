@@ -1963,7 +1963,7 @@ void GraphicsEnvironment::Iris(long gfd, long xp, long yp, AbstractColor acrFill
 /***************************************************************************
     Draw the picture in the given rectangle.
 ***************************************************************************/
-void GraphicsEnvironment::DrawPic(PPIC ppic, RC *prc)
+void GraphicsEnvironment::DrawPic(PPicture ppic, RC *prc)
 {
     AssertThis(0);
     AssertPo(ppic, 0);

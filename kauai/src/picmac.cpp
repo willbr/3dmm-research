@@ -16,7 +16,7 @@ ASSERTNAME
 /***************************************************************************
     Constructor for a picture.
 ***************************************************************************/
-PIC::PIC(void)
+Picture::Picture(void)
 {
     _hpic = hNil;
     _rc.Zero();
@@ -25,7 +25,7 @@ PIC::PIC(void)
 /***************************************************************************
     Destructor for a picture.
 ***************************************************************************/
-PIC::~PIC(void)
+Picture::~Picture(void)
 {
     AssertBaseThis(0);
     if (hNil != _hpic)
@@ -36,7 +36,7 @@ PIC::~PIC(void)
     Read a picture from a chunky file.  This routine only reads or converts
     OS specific representations with the given chid value.
 ***************************************************************************/
-PPIC PIC::PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
+PPicture Picture::PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid)
 {
     AssertPo(pcfl, 0);
     ChildChunkIdentification kid;
@@ -57,12 +57,12 @@ PPIC PIC::PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkI
     Read a picture from a chunky file.  This routine only reads a system
     specific pict (Mac PICT or Windows MetaFile) and its header.
 ***************************************************************************/
-PPIC PIC::PpicRead(PDataBlock pblck)
+PPicture Picture::PpicRead(PDataBlock pblck)
 {
     AssertPo(pblck, fblckReadable);
     HPIC hpic;
     PICH pich;
-    PPIC ppic;
+    PPicture ppic;
     RC rc;
     bool fT;
 
@@ -76,7 +76,7 @@ PPIC PIC::PpicRead(PDataBlock pblck)
     HLock((HN)hpic);
     fT = pblck->FReadRgb(*hpic, pich.cb - size(PICH), size(PICH));
     HUnlock((HN)hpic);
-    if (!fT || pvNil == (ppic = NewObj PIC))
+    if (!fT || pvNil == (ppic = NewObj Picture))
     {
         KillPicture(hpic);
         return pvNil;
@@ -91,7 +91,7 @@ PPIC PIC::PpicRead(PDataBlock pblck)
 /***************************************************************************
     Return the total size on file.
 ***************************************************************************/
-long PIC::CbOnFile(void)
+long Picture::CbOnFile(void)
 {
     AssertThis(0);
     return GetHandleSize((HN)_hpic) + size(PICH);
@@ -100,7 +100,7 @@ long PIC::CbOnFile(void)
 /***************************************************************************
     Write the meta file (and its header) to the given DataBlock.
 ***************************************************************************/
-bool PIC::FWrite(PDataBlock pblck)
+bool Picture::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -124,13 +124,13 @@ bool PIC::FWrite(PDataBlock pblck)
 /***************************************************************************
     Static method to read the file as a native picture (PICT file on Mac).
 ***************************************************************************/
-PPIC PIC::PpicReadNative(Filename *pfni)
+PPicture Picture::PpicReadNative(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     PFileObject pfil;
     FilePosition fpMac;
     HPIC hpic;
-    PPIC ppic;
+    PPicture ppic;
     bool fT;
     SystemRectangle rcs;
 
@@ -154,7 +154,7 @@ PPIC PIC::PpicReadNative(Filename *pfni)
     rcs = (*hpic)->picFrame;
     HUnlock((HN)hpic);
     ReleasePpo(&pfil);
-    if (!fT || pvNil == (ppic = NewObj PIC))
+    if (!fT || pvNil == (ppic = NewObj Picture))
     {
         DisposHandle((HN)hpic);
         return pvNil;

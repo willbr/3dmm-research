@@ -1429,7 +1429,7 @@ bool DCD::FCmdAddPicChunk(PCommand pcmd)
     long lnOld;
     Filename fni;
     bool fCreated;
-    PPIC ppic = pvNil;
+    PPicture ppic = pvNil;
 
     // save and clear the sel
     lnOld = _sel.Ln();
@@ -1440,7 +1440,7 @@ bool DCD::FCmdAddPicChunk(PCommand pcmd)
     {
         goto LCancel;
     }
-    if (pvNil == (ppic = PIC::PpicReadNative(&fni)))
+    if (pvNil == (ppic = Picture::PpicReadNative(&fni)))
     {
         vpappb->TGiveAlertSz(PszLit("Reading picture file failed"), bkOk, cokExclamation);
         goto LCancel;

@@ -24,10 +24,10 @@ const FileType kftgEnhMeta = 'EMF';
     Picture class.  This is a wrapper around a system picture (Mac Pict or
     Win MetaFile).
 ***************************************************************************/
-typedef class PIC *PPIC;
-#define PIC_PAR BaseCacheableObject
-#define kclsPIC 'PIC'
-class PIC : public PIC_PAR
+typedef class Picture *PPicture;
+#define Picture_PAR BaseCacheableObject
+#define kclsPicture 'PIC'
+class Picture : public Picture_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -42,18 +42,18 @@ class PIC : public PIC_PAR
     HPIC _hpic;
     RC _rc;
 
-    PIC(void);
+    Picture(void);
 #ifdef WIN
     static HPIC _HpicReadWmf(Filename *pfni);
 #endif // WIN
 
   public:
-    ~PIC(void);
+    ~Picture(void);
 
-    static PPIC PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
-    static PPIC PpicRead(PDataBlock pblck);
-    static PPIC PpicReadNative(Filename *pfni);
-    static PPIC PpicNew(HPIC hpic, RC *prc);
+    static PPicture PpicFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, ChildChunkID chid = 0);
+    static PPicture PpicRead(PDataBlock pblck);
+    static PPicture PpicReadNative(Filename *pfni);
+    static PPicture PpicNew(HPIC hpic, RC *prc);
 
     void GetRc(RC *prc);
     HPIC Hpic(void)

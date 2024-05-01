@@ -222,7 +222,7 @@ class DOCPIC : public DOCPIC_PAR
     MARKMEM
 
   protected:
-    PPIC _ppic;
+    PPicture _ppic;
 
     DOCPIC(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     ~DOCPIC(void);
@@ -235,7 +235,7 @@ class DOCPIC : public DOCPIC_PAR
     static PDOCPIC PdocpicNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
-    PPIC Ppic(void)
+    PPicture Ppic(void)
     {
         return _ppic;
     }
@@ -656,13 +656,13 @@ class DCPIC : public DCPIC_PAR
     MARKMEM
 
   protected:
-    PPIC _ppic;
+    PPicture _ppic;
 
-    DCPIC(PDocumentBase pdocb, PPIC ppic, PGraphicsObjectBlock pgcb);
+    DCPIC(PDocumentBase pdocb, PPicture ppic, PGraphicsObjectBlock pgcb);
     virtual void GetMinMax(RC *prcMinMax);
 
   public:
-    static PDCPIC PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGraphicsObjectBlock pgcb);
+    static PDCPIC PdcpicNew(PDocumentBase pdocb, PPicture ppic, PGraphicsObjectBlock pgcb);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };

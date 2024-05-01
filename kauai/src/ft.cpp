@@ -1394,7 +1394,7 @@ class DOCPIC : public DOCPIC_PAR
     MARKMEM
 
   protected:
-    PPIC _ppic;
+    PPicture _ppic;
     DOCPIC(void);
 
   public:
@@ -1403,7 +1403,7 @@ class DOCPIC : public DOCPIC_PAR
     static DOCPIC *PdocpicNew(void);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
-    PPIC Ppic(void)
+    PPicture Ppic(void)
     {
         return _ppic;
     }
@@ -1459,7 +1459,7 @@ DOCPIC *DOCPIC::PdocpicNew(void)
     static long _cact = 0;
     PGraphicsPort pgpt;
     PGraphicsEnvironment pgnv;
-    PPIC ppic;
+    PPicture ppic;
     DOCPIC *pdocpic;
     long i, j;
     Color clr;

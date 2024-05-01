@@ -74,14 +74,14 @@ bool DOCPIC::_FWrite(PDataBlock pblck, bool fRedirect)
 }
 
 /***************************************************************************
-    Read the PIC.
+    Read the Picture.
 ***************************************************************************/
 bool DOCPIC::_FRead(PDataBlock pblck)
 {
-    Assert(_ppic == pvNil, "losing existing PIC");
+    Assert(_ppic == pvNil, "losing existing Picture");
     AssertPo(pblck, 0);
 
-    _ppic = PIC::PpicRead(pblck);
+    _ppic = Picture::PpicRead(pblck);
     return _ppic != pvNil;
 }
 
@@ -109,7 +109,7 @@ void DOCPIC::MarkMem(void)
 /***************************************************************************
     Constructor for a pic display gob.
 ***************************************************************************/
-DCPIC::DCPIC(PDocumentBase pdocb, PPIC ppic, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+DCPIC::DCPIC(PDocumentBase pdocb, PPicture ppic, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     _ppic = ppic;
 }
@@ -125,7 +125,7 @@ void DCPIC::GetMinMax(RC *prcMinMax)
 /***************************************************************************
     Static method to create a new DCPIC.
 ***************************************************************************/
-PDCPIC DCPIC::PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGraphicsObjectBlock pgcb)
+PDCPIC DCPIC::PdcpicNew(PDocumentBase pdocb, PPicture ppic, PGraphicsObjectBlock pgcb)
 {
     PDCPIC pdcpic;
 

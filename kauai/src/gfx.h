@@ -548,7 +548,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
 
     // bitmaps and pictures
     void CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst);
-    void DrawPic(PPIC ppic, RC *prc);
+    void DrawPic(PPicture ppic, RC *prc);
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp);
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc);
 
@@ -722,7 +722,7 @@ class GraphicsPort : public GraphicsPort_PAR
 
     static PGraphicsPort PgptNewOffscreen(RC *prc, long cbitPixel);
     static PGraphicsPort PgptNewPic(RC *prc);
-    PPIC PpicRelease(void);
+    PPicture PpicRelease(void);
     void SetOffscreenColors(PDynamicArray pglclr = pvNil);
 
     void ClipToRegn(PRegion *ppregn);
@@ -740,7 +740,7 @@ class GraphicsPort : public GraphicsPort_PAR
     void GetRcsFromRgch(SystemRectangle *prcs, achar *prgch, long cch, SystemPoint pts, FontDescription *pdsf);
 
     void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst, GraphicsDrawingData *pgdd);
-    void DrawPic(PPIC ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
+    void DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
 
     void Lock(void);
