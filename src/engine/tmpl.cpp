@@ -357,14 +357,14 @@ bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     AssertBaseThis(0);
 
     DataBlock blck;
-    TMPLF tmplf;
+    TemplateOnFile tmplf;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
 
-    if (blck.Cb() < size(TMPLF))
+    if (blck.Cb() < size(TemplateOnFile))
         return fFalse;
-    if (!blck.FReadRgb(&tmplf, size(TMPLF), 0))
+    if (!blck.FReadRgb(&tmplf, size(TemplateOnFile), 0))
         return fFalse;
 
     if (kboOther == tmplf.bo)
@@ -380,7 +380,7 @@ bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 }
 
 /***************************************************************************
-    Write the TMPLF chunk.  Creates a new chunk and returns the ChunkNumber in pcno.
+    Write the TemplateOnFile chunk.  Creates a new chunk and returns the ChunkNumber in pcno.
 
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for TDTs.
@@ -391,7 +391,7 @@ bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
     AssertPo(pcfl, 0);
     AssertVarMem(pcno);
 
-    TMPLF tmplf;
+    TemplateOnFile tmplf;
 
     // Add TMPL chunk
     tmplf.bo = kboCur;
@@ -401,7 +401,7 @@ bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
     tmplf.zaRest = _zaRest;
     tmplf.grftmpl = _grftmpl;
 
-    if (!pcfl->FAddPv(&tmplf, size(TMPLF), ctg, pcno))
+    if (!pcfl->FAddPv(&tmplf, size(TemplateOnFile), ctg, pcno))
         return fFalse;
     if (!pcfl->FSetName(kctgTmpl, *pcno, &_stn))
     {

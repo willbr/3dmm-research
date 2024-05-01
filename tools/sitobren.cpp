@@ -927,7 +927,7 @@ bool S2B::_FDoTtActor(bool *pfHaveActor)
     bool fRet = fTrue;
     uint mdBPS = _mdBPS, mdMaterials = 2;
     ChunkNumber cno;
-    TMPLF tmplf;
+    TemplateOnFile tmplf;
 
     _FlushTmplKids();
 

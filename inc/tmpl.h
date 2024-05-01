@@ -51,14 +51,14 @@ struct CEL
 const ByteOrderMask kbomCel = 0xf0000000;
 
 // template on file
-struct TMPLF
+struct TemplateOnFile
 {
     short bo;
     short osk;
     BRA xaRest; // reminder: BRAs are shorts
     BRA yaRest;
     BRA zaRest;
-    short swPad; // so grftmpl (and the whole TMPLF) is long-aligned
+    short swPad; // so grftmpl (and the whole TemplateOnFile) is long-aligned
     ulong grftmpl;
 };
 #define kbomTmplf 0x554c0000
