@@ -264,7 +264,7 @@ class BRCNL : public BRCNL_PAR
 //
 const long kglstnGrow = 5;
 const long kglthdGrow = 10;
-struct THD
+struct ThumbnailDescriptor
 {
     union {
         TAG tag; // TAG pointing to content
@@ -286,7 +286,7 @@ struct THD
 
     ChunkNumber cno;       // KidspaceGraphicObjectDescriptor cno
     ChildChunkID chidThum; // KidspaceGraphicObjectDescriptor's parent's ChildChunkID (relative to KidspaceGraphicObjectDescriptor parent's parent)
-    long ithd;     // Original index for this THD, before sorting (used to
+    long ithd;     // Original index for this ThumbnailDescriptor, before sorting (used to
                    // retrieve proper String for the BRWN-derived browsers)
 };
 
@@ -332,7 +332,7 @@ class BCL : public BCL_PAR
     {
         return _pglthd;
     }
-    void GetThd(long ithd, THD *pthd)
+    void GetThd(long ithd, ThumbnailDescriptor *pthd)
     {
         _pglthd->Get(ithd, pthd);
     }

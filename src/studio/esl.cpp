@@ -362,7 +362,7 @@ bool ESLT::FCmdTransmogrify(PCommand pcmd)
     long tdts;
     ChunkIdentification cki;
     long ithd;
-    THD thd;
+    ThumbnailDescriptor thd;
     TAG tagTdf;
     TAG tagMtrl;
 

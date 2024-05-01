@@ -1055,7 +1055,7 @@ bool BRWL::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bo
         //
         // Create the gl's
         //
-        if (pvNil == (_pglthd = DynamicArray::PglNew(size(THD), kglthdGrow)))
+        if (pvNil == (_pglthd = DynamicArray::PglNew(size(ThumbnailDescriptor), kglthdGrow)))
             return fFalse;
         _pglthd->SetMinGrow(kglthdGrow);
     }
@@ -1079,7 +1079,7 @@ LFail:
 
 /****************************************************
  *
- * BRWL _FGetContent : Enum files & build the THD
+ * BRWL _FGetContent : Enum files & build the ThumbnailDescriptor
  *
  ****************************************************/
 bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
@@ -1093,7 +1093,7 @@ bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
         return fTrue;
 
     //
-    // Enumerate the files & build the THD
+    // Enumerate the files & build the ThumbnailDescriptor
     //
     Assert(ctg != cnoNil || pcki->ctg == ctgNil, "Invalid browser call");
 
@@ -1123,7 +1123,7 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
     AssertIn(ithum, 0, _Cthum());
     AssertVarMem(psid);
 
-    THD thd{};
+    ThumbnailDescriptor thd{};
 
     if (_bws == kbwsIndex)
     {
@@ -1138,7 +1138,7 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
     switch (_bws)
     {
     case kbwsChid:
-        Assert(thd.chid != chidNil, "Bogus sort order for THD list");
+        Assert(thd.chid != chidNil, "Bogus sort order for ThumbnailDescriptor list");
         *((ChildChunkID *)pvthumSelect) = thd.chid;
         break;
     case kbwsCnoRoot:
@@ -1220,8 +1220,8 @@ void BRWL::_SortThd(void)
     long ithd;
     long jthd;
     long *plwJ, *plwI;
-    THD thdi;
-    THD thdj;
+    ThumbnailDescriptor thdi;
+    ThumbnailDescriptor thdj;
     long sid;
     long jthdMin = 0;
     bool fSortBySid;
@@ -1272,7 +1272,7 @@ void BRWL::_SortThd(void)
             if (*plwJ == *plwI)
             {
                 long ithdT;
-                THD thdT;
+                ThumbnailDescriptor thdT;
                 if (pvNil != _pgst && thdi.ithd < _pgst->IvMac())
                 {
                     Assert(thdi.ithd == ithd, "Logic error cleaning pgst");
@@ -1315,7 +1315,7 @@ long BRWL::_IthumFromThum(long thumSelect, long sidSelect)
     AssertThis(0);
 
     long *plw;
-    THD thd;
+    ThumbnailDescriptor thd;
 
     if (thumSelect == ivNil)
         return ivNil;
@@ -1363,7 +1363,7 @@ bool BRWL::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
     AssertThis(0);
     AssertPo(pgobPar, 0);
 
-    THD thd;
+    ThumbnailDescriptor thd;
     PKidspaceGraphicObject pgok;
     RC rcAbs;
     RC rcRel;
@@ -1451,7 +1451,7 @@ bool BCL::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, Chu
 
     if (pglthd == pvNil)
     {
-        if ((pglthd = DynamicArray::PglNew(size(THD))) == pvNil)
+        if ((pglthd = DynamicArray::PglNew(size(ThumbnailDescriptor))) == pvNil)
             goto LFail;
     }
     else
@@ -1489,7 +1489,7 @@ LFail:
 
 /****************************************************
  *
- * Enumerate thumbnail files & create the THD
+ * Enumerate thumbnail files & create the ThumbnailDescriptor
  * (Thumbnail descriptor gl)
  *
  * Note: In the case of actions & views, this is one
@@ -1554,7 +1554,7 @@ bool BCL::_FBuildThd(PChunkyResourceManager pcrm)
 
 /****************************************************
  *
- *  Add the chunks of file pcfl to the THD
+ *  Add the chunks of file pcfl to the ThumbnailDescriptor
  *
  *	Requires pre-definition of _ckiRoot, _ctgContent
  *
@@ -1639,7 +1639,7 @@ bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
 
 /****************************************************
  *
- *  Add a single KidspaceGraphicObjectDescriptor to the THD
+ *  Add a single KidspaceGraphicObjectDescriptor to the ThumbnailDescriptor
  *	The KidspaceGraphicObjectDescriptor is a child of ckiPar.
  *  cnoPar is read from the ckiPar chunk
  *
@@ -1652,7 +1652,7 @@ bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *p
 
     ChunkIdentification cki = pkid->cki;
     ChildChunkIdentification kid;
-    THD thd;
+    ThumbnailDescriptor thd;
     DataBlock blck;
     TFC tfc;
 
@@ -1750,7 +1750,7 @@ bool FNET::FInit(void)
 
     FileType ftgThd = kftgThumbDesc;
 
-    vapp.GetFniProduct(&_fniDirProduct); // look for THD files in the product FIRST
+    vapp.GetFniProduct(&_fniDirProduct); // look for ThumbnailDescriptor files in the product FIRST
     _fniDir = _fniDirProduct;
     _fniDirMSK = _fniDirProduct;
     _fInitMSKDir = fTrue;
@@ -1878,7 +1878,7 @@ bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
         goto LFail;
 
     //
-    // Enumerate the files & build the THD
+    // Enumerate the files & build the ThumbnailDescriptor
     //
     Assert(ctg != cnoNil || pcki->ctg == ctgNil, "Invalid browser call");
 
@@ -1934,7 +1934,7 @@ bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 
     PTGOB ptgob;
     String stnLabel;
-    THD thd;
+    ThumbnailDescriptor thd;
 
     _pglthd->Get(ithd, &thd);
     _pgst->GetStn(thd.ithd, &stnLabel);
@@ -2038,7 +2038,7 @@ bool BRWM::_FUpdateLists(void)
     AssertThis(0);
 
     String stn;
-    THD thd;
+    ThumbnailDescriptor thd;
     long ithd;
     long ithdOld;
     long ccki;
@@ -2111,11 +2111,11 @@ bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
     AssertBaseThis(0);
 
     long ithd;
-    THD *pthd;
+    ThumbnailDescriptor *pthd;
 
     for (ithd = _cthumCD; ithd < _pglthd->IvMac(); ithd++)
     {
-        pthd = (THD *)_pglthd->QvGet(ithd);
+        pthd = (ThumbnailDescriptor *)_pglthd->QvGet(ithd);
         if (pthd->tag.cno == cno)
         {
             if (pvNil != pithd)
@@ -2134,7 +2134,7 @@ bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
 bool BRWM::_FAddThd(String *pstn, ChunkIdentification *pcki)
 {
     AssertBaseThis(0);
-    THD thd;
+    ThumbnailDescriptor thd;
 
     if (!_pgst->FAddStn(pstn))
         return fFalse;
@@ -2756,7 +2756,7 @@ bool BRWI::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
     //
     // Create the gl's
     //
-    if (pvNil == (_pglthd = DynamicArray::PglNew(size(THD), kglthdGrow)))
+    if (pvNil == (_pglthd = DynamicArray::PglNew(size(ThumbnailDescriptor), kglthdGrow)))
         return fFalse;
     _pglthd->SetMinGrow(kglthdGrow);
 

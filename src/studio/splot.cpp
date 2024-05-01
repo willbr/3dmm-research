@@ -149,7 +149,7 @@ bool SPLOT::FCmdSplot(PCommand pcmd)
 
     bool fDirty = fFalse;
     ChunkIdentification cki;
-    THD thd;
+    ThumbnailDescriptor thd;
 
     vapp.BeginLongOp();
 
@@ -276,7 +276,7 @@ bool SPLOT::FCmdUpdate(PCommand pcmd)
 
     if (_fDirty)
     {
-        THD thd;
+        ThumbnailDescriptor thd;
         TAG tagCam, tagBkgd;
 
         vapp.BeginLongOp();

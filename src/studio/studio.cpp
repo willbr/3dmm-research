@@ -1091,7 +1091,7 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     TAG tagTdf;
     ChunkIdentification cki;
     PBCL pbcl;
-    THD thd;
+    ThumbnailDescriptor thd;
 
     vapp.BeginLongOp();
     vapp.GetStnProduct(&stn); // Default string for TDT easel is product name
