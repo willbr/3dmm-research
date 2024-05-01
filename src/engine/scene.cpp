@@ -31,9 +31,9 @@
 
             BASE ---> UndoBase ---> MovieUndo ---> SceneUndoText
 
-        Scene Sound Undo Object (SUNS)
+        Scene Sound Undo Object (SceneUndoSound)
 
-            BASE ---> UndoBase ---> MovieUndo ---> SUNS
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoSound
 
         Scene Title Undo Object (SUNT)
 
@@ -372,11 +372,11 @@ class SceneUndoText : public SceneUndoText_PAR
 //
 // Undo object for sound operations
 //
-typedef class SUNS *PSUNS;
+typedef class SceneUndoSound *PSceneUndoSound;
 
-#define SUNS_PAR MovieUndo
-#define kclsSUNS 'SUNS'
-class SUNS : public SUNS_PAR
+#define SceneUndoSound_PAR MovieUndo
+#define kclsSceneUndoSound 'SUNS'
+class SceneUndoSound : public SceneUndoSound_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -386,13 +386,13 @@ class SUNS : public SUNS_PAR
     PSceneSoundEvent _psse; // may be pvNil
     long _sty;  // sty to use if _psse is pvNil
 
-    SUNS(void)
+    SceneUndoSound(void)
     {
     }
 
   public:
-    static PSUNS PsunsNew(void);
-    ~SUNS(void);
+    static PSceneUndoSound PsunsNew(void);
+    ~SceneUndoSound(void);
 
     bool FSetSnd(PSceneSoundEvent psse)
     {
@@ -448,7 +448,7 @@ class SUNT : public SUNT_PAR
 
 RTCLASS(Scene)
 RTCLASS(SUNT)
-RTCLASS(SUNS)
+RTCLASS(SceneUndoSound)
 RTCLASS(SceneActorUndo)
 RTCLASS(SceneUndoBackground)
 RTCLASS(SceneUndoPause)
@@ -1948,12 +1948,12 @@ bool Scene::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
 
-    PSUNS psuns;
+    PSceneUndoSound psuns;
     PSceneSoundEvent psse;
     bool fFound;
 
-    // Create a SUNS with nil _psse
-    psuns = SUNS::PsunsNew();
+    // Create a SceneUndoSound with nil _psse
+    psuns = SceneUndoSound::PsunsNew();
 
     if (psuns == pvNil)
     {
@@ -2076,12 +2076,12 @@ bool Scene::FRemSnd(long sty)
     AssertThis(0);
     AssertIn(sty, 0, styLim);
 
-    PSUNS psuns;
+    PSceneUndoSound psuns;
     PSceneSoundEvent psse = pvNil;
     long isev;
     PSEV qsev;
 
-    psuns = SUNS::PsunsNew();
+    psuns = SceneUndoSound::PsunsNew();
 
     if (psuns == pvNil)
     {
@@ -5951,10 +5951,10 @@ void SUNT::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNS SUNS::PsunsNew()
+PSceneUndoSound SceneUndoSound::PsunsNew()
 {
-    PSUNS psuns;
-    psuns = NewObj SUNS();
+    PSceneUndoSound psuns;
+    psuns = NewObj SceneUndoSound();
     return (psuns);
 }
 
@@ -5963,7 +5963,7 @@ PSUNS SUNS::PsunsNew()
  * Destructor for scene sound undo objects
  *
  ****************************************************/
-SUNS::~SUNS(void)
+SceneUndoSound::~SceneUndoSound(void)
 {
     AssertBaseThis(0);
     ReleasePpsse(&_psse);
@@ -5980,7 +5980,7 @@ SUNS::~SUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNS::FDo(PDocumentBase pdocb)
+bool SceneUndoSound::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -6073,7 +6073,7 @@ bool SUNS::FDo(PDocumentBase pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNS::FUndo(PDocumentBase pdocb)
+bool SceneUndoSound::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -6083,7 +6083,7 @@ bool SUNS::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNS
+ * Mark memory used by the SceneUndoSound
  *
  * Parameters:
  * 	None.
@@ -6092,20 +6092,20 @@ bool SUNS::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void SUNS::MarkMem(void)
+void SceneUndoSound::MarkMem(void)
 {
     AssertThis(0);
-    SUNS_PAR::MarkMem();
+    SceneUndoSound_PAR::MarkMem();
     if (_psse != pvNil)
         MarkPv(_psse);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNS.
+    Assert the validity of the SceneUndoSound.
 ***************************************************************************/
-void SUNS::AssertValid(ulong grf)
+void SceneUndoSound::AssertValid(ulong grf)
 {
-    SUNS_PAR::AssertValid(grf);
+    SceneUndoSound_PAR::AssertValid(grf);
     if (_psse != pvNil)
     {
         AssertPvCb(_psse, size(SceneSoundEvent));
