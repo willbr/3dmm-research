@@ -19,9 +19,9 @@
 
             BASE ---> UndoBase ---> MovieUndo ---> SceneUndoChop
 
-        Scene Background Undo Object (SUNK)
+        Scene Background Undo Object (SceneUndoBackground)
 
-            BASE ---> UndoBase ---> MovieUndo ---> SUNK
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoBackground
 
         Scene Pause Undo Object (SUNP)
 
@@ -204,11 +204,11 @@ class SceneUndoChop : public SceneUndoChop_PAR
 //
 // Undo object for background operations
 //
-typedef class SUNK *PSUNK;
+typedef class SceneUndoBackground *PSceneUndoBackground;
 
-#define SUNK_PAR MovieUndo
-#define kclsSUNK 'SUNK'
-class SUNK : public SUNK_PAR
+#define SceneUndoBackground_PAR MovieUndo
+#define kclsSceneUndoBackground 'SUNK'
+class SceneUndoBackground : public SceneUndoBackground_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -218,13 +218,13 @@ class SUNK : public SUNK_PAR
     TAG _tag;
     long _icam;
     bool _fSetBkgd;
-    SUNK(void)
+    SceneUndoBackground(void)
     {
     }
 
   public:
-    static PSUNK PsunkNew(void);
-    ~SUNK(void);
+    static PSceneUndoBackground PsunkNew(void);
+    ~SceneUndoBackground(void);
 
     void SetTag(PTAG ptag)
     {
@@ -450,7 +450,7 @@ RTCLASS(Scene)
 RTCLASS(SUNT)
 RTCLASS(SUNS)
 RTCLASS(SceneActorUndo)
-RTCLASS(SUNK)
+RTCLASS(SceneUndoBackground)
 RTCLASS(SUNP)
 RTCLASS(SUNX)
 RTCLASS(SceneUndoChop)
@@ -3451,7 +3451,7 @@ bool Scene::FSetBkgd(PTAG ptag)
     AssertVarMem(ptag);
 
     TAG tagOld;
-    PSUNK psunk;
+    PSceneUndoBackground psunk;
     long icam;
 
     if (_pbkgd != pvNil)
@@ -3471,7 +3471,7 @@ bool Scene::FSetBkgd(PTAG ptag)
     Assert(tagOld.sid != lw, "Use CORE function to set first background");
 #endif
 
-    psunk = SUNK::PsunkNew();
+    psunk = SceneUndoBackground::PsunkNew();
 
     if (psunk == pvNil)
     {
@@ -3696,7 +3696,7 @@ LSuccess:
 bool Scene::FChangeCam(long icam)
 {
     long icamOld;
-    PSUNK psunk;
+    PSceneUndoBackground psunk;
     TAG tagCam;
 
     if (!vptagm->FBuildChildTag(&_tagBkgd, icam, kctgCam, &tagCam))
@@ -3714,7 +3714,7 @@ bool Scene::FChangeCam(long icam)
         return (fFalse);
     }
 
-    psunk = SUNK::PsunkNew();
+    psunk = SceneUndoBackground::PsunkNew();
 
     if (psunk == pvNil)
     {
@@ -6817,10 +6817,10 @@ void SUNP::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNK SUNK::PsunkNew()
+PSceneUndoBackground SceneUndoBackground::PsunkNew()
 {
-    PSUNK psunk;
-    psunk = NewObj SUNK();
+    PSceneUndoBackground psunk;
+    psunk = NewObj SceneUndoBackground();
     return (psunk);
 }
 
@@ -6829,7 +6829,7 @@ PSUNK SUNK::PsunkNew()
  * Destructor for scene background undo objects
  *
  ****************************************************/
-SUNK::~SUNK(void)
+SceneUndoBackground::~SceneUndoBackground(void)
 {
     AssertBaseThis(0);
 }
@@ -6845,7 +6845,7 @@ SUNK::~SUNK(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNK::FDo(PDocumentBase pdocb)
+bool SceneUndoBackground::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6915,7 +6915,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNK::FUndo(PDocumentBase pdocb)
+bool SceneUndoBackground::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -6923,7 +6923,7 @@ bool SUNK::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNK
+ * Mark memory used by the SceneUndoBackground
  *
  * Parameters:
  * 	None.
@@ -6932,16 +6932,16 @@ bool SUNK::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void SUNK::MarkMem(void)
+void SceneUndoBackground::MarkMem(void)
 {
     AssertThis(0);
-    SUNK_PAR::MarkMem();
+    SceneUndoBackground_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNK.
+    Assert the validity of the SceneUndoBackground.
 ***************************************************************************/
-void SUNK::AssertValid(ulong grf)
+void SceneUndoBackground::AssertValid(ulong grf)
 {
 }
 #endif
