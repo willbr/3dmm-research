@@ -462,7 +462,7 @@ PDynamicArray DynamicArray::PglDup(void)
 }
 
 // List on file
-struct GLF
+struct DynamicArrayOnFile
 {
     short bo;
     short osk;
@@ -477,7 +477,7 @@ const ByteOrderMask kbomGlf = 0x5F000000L;
 long DynamicArray::CbOnFile(void)
 {
     AssertThis(0);
-    return size(GLF) + LwMul(_cbEntry, _ivMac);
+    return size(DynamicArrayOnFile) + LwMul(_cbEntry, _ivMac);
 }
 
 /***************************************************************************
@@ -490,7 +490,7 @@ bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
 
-    GLF glf;
+    DynamicArrayOnFile glf;
 
     glf.bo = kboCur;
     glf.osk = osk;
@@ -515,7 +515,7 @@ bool DynamicArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    GLF glf;
+    DynamicArrayOnFile glf;
     long cb;
     bool fRet = fFalse;
 
