@@ -27,7 +27,7 @@ struct CustomMaterialOnFile
 const ByteOrderMask kbomCmtlf = 0x5c000000;
 
 // material on file (Material_MTRL chunk)
-struct MTRLF
+struct MaterialOnFile
 {
     short bo;            // byte order
     short osk;           // OS kind

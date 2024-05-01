@@ -51,7 +51,7 @@ typedef struct _bmhr
     ModelOnFile *pmodlf; // the file data
     long cbModlf;
     BMAT34 bmat34; // XF
-    MTRLF mtrlf;
+    MaterialOnFile mtrlf;
     PString pstnMtrlFile;
     BRUFR brufrUOffset; // Material offsets
     BRUFR brufrVOffset;

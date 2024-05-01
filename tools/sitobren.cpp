@@ -3002,7 +3002,7 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
                 CnoNext();
                 _DumpHeader(kctgMtrl, _cnoCur, &_stnT, fTrue);
                 _chse.DumpParentCmd(kctgCmtl, cmtld.cno, cmtld.chidCur);
-                _chse.DumpRgb(&pbmhr->mtrlf, size(MTRLF));
+                _chse.DumpRgb(&pbmhr->mtrlf, size(MaterialOnFile));
                 _chse.DumpSz(PszLit("ENDCHUNK"));
                 _chse.DumpSz(PszLit(""));
 

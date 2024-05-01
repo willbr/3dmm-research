@@ -124,7 +124,7 @@ bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
 
     PChunkyFile pcfl = pcrf->Pcfl();
     DataBlock blck;
-    MTRLF mtrlf;
+    MaterialOnFile mtrlf;
     ChildChunkIdentification kid;
     Material_MTRL *pmtrlThis = this; // to get Material_MTRL from BMTL
     PTextureMap ptmap = pvNil;
@@ -132,13 +132,13 @@ bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
 
-    if (blck.Cb() < size(MTRLF))
+    if (blck.Cb() < size(MaterialOnFile))
         return fFalse;
-    if (!blck.FReadRgb(&mtrlf, size(MTRLF), 0))
+    if (!blck.FReadRgb(&mtrlf, size(MaterialOnFile), 0))
         return fFalse;
     if (kboOther == mtrlf.bo)
         SwapBytesBom(&mtrlf, kbomMtrlf);
-    Assert(kboCur == mtrlf.bo, "bad MTRLF");
+    Assert(kboCur == mtrlf.bo, "bad MaterialOnFile");
 
     // An arbitrary 4-character string is passed to BrMaterialAllocate (to
     // be stored in a string pointed to by _pbmtl->identifier).  The
@@ -337,7 +337,7 @@ bool Material_MTRL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
     AssertPo(pcfl, 0);
     AssertVarMem(pcno);
 
-    MTRLF mtrlf;
+    MaterialOnFile mtrlf;
     ChunkNumber cnoChild;
     PTextureMap ptmap;
 
@@ -351,7 +351,7 @@ bool Material_MTRL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
     mtrlf.cIndexRange = _pbmtl->index_range;
     mtrlf.rPower = _pbmtl->power;
 
-    if (!pcfl->FAddPv(&mtrlf, size(MTRLF), ctg, pcno))
+    if (!pcfl->FAddPv(&mtrlf, size(MaterialOnFile), ctg, pcno))
         return fFalse;
     ptmap = Ptmap();
     if (pvNil != ptmap)
