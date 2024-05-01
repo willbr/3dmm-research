@@ -1021,7 +1021,7 @@ bool S2B::_FDoTtActionS2B(void)
     String stnFileBase, stnFileAddon, stnSubmodel;
     int cCel, iCel, iCelBase, dCel = 1, iCelMac;
     long grfactn;
-    ACTNF actnf;
+    ActionChunkOnFile actnf;
     ChunkNumber cnoActn;
     BRS brsScale = BrFloatToScalar(1.0), brsStep = BR_SCALAR(-1);
     BRS rgbrsDwr[3] = {BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(0)};

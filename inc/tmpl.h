@@ -64,7 +64,7 @@ struct TemplateOnFile
 #define kbomTmplf 0x554c0000
 
 // action chunk on file
-struct ACTNF
+struct ActionChunkOnFile
 {
     short bo;
     short osk;

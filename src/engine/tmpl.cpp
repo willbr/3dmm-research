@@ -146,20 +146,20 @@ bool ACTN::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 
     ChildChunkIdentification kid;
     DataBlock blck;
-    ACTNF actnf;
+    ActionChunkOnFile actnf;
     short bo;
     long icel;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
 
-    if (blck.Cb() < size(ACTNF))
+    if (blck.Cb() < size(ActionChunkOnFile))
         return fFalse;
-    if (!blck.FReadRgb(&actnf, size(ACTNF), 0))
+    if (!blck.FReadRgb(&actnf, size(ActionChunkOnFile), 0))
         return fFalse;
     if (kboOther == actnf.bo)
         SwapBytesBom(&actnf, kbomActnf);
-    Assert(kboCur == actnf.bo, "bad ACTNF");
+    Assert(kboCur == actnf.bo, "bad ActionChunkOnFile");
     _grfactn = actnf.grfactn;
 
     // read GeneralGroup of cels (chid 0, ctg kctgGgcl):
