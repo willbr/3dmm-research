@@ -33,7 +33,7 @@ ON_CID_GEN(cidRedo, &DocumentDisplayGraphicsObject::FCmdUndo, &DocumentDisplayGr
 END_CMD_MAP_NIL()
 
 RTCLASS(DocumentBase)
-RTCLASS(DTE)
+RTCLASS(DocumentTreeEnumerator)
 RTCLASS(DocumentDisplayGraphicsObject)
 RTCLASS(DocumentMDIWindow)
 RTCLASS(DocumentMainWindow)
@@ -201,7 +201,7 @@ bool DocumentBase::FQueryCloseAll(ulong grfdoc)
 bool DocumentBase::FQueryClose(ulong grfdoc)
 {
     tribool tRet;
-    DTE dte;
+    DocumentTreeEnumerator dte;
     PDocumentBase pdocb;
     ulong grfdte;
     bool fForce = FPure(grfdoc & fdocForceClose);
@@ -567,7 +567,7 @@ void DocumentBase::GetName(PString pstn)
 ***************************************************************************/
 void DocumentBase::UpdateName(void)
 {
-    DTE dte;
+    DocumentTreeEnumerator dte;
     ulong grfdte;
     String stn;
     long ipddg;
@@ -850,7 +850,7 @@ void DocumentBase::MarkMem(void)
 /***************************************************************************
     Constructor for a document tree enumerator.
 ***************************************************************************/
-DTE::DTE(void)
+DocumentTreeEnumerator::DocumentTreeEnumerator(void)
 {
     _es = esDone;
 }
@@ -858,7 +858,7 @@ DTE::DTE(void)
 /***************************************************************************
     Initialize a document tree enumerator.
 ***************************************************************************/
-void DTE::Init(PDocumentBase pdocb)
+void DocumentTreeEnumerator::Init(PDocumentBase pdocb)
 {
     _pdocbRoot = pdocb;
     _pdocbCur = pvNil;
@@ -869,7 +869,7 @@ void DTE::Init(PDocumentBase pdocb)
     Goes to the next node in the sub tree being enumerated.  Returns false
     iff the enumeration is done.
 ***************************************************************************/
-bool DTE::FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdte)
+bool DocumentTreeEnumerator::FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdte)
 {
     PDocumentBase pdocbT;
 

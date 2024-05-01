@@ -60,7 +60,7 @@ class DocumentBase : public DocumentBase_PAR
     ASSERT
     MARKMEM
 
-    friend class DTE;
+    friend class DocumentTreeEnumerator;
 
   protected:
     static long _cactLast;
@@ -184,9 +184,9 @@ enum
     fdteRoot = 8
 };
 
-#define DTE_PAR BASE
-#define kclsDTE 'DTE'
-class DTE : public DTE_PAR
+#define DocumentTreeEnumerator_PAR BASE
+#define kclsDocumentTreeEnumerator 'DTE'
+class DocumentTreeEnumerator : public DocumentTreeEnumerator_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -206,7 +206,7 @@ class DTE : public DTE_PAR
     PDocumentBase _pdocbCur;
 
   public:
-    DTE(void);
+    DocumentTreeEnumerator(void);
     void Init(PDocumentBase pdocb);
     bool FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdteIn = fdteNil);
 };
