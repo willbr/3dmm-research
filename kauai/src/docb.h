@@ -452,10 +452,10 @@ enum
 /***************************************************************************
     document scroll split mover - must be a child of a DocumentScrollGraphicsObject
 ***************************************************************************/
-typedef class DSSM *PDSSM;
-#define DSSM_PAR GraphicsObject
-#define kclsDSSM 'DSSM'
-class DSSM : public DSSM_PAR
+typedef class DocumentScrollSplitMover *PDocumentScrollSplitMover;
+#define DocumentScrollSplitMover_PAR GraphicsObject
+#define kclsDocumentScrollSplitMover 'DSSM'
+class DocumentScrollSplitMover : public DocumentScrollSplitMover_PAR
 {
     RTCLASS_DEC
 
@@ -463,12 +463,12 @@ class DSSM : public DSSM_PAR
     bool _fVert;
 
   protected:
-    DSSM(PGCB pgcb);
+    DocumentScrollSplitMover(PGCB pgcb);
 
     void _DrawTrackBar(PGraphicsEnvironment pgnv, RC *prcOld, RC *prcNew);
 
   public:
-    static PDSSM PdssmNew(PDocumentScrollGraphicsObject pdsg);
+    static PDocumentScrollSplitMover PdssmNew(PDocumentScrollGraphicsObject pdsg);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);

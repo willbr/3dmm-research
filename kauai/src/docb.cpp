@@ -39,7 +39,7 @@ RTCLASS(DocumentMDIWindow)
 RTCLASS(DocumentMainWindow)
 RTCLASS(DocumentScrollGraphicsObject)
 RTCLASS(DocumentScrollWindowSplitter)
-RTCLASS(DSSM)
+RTCLASS(DocumentScrollSplitMover)
 RTCLASS(UndoBase)
 
 /***************************************************************************
@@ -2138,7 +2138,7 @@ bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSpli
     _fCreating = fTrue;
 
     // create the split mover
-    if (pvNil == DSSM::PdssmNew(this))
+    if (pvNil == DocumentScrollSplitMover::PdssmNew(this))
         return fFalse;
 
     // Create the scroll bars and split boxes
@@ -2338,31 +2338,31 @@ void DocumentScrollWindowSplitter::MouseDown(long xp, long yp, long cact, ulong 
 /***************************************************************************
     Constructor for the split mover.
 ***************************************************************************/
-DSSM::DSSM(PGCB pgcb) : GraphicsObject(pgcb)
+DocumentScrollSplitMover::DocumentScrollSplitMover(PGCB pgcb) : GraphicsObject(pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new split mover.
 ***************************************************************************/
-PDSSM DSSM::PdssmNew(PDocumentScrollGraphicsObject pdsg)
+PDocumentScrollSplitMover DocumentScrollSplitMover::PdssmNew(PDocumentScrollGraphicsObject pdsg)
 {
     AssertPo(pdsg, 0);
-    PDSSM pdssm;
+    PDocumentScrollSplitMover pdssm;
     GraphicsObjectBlock gcb(khidDssm, pdsg);
 
     gcb._rcRel.xpLeft = gcb._rcRel.xpRight = gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelOne;
     gcb._rcAbs.xpLeft = -SCB::DxpNormal();
     gcb._rcAbs.ypTop = -SCB::DypNormal();
     gcb._rcAbs.xpRight = gcb._rcAbs.ypBottom = 0;
-    pdssm = NewObj DSSM(&gcb);
+    pdssm = NewObj DocumentScrollSplitMover(&gcb);
     return pdssm;
 }
 
 /***************************************************************************
     Draw the split mover.
 ***************************************************************************/
-void DSSM::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void DocumentScrollSplitMover::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
@@ -2382,7 +2382,7 @@ void DSSM::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Track the mouse and change the split location.
 ***************************************************************************/
-void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void DocumentScrollSplitMover::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
     long zp, zpMin, zpLast, zpOrig, dzpMinDsg, dzp;
@@ -2441,7 +2441,7 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
     Determine if we are disabled (tMaybe) or if not whether we are vertical
     (tYes) or horizontal (tNo).
 ***************************************************************************/
-tribool DSSM::TVert(void)
+tribool DocumentScrollSplitMover::TVert(void)
 {
     PDocumentScrollGraphicsObject pdsg;
     PDocumentMainWindow pdmw;
