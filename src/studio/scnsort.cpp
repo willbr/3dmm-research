@@ -14,24 +14,24 @@
 
 ASSERTNAME
 
-BEGIN_CMD_MAP(SCRT, KidspaceGraphicObject)
-ON_CID_ME(cidSceneSortInit, &SCRT::FCmdInit, pvNil)
-ON_CID_ME(cidSceneSortSelect, &SCRT::FCmdSelect, pvNil)
-ON_CID_ME(cidSceneSortInsert, &SCRT::FCmdInsert, pvNil)
-ON_CID_ME(cidSceneSortScroll, &SCRT::FCmdScroll, pvNil)
-ON_CID_ME(cidSceneSortNuke, &SCRT::FCmdNuke, pvNil)
-ON_CID_ME(cidSceneSortOk, &SCRT::FCmdDismiss, pvNil)
-ON_CID_ME(cidSceneSortCancel, &SCRT::FCmdDismiss, pvNil)
-ON_CID_ME(cidSceneSortPortfolio, &SCRT::FCmdPortfolio, pvNil)
-ON_CID_ME(cidSceneSortTransition, &SCRT::FCmdTransition, pvNil)
+BEGIN_CMD_MAP(SceneSorter, KidspaceGraphicObject)
+ON_CID_ME(cidSceneSortInit, &SceneSorter::FCmdInit, pvNil)
+ON_CID_ME(cidSceneSortSelect, &SceneSorter::FCmdSelect, pvNil)
+ON_CID_ME(cidSceneSortInsert, &SceneSorter::FCmdInsert, pvNil)
+ON_CID_ME(cidSceneSortScroll, &SceneSorter::FCmdScroll, pvNil)
+ON_CID_ME(cidSceneSortNuke, &SceneSorter::FCmdNuke, pvNil)
+ON_CID_ME(cidSceneSortOk, &SceneSorter::FCmdDismiss, pvNil)
+ON_CID_ME(cidSceneSortCancel, &SceneSorter::FCmdDismiss, pvNil)
+ON_CID_ME(cidSceneSortPortfolio, &SceneSorter::FCmdPortfolio, pvNil)
+ON_CID_ME(cidSceneSortTransition, &SceneSorter::FCmdTransition, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(SCRT)
+RTCLASS(SceneSorter)
 
 #ifdef DEBUG
-void SCRT::AssertValid(ulong grf)
+void SceneSorter::AssertValid(ulong grf)
 {
-    SCRT_PAR::AssertValid(0);
+    SceneSorter_PAR::AssertValid(0);
     if (_iscenMac > 0)
         AssertIn(_iscenCur, 0, _iscenMac);
     else
@@ -39,7 +39,7 @@ void SCRT::AssertValid(ulong grf)
     AssertIn(_iscenTop, 0, _iscenMac + 1);
 
     /* The CompositeMovie has loose rules about the format of its data structures, but
-        it's important to the SCRT that we keep things in the right order. */
+        it's important to the SceneSorter that we keep things in the right order. */
     if (_cmvi.pglscend != pvNil)
     {
         long imviedMac;
@@ -58,28 +58,28 @@ void SCRT::AssertValid(ulong grf)
     }
 }
 
-void SCRT::MarkMem(void)
+void SceneSorter::MarkMem(void)
 {
     AssertThis(0);
 
-    SCRT_PAR::MarkMem();
+    SceneSorter_PAR::MarkMem();
     MarkMemObj(_pmvie);
     _cmvi.MarkMem();
 }
 #endif /* DEBUG */
 
-SCRT::SCRT(PGraphicsObjectBlock pgcb) : SCRT_PAR(pgcb)
+SceneSorter::SceneSorter(PGraphicsObjectBlock pgcb) : SceneSorter_PAR(pgcb)
 {
-    Assert(_pmvie == pvNil, "SCRT block not cleared");
-    Assert(_pstdio == pvNil, "SCRT block not cleared");
-    Assert(_cmvi.pglscend == pvNil, "SCRT block not cleared");
-    Assert(_cmvi.pglmvied == pvNil, "SCRT block not cleared");
-    Assert(_fError == fFalse, "SCRT block not cleared");
-    Assert(_fInited == fFalse, "SCRT block not cleared");
-    Assert(_iscenMac == 0, "SCRT block not cleared");
+    Assert(_pmvie == pvNil, "SceneSorter block not cleared");
+    Assert(_pstdio == pvNil, "SceneSorter block not cleared");
+    Assert(_cmvi.pglscend == pvNil, "SceneSorter block not cleared");
+    Assert(_cmvi.pglmvied == pvNil, "SceneSorter block not cleared");
+    Assert(_fError == fFalse, "SceneSorter block not cleared");
+    Assert(_fInited == fFalse, "SceneSorter block not cleared");
+    Assert(_iscenMac == 0, "SceneSorter block not cleared");
 }
 
-SCRT::~SCRT(void)
+SceneSorter::~SceneSorter(void)
 {
     PGraphicsObject pgob;
 
@@ -103,21 +103,21 @@ SCRT::~SCRT(void)
 
 /******************************************************************************
     PscrtNew
-        Allocates and initializes a brand new SCRT.  If any necessary
+        Allocates and initializes a brand new SceneSorter.  If any necessary
         initialization fails, cleans up and returns a nil pointer.
 
     Arguments:
-        long hid -- the command hander ID for the SCRT
+        long hid -- the command hander ID for the SceneSorter
 
-    Returns: the pointer to the new SCRT, pvNil if the routine fails
+    Returns: the pointer to the new SceneSorter, pvNil if the routine fails
 
 ************************************************************ PETED ***********/
-PSCRT SCRT::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca)
+PSceneSorter SceneSorter::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca)
 {
     AssertPo(pmvie, 0);
     AssertPo(pstdio, 0);
 
-    PSCRT pscrt = pvNil;
+    PSceneSorter pscrt = pvNil;
     PGraphicsObject pgobPar;
     RC rcRel;
     GraphicsObjectBlock gcb;
@@ -131,7 +131,7 @@ PSCRT SCRT::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);
 
-    if ((pscrt = NewObj SCRT(&gcb)) == pvNil)
+    if ((pscrt = NewObj SceneSorter(&gcb)) == pvNil)
         goto LFail;
 
     if (!pscrt->_FInit(vpapp->Pkwa(), hid, prca))
@@ -165,7 +165,7 @@ LFail:
         Handle an error.  Destroys the easel and enqueues our cancel cid.
 
 ************************************************************ PETED ***********/
-void SCRT::_ErrorExit(void)
+void SceneSorter::_ErrorExit(void)
 {
     /* If someone's already reported an error, don't do any more work */
     if (_fError)
@@ -190,7 +190,7 @@ void SCRT::_ErrorExit(void)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdInit(PCommand pcmd)
+bool SceneSorter::FCmdInit(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -253,7 +253,7 @@ LFail:
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdSelect(PCommand pcmd)
+bool SceneSorter::FCmdSelect(PCommand pcmd)
 {
     AssertThis(0);
     Assert(pcmd->rglw[0] - _kidFrameMin < _cfrmPage * _cgokFrame, "Bogus kid for select");
@@ -290,7 +290,7 @@ bool SCRT::FCmdSelect(PCommand pcmd)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdInsert(PCommand pcmd)
+bool SceneSorter::FCmdInsert(PCommand pcmd)
 {
     AssertThis(0);
     Assert(pcmd->rglw[0] - _kidFrameMin <= _cfrmPage * _cgokFrame, "Bogus kid for insert");
@@ -329,7 +329,7 @@ bool SCRT::FCmdInsert(PCommand pcmd)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdScroll(PCommand pcmd)
+bool SceneSorter::FCmdScroll(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -357,7 +357,7 @@ bool SCRT::FCmdScroll(PCommand pcmd)
         Enables or disables the scrolling buttons, as appropriate.
 
 ************************************************************ PETED ***********/
-void SCRT::_EnableScroll(void)
+void SceneSorter::_EnableScroll(void)
 {
     PKidspaceGraphicObject pgok;
 
@@ -403,7 +403,7 @@ void SCRT::_EnableScroll(void)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdNuke(PCommand pcmd)
+bool SceneSorter::FCmdNuke(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't nuke a scene from an empty movie");
@@ -438,7 +438,7 @@ bool SCRT::FCmdNuke(PCommand pcmd)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdDismiss(PCommand pcmd)
+bool SceneSorter::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -483,7 +483,7 @@ bool SCRT::FCmdDismiss(PCommand pcmd)
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdPortfolio(PCommand pcmd)
+bool SceneSorter::FCmdPortfolio(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -524,7 +524,7 @@ LFail:
     Returns: fTrue if the command was handled by this routine
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdTransition(PCommand pcmd)
+bool SceneSorter::FCmdTransition(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't set transition when movie is empty");
@@ -563,7 +563,7 @@ bool SCRT::FCmdTransition(PCommand pcmd)
             hilite.
 
 ************************************************************ PETED ***********/
-void SCRT::_SetSelectionVis(bool fShow, bool fHideSel)
+void SceneSorter::_SetSelectionVis(bool fShow, bool fHideSel)
 {
     if (_iscenCur < _iscenMac && FIn(_iscenCur - _iscenTop, 0, _cfrmPage))
     {
@@ -595,7 +595,7 @@ void SCRT::_SetSelectionVis(bool fShow, bool fHideSel)
     Returns: fTrue if it was successful in refilling the thumbnails
 
 ************************************************************ PETED ***********/
-bool SCRT::_FResetThumbnails(bool fHideSel)
+bool SceneSorter::_FResetThumbnails(bool fHideSel)
 {
     bool fSuccess = fFalse;
     long kidCur = _kidFrameMin - 1, kidFrameCur = _kidFrameMin;
@@ -675,7 +675,7 @@ LFail:
     return fSuccess;
 }
 
-const TRANS SCRT::_mplwtrans[] = {
+const TRANS SceneSorter::_mplwtrans[] = {
     transCut,
     transDissolve,
     transFadeToBlack,
@@ -695,7 +695,7 @@ const TRANS SCRT::_mplwtrans[] = {
         to be updated
 
 ************************************************************ PETED ***********/
-bool SCRT::_FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans)
+bool SceneSorter::_FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans)
 {
     bool fRedrawTrans = fFalse;
     PKidspaceGraphicObject pgokTrans, pgokThumb;
@@ -732,7 +732,7 @@ bool SCRT::_FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans)
     Returns: the actual transition
 
 ************************************************************ PETED ***********/
-TRANS SCRT::_TransFromLw(long lwTrans)
+TRANS SceneSorter::_TransFromLw(long lwTrans)
 {
     AssertIn(lwTrans, 0, kctrans);
 
@@ -749,7 +749,7 @@ TRANS SCRT::_TransFromLw(long lwTrans)
     Returns: the scene sorter long
 
 ************************************************************ PETED ***********/
-long SCRT::_LwFromTrans(TRANS trans)
+long SceneSorter::_LwFromTrans(TRANS trans)
 {
     long lw;
 

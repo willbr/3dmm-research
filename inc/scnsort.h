@@ -13,15 +13,15 @@
 #ifndef SCNSORT_H
 #define SCNSORT_H
 
-#define SCRT_PAR KidspaceGraphicObject
-#define kclsSCRT 'SCRT'
-typedef class SCRT *PSCRT;
-class SCRT : public SCRT_PAR
+#define SceneSorter_PAR KidspaceGraphicObject
+#define kclsSceneSorter 'SCRT'
+typedef class SceneSorter *PSceneSorter;
+class SceneSorter : public SceneSorter_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(SCRT)
+    CMD_MAP_DEC(SceneSorter)
 
   protected:
     static const TRANS _mplwtrans[];
@@ -62,10 +62,10 @@ class SCRT : public SCRT_PAR
     long _LwFromTrans(TRANS trans);
 
   public:
-    SCRT(PGraphicsObjectBlock pgcb);
-    ~SCRT(void);
+    SceneSorter(PGraphicsObjectBlock pgcb);
+    ~SceneSorter(void);
 
-    static PSCRT PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca);
+    static PSceneSorter PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca);
     static bool FSceneSortMovie(long hid, PMovie pmvie);
 
     /* Command API */

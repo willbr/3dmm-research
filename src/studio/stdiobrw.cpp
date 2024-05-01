@@ -207,7 +207,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         break;
 
     case kidSSorterBackground:
-        if (SCRT::PscrtNew(brwdid, _pmvie, this, _pcrm) == pvNil)
+        if (SceneSorter::PscrtNew(brwdid, _pmvie, this, _pcrm) == pvNil)
             PushErc(ercSocCantInitSceneSort);
         vapp.EndLongOp();
         return fTrue;
