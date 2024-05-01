@@ -233,7 +233,7 @@ bool Actor::_FEnqueueSmmInMsq(void)
     long celn;
     long ccel;
     long ismm;
-    SMM *psmm;
+    SoundMotionMatch *psmm;
     bool fSuccess = fTrue;
     PMSND pmsnd = pvNil;
 
@@ -243,7 +243,7 @@ bool Actor::_FEnqueueSmmInMsq(void)
 
     for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
     {
-        psmm = (SMM *)(_pglsmm->QvGet(ismm));
+        psmm = (SoundMotionMatch *)(_pglsmm->QvGet(ismm));
         Assert(psmm->aevsnd.celn != smmNil, "Logic error in smm");
         if (psmm->aevsnd.celn != celn)
         {
@@ -296,8 +296,8 @@ bool Actor::_FInsertSmm(long iaev)
     AssertIn(iaev, 0, _pggaev->IvMac());
 
     long ismm;
-    SMM smm;
-    SMM *psmm;
+    SoundMotionMatch smm;
+    SoundMotionMatch *psmm;
     Base *paev;
     Sound *paevsnd;
 
@@ -309,7 +309,7 @@ bool Actor::_FInsertSmm(long iaev)
 
     for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
     {
-        psmm = (SMM *)_pglsmm->QvGet(ismm);
+        psmm = (SoundMotionMatch *)_pglsmm->QvGet(ismm);
         if (psmm->aevsnd.celn != paevsnd->celn)
             continue;
         if (psmm->aevsnd.sty != paevsnd->sty)
@@ -433,7 +433,7 @@ bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
     long iaev;
     long ismm;
     Base aev;
-    SMM smm;
+    SoundMotionMatch smm;
     long nfrmMM = ivNil;
 
     if (!_ptmpl->FGetCcelActn(_anidCur, &ccel))
@@ -534,7 +534,7 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, lon
     Base aev;
     long iaev;
     long ismm;
-    SMM smm;
+    SoundMotionMatch smm;
 
     if (pvNil == (pgltag = DynamicArray::PglNew(size(TAG), kctagSndGrow)))
         return fFalse;
@@ -628,7 +628,7 @@ bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
     long ccel;
     long celn;
     Base aev;
-    SMM smm;
+    SoundMotionMatch smm;
     long nfrmMM = ivNil; // For motion match, this may be an earlier frame
 
     // First the actor event list

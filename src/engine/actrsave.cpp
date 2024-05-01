@@ -179,7 +179,7 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     if (!pactr->_FOpenTags(pcrf))
         goto LFail;
-    if (pvNil == (pactr->_pglsmm = DynamicArray::PglNew(size(SMM), kcsmmGrow)))
+    if (pvNil == (pactr->_pglsmm = DynamicArray::PglNew(size(SoundMotionMatch), kcsmmGrow)))
         goto LFail;
     pactr->_pglsmm->SetMinGrow(kcsmmGrow);
 

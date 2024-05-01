@@ -395,8 +395,8 @@ bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
 
     RouteDistancePoint *prptSrc;
     RouteDistancePoint *prptDest;
-    SMM *psmmSrc;
-    SMM *psmmDest;
+    SoundMotionMatch *psmmSrc;
+    SoundMotionMatch *psmmDest;
 
     //
     // Copy all events.
@@ -443,9 +443,9 @@ bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
             goto LFail;
         }
 
-        psmmSrc = (SMM *)pactrSrc->_pglsmm->QvGet(0);
-        psmmDest = (SMM *)pactrDest->_pglsmm->QvGet(0);
-        CopyPb(psmmSrc, psmmDest, LwMul(pactrSrc->_pglsmm->IvMac(), size(SMM)));
+        psmmSrc = (SoundMotionMatch *)pactrSrc->_pglsmm->QvGet(0);
+        psmmDest = (SoundMotionMatch *)pactrDest->_pglsmm->QvGet(0);
+        CopyPb(psmmSrc, psmmDest, LwMul(pactrSrc->_pglsmm->IvMac(), size(SoundMotionMatch)));
     }
 
     return fTrue;

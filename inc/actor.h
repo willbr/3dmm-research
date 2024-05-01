@@ -308,7 +308,7 @@ struct FramePosition
 // Aev & Aevsnd grouped together form a gl
 // Not to be saved with a movie
 //
-struct SMM
+struct SoundMotionMatch
 {
     Base aev; // event for the sound
     Sound aevsnd;

@@ -256,7 +256,7 @@ bool Actor::_FCreateGroups(void)
         return fFalse;
     _pglrpt->SetMinGrow(kcrptGrow);
 
-    if (pvNil == (_pglsmm = DynamicArray::PglNew(size(SMM), kcsmmGrow)))
+    if (pvNil == (_pglsmm = DynamicArray::PglNew(size(SoundMotionMatch), kcsmmGrow)))
         return fFalse;
     _pglsmm->SetMinGrow(kcsmmGrow);
 
@@ -1351,7 +1351,7 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             Sound aevsnd;
             Sound aevsndNew;
             long ismm;
-            SMM *psmm;
+            SoundMotionMatch *psmm;
             // Check that the sound types match
             _pggaev->Get(iaev, &aevsnd);
             _pggaev->Get(iaevNew, &aevsndNew);
@@ -1364,7 +1364,7 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             // First, the _pggsmm needs to be updated
             for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
             {
-                psmm = (SMM *)_pglsmm->QvGet(ismm);
+                psmm = (SoundMotionMatch *)_pglsmm->QvGet(ismm);
                 if (psmm->aevsnd.sty == aevsnd.sty && aevsnd.celn == psmm->aevsnd.celn)
                 {
                     _pglsmm->Delete(ismm);
