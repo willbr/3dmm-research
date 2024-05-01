@@ -28,10 +28,10 @@
 ASSERTNAME
 
 RTCLASS(MovieSoundMSND)
-RTCLASS(MSQ)
+RTCLASS(MovieSoundQueue)
 
-BEGIN_CMD_MAP(MSQ, CommandHandler)
-ON_CID_ME(cidAlarm, &MSQ::FCmdAlarm, pvNil)
+BEGIN_CMD_MAP(MovieSoundQueue, CommandHandler)
+ON_CID_ME(cidAlarm, &MovieSoundQueue::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
 // default sound import format
@@ -83,7 +83,7 @@ bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cn
 {
     AssertPo(pcfl, 0);
 
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     pmsnd = NewObj MovieSoundMSND();
     if (pvNil == pmsnd)
         return pvNil;
@@ -705,13 +705,13 @@ void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long sp
 
 /***************************************************************************
 
-    New MSQ
+    New MovieSoundQueue
 
 ***************************************************************************/
-PMSQ MSQ::PmsqNew(void)
+PMovieSoundQueue MovieSoundQueue::PmsqNew(void)
 {
-    PMSQ pmsq;
-    if (pvNil == (pmsq = NewObj MSQ(khidMsq)))
+    PMovieSoundQueue pmsq;
+    if (pvNil == (pmsq = NewObj MovieSoundQueue(khidMsq)))
         return pvNil;
 
     if (pvNil == (pmsq->_pglsqe = DynamicArray::PglNew(size(SoundQueryEntry), kcsqeGrow)))
@@ -732,10 +732,10 @@ PMSQ MSQ::PmsqNew(void)
 
 /***************************************************************************
 
-    Enqueue a sound	in the MSQ.  Overwrites sounds of the same type.
+    Enqueue a sound	in the MovieSoundQueue.  Overwrites sounds of the same type.
 
 ***************************************************************************/
-bool MSQ::FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr, ulong dtsStart,
+bool MovieSoundQueue::FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr, ulong dtsStart,
                    bool fLowPri)
 {
     AssertThis(0);
@@ -798,11 +798,11 @@ bool MSQ::FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, l
 
 /***************************************************************************
 
-    Dequeue and Play the MSQ sounds
+    Dequeue and Play the MovieSoundQueue sounds
     If _dtim == kdtimOff, empty the queue
 
 ***************************************************************************/
-void MSQ::PlayMsq(void)
+void MovieSoundQueue::PlayMsq(void)
 {
     AssertThis(0);
 
@@ -848,7 +848,7 @@ void MSQ::PlayMsq(void)
     Flush Queue	 -  without playing the sounds
 
 ***************************************************************************/
-void MSQ::FlushMsq(void)
+void MovieSoundQueue::FlushMsq(void)
 {
     AssertThis(0);
     SoundQueryEntry sqe;
@@ -864,7 +864,7 @@ void MSQ::FlushMsq(void)
     FCmdAlarm - Timeout has elapsed.  Stop all sounds
 
 ***************************************************************************/
-bool MSQ::FCmdAlarm(PCommand pcmd)
+bool MovieSoundQueue::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -879,7 +879,7 @@ bool MSQ::FCmdAlarm(PCommand pcmd)
     Clean up and delete this movie sound queue
 
 ***************************************************************************/
-MSQ::~MSQ(void)
+MovieSoundQueue::~MovieSoundQueue(void)
 {
     AssertBaseThis(0);
     StopAll();
@@ -911,11 +911,11 @@ void MovieSoundMSND::MarkMem(void)
 }
 
 /***************************************************************************
-    Assert the validity of the MSQ.
+    Assert the validity of the MovieSoundQueue.
 ***************************************************************************/
-void MSQ::AssertValid(ulong grf)
+void MovieSoundQueue::AssertValid(ulong grf)
 {
-    MSQ_PAR::AssertValid(fobjAllocated);
+    MovieSoundQueue_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglsqe, 0);
     AssertPo(_pclok, 0);
 }
@@ -923,10 +923,10 @@ void MSQ::AssertValid(ulong grf)
 /***************************************************************************
     Mark memory used by the MovieSoundMSND
 ***************************************************************************/
-void MSQ::MarkMem(void)
+void MovieSoundQueue::MarkMem(void)
 {
     AssertThis(0);
-    MSQ_PAR::MarkMem();
+    MovieSoundQueue_PAR::MarkMem();
     MarkMemObj(_pglsqe);
     MarkMemObj(_pclok);
 }

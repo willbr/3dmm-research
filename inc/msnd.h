@@ -9,9 +9,9 @@
     Status:  Reviewed
 
     BASE ---> BaseCacheableObject ---> MovieSoundMSND
-    BASE ---> CommandHandler  ---> MSQ
+    BASE ---> CommandHandler  ---> MovieSoundQueue
 
-    NOTE: when the MSQ stops sounds, it does it based on sound class (scl)
+    NOTE: when the MovieSoundQueue stops sounds, it does it based on sound class (scl)
     and not sound queue (sqn).  This is slightly less efficient, because the
     SoundManager must search all open sound queues for the given scl's when we stop
     sounds; however, the code is made much simpler, because the sqn is
@@ -20,7 +20,7 @@
     arid of the source of the sound.  If we had to enumerate all sounds
     based on that information, we'd wind up calling into the SoundManager a minimum
     of three times, plus three times for each actor; not only is the
-    enumeration on this side inefficient (the MSQ would have to call into the
+    enumeration on this side inefficient (the MovieSoundQueue would have to call into the
     Movie to enumerate all the known actors), but the number of calls to SoundManager
     gets to be huge!  On top of all that, we'd probably wind up finding some
     bugs where a sound is still playing for an actor that's been deleted, and
@@ -98,7 +98,7 @@ inline void StopAllMovieSounds(void)
     The Movie Sound class
 
 ****************************************/
-typedef class MovieSoundMSND *PMSND;
+typedef class MovieSoundMSND *PMovieSoundMSND;
 #define MovieSoundMSND_PAR BaseCacheableObject
 #define kclsMovieSoundMSND 'MSND'
 class MovieSoundMSND : public MovieSoundMSND_PAR
@@ -181,15 +181,15 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
 
 /****************************************
 
-    Movie Sound Queue  (MSQ)
+    Movie Sound Queue  (MovieSoundQueue)
     Sounds to be played at one time.
     These are of all types, queues &
     classes
 
 ****************************************/
-typedef class MSQ *PMSQ;
-#define MSQ_PAR CommandHandler
-#define kclsMSQ 'MSQ'
+typedef class MovieSoundQueue *PMovieSoundQueue;
+#define MovieSoundQueue_PAR CommandHandler
+#define kclsMovieSoundQueue 'MSQ'
 
 const long kcsqeGrow = 10; // quantum growth for sqe
 
@@ -202,16 +202,16 @@ struct SoundQueryEntry
     long vlmMod;    // Volume modification
     long spr;       // Priority
     bool fActr;     // Actor vs Scene (to generate unique class)
-    PMSND pmsnd;    // PMSND
+    PMovieSoundMSND pmsnd;    // PMovieSoundMSND
     ulong dtsStart; // How far into the sound to start playing
 };
 
-class MSQ : public MSQ_PAR
+class MovieSoundQueue : public MovieSoundQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(MSQ)
+    CMD_MAP_DEC(MovieSoundQueue)
 
   protected:
     PDynamicArray _pglsqe; // Sound queue entries
@@ -219,14 +219,14 @@ class MSQ : public MSQ_PAR
     PClock _pclok;
 
   public:
-    MSQ(long hid) : MSQ_PAR(hid)
+    MovieSoundQueue(long hid) : MovieSoundQueue_PAR(hid)
     {
     }
-    ~MSQ(void);
+    ~MovieSoundQueue(void);
 
-    static PMSQ PmsqNew(void);
+    static PMovieSoundQueue PmsqNew(void);
 
-    bool FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse,
+    bool FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse,
                   ulong dtsStart = 0, bool fLowPri = fFalse);
     void PlayMsq(void);  // Destroys queue as it plays
     void FlushMsq(void); // Without playing the sounds

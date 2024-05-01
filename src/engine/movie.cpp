@@ -310,7 +310,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     // Create the movie sound queue
     //
-    pmvie->_pmsq = MSQ::PmsqNew();
+    pmvie->_pmsq = MovieSoundQueue::PmsqNew();
     if (pvNil == pmvie->_pmsq)
     {
         goto LFail;
@@ -3662,9 +3662,9 @@ bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long
 
     if (vlm == vlmNil || sty == styNil)
     {
-        PMSND pmsnd;
+        PMovieSoundMSND pmsnd;
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
         if (pmsnd == pvNil)
             return fFalse;
         if (vlm == vlmNil)

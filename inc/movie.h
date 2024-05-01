@@ -578,7 +578,7 @@ class Movie : public Movie_PAR
     bool _fReadOnly : 1;         // Is the original file read-only?
 
     PWorld _pbwld;   // The brender world for this movie
-    PMSQ _pmsq;     // Message Sound Queue
+    PMovieSoundQueue _pmsq;     // Message Sound Queue
     Clock _clok;     // Clock for playing the film
     ulong _tsStart; // Time last play started.
     long _cnfrm;    // Number of frames since last play started.
@@ -850,7 +850,7 @@ class Movie : public Movie_PAR
     bool FRemScenCore(long iscen);              // Removes a scene from the movie
     bool FPasteActr(PActor pactr);               // Pastes an actor into current scene.
     bool FPasteActrPath(PActor pactr);           // Pastes the path onto selected actor.
-    PMSQ Pmsq(void)
+    PMovieSoundQueue Pmsq(void)
     {
         return _pmsq;
     } // Sound queue

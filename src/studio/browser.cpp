@@ -2045,7 +2045,7 @@ bool BRWM::_FUpdateLists(void)
     long icki;
     ChunkIdentification cki;
     TAG tag;
-    PMSND pmsnd = pvNil;
+    PMovieSoundMSND pmsnd = pvNil;
     PChunkyFile pcfl = _pcrf->Pcfl();
 
     // Enum through current movie for user sounds
@@ -2062,7 +2062,7 @@ bool BRWM::_FUpdateLists(void)
         tag.cno = cki.cno;
 
         // Read the msnd chunk and continue if sty's do not match
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             goto LNext;
 
@@ -2166,7 +2166,7 @@ LFail1:
 void BRWM::_ProcessSelection(void)
 {
     AssertThis(0);
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     TAG tag;
     long thumSelect;
     long sid;
@@ -2185,7 +2185,7 @@ void BRWM::_ProcessSelection(void)
         return;
     }
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
 
     if (pvNil == pmsnd)
         return;
@@ -2345,7 +2345,7 @@ bool BRWM::FCmdDel(PCommand pcmd)
     long sid;
     TAG tag;
     PTAG ptag;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     String stnErr;
     String stnSnd;
     PMovieView pmvu;
@@ -2371,7 +2371,7 @@ bool BRWM::FCmdDel(PCommand pcmd)
     tag.ctg = kctgMsnd;
     _GetThumFromIthum(_ithumSelect, &tag.cno, &sid);
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         return fTrue;
 

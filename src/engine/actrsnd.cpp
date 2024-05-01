@@ -68,7 +68,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     AssertVarMem(ptag);
     AssertIn(sty, 0, styLim);
 
-    PMSND pmsnd = pvNil;
+    PMovieSoundMSND pmsnd = pvNil;
     Sound aevsnd;
     long ccel;
     long iaev;
@@ -77,7 +77,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     long cbVar;
 
     // Verify sound before including in the event list
-    pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
+    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         goto LFail;
 
@@ -172,7 +172,7 @@ bool Actor::_FEnqueueSnd(long iaev)
     AssertIn(iaev, 0, _pggaev->IvMac());
 
     Sound aevsnd;
-    PMSND pmsnd = pvNil;
+    PMovieSoundMSND pmsnd = pvNil;
     long tool;
 
     _pggaev->Get(iaev, &aevsnd);
@@ -203,7 +203,7 @@ bool Actor::_FEnqueueSnd(long iaev)
         _pggaev->Put(iaev, &aevsnd); // Update event
     }
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&aevsnd.tag, MovieSoundMSND::FReadMsnd);
+    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&aevsnd.tag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         goto LFail;
 
@@ -235,7 +235,7 @@ bool Actor::_FEnqueueSmmInMsq(void)
     long ismm;
     SoundMotionMatch *psmm;
     bool fSuccess = fTrue;
-    PMSND pmsnd = pvNil;
+    PMovieSoundMSND pmsnd = pvNil;
 
     if (!_ptmpl->FGetCcelActn(_anidCur, &ccel))
         return fFalse;
@@ -260,7 +260,7 @@ bool Actor::_FEnqueueSmmInMsq(void)
             _pglsmm->Put(ismm, psmm); // Update event
         }
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(&psmm->aevsnd.tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&psmm->aevsnd.tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
         {
             fSuccess = fFalse;
@@ -375,7 +375,7 @@ bool Actor::_FAddAevDefMm(long anid)
 {
     AssertThis(0);
     TAG tag;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long iceln;
     long ccel;
     long vlm;
@@ -393,7 +393,7 @@ bool Actor::_FAddAevDefMm(long anid)
         if (!fSoundExists)
             continue;
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue; // Ignore failure
 

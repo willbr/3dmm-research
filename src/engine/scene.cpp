@@ -1672,7 +1672,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     ChildChunkID chid;
     long isevSnd = ivNil;
     PTAG ptag;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long itag, itagBase;
 
     //
@@ -1802,7 +1802,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
                 continue;
         }
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue;
 
@@ -3324,7 +3324,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
     TAG tag;
     long vlm;
     bool fLoop;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long sty;
 
     if (_pbkgd != pvNil)
@@ -3412,7 +3412,7 @@ LSuccess:
     //     Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
     //     if (vptagm->FCacheTagToHD(&tag))
     //     {
-    //         pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    //         pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     //         if (pvNil != pmsnd)
     //         {
     //             sty = pmsnd->Sty();
@@ -7295,7 +7295,7 @@ PSceneSoundEvent SceneSoundEvent::PsseDup(void)
 ***************************************************************************/
 void SceneSoundEvent::PlayAllSounds(PMovie pmvie, ulong dtsStart)
 {
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long itag;
     long tool = fLoop ? toolLooper : toolSounder;
 
@@ -7306,7 +7306,7 @@ void SceneSoundEvent::PlayAllSounds(PMovie pmvie, ulong dtsStart)
             if (!pmvie->FResolveSndTag(Ptag(itag), *Pchid(itag)))
                 continue;
         }
-        pmsnd = (PMSND)vptagm->PbacoFetch(Ptag(itag), MovieSoundMSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(Ptag(itag), MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             return;
 
