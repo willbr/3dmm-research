@@ -215,7 +215,7 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
 
   protected:
     // an entry in the command handler list
-    struct CMHE
+    struct CommandHandlerEntry
     {
         PCommandHandler pcmh;
         long cmhl;

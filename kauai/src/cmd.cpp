@@ -280,7 +280,7 @@ bool CommandExecutionManager::_FInit(long ccmdInit, long ccmhInit)
     AssertIn(ccmdInit, 0, kcbMax);
     AssertIn(ccmhInit, 0, kcbMax);
 
-    if (pvNil == (_pglcmd = DynamicArray::PglNew(size(Command), ccmdInit)) || pvNil == (_pglcmhe = DynamicArray::PglNew(size(CMHE), ccmhInit)))
+    if (pvNil == (_pglcmd = DynamicArray::PglNew(size(Command), ccmdInit)) || pvNil == (_pglcmhe = DynamicArray::PglNew(size(CommandHandlerEntry), ccmhInit)))
     {
         return fFalse;
     }
@@ -617,7 +617,7 @@ bool CommandExecutionManager::FAddCmh(PCommandHandler pcmh, long cmhl, ulong grf
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
-    CMHE cmhe;
+    CommandHandlerEntry cmhe;
     long icmhe;
 
     if (fcmmNil == (grfcmm & kgrfcmmAll))
@@ -649,7 +649,7 @@ void CommandExecutionManager::RemoveCmh(PCommandHandler pcmh, long cmhl)
     AssertThis(0);
     AssertPo(pcmh, 0);
     long icmhe, ccmhe;
-    CMHE cmhe;
+    CommandHandlerEntry cmhe;
 
     if (!_FFindCmhl(cmhl, &icmhe))
         return;
@@ -678,7 +678,7 @@ void CommandExecutionManager::BuryCmh(PCommandHandler pcmh)
     AssertThis(0);
     Assert(pcmh != pvNil, 0);
     long icmhe, icmd;
-    CMHE cmhe;
+    CommandHandlerEntry cmhe;
     Command cmd;
 
     if (_pgobModal == pcmh)
@@ -732,9 +732,9 @@ bool CommandExecutionManager::_FFindCmhl(long cmhl, long *picmhe)
     AssertThis(0);
     AssertVarMem(picmhe);
     long icmhe, icmheMin, icmheLim;
-    CMHE *qrgcmhe;
+    CommandHandlerEntry *qrgcmhe;
 
-    qrgcmhe = (CMHE *)_pglcmhe->QvGet(0);
+    qrgcmhe = (CommandHandlerEntry *)_pglcmhe->QvGet(0);
     for (icmheMin = 0, icmheLim = _pglcmhe->IvMac(); icmheMin < icmheLim;)
     {
         icmhe = (icmheMin + icmheLim) / 2;
@@ -1003,7 +1003,7 @@ void CommandExecutionManager::_CleanUpCmd(void)
 bool CommandExecutionManager::FDispatchNextCmd(void)
 {
     AssertThis(0);
-    CMHE cmhe;
+    CommandHandlerEntry cmhe;
     bool fHandled;
     bool tRet;
 
@@ -1078,7 +1078,7 @@ ulong CommandExecutionManager::GrfedsForCmd(PCommand pcmd)
     AssertThis(0);
     AssertPo(pcmd, 0);
     long icmhe, ccmhe;
-    CMHE cmhe;
+    CommandHandlerEntry cmhe;
     ulong grfeds;
 
     // pipe it through the command handlers, then to the target
