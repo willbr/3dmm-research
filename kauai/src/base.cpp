@@ -24,35 +24,35 @@ long vcactAV = kswMax;
 ******************************************************************************/
 // Debugging object info.
 const long kclwStackDoi = 10;
-struct DOI
+struct DebugObjectInfo
 {
     short swMagic;      // magic number == kswMagicMem
     short cactRef;      // for marking memory and asserting on unused objects
     PSZS pszsFile;      // file NewObj appears in
     long lwLine;        // line NewObj appears on
-    long cbTot;         // total size of the block, including the DOI
+    long cbTot;         // total size of the block, including the DebugObjectInfo
     long lwThread;      // thread that allocated this
     long rglwStack[10]; // what we get from following the EBP/A6 chain
-    DOI *pdoiNext;      // singly linked list
-    DOI **ppdoiPrev;
+    DebugObjectInfo *pdoiNext;      // singly linked list
+    DebugObjectInfo **ppdoiPrev;
 };
 
-#define kcbBaseDebug size(DOI)
+#define kcbBaseDebug size(DebugObjectInfo)
 
-priv void _AssertDoi(DOI *pdoi, bool tLinked);
-inline DOI *_PdoiFromBase(void *pv)
+priv void _AssertDoi(DebugObjectInfo *pdoi, bool tLinked);
+inline DebugObjectInfo *_PdoiFromBase(void *pv)
 {
-    return (DOI *)PvSubBv(pv, kcbBaseDebug);
+    return (DebugObjectInfo *)PvSubBv(pv, kcbBaseDebug);
 }
-inline BASE *_PbaseFromDoi(DOI *pdoi)
+inline BASE *_PbaseFromDoi(DebugObjectInfo *pdoi)
 {
     return (BASE *)PvAddBv(pdoi, kcbBaseDebug);
 }
-priv void _LinkDoi(DOI *pdoi, DOI **ppdoiFirst);
-priv void _UnlinkDoi(DOI *pdoi);
+priv void _LinkDoi(DebugObjectInfo *pdoi, DebugObjectInfo **ppdoiFirst);
+priv void _UnlinkDoi(DebugObjectInfo *pdoi);
 
-DOI *_pdoiFirst;    // Head of linked list of all allocated objects.
-DOI *_pdoiFirstRaw; // Head of linked list of raw newly allocated objects.
+DebugObjectInfo *_pdoiFirst;    // Head of linked list of all allocated objects.
+DebugObjectInfo *_pdoiFirstRaw; // Head of linked list of raw newly allocated objects.
 
 inline void _Enter(void)
 {
@@ -104,7 +104,7 @@ BASE::BASE(void)
 {
     _cactRef = 1;
 #ifdef DEBUG
-    DOI *pdoi = _pdoiFirstRaw;
+    DebugObjectInfo *pdoi = _pdoiFirstRaw;
 
     if (pvNil != pdoi)
     {
@@ -210,7 +210,7 @@ void *BASE::operator new(size_t cb)
 #ifdef DEBUG
         _Enter();
 
-        DOI *pdoi = (DOI *)pv;
+        DebugObjectInfo *pdoi = (DebugObjectInfo *)pv;
 
         pdoi->swMagic = kswMagicMem;
         pdoi->cactRef = 0;
@@ -263,7 +263,7 @@ void *BASE::operator new(size_t cb)
 void BASE::operator delete(void *pv)
 {
 #ifdef DEBUG
-    DOI *pdoi = _PdoiFromBase(pv);
+    DebugObjectInfo *pdoi = _PdoiFromBase(pv);
 
     _UnlinkDoi(pdoi);
 
@@ -308,7 +308,7 @@ void BASE::AssertValid(ulong grfobj)
 
     _Enter();
 
-    DOI *pdoi = _PdoiFromBase(this);
+    DebugObjectInfo *pdoi = _PdoiFromBase(this);
     _AssertDoi(pdoi, tYes);
 
     _Leave();
@@ -328,7 +328,7 @@ void BASE::MarkMemStub(void)
         return;
     }
 
-    DOI *pdoi = _PdoiFromBase(this);
+    DebugObjectInfo *pdoi = _PdoiFromBase(this);
     if (pdoi->cactRef == 0 && pdoi->lwThread == LwThreadCur())
         MarkMem();
 }
@@ -346,7 +346,7 @@ void BASE::MarkMem(void)
 /***************************************************************************
     Assert that a doi is valid and optionally linked or unlinked.
 ***************************************************************************/
-void _AssertDoi(DOI *pdoi, bool tLinked)
+void _AssertDoi(DebugObjectInfo *pdoi, bool tLinked)
 {
     _Enter();
 
@@ -378,7 +378,7 @@ void _AssertDoi(DOI *pdoi, bool tLinked)
 /***************************************************************************
     Link object into list.
 ***************************************************************************/
-priv void _LinkDoi(DOI *pdoi, DOI **ppdoiFirst)
+priv void _LinkDoi(DebugObjectInfo *pdoi, DebugObjectInfo **ppdoiFirst)
 {
     _Enter();
 
@@ -401,7 +401,7 @@ priv void _LinkDoi(DOI *pdoi, DOI **ppdoiFirst)
 /***************************************************************************
     Unlink object from list.
 ***************************************************************************/
-priv void _UnlinkDoi(DOI *pdoi)
+priv void _UnlinkDoi(DebugObjectInfo *pdoi)
 {
     _Enter();
 
@@ -438,8 +438,8 @@ void AssertUnmarkedObjs(void)
     String stn;
     SZS szs;
     BASE *pbase;
-    DOI *pdoi;
-    DOI *pdoiLast;
+    DebugObjectInfo *pdoi;
+    DebugObjectInfo *pdoiLast;
     bool fAssert;
     long cdoiLost = 0;
     long lwThread = LwThreadCur();
@@ -476,7 +476,7 @@ void AssertUnmarkedObjs(void)
             if (fAssert)
             {
                 stn.FFormatSz(PszLit("\nLost object: cls='%f', size=%d, ") PszLit("StackTrace=(use map file)"),
-                              pbase->Cls(), pdoi->cbTot - size(DOI));
+                              pbase->Cls(), pdoi->cbTot - size(DebugObjectInfo));
                 stn.GetSzs(szs);
 
                 if (FAssertProc(pdoi->pszsFile, pdoi->lwLine, szs, pdoi->rglwStack, kclwStackDoi * size(long)))
@@ -491,9 +491,9 @@ void AssertUnmarkedObjs(void)
         if (pdoi->ppdoiPrev == &_pdoiFirst)
             break;
 
-        // UUUUGGGGH! We don't have a pointer to the previous DOI, we
-        // have a pointer to the previous DOI's pdoiNext!
-        pdoi = (DOI *)PvSubBv(pdoi->ppdoiPrev, offset(DOI, pdoiNext));
+        // UUUUGGGGH! We don't have a pointer to the previous DebugObjectInfo, we
+        // have a pointer to the previous DebugObjectInfo's pdoiNext!
+        pdoi = (DebugObjectInfo *)PvSubBv(pdoi->ppdoiPrev, offset(DebugObjectInfo, pdoiNext));
     }
 
 LDone:
@@ -508,7 +508,7 @@ void UnmarkAllObjs(void)
     _Enter();
 
     BASE *pbase;
-    DOI *pdoi;
+    DebugObjectInfo *pdoi;
     long lwThread = LwThreadCur();
 
     Assert(_pdoiFirstRaw == pvNil, "Raw list is not empty!");
