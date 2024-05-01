@@ -103,7 +103,7 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
 
   protected:
     PMaterial_MTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CustomMaterial_CMTL's set
-    PMODL *_prgpmodl; // _cbprt PMODLs, one per body part in this CustomMaterial_CMTL's set
+    PModel *_prgpmodl; // _cbprt PMODLs, one per body part in this CustomMaterial_CMTL's set
     long _cbprt;      // count of body parts in this CustomMaterial_CMTL
     long _ibset;      // body part set that this CustomMaterial_CMTL should be applied to
 
@@ -120,7 +120,7 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
     static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
     ~CustomMaterial_CMTL(void);
     PBMTL Pbmtl(long ibmtl);
-    PMODL Pmodl(long imodl);
+    PModel Pmodl(long imodl);
     long Ibset(void)
     {
         return _ibset;

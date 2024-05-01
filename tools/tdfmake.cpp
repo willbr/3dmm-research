@@ -113,7 +113,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     String stn2;
     ChildChunkID chid;
     ChildChunkID chidMax = 0;
-    PMODL pmodl;
+    PModel pmodl;
     ChunkNumber cnoModl;
     PChunkyResourceFile pcrf;
     PZString psz;
@@ -163,7 +163,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
             fFoundSpace = fTrue;
         if (chid == 0xa0) // nonbreaking space
             fFoundSpace2 = fTrue;
-        pmodl = MODL::PmodlReadFromDat(&fni);
+        pmodl = Model::PmodlReadFromDat(&fni);
         if (pvNil == pmodl)
             return fFalse;
         pmodl->AdjustTdfCharacter();
@@ -185,7 +185,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     // Hack to insert a space character if none specified
     if (!fFoundSpace)
     {
-        pmodl = MODL::PmodlNew(0, pvNil, 0, pvNil);
+        pmodl = Model::PmodlNew(0, pvNil, 0, pvNil);
         if (pvNil == pmodl)
             return fFalse;
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
@@ -202,7 +202,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     // Hack to insert a nonbreaking space character if none specified
     if (!fFoundSpace2)
     {
-        pmodl = MODL::PmodlNew(0, pvNil, 0, pvNil);
+        pmodl = Model::PmodlNew(0, pvNil, 0, pvNil);
         if (pvNil == pmodl)
             return fFalse;
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))

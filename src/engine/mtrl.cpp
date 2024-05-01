@@ -437,7 +437,7 @@ void Material_MTRL::MarkShadeTable(void)
 //
 
 /***************************************************************************
-    Static function to see if the given chunk has MODL children
+    Static function to see if the given chunk has Model children
 ***************************************************************************/
 bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
@@ -494,7 +494,7 @@ PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(long ibset, long cbprt, PMate
         ReleasePpo(&pcmtl);
         return pvNil;
     }
-    if (!FAllocPv((void **)&pcmtl->_prgpmodl, LwMul(pcmtl->_cbprt, size(PMODL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&pcmtl->_prgpmodl, LwMul(pcmtl->_cbprt, size(PModel)), fmemClear, mprNormal))
     {
         ReleasePpo(&pcmtl);
         return pvNil;
@@ -534,7 +534,7 @@ bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, Chun
     }
     AssertPo(pcmtl, 0);
     *ppbaco = pcmtl;
-    *pcb += LwMul(size(PMaterial_MTRL) + size(PMODL), pcmtl->_cbprt);
+    *pcb += LwMul(size(PMaterial_MTRL) + size(PModel), pcmtl->_cbprt);
     return fTrue;
 }
 
@@ -580,7 +580,7 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNu
     {
         return fFalse;
     }
-    if (!FAllocPv((void **)&_prgpmodl, LwMul(_cbprt, size(PMODL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&_prgpmodl, LwMul(_cbprt, size(PModel)), fmemClear, mprNormal))
     {
         return fFalse;
     }
@@ -594,7 +594,7 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNu
         }
         if (pcfl->FGetKidChidCtg(ctg, cno, imtrl, kctgBmdl, &kid))
         {
-            _prgpmodl[imtrl] = (MODL *)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MODL::FReadModl);
+            _prgpmodl[imtrl] = (Model *)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
             if (pvNil == _prgpmodl[imtrl])
                 return fFalse;
         }
@@ -639,9 +639,9 @@ BMTL *CustomMaterial_CMTL::Pbmtl(long ibmtl)
 }
 
 /***************************************************************************
-    Return imodl'th MODL
+    Return imodl'th Model
 ***************************************************************************/
-PMODL CustomMaterial_CMTL::Pmodl(long imodl)
+PModel CustomMaterial_CMTL::Pmodl(long imodl)
 {
     AssertThis(0);
     AssertIn(imodl, 0, _cbprt);
@@ -677,7 +677,7 @@ void CustomMaterial_CMTL::AssertValid(ulong grf)
 
     Material_MTRL_PAR::AssertValid(fobjAllocated);
     AssertPvCb(_prgpmtrl, LwMul(_cbprt, size(Material_MTRL *)));
-    AssertPvCb(_prgpmodl, LwMul(_cbprt, size(MODL *)));
+    AssertPvCb(_prgpmodl, LwMul(_cbprt, size(Model *)));
 
     for (imtrl = 0; imtrl < _cbprt; imtrl++)
     {

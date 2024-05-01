@@ -47,7 +47,7 @@ class TDF : public TDF_PAR
     // This authoring-only API creates a new TDF based on a set of models
     static bool FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf = pvNil);
 
-    PMODL PmodlFetch(ChildChunkID chid);
+    PModel PmodlFetch(ChildChunkID chid);
     BRS DxrChar(long ich);
     BRS DyrChar(long ich);
     BRS DyrMax(void)

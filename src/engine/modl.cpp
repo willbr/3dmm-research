@@ -12,29 +12,29 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(MODL)
+RTCLASS(Model)
 
 /***************************************************************************
-    Create a new PMODL based on some vertices and faces.
+    Create a new PModel based on some vertices and faces.
 ***************************************************************************/
-PMODL MODL::PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf)
+PModel Model::PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf)
 {
     AssertIn(cbrv, 0, ksuMax); // ushort in br_model
     AssertPvCb(prgbrv, LwMul(cbrv, size(BRV)));
     AssertIn(cbrf, 0, ksuMax); // ushort in br_model
     AssertPvCb(prgbrf, LwMul(cbrf, size(BRF)));
 
-    PMODL pmodl;
-    char szIdentifier[size(PMODL) + 1];
+    PModel pmodl;
+    char szIdentifier[size(PModel) + 1];
 
-    pmodl = NewObj MODL;
+    pmodl = NewObj Model;
     if (pvNil == pmodl)
         goto LFail;
-    ClearPb(szIdentifier, size(PMODL) + 1);
+    ClearPb(szIdentifier, size(PModel) + 1);
     pmodl->_pbmdl = BrModelAllocate(szIdentifier, cbrv, cbrf);
     if (pvNil == pmodl->_pbmdl)
         goto LFail;
-    CopyPb(&pmodl, pmodl->_pbmdl->identifier, size(PMODL));
+    CopyPb(&pmodl, pmodl->_pbmdl->identifier, size(PModel));
     CopyPb(prgbrv, pmodl->_pbmdl->vertices, LwMul(cbrv, size(BRV)));
     CopyPb(prgbrf, pmodl->_pbmdl->faces, LwMul(cbrf, size(BRF)));
     BrModelAdd(pmodl->_pbmdl);
@@ -46,16 +46,16 @@ LFail:
 }
 
 /***************************************************************************
-    A PFNRPO to read a MODL from a file
+    A PFNRPO to read a Model from a file
 ***************************************************************************/
-bool MODL::FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Model::FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    MODL *pmodl;
+    Model *pmodl;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)
@@ -65,7 +65,7 @@ bool MODL::FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
         goto LFail;
     *pcb = pblck->Cb();
 
-    pmodl = NewObj MODL;
+    pmodl = NewObj Model;
     if (pvNil == pmodl || !pmodl->_FInit(pblck))
     {
         ReleasePpo(&pmodl);
@@ -81,9 +81,9 @@ bool MODL::FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 }
 
 /***************************************************************************
-    Reads a MODL from a DataBlock
+    Reads a Model from a DataBlock
 ***************************************************************************/
-bool MODL::_FInit(PDataBlock pblck)
+bool Model::_FInit(PDataBlock pblck)
 {
     AssertBaseThis(0);
     AssertPo(pblck, 0);
@@ -95,10 +95,10 @@ bool MODL::_FInit(PDataBlock pblck)
     BRV *pbrv;
     long ibrf;
     BRF *pbrf;
-    MODL *pmodlThis = this;
-    char szIdentifier[size(PMODL) + 1];
+    Model *pmodlThis = this;
+    char szIdentifier[size(PModel) + 1];
 
-    ClearPb(szIdentifier, size(PMODL) + 1);
+    ClearPb(szIdentifier, size(PModel) + 1);
     if (!pblck->FUnpackData())
         return fFalse;
     if (pblck->Cb() < size(ModelOnFile))
@@ -107,7 +107,7 @@ bool MODL::_FInit(PDataBlock pblck)
         return fFalse;
     if (kboOther == modlf.bo)
         SwapBytesBom(&modlf, kbomModlf);
-    Assert(kboCur == modlf.bo, "bad MODL!");
+    Assert(kboCur == modlf.bo, "bad Model!");
 
     // Allocate space for the BMDL, array of vertices, and array of faces
     cbrgbrv = LwMul(modlf.cver, size(BRV));
@@ -120,7 +120,7 @@ bool MODL::_FInit(PDataBlock pblck)
         _pbmdl = BrModelAllocate(szIdentifier, modlf.cver, modlf.cfac);
         if (pvNil == _pbmdl)
             return fFalse;
-        CopyPb(&pmodlThis, _pbmdl->identifier, size(PMODL));
+        CopyPb(&pmodlThis, _pbmdl->identifier, size(PModel));
         if (!pblck->FReadRgb(_pbmdl->vertices, cbrgbrv, size(ModelOnFile)))
             return fFalse;
         if (!pblck->FReadRgb(_pbmdl->faces, cbrgbrf, size(ModelOnFile) + cbrgbrv))
@@ -139,7 +139,7 @@ bool MODL::_FInit(PDataBlock pblck)
         _pbmdl = BrModelAllocate(szIdentifier, 0, 0);
         if (pvNil == _pbmdl)
             return fFalse;
-        CopyPb(&pmodlThis, _pbmdl->identifier, size(PMODL));
+        CopyPb(&pmodlThis, _pbmdl->identifier, size(PModel));
 
         _pbmdl->prepared_vertices =
             (BRV *)BrResAllocate(_pbmdl, LwMul(modlf.cver, size(BRV)), BR_MEMORY_PREPARED_VERTICES);
@@ -204,14 +204,14 @@ bool MODL::_FInit(PDataBlock pblck)
 /***************************************************************************
     Reads a BRender model from a .DAT file
 ***************************************************************************/
-PMODL MODL::PmodlReadFromDat(Filename *pfni)
+PModel Model::PmodlReadFromDat(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
 
     String stn;
-    PMODL pmodl;
+    PModel pmodl;
 
-    pmodl = NewObj MODL;
+    pmodl = NewObj Model;
     if (pvNil == pmodl)
         goto LFail;
     pfni->GetStnPath(&stn);
@@ -230,12 +230,12 @@ LFail:
 }
 
 /***************************************************************************
-    Returns a pointer to the MODL that owns this BMDL
+    Returns a pointer to the Model that owns this BMDL
 ***************************************************************************/
-PMODL MODL::PmodlFromBmdl(PBMDL pbmdl)
+PModel Model::PmodlFromBmdl(PBMDL pbmdl)
 {
     AssertVarMem(pbmdl);
-    PMODL pmodl = (PMODL) * (long *)pbmdl->identifier;
+    PModel pmodl = (PModel) * (long *)pbmdl->identifier;
     AssertPo(pmodl, 0);
     return pmodl;
 }
@@ -243,7 +243,7 @@ PMODL MODL::PmodlFromBmdl(PBMDL pbmdl)
 /***************************************************************************
     Destructor
 ***************************************************************************/
-MODL::~MODL(void)
+Model::~Model(void)
 {
     AssertBaseThis(0);
     if (pvNil != _pbmdl)
@@ -254,9 +254,9 @@ MODL::~MODL(void)
 }
 
 /***************************************************************************
-    Writes a MODL to a chunk
+    Writes a Model to a chunk
 ***************************************************************************/
-bool MODL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Model::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -295,7 +295,7 @@ LFail:
     baseline, and we do some voodoo to get "kerning" (really "variable
     interletter spacing") to work.
 ***************************************************************************/
-void MODL::AdjustTdfCharacter(void)
+void Model::AdjustTdfCharacter(void)
 {
     AssertThis(0);
 
@@ -329,7 +329,7 @@ void MODL::AdjustTdfCharacter(void)
     Prelight a model
     REVIEW *****: make this code more general
 ***************************************************************************/
-bool MODL::_FPrelight(long cblit, BVEC3 *prgbvec3Light)
+bool Model::_FPrelight(long cblit, BVEC3 *prgbvec3Light)
 {
     AssertIn(cblit, 1, 10);
     AssertPvCb(prgbvec3Light, LwMul(cblit, size(BVEC3)));
@@ -416,22 +416,22 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MODL.
+    Assert the validity of the Model.
 ***************************************************************************/
-void MODL::AssertValid(ulong grf)
+void Model::AssertValid(ulong grf)
 {
-    MODL_PAR::AssertValid(fobjAllocated);
+    Model_PAR::AssertValid(fobjAllocated);
     AssertVarMem(_pbmdl);
-    Assert((PMODL) * (long *)_pbmdl->identifier == this, "Bad MODL identifier");
+    Assert((PModel) * (long *)_pbmdl->identifier == this, "Bad Model identifier");
 }
 
 /***************************************************************************
-    Mark memory used by the MODL
+    Mark memory used by the Model
 ***************************************************************************/
-void MODL::MarkMem(void)
+void Model::MarkMem(void)
 {
     AssertThis(0);
 
-    MODL_PAR::MarkMem();
+    Model_PAR::MarkMem();
 }
 #endif // DEBUG

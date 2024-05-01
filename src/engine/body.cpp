@@ -74,19 +74,19 @@
 
     The way that MODLs, MTRLs, and CMTLs attach to the BODY is a little
     strange.  In the case of models, the br_actor's model needs to be set
-    to the MODL's BMDL (which is a BRender data structure), not the
-    MODL itself (which is a Socrates data structure).  When it is time
+    to the Model's BMDL (which is a BRender data structure), not the
+    Model itself (which is a Socrates data structure).  When it is time
     to remove the model, the BODY has a pointer to the BMDL, but
-    not the MODL!  Fortunately, MODL sets the BMDL's identifier field
-    to point to its owning MODL.  So ReleasePpo can then be called on the
-    MODL.  But I don't want to set the BMDL's identifier to pvNil in
+    not the Model!  Fortunately, Model sets the BMDL's identifier field
+    to point to its owning Model.  So ReleasePpo can then be called on the
+    Model.  But I don't want to set the BMDL's identifier to pvNil in
     the process, because other BODYs might be counting on the BMDL's
-    identifier to point to the MODL.  So this code has to be careful using
+    identifier to point to the Model.  So this code has to be careful using
     ReleasePpo, since that sets the given pointer to pvNil.  Same
     problem for MTRLs:
 
     BODY
-     |					 MODL<--+
+     |					 Model<--+
      v					   |	|
      BACT   			   |	|
       | |				   |	|
@@ -322,7 +322,7 @@ bool BODY::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
         pbactDup = pbodyDup->_PbactPart(ibact);
         pbact = _PbactPart(ibact);
         if (pvNil != pbactDup->model)
-            SetPartModel(ibact, MODL::PmodlFromBmdl(pbactDup->model));
+            SetPartModel(ibact, Model::PmodlFromBmdl(pbactDup->model));
         pbact->t.t.mat = pbactDup->t.t.mat;
     }
     _PbactRoot()->t.t.mat = pbodyDup->_PbactRoot()->t.t.mat;
@@ -452,7 +452,7 @@ void BODY::_DestroyShape(void)
     long ibset;
     long ibact;
     BACT *pbact;
-    MODL *pmodl;
+    Model *pmodl;
 
     // Must hide body before destroying it
     if (_cactHidden == 0)
@@ -465,7 +465,7 @@ void BODY::_DestroyShape(void)
             pbact = _PbactPart(ibact);
             if (pvNil != pbact->model)
             {
-                pmodl = MODL::PmodlFromBmdl(pbact->model);
+                pmodl = Model::PmodlFromBmdl(pbact->model);
                 AssertPo(pmodl, 0);
                 ReleasePpo(&pmodl);
                 pbact->model = pvNil;
@@ -559,7 +559,7 @@ PBODY BODY::PbodyDup(void)
     {
         pbact = _PbactPart(ibact);
         if (pvNil != pbact->model)
-            MODL::PmodlFromBmdl(pbact->model)->AddRef();
+            Model::PmodlFromBmdl(pbact->model)->AddRef();
     }
 
     pbodyDup->_pglibset = _pglibset->PglDup();
@@ -724,26 +724,26 @@ void BODY::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 /***************************************************************************
     Set the ibact'th body part to use model pmodl
 ***************************************************************************/
-void BODY::SetPartModel(long ibact, MODL *pmodl)
+void BODY::SetPartModel(long ibact, Model *pmodl)
 {
     AssertThis(0);
     AssertIn(ibact, 0, _cbactPart);
     AssertPo(pmodl, 0);
 
     BACT *pbact = _PbactPart(ibact);
-    PMODL pmodlOld;
+    PModel pmodlOld;
 
-    if (pvNil != pbact->model) // Release old MODL, unless it's pmodl
+    if (pvNil != pbact->model) // Release old Model, unless it's pmodl
     {
-        pmodlOld = MODL::PmodlFromBmdl(pbact->model);
+        pmodlOld = Model::PmodlFromBmdl(pbact->model);
         AssertPo(pmodlOld, 0);
         if (pmodl == pmodlOld)
-            return; // We're already using that MODL, so do nothing
+            return; // We're already using that Model, so do nothing
         ReleasePpo(&pmodlOld);
     }
 
     pbact->model = pmodl->Pbmdl();
-    Assert(MODL::PmodlFromBmdl(pbact->model) == pmodl, "MODL problem");
+    Assert(Model::PmodlFromBmdl(pbact->model) == pmodl, "Model problem");
     pmodl->AddRef();
     if (_cactHidden == 0)
     {
@@ -854,7 +854,7 @@ void BODY::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
     long ibact;
     long ibmtl = 0;
     long ibset = pcmtl->Ibset();
-    PMODL pmodl;
+    PModel pmodl;
 
     pcmtl->AddRef();
     _RemoveMaterial(ibset); // remove existing Material_MTRL/CustomMaterial_CMTL
@@ -1206,7 +1206,7 @@ void BODY::AssertValid(ulong grf)
         {
             pbact = _PbactPart(ibact);
             if (pvNil != pbact->model)
-                AssertPo(MODL::PmodlFromBmdl(pbact->model), 0);
+                AssertPo(Model::PmodlFromBmdl(pbact->model), 0);
             if (pvNil != pbact->material)
                 AssertPo(Material_MTRL::PmtrlFromBmtl(pbact->material), 0);
         }
@@ -1226,7 +1226,7 @@ void BODY::MarkMem(void)
 
     long ibact;
     PBACT pbact;
-    PMODL pmodl;
+    PModel pmodl;
     long ibset;
     bool fMtrl;
     PMaterial_MTRL pmtrl;
@@ -1242,7 +1242,7 @@ void BODY::MarkMem(void)
         pbact = _PbactPart(ibact);
         if (pvNil != pbact->model)
         {
-            pmodl = MODL::PmodlFromBmdl(pbact->model);
+            pmodl = Model::PmodlFromBmdl(pbact->model);
             AssertPo(pmodl, 0);
             MarkMemObj(pmodl);
         }

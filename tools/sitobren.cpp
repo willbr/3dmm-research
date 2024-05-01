@@ -3998,7 +3998,7 @@ LFail:
 |
 |	Returns:
 |		fTrue if it could find or allocate the new ModelOnFile node, fFalse otherwise
-|		*pchid takes the ChildChunkID for the MODL chunk
+|		*pchid takes the ChildChunkID for the Model chunk
 |
 -------------------------------------------------------------PETED-----------*/
 bool S2B::_FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb)

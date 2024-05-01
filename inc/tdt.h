@@ -85,7 +85,7 @@ class TDT : public TDT_PAR
     PGeneralGroup _PggcelBuild(long tda);
     virtual PACTN _PactnFetch(long tda);
     PACTN _PactnBuild(long tda);
-    virtual PMODL _PmodlFetch(ChildChunkID chidModl);
+    virtual PModel _PmodlFetch(ChildChunkID chidModl);
     long _CcelOfTda(long tda);
     void _ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS pdxrText);
     void _ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,

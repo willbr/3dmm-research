@@ -344,13 +344,13 @@ bool TDT::FGetActnName(long anid, PString pstn)
 /***************************************************************************
     Fetch the given model for this TDT (use the TDT's current font)
 ***************************************************************************/
-PMODL TDT::_PmodlFetch(ChildChunkID chidModl)
+PModel TDT::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
     AssertIn(chidModl, 0, _stn.Cch());
 
     PTDF ptdf;
-    PMODL pmodl;
+    PModel pmodl;
 
     ptdf = (PTDF)vptagm->PbacoFetch(&_tagTdf, TDF::FReadTdf);
     if (pvNil == ptdf)

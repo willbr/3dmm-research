@@ -105,7 +105,7 @@ class BODY : public BODY_PAR
     static void SetHiliteColor(long iclr);
 
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
-    void SetPartModel(long ibact, MODL *pmodl);
+    void SetPartModel(long ibact, Model *pmodl);
     void SetPartMatrix(long ibact, BMAT34 *pbmat34);
     void SetPartSetMtrl(long ibset, Material_MTRL *pmtrl);
     void SetPartSetCmtl(CustomMaterial_CMTL *pcmtl);

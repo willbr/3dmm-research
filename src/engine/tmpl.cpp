@@ -24,7 +24,7 @@
      |       |
      |       +--TextureMap
      |
-     +--MODL* - models used in this template
+     +--Model* - models used in this template
      |
      +--ACTN* (chid <anid>) - action for this template
          |
@@ -639,20 +639,20 @@ PACTN TMPL::_PactnFetch(long anid)
 }
 
 /***************************************************************************
-    Reads a MODL chunk from disk
+    Reads a Model chunk from disk
 ***************************************************************************/
-PMODL TMPL::_PmodlFetch(ChildChunkID chidModl)
+PModel TMPL::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
 
     ChildChunkIdentification kid;
-    MODL *pmodl;
+    Model *pmodl;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), chidModl, kctgBmdl, &kid))
     {
         return pvNil;
     }
-    pmodl = (MODL *)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, MODL::FReadModl);
+    pmodl = (Model *)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
     AssertNilOrPo(pmodl, 0);
     return pmodl;
 }
@@ -675,7 +675,7 @@ bool TMPL::FSetActnCel(BODY *pbody, long anid, long celn, BRS *pdwr)
     short ibprt;
     long cbprt = _pglibactPar->IvMac();
     CPS cps;
-    PMODL *prgpmodl = pvNil;
+    PModel *prgpmodl = pvNil;
     BMAT34 bmat34;
     bool fRet = fFalse;
 
@@ -687,7 +687,7 @@ bool TMPL::FSetActnCel(BODY *pbody, long anid, long celn, BRS *pdwr)
         icel += pactn->Ccel();
     pactn->GetCel(icel, &cel);
 
-    if (!FAllocPv((void **)&prgpmodl, LwMul(cbprt, size(PMODL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&prgpmodl, LwMul(cbprt, size(PModel)), fmemClear, mprNormal))
     {
         goto LEnd;
     }

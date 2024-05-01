@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> MODL
+    BASE ---> BaseCacheableObject ---> Model
 
 *************************************************************************/
 #ifndef MODL_H
@@ -33,12 +33,12 @@ typedef ModelOnFile *PModelOnFile;
 const ByteOrderMask kbomModlf = 0x55fffff0;
 
 /****************************************
-    MODL: a wrapper for BRender models
+    Model: a wrapper for BRender models
 ****************************************/
-typedef class MODL *PMODL;
-#define MODL_PAR BaseCacheableObject
-#define kclsMODL 'MODL'
-class MODL : public MODL_PAR
+typedef class Model *PModel;
+#define Model_PAR BaseCacheableObject
+#define kclsModel 'MODL'
+class Model : public Model_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -47,18 +47,18 @@ class MODL : public MODL_PAR
   protected:
     BMDL *_pbmdl; // BRender model data
   protected:
-    MODL(void)
+    Model(void)
     {
     }
     bool _FInit(PDataBlock pblck);
     bool _FPrelight(long cblit, BVEC3 *prgbvec3Light);
 
   public:
-    static PMODL PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
+    static PModel PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
     static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PMODL PmodlReadFromDat(Filename *pfni);
-    static PMODL PmodlFromBmdl(PBMDL pbmdl);
-    ~MODL(void);
+    static PModel PmodlReadFromDat(Filename *pfni);
+    static PModel PmodlFromBmdl(PBMDL pbmdl);
+    ~Model(void);
     PBMDL Pbmdl(void)
     {
         return _pbmdl;

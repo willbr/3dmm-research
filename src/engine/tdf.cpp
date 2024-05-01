@@ -19,9 +19,9 @@
 
     TDF  // Contains font info (width and height of characters)
      |
-     +---BMDL (chid 0) // MODL for ASCII character 0
+     +---BMDL (chid 0) // Model for ASCII character 0
      |
-     +---BMDL (chid 1) // MODL for ASCII character 1
+     +---BMDL (chid 1) // Model for ASCII character 1
      .
      .
      .
@@ -168,7 +168,7 @@ bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, 
     TDFF tdff;
     BRS *prgdxr = pvNil;
     BRS *prgdyr = pvNil;
-    PMODL pmodl;
+    PModel pmodl;
     DataBlock blck;
     long cbrgdwr; // space taken by rgdxr or rgdyr
     long ikid;
@@ -208,7 +208,7 @@ bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, 
     for (ikid = 0; ikid < ckid; ikid++)
     {
         pglkid->Get(ikid, &kid);
-        pmodl = (PMODL)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MODL::FReadModl);
+        pmodl = (PModel)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
         if (pmodl == pvNil)
             goto LFail;
         if (!pcrf->Pcfl()->FAdoptChild(ckiTdf.ctg, ckiTdf.cno, kid.cki.ctg, kid.cki.cno, kid.chid))
@@ -221,7 +221,7 @@ bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, 
             // space is the width and height of an "i"
             ReleasePpo(&pmodl);
             pglkid->Get(ikidLetteri, &kid2);
-            pmodl = (PMODL)pcrf->PbacoFetch(kid2.cki.ctg, kid2.cki.cno, MODL::FReadModl);
+            pmodl = (PModel)pcrf->PbacoFetch(kid2.cki.ctg, kid2.cki.cno, Model::FReadModl);
             if (pvNil == pmodl)
                 goto LFail;
         }
@@ -253,7 +253,7 @@ LFail:
     Get a model for a character from the font.  The chid is equal to the
     ASCII (or Unicode) value of the desired character.
 ***************************************************************************/
-PMODL TDF::PmodlFetch(ChildChunkID chid)
+PModel TDF::PmodlFetch(ChildChunkID chid)
 {
     AssertThis(0);
 
@@ -267,7 +267,7 @@ PMODL TDF::PmodlFetch(ChildChunkID chid)
         PushErc(ercSocNoModlForChar);
         return pvNil;
     }
-    return (PMODL)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, MODL::FReadModl);
+    return (PModel)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
 }
 
 /***************************************************************************

@@ -169,7 +169,7 @@ class TMPL : public TMPL_PAR
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
     virtual bool _FInit(PChunkyFile pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl);
     virtual PACTN _PactnFetch(long anid);
-    virtual PMODL _PmodlFetch(ChildChunkID chidModl);
+    virtual PModel _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
 
   public:
