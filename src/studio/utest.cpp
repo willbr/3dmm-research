@@ -1325,7 +1325,7 @@ bool Application::_FGetUserName(void)
 /******************************
     The user-data structure
 *******************************/
-struct UDAT
+struct UserData
 {
     long rglw[kcpridUserData];
 };
@@ -1338,18 +1338,18 @@ bool Application::_FReadUserData(void)
 {
     AssertBaseThis(0);
 
-    UDAT udat;
+    UserData UserData;
     long iprid;
 
-    ClearPb(&udat, size(UDAT));
+    ClearPb(&UserData, size(UserData));
 
-    if (!FGetSetRegKey(kszUserDataValue, &udat, size(UDAT), fregSetDefault | fregBinary))
+    if (!FGetSetRegKey(kszUserDataValue, &UserData, size(UserData), fregSetDefault | fregBinary))
     {
         return fFalse;
     }
     for (iprid = 0; iprid < kcpridUserData; iprid++)
     {
-        if (!FSetProp(kpridUserDataBase + iprid, udat.rglw[iprid]))
+        if (!FSetProp(kpridUserDataBase + iprid, UserData.rglw[iprid]))
             return fFalse;
     }
 
@@ -1363,15 +1363,15 @@ bool Application::_FWriteUserData(void)
 {
     AssertBaseThis(0);
 
-    UDAT udat;
+    UserData UserData;
     long iprid;
 
     for (iprid = 0; iprid < kcpridUserData; iprid++)
     {
-        if (!FGetProp(kpridUserDataBase + iprid, &udat.rglw[iprid]))
+        if (!FGetProp(kpridUserDataBase + iprid, &UserData.rglw[iprid]))
             return fFalse;
     }
-    if (!FGetSetRegKey(kszUserDataValue, &udat, size(UDAT), fregSetKey | fregBinary))
+    if (!FGetSetRegKey(kszUserDataValue, &UserData, size(UserData), fregSetKey | fregBinary))
     {
         return fFalse;
     }

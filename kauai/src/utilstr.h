@@ -479,7 +479,7 @@ class String
 
     bool FFormat(PString pstnFormat, ...);
     bool FFormatSz(PZString pszFormat, ...);
-    bool FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData);
+    bool FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserDataa);
     bool FGetLw(long *plw, long lwBase = 0);
     bool FExpandControls(void);
 };

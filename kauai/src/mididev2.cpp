@@ -1066,14 +1066,14 @@ bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
 /***************************************************************************
     Call back from the midi stream stuff.
 ***************************************************************************/
-void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong luData)
+void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
 {
     PMSMIX pmsmix;
     PMDWS pmdws;
 
     pmsmix = (PMSMIX)luUser;
     AssertPo(pmsmix, 0);
-    pmdws = (PMDWS)luData;
+    pmdws = (PMDWS)lUserDataa;
     AssertNilOrPo(pmdws, 0);
 
     pmsmix->_Notify(pvData, pmdws);
@@ -1677,7 +1677,7 @@ void WMS::_ResetStream(void)
     This submits a buffer and restarts the midi stream. If the data is
     bigger than 64K, this (in conjunction with _Notify) deals with it.
 ***************************************************************************/
-bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData)
+bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -1700,7 +1700,7 @@ bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
     pmsir->pvData = pvData;
     pmsir->cb = cb;
     pmsir->cactPlay = cactPlay;
-    pmsir->luData = luData;
+    pmsir->lUserDataa = lUserDataa;
     pmsir->ibNext = ibStart;
 
     if (_hms == hNil || !_pglpmsir->FAdd(&pmsir, &ipmsir))
@@ -1980,7 +1980,7 @@ void WMS::_DoCallBacks()
         _mutx.Leave();
 
         // notify the client that we're done with the sound
-        (*_pfnCall)(_luUser, pmsir->pvData, pmsir->luData);
+        (*_pfnCall)(_luUser, pmsir->pvData, pmsir->lUserDataa);
         FreePpv((void **)&pmsir);
 
         _mutx.Enter();
@@ -2165,7 +2165,7 @@ bool OMS::_FClose(void)
 /***************************************************************************
     Queue a buffer to the midi stream.
 ***************************************************************************/
-bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData)
+bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -2184,7 +2184,7 @@ bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
     msb.cb = cb;
     msb.ibStart = ibStart;
     msb.cactPlay = cactPlay;
-    msb.luData = luData;
+    msb.lUserDataa = lUserDataa;
 
     if (!_pglmsb->FAdd(&msb))
     {
@@ -2361,7 +2361,7 @@ void OMS::_ReleaseBuffers(void)
         _mutx.Leave();
 
         // call the notify proc
-        (*_pfnCall)(_luUser, msb.pvData, msb.luData);
+        (*_pfnCall)(_luUser, msb.pvData, msb.lUserDataa);
 
         _mutx.Enter();
     }

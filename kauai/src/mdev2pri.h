@@ -171,7 +171,7 @@ class MSMIX : public MSMIX_PAR
     void _WaitForBuffers(void);
     void _SubmitBuffers(ulong tsCur);
 
-    static void _MidiProc(ulong luUser, void *pvData, ulong luData);
+    static void _MidiProc(ulong luUser, void *pvData, ulong lUserDataa);
     void _Notify(void *pvData, PMDWS pmdws);
 
     static ulong __stdcall _ThreadProc(void *pv);
@@ -202,7 +202,7 @@ class MSMIX : public MSMIX_PAR
 /***************************************************************************
     The midi stream interface.
 ***************************************************************************/
-typedef void (*PFNMIDI)(ulong luUser, void *pvData, ulong luData);
+typedef void (*PFNMIDI)(ulong luUser, void *pvData, ulong lUserDataa);
 
 typedef class MISI *PMISI;
 #define MISI_PAR BASE
@@ -239,7 +239,7 @@ class MISI : public MISI_PAR
     virtual bool FActive(void);
     virtual bool FActivate(bool fActivate);
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData) = 0;
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa) = 0;
     virtual void StopPlaying(void) = 0;
 };
 
@@ -273,7 +273,7 @@ class WMS : public WMS_PAR
         void *pvData;
         long cb;
         long cactPlay;
-        ulong luData;
+        ulong lUserDataa;
         long ibNext;
 
         MH rgmh[kcmhMsir];
@@ -331,7 +331,7 @@ class WMS : public WMS_PAR
     virtual bool FActivate(bool fActivate);
 #endif // STREAM_BUG
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData);
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
     virtual void StopPlaying(void);
 };
 
@@ -355,7 +355,7 @@ class OMS : public OMS_PAR
         long ibStart;
         long cactPlay;
 
-        ulong luData;
+        ulong lUserDataa;
     };
 
     Mutex _mutx;
@@ -386,7 +386,7 @@ class OMS : public OMS_PAR
     static POMS PomsNew(PFNMIDI pfn, ulong luUser);
     ~OMS(void);
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData);
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
     virtual void StopPlaying(void);
 };
 

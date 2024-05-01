@@ -572,12 +572,12 @@ bool String::FFormatSz(PZString pszFormat, ...)
 /***************************************************************************
     Core routine for sprintf functionality.
 ***************************************************************************/
-bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData)
+bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserDataa)
 {
     AssertThis(0);
     AssertIn(cchFormat, 0, kcchMaxStn + 1);
     AssertPvCb(prgchFormat, cchFormat * size(achar));
-    AssertVarMem(prgluData);
+    AssertVarMem(prglUserDataa);
 
     // Data Write Order - these dwo values are pcode for when to add what
     enum
@@ -684,8 +684,8 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData)
 
         // code after the switch assumes that prgchTerm points to the
         // characters to add to the stream and cch is the number of characters
-        AssertPvCb(prgluData, LwMul(ivArg + 1, size(ulong)));
-        lu = prgluData[ivArg++];
+        AssertPvCb(prglUserDataa, LwMul(ivArg + 1, size(ulong)));
+        lu = prglUserDataa[ivArg++];
         prgchTerm = rgchT;
         switch (ch)
         {
