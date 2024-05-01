@@ -15,9 +15,9 @@
 
     Basic scene private classes:
 
-        Scene Chop Undo Object (SUNC)
+        Scene Chop Undo Object (SceneUndoChop)
 
-            BASE ---> UndoBase ---> MovieUndo ---> SUNC
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoChop
 
         Scene Background Undo Object (SUNK)
 
@@ -174,11 +174,11 @@ void ReleasePpsse(PSceneSoundEvent *ppsse);
 //
 // Undo object for chopping operation.
 //
-typedef class SUNC *PSUNC;
+typedef class SceneUndoChop *PSceneUndoChop;
 
-#define SUNC_PAR MovieUndo
-#define kclsSUNC 'SUNC'
-class SUNC : public SUNC_PAR
+#define SceneUndoChop_PAR MovieUndo
+#define kclsSceneUndoChop 'SUNC'
+class SceneUndoChop : public SceneUndoChop_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -187,13 +187,13 @@ class SUNC : public SUNC_PAR
   protected:
     ChunkNumber _cno;
     PChunkyResourceFile _pcrf;
-    SUNC(void)
+    SceneUndoChop(void)
     {
     }
 
   public:
-    static PSUNC PsuncNew(void);
-    ~SUNC(void);
+    static PSceneUndoChop PsuncNew(void);
+    ~SceneUndoChop(void);
 
     bool FSave(PScene pscen);
 
@@ -453,7 +453,7 @@ RTCLASS(SceneActorUndo)
 RTCLASS(SUNK)
 RTCLASS(SUNP)
 RTCLASS(SUNX)
-RTCLASS(SUNC)
+RTCLASS(SceneUndoChop)
 RTCLASS(SUNR)
 
 /****************************************************
@@ -5454,7 +5454,7 @@ bool Scene::FChopCore()
  ****************************************************/
 bool Scene::FChop()
 {
-    PSUNC psunc;
+    PSceneUndoChop psunc;
     bool fValid;
 
     if (_nfrmCur == _nfrmLast)
@@ -5462,7 +5462,7 @@ bool Scene::FChop()
         return (fTrue);
     }
 
-    psunc = SUNC::PsuncNew();
+    psunc = SceneUndoChop::PsuncNew();
     if (psunc != pvNil)
     {
         fValid = psunc->FSave(this);
@@ -5639,7 +5639,7 @@ bool Scene::FChopBackCore()
  ****************************************************/
 bool Scene::FChopBack()
 {
-    PSUNC psunc;
+    PSceneUndoChop psunc;
     bool fValid;
 
     if (_nfrmCur == _nfrmFirst)
@@ -5647,7 +5647,7 @@ bool Scene::FChopBack()
         return (fTrue);
     }
 
-    psunc = SUNC::PsuncNew();
+    psunc = SceneUndoChop::PsuncNew();
     if (psunc != pvNil)
     {
         fValid = psunc->FSave(this);
@@ -6958,10 +6958,10 @@ void SUNK::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNC SUNC::PsuncNew()
+PSceneUndoChop SceneUndoChop::PsuncNew()
 {
-    PSUNC psunc;
-    psunc = NewObj SUNC();
+    PSceneUndoChop psunc;
+    psunc = NewObj SceneUndoChop();
     return (psunc);
 }
 
@@ -6970,7 +6970,7 @@ PSUNC SUNC::PsuncNew()
  * Destructor for scene pause undo objects
  *
  ****************************************************/
-SUNC::~SUNC(void)
+SceneUndoChop::~SceneUndoChop(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pcrf);
@@ -6987,7 +6987,7 @@ SUNC::~SUNC(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FSave(PScene pscen)
+bool SceneUndoChop::FSave(PScene pscen)
 {
     PChunkyFile pcfl;
     bool fRet;
@@ -7024,7 +7024,7 @@ bool SUNC::FSave(PScene pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FDo(PDocumentBase pdocb)
+bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -7111,7 +7111,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FUndo(PDocumentBase pdocb)
+bool SceneUndoChop::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -7119,7 +7119,7 @@ bool SUNC::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNC
+ * Mark memory used by the SceneUndoChop
  *
  * Parameters:
  * 	None.
@@ -7128,17 +7128,17 @@ bool SUNC::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void SUNC::MarkMem(void)
+void SceneUndoChop::MarkMem(void)
 {
     AssertThis(0);
-    SUNC_PAR::MarkMem();
+    SceneUndoChop_PAR::MarkMem();
     MarkMemObj(_pcrf);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNC.
+    Assert the validity of the SceneUndoChop.
 ***************************************************************************/
-void SUNC::AssertValid(ulong grf)
+void SceneUndoChop::AssertValid(ulong grf)
 {
     AssertNilOrPo(_pcrf, grf);
 }
