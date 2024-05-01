@@ -33,7 +33,7 @@ bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 {
     PGeneralGroup pggcurf;
     long icurf, icurfBest;
-    CURF curf;
+    CursorOnFile curf;
     short bo;
     long dxp, dyp, dzpT;
     long dzpBest;

@@ -22,7 +22,7 @@ enum
 };
 
 // cursor on file - stored in a GeneralGroup with the rgb's in the variable part
-struct CURF
+struct CursorOnFile
 {
     long curt; // type of cursor
     byte xp;   // hot spot

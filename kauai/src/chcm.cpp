@@ -912,7 +912,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
     FileLocation floSrc;
     Token tok;
     long ccurdir, cbBits;
-    CURF curf;
+    CursorOnFile curf;
     short rgsw[3];
     byte *prgb;
     CURDIR *pcurdir;
@@ -954,7 +954,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
 
     prgb = (byte *)PvLockHq(hq);
     pcurdir = (CURDIR *)prgb;
-    if (pvNil == (pggcurf = GeneralGroup::PggNew(size(CURF), ccurdir)))
+    if (pvNil == (pggcurf = GeneralGroup::PggNew(size(CursorOnFile), ccurdir)))
     {
         _Error(ertOom);
         goto LFail;
