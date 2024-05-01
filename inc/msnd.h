@@ -194,7 +194,7 @@ typedef class MSQ *PMSQ;
 const long kcsqeGrow = 10; // quantum growth for sqe
 
 // Movie sound queue entry
-struct SQE
+struct SoundQueryEntry
 {
     long objID;     // Unique identifier (actor id, eg)
     bool fLoop;     // Looping sound flag

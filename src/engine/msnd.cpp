@@ -714,7 +714,7 @@ PMSQ MSQ::PmsqNew(void)
     if (pvNil == (pmsq = NewObj MSQ(khidMsq)))
         return pvNil;
 
-    if (pvNil == (pmsq->_pglsqe = DynamicArray::PglNew(size(SQE), kcsqeGrow)))
+    if (pvNil == (pmsq->_pglsqe = DynamicArray::PglNew(size(SoundQueryEntry), kcsqeGrow)))
     {
         ReleasePpo(&pmsq);
         return pvNil;
@@ -741,8 +741,8 @@ bool MSQ::FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, l
     AssertThis(0);
     AssertPo(pmsnd, 0);
 
-    SQE sqe;
-    SQE *psqe;
+    SoundQueryEntry sqe;
+    SoundQueryEntry *psqe;
     long sqn;
     long sqnT;
     long isqe;
@@ -755,7 +755,7 @@ bool MSQ::FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, l
     if (!fQueue)
         for (isqe = 0; isqe < _pglsqe->IvMac(); isqe++)
         {
-            psqe = (SQE *)_pglsqe->QvGet(isqe);
+            psqe = (SoundQueryEntry *)_pglsqe->QvGet(isqe);
             sqnT = psqe->fActr ? MovieSoundMSND::SqnActr(psqe->pmsnd->Sty(), psqe->objID)
                                : MovieSoundMSND::SqnBkgd(psqe->pmsnd->Sty(), psqe->objID);
             if (sqnT == sqn)
@@ -806,7 +806,7 @@ void MSQ::PlayMsq(void)
 {
     AssertThis(0);
 
-    SQE sqe;
+    SoundQueryEntry sqe;
 
     if (_pglsqe->IvMac() == 0)
         return;
@@ -851,7 +851,7 @@ void MSQ::PlayMsq(void)
 void MSQ::FlushMsq(void)
 {
     AssertThis(0);
-    SQE sqe;
+    SoundQueryEntry sqe;
 
     while (_pglsqe->FDequeue(&sqe))
     {
