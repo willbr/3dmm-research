@@ -17,7 +17,7 @@
 using namespace BRender;
 
 // Model on file:
-struct MODLF
+struct ModelOnFile
 {
     short bo;
     short osk;
@@ -29,7 +29,7 @@ struct MODLF
     //	br_vertex rgbrv[]; // vertices
     //	br_face rgbrf[]; // faces
 };
-typedef MODLF *PMODLF;
+typedef ModelOnFile *PModelOnFile;
 const ByteOrderMask kbomModlf = 0x55fffff0;
 
 /****************************************

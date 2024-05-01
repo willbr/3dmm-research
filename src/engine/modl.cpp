@@ -88,7 +88,7 @@ bool MODL::_FInit(PDataBlock pblck)
     AssertBaseThis(0);
     AssertPo(pblck, 0);
 
-    MODLF modlf;
+    ModelOnFile modlf;
     long cbrgbrv;
     long cbrgbrf;
     long ibrv;
@@ -101,9 +101,9 @@ bool MODL::_FInit(PDataBlock pblck)
     ClearPb(szIdentifier, size(PMODL) + 1);
     if (!pblck->FUnpackData())
         return fFalse;
-    if (pblck->Cb() < size(MODLF))
+    if (pblck->Cb() < size(ModelOnFile))
         return fFalse;
-    if (!pblck->FReadRgb(&modlf, size(MODLF), 0))
+    if (!pblck->FReadRgb(&modlf, size(ModelOnFile), 0))
         return fFalse;
     if (kboOther == modlf.bo)
         SwapBytesBom(&modlf, kbomModlf);
@@ -121,9 +121,9 @@ bool MODL::_FInit(PDataBlock pblck)
         if (pvNil == _pbmdl)
             return fFalse;
         CopyPb(&pmodlThis, _pbmdl->identifier, size(PMODL));
-        if (!pblck->FReadRgb(_pbmdl->vertices, cbrgbrv, size(MODLF)))
+        if (!pblck->FReadRgb(_pbmdl->vertices, cbrgbrv, size(ModelOnFile)))
             return fFalse;
-        if (!pblck->FReadRgb(_pbmdl->faces, cbrgbrf, size(MODLF) + cbrgbrv))
+        if (!pblck->FReadRgb(_pbmdl->faces, cbrgbrf, size(ModelOnFile) + cbrgbrv))
             return fFalse;
 
         BrModelAdd(_pbmdl);
@@ -149,7 +149,7 @@ bool MODL::_FInit(PDataBlock pblck)
         if (pvNil == _pbmdl->prepared_faces)
             return fFalse;
 
-        if (!pblck->FReadRgb(_pbmdl->prepared_vertices, cbrgbrv, size(MODLF)))
+        if (!pblck->FReadRgb(_pbmdl->prepared_vertices, cbrgbrv, size(ModelOnFile)))
         {
             return fFalse;
         }
@@ -160,7 +160,7 @@ bool MODL::_FInit(PDataBlock pblck)
                 SwapBytesBom(pbrv, kbomBrv);
             }
         }
-        if (!pblck->FReadRgb(_pbmdl->prepared_faces, cbrgbrf, size(MODLF) + cbrgbrv))
+        if (!pblck->FReadRgb(_pbmdl->prepared_faces, cbrgbrf, size(ModelOnFile) + cbrgbrv))
         {
             return fFalse;
         }
@@ -264,11 +264,11 @@ bool MODL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     long cb;
     long cbrgbrv;
     long cbrgbrf;
-    MODLF *pmodlf;
+    ModelOnFile *pmodlf;
 
     cbrgbrv = LwMul(_pbmdl->nprepared_vertices, size(br_vertex));
     cbrgbrf = LwMul(_pbmdl->nprepared_faces, size(br_face));
-    cb = size(MODLF) + cbrgbrv + cbrgbrf;
+    cb = size(ModelOnFile) + cbrgbrv + cbrgbrf;
     if (!FAllocPv((void **)&pmodlf, cb, fmemClear, mprNormal))
         goto LFail;
     pmodlf->bo = kboCur;
@@ -278,8 +278,8 @@ bool MODL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     pmodlf->rRadius = _pbmdl->radius;
     pmodlf->brb = _pbmdl->bounds;
     pmodlf->bvec3Pivot = _pbmdl->pivot;
-    CopyPb(_pbmdl->prepared_vertices, PvAddBv(pmodlf, size(MODLF)), cbrgbrv);
-    CopyPb(_pbmdl->prepared_faces, PvAddBv(pmodlf, size(MODLF) + cbrgbrv), cbrgbrf);
+    CopyPb(_pbmdl->prepared_vertices, PvAddBv(pmodlf, size(ModelOnFile)), cbrgbrv);
+    CopyPb(_pbmdl->prepared_faces, PvAddBv(pmodlf, size(ModelOnFile) + cbrgbrv), cbrgbrf);
     if (!pcfl->FPutPv(pmodlf, cb, ctg, cno))
         goto LFail;
     FreePpv((void **)&pmodlf);

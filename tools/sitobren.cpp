@@ -2301,7 +2301,7 @@ PBMHR S2B::_PbmhrFromModel(Model *pmodel, BMAT34 *pbmat34, PBMHR *ppbmhr, PBMHR 
     long cbrgver;
     long cbrgfac;
     PBMHR pbmhrCur = pvNil;
-    MODLF *pmodlf;
+    ModelOnFile *pmodlf;
     Mesh *pmesh = (Mesh *)pmodel->definition;
     Material *pmaterial;
     CRNG crng;
@@ -2313,22 +2313,22 @@ PBMHR S2B::_PbmhrFromModel(Model *pmodel, BMAT34 *pbmat34, PBMHR *ppbmhr, PBMHR 
         we gain back most of the overhead with this simple change. */
     fMesh = pmesh != pvNil && (!_fCostumeOnly || fAccessory);
 
-    /* Allocate necessary pieces: BMHR, appropriately sized MODLF, and name */
+    /* Allocate necessary pieces: BMHR, appropriately sized ModelOnFile, and name */
     if (fMesh)
     {
         Assert(pmodel->type == DK_MDL_MESH, "Data present in non-mesh model");
         cbrgver = LwMul(pmesh->nbVertices, size(br_vertex));
         cbrgfac = LwMul(pmesh->nbPolygons, size(br_face));
-        cb = size(MODLF) + cbrgver + cbrgfac;
+        cb = size(ModelOnFile) + cbrgver + cbrgfac;
     }
     else
     {
         Assert(_fCostumeOnly || pmodel->type != DK_MDL_MESH, "Mesh model has no data");
-        cb = size(MODLF);
+        cb = size(ModelOnFile);
     }
     if (!FAllocPv((void **)&pmodlf, cb, fmemClear, mprNormal))
     {
-        printf("Couldn't allocate MODLF structure\n");
+        printf("Couldn't allocate ModelOnFile structure\n");
         goto LFail;
     }
 
@@ -2360,14 +2360,14 @@ PBMHR S2B::_PbmhrFromModel(Model *pmodel, BMAT34 *pbmat34, PBMHR *ppbmhr, PBMHR 
         ppbmhr = &((*ppbmhr)->pbmhrSibling);
 #endif // DEBUG
 
-    /* Fill in MODLF */
+    /* Fill in ModelOnFile */
     if (fMesh)
     {
         pmodlf->cver = (short)pmesh->nbVertices;
         pmodlf->cfac = (short)pmesh->nbPolygons;
-        _CopyVertices(pmesh->vertices, PvAddBv(pmodlf, size(MODLF)), pmesh->nbVertices);
-        _CopyFaces(pmesh->polygons, PvAddBv(pmodlf, size(MODLF) + cbrgver), pmesh->nbPolygons,
-                   (BRV *)PvAddBv(pmodlf, size(MODLF)), pmodlf->cver);
+        _CopyVertices(pmesh->vertices, PvAddBv(pmodlf, size(ModelOnFile)), pmesh->nbVertices);
+        _CopyFaces(pmesh->polygons, PvAddBv(pmodlf, size(ModelOnFile) + cbrgver), pmesh->nbPolygons,
+                   (BRV *)PvAddBv(pmodlf, size(ModelOnFile)), pmodlf->cver);
 
         /* I considered having the _Copy... routines do the hashing, since
             they're already stepping through the bytes.  However, they do
@@ -2754,7 +2754,7 @@ BRS S2B::_BrsdwrFromModel(Model *pmodel, BRS rgbrsDwr[])
 |
 |	Arguments:
 |		DK_Vertex *vertices -- pointer to SoftImage vertices array
-|		void *pvDst -- pointer to start of Brender vertices in MODLF
+|		void *pvDst -- pointer to start of Brender vertices in ModelOnFile
 |		long cVertices -- count of vertices
 |
 -------------------------------------------------------------PETED-----------*/
@@ -3043,7 +3043,7 @@ LFail:
 void S2B::_ApplyBmdlXF(PBMHR pbmhr)
 {
     long cver = pbmhr->pmodlf->cver;
-    BRV *pbrv = (BRV *)PvAddBv(pbmhr->pmodlf, size(MODLF));
+    BRV *pbrv = (BRV *)PvAddBv(pbmhr->pmodlf, size(ModelOnFile));
 
     while (cver--)
     {
@@ -3057,7 +3057,7 @@ void S2B::_ApplyBmdlXF(PBMHR pbmhr)
 |		Iterates through a Brender model hierarchy, creating the necessary
 |	chunk data as it goes.  The GLPI is made the first time, and then
 |	verified each subsequent time for the template.  The array of CPSs
-|	is filled in for the given node of the given cel.  If the MODLF is no
+|	is filled in for the given node of the given cel.  If the ModelOnFile is no
 |	longer needed, it's freed; the model node is always freed.
 |
 |	Arguments:
@@ -3158,7 +3158,7 @@ LFail:
 -------------------------------------------------------------PETED-----------*/
 bool S2B::_FEnsureOneRoot(PBMHR *ppbmhr)
 {
-    MODLF *pmodlf;
+    ModelOnFile *pmodlf;
     PBMHR pbmhr;
 
     /* REVIEW peted: don't bother doing this, 'cause it messes up the material
@@ -3180,8 +3180,8 @@ bool S2B::_FEnsureOneRoot(PBMHR *ppbmhr)
     if ((*ppbmhr)->pbmhrSibling == pvNil)
         return fTrue;
 
-    /* Allocate necessary structures.  The MODLF and the BMHR */
-    if (!FAllocPv((void **)&pmodlf, size(MODLF), fmemClear, mprNormal))
+    /* Allocate necessary structures.  The ModelOnFile and the BMHR */
+    if (!FAllocPv((void **)&pmodlf, size(ModelOnFile), fmemClear, mprNormal))
         goto LFail;
     if (!FAllocPv((void **)&pbmhr, size(BMHR), fmemClear, mprNormal))
     {
@@ -3191,12 +3191,12 @@ bool S2B::_FEnsureOneRoot(PBMHR *ppbmhr)
     pbmhr->pmodlf = pmodlf;
     _InitBmhr(pbmhr);
 
-    /* Fill in the MODLF; no faces or vertices */
-    Assert(pmodlf->cver == 0, "Didn't clear MODLF");
-    Assert(pmodlf->cfac == 0, "Didn't clear MODLF");
+    /* Fill in the ModelOnFile; no faces or vertices */
+    Assert(pmodlf->cver == 0, "Didn't clear ModelOnFile");
+    Assert(pmodlf->cfac == 0, "Didn't clear ModelOnFile");
 
     /* Fill in the BMHR */
-    pbmhr->cbModlf = size(MODLF);
+    pbmhr->cbModlf = size(ModelOnFile);
     BrMatrix34Identity(&pbmhr->bmat34);
     pbmhr->pbmhrSibling = pvNil;
 
@@ -3848,18 +3848,18 @@ void S2B::_FlushTmplKids(void)
 
 /******************************************************************************
     _FModlfToBmdl
-        Converts a MODLF structure to the corresponding Brender br_model
+        Converts a ModelOnFile structure to the corresponding Brender br_model
         structure (BMDL in Socrates nomenclature).  Simply allocates a
         Brender model and copies the vertices.
 
     Arguments:
-        PMODLF pmodlf  --  the MODLF to convert
+        PModelOnFile pmodlf  --  the ModelOnFile to convert
         PBMDL *ppbmdl  --  takes the pointer to the new Brender model
 
     Returns: fTrue on success, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool S2B::_FModlfToBmdl(PMODLF pmodlf, PBMDL *ppbmdl)
+bool S2B::_FModlfToBmdl(PModelOnFile pmodlf, PBMDL *ppbmdl)
 {
     AssertVarMem(pmodlf);
     AssertVarMem(ppbmdl);
@@ -3875,8 +3875,8 @@ bool S2B::_FModlfToBmdl(PMODLF pmodlf, PBMDL *ppbmdl)
 
     cbrgbrv = LwMul(pmodlf->cver, size(BRV));
     cbrgbrf = LwMul(pmodlf->cfac, size(BRF));
-    CopyPb(PvAddBv(pmodlf, size(MODLF)), pbmdl->vertices, cbrgbrv);
-    CopyPb(PvAddBv(pmodlf, size(MODLF) + cbrgbrv), pbmdl->faces, cbrgbrf);
+    CopyPb(PvAddBv(pmodlf, size(ModelOnFile)), pbmdl->vertices, cbrgbrv);
+    CopyPb(PvAddBv(pmodlf, size(ModelOnFile) + cbrgbrv), pbmdl->faces, cbrgbrf);
 
     *ppbmdl = pbmdl;
 
@@ -3887,21 +3887,21 @@ LFail:
 
 /******************************************************************************
     _FBmdlToModlf
-        Converts a Brender br_model to a MODLF structure.  Ensures that the
+        Converts a Brender br_model to a ModelOnFile structure.  Ensures that the
         Brender model has been prepared and then copies all relevant
-        information from the Brender model to the MODLF.  Uses the passed in
-        MODLF to initialize the newly created one so that untouched fields
-        remain the same.  Frees the old MODLF only on success.
+        information from the Brender model to the ModelOnFile.  Uses the passed in
+        ModelOnFile to initialize the newly created one so that untouched fields
+        remain the same.  Frees the old ModelOnFile only on success.
 
     Arguments:
         PBMDL pbmdl      --  the Brender model to convert
-        PMODLF *ppmodlf  --  provides the template for the MODLF, and takes
-            the pointer to the new MODLF structure on success
+        PModelOnFile *ppmodlf  --  provides the template for the ModelOnFile, and takes
+            the pointer to the new ModelOnFile structure on success
 
     Returns: fTrue on success, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool S2B::_FBmdlToModlf(PBMDL pbmdl, PMODLF *ppmodlf, long *pcb)
+bool S2B::_FBmdlToModlf(PBMDL pbmdl, PModelOnFile *ppmodlf, long *pcb)
 {
     AssertVarMem(pbmdl);
     AssertVarMem(ppmodlf);
@@ -3909,7 +3909,7 @@ bool S2B::_FBmdlToModlf(PBMDL pbmdl, PMODLF *ppmodlf, long *pcb)
 
     bool fRet = fFalse;
     long cbrgbrv, cbrgbrf;
-    PMODLF pmodlf;
+    PModelOnFile pmodlf;
 
     BrModelPrepare(pbmdl, BR_MPREP_ALL);
 
@@ -3922,20 +3922,20 @@ bool S2B::_FBmdlToModlf(PBMDL pbmdl, PMODLF *ppmodlf, long *pcb)
 
     cbrgbrv = LwMul(pbmdl->nprepared_vertices, size(BRV));
     cbrgbrf = LwMul(pbmdl->nprepared_faces, size(BRF));
-    if (!FAllocPv((void **)&pmodlf, size(MODLF) + cbrgbrv + cbrgbrf, fmemClear, mprNormal))
+    if (!FAllocPv((void **)&pmodlf, size(ModelOnFile) + cbrgbrv + cbrgbrf, fmemClear, mprNormal))
         goto LFail;
 
-    CopyPb(*ppmodlf, pmodlf, size(MODLF));
+    CopyPb(*ppmodlf, pmodlf, size(ModelOnFile));
     pmodlf->cver = pbmdl->nprepared_vertices;
     pmodlf->cfac = pbmdl->nprepared_faces;
     pmodlf->rRadius = pbmdl->radius;
     pmodlf->brb = pbmdl->bounds;
-    CopyPb(pbmdl->prepared_vertices, PvAddBv(pmodlf, size(MODLF)), cbrgbrv);
-    CopyPb(pbmdl->prepared_faces, PvAddBv(pmodlf, size(MODLF) + cbrgbrv), cbrgbrf);
+    CopyPb(pbmdl->prepared_vertices, PvAddBv(pmodlf, size(ModelOnFile)), cbrgbrv);
+    CopyPb(pbmdl->prepared_faces, PvAddBv(pmodlf, size(ModelOnFile) + cbrgbrv), cbrgbrf);
 
     FreePpv((void **)ppmodlf);
     *ppmodlf = pmodlf;
-    *pcb = size(MODLF) + cbrgbrv + cbrgbrf;
+    *pcb = size(ModelOnFile) + cbrgbrv + cbrgbrf;
 
     fRet = fTrue;
 LFail:
@@ -3989,7 +3989,7 @@ LFail:
 
 /*-----------------------------------------------------------------------------
 |	_FChidFromModlf
-|		Looks up a given MODLF, and adds a new one to the MODLF database
+|		Looks up a given ModelOnFile, and adds a new one to the ModelOnFile database
 |	if necessary.
 |
 |	Arguments:
@@ -3997,7 +3997,7 @@ LFail:
 |		ChildChunkID *pchid -- points to ChildChunkID var that takes the result
 |
 |	Returns:
-|		fTrue if it could find or allocate the new MODLF node, fFalse otherwise
+|		fTrue if it could find or allocate the new ModelOnFile node, fFalse otherwise
 |		*pchid takes the ChildChunkID for the MODL chunk
 |
 -------------------------------------------------------------PETED-----------*/
@@ -4162,17 +4162,17 @@ bool S2B::_FIphshdbFromLuHash(uint luHash, long *piphshdb, PDynamicArray pglphsh
 
 /******************************************************************************
     _PbmdbFindModlf
-        Given a MODLF, look for an identical one in our hash table.
+        Given a ModelOnFile, look for an identical one in our hash table.
 
     Arguments:
-        MODLF *pmodlf   -- the MODLF to look for
-        int *pluHashList -- returns the hash value for the MODLF
+        ModelOnFile *pmodlf   -- the ModelOnFile to look for
+        int *pluHashList -- returns the hash value for the ModelOnFile
 
-    Returns: if the MODLF could be found, returns the pointer to the
-        BMDB for that MODLF, otherwise returns pvNil.
+    Returns: if the ModelOnFile could be found, returns the pointer to the
+        BMDB for that ModelOnFile, otherwise returns pvNil.
 
 ************************************************************ PETED ***********/
-PBMDB S2B::_PbmdbFindModlf(MODLF *pmodlf, long cbModlf, uint *pluHashList)
+PBMDB S2B::_PbmdbFindModlf(ModelOnFile *pmodlf, long cbModlf, uint *pluHashList)
 {
     PBMDB pbmdb;
 #if !HASH_FIXED

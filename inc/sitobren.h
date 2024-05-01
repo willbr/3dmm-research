@@ -29,7 +29,7 @@ typedef struct _hshdb
 typedef struct _bmdb
 {
     HSHDB hshdb;   // hash DB header
-    MODLF *pmodlf; // the file data
+    ModelOnFile *pmodlf; // the file data
     long cbModlf;
     ChildChunkID chidBmdl;  // BMDL child ID
     ChunkNumber cnoBmdl;    // BMDL ChunkNumber
@@ -48,7 +48,7 @@ typedef struct _bmatdb
 /* Brender Model HieraRchy */
 typedef struct _bmhr
 {
-    MODLF *pmodlf; // the file data
+    ModelOnFile *pmodlf; // the file data
     long cbModlf;
     BMAT34 bmat34; // XF
     MTRLF mtrlf;
@@ -345,14 +345,14 @@ class S2B : public S2B_PAR
     bool _FEnsureOneRoot(PBMHR *ppbmhr);
     void _InitBmhr(PBMHR pbmhr);
     void _FlushTmplKids(void);
-    bool _FModlfToBmdl(PMODLF pmodlf, PBMDL *ppbmdl);
-    bool _FBmdlToModlf(PBMDL pbmdl, PMODLF *ppmodlf, long *pcb);
+    bool _FModlfToBmdl(PModelOnFile pmodlf, PBMDL *ppbmdl);
+    bool _FBmdlToModlf(PBMDL pbmdl, PModelOnFile *ppmodlf, long *pcb);
     bool _FSetCps(PBMHR pbmhr, CPS *pcps);
     bool _FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb = pvNil);
     bool _FAddBmdlParent(PBMDB pbmdb, ChildChunkIdentification *pkid);
     bool _FInsertPhshdb(PHSHDB phshdb, PDynamicArray pglphshdb);
     bool _FIphshdbFromLuHash(uint luHash, long *piphshdb, PDynamicArray pglphshdb);
-    PBMDB _PbmdbFindModlf(MODLF *pmodlf, long cbModlf, uint *pluHashList);
+    PBMDB _PbmdbFindModlf(ModelOnFile *pmodlf, long cbModlf, uint *pluHashList);
     void _InitCrcTable(void);
     uint _LuHashBytesNoTable(uint luHash, void *pv, long cb);
     uint _LuHashBytes(uint luHash, void *pv, long cb);
