@@ -37,7 +37,7 @@ class SCRT : public SCRT_PAR
     long _iscenTop;   // first scene visible in the browser
     long _iscenMac;   // number of scenes
     PMovie _pmvie;     // pointer to movie we're editing
-    CMVI _cmvi;       // Composite movie
+    CompositeMovie _cmvi;       // Composite movie
     bool _fError : 1, // Did an error occur during the easel?
         _fInited : 1; // Have I seen the cidSceneSortInit yet?
     PStudio _pstdio;   // The Studio that instantiated me

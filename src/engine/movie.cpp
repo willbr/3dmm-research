@@ -4585,10 +4585,10 @@ bool Movie::FPause(WIT wit, long dts)
 #ifdef DEBUG
 /******************************************************************************
     MarkMem
-        Marks memory used by the CMVI
+        Marks memory used by the CompositeMovie
 
 ************************************************************ PETED ***********/
-void CMVI::MarkMem(void)
+void CompositeMovie::MarkMem(void)
 {
     long iv, ivMac;
     MovieDescriptor mvied;
@@ -4621,13 +4621,13 @@ void CMVI::MarkMem(void)
         Adds the movie to the DynamicArray of movie descriptors.
 
     Arguments:
-        PCMVI pcmvi     --  the CMVI to add the movie to
+        PCompositeMovie pcmvi     --  the CompositeMovie to add the movie to
         long iscendIns  --  the point at which to start inserting scenes
 
     Returns: fTrue if it was successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
+bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
@@ -4729,7 +4729,7 @@ LFail:
 
 /******************************************************************************
     FSetCmvi
-        Rebuilds the movie based on the given CMVI.  Any scenes
+        Rebuilds the movie based on the given CompositeMovie.  Any scenes
         marked for deletion are disowned by their Movie chunk.  Any scenes that
         refer to a movie file other than this Movie's auto save file are
         copied into this Movie's auto save file.  Scene chunks are given new
@@ -4741,12 +4741,12 @@ LFail:
         end).
 
     Arguments:
-        PCMVI pcmvi -- the CMVI that describes the new movie structure
+        PCompositeMovie pcmvi -- the CompositeMovie that describes the new movie structure
 
     Returns: fTrue if it could accomplish all of the above, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::FSetCmvi(PCMVI pcmvi)
+bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
@@ -5089,17 +5089,17 @@ LFail:
 
 /******************************************************************************
     EmptyCmvi
-        Frees up the memory used by the CMVI.  For each scene in the
+        Frees up the memory used by the CompositeMovie.  For each scene in the
         DynamicArray of SCENDs, releases memory that the SceneDescriptor referred to.  Likewise
         for each MovieDescriptor in the DynamicArray of MVIEDs.
 
     Arguments:
-        PCMVI pcmvi -- the CMVI to empty
+        PCompositeMovie pcmvi -- the CompositeMovie to empty
 
     Returns: Sets the client's pointer to pvNil when finished
 
 ************************************************************ PETED ***********/
-void CMVI::Empty(void)
+void CompositeMovie::Empty(void)
 {
     AssertPo(pglscend, 0);
     AssertPo(pglmvied, 0);

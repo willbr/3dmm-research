@@ -38,7 +38,7 @@ void SCRT::AssertValid(ulong grf)
         Assert(_iscenCur == 0, "Non-zero _iscenCur for empty movie");
     AssertIn(_iscenTop, 0, _iscenMac + 1);
 
-    /* The CMVI has loose rules about the format of its data structures, but
+    /* The CompositeMovie has loose rules about the format of its data structures, but
         it's important to the SCRT that we keep things in the right order. */
     if (_cmvi.pglscend != pvNil)
     {

@@ -529,7 +529,7 @@ typedef struct _cmvi
 #ifdef DEBUG
     void MarkMem(void);
 #endif
-} CMVI, *PCMVI;
+} CompositeMovie, *PCompositeMovie;
 
 //
 //
@@ -720,9 +720,9 @@ class Movie : public Movie_PAR
     void Play(void);                  // Start/Stop a movie playing.
     bool FPause(WIT wit, long dts);   // Insert a pause here.
 
-    bool FAddToCmvi(PCMVI pcmvi, long *piscendIns);
-    // Add this movie to the CMVI
-    bool FSetCmvi(PCMVI pcmvi); // Re-build the movie from the CMVI
+    bool FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns);
+    // Add this movie to the CompositeMovie
+    bool FSetCmvi(PCompositeMovie pcmvi); // Re-build the movie from the CompositeMovie
     bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
     bool _FInsertScend(PDynamicArray pglscend, long iscend, PSceneDescriptor pscend);
