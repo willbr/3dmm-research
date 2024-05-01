@@ -76,7 +76,7 @@ const auto kbTransparent = 250;
 //
 // Scene event
 //
-struct SEV
+struct SceneEvent
 {
     long nfrm; // frame number of the event.
     SceneEventType sevt; // event type
@@ -514,14 +514,14 @@ PScene Scene::PscenNew(PMovie pmvie)
     //
     // Initialize event list
     //
-    pscen->_pggsevFrm = GeneralGroup::PggNew(size(SEV));
+    pscen->_pggsevFrm = GeneralGroup::PggNew(size(SceneEvent));
     if (pscen->_pggsevFrm == pvNil)
     {
         goto LFail;
     }
     pscen->_isevFrmLim = 0;
 
-    pscen->_pggsevStart = GeneralGroup::PggNew(size(SEV));
+    pscen->_pggsevStart = GeneralGroup::PggNew(size(SceneEvent));
     if (pscen->_pggsevStart == pvNil)
     {
         goto LFail;
@@ -770,7 +770,7 @@ void Scene::MarkMem(void)
 void Scene::AssertValid(ulong grf)
 {
     long isev;
-    SEV sev;
+    SceneEvent sev;
 
     Scene_PAR::AssertValid(fobjAllocated);
 
@@ -911,7 +911,7 @@ bool Scene::FGotoFrm(long nfrm)
     AssertThis(0);
 
     bool fSoundInFrame = fFalse, fUpdateSndFrame = nfrm != _nfrmCur;
-    SEV sev;
+    SceneEvent sev;
     PMovieView pmvu;
     void *qvVar;
     long isev;
@@ -1079,7 +1079,7 @@ void Scene::_DoPrerenderingWork(bool fStartNow)
     AssertThis(0);
 
     long isev;
-    SEV sev;
+    SceneEvent sev;
     long nfrmNextChange;
     long ipactr;
     PActor pactr;
@@ -1231,7 +1231,7 @@ bool Scene::FReplayFrm(ulong grfscen)
 {
     AssertThis(0);
 
-    SEV sev;
+    SceneEvent sev;
     void *qvVar;
     long isev, iactr;
     long nfrmOld = _nfrmCur;
@@ -1519,7 +1519,7 @@ bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
     AssertThis(0);
     AssertVarMem(psev);
 
-    SEV sev;
+    SceneEvent sev;
     long isev;
     PSEV qsevTmp;
 
@@ -1607,7 +1607,7 @@ void Scene::_MoveBackFirstFrame(long nfrm)
     Assert(nfrm < _nfrmFirst, "Can only be called to extend scene back.");
 
     long isev;
-    SEV sev;
+    SceneEvent sev;
 
     //
     // Move back all events that must persist in the
@@ -1665,7 +1665,7 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
 
-    SEV sev;
+    SceneEvent sev;
     PSceneSoundEvent psseOld;
     PSceneSoundEvent psseNew;
     long isev;
@@ -1850,7 +1850,7 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
 
-    SEV sev;
+    SceneEvent sev;
     PSceneSoundEvent psseOld;
     PSceneSoundEvent psseNew;
     long isev;
@@ -2523,7 +2523,7 @@ bool Scene::FAddActrCore(Actor *pactr)
     AssertPo(pactr, 0);
 
     PSEV qsev;
-    SEV sev;
+    SceneEvent sev;
     long isev;
     long ipactr;
     String stn;
@@ -2881,7 +2881,7 @@ bool Scene::FAddTboxCore(PTBOX ptbox)
     AssertThis(0);
     AssertPo(ptbox, 0);
 
-    SEV sev;
+    SceneEvent sev;
     bool fRetValue;
 
 #ifdef DEBUG
@@ -3188,7 +3188,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
     AssertIn(*pwit, witNil, witLim);
     AssertIn(*pdts, 0, klwMax);
 
-    SEV sev;
+    SceneEvent sev;
     long isev;
     PSEV qsev;
     SceneEventPause sevp;
@@ -3319,7 +3319,7 @@ bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
     AssertVarMem(ptag);
     AssertVarMem(ptagOld);
 
-    SEV sev;
+    SceneEvent sev;
     long isev;
     TAG tag;
     long vlm;
@@ -3521,7 +3521,7 @@ bool Scene::FIsEmpty(void)
     AssertThis(0);
 
     long isev;
-    SEV sev;
+    SceneEvent sev;
 
     if ((_pggsevStart->IvMac() != 1) || ((_nfrmLast - _nfrmFirst) > 0))
     {
@@ -3560,7 +3560,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
     AssertVarMem(picamOld);
 
     PSEV qsev, qsevOld;
-    SEV sev;
+    SceneEvent sev;
     long isev, isevCam;
 
     //
@@ -3767,7 +3767,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     ChildChunkIdentification kid;
     long isevFrm = 0;
     long isevStart = 0;
-    SEV sev;
+    SceneEvent sev;
     PSEV qsev;
     short bo;
     PActor pactr;
@@ -3859,7 +3859,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         goto LFail0;
     }
 
-    Assert(pscen->_pggsevFrm->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
+    Assert(pscen->_pggsevFrm->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
 
     //
     // Convert all open tags to pointers.
@@ -3940,7 +3940,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         goto LFail1;
     }
 
-    Assert(pscen->_pggsevStart->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
+    Assert(pscen->_pggsevStart->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
 
     //
     // Convert all open tags to pointers.
@@ -4128,7 +4128,7 @@ bool Scene::FPlayStartEvents(bool fActorsOnly)
     //
     for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
     {
-        SEV sev;
+        SceneEvent sev;
 
         _pggsevStart->GetFixed(isev, &sev);
         if (fActorsOnly && sev.sevt != sevtAddActr)
@@ -4153,7 +4153,7 @@ bool Scene::FGetTagBkgd(PTAG ptag)
     AssertThis(0);
     AssertVarMem(ptag);
 
-    SEV sev;
+    SceneEvent sev;
     long isevStart;
 
     for (isevStart = 0; isevStart < _pggsevStart->IvMac(); isevStart++)
@@ -4187,7 +4187,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 
     PGeneralGroup pggFrmTemp = pvNil;
     PGeneralGroup pggStartTemp = pvNil;
-    SEV sev;
+    SceneEvent sev;
     ChildChunkID chidActr, chidTbox;
     ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
     SCENH scenh;
@@ -4214,7 +4214,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     //
     // Copy frame event GeneralGroup to temporary GeneralGroup
     //
-    pggFrmTemp = GeneralGroup::PggNew(size(SEV));
+    pggFrmTemp = GeneralGroup::PggNew(size(SceneEvent));
 
     if (pggFrmTemp == pvNil)
     {
@@ -4303,7 +4303,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     //
     // Copy start event GeneralGroup to temporary GeneralGroup
     //
-    pggStartTemp = GeneralGroup::PggNew(size(SEV));
+    pggStartTemp = GeneralGroup::PggNew(size(SceneEvent));
 
     if (pggStartTemp == pvNil)
     {
@@ -4529,7 +4529,7 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     {
         long itag;
         PSceneSoundEvent psse;
-        SEV sev;
+        SceneEvent sev;
 
         sev = *(PSEV)_pggsevFrm->QvFixedGet(isev);
         if (sev.sevt != sevtPlaySnd)
@@ -5098,7 +5098,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
         return fFalse;
     }
 
-    Assert(pggsev->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
+    Assert(pggsev->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
 
     //
     // Find all tags in starting events
@@ -5214,7 +5214,7 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
         return fFalse;
     }
 
-    Assert(pggsev->CbFixed() == size(SEV), "Bad GeneralGroup read for event");
+    Assert(pggsev->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
 
     //
     // Look in all events for tags
@@ -5506,7 +5506,7 @@ bool Scene::FChopBackCore()
 
     PTBOX ptbox;
     PActor pactr;
-    SEV sev;
+    SceneEvent sev;
     bool fAlive;
     bool fCopyCam;
     long ipo;

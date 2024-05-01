@@ -224,13 +224,13 @@ struct SceneEventPause
 //
 // Scene event
 //
-struct SEV
+struct SceneEvent
 {
     long nfrm; // frame number of the event.
     SceneEventType sevt; // event type
 };
 
-typedef struct SEV *PSEV;
+typedef struct SceneEvent *PSEV;
 
 const auto kbomSev = 0xF0000000;
 const auto kbomLong = 0xC0000000;
@@ -525,7 +525,7 @@ void DumpSceneEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
 void DumpFrameEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGroup pggsevFrm, long isevFrm)
 {
     long indent = 32;
-    SEV sev;
+    SceneEvent sev;
 
     sev = *(PSEV)pggsevFrm->QvFixedGet(isevFrm);
 
@@ -948,7 +948,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
 
         PGeneralGroup pggsevFrm;   // List of events that occur in frames.
         long isevFrm;
-        SEV sev;
+        SceneEvent sev;
 
         PGeneralGroup pggsevStart;     // List of frame independent events.
         long isevStart;

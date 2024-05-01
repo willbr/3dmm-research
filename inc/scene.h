@@ -118,7 +118,7 @@ class Scene : public Scene_PAR
     ASSERT
 
   protected:
-    typedef struct SEV *PSEV;
+    typedef struct SceneEvent *PSEV;
 
     //
     // These variables keep track of the internal frame numbers.
