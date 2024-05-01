@@ -147,7 +147,7 @@ PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
     rcRel.xpRight = rcRel.ypBottom = krelOne;
     rcAbs.Set(0, 0, 0, 0);
 
-    pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidFrm);
+    pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidFrm);
 
     if (pgob == pvNil)
         return pvNil;

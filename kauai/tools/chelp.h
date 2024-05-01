@@ -36,14 +36,14 @@ typedef class HETD *PHETD;
 /***************************************************************************
     App class
 ***************************************************************************/
-#define APP_PAR ApplicationBase
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+#define Application_PAR ApplicationBase
+#define kclsApplication 'Application'
+class Application : public Application_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(Application)
 
   protected:
     PChunkyResourceManager _pcrm;
@@ -66,7 +66,7 @@ class APP : public APP_PAR
     bool FLoadResFile(PFilename pfni);
     bool FOpenDocFile(PFilename pfni, long cid = cidOpen);
 };
-extern APP vapp;
+extern Application vapp;
 
 /***************************************************************************
     List document

@@ -24,7 +24,7 @@ void TestUtil(void);
 long _LwSqrt(long lw);
 
 #define FrameTesterApp_PAR ApplicationBase
-#define kclsFrameTesterApp 'APP'
+#define kclsFrameTesterApp 'Application'
 class FrameTesterApp : public FrameTesterApp_PAR
 {
     RTCLASS_DEC

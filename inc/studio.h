@@ -39,7 +39,7 @@ typedef class StudioClientCallbacks *PSMCC;
 
 const long kcmhlStudio = 0x10000; // nice medium level for the Studio
 
-extern APP vapp;
+extern Application vapp;
 
 //
 // Studio class

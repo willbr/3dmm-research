@@ -9,16 +9,16 @@
 #include "ched.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(APP, ApplicationBase)
-ON_CID_GEN(cidNew, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpen, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidNewText, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpenText, &APP::FCmdOpen, pvNil)
+BEGIN_CMD_MAP(Application, ApplicationBase)
+ON_CID_GEN(cidNew, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpen, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidNewText, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpenText, &Application::FCmdOpen, pvNil)
 END_CMD_MAP_NIL()
 
-APP vapp;
+Application vapp;
 
-RTCLASS(APP)
+RTCLASS(Application)
 
 /***************************************************************************
     Main for a frame app.
@@ -29,11 +29,11 @@ void FrameMain(void)
 }
 
 /***************************************************************************
-    Initialize the APP - do the command line parsing thing.
+    Initialize the Application - do the command line parsing thing.
 ***************************************************************************/
-bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
-    if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
+    if (!Application_PAR::_FInit(grfapp, grfgob, ginDef))
         return fFalse;
 
 #ifdef WIN
@@ -126,7 +126,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 /***************************************************************************
     Get the name for the frame tester app.
 ***************************************************************************/
-void APP::GetStnAppName(PString pstn)
+void Application::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -147,7 +147,7 @@ void APP::GetStnAppName(PString pstn)
     Update the given window.  *prc is the bounding rectangle of the update
     region.
 ***************************************************************************/
-void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void Application::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
     AssertThis(0);
     PGraphicsObject pgob;
@@ -159,13 +159,13 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     if (pgob->FIs(kclsTSCG))
         grfapp |= fappOffscreen;
 
-    APP_PAR::UpdateHwnd(hwnd, prc, grfapp);
+    Application_PAR::UpdateHwnd(hwnd, prc, grfapp);
 }
 
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
+void Application::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -175,14 +175,14 @@ void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGr
     if (pgob->FIs(kclsTSCG))
         grfapp |= fappOffscreen;
 
-    APP_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
+    Application_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
 }
 
 /***************************************************************************
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdOpen(PCommand pcmd)
+bool Application::FCmdOpen(PCommand pcmd)
 {
     Filename fni;
     Filename *pfni;

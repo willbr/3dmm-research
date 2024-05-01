@@ -20,12 +20,12 @@
 
 #include "chdoc.h"
 
-#define APP_PAR ApplicationBase
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+#define Application_PAR ApplicationBase
+#define kclsApplication 'APP'
+class Application : public Application_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(Application)
 
   protected:
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);

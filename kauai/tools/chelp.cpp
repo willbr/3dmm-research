@@ -9,13 +9,13 @@
 #include "chelp.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(APP, ApplicationBase)
-ON_CID_GEN(cidNew, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpen, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpenText, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpenRichText, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidLoadResFile, &APP::FCmdLoadResFile, pvNil)
-ON_CID_GEN(cidChooseLanguage, &APP::FCmdChooseLanguage, &APP::FEnableChooseLanguage)
+BEGIN_CMD_MAP(Application, ApplicationBase)
+ON_CID_GEN(cidNew, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpen, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpenText, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpenRichText, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidLoadResFile, &Application::FCmdLoadResFile, pvNil)
+ON_CID_GEN(cidChooseLanguage, &Application::FCmdChooseLanguage, &Application::FEnableChooseLanguage)
 END_CMD_MAP_NIL()
 
 BEGIN_CMD_MAP(LIG, GraphicsObject)
@@ -23,9 +23,9 @@ ON_CID_ME(cidDoScroll, &LIG::FCmdScroll, pvNil)
 ON_CID_ME(cidEndScroll, &LIG::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
 
-APP vapp;
+Application vapp;
 
-RTCLASS(APP)
+RTCLASS(Application)
 RTCLASS(LIG)
 RTCLASS(LID)
 RTCLASS(CCG)
@@ -48,23 +48,23 @@ void FrameMain(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a APP.
+    Assert the validity of a Application.
 ***************************************************************************/
-void APP::AssertValid(ulong grf)
+void Application::AssertValid(ulong grf)
 {
-    APP_PAR::AssertValid(0);
+    Application_PAR::AssertValid(0);
     AssertNilOrPo(_pcrm, 0);
     AssertNilOrPo(_plidPicture, 0);
     AssertNilOrPo(_plidButton, 0);
 }
 
 /***************************************************************************
-    Mark memory for the APP.
+    Mark memory for the Application.
 ***************************************************************************/
-void APP::MarkMem(void)
+void Application::MarkMem(void)
 {
     AssertValid(0);
-    APP_PAR::MarkMem();
+    Application_PAR::MarkMem();
     MarkMemObj(_pcrm);
     MarkMemObj(_plidPicture);
     MarkMemObj(_plidButton);
@@ -77,7 +77,7 @@ void APP::MarkMem(void)
     Initialize the app.  Add some stuff to the menus and do the command
     line parsing thing.
 ***************************************************************************/
-bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
     static long _rgdypFont[] = {10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 28, 32, 36, 0};
 
@@ -108,7 +108,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     long iv, dyp;
     String stn;
 
-    if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
+    if (!Application_PAR::_FInit(grfapp, grfgob, ginDef))
         return fFalse;
 
     vpmubCur->FRemoveAllListCid(cidChooseFontSize);
@@ -194,7 +194,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 /***************************************************************************
     Get the name for the help editor app.
 ***************************************************************************/
-void APP::GetStnAppName(PString pstn)
+void Application::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -215,7 +215,7 @@ void APP::GetStnAppName(PString pstn)
     Update the given window.  *prc is the bounding rectangle of the update
     region.
 ***************************************************************************/
-void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void Application::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
     AssertThis(0);
     PGraphicsObject pgob;
@@ -227,13 +227,13 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     if (pgob->FIs(kclsDocumentMDIWindow) && ((PDocumentMDIWindow)pgob)->Pdocb()->FIs(kclsRichTextDocument))
         grfapp |= fappOffscreen;
 
-    APP_PAR::UpdateHwnd(hwnd, prc, grfapp);
+    Application_PAR::UpdateHwnd(hwnd, prc, grfapp);
 }
 
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
+void Application::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertThis(0);
 
@@ -241,14 +241,14 @@ void APP::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGr
     if (pgob->FIs(kclsDocumentMDIWindow) && ((PDocumentMDIWindow)pgob)->Pdocb()->FIs(kclsRichTextDocument))
         grfapp |= fappOffscreen;
 
-    APP_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
+    Application_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
 }
 
 /***************************************************************************
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdOpen(PCommand pcmd)
+bool Application::FCmdOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -300,7 +300,7 @@ bool APP::FCmdOpen(PCommand pcmd)
 /***************************************************************************
     Load a document file.
 ***************************************************************************/
-bool APP::FOpenDocFile(PFilename pfni, long cid)
+bool Application::FOpenDocFile(PFilename pfni, long cid)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, 0);
@@ -379,7 +379,7 @@ bool APP::FOpenDocFile(PFilename pfni, long cid)
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdLoadResFile(PCommand pcmd)
+bool Application::FCmdLoadResFile(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -397,7 +397,7 @@ bool APP::FCmdLoadResFile(PCommand pcmd)
 /***************************************************************************
     Load a resource file.
 ***************************************************************************/
-bool APP::FLoadResFile(PFilename pfni)
+bool Application::FLoadResFile(PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);
@@ -452,7 +452,7 @@ bool APP::FLoadResFile(PFilename pfni)
 /***************************************************************************
     Check or uncheck the language as appropriate.
 ***************************************************************************/
-bool APP::FEnableChooseLanguage(PCommand pcmd, ulong *pgrfeds)
+bool Application::FEnableChooseLanguage(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -476,7 +476,7 @@ enum
 /***************************************************************************
     Command to choose the language (for spelling).
 ***************************************************************************/
-bool APP::FCmdChooseLanguage(PCommand pcmd)
+bool Application::FCmdChooseLanguage(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -515,7 +515,7 @@ bool APP::FCmdChooseLanguage(PCommand pcmd)
 /***************************************************************************
     Create a new LIG for the given help text document.
 ***************************************************************************/
-PLIG APP::PligNew(bool fButton, PGraphicsObjectBlock pgcb, PTextDocument ptxhd)
+PLIG Application::PligNew(bool fButton, PGraphicsObjectBlock pgcb, PTextDocument ptxhd)
 {
     PLID plid = fButton ? _plidButton : _plidPicture;
 

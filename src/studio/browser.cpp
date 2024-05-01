@@ -1015,7 +1015,7 @@ bool BrowserList::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumS
     _bws = bws;
 
     // Set the display default
-    _sidDefault = ((APP *)vpappb)->SidProduct();
+    _sidDefault = ((Application *)vpappb)->SidProduct();
     if (!vpappb->FGetProp(kpridBrwsDefaultThum, &_thumDefault))
     {
         Warn("couldn't get property kpridBrwsDefaultThum");
@@ -2893,7 +2893,7 @@ void BrowserList::_SetCbPcrmMin(void)
     long dwAvailPhys;
 
     // If short on memory, pull in the cache
-    ((APP *)vpappb)->MemStat(&dwTotalPhys, &dwAvailPhys);
+    ((Application *)vpappb)->MemStat(&dwTotalPhys, &dwAvailPhys);
     if (dwTotalPhys > kdwTotalPhysLim && dwAvailPhys > kdwAvailPhysLim)
         return;
 

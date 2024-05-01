@@ -77,13 +77,13 @@ enum
 /****************************************
     The app class
 ****************************************/
-typedef class APP *PAPP;
-#define APP_PAR ApplicationBase
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+typedef class Application *PApplication;
+#define Application_PAR ApplicationBase
+#define kclsApplication 'APP'
+class Application : public Application_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(Application)
     ASSERT
     MARKMEM
 
@@ -212,7 +212,7 @@ class APP : public APP_PAR
 #endif // WIN
 
   public:
-    APP(void)
+    Application(void)
     {
         _dypTextDef = 0;
     }
@@ -364,6 +364,6 @@ class APP : public APP_PAR
     virtual bool FAllowScreenSaver(void);
 };
 
-#define vpapp ((APP *)vpappb)
+#define vpapp ((Application *)vpappb)
 
 #endif //! UTEST_H

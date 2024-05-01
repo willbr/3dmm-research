@@ -904,7 +904,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             if (pdiPortfolio->cnoWave != cnoNil)
             {
                 // There is a sound for the portfolio, so find it.
-                if ((pcrf = ((APP *)vpappb)->PcrmAll()->PcrfFindChunk(kctgWave, pdiPortfolio->cnoWave)) != pvNil)
+                if ((pcrf = ((Application *)vpappb)->PcrmAll()->PcrfFindChunk(kctgWave, pdiPortfolio->cnoWave)) != pvNil)
                 {
                     vpsndm->SiiPlay(pcrf, kctgWave, pdiPortfolio->cnoWave);
                 }

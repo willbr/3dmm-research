@@ -83,7 +83,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     PTAG ptag;
     PMovieView pmvu;
     long thumSelect;
-    long sid = ((APP *)vpappb)->SidProduct();
+    long sid = ((Application *)vpappb)->SidProduct();
     long brwdid = pcmd->rglw[0];
 
     vapp.BeginLongOp();

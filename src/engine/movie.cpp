@@ -1238,7 +1238,7 @@ bool Movie::FSwitchScen(long iscen)
 
     //
     // If memory is low, release unreferenced content BACOs to reduce thrashing.
-    // Note that APP::MemStat() is unavailable from the movie engine
+    // Note that Application::MemStat() is unavailable from the movie engine
     //
 #ifdef WIN
     MEMORYSTATUS ms;

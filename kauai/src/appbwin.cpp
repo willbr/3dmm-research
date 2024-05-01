@@ -73,7 +73,7 @@ bool ApplicationBase::_FInitOS(void)
 {
     AssertThis(0);
     String stnApp;
-    PZString pszAppWndCls = PszLit("APP");
+    PZString pszAppWndCls = PszLit("Application");
 
     // get the app name
     GetStnAppName(&stnApp);

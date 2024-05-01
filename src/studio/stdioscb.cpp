@@ -74,7 +74,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
 
     rcAbs.Set(0, 0, 0, 0);
 
-    pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidFrameText);
+    pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidFrameText);
 
     if (pgob == pvNil)
     {
@@ -91,7 +91,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
         return (pvNil);
     }
 
-    pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidSceneText);
+    pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidSceneText);
 
     if (pgob == pvNil)
     {
@@ -109,7 +109,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
     }
 
 #ifdef SHOW_FPS
-    pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidFps);
+    pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidFps);
 
     if (pgob == pvNil)
     {
@@ -430,12 +430,12 @@ long StudioScrollbars::_CxScrollbar(long kidScrollbar, long kidThumb)
     // is its own width away from the max pos of the scrollbar
 
     // calculate the thumb tab width
-    if (pvNil == (pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidThumb)))
+    if (pvNil == (pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidThumb)))
         return 0;
     pgob->GetRc(&rc, cooLocal);
     cxThumb = rc.xpRight - rc.xpLeft + 1;
     // calculate the scrollbar width
-    if (pvNil == (pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidScrollbar)))
+    if (pvNil == (pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidScrollbar)))
         return 0;
     pgob->GetRc(&rc, cooLocal);
     cxScrollbar = rc.xpRight - rc.xpLeft + 1 - cxThumb;
@@ -471,7 +471,7 @@ void StudioScrollbars::Update(void)
         return;
 
     // update the frame scrollbar
-    if (pvNil != (pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidFrameScrollbar)))
+    if (pvNil != (pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidFrameScrollbar)))
     {
         // source range: [first_frame, ..., last_frame]
         long cfrm = pscen->NfrmLast() - pscen->NfrmFirst() + 1;
@@ -499,7 +499,7 @@ void StudioScrollbars::Update(void)
         }
 
         // move the frame thumb tab to the appropriate position
-        if (pvNil != (pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidFrameThumb)))
+        if (pvNil != (pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidFrameThumb)))
         {
             pgob->GetPos(&rc, pvNil);
             dxp = xp - rc.xpLeft;
@@ -508,7 +508,7 @@ void StudioScrollbars::Update(void)
     }
 
     // update the scene scrollbar
-    if (pvNil != (pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidSceneScrollbar)))
+    if (pvNil != (pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidSceneScrollbar)))
     {
         // source range: [0, ..., num_scenes - 1]
         long cscen = _pmvie->Cscen();
@@ -536,7 +536,7 @@ void StudioScrollbars::Update(void)
         }
 
         // move the scene thumb tab to the appropriate position
-        if (pvNil != (pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidSceneThumb)))
+        if (pvNil != (pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidSceneThumb)))
         {
             pgob->GetPos(&rc, pvNil);
             dxp = xp - rc.xpLeft;
