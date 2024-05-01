@@ -35,7 +35,7 @@ class Clock : public Clock_PAR
 
   protected:
     // alarm descriptor
-    struct ALAD
+    struct AlarmDescriptor
     {
         PCommandHandler pcmh;
         ulong tim;

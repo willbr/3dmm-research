@@ -134,7 +134,7 @@ PClock Clock::PclokFromHid(long hid)
 
 /***************************************************************************
     Static method to remove all references to the given CommandHandler from the clok
-    ALAD lists.
+    AlarmDescriptor lists.
 ***************************************************************************/
 void Clock::BuryCmh(PCommandHandler pcmh)
 {
@@ -150,7 +150,7 @@ void Clock::BuryCmh(PCommandHandler pcmh)
 void Clock::RemoveCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
-    ALAD *qalad;
+    AlarmDescriptor *qalad;
     long ialad;
 
     if (pvNil == _pglalad)
@@ -158,7 +158,7 @@ void Clock::RemoveCmh(PCommandHandler pcmh)
 
     for (ialad = _pglalad->IvMac(); ialad-- > 0;)
     {
-        qalad = (ALAD *)_pglalad->QvGet(ialad);
+        qalad = (AlarmDescriptor *)_pglalad->QvGet(ialad);
         if (qalad->pcmh == pcmh)
             _pglalad->Delete(ialad);
     }
@@ -213,19 +213,19 @@ bool Clock::FSetAlarm(long dtim, PCommandHandler pcmhNotify, long lwUser, bool f
     AssertThis(0);
     AssertIn(dtim, 0, kcbMax);
     AssertNilOrPo(pcmhNotify, 0);
-    ALAD alad;
-    ALAD *qalad;
+    AlarmDescriptor alad;
+    AlarmDescriptor *qalad;
     long ialad, ialadMin, ialadLim;
 
     alad.pcmh = pcmhNotify;
     alad.tim = TimCur(fAdjustForDelay) + LwMax(dtim, 1);
     alad.lw = lwUser;
-    if (pvNil == _pglalad && pvNil == (_pglalad = DynamicArray::PglNew(size(ALAD), 1)))
+    if (pvNil == _pglalad && pvNil == (_pglalad = DynamicArray::PglNew(size(AlarmDescriptor), 1)))
         return fFalse;
     for (ialadMin = 0, ialadLim = _pglalad->IvMac(); ialadMin < ialadLim;)
     {
         ialad = (ialadMin + ialadLim) / 2;
-        qalad = (ALAD *)_pglalad->QvGet(ialad);
+        qalad = (AlarmDescriptor *)_pglalad->QvGet(ialad);
         if (qalad->tim < alad.tim)
             ialadLim = ialad;
         else
@@ -249,7 +249,7 @@ bool Clock::FCmdAll(PCommand pcmd)
 
     Command cmd;
     long ialad;
-    ALAD alad;
+    AlarmDescriptor alad;
     ulong tsCur, timCur;
 
     _dtimAlarm = 0;
