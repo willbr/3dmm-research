@@ -39,6 +39,10 @@
 
             BASE ---> UndoBase ---> MovieUndo ---> SceneUndoTitle
 
+        Scene Transition Undo Object (SceneUndoTransition)
+
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoTransition
+
 ***************************************************************************/
 
 #include "soc.h"
@@ -246,11 +250,11 @@ class SceneUndoBackground : public SceneUndoBackground_PAR
 //
 // Undo object for transition operations
 //
-typedef class SUNR *PSUNR;
+typedef class SceneUndoTransition *PSceneUndoTransition;
 
-#define SUNR_PAR MovieUndo
-#define kclsSUNR 'SUNR'
-class SUNR : public SUNR_PAR
+#define SceneUndoTransition_PAR MovieUndo
+#define kclsSceneUndoTransition 'SUNR'
+class SceneUndoTransition : public SceneUndoTransition_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -258,13 +262,13 @@ class SUNR : public SUNR_PAR
 
   protected:
     TRANS _trans;
-    SUNR(void)
+    SceneUndoTransition(void)
     {
     }
 
   public:
-    static PSUNR PsunrNew(void);
-    ~SUNR(void);
+    static PSceneUndoTransition PsunrNew(void);
+    ~SceneUndoTransition(void);
 
     void SetTrans(TRANS trans)
     {
@@ -454,7 +458,7 @@ RTCLASS(SceneUndoBackground)
 RTCLASS(SceneUndoPause)
 RTCLASS(SceneUndoText)
 RTCLASS(SceneUndoChop)
-RTCLASS(SUNR)
+RTCLASS(SceneUndoTransition)
 
 /****************************************************
  *
@@ -830,9 +834,9 @@ bool Scene::FSetTransition(TRANS trans)
 {
     AssertThis(0);
 
-    PSUNR psunr;
+    PSceneUndoTransition psunr;
 
-    psunr = SUNR::PsunrNew();
+    psunr = SceneUndoTransition::PsunrNew();
 
     if (psunr == pvNil)
     {
@@ -6592,10 +6596,10 @@ void SceneUndoText::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNR SUNR::PsunrNew()
+PSceneUndoTransition SceneUndoTransition::PsunrNew()
 {
-    PSUNR psunr;
-    psunr = NewObj SUNR();
+    PSceneUndoTransition psunr;
+    psunr = NewObj SceneUndoTransition();
     return (psunr);
 }
 
@@ -6604,7 +6608,7 @@ PSUNR SUNR::PsunrNew()
  * Destructor for scene transition undo objects
  *
  ****************************************************/
-SUNR::~SUNR(void)
+SceneUndoTransition::~SceneUndoTransition(void)
 {
     AssertBaseThis(0);
 }
@@ -6620,7 +6624,7 @@ SUNR::~SUNR(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNR::FDo(PDocumentBase pdocb)
+bool SceneUndoTransition::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6661,7 +6665,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNR::FUndo(PDocumentBase pdocb)
+bool SceneUndoTransition::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -6669,7 +6673,7 @@ bool SUNR::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNR
+ * Mark memory used by the SceneUndoTransition
  *
  * Parameters:
  * 	None.
@@ -6678,16 +6682,16 @@ bool SUNR::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void SUNR::MarkMem(void)
+void SceneUndoTransition::MarkMem(void)
 {
     AssertThis(0);
-    SUNR_PAR::MarkMem();
+    SceneUndoTransition_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNR.
+    Assert the validity of the SceneUndoTransition.
 ***************************************************************************/
-void SUNR::AssertValid(ulong grf)
+void SceneUndoTransition::AssertValid(ulong grf)
 {
 }
 #endif
