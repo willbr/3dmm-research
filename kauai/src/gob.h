@@ -128,7 +128,7 @@ class GraphicsObject : public GraphicsObject_PAR
 
     HWND _hwnd;   // the OS window (may be nil)
     PGraphicsPort _pgpt;   // the graphics port (may be shared with _pgobPar)
-    PCURS _pcurs; // the cursor to show over this gob
+    PCursor _pcurs; // the cursor to show over this gob
 
     RC _rcCur; // current position
     RC _rcVis; // current visible rectangle (in its parent)
@@ -270,7 +270,7 @@ class GraphicsObject : public GraphicsObject_PAR
     virtual bool FPtInBounds(long xp, long yp);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual long ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpLim, long zpMinActive, long zpLimActive);
-    void SetCurs(PCURS pcurs);
+    void SetCurs(PCursor pcurs);
     void SetCursCno(PResourceCache prca, ChunkNumber cno);
 
 #ifdef MAC

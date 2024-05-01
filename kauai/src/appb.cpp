@@ -97,12 +97,12 @@ void ApplicationBase::GetStnAppName(PString pstn)
     fLongOp is true, the cursor will get used as the wait cursor, but
     won't necessarily be displayed immediately.
 ***************************************************************************/
-void ApplicationBase::SetCurs(PCURS pcurs, bool fLongOp)
+void ApplicationBase::SetCurs(PCursor pcurs, bool fLongOp)
 {
     AssertThis(0);
     AssertNilOrPo(pcurs, 0);
 
-    PCURS *ppcurs = fLongOp ? &_pcursWait : &_pcurs;
+    PCursor *ppcurs = fLongOp ? &_pcursWait : &_pcurs;
 
     if (*ppcurs == pcurs)
         return;
@@ -124,9 +124,9 @@ void ApplicationBase::SetCursCno(PResourceCache prca, ChunkNumber cno, bool fLon
     AssertThis(0);
     AssertPo(prca, 0);
 
-    PCURS pcurs;
+    PCursor pcurs;
 
-    if (pvNil == (pcurs = (PCURS)prca->PbacoFetch(kctgCursor, cno, CURS::FReadCurs)))
+    if (pvNil == (pcurs = (PCursor)prca->PbacoFetch(kctgCursor, cno, Cursor::FReadCurs)))
     {
         Warn("cursor not found");
         return;
@@ -142,7 +142,7 @@ void ApplicationBase::RefreshCurs(void)
 {
     AssertThis(0);
 
-    PCURS *ppcurs = _cactLongOp > 0 ? &_pcursWait : &_pcurs;
+    PCursor *ppcurs = _cactLongOp > 0 ? &_pcursWait : &_pcurs;
 
     if (pvNil != *ppcurs)
         (*ppcurs)->Set();

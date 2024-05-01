@@ -34,10 +34,10 @@ struct CursorOnFile
 };
 const ByteOrderMask kbomCurf = 0xC0000000;
 
-typedef class CURS *PCURS;
-#define CURS_PAR BaseCacheableObject
-#define kclsCURS 'CURS'
-class CURS : public CURS_PAR
+typedef class Cursor *PCursor;
+#define Cursor_PAR BaseCacheableObject
+#define kclsCursor 'CURS'
+class Cursor : public Cursor_PAR
 {
     RTCLASS_DEC
 
@@ -50,10 +50,10 @@ class CURS : public CURS_PAR
     Cursor _crs;
 #endif // MAC
 
-    CURS(void)
+    Cursor(void)
     {
     } // we have to be allocated
-    ~CURS(void);
+    ~Cursor(void);
 
   public:
     static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);

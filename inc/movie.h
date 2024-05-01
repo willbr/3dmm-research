@@ -142,7 +142,7 @@ class MovieView : public MovieView_PAR
     long _ypPrev;         // Y location of the mouse.
     BRS _dzrPrev;         // Z motion of the "mouse" (arrow keys)
     long _grfcust;        // Options in effect when mouse was down.
-    PCURS _pcursDefault;  // Default cursor for when a tool is not applicable.
+    PCursor _pcursDefault;  // Default cursor for when a tool is not applicable.
     PActor _pactrListener; // Pactr of the actor being auditioned
     PActor _pactrRestore;  // Restore for actor recording
 

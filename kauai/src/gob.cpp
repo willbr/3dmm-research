@@ -1742,7 +1742,7 @@ long GraphicsObject::ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpL
 /***************************************************************************
     Set the cursor for this GraphicsObject to pcurs.
 ***************************************************************************/
-void GraphicsObject::SetCurs(PCURS pcurs)
+void GraphicsObject::SetCurs(PCursor pcurs)
 {
     AssertThis(0);
     AssertNilOrPo(pcurs, 0);
@@ -1759,9 +1759,9 @@ void GraphicsObject::SetCurs(PCURS pcurs)
 void GraphicsObject::SetCursCno(PResourceCache prca, ChunkNumber cno)
 {
     AssertPo(prca, 0);
-    PCURS pcurs;
+    PCursor pcurs;
 
-    if (pvNil == (pcurs = (PCURS)prca->PbacoFetch(kctgCursor, cno, CURS::FReadCurs)))
+    if (pvNil == (pcurs = (PCursor)prca->PbacoFetch(kctgCursor, cno, Cursor::FReadCurs)))
     {
         Warn("cursor not found");
         return;

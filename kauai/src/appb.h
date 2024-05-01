@@ -125,8 +125,8 @@ class ApplicationBase : public ApplicationBase_PAR
     ulong _dtsToolTip;       // time lag for tool tip
     PGraphicsObject _pgobToolTipTarget; // if there is a tool tip up, it's for this gob
 
-    PCURS _pcurs;     // current cursor
-    PCURS _pcursWait; // cursor to use for long operations
+    PCursor _pcurs;     // current cursor
+    PCursor _pcursWait; // cursor to use for long operations
     long _cactLongOp; // long operation count
     ulong _grfcust;   // current cursor state
 
@@ -279,7 +279,7 @@ class ApplicationBase : public ApplicationBase_PAR
 #endif // DEBUG
 
     // cursor stuff
-    virtual void SetCurs(PCURS pcurs, bool fLongOp = fFalse);
+    virtual void SetCurs(PCursor pcurs, bool fLongOp = fFalse);
     virtual void SetCursCno(PResourceCache prca, ChunkNumber cno, bool fLongOp = fFalse);
     virtual void RefreshCurs(void);
     virtual ulong GrfcustCur(bool fAsynch = fFalse);

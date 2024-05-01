@@ -1405,7 +1405,7 @@ bool Studio::FCmdTextSetFont(PCommand pcmd)
 ***************************************************************************/
 void Studio::SetCurs(long tool)
 {
-    PCURS pcurs;
+    PCursor pcurs;
     long cursID;
 
     switch (tool)
@@ -1549,7 +1549,7 @@ void Studio::SetCurs(long tool)
         Bug("Unknown tool type");
     }
 
-    pcurs = (PCURS)_pcrm->PbacoFetch('GGCR', cursID, CURS::FReadCurs);
+    pcurs = (PCursor)_pcrm->PbacoFetch('GGCR', cursID, Cursor::FReadCurs);
     if (pvNil != pcurs)
     {
         vpappb->SetCurs(pcurs);

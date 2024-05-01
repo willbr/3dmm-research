@@ -13,12 +13,12 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(CURS)
+RTCLASS(Cursor)
 
 /***************************************************************************
     Destructor for the cursor class.
 ***************************************************************************/
-CURS::~CURS(void)
+Cursor::~Cursor(void)
 {
 #ifdef WIN
     if (hNil != _hcrs)
@@ -29,7 +29,7 @@ CURS::~CURS(void)
 /***************************************************************************
     Read a cursor out of a ChunkyResourceFile.
 ***************************************************************************/
-bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     PGeneralGroup pggcurf;
     long icurf, icurfBest;
@@ -39,9 +39,9 @@ bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     long dzpBest;
     long cbRowDst, cbRowSrc, cbT;
     byte *prgb, *qrgb;
-    PCURS pcurs = pvNil;
+    PCursor pcurs = pvNil;
 
-    *pcb = size(CURS);
+    *pcb = size(Cursor);
     if (pvNil == ppbaco)
         return fTrue;
 
@@ -91,7 +91,7 @@ bool CURS::FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
     if (!FAllocPv((void **)&prgb, LwMul(cbRowDst, 2 * dyp), fmemClear, mprNormal))
         goto LFail;
 
-    if (pvNil == (pcurs = NewObj CURS))
+    if (pvNil == (pcurs = NewObj Cursor))
         goto LFail;
 
     FillPb(prgb, LwMul(cbRowDst, dyp), 0xFF);
@@ -135,7 +135,7 @@ LFail:
 /***************************************************************************
     Set the cursor.
 ***************************************************************************/
-void CURS::Set(void)
+void Cursor::Set(void)
 {
 #ifdef WIN
     SetCursor(_hcrs);
