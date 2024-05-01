@@ -1111,7 +1111,7 @@ bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
 }
 
 // group on file
-struct GGF
+struct GeneralGroupOnFile
 {
     short bo;
     short osk;
@@ -1128,7 +1128,7 @@ const ByteOrderMask kbomGgf = 0x5FF00000L;
 long VirtualGroup::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
-    return size(GGF) + LwMul(_ivMac, size(LogicalOffsetAndCount)) + _bvMac;
+    return size(GeneralGroupOnFile) + LwMul(_ivMac, size(LogicalOffsetAndCount)) + _bvMac;
 }
 
 /***************************************************************************
@@ -1142,7 +1142,7 @@ bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
 
-    GGF ggf;
+    GeneralGroupOnFile ggf;
     bool fRet;
 
     ggf.bo = kboCur;
@@ -1179,7 +1179,7 @@ bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    GGF ggf;
+    GeneralGroupOnFile ggf;
     long cbT;
     short bo;
     long cb;
