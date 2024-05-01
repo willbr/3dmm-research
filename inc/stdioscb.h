@@ -47,14 +47,14 @@ class StudioScrollbars : public StudioScrollbars_PAR
 
 #ifdef SHOW_FPS
     // Frame descriptor
-    struct FDSC
+    struct FrameDescriptor
     {
         ulong ts;
         long cfrm;
     };
 
     PTGOB _ptgobFps;
-    FDSC _rgfdsc[kctsFps];
+    FrameDescriptor _rgfdsc[kctsFps];
     long _itsNext;
 #endif // SHOW_FPS
 
