@@ -216,7 +216,7 @@ enum SEVT
 //
 struct SEVP
 {
-    WIT wit;
+    WaitReason wit;
     long dts;
 };
 

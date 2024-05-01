@@ -4568,7 +4568,7 @@ bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool Movie::FPause(WIT wit, long dts)
+bool Movie::FPause(WaitReason wit, long dts)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);

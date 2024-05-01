@@ -62,7 +62,7 @@ enum SEVT
 //
 struct SEVP
 {
-    WIT wit;
+    WaitReason wit;
     long dts;
 };
 
@@ -289,7 +289,7 @@ class SUNP : public SUNP_PAR
     ASSERT
 
   protected:
-    WIT _wit;
+    WaitReason _wit;
     long _dts;
     bool _fAdd;
     SUNP(void)
@@ -300,7 +300,7 @@ class SUNP : public SUNP_PAR
     static PSUNP PsunpNew(void);
     ~SUNP(void);
 
-    void SetWit(WIT wit)
+    void SetWit(WaitReason wit)
     {
         _wit = wit;
     }
@@ -1358,7 +1358,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
     PTBOX ptbox;
     PBackground pbkgd;
     TAG tag;
-    WIT wit;
+    WaitReason wit;
     long dts;
 
     switch (psev->sevt)
@@ -1438,7 +1438,7 @@ bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 
     case sevtPause:
 
-        wit = (WIT)(*(long *)qvVar);
+        wit = (WaitReason)(*(long *)qvVar);
         Pmvie()->Pmcc()->PauseType(wit);
 
         if (grfscen & fscenPauses)
@@ -3182,7 +3182,7 @@ TextBox *Scene::PtboxFromItbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FPauseCore(WIT *pwit, long *pdts)
+bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
 {
     AssertThis(0);
     AssertIn(*pwit, witNil, witLim);
@@ -3192,7 +3192,7 @@ bool Scene::FPauseCore(WIT *pwit, long *pdts)
     long isev;
     PSEV qsev;
     SEVP sevp;
-    WIT witOld;
+    WaitReason witOld;
     long dtsOld;
 
     //
@@ -3269,7 +3269,7 @@ bool Scene::FPauseCore(WIT *pwit, long *pdts)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FPause(WIT wit, long dts)
+bool Scene::FPause(WaitReason wit, long dts)
 {
     PSUNP psunp;
 
@@ -6736,7 +6736,7 @@ bool SUNP::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    WIT wit = _wit;
+    WaitReason wit = _wit;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {

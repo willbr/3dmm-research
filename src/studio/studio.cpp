@@ -1896,7 +1896,7 @@ bool Studio::FCmdActorEaselOpen(PCommand pcmd)
 /***************************************************************************
     This frame has a pause type.
 ***************************************************************************/
-void Studio::PauseType(WIT wit)
+void Studio::PauseType(WaitReason wit)
 {
     AssertThis(0);
 

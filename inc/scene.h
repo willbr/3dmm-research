@@ -68,7 +68,7 @@ class SceneActorUndo : public SceneActorUndo_PAR
 //
 // Different reasons for pausing in a scene
 //
-enum WIT
+enum WaitReason
 {
     witNil,
     witUntilClick,
@@ -342,8 +342,8 @@ class Scene : public Scene_PAR
     //
     // Pause functions
     //
-    bool FPauseCore(WIT *pwit, long *pdts); // Adds\Removes a pause to the current frame.
-    bool FPause(WIT wit, long dts);         // Adds\Removes a pause to the current frame, and undo
+    bool FPauseCore(WaitReason *pwit, long *pdts); // Adds\Removes a pause to the current frame.
+    bool FPause(WaitReason wit, long dts);         // Adds\Removes a pause to the current frame, and undo
 
     //
     // Background functions

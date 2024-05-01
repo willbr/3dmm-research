@@ -432,7 +432,7 @@ class MovieClientCallbacks : public MovieClientCallbacks_PAR
     virtual void SceneChange(void)
     {
     } // Tells the client that a different scene is the current one
-    virtual void PauseType(WIT wit)
+    virtual void PauseType(WaitReason wit)
     {
     } // Tells the client of a new pause type for this frame.
     virtual void Recording(bool fRecording, bool fRecord)
@@ -585,7 +585,7 @@ class Movie : public Movie_PAR
 
     PMovieClientCallbacks _pmcc; // Parameters and callbacks.
 
-    WIT _wit;     // Pausing type
+    WaitReason _wit;     // Pausing type
     long _dts;    // Number of clock ticks to pause.
     TRANS _trans; // Transition type to execute.
 
@@ -718,7 +718,7 @@ class Movie : public Movie_PAR
                                       //   change bkgd if scene is empty
     bool FSetTransition(TRANS trans); // Set the transition type for the current scene.
     void Play(void);                  // Start/Stop a movie playing.
-    bool FPause(WIT wit, long dts);   // Insert a pause here.
+    bool FPause(WaitReason wit, long dts);   // Insert a pause here.
 
     bool FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns);
     // Add this movie to the CompositeMovie
@@ -858,7 +858,7 @@ class Movie : public Movie_PAR
     //
     // Runtime Pausing
     //
-    void DoPause(WIT wit, long dts) // Make the movie pause during run.
+    void DoPause(WaitReason wit, long dts) // Make the movie pause during run.
     {
         _wit = wit;
         _dts = dts;

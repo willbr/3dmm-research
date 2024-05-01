@@ -143,7 +143,7 @@ class Studio : public Studio_PAR
     void SetCurs(long tool);
     void ActorEasel(bool *pfActrChanged);
     void SceneChange(void);
-    void PauseType(WIT wit);
+    void PauseType(WaitReason wit);
     void Recording(bool fRecording, bool fRecord);
     void StartSoonerLater(void);
     void EndSoonerLater(void);
@@ -314,7 +314,7 @@ class StudioClientCallbacks : public StudioClientCallbacks_PAR
     {
         _pstdio->SceneChange();
     }
-    virtual void PauseType(WIT wit)
+    virtual void PauseType(WaitReason wit)
     {
         _pstdio->PauseType(wit);
     }
