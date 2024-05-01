@@ -24,7 +24,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Create a new popup menu
 ***************************************************************************/
-PMP MP::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BWS bws, long ithumSelect, long sidSelect,
+PMP MP::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
                ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);

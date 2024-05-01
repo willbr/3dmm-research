@@ -886,7 +886,7 @@ PBRWL BRWL::PbrwlNew(PResourceCache prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCommand pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWL::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BRWL::_FInitNew(PCommand pcmd, BWS bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
+bool BRWL::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
 {
     AssertThis(0);
 
@@ -1840,7 +1840,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
  * -> BRWL Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCommand pcmd, BWS bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);

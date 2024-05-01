@@ -1176,7 +1176,7 @@ bool Studio::FCmdCreatePopup(PCommand pcmd)
     ChunkIdentification ckiRoot;
     long cid, kid, thumSel = ivNil;
     ulong grfchp;
-    BWS bws = kbwsCnoRoot;
+    BrowserSelectionFlags bws = kbwsCnoRoot;
     CHP chp;
     PTBOX ptbox;
 

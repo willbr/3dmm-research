@@ -393,7 +393,7 @@ typedef class BRWL *PBRWL;
 
 // Browser Selection Flags
 // This specifies what the sorting is based on
-enum BWS
+enum BrowserSelectionFlags
 {
     kbwsIndex = 1,
     kbwsChid = 2,
@@ -416,14 +416,14 @@ class BRWL : public BRWL_PAR
     PStringTable_GST _pgst;  // Chunk name
 
     // Browser Search (List) parameters
-    BWS _bws;         // Selection type flag
+    BrowserSelectionFlags _bws;         // Selection type flag
     bool _fSinglePar; // Single parent search
     ChunkIdentification _ckiRoot;     // Grandparent cno=cnoNil => global search
     ChunkTag _ctgContent;  // Parent
 
   protected:
     // BRWL List
-    bool _FInitNew(PCommand pcmd, BWS bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
+    bool _FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
     bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
     virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
     virtual long _Cthum(void)
@@ -455,7 +455,7 @@ class BRWL : public BRWL_PAR
     ~BRWL(void);
 
     static PBRWL PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCommand pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
@@ -534,7 +534,7 @@ class BRWN : public BRWN_PAR
     {
     }
     ~BRWN(void){};
-    virtual bool FInit(PCommand pcmd, BWS bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
     virtual bool FCmdOk(PCommand pcmd);
