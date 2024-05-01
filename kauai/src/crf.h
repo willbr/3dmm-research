@@ -212,10 +212,10 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
 /***************************************************************************
     An object (BaseCacheableObject) wrapper around a generic HQ.
 ***************************************************************************/
-#define GHQ_PAR BaseCacheableObject
-typedef class GHQ *PGHQ;
-#define kclsGHQ 'GHQ'
-class GHQ : public GHQ_PAR
+#define GenericHQ_PAR BaseCacheableObject
+typedef class GenericHQ *PGenericHQ;
+#define kclsGenericHQ 'GHQ'
+class GenericHQ : public GenericHQ_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -224,16 +224,16 @@ class GHQ : public GHQ_PAR
   public:
     HQ hq;
 
-    GHQ(HQ hqT)
+    GenericHQ(HQ hqT)
     {
         hq = hqT;
     }
-    ~GHQ(void)
+    ~GenericHQ(void)
     {
         FreePhq(&hq);
     }
 
-    // An object reader for a GHQ.
+    // An object reader for a GenericHQ.
     static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 };
 

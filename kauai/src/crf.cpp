@@ -21,7 +21,7 @@ ASSERTNAME
 namespace Chunky {
 
 RTCLASS(BaseCacheableObject)
-RTCLASS(GHQ)
+RTCLASS(GenericHQ)
 RTCLASS(ResourceCache)
 RTCLASS(ChunkyResourceFile)
 RTCLASS(ChunkyResourceManager)
@@ -991,15 +991,15 @@ void ChunkyResourceManager::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    A PFNRPO to read GHQ objects.
+    A PFNRPO to read GenericHQ objects.
 ***************************************************************************/
-bool GHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool GenericHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    GHQ *pghq;
+    GenericHQ *pghq;
     HQ hq;
 
     *pcb = pblck->Cb(fTrue);
@@ -1014,7 +1014,7 @@ bool GHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDat
     }
     *pcb = CbOfHq(hq);
 
-    if (pvNil == (pghq = NewObj GHQ(hq)))
+    if (pvNil == (pghq = NewObj GenericHQ(hq)))
     {
         FreePhq(&hq);
         TrashVar(pcb);
@@ -1027,21 +1027,21 @@ bool GHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDat
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GHQ.
+    Assert the validity of a GenericHQ.
 ***************************************************************************/
-void GHQ::AssertValid(ulong grf)
+void GenericHQ::AssertValid(ulong grf)
 {
-    GHQ_PAR::AssertValid(grf);
+    GenericHQ_PAR::AssertValid(grf);
     if (hqNil != hq)
         AssertHq(hq);
 }
 
 /***************************************************************************
-    Mark memory used by the GHQ.
+    Mark memory used by the GenericHQ.
 ***************************************************************************/
-void GHQ::MarkMem(void)
+void GenericHQ::MarkMem(void)
 {
-    GHQ_PAR::MarkMem();
+    GenericHQ_PAR::MarkMem();
     MarkHq(hq);
 }
 #endif // DEBUG

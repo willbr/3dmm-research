@@ -631,11 +631,11 @@ void TestCrf(void)
     Filename fni;
     ChunkTag ctg = 'JUNK';
     ChunkNumber cno;
-    PGHQ rgpghq[cnoLim];
+    PGenericHQ rgpghq[cnoLim];
     PChunkyFile pcfl;
     PChunkyResourceFile pcrf;
     HQ hq;
-    PGHQ pghq;
+    PGenericHQ pghq;
 
     if (!fni.FGetTemp() || pvNil == (pcfl = ChunkyFile::PcflCreate(&fni, fcflWriteEnable | fcflTemp)))
     {
@@ -657,17 +657,17 @@ void TestCrf(void)
     ReleasePpo(&pcfl);
 
     for (cno = 0; cno < cnoLim; cno++)
-        pcrf->TLoad(ctg, cno, GHQ::FReadGhq, rscNil, 10);
+        pcrf->TLoad(ctg, cno, GenericHQ::FReadGhq, rscNil, 10);
 
     for (cno = 0; cno < cnoLim; cno++)
-        pcrf->TLoad(ctg, cno, GHQ::FReadGhq, rscNil, 20);
+        pcrf->TLoad(ctg, cno, GenericHQ::FReadGhq, rscNil, 20);
 
     for (cno = 0; cno < cnoLim; cno++)
-        pcrf->TLoad(ctg, cno, GHQ::FReadGhq, rscNil, 20 + cno);
+        pcrf->TLoad(ctg, cno, GenericHQ::FReadGhq, rscNil, 20 + cno);
 
     for (cno = 0; cno < cnoLim; cno++)
     {
-        pghq = (PGHQ)pcrf->PbacoFetch(ctg, cno, GHQ::FReadGhq);
+        pghq = (PGenericHQ)pcrf->PbacoFetch(ctg, cno, GenericHQ::FReadGhq);
         if (pvNil == pghq)
             continue;
         hq = pghq->hq;
@@ -678,7 +678,7 @@ void TestCrf(void)
 
     for (cno = 0; cno < cnoLim; cno++)
     {
-        pghq = (PGHQ)pcrf->PbacoFetch(ctg, cno, GHQ::FReadGhq);
+        pghq = (PGenericHQ)pcrf->PbacoFetch(ctg, cno, GenericHQ::FReadGhq);
         rgpghq[cno] = pghq;
         if (pvNil == pghq)
             continue;
