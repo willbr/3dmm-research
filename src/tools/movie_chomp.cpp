@@ -741,7 +741,7 @@ void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
 
 
     default:
-        printf("%*.sUnknown AET\n", indent, "");
+        printf("%*.sUnknown ActorEventType\n", indent, "");
     }
 
     indent -= 8;

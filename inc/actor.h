@@ -165,7 +165,7 @@ typedef Base *PBase;
 //	The fixed part of a GeneralGroup entry is an actor event (aev)
 //	The variable part is documented in the following comments
 //
-enum AET
+enum ActorEventType
 {
     aetAdd,    // Add Actor onstage: aevadd - internal (no api)
     aetActn,   // Animate Actor : aevactn

@@ -410,7 +410,7 @@ void Actor::_SwapBytesPggaev(PGeneralGroup pggaev)
             // no var data
             break;
         default:
-            Bug("Unknown AET");
+            Bug("Unknown ActorEventType");
             break;
         }
     }
@@ -618,7 +618,7 @@ bool Actor::_FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, PBase *pqa
     case aetMove:
         break;
     default:
-        Bug("Unknown AET");
+        Bug("Unknown ActorEventType");
         break;
     }
     *pptag = pvNil;
