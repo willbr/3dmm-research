@@ -9,7 +9,7 @@
              MPFNT: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BRWL ---> MP
+    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BrowserList ---> MP
                                           |
                                           +------> BRWT ---> MPFNT
 
@@ -20,7 +20,7 @@
 /************************************
     MP - Generic popup menu class
 *************************************/
-#define MP_PAR BRWL
+#define MP_PAR BrowserList
 #define kclsMP 'MP'
 typedef class MP *PMP;
 class MP : public MP_PAR

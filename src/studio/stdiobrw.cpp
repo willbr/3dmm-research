@@ -16,17 +16,17 @@
 
     Studio Independent Browsers:
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
-    BrowserDisplay --> BRWL  (Browser list class; chunky based)
+    BrowserDisplay --> BrowserList  (Browser list class; chunky based)
     BrowserDisplay --> BRWT  (Browser text class)
-    BrowserDisplay --> BRWL --> BRWN  (Browser named list class)
+    BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWT --> BRWA  (Browser action class)
-    BrowserDisplay --> BRWL --> BRWP	(Browser prop/actor class)
-    BrowserDisplay --> BRWL --> BRWB	(Browser background class)
-    BrowserDisplay --> BRWL --> BRWC	(Browser camera class)
-    BrowserDisplay --> BRWL --> BRWN --> BRWM (Browser music class)
-    BrowserDisplay --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
+    BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BRWN --> BRWM (Browser music class)
+    BrowserDisplay --> BrowserList --> BRWN --> BRWM --> BRWI (Browser import sound class)
 
 NOTE:  In this implementation, browsers are considered to be studio related.
 If for any reason one wanted to decouple them from the studio, then	it would

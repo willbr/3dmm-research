@@ -10,18 +10,18 @@
 
     Studio Independent Browsers:
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
-    BrowserDisplay --> BRWL  (Browser list class; chunky based)
+    BrowserDisplay --> BrowserList  (Browser list class; chunky based)
     BrowserDisplay --> BRWT  (Browser text class)
-    BrowserDisplay --> BRWL --> BRWN  (Browser named list class)
+    BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
     BrowserDisplay --> BRWT --> BRWA  (Browser action class)
-    BrowserDisplay --> BRWL --> BRWP	(Browser prop/actor class)
-    BrowserDisplay --> BRWL --> BRWB	(Browser background class)
-    BrowserDisplay --> BRWL --> BRWC	(Browser camera class)
-    BrowserDisplay --> BRWL --> BRWN --> BRWM (Browser music class)
-    BrowserDisplay --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
+    BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BRWN --> BRWM (Browser music class)
+    BrowserDisplay --> BrowserList --> BRWN --> BRWM --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -387,9 +387,9 @@ class BCLS : public BCLS_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWL_PAR BrowserDisplay
-#define kclsBRWL 'BRWL'
-typedef class BRWL *PBRWL;
+#define BrowserList_PAR BrowserDisplay
+#define kclsBrowserList 'BRWL'
+typedef class BrowserList *PBrowserList;
 
 // Browser Selection Flags
 // This specifies what the sorting is based on
@@ -401,7 +401,7 @@ enum BrowserSelectionFlags
     kbwsLim
 };
 
-class BRWL : public BRWL_PAR
+class BrowserList : public BrowserList_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -422,7 +422,7 @@ class BRWL : public BRWL_PAR
     ChunkTag _ctgContent;  // Parent
 
   protected:
-    // BRWL List
+    // BrowserList List
     bool _FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
     bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
     virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
@@ -437,7 +437,7 @@ class BRWL : public BRWL_PAR
         return fTrue;
     } // Eg, to include user sounds
 
-    // BRWL util
+    // BrowserList util
     void _SortThd(void);
     virtual void _GetThumFromIthum(long ithum, void *pThumSelect, long *psid);
     virtual void _ReleaseThumFrame(long ifrm);
@@ -449,12 +449,12 @@ class BRWL : public BRWL_PAR
     //
     // Constructors and destructors
     //
-    BRWL(PGraphicsObjectBlock pgcb) : BRWL_PAR(pgcb)
+    BrowserList(PGraphicsObjectBlock pgcb) : BrowserList_PAR(pgcb)
     {
     }
-    ~BRWL(void);
+    ~BrowserList(void);
 
-    static PBRWL PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
+    static PBrowserList PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
     virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
@@ -510,7 +510,7 @@ class BRWT : public BRWT_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWN_PAR BRWL
+#define BRWN_PAR BrowserList
 #define kclsBRWN 'BRWN'
 typedef class BRWN *PBRWN;
 class BRWN : public BRWN_PAR
@@ -593,7 +593,7 @@ class BRWA : public BRWA_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWP_PAR BRWL
+#define BRWP_PAR BrowserList
 #define kclsBRWP 'BRWP'
 typedef class BRWP *PBRWP;
 class BRWP : public BRWP_PAR
@@ -621,7 +621,7 @@ class BRWP : public BRWP_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWB_PAR BRWL
+#define BRWB_PAR BrowserList
 #define kclsBRWB 'BRWB'
 typedef class BRWB *PBRWB;
 class BRWB : public BRWB_PAR
@@ -650,7 +650,7 @@ class BRWB : public BRWB_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWC_PAR BRWL
+#define BRWC_PAR BrowserList
 #define kclsBRWC 'BRWC'
 typedef class BRWC *PBRWC;
 class BRWC : public BRWC_PAR

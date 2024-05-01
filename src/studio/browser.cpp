@@ -16,18 +16,18 @@
 
     Studio Independent Browsers:
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
-    BrowserDisplay --> BRWL  (Browser list class; chunky based)
+    BrowserDisplay --> BrowserList  (Browser list class; chunky based)
     BrowserDisplay --> BRWT  (Browser text class)
-    BrowserDisplay --> BRWL --> BRWN  (Browser named list class)
+    BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
     BrowserDisplay --> BRWT --> BRWA  (Browser action class)
-    BrowserDisplay --> BRWL --> BRWP	(Browser prop/actor class)
-    BrowserDisplay --> BRWL --> BRWB	(Browser background class)
-    BrowserDisplay --> BRWL --> BRWC	(Browser camera class)
-    BrowserDisplay --> BRWL --> BRWN --> BRWM (Browser music class)
-    BrowserDisplay --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
+    BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BRWN --> BRWM (Browser music class)
+    BrowserDisplay --> BrowserList --> BRWN --> BRWM --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -38,13 +38,13 @@
     This file contains the browser display code.
 
     To add additional browsers, create a derived class of
-    the BrowserDisplay, BRWL or BRWT classes.
+    the BrowserDisplay, BrowserList or BRWT classes.
 
-    If a browser is to be chunky file based, the BRWL class can be used.
+    If a browser is to be chunky file based, the BrowserList class can be used.
     It includes KidspaceGraphicObjectDescriptor chunks which are grandchildren of _ckiRoot (cnoNil
     implies wildcarding) and children of _ctgContent  - from .thd files
     entered in the registry of this product.
-    The BRWL class allows the option of displaying either all the thumbnails
+    The BrowserList class allows the option of displaying either all the thumbnails
     of a particular ctg across registry specified directories (eg, scenes,
     actors)
         -or-
@@ -78,7 +78,7 @@ ASSERTNAME
 RTCLASS(BrowserContext)
 RTCLASS(BRCNL)
 RTCLASS(BrowserDisplay)
-RTCLASS(BRWL)
+RTCLASS(BrowserList)
 RTCLASS(BRWT)
 RTCLASS(BRWA)
 RTCLASS(BRWP)
@@ -838,18 +838,18 @@ void BrowserDisplay::_CacheContext(void)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWL BRWL::PbrwlNew(PResourceCache prca, long kidPar, long kidGlass)
+PBrowserList BrowserList::PbrwlNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWL pbrwl;
+    PBrowserList pbrwl;
     PKidspaceGraphicObject pgok;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
 
-    if ((pbrwl = NewObj BRWL(&gcb)) == pvNil)
+    if ((pbrwl = NewObj BrowserList(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -886,7 +886,7 @@ PBRWL BRWL::PbrwlNew(PResourceCache prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BrowserList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BRWL::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
+bool BrowserList::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
 {
     AssertThis(0);
 
@@ -1042,7 +1042,7 @@ bool BRWL::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, 
  * away.
  *
  ****************************************************/
-bool BRWL::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl)
+bool BrowserList::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1079,10 +1079,10 @@ LFail:
 
 /****************************************************
  *
- * BRWL _FGetContent : Enum files & build the ThumbnailDescriptor
+ * BrowserList _FGetContent : Enum files & build the ThumbnailDescriptor
  *
  ****************************************************/
-bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
+bool BrowserList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1117,7 +1117,7 @@ LFail:
  * Virtual function
  *
  ****************************************************/
-void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
+void BrowserList::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
 {
     AssertThis(0);
     AssertIn(ithum, 0, _Cthum());
@@ -1153,10 +1153,10 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
 
 /****************************************************
  *
- * BRWL _CacheContext for reentry into the browser
+ * BrowserList _CacheContext for reentry into the browser
  *
  ****************************************************/
-void BRWL::_CacheContext(void)
+void BrowserList::_CacheContext(void)
 {
     if (_pbrcn != pvNil)
     {
@@ -1164,7 +1164,7 @@ void BRWL::_CacheContext(void)
 
         Assert(pbrcnl->FIs(kclsBRCNL), "Bad context buffer");
 
-        BRWL_PAR::_CacheContext();
+        BrowserList_PAR::_CacheContext();
 
         if (pbrcnl->pglthd == pvNil)
         {
@@ -1213,7 +1213,7 @@ void BRWL::_CacheContext(void)
  * Uses bubble sort
  *
  ****************************************************/
-void BRWL::_SortThd(void)
+void BrowserList::_SortThd(void)
 {
     AssertThis(0);
 
@@ -1310,7 +1310,7 @@ void BRWL::_SortThd(void)
  * not an index into either pgl.
  *
  ****************************************************/
-long BRWL::_IthumFromThum(long thumSelect, long sidSelect)
+long BrowserList::_IthumFromThum(long thumSelect, long sidSelect)
 {
     AssertThis(0);
 
@@ -1358,7 +1358,7 @@ long BRWL::_IthumFromThum(long thumSelect, long sidSelect)
  * Advance the gob (thumbnail) index
  *
  ****************************************************/
-bool BRWL::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
+bool BrowserList::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertPo(pgobPar, 0);
@@ -1390,7 +1390,7 @@ bool BRWL::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
  * Assumes gob based.
  *
  ****************************************************/
-void BRWL::_ReleaseThumFrame(long ifrm)
+void BrowserList::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
     PGraphicsObject pgob;
@@ -1837,7 +1837,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
 /****************************************************
  *
  * BRWN Initialization
- * -> BRWL Initialization plus tgob creation
+ * -> BrowserList Initialization plus tgob creation
  *
  ****************************************************/
 bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
@@ -2023,7 +2023,7 @@ PBRWM BRWM::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdi
 /****************************************************
  *
  * Add all of the sounds of the movie from _pcrf
- * to the current BRWL lists:
+ * to the current BrowserList lists:
  *	pglthd, pgst
  *
  * Used at initialization time by both the BRWI and
@@ -2128,7 +2128,7 @@ bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
 
 /****************************************************
  *
- * Extend the BRWL lists
+ * Extend the BrowserList lists
  *
  ****************************************************/
 bool BRWM::_FAddThd(String *pstn, ChunkIdentification *pcki)
@@ -2311,7 +2311,7 @@ bool BRWM::FCmdFile(PCommand pcmd)
         goto LEnd; // Error will have been reported
 
     // Add (eg) the movie sounds from &fni to the current
-    // browser lists, which are BRWL derived.
+    // browser lists, which are BrowserList derived.
     cki.ctg = kctgMsnd;
     fni.GetLeaf(&stn); // name of sound
     if (!_FAddThd(&stn, &cki))
@@ -2886,7 +2886,7 @@ bool BRWB::FCmdCancel(PCommand pcmd)
  * Set the size of the pcrm
  *
  ****************************************************/
-void BRWL::_SetCbPcrmMin(void)
+void BrowserList::_SetCbPcrmMin(void)
 {
     AssertThis(0);
     long dwTotalPhys;
@@ -3377,7 +3377,7 @@ BrowserDisplay::~BrowserDisplay(void)
  * Browser List Destructor
  *
  ****************************************************/
-BRWL::~BRWL(void)
+BrowserList::~BrowserList(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pglthd);
@@ -3501,14 +3501,14 @@ void BrowserDisplay::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRWL
+    Mark memory used by the BrowserList
 
  ****************************************************/
-void BRWL::MarkMem(void)
+void BrowserList::MarkMem(void)
 {
     AssertThis(0);
 
-    BRWL_PAR::MarkMem();
+    BrowserList_PAR::MarkMem();
     MarkMemObj(_pglthd);
     MarkMemObj(_pcrm);
     MarkMemObj(_pgst);
@@ -3606,13 +3606,13 @@ void BrowserDisplay::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRWL
+    Assert the validity of the BrowserList
 
  ****************************************************/
-void BRWL::AssertValid(ulong grfobj)
+void BrowserList::AssertValid(ulong grfobj)
 {
 
-    BRWL_PAR::AssertValid(fobjAllocated);
+    BrowserList_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pgst, 0);
     AssertNilOrPo(_pglthd, 0);
     AssertNilOrPo(_pcrm, 0);
