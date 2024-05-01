@@ -376,7 +376,7 @@ bool ESLT::FCmdTransmogrify(PCommand pcmd)
     {
         cki.ctg = kctgTfth;
         cki.cno = cnoNil;
-        _pbclTdf = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclTdf = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
     }
     if (_pbclTdf != pvNil && _pbclTdf->IthdMac() != 0)
     {
@@ -395,7 +395,7 @@ bool ESLT::FCmdTransmogrify(PCommand pcmd)
     {
         cki.ctg = kctgMtth;
         cki.cno = cnoNil;
-        _pbclMtrl = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclMtrl = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
     }
     if (_pbclMtrl != pvNil && _pbclMtrl->IthdMac() != 0)
     {

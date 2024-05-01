@@ -88,7 +88,7 @@ RTCLASS(BRWN)
 RTCLASS(BRWM)
 RTCLASS(BRWR)
 RTCLASS(BRWI)
-RTCLASS(BCL)
+RTCLASS(BrowserContentList)
 RTCLASS(BCLS)
 RTCLASS(FNET)
 
@@ -1087,7 +1087,7 @@ bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
     AssertThis(0);
 
     bool fRet = fFalse;
-    PBCL pbcl = pvNil;
+    PBrowserContentList pbcl = pvNil;
 
     if (!fBuildGl)
         return fTrue;
@@ -1097,7 +1097,7 @@ bool BRWL::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, 
     //
     Assert(ctg != cnoNil || pcki->ctg == ctgNil, "Invalid browser call");
 
-    pbcl = BCL::PbclNew(pcrm, pcki, ctg, _pglthd);
+    pbcl = BrowserContentList::PbclNew(pcrm, pcki, ctg, _pglthd);
     if (pbcl == pvNil)
         goto LFail;
 
@@ -1405,14 +1405,14 @@ void BRWL::_ReleaseThumFrame(long ifrm)
 
 /****************************************************
  *
- * BCL class routines
+ * BrowserContentList class routines
  *
  ****************************************************/
-PBCL BCL::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd, bool fOnlineOnly)
+PBrowserContentList BrowserContentList::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd, bool fOnlineOnly)
 {
-    PBCL pbcl;
+    PBrowserContentList pbcl;
 
-    pbcl = NewObj BCL;
+    pbcl = NewObj BrowserContentList;
     if (pbcl == pvNil)
         return pvNil;
 
@@ -1443,7 +1443,7 @@ LFail:
     return fFalse;
 }
 
-bool BCL::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd)
+bool BrowserContentList::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd)
 {
     AssertNilOrPo(pcrm, 0);
     Assert(pckiRoot->ctg != ctgNil, "Bad ChunkIdentification");
@@ -1500,7 +1500,7 @@ LFail:
  * Sort based on _bws (browser selection flag)
  *
  ****************************************************/
-bool BCL::_FBuildThd(PChunkyResourceManager pcrm)
+bool BrowserContentList::_FBuildThd(PChunkyResourceManager pcrm)
 {
     AssertThis(0);
     AssertNilOrPo(pcrm, 0);
@@ -1562,7 +1562,7 @@ bool BCL::_FBuildThd(PChunkyResourceManager pcrm)
  *	A value of cnoNil => wild card search
  *
  ****************************************************/
-bool BCL::_FAddFileToThd(PChunkyFile pcfl, long sid)
+bool BrowserContentList::_FAddFileToThd(PChunkyFile pcfl, long sid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1628,7 +1628,7 @@ bool BCL::_FAddFileToThd(PChunkyFile pcfl, long sid)
     return fTrue;
 }
 
-bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
+bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
 {
     ChildChunkIdentification kid;
 
@@ -1644,7 +1644,7 @@ bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
  *  cnoPar is read from the ckiPar chunk
  *
  ****************************************************/
-bool BCL::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
+bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -3542,12 +3542,12 @@ void BRWA::MarkMem(void)
 
 /****************************************************
 
-    BCL Markmem
+    BrowserContentList Markmem
 
  ****************************************************/
-void BCL::MarkMem(void)
+void BrowserContentList::MarkMem(void)
 {
-    BCL_PAR::MarkMem();
+    BrowserContentList_PAR::MarkMem();
     MarkMemObj(_pglthd);
 }
 
@@ -3579,7 +3579,7 @@ void BRCNL::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    BCL AssertValid
+    BrowserContentList AssertValid
 
  ****************************************************/
 void BCLS::AssertValid(ulong grf)
@@ -3587,9 +3587,9 @@ void BCLS::AssertValid(ulong grf)
     BCLS_PAR::AssertValid(grf);
     AssertPo(_pgst, 0);
 }
-void BCL::AssertValid(ulong grf)
+void BrowserContentList::AssertValid(ulong grf)
 {
-    BCL_PAR::AssertValid(grf);
+    BrowserContentList_PAR::AssertValid(grf);
     AssertPo(_pglthd, 0);
 }
 

@@ -25,15 +25,15 @@ class SPLOT : public SPLOT_PAR
     PMovie _pmvie;
 
     /* The lists of content */
-    PBCL _pbclBkgd;
+    PBrowserContentList _pbclBkgd;
     SFL _sflBkgd;
-    PBCL _pbclCam;
+    PBrowserContentList _pbclCam;
     SFL _sflCam;
-    PBCL _pbclActr;
+    PBrowserContentList _pbclActr;
     SFL _sflActr;
-    PBCL _pbclProp;
+    PBrowserContentList _pbclProp;
     SFL _sflProp;
-    PBCL _pbclSound;
+    PBrowserContentList _pbclSound;
     SFL _sflSound;
 
     /* Current selected content */

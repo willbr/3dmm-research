@@ -292,10 +292,10 @@ struct ThumbnailDescriptor
 
 /* Browser Content List Base --  create one of these when you want a list of a
     specific kind of content and you don't care about the names. */
-#define BCL_PAR BASE
-typedef class BCL *PBCL;
-#define kclsBCL 'BCL'
-class BCL : public BCL_PAR
+#define BrowserContentList_PAR BASE
+typedef class BrowserContentList *PBrowserContentList;
+#define kclsBrowserContentList 'BCL'
+class BrowserContentList : public BrowserContentList_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -309,11 +309,11 @@ class BCL : public BCL_PAR
     PDynamicArray _pglthd;
 
   protected:
-    BCL(void)
+    BrowserContentList(void)
     {
         _pglthd = pvNil;
     }
-    ~BCL(void)
+    ~BrowserContentList(void)
     {
         ReleasePpo(&_pglthd);
     }
@@ -326,7 +326,7 @@ class BCL : public BCL_PAR
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCL PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBrowserContentList PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
 
     PDynamicArray Pglthd(void)
     {
@@ -344,7 +344,7 @@ class BCL : public BCL_PAR
 
 /* Browser Content List with Strings -- create one of these when you need to
     browse content by name */
-#define BCLS_PAR BCL
+#define BCLS_PAR BrowserContentList
 typedef class BCLS *PBCLS;
 #define kclsBCLS 'BCLS'
 class BCLS : public BCLS_PAR

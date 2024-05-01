@@ -1090,7 +1090,7 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     String stn;
     TAG tagTdf;
     ChunkIdentification cki;
-    PBCL pbcl;
+    PBrowserContentList pbcl;
     ThumbnailDescriptor thd;
 
     vapp.BeginLongOp();
@@ -1100,7 +1100,7 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     // as the default font for the TDT easel.
     cki.ctg = kctgTfth;
     cki.cno = cnoNil;
-    pbcl = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+    pbcl = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
     if (pvNil == pbcl)
         return fTrue;
     if (pbcl->IthdMac() == 0)

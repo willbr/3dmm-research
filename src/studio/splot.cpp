@@ -161,7 +161,7 @@ bool SPLOT::FCmdSplot(PCommand pcmd)
     {
         cki.ctg = kctgBkth;
         cki.cno = cnoNil;
-        _pbclBkgd = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclBkgd = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclBkgd == pvNil || _pbclBkgd->IthdMac() == 0)
         {
             ReleasePpo(&_pbclBkgd);
@@ -187,7 +187,7 @@ bool SPLOT::FCmdSplot(PCommand pcmd)
         _pbclBkgd->GetThd(_ithdBkgd, &thd);
         cki.ctg = kctgBkth;
         cki.cno = thd.tag.cno;
-        _pbclCam = BCL::PbclNew(pvNil, &cki, kctgCath, pvNil, fTrue);
+        _pbclCam = BrowserContentList::PbclNew(pvNil, &cki, kctgCath, pvNil, fTrue);
         if (_pbclCam == pvNil || _pbclCam->IthdMac() == 0)
         {
             ReleasePpo(&_pbclCam);
@@ -207,7 +207,7 @@ bool SPLOT::FCmdSplot(PCommand pcmd)
     {
         cki.ctg = kctgTmth;
         cki.cno = cnoNil;
-        _pbclActr = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclActr = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclActr == pvNil || _pbclActr->IthdMac() == 0)
         {
             ReleasePpo(&_pbclActr);
@@ -219,7 +219,7 @@ bool SPLOT::FCmdSplot(PCommand pcmd)
     {
         cki.ctg = kctgPrth;
         cki.cno = cnoNil;
-        _pbclProp = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclProp = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclProp == pvNil || _pbclProp->IthdMac() == 0)
         {
             ReleasePpo(&_pbclProp);
@@ -239,7 +239,7 @@ bool SPLOT::FCmdSplot(PCommand pcmd)
     {
         cki.ctg = kctgSmth;
         cki.cno = cnoNil;
-        _pbclSound = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclSound = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclSound == pvNil || _pbclSound->IthdMac() == 0)
         {
             ReleasePpo(&_pbclSound);

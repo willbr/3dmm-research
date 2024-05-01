@@ -106,9 +106,9 @@ class ESLT : public ESLT_PAR
     PSNE _psne;   // Spletter Name Editor
     PResourceCache _prca;   // Resource source for cursors
     PSFL _psflMtrl;
-    PBCL _pbclMtrl;
+    PBrowserContentList _pbclMtrl;
     PSFL _psflTdf;
-    PBCL _pbclTdf;
+    PBrowserContentList _pbclTdf;
     PSFL _psflTdts;
 
   protected:
