@@ -35,12 +35,12 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
     MARKMEM
 
   protected:
-    // rc (in the MBMPH) is the bounding rectangle of the mbmp. It implicitly
+    // rc (in the MaskedBitmapOnFile) is the bounding rectangle of the mbmp. It implicitly
     // holds the reference point.
 
-    // _hqrgb holds an MBMPH followed by an array of the length of each row
+    // _hqrgb holds an MaskedBitmapOnFile followed by an array of the length of each row
     // (rgcb) followed by the actual pixel data. The rgcb is an array of shorts
-    // of length rc.Dyp(). We store the whole MBMPH in the _hqrgb so that
+    // of length rc.Dyp(). We store the whole MaskedBitmapOnFile in the _hqrgb so that
     // loading the MaskedBitmapMBMP from a chunky file is fast. If the chunk is compressed,
     // storing anything less than the full chunk in _hqrgb requires another blt.
 
@@ -55,10 +55,10 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
     // If fMask is true, the non-transparent pixels are not in _hqrgb. Instead,
     // all non-transparent pixels have the value bFill.
     long _cbRgcb; // size of the rgcb portion of _hqrgb
-    HQ _hqrgb;    // MBMPH, short rgcb[_rc.Dyp()] followed by the pixel data
+    HQ _hqrgb;    // MaskedBitmapOnFile, short rgcb[_rc.Dyp()] followed by the pixel data
 
     // MaskedBitmapMBMP header on file
-    struct MBMPH
+    struct MaskedBitmapOnFile
     {
         short bo;
         short osk;
@@ -77,11 +77,11 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
 
     short *_Qrgcb(void)
     {
-        return (short *)PvAddBv(QvFromHq(_hqrgb), size(MBMPH));
+        return (short *)PvAddBv(QvFromHq(_hqrgb), size(MaskedBitmapOnFile));
     }
-    MBMPH *_Qmbmph(void)
+    MaskedBitmapOnFile *_Qmbmph(void)
     {
-        return (MBMPH *)QvFromHq(_hqrgb);
+        return (MaskedBitmapOnFile *)QvFromHq(_hqrgb);
     }
 
   public:

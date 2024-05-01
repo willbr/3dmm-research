@@ -72,7 +72,7 @@ bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, l
     RC rc = *prc;
 
     // allocate enough space for the rgcb
-    if (!FAllocHq(&_hqrgb, size(MBMPH) + LwMul(rc.Dyp(), size(short)), fmemNil, mprNormal))
+    if (!FAllocHq(&_hqrgb, size(MaskedBitmapOnFile) + LwMul(rc.Dyp(), size(short)), fmemNil, mprNormal))
     {
         return fFalse;
     }
@@ -155,10 +155,10 @@ bool MaskedBitmapMBMP::_FInit(byte *prgbPixels, long cbRow, long dyp, RC *prc, l
     }
 
     // reallocate the _hqrgb to the size actually needed
-    AssertIn(LwMul(rc.Dyp(), size(short)), 0, CbOfHq(_hqrgb) - size(MBMPH) + 1);
+    AssertIn(LwMul(rc.Dyp(), size(short)), 0, CbOfHq(_hqrgb) - size(MaskedBitmapOnFile) + 1);
 
     _cbRgcb = LwMul(rc.Dyp(), size(short));
-    if (!FResizePhq(&_hqrgb, _cbRgcb + size(MBMPH) + cbPixelData, fmemNil, mprNormal))
+    if (!FResizePhq(&_hqrgb, _cbRgcb + size(MaskedBitmapOnFile) + cbPixelData, fmemNil, mprNormal))
     {
         return fFalse;
     }
@@ -264,7 +264,7 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
     PMaskedBitmapMBMP pmbmp;
-    MBMPH *qmbmph;
+    MaskedBitmapOnFile *qmbmph;
     long cbRgcb;
     long cbTot;
     bool fSwap;
@@ -275,10 +275,10 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
         return pvNil;
     cbTot = pblck->Cb();
 
-    if (cbTot < size(MBMPH) || hqNil == (hqrgb = pblck->HqFree()))
+    if (cbTot < size(MaskedBitmapOnFile) || hqNil == (hqrgb = pblck->HqFree()))
         return pvNil;
 
-    qmbmph = (MBMPH *)QvFromHq(hqrgb);
+    qmbmph = (MaskedBitmapOnFile *)QvFromHq(hqrgb);
     fSwap = (kboOther == qmbmph->bo);
     if (fSwap)
         SwapBytesBom(qmbmph, kbomMbmph);
@@ -291,14 +291,14 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
     rc = qmbmph->rc;
     if (rc.FEmpty())
     {
-        if (cbTot != size(MBMPH))
+        if (cbTot != size(MaskedBitmapOnFile))
             goto LFail;
         qmbmph->rc.xpRight = rc.xpLeft;
         qmbmph->rc.ypBottom = rc.ypTop;
     }
 
     cbRgcb = LwMul(rc.Dyp(), size(short));
-    if (size(MBMPH) + cbRgcb > cbTot)
+    if (size(MaskedBitmapOnFile) + cbRgcb > cbTot)
         goto LFail;
 
     if (pvNil == (pmbmp = NewObj MaskedBitmapMBMP))
@@ -325,7 +325,7 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock pblck)
     short *qcb = pmbmp->_Qrgcb();
     byte *qbRow = (byte *)PvAddBv(qcb, cbRgcb);
 
-    cbTot -= size(MBMPH) + cbRgcb;
+    cbTot -= size(MaskedBitmapOnFile) + cbRgcb;
     for (ccb = rc.Dyp(); ccb-- > 0;)
     {
         cb = *qcb++;
@@ -377,7 +377,7 @@ bool MaskedBitmapMBMP::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
-    MBMPH *qmbmph;
+    MaskedBitmapOnFile *qmbmph;
 
     qmbmph = _Qmbmph();
     qmbmph->bo = kboCur;
@@ -416,7 +416,7 @@ bool MaskedBitmapMBMP::FPtIn(long xp, long yp)
     byte *qb, *qbLim;
     short *qcb;
     short cb;
-    MBMPH *qmbmph;
+    MaskedBitmapOnFile *qmbmph;
 
     qmbmph = _Qmbmph();
     if (!qmbmph->rc.FPtIn(xp, yp))
@@ -466,7 +466,7 @@ void MaskedBitmapMBMP::AssertValid(ulong grf)
         AssertIn(*qcb, 0, kcbMax);
         cbTot += *qcb++;
     }
-    Assert(cbTot + _cbRgcb + size(MBMPH) == CbOfHq(_hqrgb), "_hqrgb wrong size");
+    Assert(cbTot + _cbRgcb + size(MaskedBitmapOnFile) == CbOfHq(_hqrgb), "_hqrgb wrong size");
 }
 
 /***************************************************************************

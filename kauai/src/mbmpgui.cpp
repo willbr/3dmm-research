@@ -43,7 +43,7 @@ void MaskedBitmapMBMP::Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, 
     long lwFill;
     RegionScanner regsc;
     RC rcClip(0, 0, cbRow, dyp);
-    MBMPH *qmbmph = _Qmbmph();
+    MaskedBitmapOnFile *qmbmph = _Qmbmph();
     RC rcMbmp = qmbmph->rc;
     bool fMask = qmbmph->fMask;
 
@@ -293,7 +293,7 @@ LFill:
     short *qcb;
     RegionScanner regsc;
     RC rcClip(0, 0, cbRow, dyp);
-    MBMPH *qmbmph = _Qmbmph();
+    MaskedBitmapOnFile *qmbmph = _Qmbmph();
     RC rcMbmp = qmbmph->rc;
     bool fMask = qmbmph->fMask;
 
@@ -432,7 +432,7 @@ void MaskedBitmapMBMP::DrawMask(byte *prgbPixels, long cbRow, long dyp, long xpR
     bool fTrans;
     long ib, ibNext;
     byte bMask, bMaskNext;
-    MBMPH *qmbmph = _Qmbmph();
+    MaskedBitmapOnFile *qmbmph = _Qmbmph();
     RC rcClip(0, 0, LwMul(cbRow, 8), dyp);
     RC rcMbmp = qmbmph->rc;
     bool fMask = qmbmph->fMask;
