@@ -47,7 +47,7 @@ ASSERTNAME
 //
 // Scene event types
 //
-enum SEVT
+enum SceneEventType
 {                   // StartEv	FrmEv	Param
     sevtAddActr,    //    X		  		pactr/chid
     sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
@@ -79,7 +79,7 @@ const auto kbTransparent = 250;
 struct SEV
 {
     long nfrm; // frame number of the event.
-    SEVT sevt; // event type
+    SceneEventType sevt; // event type
 };
 
 const auto kbomSev = 0xF0000000;

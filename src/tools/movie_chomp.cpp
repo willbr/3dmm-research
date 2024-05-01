@@ -201,7 +201,7 @@ const auto kbomScenh = 0x5FC00000;
 //
 // Scene event types
 //
-enum SEVT
+enum SceneEventType
 {                   // StartEv	FrmEv	Param
     sevtAddActr,    //    X		  		pactr/chid
     sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
@@ -227,7 +227,7 @@ struct SEVP
 struct SEV
 {
     long nfrm; // frame number of the event.
-    SEVT sevt; // event type
+    SceneEventType sevt; // event type
 };
 
 typedef struct SEV *PSEV;
