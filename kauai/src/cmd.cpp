@@ -115,17 +115,17 @@ void CommandHandler::AssertValid(ulong grf)
 #endif // DEBUG
 
 /***************************************************************************
-    Protected virtual function to find a CMME (command map entry) for the
+    Protected virtual function to find a CommandMapEntry (command map entry) for the
     given command id.
 ***************************************************************************/
-bool CommandHandler::_FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme)
+bool CommandHandler::_FGetCmme(long cid, ulong grfcmmWanted, CommandMapEntry *pcmme)
 {
     AssertThis(0);
     AssertVarMem(pcmme);
     Assert(cid != cidNil, "why is the cid nil?");
     CommandMap *pcmm;
-    CMME *pcmmeT;
-    CMME *pcmmeDef = pvNil;
+    CommandMapEntry *pcmmeT;
+    CommandMapEntry *pcmmeDef = pvNil;
 
     for (pcmm = Pcmm(); pcmm != pvNil; pcmm = pcmm->pcmmBase)
     {
@@ -168,7 +168,7 @@ bool CommandHandler::FDoCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
-    CMME cmme;
+    CommandMapEntry cmme;
     ulong grfcmm;
 
     if (pvNil == pcmd->pcmh)
@@ -194,7 +194,7 @@ bool CommandHandler::FEnableCmd(PCommand pcmd, ulong *pgrfeds)
     AssertThis(0);
     AssertPo(pcmd, 0);
     AssertVarMem(pgrfeds);
-    CMME cmme;
+    CommandMapEntry cmme;
     ulong grfcmm;
 
     if (pvNil == pcmd->pcmh)

@@ -96,7 +96,7 @@ const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 // for including a command map in this class
 #define CMD_MAP_DEC(cls)                                                                                               \
   private:                                                                                                             \
-    static CMME _rgcmme##cls[];                                                                                        \
+    static CommandMapEntry _rgcmme##cls[];                                                                                        \
                                                                                                                        \
   protected:                                                                                                           \
     static CommandMap _cmm##cls;                                                                                              \
@@ -108,10 +108,10 @@ const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 // for defining the command map in a .cpp file
 #define BEGIN_CMD_MAP_BASE(cls)                                                                                        \
     cls::CommandMap cls::_cmm##cls = {pvNil, cls::_rgcmme##cls};                                                              \
-    cls::CMME cls::_rgcmme##cls[] = {
+    cls::CommandMapEntry cls::_rgcmme##cls[] = {
 #define BEGIN_CMD_MAP(cls, clsBase)                                                                                    \
     cls::CommandMap cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls};                                          \
-    cls::CMME cls::_rgcmme##cls[] = {
+    cls::CommandMapEntry cls::_rgcmme##cls[] = {
 
 #define ON_CID(cid, pfncmd, pfneds, grfcmm) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, grfcmm},
 #define ON_CID_ME(cid, pfncmd, pfneds) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, fcmmThis},
@@ -153,7 +153,7 @@ class CommandHandler : public CommandHandler_PAR
     typedef bool (CommandHandler::*PFNEDS)(PCommand pcmd, ulong *pgrfeds);
 
     // command map entry
-    struct CMME
+    struct CommandMapEntry
     {
         long cid;
         PFNCMD pfncmd;
@@ -165,13 +165,13 @@ class CommandHandler : public CommandHandler_PAR
     struct CommandMap
     {
         CommandMap *pcmmBase;
-        CMME *prgcmme;
+        CommandMapEntry *prgcmme;
     };
 
     CMD_MAP_DEC(CommandHandler)
 
   protected:
-    virtual bool _FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme);
+    virtual bool _FGetCmme(long cid, ulong grfcmmWanted, CommandMapEntry *pcmme);
 
   public:
     CommandHandler(long hid);
