@@ -67,7 +67,7 @@ bool _fInLiberator = fFalse;
 /***************************************************************************
     Do simulated failure testing.
 ***************************************************************************/
-bool DMAGL::FFail(void)
+bool DebugMemoryAllocatorGlobals::FFail(void)
 {
     bool fRet = fFalse;
 
@@ -90,7 +90,7 @@ bool DMAGL::FFail(void)
 /***************************************************************************
     Update values after an allocation
 ***************************************************************************/
-void DMAGL::Allocate(long cbT)
+void DebugMemoryAllocatorGlobals::Allocate(long cbT)
 {
     vmutxMem.Enter();
     if (cvRun < ++cv)
@@ -104,7 +104,7 @@ void DMAGL::Allocate(long cbT)
 /***************************************************************************
     Update values after a resize
 ***************************************************************************/
-void DMAGL::Resize(long dcb)
+void DebugMemoryAllocatorGlobals::Resize(long dcb)
 {
     vmutxMem.Enter();
     if (cbRun < (cb += dcb))
@@ -115,7 +115,7 @@ void DMAGL::Resize(long dcb)
 /***************************************************************************
     Update values after a block is freed
 ***************************************************************************/
-void DMAGL::Free(long cbT)
+void DebugMemoryAllocatorGlobals::Free(long cbT)
 {
     --cv;
     cb -= cbT;
@@ -126,7 +126,7 @@ void DMAGL::Free(long cbT)
     Allocates a fixed block.
 ***************************************************************************/
 #ifdef DEBUG
-bool FAllocPvDebug(void **ppv, long cb, ulong grfmem, long mpr, PSZS pszsFile, long lwLine, DMAGL *pdmagl)
+bool FAllocPvDebug(void **ppv, long cb, ulong grfmem, long mpr, PSZS pszsFile, long lwLine, DebugMemoryAllocatorGlobals *pdmagl)
 #else  //! DEBUG
 bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
 #endif //! DEBUG
@@ -245,7 +245,7 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
     newly added space.
 ***************************************************************************/
 #ifdef DEBUG
-bool _FResizePpvDebug(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr, DMAGL *pdmagl)
+bool _FResizePpvDebug(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr, DebugMemoryAllocatorGlobals *pdmagl)
 #else  //! DEBUG
 bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr)
 #endif //! DEBUG
@@ -365,7 +365,7 @@ bool _FResizePpv(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr)
     If *ppv is not nil, frees it and sets *ppv to nil.
 ***************************************************************************/
 #ifdef DEBUG
-void FreePpvDebug(void **ppv, DMAGL *pdmagl)
+void FreePpvDebug(void **ppv, DebugMemoryAllocatorGlobals *pdmagl)
 #else  //! DEBUG
 void FreePpv(void **ppv)
 #endif //! DEBUG
