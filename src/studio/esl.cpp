@@ -1463,7 +1463,7 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicA
 
     long st;
     PKidspaceGraphicObject pgok;
-    PTGOB ptgob;
+    PTextGraphicsObject ptgob;
     PMovieSoundMSND pmsnd;
     long itag;
     TAG tag;
@@ -1495,7 +1495,7 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicA
     else
         st = kstListenSounder;
 
-    // Create the TGOB to display the sound name
+    // Create the TextGraphicsObject to display the sound name
     // Search until a valid (not deleted) msnd is found
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
@@ -1508,7 +1508,7 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicA
             ReleasePpo(&pmsnd);
             continue;
         }
-        ptgob = TGOB::PtgobCreate(kidEditBox, idsListenFont, tavCenter);
+        ptgob = TextGraphicsObject::PtgobCreate(kidEditBox, idsListenFont, tavCenter);
         if (pvNil == ptgob)
         {
             Warn("missing edit box");

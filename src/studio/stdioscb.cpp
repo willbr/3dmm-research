@@ -85,7 +85,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
     hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
-    if (pvNil == (psscb->_ptgobFrame = NewObj TGOB(&gcb)))
+    if (pvNil == (psscb->_ptgobFrame = NewObj TextGraphicsObject(&gcb)))
     {
         ReleasePpo(&psscb);
         return (pvNil);
@@ -102,7 +102,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
     hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
-    if (pvNil == (psscb->_ptgobScene = NewObj TGOB(&gcb)))
+    if (pvNil == (psscb->_ptgobScene = NewObj TextGraphicsObject(&gcb)))
     {
         ReleasePpo(&psscb);
         return (pvNil);
@@ -120,7 +120,7 @@ PStudioScrollbars StudioScrollbars::PsscbNew(PMovie pmvie)
     hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
-    if (pvNil == (psscb->_ptgobFps = NewObj TGOB(&gcb)))
+    if (pvNil == (psscb->_ptgobFps = NewObj TextGraphicsObject(&gcb)))
     {
         ReleasePpo(&psscb);
         return (pvNil);

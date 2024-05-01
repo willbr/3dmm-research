@@ -69,7 +69,7 @@ class Studio : public Studio_PAR
     Command _cmd;
     long _dtimToolTipDelay;
     bool _fStopUISound;
-    PTGOB _ptgobTitle;
+    PTextGraphicsObject _ptgobTitle;
     bool _fStartedSoonerLater;
 
     Studio(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb){};

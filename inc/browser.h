@@ -121,7 +121,7 @@ class BrowserDisplay : public BrowserDisplay_PAR
     long _idsFont;         // string id of Font
     long _kidThumOverride; // projects may override one thum gobid
     long _ithumOverride;   // projects may override one thum gobid
-    PTGOB _ptgobPage;      // for page numbers
+    PTextGraphicsObject _ptgobPage;      // for page numbers
     PStudio _pstdio;
 
     // Display State variables

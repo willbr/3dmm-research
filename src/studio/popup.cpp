@@ -270,19 +270,19 @@ LFail:
 }
 
 /***************************************************************************
-    Set the font of the TGOB to the font listed in the menu item
+    Set the font of the TextGraphicsObject to the font listed in the menu item
 ***************************************************************************/
 bool MPFNT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
     if (MPFNT_PAR::_FSetThumFrame(istn, pgobPar))
     {
-        PTGOB ptgob = (PTGOB)pgobPar->PgobFirstChild();
+        PTextGraphicsObject ptgob = (PTextGraphicsObject)pgobPar->PgobFirstChild();
         long onn;
 
         /* By the time we get this far, MPFNT_PAR should have already checked
             these */
-        Assert(ptgob != pvNil, "No TGOB for the text");
-        Assert(ptgob->FIs(kclsTGOB), "GraphicsObject isn't a TGOB");
+        Assert(ptgob != pvNil, "No TextGraphicsObject for the text");
+        Assert(ptgob->FIs(kclsTextGraphicsObject), "GraphicsObject isn't a TextGraphicsObject");
 
         _pgst->GetExtra(istn, &onn);
         ptgob->SetFont(onn);

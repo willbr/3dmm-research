@@ -676,7 +676,7 @@ bool BrowserDisplay::FCreateAllTgob(void)
 
     long ifrm;
     long hid;
-    PTGOB ptgob;
+    PTextGraphicsObject ptgob;
     RC rcAbs;
     RC rcRel;
 
@@ -687,7 +687,7 @@ bool BrowserDisplay::FCreateAllTgob(void)
         else
             hid = hidNil;
 
-        ptgob = TGOB::PtgobCreate(_kidFrmFirst + ifrm, _idsFont, tavTop, hid);
+        ptgob = TextGraphicsObject::PtgobCreate(_kidFrmFirst + ifrm, _idsFont, tavTop, hid);
         if (pvNil == ptgob)
             return fFalse;
         ptgob->SetAlign(tahLeft);
@@ -1914,7 +1914,7 @@ void BRWN::_ReleaseThumFrame(long ifrm)
     if (pvNil != pgob)
     {
         stn.SetNil();
-        ((PTGOB)pgob)->SetText(&stn);
+        ((PTextGraphicsObject)pgob)->SetText(&stn);
     }
 
     // The BRWN class retains the tgob while the browser is up
@@ -1932,15 +1932,15 @@ bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
     AssertIn(ithd, 0, _pglthd->IvMac());
     AssertPo(pgobPar, 0);
 
-    PTGOB ptgob;
+    PTextGraphicsObject ptgob;
     String stnLabel;
     ThumbnailDescriptor thd;
 
     _pglthd->Get(ithd, &thd);
     _pgst->GetStn(thd.ithd, &stnLabel);
-    ptgob = (PTGOB)(pgobPar->PgobFirstChild());
+    ptgob = (PTextGraphicsObject)(pgobPar->PgobFirstChild());
 
-    Assert(pvNil != ptgob, "No TGOB for the text");
+    Assert(pvNil != ptgob, "No TextGraphicsObject for the text");
     if (pvNil != ptgob)
         ptgob->SetText(&stnLabel);
 
@@ -2016,7 +2016,7 @@ PBRWM BRWM::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdi
         return pvNil;
     }
 
-    pbrwm->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwm->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwm;
 }
 
@@ -2462,7 +2462,7 @@ void BRWT::SetGst(PStringTable_GST pgst)
 
 /****************************************************
  *
- * Initialize BRWT TGOB & text
+ * Initialize BRWT TextGraphicsObject & text
  *
  ****************************************************/
 bool BRWT::FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
@@ -2496,17 +2496,17 @@ bool BRWT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
     AssertIn(istn, 0, _pgst->IvMac());
     AssertPo(pgobPar, 0);
 
-    PTGOB ptgob;
+    PTextGraphicsObject ptgob;
     String stnLabel;
 
     _pgst->GetStn(istn, &stnLabel);
-    ptgob = (PTGOB)(pgobPar->PgobFirstChild());
+    ptgob = (PTextGraphicsObject)(pgobPar->PgobFirstChild());
 
-    Assert(pvNil != ptgob, "No TGOB for the text");
+    Assert(pvNil != ptgob, "No TextGraphicsObject for the text");
     if (pvNil != ptgob)
     {
-        Assert(ptgob->FIs(kclsTGOB), "GraphicsObject isn't a TGOB");
-        if (ptgob->FIs(kclsTGOB))
+        Assert(ptgob->FIs(kclsTextGraphicsObject), "GraphicsObject isn't a TextGraphicsObject");
+        if (ptgob->FIs(kclsTextGraphicsObject))
         {
             ptgob->SetText(&stnLabel);
             return fTrue;
@@ -2556,7 +2556,7 @@ PBRWA BRWA::PbrwaNew(PResourceCache prca)
         pgok->FChangeState(kstSelected);
     }
 
-    pbrwa->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwa->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwa;
 }
 
@@ -2735,7 +2735,7 @@ PBRWI BRWI::PbrwiNew(PResourceCache prca, long kidGlass, long sty)
     }
 
     pbrwi->_sty = sty;
-    pbrwi->_ptgobPage = TGOB::PtgobCreate(kidImportPageNum, idsBrwsPageFont, tavCenter);
+    pbrwi->_ptgobPage = TextGraphicsObject::PtgobCreate(kidImportPageNum, idsBrwsPageFont, tavCenter);
     return pbrwi;
 }
 
@@ -2817,7 +2817,7 @@ PBRWP BRWP::PbrwpNew(PResourceCache prca, long kidGlass)
         return pvNil;
     }
 
-    pbrwp->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwp->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwp;
 }
 
@@ -2849,7 +2849,7 @@ PBRWB BRWB::PbrwbNew(PResourceCache prca)
         return pvNil;
     }
 
-    pbrwb->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwb->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwb;
 }
 
@@ -2934,7 +2934,7 @@ PBRWC BRWC::PbrwcNew(PResourceCache prca)
         return pvNil;
     }
 
-    pbrwc->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwc->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwc;
 }
 
@@ -3301,14 +3301,14 @@ bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
     }
     else
     {
-        PTGOB ptgob;
+        PTextGraphicsObject ptgob;
         String stn = stnLabel;
         long cch = stn.Cch();
         long hidThum;
 
         // Display the text as the thumbnail
         hidThum = _KidThumFromIfrm(_cfrmPageCur);
-        ptgob = TGOB::PtgobCreate(_kidFrmFirst + _cfrmPageCur, _idsFont, tavCenter, hidThum);
+        ptgob = TextGraphicsObject::PtgobCreate(_kidFrmFirst + _cfrmPageCur, _idsFont, tavCenter, hidThum);
 
         if (pvNil != ptgob)
         {

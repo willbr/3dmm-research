@@ -6,7 +6,7 @@
     Lite, low-cholestoral, politically correct, ethinically and genderally
     mixed text gobs.
 
-        TGOB 	--->   	GraphicsObject
+        TextGraphicsObject 	--->   	GraphicsObject
 
 ***************************************************************************/
 
@@ -18,10 +18,10 @@
 //
 // Tgob class
 //
-#define TGOB_PAR GraphicsObject
-#define kclsTGOB 'tgob'
-typedef class TGOB *PTGOB;
-class TGOB : public TGOB_PAR
+#define TextGraphicsObject_PAR GraphicsObject
+#define kclsTextGraphicsObject 'tgob'
+typedef class TextGraphicsObject *PTextGraphicsObject;
+class TextGraphicsObject : public TextGraphicsObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -35,7 +35,7 @@ class TGOB : public TGOB_PAR
     long _tav;
     AbstractColor _acrFore;
     AbstractColor _acrBack;
-    ~TGOB(void)
+    ~TextGraphicsObject(void)
     {
     }
 
@@ -43,8 +43,8 @@ class TGOB : public TGOB_PAR
     //
     // Create and destroy functions
     //
-    TGOB(PGraphicsObjectBlock pgcb);
-    TGOB(long hid);
+    TextGraphicsObject(PGraphicsObjectBlock pgcb);
+    TextGraphicsObject(long hid);
 
     void SetFont(long onn)
     {
@@ -94,7 +94,7 @@ class TGOB : public TGOB_PAR
         return (_acrBack);
     }
     void GetAlign(long *ptah = pvNil, long *ptav = pvNil);
-    static PTGOB PtgobCreate(long kidFrm, long idsFont, long tav = tavTop, long hid = hidNil);
+    static PTextGraphicsObject PtgobCreate(long kidFrm, long idsFont, long tav = tavTop, long hid = hidNil);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };

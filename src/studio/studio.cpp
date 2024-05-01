@@ -2639,7 +2639,7 @@ void Studio::UpdateTitle(PString pstnTitle)
     // Set the movie title
     if (_ptgobTitle == pvNil)
     {
-        _ptgobTitle = TGOB::PtgobCreate(kidName, idsStudioFont, tavCenter);
+        _ptgobTitle = TextGraphicsObject::PtgobCreate(kidName, idsStudioFont, tavCenter);
 
         GetStnMisc(idsMovieNameDypFont, &stnFontSize);
 

@@ -42,8 +42,8 @@ class StudioScrollbars : public StudioScrollbars_PAR
     long _CxScrollbar(long kidScrollbar, long kidThumb);
 
   protected:
-    PTGOB _ptgobFrame;
-    PTGOB _ptgobScene;
+    PTextGraphicsObject _ptgobFrame;
+    PTextGraphicsObject _ptgobScene;
 
 #ifdef SHOW_FPS
     // Frame descriptor
@@ -53,7 +53,7 @@ class StudioScrollbars : public StudioScrollbars_PAR
         long cfrm;
     };
 
-    PTGOB _ptgobFps;
+    PTextGraphicsObject _ptgobFps;
     FrameDescriptor _rgfdsc[kctsFps];
     long _itsNext;
 #endif // SHOW_FPS
