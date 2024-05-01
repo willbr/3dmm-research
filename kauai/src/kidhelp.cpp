@@ -1218,7 +1218,7 @@ bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca)
     Our representation is changing, so make sure we stay inside our parent
     and reposition the TopicGraphicsObject.
 ***************************************************************************/
-void Balloon::_SetGorp(PGORP pgorp, long dxp, long dyp)
+void Balloon::_SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp)
 {
     RC rc1, rc2, rc3;
 

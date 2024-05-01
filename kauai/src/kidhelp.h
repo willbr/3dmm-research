@@ -167,7 +167,7 @@ class Balloon : public Balloon_PAR
     PTopicGraphicsObject _ptxhg;
 
     Balloon(GraphicsObjectBlock *pgcb);
-    virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
+    virtual void _SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp);
     virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PResourceCache prca);
     virtual bool _FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca);
 

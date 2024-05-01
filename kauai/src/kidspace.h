@@ -23,15 +23,15 @@ namespace GraphicalObjectRepresentation {
 /***************************************************************************
     Graphical object representation.  A bitmap, fill, tiled bitmap, etc.
 ***************************************************************************/
-typedef class GORP *PGORP;
-#define GORP_PAR BASE
-#define kclsGORP 'GORP'
-class GORP : public GORP_PAR
+typedef class GraphicalObjectRepresentation *PGraphicalObjectRepresentation;
+#define GraphicalObjectRepresentation_PAR BASE
+#define kclsGraphicalObjectRepresentation 'GORP'
+class GraphicalObjectRepresentation : public GraphicalObjectRepresentation_PAR
 {
     RTCLASS_DEC
 
   protected:
-    GORP(void)
+    GraphicalObjectRepresentation(void)
     {
     }
 
@@ -57,7 +57,7 @@ class GORP : public GORP_PAR
     Graphical object fill representation.
 ***************************************************************************/
 typedef class GORF *PGORF;
-#define GORF_PAR GORP
+#define GORF_PAR GraphicalObjectRepresentation
 #define kclsGORF 'GORF'
 class GORF : public GORF_PAR
 {
@@ -85,7 +85,7 @@ class GORF : public GORF_PAR
     Graphical object bitmap representation.
 ***************************************************************************/
 typedef class GORB *PGORB;
-#define GORB_PAR GORP
+#define GORB_PAR GraphicalObjectRepresentation
 #define kclsGORB 'GORB'
 class GORB : public GORB_PAR
 {
@@ -128,7 +128,7 @@ enum
 };
 
 typedef class GORT *PGORT;
-#define GORT_PAR GORP
+#define GORT_PAR GraphicalObjectRepresentation
 #define kclsGORT 'GORT'
 class GORT : public GORT_PAR
 {
@@ -180,7 +180,7 @@ class GORT : public GORT_PAR
     Graphical object video representation.
 ***************************************************************************/
 typedef class GORV *PGORV;
-#define GORV_PAR GORP
+#define GORV_PAR GraphicalObjectRepresentation
 #define kclsGORV 'GORV'
 class GORV : public GORV_PAR
 {
@@ -321,12 +321,12 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     bool _fNoHit : 1;         // invisible to the mouse
     bool _fNoHitKids : 1;     // children of this KidspaceGraphicObject are invisible to the mouse
     bool _fNoSlip : 1;        // animations shouldn't slip
-    bool _fGorpDirty : 1;     // whether the GORP changed while deferred
+    bool _fGorpDirty : 1;     // whether the GraphicalObjectRepresentation changed while deferred
     bool _fMouseSndDirty : 1; // whether playing the mouse sound was deferred
     bool _fStream : 1;        // once we switch reps, we won't use this one again
 
     long _cactDeferGorp; // defer marking and positioning the gorp
-    PGORP _pgorp;        // the graphical representation
+    PGraphicalObjectRepresentation _pgorp;        // the graphical representation
     ChunkIdentification _ckiGorp;        // cki of the current gorp
 
     long _dtim;       // current time increment for animation
@@ -368,8 +368,8 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
                           bool *pfSet = pvNil);
     virtual bool _FAdvanceFrame(void);
 
-    virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual PGORP _PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual void _SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp);
+    virtual PGraphicalObjectRepresentation _PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
     bool _FFilterCmd(PCommand pcmd, ChildChunkID chidScript, bool *pfFilter);

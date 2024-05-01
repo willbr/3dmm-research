@@ -28,8 +28,8 @@ namespace ScriptInterpreter {
 namespace GraphicalObjectRepresentation {
    class KidspaceGraphicObject;
    typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
-   class GORP;
-   typedef class GORP *PGORP;
+   class GraphicalObjectRepresentation;
+   typedef class GraphicalObjectRepresentation *PGraphicalObjectRepresentation;
 }
 namespace Help {
    class Balloon;
@@ -40,8 +40,8 @@ namespace Help {
 
 using GraphicalObjectRepresentation::KidspaceGraphicObject;
 using GraphicalObjectRepresentation::PKidspaceGraphicObject;
-using GraphicalObjectRepresentation::GORP;
-using GraphicalObjectRepresentation::PGORP;
+// using GraphicalObjectRepresentation::GraphicalObjectRepresentation;
+using GraphicalObjectRepresentation::PGraphicalObjectRepresentation;
 
 #include "scrcomg.h"
 #include "kidworld.h"

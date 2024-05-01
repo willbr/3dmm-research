@@ -16,7 +16,7 @@ ASSERTNAME
 namespace GraphicalObjectRepresentation {
 
 RTCLASS(KidspaceGraphicObject)
-RTCLASS(GORP)
+RTCLASS(GraphicalObjectRepresentation)
 RTCLASS(GORF)
 RTCLASS(GORB)
 RTCLASS(GORT)
@@ -591,7 +591,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag c
     AssertThis(0);
     long ikid;
     ChildChunkIdentification kid;
-    PGORP pgorp;
+    PGraphicalObjectRepresentation pgorp;
     bool fSet = fFalse;
     bool fKillAnim = FPure(grfgok & fgokKillAnim);
     PChunkyFile pcfl = _pcrf->Pcfl();
@@ -1535,10 +1535,10 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGORP KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    typedef PGORP (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    typedef PGraphicalObjectRepresentation (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
     PFNGORP pfngorp;
 
     switch (ctg)
@@ -1570,7 +1570,7 @@ PGORP KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, C
 /***************************************************************************
     Set the current graphical representation to this one.
 ***************************************************************************/
-void KidspaceGraphicObject::_SetGorp(PGORP pgorp, long dxp, long dyp)
+void KidspaceGraphicObject::_SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp)
 {
     AssertThis(0);
     AssertNilOrPo(pgorp, 0);
@@ -1884,7 +1884,7 @@ void KidspaceGraphicObject::MarkMem(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-long GORP::NfrMac(void)
+long GraphicalObjectRepresentation::NfrMac(void)
 {
     AssertThis(0);
     return 0;
@@ -1893,7 +1893,7 @@ long GORP::NfrMac(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-long GORP::NfrCur(void)
+long GraphicalObjectRepresentation::NfrCur(void)
 {
     AssertThis(0);
     return 0;
@@ -1902,7 +1902,7 @@ long GORP::NfrCur(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::GotoNfr(long nfr)
+void GraphicalObjectRepresentation::GotoNfr(long nfr)
 {
     AssertThis(0);
 }
@@ -1910,16 +1910,7 @@ void GORP::GotoNfr(long nfr)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-bool GORP::FPlaying(void)
-{
-    AssertThis(0);
-    return fFalse;
-}
-
-/***************************************************************************
-    Stub method for non-frame based representations.
-***************************************************************************/
-bool GORP::FPlay(void)
+bool GraphicalObjectRepresentation::FPlaying(void)
 {
     AssertThis(0);
     return fFalse;
@@ -1928,7 +1919,16 @@ bool GORP::FPlay(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::Stop(void)
+bool GraphicalObjectRepresentation::FPlay(void)
+{
+    AssertThis(0);
+    return fFalse;
+}
+
+/***************************************************************************
+    Stub method for non-frame based representations.
+***************************************************************************/
+void GraphicalObjectRepresentation::Stop(void)
 {
     AssertThis(0);
 }
@@ -1936,7 +1936,7 @@ void GORP::Stop(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::Suspend(void)
+void GraphicalObjectRepresentation::Suspend(void)
 {
     AssertThis(0);
 }
@@ -1944,7 +1944,7 @@ void GORP::Suspend(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::Resume(void)
+void GraphicalObjectRepresentation::Resume(void)
 {
     AssertThis(0);
 }
@@ -1953,7 +1953,7 @@ void GORP::Resume(void)
     The streaming property is being set or reset. If streaming is set, we
     should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
-void GORP::Stream(bool fStream)
+void GraphicalObjectRepresentation::Stream(bool fStream)
 {
     AssertThis(0);
 }
