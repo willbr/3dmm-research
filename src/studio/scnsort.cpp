@@ -49,7 +49,7 @@ void SCRT::AssertValid(ulong grf)
         imviedMac = _cmvi.pglmvied->IvMac();
         for (long iscend = 0; iscend < _cmvi.pglscend->IvMac(); iscend++)
         {
-            SCEND scend;
+            SceneDescriptor scend;
 
             _cmvi.pglscend->Get(iscend, &scend);
             Assert(iscend < _iscenMac ? !scend.fNuked : scend.fNuked, "Bad DynamicArray of SCENDs");
@@ -408,7 +408,7 @@ bool SCRT::FCmdNuke(PCommand pcmd)
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't nuke a scene from an empty movie");
 
-    SCEND scend;
+    SceneDescriptor scend;
 
     _cmvi.pglscend->Get(_iscenCur, &scend);
     Assert(!scend.fNuked, "Nuking an already nuked scene");
@@ -530,7 +530,7 @@ bool SCRT::FCmdTransition(PCommand pcmd)
     Assert(_iscenMac > 0, "Can't set transition when movie is empty");
 
     long iscen = _IscenFromKid(pcmd->rglw[0]);
-    SCEND scend;
+    SceneDescriptor scend;
     PKidspaceGraphicObject pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(pcmd->rglw[0]);
 
     if (pgokFrame == pvNil)
@@ -603,7 +603,7 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
     long lwSelState = fHideSel ? kstBrowserScrollingSel : kstBrowserSelected;
     PKidspaceGraphicObject pgokFrame;
     PGOMP pgomp;
-    SCEND scend;
+    SceneDescriptor scend;
 
     while (cFrame--)
     {

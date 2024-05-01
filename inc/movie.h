@@ -509,7 +509,7 @@ typedef struct _scend
                      /* The client can read or write the following fields */
     TRANS trans;     // the transition that will occur after this scene
     bool fNuked : 1; // fTrue if this scene has been deleted
-} SCEND, *PSCEND;
+} SceneDescriptor, *PSceneDescriptor;
 
 /* A MoVIE Descriptor */
 typedef struct _mvied
@@ -725,7 +725,7 @@ class Movie : public Movie_PAR
     bool FSetCmvi(PCMVI pcmvi); // Re-build the movie from the CMVI
     bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
-    bool _FInsertScend(PDynamicArray pglscend, long iscend, PSCEND pscend);
+    bool _FInsertScend(PDynamicArray pglscend, long iscend, PSceneDescriptor pscend);
     // Insert an imported scene
     void _DeleteScend(PDynamicArray pglscend, long iscend);   // Delete an imported scene
     bool _FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie

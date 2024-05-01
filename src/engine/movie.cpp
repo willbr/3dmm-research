@@ -4592,7 +4592,7 @@ void CMVI::MarkMem(void)
 {
     long iv, ivMac;
     MVIED mvied;
-    SCEND scend;
+    SceneDescriptor scend;
 
     ivMac = pglmvied->IvMac();
     for (iv = 0; iv < ivMac; iv++)
@@ -4634,7 +4634,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     AssertNilOrPo(pcmvi->pglscend, 0);
 
     long iscen = 0, iscenMac = Cscen(), imvied;
-    SCEND scend;
+    SceneDescriptor scend;
     MVIED mvied;
     PChunkyFile pcfl;
 
@@ -4649,7 +4649,7 @@ bool Movie::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     if (!FAutoSave(pvNil, fFalse))
         goto LFail;
 
-    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = DynamicArray::PglNew(size(SCEND))) == pvNil)
+    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = DynamicArray::PglNew(size(SceneDescriptor))) == pvNil)
     {
         goto LFail;
     }
@@ -4795,7 +4795,7 @@ bool Movie::FSetCmvi(PCMVI pcmvi)
     for (iscend = 0; iscend < iscendMac; iscend++)
     {
         ChunkNumber cnoScen = cnoNil;
-        SCEND scend;
+        SceneDescriptor scend;
         MVIED mvied;
 
         pcmvi->pglscend->Get(iscend, &scend);
@@ -5090,7 +5090,7 @@ LFail:
 /******************************************************************************
     EmptyCmvi
         Frees up the memory used by the CMVI.  For each scene in the
-        DynamicArray of SCENDs, releases memory that the SCEND referred to.  Likewise
+        DynamicArray of SCENDs, releases memory that the SceneDescriptor referred to.  Likewise
         for each MVIED in the DynamicArray of MVIEDs.
 
     Arguments:
@@ -5112,7 +5112,7 @@ void CMVI::Empty(void)
 
         while (iscend-- > 0)
         {
-            SCEND scend;
+            SceneDescriptor scend;
 
             pgl->Get(iscend, &scend);
             ReleasePpo(&scend.pmbmp);
@@ -5139,18 +5139,18 @@ void CMVI::Empty(void)
 
 /******************************************************************************
     _FInsertScend
-        Inserts the given SCEND into a DynamicArray of SCENDs that was created by this
+        Inserts the given SceneDescriptor into a DynamicArray of SCENDs that was created by this
         movie.
 
     Arguments:
         PDynamicArray pglscend  -- the DynamicArray of SCENDs to insert into
-        long iscend   -- the position at which to insert this SCEND
-        PSCEND pscend -- the SCEND to insert
+        long iscend   -- the position at which to insert this SceneDescriptor
+        PSceneDescriptor pscend -- the SceneDescriptor to insert
 
     Returns: fTrue if successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool Movie::_FInsertScend(PDynamicArray pglscend, long iscend, PSCEND pscend)
+bool Movie::_FInsertScend(PDynamicArray pglscend, long iscend, PSceneDescriptor pscend)
 {
     AssertPo(pglscend, 0);
     AssertPo(pscend->pmbmp, 0);
@@ -5163,12 +5163,12 @@ bool Movie::_FInsertScend(PDynamicArray pglscend, long iscend, PSCEND pscend)
 
 /******************************************************************************
     _DeleteScend
-        Deletes the given SCEND from a DynamicArray of SCENDs that was created by this
+        Deletes the given SceneDescriptor from a DynamicArray of SCENDs that was created by this
         movie.
 
     Arguments:
         PDynamicArray pglscend -- the DynamicArray of SCENDs to delete from
-        long iscend  -- which SCEND to delete
+        long iscend  -- which SceneDescriptor to delete
 
 ************************************************************ PETED ***********/
 void Movie::_DeleteScend(PDynamicArray pglscend, long iscend)
@@ -5176,7 +5176,7 @@ void Movie::_DeleteScend(PDynamicArray pglscend, long iscend)
     AssertPo(pglscend, 0);
     AssertIn(iscend, 0, pglscend->IvMac());
 
-    SCEND scend;
+    SceneDescriptor scend;
 
     pglscend->Get(iscend, &scend);
     AssertPo(scend.pmbmp, 0);
