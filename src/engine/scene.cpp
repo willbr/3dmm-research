@@ -88,7 +88,7 @@ const auto kbomLong = 0xC0000000;
 //
 // Header for the scene chunk when on file
 //
-struct SCENH
+struct SceneOnFile
 {
     short bo;
     short osk;
@@ -3773,7 +3773,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     PActor pactr;
     PTBOX ptbox;
     ChildChunkID chid;
-    SCENH scenh;
+    SceneOnFile scenh;
     PChunkyFile pcfl;
 
     pcfl = pcrf->Pcfl();
@@ -3781,8 +3781,8 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
     //
     // Find the chunk and read in the header.
     //
-    if (!pcfl->FFind(kctgScen, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(SCENH)) ||
-        !blck.FReadRgb(&scenh, size(SCENH), 0))
+    if (!pcfl->FFind(kctgScen, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(SceneOnFile)) ||
+        !blck.FReadRgb(&scenh, size(SceneOnFile), 0))
     {
         goto LFail0;
     }
@@ -4190,7 +4190,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     SceneEvent sev;
     ChildChunkID chidActr, chidTbox;
     ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
-    SCENH scenh;
+    SceneOnFile scenh;
     long isevFrm = -1;
     long isevStart = -1;
     long cb;
@@ -4469,7 +4469,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         goto LFail;
     }
 
-    if (!pcfl->FPutPv((void *)&scenh, size(SCENH), kctgScen, *pcno))
+    if (!pcfl->FPutPv((void *)&scenh, size(SceneOnFile), kctgScen, *pcno))
     {
         goto LFail;
     }
@@ -5770,16 +5770,16 @@ void Scene::StopPlaying()
 bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
     DataBlock blck;
-    SCENH scenh;
+    SceneOnFile scenh;
     PChunkyFile pcfl = pcrf->Pcfl();
 
     TrashVar(ptrans);
 
     if (!pcfl->FFind(kctgScen, cno, &blck))
         goto LFail;
-    if (!blck.FUnpackData() || blck.Cb() != size(SCENH))
+    if (!blck.FUnpackData() || blck.Cb() != size(SceneOnFile))
         goto LFail;
-    if (!blck.FReadRgb(&scenh, size(SCENH), 0))
+    if (!blck.FReadRgb(&scenh, size(SceneOnFile), 0))
         goto LFail;
 
     *ptrans = scenh.trans;
@@ -5805,19 +5805,19 @@ LFail:
 bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
     DataBlock blck;
-    SCENH scenh;
+    SceneOnFile scenh;
     PChunkyFile pcfl = pcrf->Pcfl();
 
     if (!pcfl->FFind(kctgScen, cno, &blck))
         goto LFail;
-    if (!blck.FUnpackData() || blck.Cb() != size(SCENH))
+    if (!blck.FUnpackData() || blck.Cb() != size(SceneOnFile))
         goto LFail;
-    if (!blck.FReadRgb(&scenh, size(SCENH), 0))
+    if (!blck.FReadRgb(&scenh, size(SceneOnFile), 0))
         goto LFail;
     if (scenh.trans != trans)
     {
         scenh.trans = trans;
-        if (!pcfl->FPutPv(&scenh, size(SCENH), kctgScen, cno))
+        if (!pcfl->FPutPv(&scenh, size(SceneOnFile), kctgScen, cno))
             goto LFail;
     }
 

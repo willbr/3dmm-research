@@ -185,7 +185,7 @@ LUsage:
     return 1;
 }
 
-struct SCENH
+struct SceneOnFile
 {
     short bo;
     short osk;
@@ -511,11 +511,11 @@ void DumpSceneEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
     for (chid = 0; pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgStartGg, &kid); chid++)
     {
         printf("\t\t\t\tSceneEvent()\n");
-        // SCENH scenh;
+        // SceneOnFile scenh;
         // DataBlock data_block; 
         // pcfl->FFind(kctgScen, kid.cki.cno, &data_block);
 
-        // if ( !data_block.FReadRgb(&scenh, size(SCENH), 0)) {
+        // if ( !data_block.FReadRgb(&scenh, size(SceneOnFile), 0)) {
         //     goto LFail;
         // }
     }
@@ -856,11 +856,11 @@ void DumpScenes(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
     ChildChunkID chid;
     for (chid = 0; pcfl->FGetKidChidCtg(kctgMvie, cno, chid, kctgScen, &kid); chid++)
     {
-        SCENH scenh;
+        SceneOnFile scenh;
         DataBlock data_block; 
         pcfl->FFind(kctgScen, kid.cki.cno, &data_block);
 
-        if ( !data_block.FReadRgb(&scenh, size(SCENH), 0)) {
+        if ( !data_block.FReadRgb(&scenh, size(SceneOnFile), 0)) {
             goto LFail;
         }
 
@@ -939,7 +939,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
     {
         String stnName;
         String stnTag;
-        SCENH scenh;
+        SceneOnFile scenh;
         short bo;
 
         PDynamicArray pglrpt;
@@ -975,7 +975,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             goto LEndChunk;
         
         case kctgScen:
-            if ( !blck.FReadRgb(&scenh, size(SCENH), 0)) {
+            if ( !blck.FReadRgb(&scenh, size(SceneOnFile), 0)) {
                 goto LFail;
             }
 
@@ -992,7 +992,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             }
 
             // printf("block size: %ld\n", blck.Cb());
-            // printf("block size: %ld\n", size(SCENH));
+            // printf("block size: %ld\n", size(SceneOnFile));
 
             printf("\tScene(\n");
             printf("\t\tbo=%d,\n", scenh.bo);
