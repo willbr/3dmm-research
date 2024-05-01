@@ -812,7 +812,7 @@ PAllocatedArray AllocatedArray::PalDup(void)
 }
 
 // Allocated list on file
-struct ALF
+struct AllocatedArrayOnFile
 {
     short bo;
     short osk;
@@ -829,7 +829,7 @@ long AllocatedArray::CbOnFile(void)
 {
     AssertThis(fobjAssertFull);
 
-    return size(ALF) + LwMul(_cbEntry, _ivMac) + CbFromCbit(_ivMac);
+    return size(AllocatedArrayOnFile) + LwMul(_cbEntry, _ivMac) + CbFromCbit(_ivMac);
 }
 
 /***************************************************************************
@@ -842,7 +842,7 @@ bool AllocatedArray::FWrite(PDataBlock pblck, short bo, short osk)
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
 
-    ALF alf;
+    AllocatedArrayOnFile alf;
 
     alf.bo = kboCur;
     alf.osk = osk;
@@ -868,7 +868,7 @@ bool AllocatedArray::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    ALF alf;
+    AllocatedArrayOnFile alf;
     long cbT;
     long cb;
     bool fRet = fFalse;
