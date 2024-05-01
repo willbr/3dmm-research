@@ -22,10 +22,10 @@
 const ulong kdtsSecond = MacWin(60, 1000);
 const ulong kluTimeScaleNormal = 0x00010000;
 
-typedef class USAC *PUSAC;
-#define USAC_PAR BASE
-#define kclsUSAC 'USAC'
-class USAC : public USAC_PAR
+typedef class UniversalScalableApplicationClock *PUniversalScalableApplicationClock;
+#define UniversalScalableApplicationClock_PAR BASE
+#define kclsUniversalScalableApplicationClock 'USAC'
+class UniversalScalableApplicationClock : public UniversalScalableApplicationClock_PAR
 {
     RTCLASS_DEC
 
@@ -35,7 +35,7 @@ class USAC : public USAC_PAR
     ulong _luScale;
 
   public:
-    USAC(void);
+    UniversalScalableApplicationClock(void);
 
     ulong TsCur(void);
     void Scale(ulong luScale);
@@ -49,7 +49,7 @@ class USAC : public USAC_PAR
     }
 };
 
-extern PUSAC vpusac;
+extern PUniversalScalableApplicationClock vpusac;
 
 inline ulong TsCurrent(void)
 {

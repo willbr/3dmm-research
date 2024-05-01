@@ -88,7 +88,7 @@ class ApplicationBase : public ApplicationBase_PAR
     {
         long cactLongOp;
         PCommandExecutionManager pcex;
-        PUSAC pusac;
+        PUniversalScalableApplicationClock pusac;
         ulong luScale;
     };
 

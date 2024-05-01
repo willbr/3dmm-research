@@ -1533,7 +1533,7 @@ bool ApplicationBase::FPushModal(PCommandExecutionManager pcex)
 {
     AssertThis(0);
     MODCX modcx;
-    PUSAC pusacNew = pvNil;
+    PUniversalScalableApplicationClock pusacNew = pvNil;
 
     if (pvNil == _pglmodcx && pvNil == (_pglmodcx = DynamicArray::PglNew(size(MODCX))))
     {
@@ -1552,7 +1552,7 @@ bool ApplicationBase::FPushModal(PCommandExecutionManager pcex)
         pcex->AddRef();
 
     if (pvNil == pcex && pvNil == (pcex = CommandExecutionManager::PcexNew(20, 20)) || !pcex->FAddCmh(vpappb, kcmhlAppb) ||
-        pvNil == (pusacNew = NewObj USAC))
+        pvNil == (pusacNew = NewObj UniversalScalableApplicationClock))
     {
         ReleasePpo(&pcex);
         AssertDo(_pglmodcx->FPop(), 0);

@@ -22,7 +22,7 @@
 #include "util.h"
 ASSERTNAME
 
-RTCLASS(USAC)
+RTCLASS(UniversalScalableApplicationClock)
 
 // Allocate globals in utilglob before any other globals to avoid crashes on exit
 #pragma init_seg(lib)
@@ -48,8 +48,8 @@ CODM vcodmUtil(&vkcdcUtil, kcfmtKauai2);
 PCODM vpcodmUtil = &vcodmUtil;
 
 // Standard scalable application clok.
-USAC _usac;
-PUSAC vpusac = &_usac;
+UniversalScalableApplicationClock _usac;
+PUniversalScalableApplicationClock vpusac = &_usac;
 
 #ifdef DEBUG
 

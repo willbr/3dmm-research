@@ -1078,7 +1078,7 @@ void RAT::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the master clock.
 ***************************************************************************/
-USAC::USAC(void)
+UniversalScalableApplicationClock::UniversalScalableApplicationClock(void)
 {
     AssertThisMem();
     _tsBaseSys = MacWin(TickCount(), timeGetTime());
@@ -1089,7 +1089,7 @@ USAC::USAC(void)
 /***************************************************************************
     Return the current application time.
 ***************************************************************************/
-ulong USAC::TsCur(void)
+ulong UniversalScalableApplicationClock::TsCur(void)
 {
     AssertThisMem();
     ulong dtsSys = TsCurrentSystem() - _tsBaseSys;
@@ -1107,7 +1107,7 @@ ulong USAC::TsCur(void)
 /***************************************************************************
     Scale the time.
 ***************************************************************************/
-void USAC::Scale(ulong luScale)
+void UniversalScalableApplicationClock::Scale(ulong luScale)
 {
     AssertThisMem();
     ulong tsSys, dts;
