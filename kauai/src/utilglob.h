@@ -93,7 +93,7 @@ extern PCODM vpcodmUtil;
     Debug memory globals
 ***************************************************************************/
 #ifdef DEBUG
-extern DMGLOB vdmglob;
+extern DebugMemoryGlobals vdmglob;
 #endif // DEBUG
 
 #endif //! UTILGLOB_H

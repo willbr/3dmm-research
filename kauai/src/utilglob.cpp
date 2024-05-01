@@ -54,6 +54,6 @@ PUniversalScalableApplicationClock vpusac = &_usac;
 #ifdef DEBUG
 
 // Debug memory globals
-DMGLOB vdmglob;
+DebugMemoryGlobals vdmglob;
 
 #endif // DEBUG

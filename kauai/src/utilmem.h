@@ -116,13 +116,13 @@ struct DMAGL
 };
 
 // debug memory globals
-struct DMGLOB
+struct DebugMemoryGlobals
 {
     DMAGL dmaglBase; // for NewObj
     DMAGL dmaglHq;   // for HQs
     DMAGL dmaglPv;   // for FAllocPv, etc
 };
-extern DMGLOB vdmglob;
+extern DebugMemoryGlobals vdmglob;
 
 extern long vcactSuspendCheckPointers;
 #define SuspendCheckPointers() vcactSuspendCheckPointers++;
