@@ -2956,7 +2956,7 @@ bool S2B::_FDoBodyPart(PBMHR pbmhr, long ibp)
 
                 if (fUseMtrl)
                 {
-                    CMTLF cmtlf;
+                    CustomMaterialOnFile cmtlf;
 
                     _chidCmtl++;
 

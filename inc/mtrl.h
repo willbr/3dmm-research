@@ -18,7 +18,7 @@
 using namespace BRender;
 
 // CustomMaterial_CMTL on File
-struct CMTLF
+struct CustomMaterialOnFile
 {
     short bo;
     short osk;

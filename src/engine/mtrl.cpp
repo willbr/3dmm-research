@@ -551,21 +551,21 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNu
     ChildChunkIdentification kid;
     DataBlock blck;
     PChunkyFile pcfl = pcrf->Pcfl();
-    CMTLF cmtlf;
+    CustomMaterialOnFile cmtlf;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
 
-    if (blck.Cb() != size(CMTLF))
+    if (blck.Cb() != size(CustomMaterialOnFile))
     {
-        Bug("bad CMTLF...you may need to update tmpls.chk");
+        Bug("bad CustomMaterialOnFile...you may need to update tmpls.chk");
         return fFalse;
     }
-    if (!blck.FReadRgb(&cmtlf, size(CMTLF), 0))
+    if (!blck.FReadRgb(&cmtlf, size(CustomMaterialOnFile), 0))
         return fFalse;
     if (kboOther == cmtlf.bo)
         SwapBytesBom(&cmtlf, kbomCmtlf);
-    Assert(kboCur == cmtlf.bo, "bad CMTLF");
+    Assert(kboCur == cmtlf.bo, "bad CustomMaterialOnFile");
     _ibset = cmtlf.ibset;
 
     // Highest chid is number of body part sets - 1
