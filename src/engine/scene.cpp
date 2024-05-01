@@ -27,9 +27,9 @@
 
             BASE ---> UndoBase ---> MovieUndo ---> SceneUndoPause
 
-        Scene Text box Undo Object (SUNX)
+        Scene Text box Undo Object (SceneUndoText)
 
-            BASE ---> UndoBase ---> MovieUndo ---> SUNX
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoText
 
         Scene Sound Undo Object (SUNS)
 
@@ -320,11 +320,11 @@ class SceneUndoPause : public SceneUndoPause_PAR
 //
 // Undo object for text box operations
 //
-typedef class SUNX *PSUNX;
+typedef class SceneUndoText *PSceneUndoText;
 
-#define SUNX_PAR MovieUndo
-#define kclsSUNX 'SUNX'
-class SUNX : public SUNX_PAR
+#define SceneUndoText_PAR MovieUndo
+#define kclsSceneUndoText 'SUNX'
+class SceneUndoText : public SceneUndoText_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -336,13 +336,13 @@ class SUNX : public SUNX_PAR
     long _itbox;
     long _nfrmFirst;
     long _nfrmLast;
-    SUNX(void)
+    SceneUndoText(void)
     {
     }
 
   public:
-    static PSUNX PsunxNew(void);
-    ~SUNX(void);
+    static PSceneUndoText PsunxNew(void);
+    ~SceneUndoText(void);
 
     void SetNfrmFirst(long nfrm)
     {
@@ -452,7 +452,7 @@ RTCLASS(SUNS)
 RTCLASS(SceneActorUndo)
 RTCLASS(SceneUndoBackground)
 RTCLASS(SceneUndoPause)
-RTCLASS(SUNX)
+RTCLASS(SceneUndoText)
 RTCLASS(SceneUndoChop)
 RTCLASS(SUNR)
 
@@ -2943,11 +2943,11 @@ bool Scene::FAddTboxCore(PTBOX ptbox)
  ****************************************************/
 bool Scene::FAddTbox(PTBOX ptbox)
 {
-    PSUNX psunx;
+    PSceneUndoText psunx;
     long itbox;
     long nfrmFirst, nfrmLast;
 
-    psunx = SUNX::PsunxNew();
+    psunx = SceneUndoText::PsunxNew();
 
     if (psunx == pvNil)
     {
@@ -3096,10 +3096,10 @@ bool Scene::FRemTbox(PTBOX ptbox)
     AssertThis(0);
     AssertPo(ptbox, 0);
 
-    PSUNX psunx;
+    PSceneUndoText psunx;
     long nfrmFirst, nfrmLast;
 
-    psunx = SUNX::PsunxNew();
+    psunx = SceneUndoText::PsunxNew();
 
     if (psunx == pvNil)
     {
@@ -6353,10 +6353,10 @@ void SceneActorUndo::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNX SUNX::PsunxNew()
+PSceneUndoText SceneUndoText::PsunxNew()
 {
-    PSUNX psunx;
-    psunx = NewObj SUNX();
+    PSceneUndoText psunx;
+    psunx = NewObj SceneUndoText();
     return (psunx);
 }
 
@@ -6365,7 +6365,7 @@ PSUNX SUNX::PsunxNew()
  * Destructor for scene text box undo objects
  *
  ****************************************************/
-SUNX::~SUNX(void)
+SceneUndoText::~SceneUndoText(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_ptbox);
@@ -6382,7 +6382,7 @@ SUNX::~SUNX(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNX::FDo(PDocumentBase pdocb)
+bool SceneUndoText::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6474,7 +6474,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNX::FUndo(PDocumentBase pdocb)
+bool SceneUndoText::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6555,7 +6555,7 @@ LFail:
 }
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNX
+ * Mark memory used by the SceneUndoText
  *
  * Parameters:
  * 	None.
@@ -6564,17 +6564,17 @@ LFail:
  *  None.
  *
  ****************************************************/
-void SUNX::MarkMem(void)
+void SceneUndoText::MarkMem(void)
 {
     AssertThis(0);
-    SUNX_PAR::MarkMem();
+    SceneUndoText_PAR::MarkMem();
     MarkMemObj(_ptbox);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNX.
+    Assert the validity of the SceneUndoText.
 ***************************************************************************/
-void SUNX::AssertValid(ulong grf)
+void SceneUndoText::AssertValid(ulong grf)
 {
     AssertPo(_ptbox, 0);
 }
