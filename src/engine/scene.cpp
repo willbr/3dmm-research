@@ -23,9 +23,9 @@
 
             BASE ---> UndoBase ---> MovieUndo ---> SceneUndoBackground
 
-        Scene Pause Undo Object (SUNP)
+        Scene Pause Undo Object (SceneUndoPause)
 
-            BASE ---> UndoBase ---> MovieUndo ---> SUNP
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoPause
 
         Scene Text box Undo Object (SUNX)
 
@@ -278,11 +278,11 @@ class SUNR : public SUNR_PAR
 //
 // Undo object for pause operations
 //
-typedef class SUNP *PSUNP;
+typedef class SceneUndoPause *PSceneUndoPause;
 
-#define SUNP_PAR MovieUndo
-#define kclsSUNP 'SUNP'
-class SUNP : public SUNP_PAR
+#define SceneUndoPause_PAR MovieUndo
+#define kclsSceneUndoPause 'SUNP'
+class SceneUndoPause : public SceneUndoPause_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -292,13 +292,13 @@ class SUNP : public SUNP_PAR
     WaitReason _wit;
     long _dts;
     bool _fAdd;
-    SUNP(void)
+    SceneUndoPause(void)
     {
     }
 
   public:
-    static PSUNP PsunpNew(void);
-    ~SUNP(void);
+    static PSceneUndoPause PsunpNew(void);
+    ~SceneUndoPause(void);
 
     void SetWit(WaitReason wit)
     {
@@ -451,7 +451,7 @@ RTCLASS(SUNT)
 RTCLASS(SUNS)
 RTCLASS(SceneActorUndo)
 RTCLASS(SceneUndoBackground)
-RTCLASS(SUNP)
+RTCLASS(SceneUndoPause)
 RTCLASS(SUNX)
 RTCLASS(SceneUndoChop)
 RTCLASS(SUNR)
@@ -3271,9 +3271,9 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
  ****************************************************/
 bool Scene::FPause(WaitReason wit, long dts)
 {
-    PSUNP psunp;
+    PSceneUndoPause psunp;
 
-    psunp = SUNP::PsunpNew();
+    psunp = SceneUndoPause::PsunpNew();
 
     if (psunp == pvNil)
     {
@@ -6704,10 +6704,10 @@ void SUNR::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNP SUNP::PsunpNew()
+PSceneUndoPause SceneUndoPause::PsunpNew()
 {
-    PSUNP psunp;
-    psunp = NewObj SUNP();
+    PSceneUndoPause psunp;
+    psunp = NewObj SceneUndoPause();
     return (psunp);
 }
 
@@ -6716,7 +6716,7 @@ PSUNP SUNP::PsunpNew()
  * Destructor for scene pause undo objects
  *
  ****************************************************/
-SUNP::~SUNP(void)
+SceneUndoPause::~SceneUndoPause(void)
 {
     AssertBaseThis(0);
 }
@@ -6732,7 +6732,7 @@ SUNP::~SUNP(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNP::FDo(PDocumentBase pdocb)
+bool SceneUndoPause::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6775,14 +6775,14 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNP::FUndo(PDocumentBase pdocb)
+bool SceneUndoPause::FUndo(PDocumentBase pdocb)
 {
     return (FDo(pdocb));
 }
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNP
+ * Mark memory used by the SceneUndoPause
  *
  * Parameters:
  * 	None.
@@ -6791,16 +6791,16 @@ bool SUNP::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void SUNP::MarkMem(void)
+void SceneUndoPause::MarkMem(void)
 {
     AssertThis(0);
-    SUNP_PAR::MarkMem();
+    SceneUndoPause_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNP.
+    Assert the validity of the SceneUndoPause.
 ***************************************************************************/
-void SUNP::AssertValid(ulong grf)
+void SceneUndoPause::AssertValid(ulong grf)
 {
 }
 #endif
