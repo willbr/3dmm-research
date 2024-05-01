@@ -15,18 +15,18 @@
     and applies browser selections.
 
     Studio Independent Browsers:
-    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
-    BRWD --> BRWL  (Browser list class; chunky based)
-    BRWD --> BRWT  (Browser text class)
-    BRWD --> BRWL --> BRWN  (Browser named list class)
+    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
+    BrowserDisplay --> BRWL  (Browser list class; chunky based)
+    BrowserDisplay --> BRWT  (Browser text class)
+    BrowserDisplay --> BRWL --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
-    BRWD --> BRWT --> BRWA  (Browser action class)
-    BRWD --> BRWL --> BRWP	(Browser prop/actor class)
-    BRWD --> BRWL --> BRWB	(Browser background class)
-    BRWD --> BRWL --> BRWC	(Browser camera class)
-    BRWD --> BRWL --> BRWN --> BRWM (Browser music class)
-    BRWD --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BRWT --> BRWA  (Browser action class)
+    BrowserDisplay --> BRWL --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BRWL --> BRWB	(Browser background class)
+    BrowserDisplay --> BRWL --> BRWC	(Browser camera class)
+    BrowserDisplay --> BRWL --> BRWN --> BRWM (Browser music class)
+    BrowserDisplay --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
 
 NOTE:  In this implementation, browsers are considered to be studio related.
 If for any reason one wanted to decouple them from the studio, then	it would
@@ -76,8 +76,8 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     AssertVarMem(pcmd);
 
     bool fSuccess = fFalse;
-    PBRCN pbrcn = pvNil; // Browser context carryover
-    PBRWD pbrwd = pvNil;
+    PBrowserContext pbrcn = pvNil; // Browser context carryover
+    PBrowserDisplay pbrwd = pvNil;
     ChunkIdentification ckiRoot;
     TAG tag;
     PTAG ptag;
@@ -96,7 +96,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     // Optionally Save/Retrieve Browser Context
     if (_pglpbrcn == pvNil)
     {
-        if (pvNil == (_pglpbrcn = DynamicArray::PglNew(size(PBRCN), kglpbrcnGrow)))
+        if (pvNil == (_pglpbrcn = DynamicArray::PglNew(size(PBrowserContext), kglpbrcnGrow)))
             goto LFail;
     }
 
@@ -124,7 +124,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             sid = tag.sid;
         }
 
-        pbrwd = (PBRWD)(BRWB::PbrwbNew(_pcrm));
+        pbrwd = (PBrowserDisplay)(BRWB::PbrwbNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;
 
@@ -150,7 +150,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         ckiRoot.cno = _pmvie->Pscen()->Pbkgd()->Cno();
 
         thumSelect = _pmvie->Pscen()->Pbkgd()->Icam();
-        pbrwd = (PBRWD)(BRWC::PbrwcNew(_pcrm));
+        pbrwd = (PBrowserDisplay)(BRWC::PbrwcNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;
 
@@ -166,11 +166,11 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
     case kidBrwsProp:
         ckiRoot.ctg = kctgPrth;
-        pbrwd = (PBRWD)(BRWP::PbrwpNew(_pcrm, kidPropGlass));
+        pbrwd = (PBrowserDisplay)(BRWP::PbrwpNew(_pcrm, kidPropGlass));
         goto LActor;
     case kidBrwsActor:
         ckiRoot.ctg = kctgTmth;
-        pbrwd = (PBRWD)(BRWP::PbrwpNew(_pcrm, kidActorGlass));
+        pbrwd = (PBrowserDisplay)(BRWP::PbrwpNew(_pcrm, kidActorGlass));
     LActor:
         ckiRoot.cno = cnoNil;
         Assert(pvNil != _pmvie->Pscen(), "Actor browser requires scene");
@@ -194,7 +194,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             goto LFail;
         }
         thumSelect = _pmvie->Pscen()->PactrSelected()->AnidCur();
-        pbrwd = (PBRWD)BRWA::PbrwaNew(_pcrm);
+        pbrwd = (PBrowserDisplay)BRWA::PbrwaNew(_pcrm);
 
         if (pvNil == pbrwd)
             goto LFail;
@@ -214,15 +214,15 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
     case kidBrwsFX:
         ckiRoot.ctg = kctgSfth;
-        pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
+        pbrwd = (PBrowserDisplay)(BRWM::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
         goto LMusic;
     case kidBrwsSpeech:
         ckiRoot.ctg = kctgSvth;
-        pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
+        pbrwd = (PBrowserDisplay)(BRWM::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
         goto LMusic;
     case kidBrwsMidi:
         ckiRoot.ctg = kctgSmth;
-        pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
+        pbrwd = (PBrowserDisplay)(BRWM::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
     LMusic:
         if (pvNil == pbrwd)
             goto LFail;
@@ -255,19 +255,19 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     //
     case kidBrwsImportFX:
         ckiRoot.ctg = kctgSfth;
-        pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
+        pbrwd = (PBrowserDisplay)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
         goto LImport;
     case kidBrwsImportSpeech:
         ckiRoot.ctg = kctgSvth;
-        pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
+        pbrwd = (PBrowserDisplay)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
         goto LImport;
     case kidBrwsImportMidi:
         ckiRoot.ctg = kctgSmth;
-        pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
+        pbrwd = (PBrowserDisplay)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
     LImport:
         if (pvNil == pbrwd)
             goto LFail;
-        // Build the string table before initializing the BRWD
+        // Build the string table before initializing the BrowserDisplay
         if (!((PBRWI)pbrwd)->FInit(pcmd, ckiRoot, this))
         {
             goto LFail;
@@ -277,7 +277,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     case kidRollCallProp:
         Assert(pvNil == _pbrwrProp, "Roll Call browser already up");
         _pbrwrProp = BRWR::PbrwrNew(_pcrm, kidRollCallProp);
-        pbrwd = (PBRWD)_pbrwrProp;
+        pbrwd = (PBrowserDisplay)_pbrwrProp;
         if (pvNil == pbrwd)
             goto LFail;
 
@@ -296,7 +296,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     case kidRollCallActor:
         Assert(pvNil == _pbrwrActr, "Roll Call browser already up");
         _pbrwrActr = BRWR::PbrwrNew(_pcrm, kidRollCallActor);
-        pbrwd = (PBRWD)_pbrwrActr;
+        pbrwd = (PBrowserDisplay)_pbrwrActr;
         if (pvNil == pbrwd)
             goto LFail;
 
@@ -352,7 +352,7 @@ LFail:
 void Studio::ReleaseBrcn(void)
 {
     long ipbrcn;
-    PBRCN pbrcn;
+    PBrowserContext pbrcn;
 
     if (pvNil == _pglpbrcn)
         return;
@@ -370,11 +370,11 @@ void Studio::ReleaseBrcn(void)
  * Locate a browser pbrwd
  *
  **************************************************************************/
-PBRCN Studio::_PbrcnFromBrwdid(long brwdid)
+PBrowserContext Studio::_PbrcnFromBrwdid(long brwdid)
 {
     AssertThis(0);
     long ipbrcn;
-    PBRCN pbrcn;
+    PBrowserContext pbrcn;
 
     for (ipbrcn = 0; ipbrcn < _pglpbrcn->IvMac(); ipbrcn++)
     {

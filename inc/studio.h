@@ -76,7 +76,7 @@ class Studio : public Studio_PAR
     bool _FOpenStudio(bool fPaletteFade);
     void _SetToolStates(void);
     bool _FBuildMenuCidCtg(long cid, ChunkTag ctg, PDynamicArray pgl, ulong grfHotKey, ulong grfNum, bool fNew);
-    PBRCN _PbrcnFromBrwdid(long brwdid);
+    PBrowserContext _PbrcnFromBrwdid(long brwdid);
 #ifdef BUG1959
     bool _FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld);
 #endif // BUG1959

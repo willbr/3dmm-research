@@ -9,7 +9,7 @@
              MPFNT: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BRWD ---> BRWL ---> MP
+    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BRWL ---> MP
                                           |
                                           +------> BRWT ---> MPFNT
 

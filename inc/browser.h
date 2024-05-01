@@ -9,19 +9,19 @@
     Review Status: Reviewed
 
     Studio Independent Browsers:
-    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BRWD  (Browser display class)
-    BRWD --> BRWL  (Browser list class; chunky based)
-    BRWD --> BRWT  (Browser text class)
-    BRWD --> BRWL --> BRWN  (Browser named list class)
+    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
+    BrowserDisplay --> BRWL  (Browser list class; chunky based)
+    BrowserDisplay --> BRWT  (Browser text class)
+    BrowserDisplay --> BRWL --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
-    BRWD --> BRWR  (Roll call class)
-    BRWD --> BRWT --> BRWA  (Browser action class)
-    BRWD --> BRWL --> BRWP	(Browser prop/actor class)
-    BRWD --> BRWL --> BRWB	(Browser background class)
-    BRWD --> BRWL --> BRWC	(Browser camera class)
-    BRWD --> BRWL --> BRWN --> BRWM (Browser music class)
-    BRWD --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BRWR  (Roll call class)
+    BrowserDisplay --> BRWT --> BRWA  (Browser action class)
+    BrowserDisplay --> BRWL --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BRWL --> BRWB	(Browser background class)
+    BrowserDisplay --> BRWL --> BRWC	(Browser camera class)
+    BrowserDisplay --> BRWL --> BRWN --> BRWM (Browser music class)
+    BrowserDisplay --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -48,17 +48,17 @@ const auto kBrwsScript = (kstDefault << 16) | kchidBrowserDismiss;
     of the same browser
 
 *************************************/
-#define BRCN_PAR BASE
-#define kclsBRCN 'BRCN'
-typedef class BRCN *PBRCN;
-class BRCN : public BRCN_PAR
+#define BrowserContext_PAR BASE
+#define kclsBrowserContext 'BRCN'
+typedef class BrowserContext *PBrowserContext;
+class BrowserContext : public BrowserContext_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    BRCN(void){};
+    BrowserContext(void){};
 
   public:
     long brwdid;
@@ -99,16 +99,16 @@ const ByteOrderMask kbomTfc = 0x5f000000;
    Browser Display Class
 
 *************************************/
-#define BRWD_PAR KidspaceGraphicObject
-#define kclsBRWD 'BRWD'
+#define BrowserDisplay_PAR KidspaceGraphicObject
+#define kclsBrowserDisplay 'BRWD'
 #define brwdidNil ivNil
-typedef class BRWD *PBRWD;
-class BRWD : public BRWD_PAR
+typedef class BrowserDisplay *PBrowserDisplay;
+class BrowserDisplay : public BrowserDisplay_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(BRWD)
+    CMD_MAP_DEC(BrowserDisplay)
 
   protected:
     long _kidFrmFirst;     // kid of first frame
@@ -117,7 +117,7 @@ class BRWD : public BRWD_PAR
     long _dypFrmOffset;    // y inset of thumb in frame
     long _sidDefault;      // default sid
     long _thumDefault;     // default thum
-    PBRCN _pbrcn;          // context carryover
+    PBrowserContext _pbrcn;          // context carryover
     long _idsFont;         // string id of Font
     long _kidThumOverride; // projects may override one thum gobid
     long _ithumOverride;   // projects may override one thum gobid
@@ -193,14 +193,14 @@ class BRWD : public BRWD_PAR
     //
     // Constructors and destructors
     //
-    BRWD(PGraphicsObjectBlock pgcb) : BRWD_PAR(pgcb)
+    BrowserDisplay(PGraphicsObjectBlock pgcb) : BrowserDisplay_PAR(pgcb)
     {
         _ithumOverride = -1;
         _kidThumOverride = -1;
     }
-    ~BRWD(void);
+    ~BrowserDisplay(void);
 
-    static PBRWD PbrwdNew(PResourceCache prca, long kidPar, long kidBrwd);
+    static PBrowserDisplay PbrwdNew(PResourceCache prca, long kidPar, long kidBrwd);
     void Init(PCommand pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FDraw(void);
@@ -239,7 +239,7 @@ class BRWD : public BRWD_PAR
     of the same browser
 
 *************************************/
-#define BRCNL_PAR BRCN
+#define BRCNL_PAR BrowserContext
 #define kclsBRCNL 'brcl'
 typedef class BRCNL *PBRCNL;
 class BRCNL : public BRCNL_PAR
@@ -387,7 +387,7 @@ class BCLS : public BCLS_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWL_PAR BRWD
+#define BRWL_PAR BrowserDisplay
 #define kclsBRWL 'BRWL'
 typedef class BRWL *PBRWL;
 
@@ -465,7 +465,7 @@ class BRWL : public BRWL_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWT_PAR BRWD
+#define BRWT_PAR BrowserDisplay
 #define kclsBRWT 'BRWT'
 typedef class BRWT *PBRWT;
 class BRWT : public BRWT_PAR
@@ -756,7 +756,7 @@ class BRWI : public BRWI_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWR_PAR BRWD
+#define BRWR_PAR BrowserDisplay
 #define kclsBRWR 'BRWR'
 typedef class BRWR *PBRWR;
 class BRWR : public BRWR_PAR

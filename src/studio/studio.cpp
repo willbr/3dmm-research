@@ -2707,7 +2707,7 @@ void Studio::MarkMem(void)
     // Mark browser objects
     //
     long ipbrcn;
-    PBRCN pbrcn;
+    PBrowserContext pbrcn;
 
     if (_pglpbrcn != pvNil)
     {
