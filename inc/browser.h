@@ -193,7 +193,7 @@ class BRWD : public BRWD_PAR
     //
     // Constructors and destructors
     //
-    BRWD(PGCB pgcb) : BRWD_PAR(pgcb)
+    BRWD(PGraphicsObjectBlock pgcb) : BRWD_PAR(pgcb)
     {
         _ithumOverride = -1;
         _kidThumOverride = -1;
@@ -449,7 +449,7 @@ class BRWL : public BRWL_PAR
     //
     // Constructors and destructors
     //
-    BRWL(PGCB pgcb) : BRWL_PAR(pgcb)
+    BRWL(PGraphicsObjectBlock pgcb) : BRWL_PAR(pgcb)
     {
     }
     ~BRWL(void);
@@ -492,7 +492,7 @@ class BRWT : public BRWT_PAR
     //
     // Constructors and destructors
     //
-    BRWT(PGCB pgcb) : BRWT_PAR(pgcb)
+    BRWT(PGraphicsObjectBlock pgcb) : BRWT_PAR(pgcb)
     {
         _idsFont = idsNil;
     }
@@ -530,7 +530,7 @@ class BRWN : public BRWN_PAR
     //
     // Constructors and destructors
     //
-    BRWN(PGCB pgcb) : BRWN_PAR(pgcb)
+    BRWN(PGraphicsObjectBlock pgcb) : BRWN_PAR(pgcb)
     {
     }
     ~BRWN(void){};
@@ -572,7 +572,7 @@ class BRWA : public BRWA_PAR
     //
     // Constructors and destructors
     //
-    BRWA(PGCB pgcb) : BRWA_PAR(pgcb)
+    BRWA(PGraphicsObjectBlock pgcb) : BRWA_PAR(pgcb)
     {
         _idsFont = idsActionFont;
         _celnStart = 0;
@@ -607,7 +607,7 @@ class BRWP : public BRWP_PAR
     //
     // Constructors and destructors
     //
-    BRWP(PGCB pgcb) : BRWP_PAR(pgcb)
+    BRWP(PGraphicsObjectBlock pgcb) : BRWP_PAR(pgcb)
     {
     }
     ~BRWP(void){};
@@ -635,7 +635,7 @@ class BRWB : public BRWB_PAR
     //
     // Constructors and destructors
     //
-    BRWB(PGCB pgcb) : BRWB_PAR(pgcb)
+    BRWB(PGraphicsObjectBlock pgcb) : BRWB_PAR(pgcb)
     {
     }
     ~BRWB(void){};
@@ -667,7 +667,7 @@ class BRWC : public BRWC_PAR
     //
     // Constructors and destructors
     //
-    BRWC(PGCB pgcb) : BRWC_PAR(pgcb)
+    BRWC(PGraphicsObjectBlock pgcb) : BRWC_PAR(pgcb)
     {
     }
     ~BRWC(void){};
@@ -704,7 +704,7 @@ class BRWM : public BRWM_PAR
     //
     // Constructors and destructors
     //
-    BRWM(PGCB pgcb) : BRWM_PAR(pgcb)
+    BRWM(PGraphicsObjectBlock pgcb) : BRWM_PAR(pgcb)
     {
         _idsFont = idsSoundFont;
     }
@@ -740,7 +740,7 @@ class BRWI : public BRWI_PAR
     //
     // Constructors and destructors
     //
-    BRWI(PGCB pgcb) : BRWI_PAR(pgcb)
+    BRWI(PGraphicsObjectBlock pgcb) : BRWI_PAR(pgcb)
     {
         _idsFont = idsSoundFont;
     }
@@ -784,7 +784,7 @@ class BRWR : public BRWR_PAR
     //
     // Constructors and destructors
     //
-    BRWR(PGCB pgcb) : BRWR_PAR(pgcb)
+    BRWR(PGraphicsObjectBlock pgcb) : BRWR_PAR(pgcb)
     {
         _fApplyingSel = fFalse;
         _idsFont = idsRollCallFont;

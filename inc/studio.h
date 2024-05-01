@@ -72,7 +72,7 @@ class Studio : public Studio_PAR
     PTGOB _ptgobTitle;
     bool _fStartedSoonerLater;
 
-    Studio(PGCB pgcb) : GraphicsObject(pgcb){};
+    Studio(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb){};
     bool _FOpenStudio(bool fPaletteFade);
     void _SetToolStates(void);
     bool _FBuildMenuCidCtg(long cid, ChunkTag ctg, PDynamicArray pgl, ulong grfHotKey, ulong grfNum, bool fNew);

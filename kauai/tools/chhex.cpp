@@ -39,7 +39,7 @@ class DHEX : public DHEX_PAR
         return &_bsf;
     }
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
 };
 
 RTCLASS(DCH)
@@ -63,7 +63,7 @@ PDHEX DHEX::PdhexNew(void)
 /***************************************************************************
     Create a new DCH displaying this stream.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DHEX::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DHEX::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DCH::PdchNew(this, &_bsf, fFalse, pgcb);
 }
@@ -92,7 +92,7 @@ void DHEX::MarkMem(void)
 /***************************************************************************
     Constructor for the DCH.
 ***************************************************************************/
-DCH::DCH(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCH::DCH(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGraphicsObjectBlock pgcb) : DCLB(pdocb, pgcb)
 {
     _pbsf = pbsf;
     _cbLine = kcbMaxLineDch;
@@ -103,7 +103,7 @@ DCH::DCH(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb) : DC
 /***************************************************************************
     Static method to create a new DCH.
 ***************************************************************************/
-PDCH DCH::PdchNew(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGCB pgcb)
+PDCH DCH::PdchNew(PDocumentBase pdocb, PFileByteStream pbsf, bool fFixed, PGraphicsObjectBlock pgcb)
 {
     PDCH pdch;
 
@@ -1171,7 +1171,7 @@ bool DOCH::_FRead(PDataBlock pblck)
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject for the doc.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCH::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCH::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return DCH::PdchNew(this, &_bsf, fFalse, pgcb);

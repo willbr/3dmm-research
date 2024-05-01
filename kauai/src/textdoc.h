@@ -46,7 +46,7 @@ class TXDC : public TXDC_PAR
         return _pbsf;
     }
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     virtual bool FGetFni(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
@@ -92,7 +92,7 @@ class TXDD : public TXDD_PAR
     long _ichMinCache;
     long _ichLimCache;
 
-    TXDD(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
+    TXDD(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
     ~TXDD(void);
     virtual bool _FInit(void);
     virtual void _NewRc(void);
@@ -139,7 +139,7 @@ class TXDD : public TXDD_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PTXDD PtxddNew(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
+    static PTXDD PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);

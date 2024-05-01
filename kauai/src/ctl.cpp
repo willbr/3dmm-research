@@ -27,7 +27,7 @@ RTCLASS(WSB)
 /***************************************************************************
     Constructor for a control.
 ***************************************************************************/
-CTL::CTL(PGCB pgcb) : GraphicsObject(pgcb)
+CTL::CTL(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _hctl = hNil;
 }
@@ -170,7 +170,7 @@ void CTL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Static method to create a scroll bar.
 ***************************************************************************/
-PSCB SCB::PscbNew(PGCB pgcb, ulong grfscb, long val, long valMin, long valMax)
+PSCB SCB::PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val, long valMin, long valMax)
 {
     Assert(FPure(grfscb & fscbHorz) != FPure(grfscb & fscbVert), "exactly one of (fscbHorz,fscbVert) should be set");
     PSCB pscb;

@@ -49,7 +49,7 @@ PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ct
 /****************************************************************************
     Create a new display gob for the MaskedBitmapMBMP document.
 ****************************************************************************/
-PDocumentDisplayGraphicsObject DOCMBMP::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCMBMP::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DCMBMP::PdcmbmpNew(this, _pmbmp, pgcb);
 }
@@ -109,7 +109,7 @@ void DOCMBMP::MarkMem(void)
 /*****************************************************************************
     Constructor for a pic display gob.
 *****************************************************************************/
-DCMBMP::DCMBMP(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+DCMBMP::DCMBMP(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     _pmbmp = pmbmp;
 }
@@ -125,7 +125,7 @@ void DCMBMP::GetMinMax(RC *prcMinMax)
 /*****************************************************************************
     Static method to create a new DCMBMP.
 *****************************************************************************/
-PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGCB pgcb)
+PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGraphicsObjectBlock pgcb)
 {
     PDCMBMP pdcmbmp;
 

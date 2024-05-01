@@ -49,7 +49,7 @@ class SPLOT : public SPLOT_PAR
     /* Miscellaneous stuff */
     PDynamicArray _pglclrSav;
 
-    SPLOT(PGCB pgcb) : SPLOT_PAR(pgcb)
+    SPLOT(PGraphicsObjectBlock pgcb) : SPLOT_PAR(pgcb)
     {
         _fDirty = fFalse;
         _pbclBkgd = _pbclCam = _pbclActr = _pbclProp = _pbclSound = pvNil;

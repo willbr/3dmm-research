@@ -201,7 +201,7 @@ PDOC DOC::PdocNew(Filename *pfni)
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject for the doc.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOC::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return DCD::PdcdNew(this, _pcfl, pgcb);
@@ -507,7 +507,7 @@ void DOCE::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for a DCLB.
 ***************************************************************************/
-DCLB::DCLB(PDocumentBase pdocb, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+DCLB::DCLB(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     achar ch;
     RC rc;
@@ -655,7 +655,7 @@ void DCLB::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the DCD.
 ***************************************************************************/
-DCD::DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
+DCD::DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGraphicsObjectBlock pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
 {
     _pcfl = pcfl;
     _dypBorder = 1;
@@ -667,7 +667,7 @@ DCD::DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), 
 /***************************************************************************
     Static method to create a new DCD.
 ***************************************************************************/
-PDCD DCD::PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGCB pgcb)
+PDCD DCD::PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGraphicsObjectBlock pgcb)
 {
     PDCD pdcd;
 

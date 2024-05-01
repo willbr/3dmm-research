@@ -70,7 +70,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     long _ibsetOnlyAcc; // ibset of accessory, if only one (else ivNil)
 
   protected:
-    ActorPreviewEntity(PGCB pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
+    ActorPreviewEntity(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
     bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca);
@@ -82,7 +82,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
-    static PActorPreviewEntity PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
+    static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
     ~ActorPreviewEntity();
 
     void SetToolMtrl(PTAG ptagMtrl);

@@ -132,13 +132,13 @@ class TopicGraphicsObject : public TopicGraphicsObject_PAR
     ulong _grfcust;
     PWorldOfKidspace _pwoks;
 
-    TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
+    TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);
     virtual bool _FInit(void);
     virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic = cnoNil,
                              long *plwRet = pvNil);
 
   public:
-    static PTopicGraphicsObject PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb);
+    static PTopicGraphicsObject PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);
 
     PTextDocument Ptxhd(void)
     {

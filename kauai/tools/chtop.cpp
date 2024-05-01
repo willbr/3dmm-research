@@ -118,7 +118,7 @@ PHEDO HEDO::PhedoNew(Filename *pfni, PResourceCache prca)
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject for the HEDO.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject HEDO::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject HEDO::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return HEDG::PhedgNew(this, _pcfl, pgcb);
@@ -520,7 +520,7 @@ void TSEL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the HEDG.
 ***************************************************************************/
-HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb) : DocumentDisplayGraphicsObject(phedo, pgcb), _tsel(pcfl)
+HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(phedo, pgcb), _tsel(pcfl)
 {
     AssertPo(pcfl, 0);
     RC rc;
@@ -541,7 +541,7 @@ HEDG::HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb) : DocumentDisplayGraphicsOb
 /***************************************************************************
     Static method to create a new HEDG.
 ***************************************************************************/
-PHEDG HEDG::PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb)
+PHEDG HEDG::PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGraphicsObjectBlock pgcb)
 {
     PHEDG phedg;
 
@@ -1927,7 +1927,7 @@ PDocumentMDIWindow HETD::PdmdNew(void)
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject for the HETD.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject HETD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject HETD::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return HETG::PhetgNew(this, pgcb);
@@ -2167,7 +2167,7 @@ void HETD::MarkMem(void)
 /***************************************************************************
     Constructor for a help text editing gob.
 ***************************************************************************/
-HETG::HETG(PHETD phetd, PGCB pgcb) : HETG_PAR(phetd, pgcb)
+HETG::HETG(PHETD phetd, PGraphicsObjectBlock pgcb) : HETG_PAR(phetd, pgcb)
 {
     _fMark = fTrue;
 }
@@ -2175,7 +2175,7 @@ HETG::HETG(PHETD phetd, PGCB pgcb) : HETG_PAR(phetd, pgcb)
 /***************************************************************************
     Create a new help text editing gob.
 ***************************************************************************/
-PHETG HETG::PhetgNew(PHETD phetd, PGCB pgcb)
+PHETG HETG::PhetgNew(PHETD phetd, PGraphicsObjectBlock pgcb)
 {
     AssertPo(phetd, 0);
     AssertVarMem(pgcb);
@@ -2205,7 +2205,7 @@ long HETG::_DypTrul(void)
 /***************************************************************************
     Create the ruler.
 ***************************************************************************/
-PTRUL HETG::_PtrulNew(PGCB pgcb)
+PTRUL HETG::_PtrulNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     PAP pap;

@@ -37,7 +37,7 @@ class MP : public MP_PAR
   protected:
     virtual void _ApplySelection(long ithumSelect, long sid);
     virtual long _IthumFromThum(long thumSelect, long sidSelect);
-    MP(PGCB pgcb) : MP_PAR(pgcb)
+    MP(PGraphicsObjectBlock pgcb) : MP_PAR(pgcb)
     {
     }
     bool _FInit(PResourceCache prca);
@@ -67,7 +67,7 @@ class MPFNT : public MPFNT_PAR
 
     virtual void _ApplySelection(long ithumSelect, long sid);
     virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
-    MPFNT(PGCB pgcb) : MPFNT_PAR(pgcb)
+    MPFNT(PGraphicsObjectBlock pgcb) : MPFNT_PAR(pgcb)
     {
     }
 

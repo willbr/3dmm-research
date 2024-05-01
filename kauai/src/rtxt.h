@@ -190,7 +190,7 @@ class PlainTextDocument : public PlainTextDocument_PAR
     static PPlainTextDocument PtxpdNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                           ulong grfdoc = fdocNil);
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
@@ -343,7 +343,7 @@ class RichTextDocument : public RichTextDocument_PAR
     static PRichTextDocument PtxrdNew(PFilename pfni = pvNil);
     static PRichTextDocument PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
 
     void FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
     void FetchPap(long cp, PPAP ppap, long *pcpMin = pvNil, long *pcpLim = pvNil);
@@ -469,7 +469,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     // the ruler
     PTRUL _ptrul;
 
-    TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGCB pgcb);
+    TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb);
     ~TextDocumentGraphicsObject(void);
 
     virtual bool _FInit(void);
@@ -499,7 +499,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
     virtual long _DypTrul(void);
-    virtual PTRUL _PtrulNew(PGCB pgcb);
+    virtual PTRUL _PtrulNew(PGraphicsObjectBlock pgcb);
     virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
@@ -546,7 +546,7 @@ class LineTextGraphicsDocument : public LineTextGraphicsDocument_PAR
     long _dxpChar;
     long _cchTab;
 
-    LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual long _DxpDoc(void);
     virtual void _FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
@@ -558,7 +558,7 @@ class LineTextGraphicsDocument : public LineTextGraphicsDocument_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PLineTextGraphicsDocument PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    static PLineTextGraphicsDocument PtxlgNew(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual void SetDxpTab(long dxp);
     virtual void SetDxpDoc(long dxp);
@@ -577,7 +577,7 @@ class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
     ASSERT
 
   protected:
-    RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGCB pgcb);
+    RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb);
 
     CHP _chpIns;
     bool _fValidChp;
@@ -597,7 +597,7 @@ class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
     void _EnsureChpIns(void);
 
   public:
-    static PRichTextDocumentGraphicsObject PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb);
+    static PRichTextDocumentGraphicsObject PtxrgNew(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb);
 
     virtual void SetSel(long cpAnchor, long cpOther, long gin = kginDraw);
     virtual bool FReplace(achar *prgch, long cch, long cp1, long cp2);

@@ -23,7 +23,7 @@
 #define ESL_H
 
 // Function to build a GraphicsObjectBlock to construct a child under a parent
-bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild);
+bool FBuildGcb(PGraphicsObjectBlock pgcb, long kidParent, long kidChild);
 
 // Function to set a KidspaceGraphicObject to a different state
 void SetGokState(long kid, long st);
@@ -42,7 +42,7 @@ class ESL : public ESL_PAR
     CMD_MAP_DEC(ESL)
 
   protected:
-    ESL(PGCB pgcb) : KidspaceGraphicObject(pgcb)
+    ESL(PGraphicsObjectBlock pgcb) : KidspaceGraphicObject(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel);
@@ -112,7 +112,7 @@ class ESLT : public ESLT_PAR
     PSFL _psflTdts;
 
   protected:
-    ESLT(PGCB pgcb) : ESL(pgcb)
+    ESLT(PGraphicsObjectBlock pgcb) : ESL(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew);
@@ -153,7 +153,7 @@ class ESLA : public ESLA_PAR
     PEDSL _pedsl; // Single-line edit control (for actor's name)
 
   protected:
-    ESLA(PGCB pgcb) : ESL(pgcb)
+    ESLA(PGraphicsObjectBlock pgcb) : ESL(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr);
@@ -233,7 +233,7 @@ class ESLL : public ESLL_PAR
     LSND _lsndSfxMM;
 
   protected:
-    ESLL(PGCB pgcb) : ESL(pgcb)
+    ESLL(PGraphicsObjectBlock pgcb) : ESL(pgcb)
     {
     }
 
@@ -272,7 +272,7 @@ class ESLR : public ESLR_PAR
     ulong _tsStartRec; // Time at which we started recording
 
   protected:
-    ESLR(PGCB pgcb) : ESL(pgcb), _clok(HidUnique())
+    ESLR(PGraphicsObjectBlock pgcb) : ESL(pgcb), _clok(HidUnique())
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew);

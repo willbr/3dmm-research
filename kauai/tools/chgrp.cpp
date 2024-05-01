@@ -232,7 +232,7 @@ bool DOCG::_FRead(PDataBlock pblck)
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject onto the document.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCG::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCG::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     PDocumentDisplayGraphicsObject pddg;
@@ -316,7 +316,7 @@ void DOCG::MarkMem(void)
 /***************************************************************************
     Constructor for a DCGB.
 ***************************************************************************/
-DCGB::DCGB(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCGB::DCGB(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long clnItem, PGraphicsObjectBlock pgcb) : DCLB(pdocb, pgcb)
 {
     AssertIn(clnItem, 1, 10);
     _dypBorder = 1;
@@ -764,14 +764,14 @@ void DCGB::MarkMem(void)
     Constructor for the DCGL class.  This class displays (and allows
     editing of) a DynamicArray or AllocatedArray.
 ***************************************************************************/
-DCGL::DCGL(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
+DCGL::DCGL(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGraphicsObjectBlock pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCGL for the DynamicArray or AllocatedArray.
 ***************************************************************************/
-PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGCB pgcb)
+PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGraphicsObjectBlock pgcb)
 {
     AssertVar(cls == kclsDynamicArray || cls == kclsAllocatedArray, "bad cls", &cls);
     PDCGL pdcgl;
@@ -921,14 +921,14 @@ bool DCGL::FCmdAddItem(PCommand pcmd)
     Constructor for the DCGG class.  This class displays (and allows
     editing of) a GeneralGroup or AllocatedGroup.
 ***************************************************************************/
-DCGG::DCGG(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
+DCGG::DCGG(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGraphicsObjectBlock pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCGG for the GeneralGroup or AllocatedGroup.
 ***************************************************************************/
-PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGCB pgcb)
+PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGraphicsObjectBlock pgcb)
 {
     AssertVar(cls == kclsGeneralGroup || cls == kclsAllocatedGroup, "bad cls", &cls);
     PDCGG pdcgg;
@@ -1105,14 +1105,14 @@ bool DCGG::FCmdAddItem(PCommand pcmd)
     Constructor for the DCST class.  This class displays (and allows
     editing of) a StringTable_GST or AllocatedStringTable.
 ***************************************************************************/
-DCST::DCST(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
+DCST::DCST(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGraphicsObjectBlock pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DCST for the StringTable_GST or AllocatedStringTable.
 ***************************************************************************/
-PDCST DCST::PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGCB pgcb)
+PDCST DCST::PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGraphicsObjectBlock pgcb)
 {
     AssertVar(cls == kclsStringTable_GST || cls == kclsAllocatedStringTable, "bad cls", &cls);
     PDCST pdcst;
@@ -1353,7 +1353,7 @@ bool DOCI::_FInit(void)
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject for this doc.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCI::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCI::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DCH::PdchNew(this, &_bsf, _fFixed, pgcb);
 }

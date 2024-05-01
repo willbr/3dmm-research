@@ -487,7 +487,7 @@ void CHR::_DoTab(void)
 /***************************************************************************
     Constructor for the text document display GraphicsObject.
 ***************************************************************************/
-TextDocumentGraphicsObject::TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGCB pgcb) : TextDocumentGraphicsObject_PAR(ptxtb, pgcb)
+TextDocumentGraphicsObject::TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb) : TextDocumentGraphicsObject_PAR(ptxtb, pgcb)
 {
     AssertBaseThis(0);
     _ptxtb = ptxtb;
@@ -2479,7 +2479,7 @@ long TextDocumentGraphicsObject::_DypTrul(void)
 /***************************************************************************
     Create the ruler.
 ***************************************************************************/
-PTRUL TextDocumentGraphicsObject::_PtrulNew(PGCB pgcb)
+PTRUL TextDocumentGraphicsObject::_PtrulNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return pvNil;
@@ -2507,7 +2507,7 @@ void TextDocumentGraphicsObject::GetNaturalSize(long *pdxp, long *pdyp)
 /***************************************************************************
     Constructor for the plain line text document display gob.
 ***************************************************************************/
-LineTextGraphicsDocument::LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab) : LineTextGraphicsDocument_PAR(ptxtb, pgcb)
+LineTextGraphicsDocument::LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab) : LineTextGraphicsDocument_PAR(ptxtb, pgcb)
 {
     RC rc;
     achar ch = kchSpace;
@@ -2525,7 +2525,7 @@ LineTextGraphicsDocument::LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGCB
 /***************************************************************************
     Static method to create a new plain line text doc display gob.
 ***************************************************************************/
-PLineTextGraphicsDocument LineTextGraphicsDocument::PtxlgNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+PLineTextGraphicsDocument LineTextGraphicsDocument::PtxlgNew(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab)
 {
     PLineTextGraphicsDocument ptxlg;
 
@@ -2707,14 +2707,14 @@ bool LineTextGraphicsDocument::_FPaste(PClipboardObject pclip, bool fDoIt, long 
 /***************************************************************************
     Constructor for a rich text document display gob.
 ***************************************************************************/
-RichTextDocumentGraphicsObject::RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGCB pgcb) : RichTextDocumentGraphicsObject_PAR(ptxrd, pgcb)
+RichTextDocumentGraphicsObject::RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject_PAR(ptxrd, pgcb)
 {
 }
 
 /***************************************************************************
     Create a new rich text document display GraphicsObject.
 ***************************************************************************/
-PRichTextDocumentGraphicsObject RichTextDocumentGraphicsObject::PtxrgNew(PRichTextDocument ptxrd, PGCB pgcb)
+PRichTextDocumentGraphicsObject RichTextDocumentGraphicsObject::PtxrgNew(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb)
 {
     PRichTextDocumentGraphicsObject ptxrg;
 

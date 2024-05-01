@@ -49,7 +49,7 @@ PDOCPIC DOCPIC::PdocpicNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, 
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCPIC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCPIC::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DCPIC::PdcpicNew(this, _ppic, pgcb);
 }
@@ -109,7 +109,7 @@ void DOCPIC::MarkMem(void)
 /***************************************************************************
     Constructor for a pic display gob.
 ***************************************************************************/
-DCPIC::DCPIC(PDocumentBase pdocb, PPIC ppic, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+DCPIC::DCPIC(PDocumentBase pdocb, PPIC ppic, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     _ppic = ppic;
 }
@@ -125,7 +125,7 @@ void DCPIC::GetMinMax(RC *prcMinMax)
 /***************************************************************************
     Static method to create a new DCPIC.
 ***************************************************************************/
-PDCPIC DCPIC::PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGCB pgcb)
+PDCPIC DCPIC::PdcpicNew(PDocumentBase pdocb, PPIC ppic, PGraphicsObjectBlock pgcb)
 {
     PDCPIC pdcpic;
 

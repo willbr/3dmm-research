@@ -62,7 +62,7 @@ class APP : public APP_PAR
     virtual bool FCmdChooseLanguage(PCommand pcmd);
     virtual bool FEnableChooseLanguage(PCommand pcmd, ulong *pgrfeds);
 
-    PLIG PligNew(bool fButton, PGCB pgcb, PTextDocument ptxhd);
+    PLIG PligNew(bool fButton, PGraphicsObjectBlock pgcb, PTextDocument ptxhd);
     bool FLoadResFile(PFilename pfni);
     bool FOpenDocFile(PFilename pfni, long cid = cidOpen);
 };
@@ -187,7 +187,7 @@ class CCGT : public CCGT_PAR
     String _stn;
 
   public:
-    CCGT(PGCB pgcb, AbstractColor acr = kacrBlack, PString pstn = pvNil);
+    CCGT(PGraphicsObjectBlock pgcb, AbstractColor acr = kacrBlack, PString pstn = pvNil);
 
     void SetAcr(AbstractColor acr, PString pstn = pvNil);
     AbstractColor AcrCur(void)
@@ -228,7 +228,7 @@ class HEDO : public HEDO_PAR
     {
         return _prca;
     }
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     virtual bool FGetFni(Filename *pfni);
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
@@ -297,7 +297,7 @@ class HEDG : public HEDG_PAR
     PChunkyFile _pcfl;      // the chunky file
     TSEL _tsel;      // the selection
 
-    HEDG(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb);
+    HEDG(PHEDO phedo, PChunkyFile pcfl, PGraphicsObjectBlock pgcb);
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
 
@@ -330,7 +330,7 @@ class HEDG : public HEDG_PAR
 #endif // WIN
 
   public:
-    static PHEDG PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGCB pgcb);
+    static PHEDG PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGraphicsObjectBlock pgcb);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -382,7 +382,7 @@ class HETD : public HETD_PAR
     static void CloseDeletedHetd(PDocumentBase pdocb);
 
     virtual PDocumentMDIWindow PdmdNew(void);
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     virtual void GetName(PString pstn);
     virtual bool FSave(long cid);
 
@@ -416,7 +416,7 @@ class HETG : public HETG_PAR
     CMD_MAP_DEC(HETG)
 
   protected:
-    HETG(PHETD phetd, PGCB pgcb);
+    HETG(PHETD phetd, PGraphicsObjectBlock pgcb);
 
     // clipboard support
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
@@ -427,13 +427,13 @@ class HETG : public HETG_PAR
 
     // we have our own ruler
     virtual long _DypTrul(void);
-    virtual PTRUL _PtrulNew(PGCB pgcb);
+    virtual PTRUL _PtrulNew(PGraphicsObjectBlock pgcb);
 
     // override _DrawLinExtra so we can put boxes around grouped text.
     virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
-    static PHETG PhetgNew(PHETD phetd, PGCB pgcb);
+    static PHETG PhetgNew(PHETD phetd, PGraphicsObjectBlock pgcb);
 
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 

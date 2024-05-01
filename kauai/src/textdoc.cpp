@@ -94,7 +94,7 @@ bool TXDC::_FInit(PFilename pfni, PFileByteStream pbsf)
 /***************************************************************************
     Create a new TXDD to display the TXDC.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject TXDC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject TXDC::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return TXDD::PtxddNew(this, pgcb, _pbsf, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef());
@@ -198,7 +198,7 @@ void TXDC::MarkMem(void)
 /***************************************************************************
     Constructor for a text document display gob.
 ***************************************************************************/
-TXDD::TXDD(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+TXDD::TXDD(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     AssertPo(pbsf, 0);
     Assert(vntl.FValidOnn(onn), "bad onn");
@@ -231,7 +231,7 @@ TXDD::~TXDD(void)
 /***************************************************************************
     Create a new TXDD.
 ***************************************************************************/
-PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGCB pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont)
+PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont)
 {
     PTXDD ptxdd;
 

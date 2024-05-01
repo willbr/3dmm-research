@@ -114,9 +114,9 @@ class DocumentBase : public DocumentBase_PAR
     void ActivateDmd(void);
 
     // low level calls - generally not for public consumption
-    virtual PDocumentMainWindow PdmwNew(PGCB pgcb);
+    virtual PDocumentMainWindow PdmwNew(PGraphicsObjectBlock pgcb);
     virtual PDocumentScrollGraphicsObject PdsgNew(PDocumentMainWindow pdwm, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel);
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
 
     // DocumentDisplayGraphicsObject management - only to be called by DDGs
     bool FAddDdg(PDocumentDisplayGraphicsObject pddg);
@@ -230,7 +230,7 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     long _scvVert; // scroll values
     long _scvHorz;
 
-    DocumentDisplayGraphicsObject(PDocumentBase pdocb, PGCB pgcb);
+    DocumentDisplayGraphicsObject(PDocumentBase pdocb, PGraphicsObjectBlock pgcb);
     ~DocumentDisplayGraphicsObject(void);
 
     virtual bool _FInit(void);
@@ -249,7 +249,7 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PDocumentDisplayGraphicsObject PddgNew(PDocumentBase pdocb, PGCB pgcb);
+    static PDocumentDisplayGraphicsObject PddgNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb);
 
     PDocumentBase Pdocb(void)
     {
@@ -289,7 +289,7 @@ class DocumentMDIWindow : public DocumentMDIWindow_PAR
   protected:
     PDocumentBase _pdocb;
 
-    DocumentMDIWindow(PDocumentBase pdocb, PGCB pgcb);
+    DocumentMDIWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb);
     virtual void _ActivateHwnd(bool fActive);
 
   public:
@@ -334,7 +334,7 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
     long _idsedRoot;
     PDocumentBase _pdocb;
 
-    DocumentMainWindow(PDocumentBase pdocb, PGCB pgcb);
+    DocumentMainWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb);
 
     virtual bool _FInit(void);
     virtual void _NewRc(void);
@@ -350,7 +350,7 @@ class DocumentMainWindow : public DocumentMainWindow_PAR
     void _SplitRcRel(long idsed, RC *prcLeft, RC *prcRight);
 
   public:
-    static PDocumentMainWindow PdmwNew(PDocumentBase pdocb, PGCB pgcb);
+    static PDocumentMainWindow PdmwNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb);
 
     PDocumentBase Pdocb(void)
     {
@@ -388,7 +388,7 @@ class DocumentScrollGraphicsObject : public DocumentScrollGraphicsObject_PAR
     PDocumentDisplayGraphicsObject _pddg;
 
   protected:
-    DocumentScrollGraphicsObject(PGCB pgcb);
+    DocumentScrollGraphicsObject(PGraphicsObjectBlock pgcb);
     ~DocumentScrollGraphicsObject(void);
 
     virtual bool _FInit(PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel);
@@ -425,7 +425,7 @@ class DocumentScrollWindowSplitter : public DocumentScrollWindowSplitter_PAR
     RTCLASS_DEC
 
   protected:
-    DocumentScrollWindowSplitter(PGCB pgcb);
+    DocumentScrollWindowSplitter(PGraphicsObjectBlock pgcb);
 
   public:
     static long DypNormal(void)
@@ -463,7 +463,7 @@ class DocumentScrollSplitMover : public DocumentScrollSplitMover_PAR
     bool _fVert;
 
   protected:
-    DocumentScrollSplitMover(PGCB pgcb);
+    DocumentScrollSplitMover(PGraphicsObjectBlock pgcb);
 
     void _DrawTrackBar(PGraphicsEnvironment pgnv, RC *prcOld, RC *prcNew);
 

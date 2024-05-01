@@ -515,7 +515,7 @@ bool APP::FCmdChooseLanguage(PCommand pcmd)
 /***************************************************************************
     Create a new LIG for the given help text document.
 ***************************************************************************/
-PLIG APP::PligNew(bool fButton, PGCB pgcb, PTextDocument ptxhd)
+PLIG APP::PligNew(bool fButton, PGraphicsObjectBlock pgcb, PTextDocument ptxhd)
 {
     PLID plid = fButton ? _plidButton : _plidPicture;
 
@@ -1168,7 +1168,7 @@ void CCG::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for color chooser tool tip.
 ***************************************************************************/
-CCGT::CCGT(PGCB pgcb, AbstractColor acr, PString pstn) : CCGT_PAR(pgcb)
+CCGT::CCGT(PGraphicsObjectBlock pgcb, AbstractColor acr, PString pstn) : CCGT_PAR(pgcb)
 {
     AssertBaseThis(0);
     _acr = acr;

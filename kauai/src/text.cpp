@@ -73,7 +73,7 @@ void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, Ab
 /***************************************************************************
     Constructor for edit control.
 ***************************************************************************/
-EDCB::EDCB(PGCB pgcb, long cmhl) : GraphicsObject(pgcb)
+EDCB::EDCB(PGraphicsObjectBlock pgcb, long cmhl) : GraphicsObject(pgcb)
 {
     AssertBaseThis(0);
     _cmhl = cmhl;

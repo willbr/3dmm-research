@@ -245,7 +245,7 @@ RTCLASS(TUNC)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
+PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
 {
     AssertPo(ptbox, 0);
     AssertPvCb(pgcb, size(GraphicsObjectBlock));
@@ -988,7 +988,7 @@ TBXG::~TBXG()
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGCB pgcb)
+PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
 {
     AssertPo(ptbox, 0);
     AssertPvCb(pgcb, size(GraphicsObjectBlock));

@@ -34,7 +34,7 @@ class CTL : public CTL_PAR
     HCTL _hctl;
 
   protected:
-    CTL(PGCB pgcb);
+    CTL(PGraphicsObjectBlock pgcb);
     ~CTL(void);
 
     virtual void _NewRc(void);
@@ -100,7 +100,7 @@ class SCB : public SCB_PAR
 #endif // WIN
 
   protected:
-    SCB(PGCB pgcb) : CTL(pgcb)
+    SCB(PGraphicsObjectBlock pgcb) : CTL(pgcb)
     {
     }
     bool _FCreate(long val, long valMin, long valMax, ulong grfscb);
@@ -114,7 +114,7 @@ class SCB : public SCB_PAR
     static long DypNormal(void);
     static void GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel);
     static void GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel);
-    static PSCB PscbNew(PGCB pgcb, ulong grfscb, long val = 0, long valMin = 0, long valMax = 0);
+    static PSCB PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val = 0, long valMin = 0, long valMax = 0);
 
     void SetVal(long val, bool fRedraw = fTrue);
     void SetValMinMax(long val, long valMin, long valMax, bool fRedraw = fTrue);
@@ -149,7 +149,7 @@ class WSB : public WSB_PAR
     RTCLASS_DEC
 
   protected:
-    WSB(PGCB pgcb) : CTL(pgcb)
+    WSB(PGraphicsObjectBlock pgcb) : CTL(pgcb)
     {
     }
 

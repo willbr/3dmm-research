@@ -516,7 +516,7 @@ void DocumentBase::ActivateDmd(void)
 /***************************************************************************
     Create a DocumentMainWindow for the document.
 ***************************************************************************/
-PDocumentMainWindow DocumentBase::PdmwNew(PGCB pgcb)
+PDocumentMainWindow DocumentBase::PdmwNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(fobjAssertFull);
     return DocumentMainWindow::PdmwNew(this, pgcb);
@@ -534,7 +534,7 @@ PDocumentScrollGraphicsObject DocumentBase::PdsgNew(PDocumentMainWindow pdmw, PD
 /***************************************************************************
     Create a new DocumentDisplayGraphicsObject for the doc in the given DocumentScrollGraphicsObject.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DocumentBase::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DocumentBase::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(fobjAssertFull);
     return DocumentDisplayGraphicsObject::PddgNew(this, pgcb);
@@ -939,7 +939,7 @@ bool DocumentTreeEnumerator::FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, 
 /***************************************************************************
     Static method to create a new DocumentDisplayGraphicsObject.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DocumentDisplayGraphicsObject::PddgNew(PDocumentBase pdocb, PGCB pgcb)
+PDocumentDisplayGraphicsObject DocumentDisplayGraphicsObject::PddgNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb)
 {
     PDocumentDisplayGraphicsObject pddg;
 
@@ -960,7 +960,7 @@ PDocumentDisplayGraphicsObject DocumentDisplayGraphicsObject::PddgNew(PDocumentB
 /***************************************************************************
     Constructor for a DocumentDisplayGraphicsObject.  AddRef's the DocumentBase.
 ***************************************************************************/
-DocumentDisplayGraphicsObject::DocumentDisplayGraphicsObject(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DocumentDisplayGraphicsObject::DocumentDisplayGraphicsObject(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertBasePo(pdocb, 0);
     pdocb->AddRef();
@@ -1379,7 +1379,7 @@ PDocumentMDIWindow DocumentMDIWindow::PdmdTop(void)
 /***************************************************************************
     Constructor for document mdi window.
 ***************************************************************************/
-DocumentMDIWindow::DocumentMDIWindow(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DocumentMDIWindow::DocumentMDIWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1441,7 +1441,7 @@ bool DocumentMDIWindow::FCmdCloseWnd(PCommand pcmd)
     Static method to create a new DocumentMainWindow (document window) based on the given
     document.
 ***************************************************************************/
-PDocumentMainWindow DocumentMainWindow::PdmwNew(PDocumentBase pdocb, PGCB pgcb)
+PDocumentMainWindow DocumentMainWindow::PdmwNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb)
 {
     PDocumentMainWindow pdmw;
 
@@ -1459,7 +1459,7 @@ PDocumentMainWindow DocumentMainWindow::PdmwNew(PDocumentBase pdocb, PGCB pgcb)
 /***************************************************************************
     Constructor for document window class
 ***************************************************************************/
-DocumentMainWindow::DocumentMainWindow(PDocumentBase pdocb, PGCB pgcb) : GraphicsObject(pgcb)
+DocumentMainWindow::DocumentMainWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -2112,7 +2112,7 @@ PDocumentScrollGraphicsObject DocumentScrollGraphicsObject::PdsgNew(PDocumentMai
 /***************************************************************************
     Constructor for DocumentScrollGraphicsObject.
 ***************************************************************************/
-DocumentScrollGraphicsObject::DocumentScrollGraphicsObject(PGCB pgcb) : GraphicsObject(pgcb)
+DocumentScrollGraphicsObject::DocumentScrollGraphicsObject(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _dsno = dsnoNil;
     AssertThis(fobjAssertFull);
@@ -2241,7 +2241,7 @@ void DocumentScrollGraphicsObject::AssertValid(ulong grfobj)
 /***************************************************************************
     Constructor for the splitter.
 ***************************************************************************/
-DocumentScrollWindowSplitter::DocumentScrollWindowSplitter(PGCB pgcb) : GraphicsObject(pgcb)
+DocumentScrollWindowSplitter::DocumentScrollWindowSplitter(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertThis(0);
 }
@@ -2338,7 +2338,7 @@ void DocumentScrollWindowSplitter::MouseDown(long xp, long yp, long cact, ulong 
 /***************************************************************************
     Constructor for the split mover.
 ***************************************************************************/
-DocumentScrollSplitMover::DocumentScrollSplitMover(PGCB pgcb) : GraphicsObject(pgcb)
+DocumentScrollSplitMover::DocumentScrollSplitMover(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
 }
 

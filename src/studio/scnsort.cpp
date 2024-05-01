@@ -68,7 +68,7 @@ void SCRT::MarkMem(void)
 }
 #endif /* DEBUG */
 
-SCRT::SCRT(PGCB pgcb) : SCRT_PAR(pgcb)
+SCRT::SCRT(PGraphicsObjectBlock pgcb) : SCRT_PAR(pgcb)
 {
     Assert(_pmvie == pvNil, "SCRT block not cleared");
     Assert(_pstdio == pvNil, "SCRT block not cleared");
@@ -791,11 +791,11 @@ void GOMP::MarkMem(void)
         Constructor for the GOMP class.
 
     Arguments:
-        PGCB pgcb    -- Gob Creation Block to be passed to the parent class
+        PGraphicsObjectBlock pgcb    -- Gob Creation Block to be passed to the parent class
         PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to use when drawing this GOMP
 
 ************************************************************ PETED ***********/
-GOMP::GOMP(PGCB pgcb) : GraphicsObject(pgcb)
+GOMP::GOMP(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _pmbmp = pvNil;
     AssertThis(0);

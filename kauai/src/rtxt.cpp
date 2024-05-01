@@ -911,7 +911,7 @@ PPlainTextDocument PlainTextDocument::PtxpdNew(PFilename pfni, PFileByteStream p
 /***************************************************************************
     Create a new LineTextGraphicsDocument to display the PlainTextDocument.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject PlainTextDocument::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject PlainTextDocument::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(fobjAssertFull);
     long onn = vpappb->OnnDefFixed();
@@ -1425,7 +1425,7 @@ LFail:
 /***************************************************************************
     Create a new RichTextDocumentGraphicsObject to display the RichTextDocument.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject RichTextDocument::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject RichTextDocument::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(fobjAssertFull);
     return RichTextDocumentGraphicsObject::PtxrgNew(this, pgcb);

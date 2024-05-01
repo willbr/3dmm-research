@@ -34,7 +34,7 @@ END_CMD_MAP_NIL()
  * is private, use PmscbNew() for public construction.
  *
  ****************************************************/
-MSCB::MSCB(PMovie pmvie, PGCB pgcb) : GraphicsObject(pgcb)
+MSCB::MSCB(PMovie pmvie, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _pmvie = pmvie;
 }
@@ -51,7 +51,7 @@ MSCB::MSCB(PMovie pmvie, PGCB pgcb) : GraphicsObject(pgcb)
  *	A pointer to the scroll bar objects, else pvNil.
  *
  ****************************************************/
-PMSCB MSCB::PmscbNew(PMovie pmvie, PGCB pgcb)
+PMSCB MSCB::PmscbNew(PMovie pmvie, PGraphicsObjectBlock pgcb)
 {
     PMSCB pmscb;
     RC rc;

@@ -2993,7 +2993,7 @@ bool Movie::FGetFniSave(Filename *pfni)
  *  A pointer to the view, otw pvNil on failure
  *
  ****************************************************/
-PDocumentDisplayGraphicsObject Movie::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject Movie::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     AssertVarMem(pgcb);
@@ -5832,7 +5832,7 @@ MovieView::~MovieView(void)
  *  A pointer to the view, otw pvNil on failure
  *
  ***************************************************************************/
-MovieView *MovieView::PmvuNew(PMovie pmvie, PGCB pgcb, long dxp, long dyp)
+MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp, long dyp)
 {
     AssertPo(pmvie, 0);
     AssertVarMem(pgcb);

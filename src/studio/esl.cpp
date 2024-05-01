@@ -37,7 +37,7 @@ RTCLASS(ESLR)
 /***************************************************************************
     Function to build a GraphicsObjectBlock for creating a child GraphicsObject
 ***************************************************************************/
-bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
+bool FBuildGcb(PGraphicsObjectBlock pgcb, long kidParent, long kidChild)
 {
     AssertVarMem(pgcb);
 

@@ -38,7 +38,7 @@ PCHTXD CHTXD::PchtxdNew(PFilename pfni, PFileByteStream pbsf, short osk, PDocume
 /***************************************************************************
     Create a new document display gob for the chunky text doc.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject CHTXD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject CHTXD::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return CHTDD::PchtddNew(this, pgcb, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef(), 4);
 }
@@ -52,7 +52,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Constructor.
 ***************************************************************************/
-CHTDD::CHTDD(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+CHTDD::CHTDD(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab)
     : CHTDD_PAR(ptxtb, pgcb, onn, grfont, dypFont, cchTab)
 {
     _fMark = fFalse;
@@ -61,7 +61,7 @@ CHTDD::CHTDD(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dy
 /***************************************************************************
     Create a new one.
 ***************************************************************************/
-PCHTDD CHTDD::PchtddNew(PTextDocumentBase ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+PCHTDD CHTDD::PchtddNew(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab)
 {
     PCHTDD pchtdd;
 

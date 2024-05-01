@@ -70,7 +70,7 @@ void GraphicsObject::ShutDown(void)
     Constructor for a graphics object.  pgob is either the parent of the new
     gob or a sibling, according to (grfgob & fgobSibling).
 ***************************************************************************/
-GraphicsObject::GraphicsObject(PGCB pgcb) : CommandHandler(pgcb->_hid)
+GraphicsObject::GraphicsObject(PGraphicsObjectBlock pgcb) : CommandHandler(pgcb->_hid)
 {
     _Init(pgcb);
 }
@@ -78,7 +78,7 @@ GraphicsObject::GraphicsObject(PGCB pgcb) : CommandHandler(pgcb->_hid)
 /***************************************************************************
     Initialize the gob.
 ***************************************************************************/
-void GraphicsObject::_Init(PGCB pgcb)
+void GraphicsObject::_Init(PGraphicsObjectBlock pgcb)
 {
     AssertVarMem(pgcb);
     AssertNilOrPo(pgcb->_pgob, 0);

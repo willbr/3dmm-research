@@ -107,7 +107,7 @@ struct GraphicsObjectBlock
     void Set(long hid, PGraphicsObject pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil,
              RC *prcRel = pvNil);
 };
-typedef GraphicsObjectBlock *PGCB;
+typedef GraphicsObjectBlock *PGraphicsObjectBlock;
 
 /****************************************
     Graphics object
@@ -160,7 +160,7 @@ class GraphicsObject : public GraphicsObject_PAR
     static HWND _HwndNewMdi(PString pstnTitle);
     static void _DestroyHwnd(HWND hwnd);
 
-    void _Init(PGCB pgcb);
+    void _Init(PGraphicsObjectBlock pgcb);
     HWND _HwndGetRc(RC *prc);
     virtual void _NewRc(void)
     {

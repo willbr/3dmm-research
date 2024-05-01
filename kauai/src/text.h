@@ -76,7 +76,7 @@ class EDCB : public EDCB_PAR
     long _xp;
     long _yp;
 
-    EDCB(PGCB pgcb, long cmhl);
+    EDCB(PGraphicsObjectBlock pgcb, long cmhl);
 
     virtual bool _FInit(void);
 

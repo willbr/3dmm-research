@@ -62,7 +62,7 @@ class SCRT : public SCRT_PAR
     long _LwFromTrans(TRANS trans);
 
   public:
-    SCRT(PGCB pgcb);
+    SCRT(PGraphicsObjectBlock pgcb);
     ~SCRT(void);
 
     static PSCRT PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca);
@@ -99,7 +99,7 @@ class GOMP : public GOMP_PAR
     PMaskedBitmapMBMP _pmbmp;
 
   public:
-    GOMP(PGCB pgcb);
+    GOMP(PGraphicsObjectBlock pgcb);
     ~GOMP(void)
     {
         AssertThis(0);

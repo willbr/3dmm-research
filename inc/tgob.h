@@ -43,7 +43,7 @@ class TGOB : public TGOB_PAR
     //
     // Create and destroy functions
     //
-    TGOB(PGCB pgcb);
+    TGOB(PGraphicsObjectBlock pgcb);
     TGOB(long hid);
 
     void SetFont(long onn)

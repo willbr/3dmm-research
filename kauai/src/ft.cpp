@@ -168,7 +168,7 @@ class GPRC : public GPRC_PAR
     PPolygon _pogn;
 
   public:
-    GPRC(PGCB pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
+    GPRC(PGraphicsObjectBlock pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
     ~GPRC(void);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
@@ -188,7 +188,7 @@ class GFRC : public GFRC_PAR
     AbstractColor _acr;
 
   public:
-    GFRC(PGCB pgcb, AbstractColor acr, bool fOval);
+    GFRC(PGraphicsObjectBlock pgcb, AbstractColor acr, bool fOval);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -200,7 +200,7 @@ RTCLASS(GFRC)
 /***************************************************************************
     Constructor for patterned rectangle.
 ***************************************************************************/
-GPRC::GPRC(PGCB pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
+GPRC::GPRC(PGraphicsObjectBlock pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
 {
     _apt = *papt;
     _acrFore = acrFore;
@@ -359,7 +359,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Constructor for filled rectangle.
 ***************************************************************************/
-GFRC::GFRC(PGCB pgcb, AbstractColor acr, bool fOval) : GraphicsObject(pgcb)
+GFRC::GFRC(PGraphicsObjectBlock pgcb, AbstractColor acr, bool fOval) : GraphicsObject(pgcb)
 {
     _acr = acr;
     _fOval = fOval;
@@ -416,7 +416,7 @@ class TDC : public TDC_PAR
     virtual void _NewRc(void);
 
   public:
-    TDC(PGCB pgcb) : GraphicsObject(pgcb)
+    TDC(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
         _NewRc();
     }
@@ -477,7 +477,7 @@ class DWN : public DWN_PAR
   protected:
     static long _cdwn;
 
-    DWN(PGCB pgcb) : GraphicsObject(pgcb)
+    DWN(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
     }
 
@@ -666,7 +666,7 @@ class TTW : public TTW_PAR
     long _cact;
 
   public:
-    TTW(PGCB pgcb) : DWN(pgcb)
+    TTW(PGraphicsObjectBlock pgcb) : DWN(pgcb)
     {
     }
     static TTW *PttwNew(void);
@@ -790,7 +790,7 @@ class RTW : public RTW_PAR
     long _cact;
 
   public:
-    RTW(PGCB pgcb) : DWN(pgcb)
+    RTW(PGraphicsObjectBlock pgcb) : DWN(pgcb)
     {
         _cact = 0;
     }
@@ -1172,7 +1172,7 @@ class DOCP : public DocumentBase
 
     DOCP(void);
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     void GetRcPic(RC *prc);
 };
 
@@ -1180,10 +1180,10 @@ class DOCP : public DocumentBase
 class DDP : public DocumentDisplayGraphicsObject
 {
   protected:
-    DDP(DOCP *pdocp, PGCB pgcb);
+    DDP(DOCP *pdocp, PGraphicsObjectBlock pgcb);
 
   public:
-    static DDP *PddpNew(DOCP *pdocp, PGCB pgcb);
+    static DDP *PddpNew(DOCP *pdocp, PGraphicsObjectBlock pgcb);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
@@ -1213,7 +1213,7 @@ DOCP::DOCP(void)
 /***************************************************************************
     Create a new pane for a perspective doc.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCP::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCP::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DDP::PddpNew(this, pgcb);
 }
@@ -1236,14 +1236,14 @@ void DOCP::GetRcPic(RC *prc)
 /***************************************************************************
     Constructor for a perspective doc pane.
 ***************************************************************************/
-DDP::DDP(DOCP *pdocp, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocp, pgcb)
+DDP::DDP(DOCP *pdocp, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocp, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DDP.
 ***************************************************************************/
-DDP *DDP::PddpNew(DOCP *pdocp, PGCB pgcb)
+DDP *DDP::PddpNew(DOCP *pdocp, PGraphicsObjectBlock pgcb)
 {
     DDP *pddp;
 
@@ -1402,7 +1402,7 @@ class DOCPIC : public DOCPIC_PAR
 
     static DOCPIC *PdocpicNew(void);
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     PPIC Ppic(void)
     {
         return _ppic;
@@ -1415,10 +1415,10 @@ class DOCPIC : public DOCPIC_PAR
 class DDPIC : public DDPIC_PAR
 {
   protected:
-    DDPIC(DOCPIC *pdocpic, PGCB pgcb);
+    DDPIC(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb);
 
   public:
-    static DDPIC *PddpicNew(DOCPIC *pdocpic, PGCB pgcb);
+    static DDPIC *PddpicNew(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
@@ -1523,7 +1523,7 @@ DOCPIC *DOCPIC::PdocpicNew(void)
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCPIC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCPIC::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DDPIC::PddpicNew(this, pgcb);
 }
@@ -1549,14 +1549,14 @@ bool DOCPIC::FSaveToFni(Filename *pfni, bool fSetFni)
 /***************************************************************************
     Constructor for a picture doc pane.
 ***************************************************************************/
-DDPIC::DDPIC(DOCPIC *pdocpic, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocpic, pgcb)
+DDPIC::DDPIC(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocpic, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DDPIC.
 ***************************************************************************/
-DDPIC *DDPIC::PddpicNew(DOCPIC *pdocpic, PGCB pgcb)
+DDPIC *DDPIC::PddpicNew(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb)
 {
     DDPIC *pddpic;
 
@@ -1634,7 +1634,7 @@ class DOCGPT : public DOCGPT_PAR
 
     static DOCGPT *PdocgptNew(void);
 
-    virtual PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     PGraphicsPort Pgpt(void)
     {
         return _pgpt;
@@ -1646,10 +1646,10 @@ class DOCGPT : public DOCGPT_PAR
 class DDGPT : public DDGPT_PAR
 {
   protected:
-    DDGPT(DOCGPT *pdocgpt, PGCB pgcb);
+    DDGPT(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb);
 
   public:
-    static DDGPT *PddgptNew(DOCGPT *pdocgpt, PGCB pgcb);
+    static DDGPT *PddgptNew(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
@@ -1819,7 +1819,7 @@ LFail:
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject DOCGPT::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCGPT::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DDGPT::PddgptNew(this, pgcb);
 }
@@ -1827,14 +1827,14 @@ PDocumentDisplayGraphicsObject DOCGPT::PddgNew(PGCB pgcb)
 /***************************************************************************
     Constructor for a gpt doc pane.
 ***************************************************************************/
-DDGPT::DDGPT(DOCGPT *pdocgpt, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocgpt, pgcb)
+DDGPT::DDGPT(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocgpt, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DDMBMP.
 ***************************************************************************/
-DDGPT *DDGPT::PddgptNew(DOCGPT *pdocgpt, PGCB pgcb)
+DDGPT *DDGPT::PddgptNew(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb)
 {
     DDGPT *pddgpt;
 
@@ -1993,7 +1993,7 @@ class TAN : public TAN_PAR
     AbstractPattern _apt;
     ulong _dtim;
 
-    TAN(PGCB pgcb);
+    TAN(PGraphicsObjectBlock pgcb);
 
   public:
     static PTAN PtanNew(void);
@@ -2020,7 +2020,7 @@ bool FrameTesterApp::FCmdFastUpdate(PCommand pcmd)
 /***************************************************************************
     Constructor for a Test animation gob.
 ***************************************************************************/
-TAN::TAN(PGCB pgcb) : GraphicsObject(pgcb)
+TAN::TAN(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
 }
 

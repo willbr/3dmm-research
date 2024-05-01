@@ -181,7 +181,7 @@ class MovieView : public MovieView_PAR
     ulong _grfont;    // Font style for text
     long _lwLastTime; // State variable for the last time through.
 
-    MovieView(PDocumentBase pdocb, PGCB pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+    MovieView(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
     {
     }
 
@@ -206,7 +206,7 @@ class MovieView : public MovieView_PAR
     //
     // Constructors and desctructors
     //
-    static MovieView *PmvuNew(PMovie pmvie, PGCB pgcb, long dxy, long dyp);
+    static MovieView *PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxy, long dyp);
     ~MovieView(void);
 
     //
@@ -897,7 +897,7 @@ class Movie : public Movie_PAR
     //
     // Overridden DocumentBase functions
     //
-    PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb);    // For creating a view on a movie.
+    PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);    // For creating a view on a movie.
     bool FAddUndo(PMovieUndo pmunb); // Add an item to the undo list
     void ClearUndo(void);
 

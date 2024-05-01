@@ -657,7 +657,7 @@ void TextDocument::SetHtop(PTopic phtop)
 /***************************************************************************
     Constructor for a TopicGraphicsObject.
 ***************************************************************************/
-TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
+TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -668,7 +668,7 @@ TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument p
 /***************************************************************************
     Create a new help topic display gob.
 ***************************************************************************/
-PTopicGraphicsObject TopicGraphicsObject::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGCB pgcb)
+PTopicGraphicsObject TopicGraphicsObject::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb)
 {
     PTopicGraphicsObject ptxhg;
 

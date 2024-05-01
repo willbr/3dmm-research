@@ -83,7 +83,7 @@ class TBXB : public TBXB_PAR
     long _ypPrev;         // Previous y coord of the mouse.
     RC _rcOrig;           // Original size of the border.
 
-    TBXB(PTBOX ptbox, PGCB pgcb) : GraphicsObject(pgcb)
+    TBXB(PTBOX ptbox, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
         _ptbox = ptbox;
     }
@@ -94,7 +94,7 @@ class TBXB : public TBXB_PAR
     //
     // Creates a text box with border
     //
-    static PTBXB PtbxbNew(PTBOX ptbox, PGCB pgcb);
+    static PTBXB PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
 
     //
     // Overridden routines
@@ -129,7 +129,7 @@ class TBXG : public TBXG_PAR
     PTBXB _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
 
-    TBXG(PRichTextDocument ptxrd, PGCB pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
+    TBXG(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
     {
     }
     ~TBXG(void);
@@ -138,7 +138,7 @@ class TBXG : public TBXG_PAR
     //
     // Creation function
     //
-    static PTBXG PtbxgNew(PTBOX ptbox, PGCB pgcb);
+    static PTBXG PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
 
     //
     // Accessors
@@ -227,7 +227,7 @@ class TextBox : public TextBox_PAR
     // Creation routines
     //
     static PTBOX PtboxNew(PScene pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
-    PDocumentDisplayGraphicsObject PddgNew(PGCB pgcb)
+    PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb)
     {
         return TBXG::PtbxgNew(this, pgcb);
     }
