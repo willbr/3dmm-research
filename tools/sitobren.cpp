@@ -635,13 +635,13 @@ S2B::~S2B(void)
         that need names in the final product.
 
     Arguments:
-        ChunkTag ctg       -- the ChunkTag of the chunk; used in the #ifdef
+        ChunkTagOrType ctg       -- the ChunkTagOrType of the chunk; used in the #ifdef
         ChunkNumber cno       -- the remainder of the arguments are just passed
         PString pstnName    directly to the SourceEmitter DumpHeader()
         bool fPack
 
 ************************************************************ PETED ***********/
-void S2B::_DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName, bool fPack)
+void S2B::_DumpHeader(ChunkTagOrType ctg, ChunkNumber cno, PString pstnName, bool fPack)
 {
     if (_fPreprocess)
     {
@@ -677,7 +677,7 @@ void S2B::_DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName, bool fPac
             return;
         }
 
-        printf("Warning: ChunkTag w/out any alphanumerics; preprocessor directives"
+        printf("Warning: ChunkTagOrType w/out any alphanumerics; preprocessor directives"
                " skipped for that chunk\n");
     }
 
@@ -1312,7 +1312,7 @@ bool S2B::_FDoTtBackgroundS2B(void)
 {
     bool fGotTok, fSuccess = fFalse;
     long cLite = 2, cCam = 9, iPalBase = 151, cPal = 95;
-    ChunkTag ctgSav;
+    ChunkTagOrType ctgSav;
     ChunkNumber cnoBkgd, cnoSav;
     String stnBkgd;
     BackgroundFile bkgdf;

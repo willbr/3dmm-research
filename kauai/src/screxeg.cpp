@@ -1219,7 +1219,7 @@ PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
     A chunky resource reader to read a color table. Wraps the color table in
     a GenericCacheableObject.
 ***************************************************************************/
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     PGenericCacheableObject pcabo;
     PDynamicArray pglclr = pvNil;

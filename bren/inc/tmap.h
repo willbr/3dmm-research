@@ -10,8 +10,8 @@
 
 namespace BRender {
 
-const ChunkTag kctgTmap = 'TMAP';
-const ChunkTag kctgTxxf = 'TXXF';
+const ChunkTagOrType kctgTmap = 'TMAP';
+const ChunkTagOrType kctgTxxf = 'TXXF';
 
 // tmap on file
 struct TextureMapFile
@@ -75,11 +75,11 @@ class TextureMap : public TextureMap_PAR
     //	take just a PDataBlock.  Should this be necessary for PtmapRead in the future,
     //	it's a simple matter of extracting the code in PtmapRead that is needed,
     //	like I did for FWrite.
-    static PTextureMap PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    static PTextureMap PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TextureMap
-    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TextureMap
     static PTextureMap PtmapNewFromBpmp(BPMP *pbpmp);

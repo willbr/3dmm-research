@@ -54,7 +54,7 @@ const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr
 /***************************************************************************
     A PFNRPO to read a TDF from a file.
 ***************************************************************************/
-bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

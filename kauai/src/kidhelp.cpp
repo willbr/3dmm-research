@@ -74,7 +74,7 @@ void TextDocument::MarkMem(void)
     Static method to read a help text document from the given (pcfl, ctg, cno)
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
+PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
@@ -93,7 +93,7 @@ PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl
 /***************************************************************************
     Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
+bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
@@ -184,7 +184,7 @@ LFail:
 ***************************************************************************/
 bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
     ChunkNumber cno;
     long cb;
     long rglw[2];
@@ -208,15 +208,15 @@ bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
         break;
 
     case sprmObject:
-        if (cb < size(ChunkTag))
+        if (cb < size(ChunkTagOrType))
             return fFalse;
-        _pagcact->GetRgb(icact, 0, size(ChunkTag), &ctg);
+        _pagcact->GetRgb(icact, 0, size(ChunkTagOrType), &ctg);
         if (bo == kboOther)
         {
             SwapBytesRglw(&ctg, 1);
-            _pagcact->PutRgb(icact, 0, size(ChunkTag), &ctg);
+            _pagcact->PutRgb(icact, 0, size(ChunkTagOrType), &ctg);
         }
-        cb -= size(ChunkTag);
+        cb -= size(ChunkTagOrType);
 
         switch (ctg)
         {
@@ -234,9 +234,9 @@ bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 
             if (bo == kboOther)
             {
-                _pagcact->GetRgb(icact, size(ChunkTag), clw * size(long), rglw);
+                _pagcact->GetRgb(icact, size(ChunkTagOrType), clw * size(long), rglw);
                 SwapBytesRglw(rglw, clw);
-                _pagcact->PutRgb(icact, size(ChunkTag), clw * size(long), rglw);
+                _pagcact->PutRgb(icact, size(ChunkTagOrType), clw * size(long), rglw);
             }
             break;
 
@@ -313,12 +313,12 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
     if (sprmObject != sprm)
         return fFalse;
 
-    Assert(size(ChunkTag) == size(long), 0);
+    Assert(size(ChunkTagOrType) == size(long), 0);
     cb = _pagcact->Cb(icact);
     if (cb < size(rglw))
         return fFalse;
     _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((ChunkTag)rglw[0])
+    switch ((ChunkTagOrType)rglw[0])
     {
     case kctgMbmp:
         pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
@@ -381,7 +381,7 @@ bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv
     if (cb < size(rglw))
         return fFalse;
     _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((ChunkTag)rglw[0])
+    switch ((ChunkTagOrType)rglw[0])
     {
     case kctgMbmp:
         pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
@@ -734,10 +734,10 @@ bool TopicGraphicsObject::_FInit(void)
         if (pvNil == pv)
             continue;
 
-        if (cb < size(ChunkTag))
+        if (cb < size(ChunkTagOrType))
             goto LContinue;
 
-        switch (*(ChunkTag *)pv)
+        switch (*(ChunkTagOrType *)pv)
         {
         case kctgEditControl:
             if (cb < size(EditControl))

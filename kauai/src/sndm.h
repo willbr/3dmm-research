@@ -45,7 +45,7 @@ class SoundDevice : public SoundDevice_PAR
     virtual void SetVlm(long vlm) = 0;
     virtual long VlmCur(void) = 0;
 
-    virtual long SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil) = 0;
 
     virtual void Stop(long sii) = 0;
@@ -80,7 +80,7 @@ class SoundManager : public SoundManager_PAR
   protected:
     struct SNDMPE
     {
-        ChunkTag ctg;
+        ChunkTagOrType ctg;
         PSoundDevice psndv;
     };
 
@@ -92,16 +92,16 @@ class SoundManager : public SoundManager_PAR
 
     SoundManager(void);
     bool _FInit(void);
-    bool _FFindCtg(ChunkTag ctg, SNDMPE *psndmpe, long *pisndmpe = pvNil);
+    bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, long *pisndmpe = pvNil);
 
   public:
     static PSoundManager PsndmNew(void);
     ~SoundManager(void);
 
     // new methods
-    virtual bool FAddDevice(ChunkTag ctg, PSoundDevice psndv);
-    virtual PSoundDevice PsndvFromCtg(ChunkTag ctg);
-    virtual void RemoveSndv(ChunkTag ctg);
+    virtual bool FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv);
+    virtual PSoundDevice PsndvFromCtg(ChunkTagOrType ctg);
+    virtual void RemoveSndv(ChunkTagOrType ctg);
 
     // inherited methods
     virtual bool FActive(void);
@@ -110,7 +110,7 @@ class SoundManager : public SoundManager_PAR
     virtual void SetVlm(long vlm);
     virtual long VlmCur(void);
 
-    virtual long SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil);
 
     virtual void Stop(long sii);
@@ -171,7 +171,7 @@ class SNDMQ : public SNDMQ_PAR
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
 
-    virtual long SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil);
 
     virtual void Stop(long sii);
@@ -227,7 +227,7 @@ class SoundQueue : public SoundQueue_PAR
     virtual void _Queue(long isndinMin) = 0;
     virtual void _PauseQueue(long isndinMin) = 0;
     virtual void _ResumeQueue(long isndinMin) = 0;
-    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno) = 0;
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno) = 0;
 
     virtual void _Enter(void);
     virtual void _Leave(void);
@@ -236,7 +236,7 @@ class SoundQueue : public SoundQueue_PAR
   public:
     ~SoundQueue(void);
 
-    void Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
+    void Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
 
     long SprCur(void);
     void Stop(long sii);

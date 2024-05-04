@@ -47,7 +47,7 @@ struct TopicFile
 // edit control object
 struct EditControl
 {
-    ChunkTag ctg;  // kctgEditControl
+    ChunkTagOrType ctg;  // kctgEditControl
     long dxp; // width
 };
 
@@ -83,13 +83,13 @@ class TextDocument : public TextDocument_PAR
     TextDocument(PResourceCache prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~TextDocument(void);
 
-    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil, ulong grftxhd = ftxhdNil);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
     virtual bool _FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
     virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTextDocument PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil,
+    static PTextDocument PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
     virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);

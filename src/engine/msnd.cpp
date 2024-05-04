@@ -46,7 +46,7 @@ const WORD knBlockAlign = 1;
     A PFNRPO to read a MovieSoundMSND from a file
 
 ***************************************************************************/
-bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -79,7 +79,7 @@ bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumb
     Retrieve information contained in the msnd chunk
 
 ***************************************************************************/
-bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
+bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid, long *psty, long *pvlm)
 {
     AssertPo(pcfl, 0);
 
@@ -109,7 +109,7 @@ bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cn
     Init a MovieSoundMSND from the given chunk of the given ChunkyFile
 
 ***************************************************************************/
-bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -671,7 +671,7 @@ void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long sp
     long sii{};
 
     static long _siiLastMidi;
-    static ChunkTag _ctgLastMidi;
+    static ChunkTagOrType _ctgLastMidi;
     static ChunkNumber _cnoLastMidi;
 
     if (_fInvalid)

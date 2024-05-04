@@ -44,7 +44,7 @@ class MP : public MP_PAR
 
   public:
     static PMP PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
-                      ChunkIdentification ckiRoot, ChunkTag ctg, PCommandHandler pcmh, long cid, bool fMoveTop);
+                      ChunkIdentification ckiRoot, ChunkTagOrType ctg, PCommandHandler pcmh, long cid, bool fMoveTop);
 
     virtual bool FCmdSelIdle(PCommand pcmd);
 };

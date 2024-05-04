@@ -56,7 +56,7 @@ class Cursor : public Cursor_PAR
     ~Cursor(void);
 
   public:
-    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
     void Set(void);
 };

@@ -17,7 +17,7 @@
 		An auto class to enumerate over a subgraph of a chunky file.
 		It is illegal to assign a cge to another cge.
 
-	typedef ulong ChunkTag;
+	typedef ulong ChunkTagOrType;
 		A chunk type.  These should all be registered in ctg.h.
 
 	typedef ulong ChunkNumber;
@@ -133,7 +133,7 @@ REVIEW shonk: assert and check for cycles.
 		Decrements the open count.  If the cfl is not marked and the
 		open count becomes zero, the cfl is closed.
 
-	bool ChunkyFile::FSave(ChunkTag ctgCreator, Filename *pfni = pNil);
+	bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni = pNil);
 		Saves the chunky file.  Passing pNil (or the current fni of the ChunkyFile)
 		for pfni does a normal save.  Passing any other fni does a save as
 		(the original file still exists).  Note:  if you do a save as, but
@@ -154,74 +154,74 @@ REVIEW shonk: assert and check for cycles.
 	void ChunkyFile::GetFni(Filename *pfni);
 		Get the file name.
 
-	bool ChunkyFile::FFind(ChunkTag ctg, ChunkNumber cno, FileLocation *pflo);
+	bool ChunkyFile::FFind(ChunkTagOrType ctg, ChunkNumber cno, FileLocation *pflo);
 		Look for the chunk and fill in *pflo with the location of its data.
 
-	HQ ChunkyFile::HqGet(ChunkTag ctg, ChunkNumber cno);
+	HQ ChunkyFile::HqGet(ChunkTagOrType ctg, ChunkNumber cno);
 		Read the chunk into an hq.  Returns hqNil if there is no such
 		chunk or on memory failure.
 
-	bool ChunkyFile::FAdd(long cb, ChunkTag ctg, ChunkNumber *pcno, FileLocation *pflo);
+	bool ChunkyFile::FAdd(long cb, ChunkTagOrType ctg, ChunkNumber *pcno, FileLocation *pflo);
 		Adds a chunk to the file.  Fills in *pcno with the cno for the
 		chunk and fills in *pflo with the space on file allocated for
 		the chunk.
 
-	bool ChunkyFile::FAddPv(void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
-	bool ChunkyFile::FAddHq(HQ hq, ChunkTag ctg, ChunkNumber *pcno);
+	bool ChunkyFile::FAddPv(void *pv, long cb, ChunkTagOrType ctg, ChunkNumber *pcno);
+	bool ChunkyFile::FAddHq(HQ hq, ChunkTagOrType ctg, ChunkNumber *pcno);
 		Adds a chunk to the file and writes the data from the pv or hq into
 		it.  Fills in *pcno with the cno for the chunk.  pv can only be nil
 		if cb is zero.
 
-	bool ChunkyFile::FAddChild(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
-			long cb, ChunkTag ctg, ChunkNumber *pcno, FileLocation *pflo);
-	bool ChunkyFile::FAddChildPv(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
-			void *pv, long cb, ChunkTag ctg, ChunkNumber *pcno);
-	bool ChunkyFile::FAddChildHq(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
-			HQ hq, ChunkTag ctg, ChunkNumber *pcno);
+	bool ChunkyFile::FAddChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+			long cb, ChunkTagOrType ctg, ChunkNumber *pcno, FileLocation *pflo);
+	bool ChunkyFile::FAddChildPv(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+			void *pv, long cb, ChunkTagOrType ctg, ChunkNumber *pcno);
+	bool ChunkyFile::FAddChildHq(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+			HQ hq, ChunkTagOrType ctg, ChunkNumber *pcno);
 		These atomize the adding of a chunk and adopting the new chunk by
 		(ctgPar, cnoPar).
 
-	bool ChunkyFile::FPut(long cb, ChunkTag ctg, ChunkNumber cno, FileLocation *pflo);
+	bool ChunkyFile::FPut(long cb, ChunkTagOrType ctg, ChunkNumber cno, FileLocation *pflo);
 		Replaces (or creates) the indicated chunk.  Use this with caution.
 		You may be nuking an existing chunk by calling this.  Preserves
 		any existing children of the node.
 
-	bool ChunkyFile::FPutPv(void *pv, long cb, ChunkTag ctg, ChunkNumber cno);
-	bool ChunkyFile::FPutHq(HQ hq, ChunkTag ctg, ChunkNumber cno);
+	bool ChunkyFile::FPutPv(void *pv, long cb, ChunkTagOrType ctg, ChunkNumber cno);
+	bool ChunkyFile::FPutHq(HQ hq, ChunkTagOrType ctg, ChunkNumber cno);
 		Replaces (or creates) the indicated chunk with the data in pv or hq.
 		Use this with caution.  You may be nuking an existing chunk by
 		calling this.  Preserves any existing children of the node.  pv can
 		only be nil if cb is zero.
 
-	bool ChunkyFile::FCopy(ChunkTag ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
+	bool ChunkyFile::FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst);
 		Copies a chunk from one file to another.  If the chunk has already
 		been copied, the actual data is not copied again, but the child
 		sub-graph is verified (new descendents will be copied) and names
 		of the chunks in the graph are verified.
 
-	void ChunkyFile::Delete(ChunkTag ctg, ChunkNumber cno);
+	void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno);
 		Deletes a chunk.  It is illegal to call this on a child chunk.
 		It should only be called on top level chunks.  This deletes
 		(or decrements reference counts of) descendents of the chunk.
 
-	bool ChunkyFile::FAdoptChild(ChunkTag ctgPar, ChunkNumber cnoPar,
-			ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0);
+	bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+			ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0);
 		Makes (ctgChild, cnoChild) a child of (ctgPar, cnoPar) with the
 		given chid value.  If it already is a child with this chid value,
 		this does nothing.  Note that a chunk may be a child of another
 		chunk multiple times (with different chid values).
 
-	void DeleteChild(ChunkTag ctgPar, ChunkNumber cnoPar,
-			ChunkTag ctgChild, ChunkNumber cnoChild, ChildChunkID chid);
+	void DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+			ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid);
 		Deletes (ctgChild, cnoChild, chid) as a child of (ctgPar, cnoPar).
 		If the child is no longer a child of any chunks, it is deleted from
 		the cfl.  This deletes (or decrements reference counts of)
 		descendents of the child.
 
-	bool ChunkyFile::FSetName(ChunkTag ctg, ChunkNumber cno, char *pstz);
+	bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, char *pstz);
 		Sets the name of the chunk.  If pstz is pNil, makes the name empty.
 
-	bool ChunkyFile::FGetName(ChunkTag ctg, ChunkNumber cno, char *pstz);
+	bool ChunkyFile::FGetName(ChunkTagOrType ctg, ChunkNumber cno, char *pstz);
 		Gets the name of the chunk.  Returns fFalse iff the name is empty.
 
 	long ChunkyFile::Ccki(void);
@@ -230,25 +230,25 @@ REVIEW shonk: assert and check for cycles.
 	bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki);
 		Gets a cki for the icki'th chunk.  Returns false if icki is too big.
 
-	long ChunkyFile::CckiCtg(ChunkTag ctg);
+	long ChunkyFile::CckiCtg(ChunkTagOrType ctg);
 		Returns the number of chunks of type ctg in the file.
 
-	bool ChunkyFile::FGetCkiCtg(ChunkTag ctg, long icki, ChunkIdentification *pcki);
+	bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, long icki, ChunkIdentification *pcki);
 		Gets a cki for the icki'th chunk of type ctg.  Returns false if icki
 		is too big.
 
-	long ChunkyFile::Ckid(ChunkTag ctgPar, ChunkNumber cnoPar);
+	long ChunkyFile::Ckid(ChunkTagOrType ctgPar, ChunkNumber cnoPar);
 		Returns the number of children of the given chunk.
 
-	bool ChunkyFile::FGetKid(ChunkTag ctgPar, ChunkNumber cnoPar, long ikid, ChildChunkIdentification *pkid);
+	bool ChunkyFile::FGetKid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, long ikid, ChildChunkIdentification *pkid);
 		Gets a kid for the ikid'th child of (ctgPar, cnoPar).
 		Returns false if ikid is too big.
 
-	bool ChunkyFile::FGetKidChid(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid);
+	bool ChunkyFile::FGetKidChid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChildChunkIdentification *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid.
 
-	bool ChunkyFile::FGetKidChidCtg(ChunkTag ctgPar, ChunkNumber cnoPar,
-			ChildChunkID chid, ChunkTag ctg, ChildChunkIdentification *pkid);
+	bool ChunkyFile::FGetKidChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+			ChildChunkID chid, ChunkTagOrType ctg, ChildChunkIdentification *pkid);
 		Gets a kid for the first child of (ctgPar, cnoPar) with given chid
 		and ctg.
 
@@ -257,7 +257,7 @@ REVIEW shonk: assert and check for cycles.
 	ChunkGraphEnumerator methods
 ****************************************/
 
-	void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+	void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 		This initializes an enumeration and must be called before
 		GrfcgeNextKid is called.  The enumeration is over the given
 		node and all of its descendents.

@@ -433,15 +433,15 @@ void TestCfl(void)
 
     struct EREL
     {
-        ChunkTag ctg;
+        ChunkTagOrType ctg;
         ChunkNumber cno;
         PZString psz;
         short relPar1, relPar2;
     };
 
-    const ChunkTag kctgLan = 0x41414141;
-    const ChunkTag kctgKatz = 0x42424242;
-    const ChunkTag kctgSandy = 0x43434343;
+    const ChunkTagOrType kctgLan = 0x41414141;
+    const ChunkTagOrType kctgKatz = 0x42424242;
+    const ChunkTagOrType kctgSandy = 0x43434343;
     EREL dnrel[relLim] = {
         {kctgLan, 0, PszLit("Paul"), relLim, relLim},         {kctgLan, 0, PszLit("Marge"), relLim, relLim},
         {kctgLan, 0, PszLit("Tig"), relPaul, relMarge},       {kctgKatz, 0, PszLit("Carl"), relLim, relLim},
@@ -629,7 +629,7 @@ void TestCrf(void)
 {
     const ChunkNumber cnoLim = 10;
     Filename fni;
-    ChunkTag ctg = 'JUNK';
+    ChunkTagOrType ctg = 'JUNK';
     ChunkNumber cno;
     PGenericHQ rgpghq[cnoLim];
     PChunkyFile pcfl;

@@ -262,7 +262,7 @@ CAMS::~CAMS(void)
 /***************************************************************************
     Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -523,7 +523,7 @@ void AMQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as a CAMS.
 ***************************************************************************/
-PBaseCacheableObject AMQUE::_PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno)
+PBaseCacheableObject AMQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

@@ -886,7 +886,7 @@ PBrowserList BrowserList::PbrwlNew(PResourceCache prca, long kidPar, long kidGla
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BrowserList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BrowserList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BrowserList::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent)
+bool BrowserList::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent)
 {
     AssertThis(0);
 
@@ -1042,7 +1042,7 @@ bool BrowserList::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumS
  * away.
  *
  ****************************************************/
-bool BrowserList::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl)
+bool BrowserList::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1082,7 +1082,7 @@ LFail:
  * BrowserList _FGetContent : Enum files & build the ThumbnailDescriptor
  *
  ****************************************************/
-bool BrowserList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
+bool BrowserList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1408,7 +1408,7 @@ void BrowserList::_ReleaseThumFrame(long ifrm)
  * BrowserContentList class routines
  *
  ****************************************************/
-PBrowserContentList BrowserContentList::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd, bool fOnlineOnly)
+PBrowserContentList BrowserContentList::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd, bool fOnlineOnly)
 {
     PBrowserContentList pbcl;
 
@@ -1422,7 +1422,7 @@ PBrowserContentList BrowserContentList::PbclNew(PChunkyResourceManager pcrm, Chu
     return pbcl;
 }
 
-bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable_GST pgst, PDynamicArray pglthd)
+bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
@@ -1443,7 +1443,7 @@ LFail:
     return fFalse;
 }
 
-bool BrowserContentList::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd)
+bool BrowserContentList::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd)
 {
     AssertNilOrPo(pcrm, 0);
     Assert(pckiRoot->ctg != ctgNil, "Bad ChunkIdentification");
@@ -1472,7 +1472,7 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd, PStringTable_GST pgst, bool fOnlineOnly)
+PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd, PStringTable_GST pgst, bool fOnlineOnly)
 {
     PBCLS pbcls;
 
@@ -1724,7 +1724,7 @@ LFail:
  * Save the name of the Par chunk in the Gst
  *
  ****************************************************/
-bool BCLS::_FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool BCLS::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1840,7 +1840,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
  * -> BrowserList Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
@@ -1862,7 +1862,7 @@ bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long
  * Build the thd
  *
  ****************************************************/
-bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl)
+bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -2995,7 +2995,7 @@ PBRWR BRWR::PbrwrNew(PResourceCache prca, long kid)
  * Initialize a BRoWser Roll Call object
  *
  ****************************************************/
-bool BRWR::FInit(PCommand pcmd, ChunkTag ctgTmplThum, long ithumDisplay, PStudio pstdio)
+bool BRWR::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithumDisplay, PStudio pstdio)
 {
     AssertThis(0);
 

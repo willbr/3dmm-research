@@ -528,7 +528,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     AssertIn(gms, gmsNil, kgmsLim);
     AssertVarMem(pfStable);
     ChildChunkID chid;
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
 
     // set the gms
     _gmsCur = gms;
@@ -586,7 +586,7 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, bool *pfSet)
+bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOrType ctg, long dxp, long dyp, bool *pfSet)
 {
     AssertThis(0);
     long ikid;
@@ -1458,7 +1458,7 @@ bool KidspaceGraphicObject::FChangeState(long sno)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool KidspaceGraphicObject::FSetRep(ChildChunkID chid, ulong grfgok, ChunkTag ctg, long dxp, long dyp, ulong dtim)
+bool KidspaceGraphicObject::FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOrType ctg, long dxp, long dyp, ulong dtim)
 {
     AssertThis(0);
 
@@ -1535,10 +1535,10 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    typedef PGraphicalObjectRepresentation (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    typedef PGraphicalObjectRepresentation (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
     PFNGORP pfngorp;
 
     switch (ctg)
@@ -1715,7 +1715,7 @@ long KidspaceGraphicObject::NfrCur(void)
     Play a sound and attach the sound to this KidspaceGraphicObject so that when the KidspaceGraphicObject
     goes away, the sound will be killed.
 ***************************************************************************/
-long KidspaceGraphicObject::SiiPlaySound(ChunkTag ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long KidspaceGraphicObject::SiiPlaySound(ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
 
@@ -1760,7 +1760,7 @@ void KidspaceGraphicObject::_DeferSnd(bool fDefer)
     sound, so that when the KidspaceGraphicObject goes away and the mouse state changes,
     the sound will be killed.
 ***************************************************************************/
-long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTag ctg, ChunkNumber cno)
+long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
 
@@ -1973,7 +1973,7 @@ const ByteOrderMask kbomGokfl = 0x5FFF0000;
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2078,7 +2078,7 @@ void GORF::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2215,7 +2215,7 @@ void GORB::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2615,7 +2615,7 @@ void GORT::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2637,7 +2637,7 @@ PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 /***************************************************************************
     Initialize the GORV - load the movie indicated byt (pcrf, ctg, cno).
 ***************************************************************************/
-bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);

@@ -23,7 +23,7 @@ RTCLASS(WorldOfKidspace)
 /***************************************************************************
     Static method to read a KidspaceGraphicObjectDescriptorLocation from the ChunkyResourceFile. This is a ChunkyResourceFile object reader.
 ***************************************************************************/
-bool KidspaceGraphicObjectDescriptorLocation::FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool KidspaceGraphicObjectDescriptorLocation::FReadGkds(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     PKidspaceGraphicObjectDescriptorLocation pgkds;
     GOKDF gokdf;
@@ -256,7 +256,7 @@ bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 /***************************************************************************
     Get a KidspaceGraphicObjectDescriptor from the given chunk.
 ***************************************************************************/
-PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTag ctg, ChunkNumber cno, PResourceCache prca)
+PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);

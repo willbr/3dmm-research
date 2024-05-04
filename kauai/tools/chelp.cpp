@@ -566,7 +566,7 @@ void LID::MarkMem(void)
 /***************************************************************************
     Static method to create a new list document.
 ***************************************************************************/
-PLID LID::PlidNew(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid)
+PLID LID::PlidNew(PChunkyResourceManager pcrm, ChunkTagOrType ctg, ChildChunkID chid)
 {
     AssertPo(pcrm, 0);
     PLID plid;
@@ -583,7 +583,7 @@ PLID LID::PlidNew(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid)
 /***************************************************************************
     Initialization for the list document.
 ***************************************************************************/
-bool LID::_FInit(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid)
+bool LID::_FInit(PChunkyResourceManager pcrm, ChunkTagOrType ctg, ChildChunkID chid)
 {
     AssertPo(pcrm, 0);
     GraphicsObjectBlock gcb;

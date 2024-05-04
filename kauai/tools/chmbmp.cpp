@@ -15,7 +15,7 @@ RTCLASS(DCMBMP)
 /****************************************************************************
     Constructor for a MaskedBitmapMBMP document.
 ****************************************************************************/
-DOCMBMP::DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCMBMP::DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pmbmp = pvNil;
 }
@@ -31,7 +31,7 @@ DOCMBMP::~DOCMBMP(void)
 /****************************************************************************
     Static method to create a new MaskedBitmapMBMP document.
 ****************************************************************************/
-PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     PDOCMBMP pdocmbmp;
 

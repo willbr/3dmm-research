@@ -9,7 +9,7 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     The GeneralGroup of TAGFs is maintained in sorted order.  It is sorted by sid,
-    then by	ChunkTag, then by ChunkNumber.
+    then by	ChunkTagOrType, then by ChunkNumber.
 
 ***************************************************************************/
 #include "soc.h"
@@ -38,7 +38,7 @@ struct TAGF
 struct CC
 {
     ChildChunkID chid;
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
 };
 
 /***************************************************************************
@@ -123,7 +123,7 @@ bool TagList::_FFindTag(PTAG ptag, long *pitag)
     TAGF *qtagf;
     long itagfMin, itagfLim, itagf;
     long sid = ptag->sid;
-    ChunkTag ctg = ptag->ctg;
+    ChunkTagOrType ctg = ptag->ctg;
     ChunkNumber cno = ptag->cno;
 
     if (_pggtagf->IvMac() == 0)
@@ -196,7 +196,7 @@ bool TagList::FInsertTag(PTAG ptag, bool fCacheChildren)
 /***************************************************************************
     Insert a TAG child into the TagList
 ***************************************************************************/
-bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTag ctg)
+bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
 {
     AssertThis(0);
     AssertVarMem(ptag);

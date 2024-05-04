@@ -88,17 +88,17 @@ class LID : public LID_PAR
     };
 
     PChunkyResourceManager _pcrm;   // where to look for the chunks
-    ChunkTag _ctg;     // what ctg to look for
+    ChunkTagOrType _ctg;     // what ctg to look for
     ChildChunkID _chid;   // what chid value the MaskedBitmapMBMP should be at (if _ctg is not MaskedBitmapMBMP)
     PDynamicArray _pglcach; // list of the chunks that we found
 
     LID(void);
     ~LID(void);
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkTagOrType ctg, ChildChunkID chid);
 
   public:
-    static PLID PlidNew(PChunkyResourceManager pcrm, ChunkTag ctg, ChildChunkID chid = 0);
+    static PLID PlidNew(PChunkyResourceManager pcrm, ChunkTagOrType ctg, ChildChunkID chid = 0);
 
     bool FRefresh(void);
     long Ccki(void);
@@ -374,7 +374,7 @@ class HETD : public HETD_PAR
     HETD(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno);
     ~HETD(void);
 
-    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText);
 
   public:
     static PHETD PhetdNew(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno);
@@ -438,8 +438,8 @@ class HETG : public HETG_PAR
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
-    virtual bool FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
-    virtual bool FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    virtual bool FInsertPicture(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual bool FInsertButton(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual bool FCmdGroupText(PCommand pcmd);
     virtual bool FCmdFormatPicture(PCommand pcmd);

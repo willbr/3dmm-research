@@ -137,7 +137,7 @@ bool SoundManager::_FInit(void)
 /***************************************************************************
     Find the device that sounds of the given ctg are to be played on.
 ***************************************************************************/
-bool SoundManager::_FFindCtg(ChunkTag ctg, SNDMPE *psndmpe, long *pisndmpe)
+bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, long *pisndmpe)
 {
     AssertThis(0);
     AssertNilOrVarMem(psndmpe);
@@ -167,7 +167,7 @@ bool SoundManager::_FFindCtg(ChunkTag ctg, SNDMPE *psndmpe, long *pisndmpe)
 /***************************************************************************
     Add a device to the device map to handle the particular ctg.
 ***************************************************************************/
-bool SoundManager::FAddDevice(ChunkTag ctg, PSoundDevice psndv)
+bool SoundManager::FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv)
 {
     AssertThis(0);
     AssertPo(psndv, 0);
@@ -202,7 +202,7 @@ bool SoundManager::FAddDevice(ChunkTag ctg, PSoundDevice psndv)
 /***************************************************************************
     Return the sound device that is registered for the given ctg.
 ***************************************************************************/
-PSoundDevice SoundManager::PsndvFromCtg(ChunkTag ctg)
+PSoundDevice SoundManager::PsndvFromCtg(ChunkTagOrType ctg)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -216,7 +216,7 @@ PSoundDevice SoundManager::PsndvFromCtg(ChunkTag ctg)
 /***************************************************************************
     Remove the sound device for the given ctg.
 ***************************************************************************/
-void SoundManager::RemoveSndv(ChunkTag ctg)
+void SoundManager::RemoveSndv(ChunkTagOrType ctg)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -320,7 +320,7 @@ long SoundManager::VlmCur(void)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-long SoundManager::SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -683,7 +683,7 @@ void SNDMQ::Suspend(bool fSuspend)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-long SNDMQ::SiiPlay(PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long SNDMQ::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -988,7 +988,7 @@ void SoundQueue::_Flush(void)
 /***************************************************************************
     Put the given sound on the queue.
 ***************************************************************************/
-void SoundQueue::Enqueue(long sii, PResourceCache prca, ChunkTag ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+void SoundQueue::Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);

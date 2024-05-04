@@ -921,7 +921,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
     AssertThis(0);
     AssertPo(pcflSrc, 0);
     long icki, ikid, ckid;
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
     ChunkIdentification cki;
     ChildChunkIdentification kid;
     DataBlock blck;

@@ -41,7 +41,7 @@ class TDF : public TDF_PAR
     bool _FInit(PDataBlock pblck);
 
   public:
-    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~TDF(void);
 
     // This authoring-only API creates a new TDF based on a set of models

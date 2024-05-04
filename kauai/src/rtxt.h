@@ -298,8 +298,8 @@ class RichTextDocument : public RichTextDocument_PAR
 
     RichTextDocument(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
     ~RichTextDocument(void);
-    bool _FInit(PFilename pfni = pvNil, ChunkTag ctg = kctgRichText);
-    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText);
+    bool _FInit(PFilename pfni = pvNil, ChunkTagOrType ctg = kctgRichText);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
 
     ulong _SpcpFromSprmCp(byte sprm, long cp)
@@ -341,7 +341,7 @@ class RichTextDocument : public RichTextDocument_PAR
 
   public:
     static PRichTextDocument PtxrdNew(PFilename pfni = pvNil);
-    static PRichTextDocument PtxrdReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText = fTrue);
+    static PRichTextDocument PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText = fTrue);
 
     virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
 

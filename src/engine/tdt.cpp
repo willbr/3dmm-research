@@ -85,7 +85,7 @@ const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
     if an error occurs.  The point is, look at *pfError, not the return
     value.
 ***************************************************************************/
-PDynamicArray TDT::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
+PDynamicArray TDT::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
@@ -163,7 +163,7 @@ PTDT TDT::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
     Read the generic TMPL info and the TDT-specific info (tdts and tagTdf),
     then call _FInitLists to build the rest of the TDT.
 ***************************************************************************/
-bool TDT::_FInit(PChunkyFile pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl)
+bool TDT::_FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -712,7 +712,7 @@ PCustomMaterial_CMTL TDT::PcmtlFetch(long cmid)
 /***************************************************************************
     Write the TDT out as a TMPL hierarchy.
 ***************************************************************************/
-bool TDT::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool TDT::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

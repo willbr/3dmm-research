@@ -105,7 +105,7 @@ LFail:
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read an ACTN from a file
 ***************************************************************************/
-bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -140,7 +140,7 @@ bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 /***************************************************************************
     Read an ACTN from a chunk
 ***************************************************************************/
-bool ACTN::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool ACTN::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -250,7 +250,7 @@ void ACTN::GetCps(long icel, long icps, CPS *pcps)
 }
 
 /***************************************************************************
-    Get a sound for icel.  If there is no sound, ptag's ChunkTag is set to
+    Get a sound for icel.  If there is no sound, ptag's ChunkTagOrType is set to
     ctgNil.
 ***************************************************************************/
 void ACTN::GetSnd(long icel, PTAG ptag)
@@ -310,7 +310,7 @@ void ACTN::MarkMem(void)
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read TMPL objects.
 ***************************************************************************/
-bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -352,7 +352,7 @@ bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PD
 /***************************************************************************
     Read a TMPL from a chunk
 ***************************************************************************/
-bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
 
@@ -385,7 +385,7 @@ bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for TDTs.
 ***************************************************************************/
-bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -414,7 +414,7 @@ bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
 /***************************************************************************
     Read a TMPL from a chunk
 ***************************************************************************/
-bool TMPL::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool TMPL::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -567,7 +567,7 @@ TMPL::~TMPL(void)
     return value of pvNil does not mean an error occurred, but simply that
     this TMPL has no embedded tags.
 ***************************************************************************/
-PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError)
+PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);

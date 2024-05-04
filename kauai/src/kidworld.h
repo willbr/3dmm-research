@@ -99,7 +99,7 @@ class KidspaceGraphicObjectDescriptorLocation : public KidspaceGraphicObjectDesc
 
   public:
     // An object reader for a KidspaceGraphicObjectDescriptor.
-    static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~KidspaceGraphicObjectDescriptorLocation(void);
 
     virtual long Gokk(void);
@@ -139,7 +139,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     }
 
     virtual bool FGobIn(PGraphicsObject pgob);
-    virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTag ctg, ChunkNumber cno, PResourceCache prca);
+    virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca);
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca);
     virtual PGraphicsObjectInterpreter PscegNew(PResourceCache prca, PGraphicsObject pgob);
     virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);

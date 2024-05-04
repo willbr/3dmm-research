@@ -104,11 +104,11 @@ class ACTN : public ACTN_PAR
     ACTN(void)
     {
     } // can't instantiate directly; must use FReadActn
-    bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
     static PACTN PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn);
-    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~ACTN(void);
 
     ulong Grfactn(void)
@@ -166,16 +166,16 @@ class TMPL : public TMPL_PAR
     TMPL(void)
     {
     } // can't instantiate directly; must use FReadTmpl
-    bool _FReadTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    virtual bool _FInit(PChunkyFile pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl);
+    bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
     virtual PACTN _PactnFetch(long anid);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
-    bool _FWriteTmplf(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
   public:
-    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~TMPL(void);
-    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError);
+    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
     // TMPL / BODY stuff
     void GetName(PString pstn); // default name of actor or text of the TDT

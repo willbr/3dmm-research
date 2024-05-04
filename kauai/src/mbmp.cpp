@@ -483,7 +483,7 @@ void MaskedBitmapMBMP::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read an MaskedBitmapMBMP.
 ***************************************************************************/
-bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);

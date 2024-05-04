@@ -55,7 +55,7 @@ class Model : public Model_PAR
 
   public:
     static PModel PmodlNew(long cbrv, BRV *prgbrv, long cbrf, BRF *prgbrf);
-    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PModel PmodlReadFromDat(Filename *pfni);
     static PModel PmodlFromBmdl(PBMDL pbmdl);
     ~Model(void);
@@ -64,7 +64,7 @@ class Model : public Model_PAR
         return _pbmdl;
     }
     void AdjustTdfCharacter(void);
-    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
     BRS Dxr(void)
     {

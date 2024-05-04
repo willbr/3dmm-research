@@ -1409,13 +1409,13 @@ void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 
     Arguments:
         PChunkyFile pcfl  --  the file on which to check
-        ChunkTag ctg    --  these are self-explanatory
+        ChunkTagOrType ctg    --  these are self-explanatory
         ChunkNumber cno
 
     Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the Movie
 
 ************************************************************ PETED ***********/
-bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;

@@ -31,7 +31,7 @@ PTextureMap Material_MTRL::_ptmapShadeTable = pvNil; // shade table for all MTRL
     Call this function to assign the global shade table.  It is read from
     the given chunk.
 ***************************************************************************/
-bool Material_MTRL::FSetShadeTable(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Material_MTRL::FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -89,7 +89,7 @@ PMaterial_MTRL Material_MTRL::PmtrlNew(long iclrBase, long cclr)
 /***************************************************************************
     A PFNRPO to read Material_MTRL objects.
 ***************************************************************************/
-bool Material_MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Material_MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -117,7 +117,7 @@ bool Material_MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumbe
 /***************************************************************************
     Read the given Material_MTRL chunk from file
 ***************************************************************************/
-bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
@@ -331,7 +331,7 @@ PTextureMap Material_MTRL::Ptmap(void)
 /***************************************************************************
     Write a Material_MTRL to a chunky file
 ***************************************************************************/
-bool Material_MTRL::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool Material_MTRL::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -439,7 +439,7 @@ void Material_MTRL::MarkShadeTable(void)
 /***************************************************************************
     Static function to see if the given chunk has Model children
 ***************************************************************************/
-bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -512,7 +512,7 @@ PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(long ibset, long cbprt, PMate
 /***************************************************************************
     A PFNRPO to read CustomMaterial_CMTL objects.
 ***************************************************************************/
-bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -541,7 +541,7 @@ bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, Chun
 /***************************************************************************
     Read a CustomMaterial_CMTL from file
 ***************************************************************************/
-bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);

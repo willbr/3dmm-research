@@ -1001,7 +1001,7 @@ void Interpreter::_LenStr(long stid)
 /***************************************************************************
     ChunkyResourceFile reader function to read a string registry string table.
 ***************************************************************************/
-bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1334,7 +1334,7 @@ bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw)
 /***************************************************************************
     A chunky resource reader to read a script.
 ***************************************************************************/
-bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
@@ -1351,7 +1351,7 @@ bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno
 /***************************************************************************
     Static method to read a script.
 ***************************************************************************/
-PScript Script::PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+PScript Script::PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
     short bo;
@@ -1403,7 +1403,7 @@ Script::~Script(void)
 /***************************************************************************
     Save the script to the given chunky file.
 ***************************************************************************/
-bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack)
+bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fPack)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

@@ -764,7 +764,7 @@ bool TagManager::FFindFile(long sid, PString pstn, PFilename pfni, bool fAskForC
     Build a tag for a child of another tag.  Note that this may hit the
     CD if _PcrmSourceGet has not yet been called for ptagPar->sid.
 ***************************************************************************/
-bool TagManager::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild)
+bool TagManager::FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType ctgChild, PTAG ptagChild)
 {
     AssertThis(0);
     AssertVarMem(ptagPar);
@@ -1067,7 +1067,7 @@ void TagManager::CloseTag(PTAG ptag)
 }
 
 /***************************************************************************
-    Compare two tags.  Tags are sorted first by sid, then ChunkTag, then ChunkNumber.
+    Compare two tags.  Tags are sorted first by sid, then ChunkTagOrType, then ChunkNumber.
 ***************************************************************************/
 ulong TagManager::FcmpCompareTags(PTAG ptag1, PTAG ptag2)
 {

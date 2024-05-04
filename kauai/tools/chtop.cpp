@@ -1733,7 +1733,7 @@ PHETD HETD::PhetdNew(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl,
 /***************************************************************************
     Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool HETD::_FReadChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fCopyText)
+bool HETD::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
     DataBlock blck;
@@ -2228,7 +2228,7 @@ enum
 /***************************************************************************
     Insert a picture into the help text document.
 ***************************************************************************/
-bool HETG::FInsertPicture(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+bool HETG::FInsertPicture(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2328,7 +2328,7 @@ bool _FDlgFormatButton(PDialog pdlg, long *pidit, void *pv)
 /***************************************************************************
     Insert a button into the help text document.
 ***************************************************************************/
-bool HETG::FInsertButton(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno)
+bool HETG::FInsertButton(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
@@ -2723,7 +2723,7 @@ bool HETG::FEnableHetgCmd(PCommand pcmd, ulong *pgrfeds)
             break;
         if (cp == cpT && cb >= size(ChunkIdentification))
         {
-            switch (*(ChunkTag *)pv)
+            switch (*(ChunkTagOrType *)pv)
             {
             case kctgMbmp:
                 if (pcmd->cid == cidFormatPicture)
@@ -2915,7 +2915,7 @@ bool HETG::FCmdFormatEdit(PCommand pcmd)
     if (!Phetd()->FFetchObject(cp, &cpT, &pv, &cb))
         return fTrue;
 
-    if (cp != cpT || cb != size(ecos) || *(ChunkTag *)pv != kctgEditControl)
+    if (cp != cpT || cb != size(ecos) || *(ChunkTagOrType *)pv != kctgEditControl)
     {
         FreePpv(&pv);
         return fFalse;

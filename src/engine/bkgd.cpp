@@ -117,7 +117,7 @@ bool Background::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     A PFNRPO to read a Background from a file
 ***************************************************************************/
-bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -150,7 +150,7 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
     them on yet because we don't have a World to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool Background::_FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
@@ -247,7 +247,7 @@ LFail:
     Return the number of camera views in this scene.  CameraPosition chunks need to be
     contiguous CHIDs starting at ChildChunkID 0.
 ***************************************************************************/
-long Background::_Ccam(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+long Background::_Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);

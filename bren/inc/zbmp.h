@@ -53,7 +53,7 @@ class ZBMP : public ZBMP_PAR
     static PZBMP PzbmpNew(long dxp, long dyp);
     static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
     static PZBMP PzbmpRead(PDataBlock pblck);
-    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~ZBMP(void);
 
     byte *Prgb(void)
@@ -70,7 +70,7 @@ class ZBMP : public ZBMP_PAR
     void DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
                   PRegion pregnClip = pvNil);
 
-    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 };
 
 } // end of namespace BRender

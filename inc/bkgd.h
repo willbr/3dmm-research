@@ -129,14 +129,14 @@ class Background : public Background_PAR
     BRS _zrCam;
 
   protected:
-    bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
-    long _Ccam(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    long _Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     void _SetupLights(PDynamicArray pgllite);
 
   public:
     static bool FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~Background(void);
     void GetName(PString pstn);
 

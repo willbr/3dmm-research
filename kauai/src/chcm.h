@@ -186,7 +186,7 @@ class Compiler : public Compiler_PAR
     struct CSFC
     {
         PChunkyFile pcfl;
-        ChunkTag ctg;
+        ChunkTagOrType ctg;
         ChunkNumber cno;
         bool fPack;
     };
@@ -218,34 +218,34 @@ class Compiler : public Compiler_PAR
     bool _FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp);
     bool _FGetCleanTok(Token *ptok, bool fEofOk = fFalse);
     void _SkipPastTok(long tt);
-    void _ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno);
+    void _ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno);
     void _AppendString(PString pstnValue);
     void _AppendNumber(long lwValue);
-    void _ParseBodyChild(ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyParent(ChunkTag ctg, ChunkNumber cno);
+    void _ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyAlign(void);
     void _ParseBodyFile(void);
 
-    void _StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno);
+    void _StartSubFile(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
     void _EndSubFile(void);
 
-    void _ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno);
+    void _ParseBodyMeta(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyPalette(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyMidi(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
     bool _FParseData(PToken ptok);
-    void _ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkNumber cno);
-    void _ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumber cno);
+    void _ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyPackedFile(bool *pfPacked);
-    void _ParseChunkBody(ChunkTag ctg, ChunkNumber cno);
+    void _ParseChunkBody(ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseAdopt(void);
     void _ParsePackFmt(void);
 
-    bool _FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck);
-    bool _FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck);
+    bool _FPrepWrite(bool fPack, long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck);
+    bool _FEndWrite(bool fPack, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck);
 
   public:
     Compiler(void);

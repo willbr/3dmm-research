@@ -48,7 +48,7 @@ LFail:
 /***************************************************************************
     A PFNRPO to read a Model from a file
 ***************************************************************************/
-bool Model::FReadModl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Model::FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -256,7 +256,7 @@ Model::~Model(void)
 /***************************************************************************
     Writes a Model to a chunk
 ***************************************************************************/
-bool Model::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+bool Model::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

@@ -611,7 +611,7 @@ class Movie : public Movie_PAR
     ChildChunkID _ChidScenNewSnd(void);                   // Choose an unused chid for a new scene child user sound
     ChildChunkID _ChidMvieNewSnd(void);                   // Choose an unused chid for a new movie child user sound
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
-    bool _FIsChild(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     bool _FSetPfilSave(PFilename pfni);
 
   public:

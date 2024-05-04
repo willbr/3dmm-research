@@ -66,7 +66,7 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
 };
 
 // a Chunky resource reader for a color table
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
 } // end of namespace ScriptInterpreter
 

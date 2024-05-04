@@ -63,9 +63,9 @@ class World : public World_PAR
     BRS _dzpClosestClicked;      // Distance of the closest clicked actor
     // Keep reference to last background in case we switch to/from halfmode:
     PChunkyResourceFile _pcrf;
-    ChunkTag _ctgRGB;
+    ChunkTagOrType _ctgRGB;
     ChunkNumber _cnoRGB;
-    ChunkTag _ctgZ;
+    ChunkTagOrType _ctgZ;
     ChunkNumber _cnoZ;
 
   protected:
@@ -94,7 +94,7 @@ class World : public World_PAR
     void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 
     // Background stuff
-    bool FSetBackground(PChunkyResourceFile pcrf, ChunkTag ctgRGB, ChunkNumber cnoRGB, ChunkTag ctgZ, ChunkNumber cnoZ);
+    bool FSetBackground(PChunkyResourceFile pcrf, ChunkTagOrType ctgRGB, ChunkNumber cnoRGB, ChunkTagOrType ctgZ, ChunkNumber cnoZ);
     void SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov);
     void GetCamera(BMAT34 *pbmat34, BRS *pzrHither = pvNil, BRS *pzrYon = pvNil, BRA *paFov = pvNil);
 

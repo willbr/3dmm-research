@@ -256,7 +256,7 @@ void ChunkyResourceFile::SetCbMax(long cbMax)
     tNo if the chunk isn't in the ChunkyResourceFile and tMaybe if there wasn't room
     to cache the chunk.
 ***************************************************************************/
-tribool ChunkyResourceFile::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
+tribool ChunkyResourceFile::TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -337,7 +337,7 @@ tribool ChunkyResourceFile::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, 
     Make sure the object is loaded and increment its reference count.  If
     successful, must be balanced with a call to ReleasePpo.
 ***************************************************************************/
-PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -415,7 +415,7 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTag ctg, ChunkNumber cn
     If the object is loaded, increment its reference count and return it.
     If it's not already loaded, just return nil.
 ***************************************************************************/
-PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -439,7 +439,7 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTag ctg, ChunkNumber cno
     If the baco indicated chunk is cached, set its crep.  Returns true
     iff the baco was cached.
 ***************************************************************************/
-bool ChunkyResourceFile::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+bool ChunkyResourceFile::FSetCrep(long crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "bad pfnrpo");
@@ -463,7 +463,7 @@ bool ChunkyResourceFile::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNR
     Return this if the chunk is in this crf, otherwise return nil. The
     caller is not given a reference count.
 ***************************************************************************/
-PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
 
@@ -540,7 +540,7 @@ void ChunkyResourceFile::BacoReleased(PBaseCacheableObject pbaco)
     Find the cre corresponding to the (ctg, cno, pfnrpo).  Set *picre to
     its location (or where it would be if it were in the list).
 ***************************************************************************/
-bool ChunkyResourceFile::_FFindCre(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre)
+bool ChunkyResourceFile::_FFindCre(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, long *picre)
 {
     AssertThis(0);
     AssertVarMem(picre);
@@ -586,7 +586,7 @@ bool ChunkyResourceFile::_FFindBaco(PBaseCacheableObject pbaco, long *picre)
     AssertPo(pbaco, 0);
     Assert(pbaco->_pcrf == this, "BaseCacheableObject doesn't have right ChunkyResourceFile");
     AssertVarMem(picre);
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
     ChunkNumber cno;
     CRE *qrgcre, *qcre;
     long icreMin, icreLim, icre;
@@ -800,7 +800,7 @@ PChunkyResourceManager ChunkyResourceManager::PcrmNew(long ccrfInit)
     Prefetch the object if there is room in the cache.  Assigns the fetched
     object the given priority (crep).
 ***************************************************************************/
-tribool ChunkyResourceManager::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
+tribool ChunkyResourceManager::TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc, long crep)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -826,7 +826,7 @@ tribool ChunkyResourceManager::TLoad(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrp
     and pfError is not nil, *pfError is set iff the chunk exists but
     couldn't be loaded.
 ***************************************************************************/
-PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
+PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, bool *pfError, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -855,7 +855,7 @@ PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTag ctg, ChunkNumber
     If the object is loaded, increment its reference count and return it.
     If it's not already loaded, just return nil.
 ***************************************************************************/
-PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -872,7 +872,7 @@ PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTag ctg, ChunkNumber 
     If the chunk is cached, set its crep.  Returns true iff the chunk
     was cached.
 ***************************************************************************/
-bool ChunkyResourceManager::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
+bool ChunkyResourceManager::FSetCrep(long crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc)
 {
     AssertThis(0);
     Assert(pvNil != pfnrpo, "nil object reader");
@@ -894,7 +894,7 @@ bool ChunkyResourceManager::FSetCrep(long crep, ChunkTag ctg, ChunkNumber cno, P
     Return which ChunkyResourceFile the given chunk is in. The caller is not given a
     reference count.
 ***************************************************************************/
-PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTag ctg, ChunkNumber cno, RSC rsc)
+PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
     PChunkyResourceFile pcrf;
@@ -993,7 +993,7 @@ void ChunkyResourceManager::MarkMem(void)
 /***************************************************************************
     A PFNRPO to read GenericHQ objects.
 ***************************************************************************/
-bool GenericHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool GenericHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);

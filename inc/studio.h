@@ -75,7 +75,7 @@ class Studio : public Studio_PAR
     Studio(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb){};
     bool _FOpenStudio(bool fPaletteFade);
     void _SetToolStates(void);
-    bool _FBuildMenuCidCtg(long cid, ChunkTag ctg, PDynamicArray pgl, ulong grfHotKey, ulong grfNum, bool fNew);
+    bool _FBuildMenuCidCtg(long cid, ChunkTagOrType ctg, PDynamicArray pgl, ulong grfHotKey, ulong grfNum, bool fNew);
     PBrowserContext _PbrcnFromBrwdid(long brwdid);
 #ifdef BUG1959
     bool _FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld);

@@ -76,7 +76,7 @@ class TDT : public TDT_PAR
     long _tdaCache;      // Action in pactnCache
 
   protected:
-    virtual bool _FInit(PChunkyFile pcfl, ChunkTag ctgTmpl, ChunkNumber cnoTmpl);
+    virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
     bool _FInitLists(void);
     PDynamicArray _PglibactParBuild(void);
     PDynamicArray _PglibsetBuild(void);
@@ -99,12 +99,12 @@ class TDT : public TDT_PAR
 
     static PTDT PtdtNew(PString pstn, long tdts, PTAG ptagTdf);
     ~TDT(void);
-    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfError);
+    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
     PTDT PtdtDup(void);
 
     void GetInfo(PString pstn, long *ptdts, PTAG ptagTdf);
     bool FChange(PString pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
-    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
     bool FAdjustBody(PBODY pbody);
     virtual bool FSetDefaultCost(PBODY pbody);
     virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);

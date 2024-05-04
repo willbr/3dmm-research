@@ -99,7 +99,7 @@ void SourceEmitter::MarkMem(void)
 /***************************************************************************
     Dumps chunk header.
 ***************************************************************************/
-void SourceEmitter::DumpHeader(ChunkTag ctg, ChunkNumber cno, PString pstnName, bool fPack)
+void SourceEmitter::DumpHeader(ChunkTagOrType ctg, ChunkNumber cno, PString pstnName, bool fPack)
 {
     AssertThis(fchseDump);
     AssertNilOrPo(pstnName, 0);
@@ -163,7 +163,7 @@ void SourceEmitter::DumpRgb(void *prgb, long cb, long cactTab)
 /***************************************************************************
     Dump a parent directive
 ***************************************************************************/
-void SourceEmitter::DumpParentCmd(ChunkTag ctgPar, ChunkNumber cnoPar, ChildChunkID chid)
+void SourceEmitter::DumpParentCmd(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid)
 {
     AssertThis(fchseDump);
 

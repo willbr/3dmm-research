@@ -396,7 +396,7 @@ bool Compiler::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
 /***************************************************************************
     Parse a chunk header from the source file.
 ***************************************************************************/
-void Compiler::_ParseChunkHeader(ChunkTag *pctg, ChunkNumber *pcno)
+void Compiler::_ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertVarMem(pctg);
@@ -493,10 +493,10 @@ void Compiler::_AppendNumber(long lwValue)
 /***************************************************************************
     Parse a child statement from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyChild(ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    ChunkTag ctgChild;
+    ChunkTagOrType ctgChild;
     ChunkNumber cnoChild;
     ChildChunkID chid;
     PHP rgphp[3];
@@ -537,10 +537,10 @@ void Compiler::_ParseBodyChild(ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a parent statement from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyParent(ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    ChunkTag ctgParent;
+    ChunkTagOrType ctgParent;
     ChunkNumber cnoParent;
     ChildChunkID chid;
     PHP rgphp[3];
@@ -661,7 +661,7 @@ void Compiler::_ParseBodyFile(void)
     Otherwise, get the block on the ChunkyFile. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
-bool Compiler::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
+bool Compiler::_FPrepWrite(bool fPack, long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -679,7 +679,7 @@ bool Compiler::_FPrepWrite(bool fPack, long cb, ChunkTag ctg, ChunkNumber cno, P
 /***************************************************************************
     Balances a call to _FPrepWrite.
 ***************************************************************************/
-bool Compiler::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck)
+bool Compiler::_FEndWrite(bool fPack, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, fblckUnpacked);
@@ -698,7 +698,7 @@ bool Compiler::_FEndWrite(bool fPack, ChunkTag ctg, ChunkNumber cno, PDataBlock 
 /***************************************************************************
     Parse a metafile import command from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyMeta(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -739,7 +739,7 @@ void Compiler::_ParseBodyMeta(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a bitmap import command from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -792,7 +792,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTag ctg, ChunkNumbe
 /***************************************************************************
     Parse a palette import command from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyPalette(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -833,7 +833,7 @@ void Compiler::_ParseBodyPalette(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a midi import command from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyMidi(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Filename fni;
@@ -874,7 +874,7 @@ void Compiler::_ParseBodyMidi(bool fPack, ChunkTag ctg, ChunkNumber cno)
 /***************************************************************************
     Parse a cursor import command from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyCursor(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     // These are for parsing a Windows cursor file
     struct CURDIR
@@ -1161,7 +1161,7 @@ bool Compiler::_FParseData(PToken ptok)
 /***************************************************************************
     Parse a list structure from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Token tok;
@@ -1292,7 +1292,7 @@ LFail:
 /***************************************************************************
     Parse a group structure from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Token tok;
@@ -1449,7 +1449,7 @@ LFail:
 /***************************************************************************
     Parse a string table from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Token tok;
@@ -1595,7 +1595,7 @@ LFail:
 /***************************************************************************
     Parse a script from the source file.
 ***************************************************************************/
-void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     GraphicsObjectCompiler sccg;
@@ -1656,7 +1656,7 @@ void Compiler::_ParseBodyPackedFile(bool *pfPacked)
 /***************************************************************************
     Start a sub file.
 ***************************************************************************/
-void Compiler::_StartSubFile(bool fPack, ChunkTag ctg, ChunkNumber cno)
+void Compiler::_StartSubFile(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     CSFC csfc;
@@ -1802,7 +1802,7 @@ void Compiler::_ParsePackFmt(void)
 /***************************************************************************
     Parse the chunk body from the source file.
 ***************************************************************************/
-void Compiler::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
+void Compiler::_ParseChunkBody(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     Token tok;
@@ -1940,7 +1940,7 @@ void Compiler::_ParseChunkBody(ChunkTag ctg, ChunkNumber cno)
 void Compiler::_ParseAdopt(void)
 {
     AssertThis(0);
-    ChunkTag ctgParent, ctgChild;
+    ChunkTagOrType ctgParent, ctgChild;
     ChunkNumber cnoParent, cnoChild;
     ChildChunkID chid;
     PHP rgphp[5];
@@ -2024,7 +2024,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
     Token tok;
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
     ChunkNumber cno;
     PChunkyFile pcfl;
     bool fReportBadTok;
@@ -2491,7 +2491,7 @@ bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     AssertThis(0);
     AssertPo(pcflSrc, 0);
     long icki, ikid, ckid;
-    ChunkTag ctg;
+    ChunkTagOrType ctg;
     ChunkIdentification cki;
     ChildChunkIdentification kid;
     DataBlock blck;

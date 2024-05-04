@@ -381,7 +381,7 @@ class MPQUE : public MPQUE_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(void);
-    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno);
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);
@@ -531,7 +531,7 @@ void MPQUE::_Leave(void)
 /***************************************************************************
     MT: Fetch the given sound chunk as a midi stream.
 ***************************************************************************/
-PBaseCacheableObject MPQUE::_PbacoFetch(PResourceCache prca, ChunkTag ctg, ChunkNumber cno)
+PBaseCacheableObject MPQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);

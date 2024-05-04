@@ -109,7 +109,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
 
   protected:
     // these are inherent to the msnd
-    ChunkTag _ctgSnd;       // ChunkTag of the WAV or MIDI chunk
+    ChunkTagOrType _ctgSnd;       // ChunkTagOrType of the WAV or MIDI chunk
     ChunkNumber _cnoSnd;       // ChunkNumber of the WAV or MIDI chunk
     PResourceCache _prca;        // file that the WAV/MIDI lives in
     long _sty;         // MIDI, speech, or sfx
@@ -119,11 +119,11 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     bool _fInvalid;    // Invalid flag
 
   protected:
-    bool _FInit(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
+    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
     static bool FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn = pvNil);
     static bool FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, String *pstnName, ChunkNumber *pcno);

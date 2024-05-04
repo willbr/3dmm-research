@@ -58,7 +58,7 @@ PZBMP ZBMP::PzbmpNewFromBpmp(BPMP *pbpmp)
 /***************************************************************************
     Chunky resource reader for ZBMP
 ***************************************************************************/
-bool ZBMP::FReadZbmp(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ZBMP::FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -262,7 +262,7 @@ void ZBMP::DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypR
 /***************************************************************************
     Write the ZBMP
 ***************************************************************************/
-bool ZBMP::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool ZBMP::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);

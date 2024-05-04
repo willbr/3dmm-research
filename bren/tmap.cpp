@@ -14,7 +14,7 @@ RTCLASS(TextureMap)
 /***************************************************************************
     A PFNRPO to read TextureMap objects.
 ***************************************************************************/
-bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -41,7 +41,7 @@ bool TextureMap::FReadTmap(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber c
 /***************************************************************************
     Read a TextureMap from a chunk
 ***************************************************************************/
-PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno)
+PTextureMap TextureMap::PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     TextureMapFile tmapf;
     DataBlock blck;
@@ -120,7 +120,7 @@ TextureMap::~TextureMap(void)
 /***************************************************************************
     Write a TextureMap to a chunk
 ***************************************************************************/
-bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno)
+bool TextureMap::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     DataBlock blck;

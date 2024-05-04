@@ -66,12 +66,12 @@ class Material_MTRL : public Material_MTRL_PAR
     {
         _pbmtl = pvNil;
     } // can't instantiate directly; must use FReadMtrl
-    bool _FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static bool FSetShadeTable(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    static bool FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     static PMaterial_MTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
-    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     static PMaterial_MTRL PmtrlNewFromPix(PFilename pfni);
     static PMaterial_MTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
     static PMaterial_MTRL PmtrlFromBmtl(PBMTL pbmtl);
@@ -81,7 +81,7 @@ class Material_MTRL : public Material_MTRL_PAR
     {
         return _pbmtl;
     }
-    bool FWrite(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG
@@ -108,15 +108,15 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
     long _ibset;      // body part set that this CustomMaterial_CMTL should be applied to
 
   protected:
-    bool _FInit(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
     CustomMaterial_CMTL(void)
     {
     } // can't instantiate directly; must use PcmtlRead
 
   public:
     static PCustomMaterial_CMTL PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl);
-    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static bool FHasModels(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
     ~CustomMaterial_CMTL(void);
     PBMTL Pbmtl(long ibmtl);

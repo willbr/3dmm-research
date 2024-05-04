@@ -11,12 +11,12 @@
     BASE ---> TagManager
 
     A TAG is a reference to a piece of content: a background, actor
-    template, sound, etc.  In addition to a ChunkTag and ChunkNumber, a TAG specifies
+    template, sound, etc.  In addition to a ChunkTagOrType and ChunkNumber, a TAG specifies
     a SID, or source ID, that helps TagManager find the content.
 
     A source (identified by a SID) is a group of chunky files (managed
     by a ChunkyResourceManager) in one directory of one disk whose chunks all have unique
-    ChunkTag/CNOs.  Each Socrates series member will be a source, and the
+    ChunkTagOrType/CNOs.  Each Socrates series member will be a source, and the
     user rolls might also be implemented as a source.  A SID of less
     than 0 is invalid; a TAG with a negative SID is an invalid TAG.
 
@@ -55,7 +55,7 @@ struct TAG
 
     long sid;  // Source ID (or ksidUseCrf)
     PChunkyResourceFile pcrf; // File to look in for this chunk if sid is ksidUseCrf
-    ChunkTag ctg;   // ChunkTag of chunk
+    ChunkTagOrType ctg;   // ChunkTagOrType of chunk
     ChunkNumber cno;   // ChunkNumber of chunk
 };
 const ByteOrderMask kbomTag = 0xFF000000;
@@ -127,7 +127,7 @@ class TagManager : public TagManager_PAR
     bool FFindFile(long sid, PString pstn, PFilename pfni, bool fAskForCD);
     void SplitString(PString pstnMerged, PString pstnLong, PString pstnShort);
 
-    bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTag ctgChild, PTAG ptagChild);
+    bool FBuildChildTag(PTAG ptagPar, ChildChunkID chid, ChunkTagOrType ctgChild, PTAG ptagChild);
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
     PBaseCacheableObject PbacoFetch(PTAG ptag, PFNRPO pfnrpo, bool fUseCD = fFalse);
     void ClearCache(long sid = sidNil,

@@ -60,11 +60,11 @@ class Script : public Script_PAR
     friend class CompilerBase;
 
   public:
-    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTag ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PScript PscptRead(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PScript PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     ~Script(void);
 
-    bool FSaveToChunk(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno, bool fPack = fFalse);
+    bool FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fPack = fFalse);
 };
 
 /***************************************************************************

@@ -77,7 +77,7 @@ struct TFC
     union {
         struct
         {
-            ChunkTag ctg;
+            ChunkTagOrType ctg;
             ChunkNumber cno;
         };
         struct
@@ -87,7 +87,7 @@ struct TFC
         };
         struct
         {
-            ChunkTag ctg;
+            ChunkTagOrType ctg;
             ChildChunkID chid;
         };
     };
@@ -279,7 +279,7 @@ struct ThumbnailDescriptor
         {
             long lwFill1;
             long lwFill2;
-            ChunkTag ctg;
+            ChunkTagOrType ctg;
             ChildChunkID chid; // ChildChunkID of CD content
         };
     };
@@ -302,9 +302,9 @@ class BrowserContentList : public BrowserContentList_PAR
     MARKMEM
 
   protected:
-    ChunkTag _ctgRoot;
+    ChunkTagOrType _ctgRoot;
     ChunkNumber _cnoRoot;
-    ChunkTag _ctgContent;
+    ChunkTagOrType _ctgContent;
     bool _fDescend;
     PDynamicArray _pglthd;
 
@@ -318,7 +318,7 @@ class BrowserContentList : public BrowserContentList_PAR
         ReleasePpo(&_pglthd);
     }
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd);
     bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki);
     bool _FAddFileToThd(PChunkyFile pcfl, long sid);
     bool _FBuildThd(PChunkyResourceManager pcrm);
@@ -326,7 +326,7 @@ class BrowserContentList : public BrowserContentList_PAR
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBrowserContentList PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBrowserContentList PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
 
     PDynamicArray Pglthd(void)
     {
@@ -366,13 +366,13 @@ class BCLS : public BCLS_PAR
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PStringTable_GST pgst, PDynamicArray pglthd);
-    bool _FSetNameGst(PChunkyFile pcfl, ChunkTag ctg, ChunkNumber cno);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd);
+    bool _FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTag ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
+    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
     PStringTable_GST Pgst(void)
@@ -419,13 +419,13 @@ class BrowserList : public BrowserList_PAR
     BrowserSelectionFlags _bws;         // Selection type flag
     bool _fSinglePar; // Single parent search
     ChunkIdentification _ckiRoot;     // Grandparent cno=cnoNil => global search
-    ChunkTag _ctgContent;  // Parent
+    ChunkTagOrType _ctgContent;  // Parent
 
   protected:
     // BrowserList List
-    bool _FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent);
-    bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTag ctgContent, bool fBuildGl = fTrue);
-    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
+    bool _FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent);
+    bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, bool fBuildGl = fTrue);
+    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         AssertThis(0);
@@ -455,7 +455,7 @@ class BrowserList : public BrowserList_PAR
     ~BrowserList(void);
 
     static PBrowserList PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
@@ -518,7 +518,7 @@ class BRWN : public BRWN_PAR
     RTCLASS_DEC
 
   protected:
-    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTag ctg, bool fBuildGl);
+    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         return _pglthd->IvMac();
@@ -534,7 +534,7 @@ class BRWN : public BRWN_PAR
     {
     }
     ~BRWN(void){};
-    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTag ctgContent, PStudio pstdio,
+    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
     virtual bool FCmdOk(PCommand pcmd);
@@ -766,7 +766,7 @@ class BRWR : public BRWR_PAR
     MARKMEM
 
   protected:
-    ChunkTag _ctg;
+    ChunkTagOrType _ctg;
     PChunkyResourceManager _pcrm; // Chunky resource manager
     bool _fApplyingSel;
 
@@ -794,7 +794,7 @@ class BRWR : public BRWR_PAR
     static PBRWR PbrwrNew(PResourceCache prca, long kid);
     void Init(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
-    bool FInit(PCommand pcmd, ChunkTag ctg, long ithumDisplay, PStudio pstdio);
+    bool FInit(PCommand pcmd, ChunkTagOrType ctg, long ithumDisplay, PStudio pstdio);
     bool FUpdate(long arid, PStudio pstdio);
     bool FApplyingSel(void)
     {
