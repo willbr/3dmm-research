@@ -179,10 +179,10 @@ class GraphicalObjectRepresentationTiled : public GraphicalObjectRepresentationT
 /***************************************************************************
     Graphical object video representation.
 ***************************************************************************/
-typedef class GORV *PGORV;
-#define GORV_PAR GraphicalObjectRepresentation
-#define kclsGORV 'GORV'
-class GORV : public GORV_PAR
+typedef class GraphicalObjectRepresentationVideo *PGraphicalObjectRepresentationVideo;
+#define GraphicalObjectRepresentationVideo_PAR GraphicalObjectRepresentation
+#define kclsGraphicalObjectRepresentationVideo 'GORV'
+class GraphicalObjectRepresentationVideo : public GraphicalObjectRepresentationVideo_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -196,12 +196,12 @@ class GORV : public GORV_PAR
     bool _fHwndBased : 1;
     bool _fPlayOnResume : 1;
 
-    ~GORV(void);
+    ~GraphicalObjectRepresentationVideo(void);
 
     virtual bool _FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static PGORV PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationVideo PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
