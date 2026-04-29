@@ -16,11 +16,11 @@
 ASSERTNAME
 
 RTCLASS(Video)
-RTCLASS(GVDS)
+RTCLASS(VideoStream)
 RTCLASS(GVDW)
 
-BEGIN_CMD_MAP_BASE(GVDS)
-END_CMD_MAP(&GVDS::FCmdAll, pvNil, kgrfcmmAll)
+BEGIN_CMD_MAP_BASE(VideoStream)
+END_CMD_MAP(&VideoStream::FCmdAll, pvNil, kgrfcmmAll)
 
 const long kcmhlGvds = kswMin; // put videos at the head of the list
 
@@ -36,7 +36,7 @@ PVideo Video::PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased
 
     if (fHwndBased)
         return GVDW::PgvdwNew(pfni, pgobBase, hid);
-    return GVDS::PgvdsNew(pfni, pgobBase, hid);
+    return VideoStream::PgvdsNew(pfni, pgobBase, hid);
 }
 
 /***************************************************************************
@@ -50,7 +50,7 @@ Video::Video(long hid) : Video_PAR(hid)
 /***************************************************************************
     Constructor for video stream class.
 ***************************************************************************/
-GVDS::GVDS(long hid) : GVDS_PAR(hid)
+VideoStream::VideoStream(long hid) : VideoStream_PAR(hid)
 {
     AssertBaseThis(0);
 
@@ -62,7 +62,7 @@ GVDS::GVDS(long hid) : GVDS_PAR(hid)
 /***************************************************************************
     Destructor for video stream class.
 ***************************************************************************/
-GVDS::~GVDS(void)
+VideoStream::~VideoStream(void)
 {
     AssertBaseThis(0);
 
@@ -83,7 +83,7 @@ GVDS::~GVDS(void)
 /***************************************************************************
     Initialize a video stream object.
 ***************************************************************************/
-bool GVDS::_FInit(PFilename pfni, PGraphicsObject pgobBase)
+bool VideoStream::_FInit(PFilename pfni, PGraphicsObject pgobBase)
 {
     AssertBaseThis(0);
     AssertPo(pfni, ffniFile);
@@ -140,15 +140,15 @@ bool GVDS::_FInit(PFilename pfni, PGraphicsObject pgobBase)
 /***************************************************************************
     Create a new video stream object.
 ***************************************************************************/
-PGVDS GVDS::PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid)
+PVideoStream VideoStream::PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid)
 {
     AssertPo(pfni, ffniFile);
-    PGVDS pgvds;
+    PVideoStream pgvds;
 
     if (hid == hidNil)
         hid = CommandHandler::HidUnique();
 
-    if (pvNil == (pgvds = NewObj GVDS(hid)))
+    if (pvNil == (pgvds = NewObj VideoStream(hid)))
         return pvNil;
 
     if (!pgvds->_FInit(pfni, pgobBase))
@@ -163,7 +163,7 @@ PGVDS GVDS::PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid)
 /***************************************************************************
     Return the number of frames in the video.
 ***************************************************************************/
-long GVDS::NfrMac(void)
+long VideoStream::NfrMac(void)
 {
     AssertThis(0);
     return _nfrMac;
@@ -172,7 +172,7 @@ long GVDS::NfrMac(void)
 /***************************************************************************
     Return the current frame of the video.
 ***************************************************************************/
-long GVDS::NfrCur(void)
+long VideoStream::NfrCur(void)
 {
     AssertThis(0);
     return _nfrCur;
@@ -182,7 +182,7 @@ long GVDS::NfrCur(void)
     Advance to a particular frame.  If we are playing, stop playing.  This
     only changes internal state and doesn't mark anything.
 ***************************************************************************/
-void GVDS::GotoNfr(long nfr)
+void VideoStream::GotoNfr(long nfr)
 {
     AssertThis(0);
     AssertIn(nfr, 0, _nfrMac);
@@ -194,7 +194,7 @@ void GVDS::GotoNfr(long nfr)
 /***************************************************************************
     Return whether or not the video is playing.
 ***************************************************************************/
-bool GVDS::FPlaying(void)
+bool VideoStream::FPlaying(void)
 {
     AssertThis(0);
     return _fPlaying;
@@ -205,7 +205,7 @@ bool GVDS::FPlaying(void)
     until the video is stopped or nuked.  The gob should call this video's
     Draw method in its Draw method.
 ***************************************************************************/
-bool GVDS::FPlay(RC *prc)
+bool VideoStream::FPlay(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -227,7 +227,7 @@ bool GVDS::FPlay(RC *prc)
 /***************************************************************************
     Set the rectangle to play into.
 ***************************************************************************/
-void GVDS::SetRcPlay(RC *prc)
+void VideoStream::SetRcPlay(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -241,7 +241,7 @@ void GVDS::SetRcPlay(RC *prc)
 /***************************************************************************
     Stop playing.
 ***************************************************************************/
-void GVDS::Stop(void)
+void VideoStream::Stop(void)
 {
     AssertThis(0);
 
@@ -252,7 +252,7 @@ void GVDS::Stop(void)
 /***************************************************************************
     Intercepts all commands, so we get to play our movie no matter what.
 ***************************************************************************/
-bool GVDS::FCmdAll(PCommand pcmd)
+bool VideoStream::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -286,7 +286,7 @@ bool GVDS::FCmdAll(PCommand pcmd)
 /***************************************************************************
     Call this to draw the current state of the video image.
 ***************************************************************************/
-void GVDS::Draw(PGraphicsEnvironment pgnv, RC *prc)
+void VideoStream::Draw(PGraphicsEnvironment pgnv, RC *prc)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -308,7 +308,7 @@ void GVDS::Draw(PGraphicsEnvironment pgnv, RC *prc)
 /***************************************************************************
     Get the normal rectangle for the movie (top-left at (0, 0)).
 ***************************************************************************/
-void GVDS::GetRc(RC *prc)
+void VideoStream::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -318,13 +318,13 @@ void GVDS::GetRc(RC *prc)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GVDS.
+    Assert the validity of a VideoStream.
 ***************************************************************************/
-void GVDS::AssertValid(ulong grf)
+void VideoStream::AssertValid(ulong grf)
 {
-    GVDS_PAR::AssertValid(0);
+    VideoStream_PAR::AssertValid(0);
     AssertPo(_pgobBase, 0);
-    // REVIEW shonk: fill in GVDS::AssertValid
+    // REVIEW shonk: fill in VideoStream::AssertValid
 }
 #endif // DEBUG
 

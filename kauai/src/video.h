@@ -16,7 +16,7 @@
 #define VIDEO_H
 
 /***************************************************************************
-    Generic video class. This is an interface that supports the GVDS
+    Generic video class. This is an interface that supports the VideoStream
     (video stream) and GVDW (video window) classes.
 ***************************************************************************/
 typedef class Video *PVideo;
@@ -51,13 +51,13 @@ class Video : public Video_PAR
 /****************************************
     Video stream class.
 ****************************************/
-typedef class GVDS *PGVDS;
-#define GVDS_PAR Video
-#define kclsGVDS 'GVDS'
-class GVDS : public GVDS_PAR
+typedef class VideoStream *PVideoStream;
+#define VideoStream_PAR Video
+#define kclsVideoStream 'GVDS'
+class VideoStream : public VideoStream_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(GVDS)
+    CMD_MAP_DEC(VideoStream)
     ASSERT
 
   protected:
@@ -81,13 +81,13 @@ class GVDS : public GVDS_PAR
     HDRAWDIB _hdd;
 #endif // WIN
 
-    GVDS(long hid);
-    ~GVDS(void);
+    VideoStream(long hid);
+    ~VideoStream(void);
 
     virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
 
   public:
-    static PGVDS PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
+    static PVideoStream PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);
