@@ -18,7 +18,7 @@ namespace GraphicalObjectRepresentation {
 RTCLASS(KidspaceGraphicObject)
 RTCLASS(GraphicalObjectRepresentation)
 RTCLASS(GraphicalObjectRepresentationFill)
-RTCLASS(GORB)
+RTCLASS(GraphicalObjectRepresentationBitmap)
 RTCLASS(GORT)
 RTCLASS(GORV)
 
@@ -1548,7 +1548,7 @@ PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceF
 
     case kctgMbmp:
     case kctgMask:
-        pfngorp = (PFNGORP)GORB::PgorbNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationBitmap::PgorbNew;
         break;
 
     case kctgFill:
@@ -2078,13 +2078,13 @@ void GraphicalObjectRepresentationFill::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationBitmap GraphicalObjectRepresentationBitmap::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
-    PGORB pgorb;
+    PGraphicalObjectRepresentationBitmap pgorb;
 
-    if (pvNil == (pgorb = NewObj GORB))
+    if (pvNil == (pgorb = NewObj GraphicalObjectRepresentationBitmap))
         return pvNil;
 
     pgorb->_pcrf = pcrf;
@@ -2096,9 +2096,9 @@ PGORB GORB::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 }
 
 /***************************************************************************
-    Destructor for a GORB.
+    Destructor for a GraphicalObjectRepresentationBitmap.
 ***************************************************************************/
-GORB::~GORB(void)
+GraphicalObjectRepresentationBitmap::~GraphicalObjectRepresentationBitmap(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
         _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
@@ -2108,7 +2108,7 @@ GORB::~GORB(void)
 /***************************************************************************
     Draw the bitmap.
 ***************************************************************************/
-void GORB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void GraphicalObjectRepresentationBitmap::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2134,7 +2134,7 @@ void GORB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Return whether the point is in the bitmap.
 ***************************************************************************/
-bool GORB::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationBitmap::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     PMaskedBitmapMBMP pmbmp;
@@ -2155,22 +2155,22 @@ bool GORB::FPtIn(long xp, long yp)
 }
 
 /***************************************************************************
-    Set the internal state of the GORB to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationBitmap to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORB::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationBitmap::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
     AssertIn(dypPref, 0, kcbMax);
 
-    // GORB's are not resizeable, so we do nothing
+    // GraphicalObjectRepresentationBitmap's are not resizeable, so we do nothing
 }
 
 /***************************************************************************
     Get the natural rectangle.
 ***************************************************************************/
-void GORB::GetRc(RC *prc)
+void GraphicalObjectRepresentationBitmap::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2193,7 +2193,7 @@ void GORB::GetRc(RC *prc)
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORB::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationBitmap::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2206,7 +2206,7 @@ void GORB::GetRcContent(RC *prc)
     The streaming property is being set or reset. If streaming is set, we
     should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
-void GORB::Stream(bool fStream)
+void GraphicalObjectRepresentationBitmap::Stream(bool fStream)
 {
     AssertThis(0);
     _fStream = FPure(fStream);

@@ -84,10 +84,10 @@ class GraphicalObjectRepresentationFill : public GraphicalObjectRepresentationFi
 /***************************************************************************
     Graphical object bitmap representation.
 ***************************************************************************/
-typedef class GORB *PGORB;
-#define GORB_PAR GraphicalObjectRepresentation
-#define kclsGORB 'GORB'
-class GORB : public GORB_PAR
+typedef class GraphicalObjectRepresentationBitmap *PGraphicalObjectRepresentationBitmap;
+#define GraphicalObjectRepresentationBitmap_PAR GraphicalObjectRepresentation
+#define kclsGraphicalObjectRepresentationBitmap 'GORB'
+class GraphicalObjectRepresentationBitmap : public GraphicalObjectRepresentationBitmap_PAR
 {
     RTCLASS_DEC
 
@@ -97,10 +97,10 @@ class GORB : public GORB_PAR
     ChunkNumber _cno;
     bool _fStream;
 
-    ~GORB(void);
+    ~GraphicalObjectRepresentationBitmap(void);
 
   public:
-    static PGORB PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationBitmap PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
