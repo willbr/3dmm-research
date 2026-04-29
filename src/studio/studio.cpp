@@ -1247,7 +1247,7 @@ bool Studio::FCmdCreatePopup(PCommand pcmd)
         }
         if (pgst != pvNil)
         {
-            MPFNT::PmpfntNew(_pcrm, kidBackground, kidTextFont, pcmd, (grfchp & kfchpOnn) ? chp.onn : ivNil, pgst);
+            MenuPopupFont::PmpfntNew(_pcrm, kidBackground, kidTextFont, pcmd, (grfchp & kfchpOnn) ? chp.onn : ivNil, pgst);
             ReleasePpo(&pgst);
         }
         break;

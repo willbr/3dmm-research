@@ -6,7 +6,7 @@
     popup.cpp: Popup menu classes
 
     Primary Author: ******
-             MPFNT: ******
+             MenuPopupFont: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
 
@@ -15,7 +15,7 @@
 ASSERTNAME
 
 RTCLASS(MP)
-RTCLASS(MPFNT)
+RTCLASS(MenuPopupFont)
 
 BEGIN_CMD_MAP(MP, BrowserDisplay)
 ON_CID_GEN(cidSelIdle, &MP::FCmdSelIdle, pvNil)
@@ -198,25 +198,25 @@ void MP::MarkMem(void)
 //
 //
 //
-//  MPFNT (font menu) stuff begins here
+//  MenuPopupFont (font menu) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(MPFNT, BrowserDisplay)
-ON_CID_GEN(cidSelIdle, &MPFNT::FCmdSelIdle, pvNil)
+BEGIN_CMD_MAP(MenuPopupFont, BrowserDisplay)
+ON_CID_GEN(cidSelIdle, &MenuPopupFont::FCmdSelIdle, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new font menu
 ***************************************************************************/
-PMPFNT MPFNT::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst)
+PMenuPopupFont MenuPopupFont::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
     AssertPo(pgst, 0);
 
-    PMPFNT pmpfnt;
+    PMenuPopupFont pmpfnt;
     GraphicsObjectBlock gcb;
     PStudio pstdio = vpapp->Pstdio();
 
@@ -235,7 +235,7 @@ PMPFNT MPFNT::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PComm
     if (!_FBuildGcb(&gcb, kidParent, kidMenu))
         return pvNil;
 
-    pmpfnt = NewObj MPFNT(&gcb);
+    pmpfnt = NewObj MenuPopupFont(&gcb);
     if (pmpfnt == pvNil)
         return pvNil;
 
@@ -272,14 +272,14 @@ LFail:
 /***************************************************************************
     Set the font of the TextGraphicsObject to the font listed in the menu item
 ***************************************************************************/
-bool MPFNT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
+bool MenuPopupFont::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
-    if (MPFNT_PAR::_FSetThumFrame(istn, pgobPar))
+    if (MenuPopupFont_PAR::_FSetThumFrame(istn, pgobPar))
     {
         PTextGraphicsObject ptgob = (PTextGraphicsObject)pgobPar->PgobFirstChild();
         long onn;
 
-        /* By the time we get this far, MPFNT_PAR should have already checked
+        /* By the time we get this far, MenuPopupFont_PAR should have already checked
             these */
         Assert(ptgob != pvNil, "No TextGraphicsObject for the text");
         Assert(ptgob->FIs(kclsTextGraphicsObject), "GraphicsObject isn't a TextGraphicsObject");
@@ -295,7 +295,7 @@ bool MPFNT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 /***************************************************************************
     Tell the studio that the font was selected
 ***************************************************************************/
-void MPFNT::_ApplySelection(long ithumSelect, long sid)
+void MenuPopupFont::_ApplySelection(long ithumSelect, long sid)
 {
     AssertThis(0);
 
@@ -308,7 +308,7 @@ void MPFNT::_ApplySelection(long ithumSelect, long sid)
 /***************************************************************************
     Hide the scroll arrows if necessary
 ***************************************************************************/
-void MPFNT::_AdjustRc(long cthum, long cfrm)
+void MenuPopupFont::_AdjustRc(long cthum, long cfrm)
 {
     PGraphicsObject pgob;
     long dypFrm;
@@ -340,30 +340,30 @@ void MPFNT::_AdjustRc(long cthum, long cfrm)
     Do selection idle processing.  Make sure not to change any selection
     states.
 ***************************************************************************/
-bool MPFNT::FCmdSelIdle(PCommand pcmd)
+bool MenuPopupFont::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    MPFNT_PAR::FCmdSelIdle(pcmd);
+    MenuPopupFont_PAR::FCmdSelIdle(pcmd);
     return fTrue;
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MPFNT.
+    Assert the validity of the MenuPopupFont.
 ***************************************************************************/
-void MPFNT::AssertValid(ulong grf)
+void MenuPopupFont::AssertValid(ulong grf)
 {
-    MPFNT_PAR::AssertValid(0);
+    MenuPopupFont_PAR::AssertValid(0);
 }
 
 /***************************************************************************
-    Mark memory used by the MPFNT
+    Mark memory used by the MenuPopupFont
 ***************************************************************************/
-void MPFNT::MarkMem(void)
+void MenuPopupFont::MarkMem(void)
 {
     AssertThis(0);
-    MPFNT_PAR::MarkMem();
+    MenuPopupFont_PAR::MarkMem();
 }
 #endif // DEBUG
