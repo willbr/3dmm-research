@@ -12,26 +12,26 @@
 #include "studio.h"
 ASSERTNAME
 
-RTCLASS(SPLOT)
+RTCLASS(SplotMachine)
 
-BEGIN_CMD_MAP(SPLOT, KidspaceGraphicObject)
-ON_CID_GEN(cidSplotInit, &SPLOT::FCmdInit, pvNil)
-ON_CID_GEN(cidSplotDo, &SPLOT::FCmdSplot, pvNil)
-ON_CID_GEN(cidSplotUpdate, &SPLOT::FCmdUpdate, pvNil)
-ON_CID_GEN(cidSplotOk, &SPLOT::FCmdDismiss, pvNil)
-ON_CID_GEN(cidSplotCancel, &SPLOT::FCmdDismiss, pvNil)
+BEGIN_CMD_MAP(SplotMachine, KidspaceGraphicObject)
+ON_CID_GEN(cidSplotInit, &SplotMachine::FCmdInit, pvNil)
+ON_CID_GEN(cidSplotDo, &SplotMachine::FCmdSplot, pvNil)
+ON_CID_GEN(cidSplotUpdate, &SplotMachine::FCmdUpdate, pvNil)
+ON_CID_GEN(cidSplotOk, &SplotMachine::FCmdDismiss, pvNil)
+ON_CID_GEN(cidSplotCancel, &SplotMachine::FCmdDismiss, pvNil)
 END_CMD_MAP_NIL()
 
 /******************************************************************************
     PsplotNew
-        Creates a new SPLOT instance.
+        Creates a new SplotMachine instance.
 
-    Returns: pvNil on failure, pointer to SPLOT on success
+    Returns: pvNil on failure, pointer to SplotMachine on success
 
 ************************************************************ PETED ***********/
-PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PResourceCache prca)
+PSplotMachine SplotMachine::PsplotNew(long hidPar, long hid, PResourceCache prca)
 {
-    PSPLOT psplot = pvNil;
+    PSplotMachine psplot = pvNil;
     PDynamicArray pglclr = pvNil;
     PGraphicsObject pgobPar;
     RC rcRel;
@@ -51,7 +51,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PResourceCache prca)
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);
 
-    if ((psplot = NewObj SPLOT(&gcb)) == pvNil)
+    if ((psplot = NewObj SplotMachine(&gcb)) == pvNil)
         goto LFail;
 
     if (!psplot->_FInit(vpapp->Pkwa(), hid, prca))
@@ -89,7 +89,7 @@ LFail:
     Returns:  fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdInit(PCommand pcmd)
+bool SplotMachine::FCmdInit(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_pmvie == pvNil, "Already Inited the Splot Machine");
@@ -143,7 +143,7 @@ LFail:
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdSplot(PCommand pcmd)
+bool SplotMachine::FCmdSplot(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -270,7 +270,7 @@ LFail:
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdUpdate(PCommand pcmd)
+bool SplotMachine::FCmdUpdate(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -369,7 +369,7 @@ LFail:
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdDismiss(PCommand pcmd)
+bool SplotMachine::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -396,7 +396,7 @@ bool SPLOT::FCmdDismiss(PCommand pcmd)
     return fTrue;
 }
 
-SPLOT::~SPLOT(void)
+SplotMachine::~SplotMachine(void)
 {
     if (_pmvie != pvNil)
     {
@@ -424,9 +424,9 @@ SPLOT::~SPLOT(void)
 }
 
 #ifdef DEBUG
-void SPLOT::AssertValid(ulong grf)
+void SplotMachine::AssertValid(ulong grf)
 {
-    SPLOT_PAR::AssertValid(grf);
+    SplotMachine_PAR::AssertValid(grf);
     AssertPo(_pglclrSav, 0);
 
     AssertNilOrPo(_pmvie, 0);
@@ -437,9 +437,9 @@ void SPLOT::AssertValid(ulong grf)
     AssertNilOrPo(_pbclSound, 0);
 }
 
-void SPLOT::MarkMem(void)
+void SplotMachine::MarkMem(void)
 {
-    SPLOT_PAR::MarkMem();
+    SplotMachine_PAR::MarkMem();
     MarkMemObj(_pglclrSav);
     MarkMemObj(_pmvie);
     MarkMemObj(_pbclBkgd);

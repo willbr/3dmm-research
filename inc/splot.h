@@ -10,15 +10,15 @@
 
 ***************************************************************************/
 
-#define SPLOT_PAR KidspaceGraphicObject
-typedef class SPLOT *PSPLOT;
-#define kclsSPLOT 'splt'
-class SPLOT : public SPLOT_PAR
+#define SplotMachine_PAR KidspaceGraphicObject
+typedef class SplotMachine *PSplotMachine;
+#define kclsSplotMachine 'splt'
+class SplotMachine : public SplotMachine_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(SPLOT)
+    CMD_MAP_DEC(SplotMachine)
 
   private:
     /* The movie */
@@ -43,21 +43,21 @@ class SPLOT : public SPLOT_PAR
     long _ithdProp;
     long _ithdSound;
 
-    /* State of the SPLOT */
+    /* State of the SplotMachine */
     bool _fDirty;
 
     /* Miscellaneous stuff */
     PDynamicArray _pglclrSav;
 
-    SPLOT(PGraphicsObjectBlock pgcb) : SPLOT_PAR(pgcb)
+    SplotMachine(PGraphicsObjectBlock pgcb) : SplotMachine_PAR(pgcb)
     {
         _fDirty = fFalse;
         _pbclBkgd = _pbclCam = _pbclActr = _pbclProp = _pbclSound = pvNil;
     }
 
   public:
-    ~SPLOT(void);
-    static PSPLOT PsplotNew(long hidPar, long hid, PResourceCache prca);
+    ~SplotMachine(void);
+    static PSplotMachine PsplotNew(long hidPar, long hid, PResourceCache prca);
 
     bool FCmdInit(PCommand pcmd);
     bool FCmdSplot(PCommand pcmd);

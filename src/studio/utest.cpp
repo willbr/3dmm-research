@@ -3226,7 +3226,7 @@ PMovie Application::_Pmvie(void)
     AssertBaseThis(0);
 
     PMovie pmvie = pvNil;
-    PSPLOT psplot;
+    PSplotMachine psplot;
 
     if (_pstdio != pvNil && _pstdio->Pmvie() != pvNil)
         pmvie = _pstdio->Pmvie();
@@ -3234,7 +3234,7 @@ PMovie Application::_Pmvie(void)
         pmvie = _ptatr->Pmvie();
     else if (Pkwa() != pvNil)
     {
-        psplot = (PSPLOT)Pkwa()->PgobFromCls(kclsSPLOT);
+        psplot = (PSplotMachine)Pkwa()->PgobFromCls(kclsSplotMachine);
         if (psplot != pvNil)
             pmvie = psplot->Pmvie();
     }
@@ -4468,9 +4468,9 @@ bool Application::FCmdInvokeSplot(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PSPLOT psplot;
+    PSplotMachine psplot;
 
-    psplot = SPLOT::PsplotNew(pcmd->rglw[0], pcmd->rglw[1], _pcrmAll);
+    psplot = SplotMachine::PsplotNew(pcmd->rglw[0], pcmd->rglw[1], _pcrmAll);
     if (psplot == pvNil)
         PushErc(ercSocCantInitSplot);
 
