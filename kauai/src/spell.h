@@ -48,10 +48,10 @@ enum
     fsplcIgnoreSingleLetter = soIgnoreSingleLetter,
 };
 
-typedef class SPLC *PSPLC;
-#define SPLC_PAR BASE
-#define kclsSPLC 'SPLC'
-class SPLC : public SPLC_PAR
+typedef class SpellChecker *PSpellChecker;
+#define SpellChecker_PAR BASE
+#define kclsSpellChecker 'SPLC'
+class SpellChecker : public SpellChecker_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -107,7 +107,7 @@ class SPLC : public SPLC_PAR
     SC_SEC SpellCloseUdr(SC_SPLID splid, SC_UDR udr, SC_BOOL fForce);
 #endif // WIN
 
-    SPLC(void);
+    SpellChecker(void);
     virtual bool _FInit(SC_LID sclid, PString pstnCustom = pvNil);
     virtual bool _FEnsureDll(SC_LID sclid);
     virtual bool _FEnsureMainDict(SC_LID sclid, PFilename pfniDic = pvNil);
@@ -116,8 +116,8 @@ class SPLC : public SPLC_PAR
     virtual bool _FLoadUserDictionary(PZString psz, SC_UDR *pudr, bool fCreate = fFalse);
 
   public:
-    ~SPLC(void);
-    static PSPLC PsplcNew(SC_LID sclid, PString pstnCustom = pvNil);
+    ~SpellChecker(void);
+    static PSpellChecker PsplcNew(SC_LID sclid, PString pstnCustom = pvNil);
 
     virtual bool FSetOptions(ulong grfsplc);
     virtual bool FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PString pstn, long *pscrs);

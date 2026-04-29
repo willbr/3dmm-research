@@ -34,7 +34,7 @@ RTCLASS(CCGT)
 StringRegistry _strg;
 PStringRegistry vpstrg;
 SC_LID vsclid = ksclidAmerican;
-PSPLC vpsplc;
+PSpellChecker vpsplc;
 
 /***************************************************************************
     Main for a frame app.

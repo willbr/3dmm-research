@@ -18,7 +18,7 @@
 
 extern PStringRegistry vpstrg;
 extern SC_LID vsclid;
-extern PSPLC vpsplc;
+extern PSpellChecker vpsplc;
 
 enum
 {
