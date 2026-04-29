@@ -20,7 +20,7 @@ RTCLASS(GraphicalObjectRepresentation)
 RTCLASS(GraphicalObjectRepresentationFill)
 RTCLASS(GraphicalObjectRepresentationBitmap)
 RTCLASS(GraphicalObjectRepresentationTiled)
-RTCLASS(GORV)
+RTCLASS(GraphicalObjectRepresentationVideo)
 
 BEGIN_CMD_MAP(KidspaceGraphicObject, GraphicsObject)
 ON_CID_ME(cidClicked, &KidspaceGraphicObject::FCmdClickedCore, pvNil)
@@ -1560,7 +1560,7 @@ PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceF
         break;
 
     case kctgVideo:
-        pfngorp = (PFNGORP)GORV::PgorvNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationVideo::PgorvNew;
         break;
     }
 
@@ -2615,13 +2615,13 @@ void GraphicalObjectRepresentationTiled::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationVideo GraphicalObjectRepresentationVideo::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
-    PGORV pgorv;
+    PGraphicalObjectRepresentationVideo pgorv;
 
-    if (pvNil == (pgorv = NewObj GORV))
+    if (pvNil == (pgorv = NewObj GraphicalObjectRepresentationVideo))
         return pvNil;
 
     if (!pgorv->_FInit(pgok, pcrf, ctg, cno))
@@ -2635,9 +2635,9 @@ PGORV GORV::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 }
 
 /***************************************************************************
-    Initialize the GORV - load the movie indicated byt (pcrf, ctg, cno).
+    Initialize the GraphicalObjectRepresentationVideo - load the movie indicated byt (pcrf, ctg, cno).
 ***************************************************************************/
-bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);
@@ -2673,7 +2673,7 @@ bool GORV::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTa
 /***************************************************************************
     Destructor for a video representation.
 ***************************************************************************/
-GORV::~GORV(void)
+GraphicalObjectRepresentationVideo::~GraphicalObjectRepresentationVideo(void)
 {
     ReleasePpo(&_pgvid);
 }
@@ -2681,7 +2681,7 @@ GORV::~GORV(void)
 /***************************************************************************
     Draw the frame.
 ***************************************************************************/
-void GORV::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void GraphicalObjectRepresentationVideo::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2693,7 +2693,7 @@ void GORV::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Return whether the point is in the representation.
 ***************************************************************************/
-bool GORV::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationVideo::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     return FIn(xp, 0, _dxp) && FIn(yp, 0, _dyp);
@@ -2703,7 +2703,7 @@ bool GORV::FPtIn(long xp, long yp)
     Set the internal state of the GraphicalObjectRepresentationFill to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORV::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationVideo::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
@@ -2720,7 +2720,7 @@ void GORV::SetDxpDyp(long dxpPref, long dypPref)
 /***************************************************************************
     Get the natural rectangle.
 ***************************************************************************/
-void GORV::GetRc(RC *prc)
+void GraphicalObjectRepresentationVideo::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2731,7 +2731,7 @@ void GORV::GetRc(RC *prc)
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORV::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationVideo::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2742,7 +2742,7 @@ void GORV::GetRcContent(RC *prc)
 /***************************************************************************
     Return the length of the video.
 ***************************************************************************/
-long GORV::NfrMac(void)
+long GraphicalObjectRepresentationVideo::NfrMac(void)
 {
     AssertThis(0);
     return _pgvid->NfrMac();
@@ -2751,7 +2751,7 @@ long GORV::NfrMac(void)
 /***************************************************************************
     Return the current frame of the video.
 ***************************************************************************/
-long GORV::NfrCur(void)
+long GraphicalObjectRepresentationVideo::NfrCur(void)
 {
     AssertThis(0);
     return _pgvid->NfrCur();
@@ -2760,7 +2760,7 @@ long GORV::NfrCur(void)
 /***************************************************************************
     Goto a particular frame.
 ***************************************************************************/
-void GORV::GotoNfr(long nfr)
+void GraphicalObjectRepresentationVideo::GotoNfr(long nfr)
 {
     AssertThis(0);
     _pgvid->GotoNfr(nfr);
@@ -2769,7 +2769,7 @@ void GORV::GotoNfr(long nfr)
 /***************************************************************************
     Return whether the video is playing.
 ***************************************************************************/
-bool GORV::FPlaying(void)
+bool GraphicalObjectRepresentationVideo::FPlaying(void)
 {
     AssertThis(0);
     return (_cactSuspend > 0 && _fPlayOnResume) || _pgvid->FPlaying();
@@ -2778,7 +2778,7 @@ bool GORV::FPlaying(void)
 /***************************************************************************
     Play from the current frame to the end.
 ***************************************************************************/
-bool GORV::FPlay(void)
+bool GraphicalObjectRepresentationVideo::FPlay(void)
 {
     AssertThis(0);
     RC rc(0, 0, _dxp, _dyp);
@@ -2791,7 +2791,7 @@ bool GORV::FPlay(void)
 /***************************************************************************
     Stop playing.
 ***************************************************************************/
-void GORV::Stop(void)
+void GraphicalObjectRepresentationVideo::Stop(void)
 {
     AssertThis(0);
     _pgvid->Stop();
@@ -2800,7 +2800,7 @@ void GORV::Stop(void)
 /***************************************************************************
     Suspend the video.
 ***************************************************************************/
-void GORV::Suspend(void)
+void GraphicalObjectRepresentationVideo::Suspend(void)
 {
     AssertThis(0);
 
@@ -2819,7 +2819,7 @@ void GORV::Suspend(void)
 /***************************************************************************
     Resume the video.
 ***************************************************************************/
-void GORV::Resume(void)
+void GraphicalObjectRepresentationVideo::Resume(void)
 {
     AssertThis(0);
 
@@ -2832,21 +2832,21 @@ void GORV::Resume(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GORV.
+    Assert the validity of a GraphicalObjectRepresentationVideo.
 ***************************************************************************/
-void GORV::AssertValid(ulong grf)
+void GraphicalObjectRepresentationVideo::AssertValid(ulong grf)
 {
-    GORV_PAR::AssertValid(0);
+    GraphicalObjectRepresentationVideo_PAR::AssertValid(0);
     AssertPo(_pgvid, 0);
 }
 
 /***************************************************************************
-    Mark memory for the GORV.
+    Mark memory for the GraphicalObjectRepresentationVideo.
 ***************************************************************************/
-void GORV::MarkMem(void)
+void GraphicalObjectRepresentationVideo::MarkMem(void)
 {
     AssertValid(0);
-    GORV_PAR::MarkMem();
+    GraphicalObjectRepresentationVideo_PAR::MarkMem();
     MarkMemObj(_pgvid);
 }
 #endif // DEBUG
