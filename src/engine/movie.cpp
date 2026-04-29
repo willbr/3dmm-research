@@ -5816,6 +5816,7 @@ MovieView::~MovieView(void)
 {
     if (_tagTool.sid != ksidInvalid)
         TagManager::CloseTag(&_tagTool);
+    ReleasePpo(&_paundGroup);
 }
 
 /***************************************************************************
@@ -5864,6 +5865,7 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
     pmvu->_tagTool.sid = ksidInvalid;
     pmvu->_fSelToggleArmed = fFalse;
     pmvu->_pactrSelToggle = pvNil;
+    pmvu->_paundGroup = pvNil;
 
     //
     // Make this the active view
@@ -7096,29 +7098,78 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     case toolSquashStretch:
         if (pactr != pvNil)
         {
-
             vpappb->HideCurs();
 
-            //
-            // Create an actor undo object
-            //
-            paund = ActorUndo::PaundNew();
-            if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
+            // For toolCompose with multi-selection: snapshot every selected actor
+            // and bundle into an ActorMoveGroupUndo. Other tools and single-select
+            // compose retain the original single-actor _paund flow.
+            long cactrSel = (Tool() == toolCompose && Pmvie()->Pscen() != pvNil)
+                                ? Pmvie()->Pscen()->CactrSelected()
+                                : 1;
+
+            if (cactrSel >= 2)
             {
-                Pmvie()->ClearUndo();
-                PushErc(ercSocNotUndoable);
+                PActorMoveGroupUndo pamgu = ActorMoveGroupUndo::PamguNew();
+                bool fOk = (pamgu != pvNil);
+                for (long iactr = 0; fOk && iactr < cactrSel; iactr++)
+                {
+                    PActor pactrSel = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                    PActorUndo paundChild = ActorUndo::PaundNew();
+                    PActor pactrSnap = pvNil;
+                    if (paundChild == pvNil || !pactrSel->FDup(&pactrSnap, fTrue))
+                    {
+                        ReleasePpo(&paundChild);
+                        ReleasePpo(&pactrSnap);
+                        fOk = fFalse;
+                        break;
+                    }
+                    paundChild->SetPactr(pactrSnap);
+                    ReleasePpo(&pactrSnap);
+                    paundChild->SetArid(pactrSel->Arid());
+                    if (!pamgu->FAddChild(paundChild))
+                    {
+                        ReleasePpo(&paundChild);
+                        fOk = fFalse;
+                        break;
+                    }
+                    ReleasePpo(&paundChild); // pamgu holds its own ref via FAddChild
+                }
+
+                if (!fOk)
+                {
+                    ReleasePpo(&pamgu);
+                    Pmvie()->ClearUndo();
+                    PushErc(ercSocNotUndoable);
+                }
+                else
+                {
+                    Assert(_paundGroup == pvNil, "leaking previous group undo");
+                    _paundGroup = pamgu;
+                }
             }
             else
             {
-                paund->SetPactr(pactrDup);
-                ReleasePpo(&pactrDup);
-                paund->SetArid(pactr->Arid());
+                //
+                // Create an actor undo object (single-actor flow, unchanged).
+                //
+                paund = ActorUndo::PaundNew();
+                if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
+                {
+                    Pmvie()->ClearUndo();
+                    PushErc(ercSocNotUndoable);
+                }
+                else
+                {
+                    paund->SetPactr(pactrDup);
+                    ReleasePpo(&pactrDup);
+                    paund->SetArid(pactr->Arid());
 
-                //
-                // Store it.  We will only add it if there is a change done
-                // to the actor.
-                //
-                _paund = paund;
+                    //
+                    // Store it.  We will only add it if there is a change done
+                    // to the actor.
+                    //
+                    _paund = paund;
+                }
             }
 
             if ((Tool() != toolResize) && (Tool() != toolSquashStretch))
@@ -7274,6 +7325,36 @@ LEnd:
 
 /***************************************************************************
  *
+ * Commits whichever pending move-undo we have (group or single) to the
+ * movie's undo stack. Releases the field afterwards. Nil-safe.
+ *
+ **************************************************************************/
+void MovieView::_CommitMoveUndo(void)
+{
+    AssertThis(0);
+
+    if (_paundGroup != pvNil)
+    {
+        if (!Pmvie()->FAddUndo(_paundGroup))
+        {
+            PushErc(ercSocNotUndoable);
+            Pmvie()->ClearUndo();
+        }
+        ReleasePpo(&_paundGroup);
+    }
+    else if (_paund != pvNil)
+    {
+        if (!Pmvie()->FAddUndo(_paund))
+        {
+            PushErc(ercSocNotUndoable);
+            Pmvie()->ClearUndo();
+        }
+        ReleasePpo(&_paund);
+    }
+}
+
+/***************************************************************************
+ *
  * Handle Mouse drag (mouse move while button down)
  *
  * Parameters:
@@ -7419,7 +7500,8 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
 
     case toolCompose: {
         ulong grfmaf = fmafNil;
-        bool fMoved{};
+        bool fAnyMoved = fFalse;
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
 
         if (_fRespectGround)
         {
@@ -7430,47 +7512,54 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         {
             AdjustCursor(pcmd->xp, pcmd->yp);
 
-            if (pactr->FTweakRoute(dxrWld, dyrWld, dzrWld, grfmaf))
+            for (long iactr = 0; iactr < cactrSel; iactr++)
             {
-                if (fMoved)
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil)
                 {
-                    if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-                    {
-                        PushErc(ercSocNotUndoable);
-                        Pmvie()->ClearUndo();
-                    }
-
-                    ReleasePpo(&_paund);
+                    continue;
                 }
+                if (pa->FTweakRoute(dxrWld, dyrWld, dzrWld, grfmaf))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
             }
 
             Pmvie()->MarkViews();
         }
         else
         {
-
             if (_grfcust & fcustShift)
             {
                 grfmaf |= fmafEntireSubrte;
             }
 
-            // FMoveRoute returns fTrue if the distance moved was non-zero
-            if (pactr->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMoved, grfmaf))
+            for (long iactr = 0; iactr < cactrSel; iactr++)
             {
-                if (fMoved)
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil)
                 {
-                    if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-                    {
-                        PushErc(ercSocNotUndoable);
-                        Pmvie()->ClearUndo();
-                    }
-
-                    ReleasePpo(&_paund);
-
-                    AdjustCursor(pcmd->xp, pcmd->yp);
-                    Pmvie()->Pbwld()->MarkDirty();
-                    Pmvie()->MarkViews();
+                    continue;
                 }
+                bool fMovedThis = fFalse;
+                if (pa->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMovedThis, grfmaf) && fMovedThis)
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+
+                AdjustCursor(pcmd->xp, pcmd->yp);
+                Pmvie()->Pbwld()->MarkDirty();
+                Pmvie()->MarkViews();
             }
         }
     }
@@ -7978,6 +8067,8 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     AssertNilOrPo(_paund, 0);
     ReleasePpo(&_paund); // If you just did a mousedown then mouseup, we have a leftover
                          // undo object that we don't want.  So nuke it.
+    AssertNilOrPo(_paundGroup, 0);
+    ReleasePpo(&_paundGroup); // Same cleanup for the multi-select group-undo path.
 
 LEndTracking:
 
