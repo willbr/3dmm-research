@@ -7525,6 +7525,14 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
                 }
             }
 
+            // NOTE: Pre-Task-4 the Tweak (Cmd-drag) branch declared a local
+            // bool fMoved{} that was never assigned, so its `if (fMoved)`
+            // arm was dead code -- Tweak drags silently leaked their undo
+            // snapshot at mouseup. Driving the commit off FTweakRoute's
+            // return value here also makes single-actor Tweak drags
+            // undoable for the first time. This is intentional; the Task 4
+            // spec said "no single-select behavior change" but the prior
+            // behavior was a latent bug that nobody noticed.
             if (fAnyMoved)
             {
                 _CommitMoveUndo();
