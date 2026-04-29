@@ -756,6 +756,7 @@ void Scene::MarkMem(void)
     MarkMemObj(_pggsevFrm);
     MarkMemObj(_pglpactr);
     MarkMemObj(_pglptbox);
+    MarkMemObj(_pglpactrSelExtra);
     MarkMemObj(_pmbmp);
 
     for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
@@ -786,6 +787,16 @@ void Scene::AssertValid(ulong grf)
 
     AssertPo(&_stnName, 0);
     AssertNilOrPo(_pactrSelected, 0);
+    AssertNilOrPo(_pglpactrSelExtra, 0);
+    if (_pglpactrSelExtra != pvNil)
+    {
+        for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+        {
+            PActor pactrEntry;
+            _pglpactrSelExtra->Get(iactr, &pactrEntry);
+            AssertPo(pactrEntry, 0);
+        }
+    }
     AssertNilOrPo(_pbkgd, 0);
     AssertNilOrPo(_pmbmp, 0);
     AssertPo(_pglpactr, 0);
@@ -2566,10 +2577,17 @@ bool Scene::FToggleActrSelected(PActor pactr)
     AssertThis(0);
     AssertPo(pactr, 0);
 
+    PMovieView pmvu = (PMovieView)Pmvie()->PddgGet(0);
+    AssertNilOrPo(pmvu, 0);
+    bool fHiliteOk = (pmvu != pvNil) && !pmvu->FTextMode();
+
     // If toggling the primary: promote first extra to primary, or clear if no extras.
     if (pactr == _pactrSelected)
     {
-        pactr->Unhilite();
+        if (fHiliteOk)
+        {
+            pactr->Unhilite();
+        }
         if (_pglpactrSelExtra != pvNil && _pglpactrSelExtra->IvMac() > 0)
         {
             PActor pactrPromote;
@@ -2595,7 +2613,10 @@ bool Scene::FToggleActrSelected(PActor pactr)
             _pglpactrSelExtra->Get(iactr, &pactrEntry);
             if (pactrEntry == pactr)
             {
-                pactrEntry->Unhilite();
+                if (fHiliteOk)
+                {
+                    pactrEntry->Unhilite();
+                }
                 _pglpactrSelExtra->Delete(iactr);
                 _pmvie->InvalViews();
                 _pmvie->BuildActionMenu();
@@ -2625,7 +2646,10 @@ bool Scene::FToggleActrSelected(PActor pactr)
     {
         return fFalse;
     }
-    pactr->Hilite();
+    if (fHiliteOk)
+    {
+        pactr->Hilite();
+    }
     _pmvie->InvalViews();
     _pmvie->BuildActionMenu();
     return fTrue;
@@ -2662,6 +2686,21 @@ void Scene::SelectTbox(PTBOX ptbox)
         {
             _pactrSelected->Unhilite();
             _pmvie->BuildActionMenu();
+        }
+
+        // Clear any extras and unhilite each (parity with SelectActr).
+        if (pvNil != _pglpactrSelExtra)
+        {
+            for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+            {
+                PActor pactrExtra;
+                _pglpactrSelExtra->Get(iactr, &pactrExtra);
+                if (pvNil != pactrExtra)
+                {
+                    pactrExtra->Unhilite();
+                }
+            }
+            _pglpactrSelExtra->FSetIvMac(0);
         }
 
         if ((ptbox == _ptboxSelected) && ((ptbox == pvNil) || ptbox->FSelected()))
