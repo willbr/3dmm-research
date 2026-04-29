@@ -188,6 +188,55 @@ The BRender 1.3.2 / 1997 source predates `<stdint.h>`, contains inline x86 assem
 
 ---
 
+## Project 4: WebAssembly / browser deployment
+
+**Why:** Once SDL3 is in (Project 3) and BRender source compiles cleanly (§3b or its software-3D fallback), the same codebase compiles to WASM with Emscripten and runs in any modern browser. SDL3 has Emscripten as a first-class target — `appbsdl.cpp` / `gfxsdl.cpp` / etc. cross-compile without source changes. This unlocks a "click-to-watch" movie sharing path that no other approach delivers.
+
+**Compat:** unchanged. Same `.3MM` format, same playback semantics, just different runtime. The compat constraint applies to the file format, not to where the binary executes.
+
+**Depends on:**
+- Project 1 (64-bit). The sized-types audit must be done first; without it the engine and Kauai are full of `long`-width assumptions that emcc compiles incorrectly.
+- Project 3 SDL3 backend, including §3b (BRender source build) **or** its 6-week-abandonment fallback (software-3D replacement). `bren.lib` is x86 Windows only — there is no shortcut.
+
+### Milestone 4a: Read-only web player
+
+**Why:** A simple "click here to watch this movie" sharing path. Massively smaller scope than porting the full studio. The most useful and most realistic first milestone.
+
+**Implementation:**
+
+- Drop `studio` entirely. Ship a build that links `engine + brender + kauai (SDL3) + audioman` plus a minimal "movie viewer" GOK tree — viewport, play/pause, scene-forward/back, scene name, volume slider. No toolbox, no easels, no portfolio, no help machine, no kidspace navigation flow.
+- **Asset bundling.** Pre-transcode the AVIs (kidspace intros / Mczee animations) to WebM and use HTML5 `<video>` instead of bringing libav into WASM — saves 5-10 MB of binary size. Stock content `.3cn` files (`bkgds.3cn`, `tmpls.3cn`, `mtrls.3cn`, `snds.3cn`, `tdfs.3cn`) are required runtime assets but lazy-loaded on first reference. Tag manager already does drive-scan; adapt it to async fetch from a CDN.
+- **`.3MM` input.** User picks via `<input type="file">` or File System Access API. Movie loads, autoplays. URL-based loading (e.g., `?movie=https://...`) for embeddable links.
+- **No save support.** Read-only: opens, plays, stops. Eliminates the IDBFS / download-blob complexity for this milestone.
+- **Audio.** SDL3's audio backend over Web Audio API. AudioMan replacement (Project 3 task 4) compiles to WASM the same way it does on macOS/Linux.
+- **MIDI.** Either ship fluidsynth-WASM (~3 MB) plus a SoundFont, or pre-render the MIDI cues to PCM and ship those. PCM is smaller per-asset and avoids the runtime synth dependency; pick this for 4a.
+
+**Scope: 6-8 weeks after Project 3 + §3b land** (or after the software-3D fallback is in). Most of the work is the simplified viewer GOK and the asset bundle / lazy-load pipeline. The build configuration (CMake + emscripten toolchain file) is bounded — a few days.
+
+**Risk:** medium. Biggest unknowns are BRender-WASM (already covered by §3b's risk profile) and Web Audio latency vs. palette-animation timing (kidspace transitions are tight; verify on real browsers).
+
+**Done when:** a static-hosted page loads `BONGO.3MM` (or another sample) and plays it through to the end with sound, in current Chrome/Firefox/Safari, with the kidspace intro skipped.
+
+### Milestone 4b: Full web editor
+
+**Why:** All of the studio in the browser — author and save movies entirely in browser. Useful but niche; editing 1995-format movies in a 2026+ browser is a narrow use case.
+
+**Implementation:**
+
+- Same WASM build as 4a but linking `studio` instead of the simplified viewer GOK. Includes the full toolbox, easels, browsers, portfolio.
+- **Save/load.** File System Access API where supported (Chrome family); fall back to IDBFS for in-browser persistence and download-blob for export. Engine code calling `FileObject::PfilFromFni` synchronously needs adapting — Emscripten's IDBFS makes it look synchronous after a preload, but new file picks have to round-trip through async UI.
+- **Threading.** Optional; single-threaded build first. Adding pthreads requires SharedArrayBuffer which requires COOP/COEP headers, which restricts embedding contexts. Skip unless profiling shows a real bottleneck.
+
+**Scope: another 4-6 weeks** on top of 4a. Mostly UX adaptation (async file dialogs, save UX) and audio polishing.
+
+**Risk:** medium-low given 4a is in. Most of the architectural risk (BRender, asset pipeline, audio) was paid down in 4a.
+
+**Done when:** in a browser, the user can open a sample movie, edit it (add an actor, record a path, change a camera, save a scene), and export the result back to a downloadable `.3MM` file that round-trips correctly through desktop 3DMMForever.
+
+**Honest framing:** 4b is more 3DMMPlus material than 3DMMForever. The compat constraint says "the file format works," but a full editor in the browser is enough scope to justify a fresh evaluation of whether to keep targeting the 1995 format. Defer the 4b decision until 4a has shipped and use is observed.
+
+---
+
 ## Studio UI features (incremental backlog)
 
 Discrete UX additions that don't fit Projects 1-3 but are individually shippable. UI-1 through UI-6 are pure UI changes that don't touch the `.3MM` file format. UI-7 produces video output (not `.3MM`), so it's also compat-safe. UI-8 produces standard one-scene `.3MM` files using the existing format. UI-9 *does* persist new content into `.3MM` files (custom CAM chunks embedded under user-customized BKGD copies) — but does so additively, using the same `ksidUseCrf` embedding pattern the studio already uses for custom MTRLs and TMPLs, so 1995 3DMM continues to load and play these movies correctly.
@@ -342,8 +391,9 @@ Each item is independently shippable and independently revertible.
 ## Sequencing
 
 1. **Project 0 (renames)** — already in flight. Background task; can interleave with anything else.
-2. **Project 1 (64-bit build)** — first real project. **Hard prerequisite for 3.** Don't start Project 2 until at least task 4 (sized-types audit) is done; otherwise the shim ABI bakes in `long`-width assumptions you'll have to redo.
+2. **Project 1 (64-bit build)** — first real project. **Hard prerequisite for 3 and 4.** Don't start Project 2 until at least task 4 (sized-types audit) is done; otherwise the shim ABI bakes in `long`-width assumptions you'll have to redo.
 3. **Project 2 (libsoc + Python)** — second. Validates engine/UI separation. Read-only milestone unlocks tooling immediately. Write milestone is a follow-up, not part of the same shippable.
-4. **Project 3 (SDL2)** — third. Windows-x64 milestone first, then BRender source sub-project, then macOS/Linux.
+4. **Project 3 (SDL3)** — third. Windows-x64 milestone first, then BRender source sub-project, then macOS/Linux.
+5. **Project 4 (WASM / browser)** — fourth, gated on Project 3 reaching macOS/Linux + §3b's BRender-source-build (or its software-3D fallback). Ship 4a (read-only player) before 4b (full editor); defer the 4b decision until 4a has shipped.
 
-Project 3 is **not** independently shippable — it depends on Project 1 hard and benefits enormously from Project 2. Projects 1 and 2 ARE independently shippable.
+Projects 0, 1, and 2 are independently shippable. Projects 3 and 4 have hard dependencies on Project 1, and Project 4 has a hard dependency on Project 3.
