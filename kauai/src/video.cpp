@@ -15,7 +15,7 @@
 #endif // WIN
 ASSERTNAME
 
-RTCLASS(GVID)
+RTCLASS(Video)
 RTCLASS(GVDS)
 RTCLASS(GVDW)
 
@@ -29,7 +29,7 @@ const long kcmhlGvds = kswMin; // put videos at the head of the list
     depending on fHwndBased. pgobBase is assumed to be valid for the life
     of the video.
 ***************************************************************************/
-PGVID GVID::PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased, long hid)
+PVideo Video::PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased, long hid)
 {
     AssertPo(pfni, ffniFile);
     AssertPo(pgobBase, 0);
@@ -42,7 +42,7 @@ PGVID GVID::PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased, 
 /***************************************************************************
     Constructor for a generic video.
 ***************************************************************************/
-GVID::GVID(long hid) : GVID_PAR(hid)
+Video::Video(long hid) : Video_PAR(hid)
 {
     AssertBaseThis(0);
 }
