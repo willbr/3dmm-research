@@ -19,7 +19,7 @@ RTCLASS(KidspaceGraphicObject)
 RTCLASS(GraphicalObjectRepresentation)
 RTCLASS(GraphicalObjectRepresentationFill)
 RTCLASS(GraphicalObjectRepresentationBitmap)
-RTCLASS(GORT)
+RTCLASS(GraphicalObjectRepresentationTiled)
 RTCLASS(GORV)
 
 BEGIN_CMD_MAP(KidspaceGraphicObject, GraphicsObject)
@@ -1556,7 +1556,7 @@ PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceF
         break;
 
     case kctgTile:
-        pfngorp = (PFNGORP)GORT::PgortNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationTiled::PgortNew;
         break;
 
     case kctgVideo:
@@ -2215,7 +2215,7 @@ void GraphicalObjectRepresentationBitmap::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -2223,7 +2223,7 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
     GOTIL gotil;
     PChunkyFile pcfl;
     DataBlock blck;
-    PGORT pgort;
+    PGraphicalObjectRepresentationTiled pgort;
     ChildChunkIdentification kid;
 
     pcfl = pcrf->Pcfl();
@@ -2267,7 +2267,7 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
         return pvNil;
     }
 
-    if (pvNil == (pgort = NewObj GORT))
+    if (pvNil == (pgort = NewObj GraphicalObjectRepresentationTiled))
         return pvNil;
 
     CopyPb(gotil.rgdxp, pgort->_rgdxp, size(gotil.rgdxp));
@@ -2284,9 +2284,9 @@ PGORT GORT::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 }
 
 /***************************************************************************
-    Destructor for a GORT.
+    Destructor for a GraphicalObjectRepresentationTiled.
 ***************************************************************************/
-GORT::~GORT(void)
+GraphicalObjectRepresentationTiled::~GraphicalObjectRepresentationTiled(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
         _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
@@ -2294,9 +2294,9 @@ GORT::~GORT(void)
 }
 
 /***************************************************************************
-    Draw the GORT.
+    Draw the GraphicalObjectRepresentationTiled.
 ***************************************************************************/
-void GORT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void GraphicalObjectRepresentationTiled::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2356,7 +2356,7 @@ void GORT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Draw a row of the tiled bitmap.
 ***************************************************************************/
-void GORT::_DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
+void GraphicalObjectRepresentationTiled::_DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2438,7 +2438,7 @@ void GORT::_DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcR
 /***************************************************************************
     Do hit testing on a tiled bitmap.
 ***************************************************************************/
-bool GORT::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationTiled::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     PMaskedBitmapMBMP pmbmp;
@@ -2468,7 +2468,7 @@ bool GORT::FPtIn(long xp, long yp)
     Map the point from flexed coordinates to zero based mbmp coordinates
     for hit testing.
 ***************************************************************************/
-void GORT::_MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
+void GraphicalObjectRepresentationTiled::_MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
 {
     AssertThis(0);
     AssertVarMem(pzp);
@@ -2489,10 +2489,10 @@ void GORT::_MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRigh
 }
 
 /***************************************************************************
-    Set the internal state of the GORT to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationTiled to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORT::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationTiled::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
@@ -2509,7 +2509,7 @@ void GORT::SetDxpDyp(long dxpPref, long dypPref)
 /***************************************************************************
     Compute the flex values in one direction.
 ***************************************************************************/
-void GORT::_ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp)
+void GraphicalObjectRepresentationTiled::_ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp)
 {
     AssertThis(0);
     AssertVarMem(pdzpLeftFlex);
@@ -2534,7 +2534,7 @@ void GORT::_ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, sho
 /***************************************************************************
     Get the bounding rectangle for the tiled bitmap.
 ***************************************************************************/
-void GORT::GetRc(RC *prc)
+void GraphicalObjectRepresentationTiled::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2568,7 +2568,7 @@ void GORT::GetRc(RC *prc)
     Map the point from MaskedBitmapMBMP coordinates to flexed coordinates for setting the
     registration point. WARNING: this is not the inverse of _MapZpToMbmp.
 ***************************************************************************/
-void GORT::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
+void GraphicalObjectRepresentationTiled::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
 {
     AssertThis(0);
     AssertVarMem(pzp);
@@ -2591,7 +2591,7 @@ void GORT::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightF
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORT::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationTiled::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2606,7 +2606,7 @@ void GORT::GetRcContent(RC *prc)
     The streaming property is being set or reset. If streaming is set, we
     should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
-void GORT::Stream(bool fStream)
+void GraphicalObjectRepresentationTiled::Stream(bool fStream)
 {
     AssertThis(0);
     _fStream = FPure(fStream);

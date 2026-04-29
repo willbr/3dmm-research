@@ -127,10 +127,10 @@ enum
     idzpLimGort
 };
 
-typedef class GORT *PGORT;
-#define GORT_PAR GraphicalObjectRepresentation
-#define kclsGORT 'GORT'
-class GORT : public GORT_PAR
+typedef class GraphicalObjectRepresentationTiled *PGraphicalObjectRepresentationTiled;
+#define GraphicalObjectRepresentationTiled_PAR GraphicalObjectRepresentation
+#define kclsGraphicalObjectRepresentationTiled 'GORT'
+class GraphicalObjectRepresentationTiled : public GraphicalObjectRepresentationTiled_PAR
 {
     RTCLASS_DEC
 
@@ -159,14 +159,14 @@ class GORT : public GORT_PAR
 
     bool _fStream;
 
-    ~GORT(void);
+    ~GraphicalObjectRepresentationTiled(void);
     void _DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp);
     void _ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp);
     void _MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
     void _MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
-    static PGORT PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationTiled PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
