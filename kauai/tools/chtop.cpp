@@ -3216,7 +3216,7 @@ bool HETG::FCheckSpelling(long *pcactChanges)
         else
             stnSrc.FFormatSz(PszLit("Chp%d"), vsclid);
 
-        if (pvNil == (vpsplc = SPLC::PsplcNew(vsclid, &stnSrc)))
+        if (pvNil == (vpsplc = SpellChecker::PsplcNew(vsclid, &stnSrc)))
         {
             vpappb->TGiveAlertSz(PszLit("Couldn't load the main dictionary"), bkOk, cokExclamation);
             return fFalse;
