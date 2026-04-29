@@ -17,7 +17,7 @@
 #include "audioman.h"
 
 /****************************************
-    RIFF Header helper class
+    RiffHeader helper class
 ****************************************/
 #ifdef MAC
 #define RIFF_TAG 'RIFF'
@@ -36,7 +36,7 @@
 #pragma pack(push, _SOCPACK_)
 #pragma pack(1)
 
-class RIFF
+class RiffHeader
 {
   private:
     DWORD _dwRiffTag;
@@ -52,7 +52,7 @@ class RIFF
     void Set(long cchan, long csampSec, long cbSample, DWORD dwLength)
     {
         _dwRiffTag = RIFF_TAG;
-        _dwRiffLength = sizeof(RIFF) + dwLength;
+        _dwRiffLength = sizeof(RiffHeader) + dwLength;
         _dwWaveTag = WAVE_TAG;
         _dwFmtTag = FMT__TAG;
         _dwFmtLength = sizeof(WAVEFORMATEX);
@@ -74,7 +74,7 @@ class RIFF
 
     DWORD Cb()
     {
-        return sizeof(RIFF) + _dwDataLength;
+        return sizeof(RiffHeader) + _dwDataLength;
     };
 };
 #pragma pack(pop, _SOCPACK_)
@@ -107,7 +107,7 @@ class SoundRecorder : public SoundRecorder_PAR
     LPMIXER _pmixer;     // pointer to Audioman Mixer
     LPCHANNEL _pchannel; // pointer to Audioman Channel
     LPSOUND _psnd;       // psnd for current sound
-    RIFF *_priff;        // pointer to riff in memory
+    RiffHeader *_priff;        // pointer to riff in memory
 
     bool _FOpenRecord();
     bool _FCloseRecord();
