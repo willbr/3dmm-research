@@ -7859,6 +7859,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     PActor pactr = pvNil;
     PActor pactrDup;
     PSceneActorUndo psuna;
+    bool fJustToggledSel = fFalse; // user shift-click-released without dragging
 
     // Shift-click selection toggle: if the user shift-clicked at mousedown
     // and didn't drag past tolerance, fire the toggle now.
@@ -7875,6 +7876,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
                 Pmvie()->Pscen()->FToggleActrSelected(_pactrSelToggle);
                 Pmvie()->Pbwld()->MarkDirty();
                 Pmvie()->MarkViews();
+                fJustToggledSel = fTrue;
             }
         }
         _fSelToggleArmed = fFalse;
@@ -8037,7 +8039,14 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     case toolSquashStretch:
         if (pactr != pvNil)
         {
-            WarpCursToActor(pactr);
+            // Don't snap the cursor to the primary actor when the user just
+            // shift-clicked an actor without dragging -- they were modifying
+            // the selection set, not moving anything, and warping the cursor
+            // away from the click point feels jarring.
+            if (!fJustToggledSel)
+            {
+                WarpCursToActor(pactr);
+            }
             vpappb->ShowCurs();
         }
         break;
