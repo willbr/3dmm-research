@@ -81,14 +81,14 @@ class SceneSorter : public SceneSorter_PAR
 
 /******************************************************************************
 
-    GOMP class -- wraps an MaskedBitmapMBMP in a GraphicsObject for display in the Scene Sorter
+    MaskedBitmapGraphicsObject class -- wraps an MaskedBitmapMBMP in a GraphicsObject for display in the Scene Sorter
 
 ************************************************************ PETED ***********/
 
-#define GOMP_PAR GraphicsObject
-#define kclsGOMP 'GOMP'
-typedef class GOMP *PGOMP;
-class GOMP : public GOMP_PAR
+#define MaskedBitmapGraphicsObject_PAR GraphicsObject
+#define kclsMaskedBitmapGraphicsObject 'GOMP'
+typedef class MaskedBitmapGraphicsObject *PMaskedBitmapGraphicsObject;
+class MaskedBitmapGraphicsObject : public MaskedBitmapGraphicsObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -99,18 +99,18 @@ class GOMP : public GOMP_PAR
     PMaskedBitmapMBMP _pmbmp;
 
   public:
-    GOMP(PGraphicsObjectBlock pgcb);
-    ~GOMP(void)
+    MaskedBitmapGraphicsObject(PGraphicsObjectBlock pgcb);
+    ~MaskedBitmapGraphicsObject(void)
     {
         AssertThis(0);
         ReleasePpo(&_pmbmp);
     }
 
-    static PGOMP PgompNew(PGraphicsObject pgobPar, long hid);
-    static PGOMP PgompFromHidScr(long hid);
+    static PMaskedBitmapGraphicsObject PgompNew(PGraphicsObject pgobPar, long hid);
+    static PMaskedBitmapGraphicsObject PgompFromHidScr(long hid);
     bool FSetMbmp(PMaskedBitmapMBMP pmbmp);
 
-    /* Makes the GOMP invisible to mouse actions */
+    /* Makes the MaskedBitmapGraphicsObject invisible to mouse actions */
     virtual bool FPtIn(long xp, long yp)
     {
         return fFalse;

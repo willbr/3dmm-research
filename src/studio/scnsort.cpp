@@ -215,7 +215,7 @@ bool SceneSorter::FCmdInit(PCommand pcmd)
 
     while ((pgokFrame = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidCur)) != pvNil)
     {
-        PGOMP pgomp;
+        PMaskedBitmapGraphicsObject pgomp;
         PGraphicsObject pgobThumb;
 
         Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
@@ -223,7 +223,7 @@ bool SceneSorter::FCmdInit(PCommand pcmd)
         pgobThumb = (PKidspaceGraphicObject)pgokFrame->PgobFirstChild();
         Assert(pgobThumb != pvNil, "Frame has no children");
 
-        pgomp = GOMP::PgompNew(pgobThumb, kidThumb--);
+        pgomp = MaskedBitmapGraphicsObject::PgompNew(pgobThumb, kidThumb--);
         if (pgomp == pvNil)
             goto LFail;
         _cfrmPage++;
@@ -602,7 +602,7 @@ bool SceneSorter::_FResetThumbnails(bool fHideSel)
     long iscen = _iscenTop, cFrame = _cfrmPage;
     long lwSelState = fHideSel ? kstBrowserScrollingSel : kstBrowserSelected;
     PKidspaceGraphicObject pgokFrame;
-    PGOMP pgomp;
+    PMaskedBitmapGraphicsObject pgomp;
     SceneDescriptor scend;
 
     while (cFrame--)
@@ -612,14 +612,14 @@ bool SceneSorter::_FResetThumbnails(bool fHideSel)
         RC rc;
 
         pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
-        pgomp = GOMP::PgompFromHidScr(kidCur);
+        pgomp = MaskedBitmapGraphicsObject::PgompFromHidScr(kidCur);
 
         if (pgokFrame == pvNil || pgomp == pvNil)
         {
             Bug("Couldn't find thumbnail or its frame");
             goto LFail;
         }
-        Assert(pgomp->FIs(kclsGOMP), "Thumbnail GraphicsObject isn't a GOMP");
+        Assert(pgomp->FIs(kclsMaskedBitmapGraphicsObject), "Thumbnail GraphicsObject isn't a MaskedBitmapGraphicsObject");
         Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
         if (iscen < _iscenMac)
         {
@@ -661,8 +661,8 @@ bool SceneSorter::_FResetThumbnails(bool fHideSel)
         pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
         Assert(pgokFrame != pvNil, "Selection KidspaceGraphicObject is missing");
         Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
-        pgomp = GOMP::PgompFromHidScr(kidCur);
-        Assert(pgomp != pvNil, "Selection GOMP is missing");
+        pgomp = MaskedBitmapGraphicsObject::PgompFromHidScr(kidCur);
+        Assert(pgomp != pvNil, "Selection MaskedBitmapGraphicsObject is missing");
         _FResetTransition(pgokFrame, scend.trans);
         pgomp->FSetMbmp(scend.pmbmp);
     }
@@ -768,34 +768,34 @@ long SceneSorter::_LwFromTrans(TRANS trans)
     return lw;
 }
 
-RTCLASS(GOMP)
+RTCLASS(MaskedBitmapGraphicsObject)
 
 #ifdef DEBUG
-void GOMP::AssertValid(ulong grf)
+void MaskedBitmapGraphicsObject::AssertValid(ulong grf)
 {
-    GOMP_PAR::AssertValid(0);
+    MaskedBitmapGraphicsObject_PAR::AssertValid(0);
     AssertNilOrPo(_pmbmp, 0);
 }
 
-void GOMP::MarkMem(void)
+void MaskedBitmapGraphicsObject::MarkMem(void)
 {
     AssertThis(0);
 
-    GOMP_PAR::MarkMem();
+    MaskedBitmapGraphicsObject_PAR::MarkMem();
     MarkMemObj(_pmbmp);
 }
 #endif /* DEBUG */
 
 /******************************************************************************
-    GOMP
-        Constructor for the GOMP class.
+    MaskedBitmapGraphicsObject
+        Constructor for the MaskedBitmapGraphicsObject class.
 
     Arguments:
         PGraphicsObjectBlock pgcb    -- Gob Creation Block to be passed to the parent class
-        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to use when drawing this GOMP
+        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to use when drawing this MaskedBitmapGraphicsObject
 
 ************************************************************ PETED ***********/
-GOMP::GOMP(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
+MaskedBitmapGraphicsObject::MaskedBitmapGraphicsObject(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _pmbmp = pvNil;
     AssertThis(0);
@@ -803,28 +803,28 @@ GOMP::GOMP(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 
 /******************************************************************************
     PgompNew
-        Creates a GOMP as a child of the given parent.  The new GOMP will
+        Creates a MaskedBitmapGraphicsObject as a child of the given parent.  The new MaskedBitmapGraphicsObject will
         be exactly the same size as the parent, and will have the given hid.
 
     Arguments:
-        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to draw as this GOMP
-        PGraphicsObject pgobPar -- the parent of this GOMP
-        long hid     -- the hid (kid) of this GOMP
+        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to draw as this MaskedBitmapGraphicsObject
+        PGraphicsObject pgobPar -- the parent of this MaskedBitmapGraphicsObject
+        long hid     -- the hid (kid) of this MaskedBitmapGraphicsObject
 
-    Returns: pointer to the GOMP if it succeeds, pvNil otherwise
+    Returns: pointer to the MaskedBitmapGraphicsObject if it succeeds, pvNil otherwise
 
 ************************************************************ PETED ***********/
-PGOMP GOMP::PgompNew(PGraphicsObject pgobPar, long hid)
+PMaskedBitmapGraphicsObject MaskedBitmapGraphicsObject::PgompNew(PGraphicsObject pgobPar, long hid)
 {
     AssertPo(pgobPar, 0);
 
-    PGOMP pgomp = pvNil;
+    PMaskedBitmapGraphicsObject pgomp = pvNil;
     GraphicsObjectBlock gcb;
     RC rcRel(0, 0, krelOne, krelOne);
 
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);
 
-    pgomp = NewObj GOMP(&gcb);
+    pgomp = NewObj MaskedBitmapGraphicsObject(&gcb);
 
     if (pgomp != pvNil && pgobPar->FIs(kclsKidspaceGraphicObject))
     {
@@ -842,14 +842,14 @@ PGOMP GOMP::PgompNew(PGraphicsObject pgobPar, long hid)
 
 /******************************************************************************
     Draw
-        Draws the given GOMP
+        Draws the given MaskedBitmapGraphicsObject
 
     Arguments:
         PGraphicsEnvironment pgnv    -- the graphics environment in which to draw
         RC *prcClip  -- the clipping rect; this is ignored
 
 ************************************************************ PETED ***********/
-void GOMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void MaskedBitmapGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -867,7 +867,7 @@ void GOMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 
 /******************************************************************************
     FSetMbmp
-        Replaces the MaskedBitmapMBMP for this GOMP with the given MaskedBitmapMBMP.
+        Replaces the MaskedBitmapMBMP for this MaskedBitmapGraphicsObject with the given MaskedBitmapMBMP.
 
     Arguments:
         PMaskedBitmapMBMP pmbmp -- pointer to the MaskedBitmapMBMP
@@ -875,7 +875,7 @@ void GOMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     Returns: fTrue if the new MaskedBitmapMBMP is different from the old one
 
 ************************************************************ PETED ***********/
-bool GOMP::FSetMbmp(PMaskedBitmapMBMP pmbmp)
+bool MaskedBitmapGraphicsObject::FSetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertNilOrPo(pmbmp, 0);
 
@@ -891,20 +891,20 @@ bool GOMP::FSetMbmp(PMaskedBitmapMBMP pmbmp)
 
 /******************************************************************************
     PgompFromHidScr
-        Given an HID, return the GOMP with that hid
+        Given an HID, return the MaskedBitmapGraphicsObject with that hid
 
     Arguments:
-        long hid -- the hid of the GOMP to find
+        long hid -- the hid of the MaskedBitmapGraphicsObject to find
 
-    Returns: pointer to the GOMP
+    Returns: pointer to the MaskedBitmapGraphicsObject
 
 ************************************************************ PETED ***********/
-PGOMP GOMP::PgompFromHidScr(long hid)
+PMaskedBitmapGraphicsObject MaskedBitmapGraphicsObject::PgompFromHidScr(long hid)
 {
-    PGOMP pgomp;
+    PMaskedBitmapGraphicsObject pgomp;
 
-    pgomp = (PGOMP)vapp.Pkwa()->PgobFromHid(hid);
+    pgomp = (PMaskedBitmapGraphicsObject)vapp.Pkwa()->PgobFromHid(hid);
     if (pgomp != pvNil)
-        Assert(pgomp->FIs(kclsGOMP), "GraphicsObject isn't a GOMP");
+        Assert(pgomp->FIs(kclsMaskedBitmapGraphicsObject), "GraphicsObject isn't a MaskedBitmapGraphicsObject");
     return pgomp;
 }
