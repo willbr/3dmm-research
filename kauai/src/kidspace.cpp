@@ -17,7 +17,7 @@ namespace GraphicalObjectRepresentation {
 
 RTCLASS(KidspaceGraphicObject)
 RTCLASS(GraphicalObjectRepresentation)
-RTCLASS(GORF)
+RTCLASS(GraphicalObjectRepresentationFill)
 RTCLASS(GORB)
 RTCLASS(GORT)
 RTCLASS(GORV)
@@ -1552,7 +1552,7 @@ PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceF
         break;
 
     case kctgFill:
-        pfngorp = (PFNGORP)GORF::PgorfNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationFill::PgorfNew;
         break;
 
     case kctgTile:
@@ -1973,7 +1973,7 @@ const ByteOrderMask kbomGokfl = 0x5FFF0000;
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationFill GraphicalObjectRepresentationFill::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
@@ -1981,7 +1981,7 @@ PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
     GOKFL gokfl;
     PChunkyFile pcfl;
     DataBlock blck;
-    PGORF pgorf;
+    PGraphicalObjectRepresentationFill pgorf;
 
     pcfl = pcrf->Pcfl();
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(GOKFL) || !blck.FRead(&gokfl))
@@ -1997,7 +1997,7 @@ PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
         return pvNil;
     }
 
-    if (pvNil == (pgorf = NewObj GORF))
+    if (pvNil == (pgorf = NewObj GraphicalObjectRepresentationFill))
         return pvNil;
 
     pgorf->_acrFore.SetFromLw(gokfl.lwAcrFore);
@@ -2014,7 +2014,7 @@ PGORF GORF::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, Chun
 /***************************************************************************
     Fill the rectangle.
 ***************************************************************************/
-void GORF::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void GraphicalObjectRepresentationFill::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2029,17 +2029,17 @@ void GORF::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Return whether the point is in the representation.
 ***************************************************************************/
-bool GORF::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationFill::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     return FIn(xp, 0, _dxp) && FIn(yp, 0, _dyp);
 }
 
 /***************************************************************************
-    Set the internal state of the GORF to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationFill to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORF::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationFill::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
@@ -2054,7 +2054,7 @@ void GORF::SetDxpDyp(long dxpPref, long dypPref)
 /***************************************************************************
     Get the natural rectangle.
 ***************************************************************************/
-void GORF::GetRc(RC *prc)
+void GraphicalObjectRepresentationFill::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2066,7 +2066,7 @@ void GORF::GetRc(RC *prc)
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORF::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationFill::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2700,7 +2700,7 @@ bool GORV::FPtIn(long xp, long yp)
 }
 
 /***************************************************************************
-    Set the internal state of the GORF to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationFill to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
 void GORV::SetDxpDyp(long dxpPref, long dypPref)

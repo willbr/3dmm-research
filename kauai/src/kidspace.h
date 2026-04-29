@@ -56,10 +56,10 @@ class GraphicalObjectRepresentation : public GraphicalObjectRepresentation_PAR
 /***************************************************************************
     Graphical object fill representation.
 ***************************************************************************/
-typedef class GORF *PGORF;
-#define GORF_PAR GraphicalObjectRepresentation
-#define kclsGORF 'GORF'
-class GORF : public GORF_PAR
+typedef class GraphicalObjectRepresentationFill *PGraphicalObjectRepresentationFill;
+#define GraphicalObjectRepresentationFill_PAR GraphicalObjectRepresentation
+#define kclsGraphicalObjectRepresentationFill 'GORF'
+class GraphicalObjectRepresentationFill : public GraphicalObjectRepresentationFill_PAR
 {
     RTCLASS_DEC
 
@@ -72,7 +72,7 @@ class GORF : public GORF_PAR
     long _dyp;
 
   public:
-    static PGORF PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationFill PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
