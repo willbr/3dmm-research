@@ -7398,6 +7398,69 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         return;
     }
 
+    //
+    // Shift-click selection toggle, retroactive arm:
+    //   - If the user shift-clicked at mousedown and the mouse stays within
+    //     a 3 px tolerance, leave the toggle armed -- _MouseUp will fire it.
+    //   - Once the mouse moves past tolerance the click "becomes a drag".
+    //     For parity with original 3DMM (where shift+mousedown on a
+    //     non-selected actor would call SelectActr on it), retroactively
+    //     collapse the selection to the clicked actor and allocate the
+    //     drag-undo snapshot we skipped in _MouseDown. If the clicked actor
+    //     is already part of the current selection, just disarm so the
+    //     existing single-/multi-actor drag flow continues unchanged.
+    //
+    if (_fSelToggleArmed)
+    {
+        const long kdxpSelToggleTol = 3;
+        const long kdypSelToggleTol = 3;
+        long dxpSel = LwAbs(pcmd->xp - _xpSelToggleDown);
+        long dypSel = LwAbs(pcmd->yp - _ypSelToggleDown);
+
+        if (dxpSel <= kdxpSelToggleTol && dypSel <= kdypSelToggleTol)
+        {
+            // Still within tolerance. Suppress drag application this tick so
+            // we don't translate the previous selection while the user might
+            // still be aiming at a click.
+            return;
+        }
+
+        if (_pactrSelToggle != pvNil && !pscen->FIsActrSelected(_pactrSelToggle))
+        {
+            // Clicked actor is not part of the current selection. Drop any
+            // undo state allocated for the previous selection in _MouseDown
+            // and rebuild it for the now-clicked actor (matches what the
+            // pre-MVP non-shift-arm mousedown path would have done).
+            ReleasePpo(&_paund);
+            ReleasePpo(&_paundGroup);
+
+            pscen->SelectActr(_pactrSelToggle);
+
+            if (Tool() == toolCompose)
+            {
+                PActorUndo paundDrag = ActorUndo::PaundNew();
+                PActor pactrDup = pvNil;
+                if (paundDrag != pvNil && _pactrSelToggle->FDup(&pactrDup, fTrue))
+                {
+                    paundDrag->SetPactr(pactrDup);
+                    ReleasePpo(&pactrDup);
+                    paundDrag->SetArid(_pactrSelToggle->Arid());
+                    _paund = paundDrag;
+                }
+                else
+                {
+                    ReleasePpo(&paundDrag);
+                    ReleasePpo(&pactrDup);
+                    Pmvie()->ClearUndo();
+                    PushErc(ercSocNotUndoable);
+                }
+            }
+        }
+
+        _fSelToggleArmed = fFalse;
+        _pactrSelToggle = pvNil;
+    }
+
     pactr = pscen->PactrSelected();
 
     AssertNilOrPo(pactr, 0);
