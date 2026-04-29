@@ -6,12 +6,12 @@
     popup.h: Popup menu classes
 
     Primary Author: ******
-             MPFNT: ******
+             MenuPopupFont: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BrowserList ---> MP
                                           |
-                                          +------> BRWT ---> MPFNT
+                                          +------> BRWT ---> MenuPopupFont
 
 ***************************************************************************/
 #ifndef POPUP_H
@@ -50,29 +50,29 @@ class MP : public MP_PAR
 };
 
 /************************************
-    MPFNT - Font popup menu class
+    MenuPopupFont - Font popup menu class
 *************************************/
-#define MPFNT_PAR BRWT
-#define kclsMPFNT 'mpft'
-typedef class MPFNT *PMPFNT;
-class MPFNT : public MPFNT_PAR
+#define MenuPopupFont_PAR BRWT
+#define kclsMenuPopupFont 'mpft'
+typedef class MenuPopupFont *PMenuPopupFont;
+class MenuPopupFont : public MenuPopupFont_PAR
 {
     ASSERT
     MARKMEM
     RTCLASS_DEC
-    CMD_MAP_DEC(MPFNT)
+    CMD_MAP_DEC(MenuPopupFont)
 
   protected:
     void _AdjustRc(long cthum, long cfrm);
 
     virtual void _ApplySelection(long ithumSelect, long sid);
     virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
-    MPFNT(PGraphicsObjectBlock pgcb) : MPFNT_PAR(pgcb)
+    MenuPopupFont(PGraphicsObjectBlock pgcb) : MenuPopupFont_PAR(pgcb)
     {
     }
 
   public:
-    static PMPFNT PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst);
+    static PMenuPopupFont PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst);
 
     virtual bool FCmdSelIdle(PCommand pcmd);
 };
