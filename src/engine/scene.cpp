@@ -481,6 +481,7 @@ Scene::Scene(PMovie pmvie)
     _nfrmLast = 1;
     _nfrmFirst = 1;
     _trans = transCut; // default transition
+    _pglpactrSelExtra = pvNil;
 
     //
     // By default we disable pauses in the studio
@@ -677,6 +678,11 @@ Scene::~Scene(void)
     // the _pggsevStart.
     //
     ReleasePpo(&_pglptbox);
+
+    //
+    // Release the multi-selection extras list (the actors are owned elsewhere).
+    //
+    ReleasePpo(&_pglpactrSelExtra);
 
     //
     // Release the background
@@ -2437,6 +2443,21 @@ void Scene::SelectActr(Actor *pactr)
             _pactrSelected->Unhilite();
         }
 
+        // Clear any extras and unhilite each.
+        if (pvNil != _pglpactrSelExtra)
+        {
+            for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+            {
+                PActor pactrExtra;
+                _pglpactrSelExtra->Get(iactr, &pactrExtra);
+                if (pvNil != pactrExtra)
+                {
+                    pactrExtra->Unhilite();
+                }
+            }
+            _pglpactrSelExtra->FSetIvMac(0); // Empty the list but keep the storage.
+        }
+
         if (pvNil != pactr)
         {
             pactr->Hilite();
@@ -2452,6 +2473,162 @@ void Scene::SelectActr(Actor *pactr)
     _pactrSelected = pactr;
 
     _pmvie->BuildActionMenu();
+}
+
+/****************************************************
+ *
+ * Clears the entire selection (primary and extras).
+ *
+ ****************************************************/
+void Scene::ClearSelection(void)
+{
+    AssertThis(0);
+    SelectActr(pvNil);
+}
+
+/****************************************************
+ *
+ * Returns the total number of selected actors:
+ * 0 if primary is pvNil, else 1 + extras count.
+ *
+ ****************************************************/
+long Scene::CactrSelected(void)
+{
+    AssertThis(0);
+    if (_pactrSelected == pvNil)
+    {
+        return 0;
+    }
+    return 1 + (_pglpactrSelExtra == pvNil ? 0 : _pglpactrSelExtra->IvMac());
+}
+
+/****************************************************
+ *
+ * Returns the iactr-th selected actor: 0 = primary,
+ * 1..N = extras in insertion order.
+ *
+ ****************************************************/
+PActor Scene::PactrSelectedAt(long iactr)
+{
+    AssertThis(0);
+    AssertIn(iactr, 0, CactrSelected());
+    if (iactr == 0)
+    {
+        return _pactrSelected;
+    }
+    PActor pactr;
+    _pglpactrSelExtra->Get(iactr - 1, &pactr);
+    return pactr;
+}
+
+/****************************************************
+ *
+ * Returns fTrue if pactr is the primary or in the extras list.
+ *
+ ****************************************************/
+bool Scene::FIsActrSelected(PActor pactr)
+{
+    AssertThis(0);
+    AssertNilOrPo(pactr, 0);
+    if (pactr == pvNil)
+    {
+        return fFalse;
+    }
+    if (pactr == _pactrSelected)
+    {
+        return fTrue;
+    }
+    if (_pglpactrSelExtra == pvNil)
+    {
+        return fFalse;
+    }
+    for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+    {
+        PActor pactrEntry;
+        _pglpactrSelExtra->Get(iactr, &pactrEntry);
+        if (pactrEntry == pactr)
+        {
+            return fTrue;
+        }
+    }
+    return fFalse;
+}
+
+/****************************************************
+ *
+ * Shift-click entry point. Toggles pactr's membership in the
+ * selection set: adds it if absent, removes it if present.
+ * Returns fFalse on allocation failure.
+ *
+ ****************************************************/
+bool Scene::FToggleActrSelected(PActor pactr)
+{
+    AssertThis(0);
+    AssertPo(pactr, 0);
+
+    // If toggling the primary: promote first extra to primary, or clear if no extras.
+    if (pactr == _pactrSelected)
+    {
+        pactr->Unhilite();
+        if (_pglpactrSelExtra != pvNil && _pglpactrSelExtra->IvMac() > 0)
+        {
+            PActor pactrPromote;
+            _pglpactrSelExtra->Get(0, &pactrPromote);
+            _pglpactrSelExtra->Delete(0);
+            _pactrSelected = pactrPromote;
+        }
+        else
+        {
+            _pactrSelected = pvNil;
+        }
+        _pmvie->InvalViews();
+        _pmvie->BuildActionMenu();
+        return fTrue;
+    }
+
+    // If toggling an extra: remove it, unhilite.
+    if (_pglpactrSelExtra != pvNil)
+    {
+        for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+        {
+            PActor pactrEntry;
+            _pglpactrSelExtra->Get(iactr, &pactrEntry);
+            if (pactrEntry == pactr)
+            {
+                pactrEntry->Unhilite();
+                _pglpactrSelExtra->Delete(iactr);
+                _pmvie->InvalViews();
+                _pmvie->BuildActionMenu();
+                return fTrue;
+            }
+        }
+    }
+
+    // Adding a new actor.
+    // If no primary yet, make it primary (matches plain-click semantics).
+    if (_pactrSelected == pvNil)
+    {
+        SelectActr(pactr);
+        return fTrue;
+    }
+
+    // Add as extra. Lazily allocate the list.
+    if (_pglpactrSelExtra == pvNil)
+    {
+        _pglpactrSelExtra = DynamicArray::PglNew(size(PActor));
+        if (_pglpactrSelExtra == pvNil)
+        {
+            return fFalse;
+        }
+    }
+    if (!_pglpactrSelExtra->FAdd(&pactr))
+    {
+        return fFalse;
+    }
+    pactr->Hilite();
+    _pmvie->InvalViews();
+    _pmvie->BuildActionMenu();
+    return fTrue;
 }
 
 /****************************************************
@@ -2738,6 +2915,20 @@ void Scene::RemActrCore(long arid)
                 if (pmvu != pvNil)
                 {
                     pmvu->EndPlaceActor();
+                }
+            }
+
+            // Remove the actor from the multi-selection extras list as well.
+            if (_pglpactrSelExtra != pvNil)
+            {
+                for (long iactr = _pglpactrSelExtra->IvMac() - 1; iactr >= 0; iactr--)
+                {
+                    PActor pactrEntry;
+                    _pglpactrSelExtra->Get(iactr, &pactrEntry);
+                    if (pactrEntry != pvNil && pactrEntry->Arid() == arid)
+                    {
+                        _pglpactrSelExtra->Delete(iactr);
+                    }
                 }
             }
 
