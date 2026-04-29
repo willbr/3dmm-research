@@ -66,12 +66,12 @@ bool SoundRecorder::_FInit(long csampSec, long cchan, long cbSample, ulong dtsMa
 
     // allocate a 10 second buffer
     _wavehdr.dwBufferLength = (cchan * csampSec * cbSample * dtsMax) / 1000;
-    if (!FAllocPv((void **)&_priff, sizeof(RIFF) + _wavehdr.dwBufferLength, fmemClear, mprNormal))
+    if (!FAllocPv((void **)&_priff, sizeof(RiffHeader) + _wavehdr.dwBufferLength, fmemClear, mprNormal))
         return fFalse;
 
-    _wavehdr.lpData = reinterpret_cast<LPSTR>(PvAddBv(_priff, sizeof(RIFF)));
+    _wavehdr.lpData = reinterpret_cast<LPSTR>(PvAddBv(_priff, sizeof(RiffHeader)));
 
-    // init RIFF structure
+    // init RiffHeader structure
     _priff->Set(_cchan, _csampSec, _cbSample, 0);
 
     if (fFalse == _FOpenRecord())

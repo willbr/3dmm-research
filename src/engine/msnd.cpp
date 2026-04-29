@@ -457,7 +457,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
     dwTag = RIFF_TAG;
     if (!pfilNew->FWriteRgbSeq(&dwTag, sizeof(dwTag), &fpNew))
         goto LFail;
-    cbCompressedFile = sizeof(RIFF) + pwfxDst->cbSize + 12 - 8 +
+    cbCompressedFile = sizeof(RiffHeader) + pwfxDst->cbSize + 12 - 8 +
                        acmhdr.cbDstLengthUsed; // +12 is for fact chunk chunk, -8 for is riff chunk
     dwLength = cbCompressedFile;
     if (!pfilNew->FWriteRgbSeq(&dwLength, sizeof(dwLength), &fpNew))
