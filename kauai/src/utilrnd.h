@@ -39,15 +39,15 @@ class Random : public Random_PAR
 /***************************************************************************
     A shuffled array of numbers.
 ***************************************************************************/
-typedef class SFL *PSFL;
-#define SFL_PAR Random
-#define kclsSFL 'SFL'
-class SFL : public SFL_PAR
+typedef class Shuffler *PShuffler;
+#define Shuffler_PAR Random
+#define kclsShuffler 'SFL'
+class Shuffler : public Shuffler_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(SFL)
+    NOCOPY(Shuffler)
 
   protected:
     long _clw;
@@ -59,8 +59,8 @@ class SFL : public SFL_PAR
     void _ShuffleCore(void);
 
   public:
-    SFL(ulong luSeed = 0L);
-    ~SFL(void);
+    Shuffler(ulong luSeed = 0L);
+    ~Shuffler(void);
     void Shuffle(long lwLim);
     void ShuffleRglw(long clw, long *prglw);
 

@@ -77,7 +77,7 @@ extern Mutex vmutxMem;
     Global random number generator and shuffler. These are used by the
     script interpreter.
 ***************************************************************************/
-extern SFL vsflUtil;
+extern Shuffler vsflUtil;
 extern Random vrndUtil;
 
 /***************************************************************************

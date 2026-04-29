@@ -26,15 +26,15 @@ class SplotMachine : public SplotMachine_PAR
 
     /* The lists of content */
     PBrowserContentList _pbclBkgd;
-    SFL _sflBkgd;
+    Shuffler _sflBkgd;
     PBrowserContentList _pbclCam;
-    SFL _sflCam;
+    Shuffler _sflCam;
     PBrowserContentList _pbclActr;
-    SFL _sflActr;
+    Shuffler _sflActr;
     PBrowserContentList _pbclProp;
-    SFL _sflProp;
+    Shuffler _sflProp;
     PBrowserContentList _pbclSound;
-    SFL _sflSound;
+    Shuffler _sflSound;
 
     /* Current selected content */
     long _ithdBkgd;

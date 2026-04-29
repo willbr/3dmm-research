@@ -35,7 +35,7 @@ Mutex vmutxBase;
 Mutex vmutxMem;
 
 // Shuffler and random number generator for the script interpreter
-SFL vsflUtil;
+Shuffler vsflUtil;
 Random vrndUtil;
 
 // Standard Kauai codec

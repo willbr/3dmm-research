@@ -15,7 +15,7 @@
 ASSERTNAME
 
 RTCLASS(Random)
-RTCLASS(SFL)
+RTCLASS(Shuffler)
 
 /***************************************************************************
     Constructs a pseudo-random number generator.  If luSeed is zero,
@@ -73,7 +73,7 @@ long Random::LwNext(long lwLim)
 /***************************************************************************
     Constructs a shuffled array.
 ***************************************************************************/
-SFL::SFL(ulong luSeed) : Random(luSeed)
+Shuffler::Shuffler(ulong luSeed) : Random(luSeed)
 {
     _clw = 0;
     _ilw = 0;
@@ -85,7 +85,7 @@ SFL::SFL(ulong luSeed) : Random(luSeed)
 /***************************************************************************
     Destructs a shuffled array.
 ***************************************************************************/
-SFL::~SFL(void)
+Shuffler::~Shuffler(void)
 {
     AssertThis(0);
     FreePhq(&_hqrglw);
@@ -93,11 +93,11 @@ SFL::~SFL(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SFL.
+    Assert the validity of a Shuffler.
 ***************************************************************************/
-void SFL::AssertValid(ulong grf)
+void Shuffler::AssertValid(ulong grf)
 {
-    SFL_PAR::AssertValid(0);
+    Shuffler_PAR::AssertValid(0);
     if (_hqrglw != hqNil)
     {
         AssertHq(_hqrglw);
@@ -108,12 +108,12 @@ void SFL::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the SFL.
+    Mark memory for the Shuffler.
 ***************************************************************************/
-void SFL::MarkMem(void)
+void Shuffler::MarkMem(void)
 {
     AssertValid(0);
-    SFL_PAR::MarkMem();
+    Shuffler_PAR::MarkMem();
     MarkHq(_hqrglw);
 }
 #endif // DEBUG
@@ -121,7 +121,7 @@ void SFL::MarkMem(void)
 /***************************************************************************
     Shuffle the numbers [0, lwLim).
 ***************************************************************************/
-void SFL::Shuffle(long lwLim)
+void Shuffler::Shuffle(long lwLim)
 {
     AssertThis(0);
     AssertIn(lwLim, 0, kcbMax);
@@ -143,9 +143,9 @@ void SFL::Shuffle(long lwLim)
 }
 
 /***************************************************************************
-    Fill the SFL with the values in prglw and shuffle them.
+    Fill the Shuffler with the values in prglw and shuffle them.
 ***************************************************************************/
-void SFL::ShuffleRglw(long clw, long *prglw)
+void Shuffler::ShuffleRglw(long clw, long *prglw)
 {
     AssertThis(0);
     AssertIn(clw, 0, kcbMax);
@@ -166,7 +166,7 @@ void SFL::ShuffleRglw(long clw, long *prglw)
 /***************************************************************************
     Shuffle the entries in the HQ.
 ***************************************************************************/
-void SFL::_ShuffleCore(void)
+void Shuffler::_ShuffleCore(void)
 {
     AssertThis(0);
     Assert(_clw > 0, 0);
@@ -191,7 +191,7 @@ void SFL::_ShuffleCore(void)
 /***************************************************************************
     Make sure the HQ is the correct size and set clw appropriately.
 ***************************************************************************/
-bool SFL::_FEnsureHq(long clw)
+bool Shuffler::_FEnsureHq(long clw)
 {
     AssertThis(0);
     AssertIn(clw, 0, kcbMax);
@@ -219,10 +219,10 @@ bool SFL::_FEnsureHq(long clw)
 
 /***************************************************************************
     Returns the next number in a shuffled array of numbers.  If lwLim is
-    zero, uses the numbers already in the SFL.  Otherwise, numbers
+    zero, uses the numbers already in the Shuffler.  Otherwise, numbers
     range from 0 to (lwLim - 1), inclusive.
 ***************************************************************************/
-long SFL::LwNext(long lwLim)
+long Shuffler::LwNext(long lwLim)
 {
     AssertThis(0);
     AssertIn(lwLim, 0, kcbMax);

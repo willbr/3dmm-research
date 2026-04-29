@@ -105,11 +105,11 @@ class ESLT : public ESLT_PAR
     PActorPreviewEntity _pape;   // Actor Preview Entity
     PSNE _psne;   // Spletter Name Editor
     PResourceCache _prca;   // Resource source for cursors
-    PSFL _psflMtrl;
+    PShuffler _psflMtrl;
     PBrowserContentList _pbclMtrl;
-    PSFL _psflTdf;
+    PShuffler _psflTdf;
     PBrowserContentList _pbclTdf;
-    PSFL _psflTdts;
+    PShuffler _psflTdts;
 
   protected:
     ESLT(PGraphicsObjectBlock pgcb) : ESL(pgcb)

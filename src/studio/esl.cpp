@@ -265,15 +265,15 @@ bool ESLT::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
     if (!FBuildGcb(&gcb, kidSpltPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
 
-    _psflTdts = NewObj SFL;
+    _psflTdts = NewObj Shuffler;
     if (pvNil == _psflTdts)
         return fFalse;
 
-    _psflTdf = NewObj SFL;
+    _psflTdf = NewObj Shuffler;
     if (pvNil == _psflTdf)
         return fFalse;
 
-    _psflMtrl = NewObj SFL;
+    _psflMtrl = NewObj Shuffler;
     if (pvNil == _psflMtrl)
         return fFalse;
 
