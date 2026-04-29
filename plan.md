@@ -23,7 +23,7 @@ This plan does NOT cover:
 Items deferred to the future 3DMMPlus fork rather than 3DMMForever, in rough order of attractiveness:
 
 - **Lua-based kidspace runtime.** Replace the in-house stack VM (`scrcom.cpp` / `screxe.cpp` and their graphical variants) with Lua 5.3+. Match: stack-based, integer-friendly, coroutines map to kidspace's "fire-and-wait" patterns, ~150 KB interpreter vs. ~3-4 kLOC of in-house VM, real debugger and profiler available, MIT-licensed. Rough scope: write a `.cht`-source-to-Lua transpiler, port the ~30-50 kidspace intrinsics (`ChangeStateThis`, `FRunScript`, etc.) as Lua C functions, build a GOK ↔ Lua table binding for cross-GOK variable access, validate against the existing 500+ scripts. Not Python — Python's footprint (5-15 MB embedded), startup cost, and GC pauses make it the wrong fit for embedded UI scripting, even though it's the right choice for engine bindings (Project 2). Both languages can coexist in the same binary because they target different layers. Worth doing in 3DMMPlus because it enables modding and gives content authors real tooling; not worth doing in 3DMMForever because compat with 1995 behavior is the priority and the existing VM works.
-- **Modern 3D renderer** (Vulkan / OpenGL / Metal, full color, lighting, moveable camera) — the headline 3DMMPlus charter item. Requires a new file format that breaks 1995 compat and a renderer rewrite, not a port.
+- **Modern 3D renderer** (Vulkan / OpenGL / Metal, full color, lighting, full match-move camera animation) — the headline 3DMMPlus charter item. Requires a new file format that breaks 1995 compat and a renderer rewrite, not a port. Custom camera *poses* are achievable in 3DMMForever via UI-9's BKGD-embedding trick; what 3DMMPlus adds is *animated cameras within a shot* (continuous match-move, key-framed pans/zooms) — that requires new `SceneEventType` values which 3DMMForever's compat constraint forbids.
 - **New file format** with extension capacity beyond 1995's `MovieFilePrefix` size budget. Imports `.3MM` files for backwards play.
 - **Kidspace UI redesign** for modern resolutions (1920×1080+) and full color, beyond the 640×480 8-bit-palette constraint of 1995 3DMM.
 
@@ -190,7 +190,9 @@ The BRender 1.3.2 / 1997 source predates `<stdint.h>`, contains inline x86 assem
 
 ## Studio UI features (incremental backlog)
 
-Discrete UX additions that don't fit Projects 1-3 but are individually shippable. None of these touch the `.3MM` file format, so they're all compat-safe by construction. Listed roughly in increasing scope.
+Discrete UX additions that don't fit Projects 1-3 but are individually shippable. UI-1 through UI-6 are pure UI changes that don't touch the `.3MM` file format. UI-7 produces video output (not `.3MM`), so it's also compat-safe. UI-8 produces standard one-scene `.3MM` files using the existing format. UI-9 *does* persist new content into `.3MM` files (custom CAM chunks embedded under user-customized BKGD copies) — but does so additively, using the same `ksidUseCrf` embedding pattern the studio already uses for custom MTRLs and TMPLs, so 1995 3DMM continues to load and play these movies correctly.
+
+Listed roughly in increasing scope.
 
 ### UI-1: Exact-input dialogs for rotate / move / scale (low effort, low risk)
 
@@ -220,7 +222,7 @@ Discrete UX additions that don't fit Projects 1-3 but are individually shippable
 
 **Why:** Today cameras are pre-authored presets per background; authors pick from N pre-baked angles via the camera browser, recorded as `sevtChngCamera`. There is no way to look at a shot from any other angle while editing. A free-fly preview camera lets authors orbit/pan/dolly during editing to inspect the scene; recorded playback still uses the preset.
 
-**Importantly:** this is editor-only. The recorded `.3MM` still references preset cameras via `sevtChngCamera`. Nothing about the file format changes. Recording a free-positioned camera into a movie is a **3DMMPlus** feature (requires `sevtChngCameraMatrix` or per-movie `CameraPosition` chunks; either way it breaks 1995 compat).
+**Importantly:** this is editor-only. The recorded `.3MM` still references preset cameras via `sevtChngCamera` — no on-disk format change. **Persisting custom poses is a separate feature (UI-9)** that uses BKGD embedding to stay 1995-compat-safe at a file-size cost; see UI-9 for details.
 
 **Implementation:**
 
@@ -257,13 +259,83 @@ Discrete UX additions that don't fit Projects 1-3 but are individually shippable
 
 **Scope: 1-2 days as part of Project 3 SDL3 backend; 2-3 weeks if attempted on Win32 first.** Don't do the Win32 version.
 
+### UI-7: Render-to-video with free-fly camera (medium effort, medium risk)
+
+**Why:** Authors who want to share a movie as video (rather than as a `.3MM` requiring 3DMM to play) have no path today. Combined with UI-4, this also enables machinima — render an existing movie's timeline through a user-chosen camera path, write to MP4/WebM/AVI.
+
+**Depends on:** UI-4 (free-fly camera) and Project 3 §3a (which already pulls libavformat/libavcodec into the build for AVI playback replacement).
+
+**Implementation:**
+
+- Capture each rendered frame from BRender's RGB output buffer (via the existing palette-to-RGB conversion path) and feed to `libavcodec`'s encoder.
+- New `cidRenderToFile` command. Dialog asks for output path, codec choice, resolution (1×/2×/4× the logical 640×480), frame range.
+- During render, **suppress the scene's `sevtChngCamera` events** when a free-fly path is active — otherwise BRender camera would jump back to the preset every time the recorded event fires.
+- Audio: muxed from the existing scene playback (sound events) into the output file. Same audio in render mode as in playback.
+- Optional: a small camera-path **sidecar file** (e.g., `.3SH` "shot list") storing `(scene_index, frame, camera_matrix, fov, hither, yon)` keyframes. Render interpolates between keyframes. Sidecar is a separate file from the `.3MM` — original movie unchanged, multiple sidecars give multiple takes.
+
+**Scope: 4-6 weeks** including audio mux, palette-state-per-frame handling, codec parameter UX. The encoder integration is the bulk; the camera-suppression flag and sidecar format are small additions on top.
+
+**Compat:** doesn't touch `.3MM`. Output is video, not movie. Sidecar is a new file type the new reader knows about and the old reader ignores (sidecars never get loaded by 1995 3DMM).
+
+### UI-8: Reusable scene library (medium effort, low risk)
+
+**Why:** Today scenes only exist inside `.3MM` movies. A scene authored once with a particular set of actors, paths, sounds, and camera cuts can't be reused in another movie without manual recreation. A scene library lets authors save individual scenes and import them into other movies.
+
+**Key insight: no new file format needed.** `SCEN` chunks already write to any `PChunkyResourceFile` via `Scene::FWrite` (`src/engine/scene.cpp:4187`) and read from any via `Scene::PscenRead` (line 3764). A scene library is just a directory of one-scene `.3MM` files — each is a tiny standard movie with a single SCEN under MVIE. Original 1995 3DMM can open these as single-scene movies; the new reader can extract the scene and inject it into another movie.
+
+**Implementation:**
+
+- **"Save scene as..."**: pick scene N from the open movie. Create a new chunky file with file-type `'MVIE'`, write a fresh MVIE root chunk (`MovieFilePrefix` with `bo`, `osk`, `dver` set to current values), call `Scene::FWrite(pcrfDest, &cnoScen)`, adopt the SCEN under MVIE at chid 0, write the standard companion children (roll-call GST, source GST). Save with `.3MM` extension.
+- **"Insert scene from..."**: file picker for `.3MM` files. Open as `PChunkyResourceFile`, find the first SCEN child, call `Scene::PscenRead`, then use the existing scene-paste path to insert into the current movie at the chosen position. Tag references resolve through the destination's tag manager — the destination must have access to the same content sources (templates, materials, sounds, **backgrounds**) the source referenced.
+- **Optional library browser**: kidspace browser (modeled after the camera/actor browsers) listing `.3MM` files in a known directory, showing each scene's thumbnail (the SCEN already has a `kctgThumbMbmp` child), drag-drop into the current movie.
+
+**Camera handling:**
+- Preset cameras (`sevtChngCamera icam=K` referencing a built-in BKGD camera) ride along automatically — they're just integers in the SCEN's frame-event GST.
+- If the source scene used a custom camera (UI-9), the saved scene must also embed the BKGD copy with the custom CAMs (or the import has nothing to resolve the high icam against). UI-9 import logic handles this.
+
+**Scope: 2-3 weeks.** The hard part isn't the file format — it's tag resolution across movies (importing requires the destination's content stack to provide the same template/material/sound chunks the source referenced). For backgrounds with custom cameras, see UI-9.
+
+### UI-9: Custom camera authoring with BKGD embedding (high effort, medium risk)
+
+**Why:** UI-4 lets authors free-fly to a custom angle but only for preview. UI-9 makes that pose **persist** in the movie file — the recorded `.3MM` plays back from the custom angle in both 3DMMForever and original 1995 3DMM.
+
+**Compat strategy:** the chunk-graph design already supports this without new chunk types or new event types:
+
+- Cameras are `CAM` chunks owned as children of the BKGD chunk (`src/engine/bkgd.cpp:258`).
+- `sevtChngCamera icam=N` looks up child #N of the scene's BKGD via generic chid enumeration (no fixed range check).
+- The studio already embeds custom MTRL/TMPL chunks in movies via `ksidUseCrf` tags — the same mechanism applies to BKGDs. When the tag resolves, the engine reads the BKGD from the movie file instead of `bkgds.3cn`.
+- 1995 3DMM uses the same tag-resolution code path. It will load the embedded BKGD, count the extra CAM children correctly, and resolve `sevtChngCamera icam=N+K` to the new camera's matrix without any code changes. **Compat-safe.**
+
+**Implementation:**
+
+- When the user records a free-fly pose (UI-4 active + "save this angle" command):
+  1. Check if the scene's BKGD is already embedded (`tagBkgd.sid == ksidUseCrf`). If not:
+     - Copy the standard BKGD chunk from `bkgds.3cn` into the movie file.
+     - Adopt all of the standard BKGD's children (existing CAMs, BDS, GLLT, palette, etc.) as children of the embedded copy. Use the chunky-file's multi-parent child support if possible to share data; otherwise deep-copy.
+     - Update `tagBkgd` to reference the embedded BKGD (`sid = ksidUseCrf`, new cno).
+  2. Write a new `CAM` chunk into the movie with the custom pose's data (`CameraPosition` struct: matrix, FOV, hither/yon, APOS).
+  3. Adopt the new CAM as a child of the embedded BKGD at chid `_ccam` (next index past the existing presets).
+  4. Write a `sevtChngCamera icam=_ccam` event into the SCEN's frame events GST at the current frame.
+  5. Increment `_ccam` for future custom cameras in this movie.
+
+- **Garbage collection at save:** add BKGD GC to `_FDoMtrlTmplGC` (or sibling routine) — if no scene's `sevtChngCamera` references an embedded BKGD's custom CAMs anymore, drop the embedded BKGD copy and revert tags to the standard `bkgds.3cn` reference.
+
+- **UI:** "Save current preview camera as new angle" button on the camera toolbar (next to UI-4's free-fly tools). Once saved, the new angle appears in the camera browser alongside built-in presets.
+
+**File-size caveat:** an embedded BKGD is 200 KB-2 MB depending on the source. Each distinct background that gets a custom camera adds that overhead to the movie file. **Multiple scenes using the same custom-camera background share the embedded BKGD** (multi-parent child support means the embedded BKGD is referenced by all scenes that use it; only embedded once per movie).
+
+**Scope: 4-6 weeks.** The BKGD-embedding logic is the load-bearing piece; needs careful testing to confirm 1995 3DMM correctly resolves the embedded BKGD, plays the custom angles, and doesn't lose data on re-save. Add a regression test (per §0a / §2a) that round-trips a custom-camera movie through 1995 3DMM (or, since we don't have a 1995 binary, through a strict-mode 3DMMForever reader that simulates the 1995 behavior).
+
+**Risk:** medium. Edge case to watch: BKGDs reference content (palette chunks, lights, default sound) that may itself be tagged. Embedding a BKGD requires resolving and either copying or sharing those references. The garbage-collection logic at save time has to be careful not to drop chunks that the embedded BKGD's children still reference.
+
 ### Recommended order
 
-Bundles into roughly three phases:
+Bundles into roughly four phases:
 
-1. **Quick wins (1-2 weeks total):** UI-1, UI-2, UI-3. Each ships visible value, each proves the "add a tool" pattern works without disturbing anything load-bearing. These can be done in any order, or by different contributors in parallel.
-2. **Free-fly camera (2-3 weeks):** UI-4. Higher value, more design surface; requires the camera-cover toolbar and careful interaction with actor-placement projection.
-3. **Multi-select + UI scaling (Project 3-era):** UI-5 needs careful undo/menu design; UI-6 falls out of Project 3's SDL3 backend almost for free. Both deferred until the cross-platform port is on Windows-x64 at minimum.
+1. **Quick wins (1-2 weeks total):** UI-1, UI-2, UI-3. Each ships visible value, each proves the "add a tool" pattern works without disturbing anything load-bearing. Any order, parallelizable.
+2. **Free-fly camera (2-3 weeks):** UI-4. Higher value, more design surface; requires the camera-cover toolbar and careful interaction with actor-placement projection. Editor-only — doesn't touch the file format.
+3. **Scene library + camera persistence (5-9 weeks):** UI-8 (scene library, ~2-3 weeks) and UI-9 (custom camera authoring, ~4-6 weeks). UI-9 depends on UI-4. UI-8 is independent of UI-9 but synergizes — once UI-9 lands, scene library files can carry custom cameras as long as they ride along with their embedded BKGDs.
+4. **Project 3-era (UI-5, UI-6, UI-7):** UI-5 multi-select needs careful undo/menu design (3-5 weeks); UI-6 integer UI scaling falls out of SDL3's renderer almost for free; UI-7 render-to-video sits naturally on top of Project 3 §3a's libav integration. All gated on Project 3 reaching at least Windows-x64.
 
 Each item is independently shippable and independently revertible.
 
