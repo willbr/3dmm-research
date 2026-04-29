@@ -467,7 +467,7 @@ bool ESLT::FCmdStartPopup(PCommand pcmd)
         break;
     }
 
-    MP::PmpNew(kidSpltBackground, kid, _prca, pcmd, kbwsCnoRoot, ithumSelect, sidSelect, ckiGPar, ctgNil, this,
+    MenuPopup::PmpNew(kidSpltBackground, kid, _prca, pcmd, kbwsCnoRoot, ithumSelect, sidSelect, ckiGPar, ctgNil, this,
                cidSelect, fTrue);
 
     return fTrue;

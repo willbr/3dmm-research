@@ -1222,7 +1222,7 @@ bool Studio::FCmdCreatePopup(PCommand pcmd)
         bws = kbwsIndex;
 
     LCreate:
-        MP::PmpNew(kidBackground, kid, _pcrm, pcmd, bws, thumSel, ksidInvalid, ckiRoot, ctgNil, this, cid, fFalse);
+        MenuPopup::PmpNew(kidBackground, kid, _pcrm, pcmd, bws, thumSel, ksidInvalid, ckiRoot, ctgNil, this, cid, fFalse);
         break;
     case cidTextFont: {
         PStringTable_GST pgst;
