@@ -2656,7 +2656,7 @@ bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PCh
         goto LFail;
     }
 
-    if (!pgok->Pwoks()->FFindFile(&stn, &fni) || pvNil == (_pgvid = GVID::PgvidNew(&fni, pgok, bT)))
+    if (!pgok->Pwoks()->FFindFile(&stn, &fni) || pvNil == (_pgvid = Video::PgvidNew(&fni, pgok, bT)))
     {
     LFail:
         Warn("couldn't load indicated video");

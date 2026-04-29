@@ -189,7 +189,7 @@ class GraphicalObjectRepresentationVideo : public GraphicalObjectRepresentationV
     MARKMEM
 
   protected:
-    PGVID _pgvid;
+    PVideo _pgvid;
     long _dxp;
     long _dyp;
     long _cactSuspend;

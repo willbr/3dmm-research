@@ -19,21 +19,21 @@
     Generic video class. This is an interface that supports the GVDS
     (video stream) and GVDW (video window) classes.
 ***************************************************************************/
-typedef class GVID *PGVID;
-#define GVID_PAR CommandHandler
-#define kclsGVID 'GVID'
-class GVID : public GVID_PAR
+typedef class Video *PVideo;
+#define Video_PAR CommandHandler
+#define kclsVideo 'GVID'
+class Video : public Video_PAR
 {
     RTCLASS_DEC
 
   protected:
-    GVID(long hid);
-    ~GVID(void)
+    Video(long hid);
+    ~Video(void)
     {
     }
 
   public:
-    static PGVID PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased = fFalse, long hid = hidNil);
+    static PVideo PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased = fFalse, long hid = hidNil);
 
     virtual long NfrMac(void) = 0;
     virtual long NfrCur(void) = 0;
@@ -52,7 +52,7 @@ class GVID : public GVID_PAR
     Video stream class.
 ****************************************/
 typedef class GVDS *PGVDS;
-#define GVDS_PAR GVID
+#define GVDS_PAR Video
 #define kclsGVDS 'GVDS'
 class GVDS : public GVDS_PAR
 {
@@ -108,7 +108,7 @@ class GVDS : public GVDS_PAR
     Video in a window class.
 ****************************************/
 typedef class GVDW *PGVDW;
-#define GVDW_PAR GVID
+#define GVDW_PAR Video
 #define kclsGVDW 'GVDW'
 class GVDW : public GVDW_PAR
 {
