@@ -411,15 +411,54 @@ The "wait for UI-6" path is probably the cleanest, which also implies waiting fo
 
 **Compat:** zero. This is purely a new view + new UI input paths over existing data. The on-disk `.3MM` format doesn't even know the timeline exists.
 
+### UI-11: Custom prop composer (medium effort, low risk)
+
+**Why:** 3DMM ships with a fixed set of props (chairs, vehicles, signs, etc.) authored at Microsoft. Users can't author new ones. A primitive-composer easel (similar in shape to the existing 3D Words easel) lets authors build static props from cubes, cylinders, spheres, etc., resize/position them, and save the result as a custom prop usable like any built-in.
+
+**Why this codebase fits well:**
+
+A "prop" in 3DMM terminology is just a `TMPL` chunk with one flag bit set: `ftmplProp` (`inc/tmpl.h:134`). Props use the same data structures as character actors — same body hierarchy, same action system, same path system. The bit only controls which browser the prop appears in (props vs. actors). A static prop is a *very* simple TMPL: one body part, one ACTN ("rest"), one CEL pointing at a single MODL chunk. Nothing exotic.
+
+`Model::PmodlNew(cbrv, prgbrv, cbrf, prgbrf)` (`inc/modl.h:57`) is public API — takes raw vertex/face arrays and builds a Model. The 3D Words easel already uses this pattern to generate 3D text geometry on-the-fly. Same pattern applies for prop geometry.
+
+The studio already embeds custom TMPL chunks in movies via `ksidUseCrf` tags (the mechanism behind custom-character costumes). `_FDoMtrlTmplGC` (`src/engine/movie.cpp:2774`) garbage-collects unreferenced embedded TMPLs at save time — works for custom props with no changes since the GC doesn't distinguish prop from character TMPLs.
+
+**Compat:** original 1995 3DMM resolves embedded TMPLs via the same tag-resolution code path used for custom characters today. It reads the embedded MODL, hands the geometry to BRender, renders. **Custom user-built props work in 1995 3DMM unchanged**, no new chunk types or event types required.
+
+**Phased implementation:**
+
+- **Phase 1 — Primitive composer (5-7 weeks).**
+  - Pure-C++ primitive geometry generator: cube, cylinder, sphere, cone, plane. Returns `(BRV*, count, BRF*, count)` arrays. ~1 week.
+  - New easel — kidspace `.cht` + new gob. Shape similar to the 3D Words easel: small preview viewport, primitive picker, per-primitive transform widgets (position X/Y/Z, rotation X/Y/Z, scale), part list, name field, "save as prop" button. ~3 weeks.
+  - MODL generator: takes the user's primitive composition, applies transforms, optionally welds duplicate vertices, emits a single MODL chunk via `Model::PmodlNew` then writes via `Model::FWrite`. ~1 week.
+  - TMPL writer: wraps the MODL in a TMPL chunk with `ftmplProp` set, single body part, single "rest" ACTN with one CEL referencing the MODL by chid. ~1 week.
+  - Embed + roll-call wiring: add the new TMPL to the movie via `ksidUseCrf`, register in the props browser (the browser already filters roll-call by `ftmplProp`, no browser changes needed). ~1 week.
+- **Phase 2 — Materials + color (2-3 weeks).** Assign existing MTRLs (or solid colors via a CMTL) to faces. Per-primitive material picker. UV generation: simple planar/box projection per primitive type.
+- **Phase 3 — Multi-part / articulation (3-4 weeks).** Build a TMPL with N body parts (one per primitive), so user can later author a prop with movable parts. Reuses the body hierarchy infrastructure that character actors already use.
+- **Phase 4 — Mesh import (open-ended).** Import `.obj` / `.gltf` / similar, convert to BRender vertices/faces, emit MODL. Substantial scope and intersects with the v3dmm content pipeline. Defer.
+
+**Caveats:**
+
+- **BRender geometry validation.** Stock MODLs were authored via SoftImage and tend to be clean closed manifolds. User-built geometry might have non-manifold edges, flipped face winding, near-coincident vertices. BRender's renderer can glitch on these (z-fighting, missing faces). Add a validator pass that runs on Save with warnings/auto-fix for common cases.
+- **Pivot point.** Each MODL has a `bvec3Pivot` controlling rotation behavior. Default to bounding-box center; expose an override in the easel.
+- **No texture coords in Phase 1.** Untextured geometry only. Phase 2 adds materials and the UV-generation problem.
+- **File size.** Embedded MODLs are small (KB range); embedded TMPLs are slightly bigger but still small. Multiple custom props per movie are cheap. Garbage-collected at save when unused.
+
+**Scope: 5-7 weeks for Phase 1; 10-14 weeks for Phases 1-3.** Phase 4 (mesh import) is open-ended.
+
+**Risk:** low — engine API is fully there, embedding pattern is existing, browser integration is automatic. Main risk is BRender quirks with user-built geometry; mitigated by the validator pass.
+
+**Dependencies:** none. Could ship today on Win32 without Projects 1-4. UI-1 (exact-input dialogs) is a nice-to-have for the per-primitive transform widgets but not required.
+
 ### Recommended order
 
-Bundles into roughly four phases:
+Bundles into roughly five phases:
 
 1. **Quick wins (1-2 weeks total):** UI-1, UI-2, UI-3. Each ships visible value, each proves the "add a tool" pattern works without disturbing anything load-bearing. Any order, parallelizable.
 2. **Free-fly camera (2-3 weeks):** UI-4. Higher value, more design surface; requires the camera-cover toolbar and careful interaction with actor-placement projection. Editor-only — doesn't touch the file format.
-3. **Scene library + camera persistence (5-9 weeks):** UI-8 (scene library, ~2-3 weeks) and UI-9 (custom camera authoring, ~4-6 weeks). UI-9 depends on UI-4. UI-8 is independent of UI-9 but synergizes — once UI-9 lands, scene library files can carry custom cameras as long as they ride along with their embedded BKGDs.
-4. **Project 3-era (UI-5, UI-6, UI-7):** UI-5 multi-select needs careful undo/menu design (3-5 weeks); UI-6 integer UI scaling falls out of SDL3's renderer almost for free; UI-7 render-to-video sits naturally on top of Project 3 §3a's libav integration. All gated on Project 3 reaching at least Windows-x64.
-5. **Timeline (8-12 weeks, gated on UI-5):** UI-10. The most ambitious UI feature in the backlog. Phases 1-3 land sequentially; Phase 4 bonus features are individually scoped sub-tasks.
+3. **Custom-content composers (10-16 weeks total):** UI-11 prop composer (5-7 weeks Phase 1; +5-7 weeks Phases 2-3) and UI-9 custom camera authoring (4-6 weeks, depends on UI-4). Both add user-authored content via `ksidUseCrf` embedding — natural to design and ship together since they share the embedded-content patterns.
+4. **Scene library (~2-3 weeks):** UI-8. Independent of UI-9/UI-11 but synergizes — once they land, library scenes can carry custom cameras and custom props via their embedded TMPLs/BKGDs.
+5. **Project 3-era (UI-5, UI-6, UI-7, UI-10):** UI-5 multi-select needs careful undo/menu design (3-5 weeks); UI-6 integer UI scaling falls out of SDL3's renderer almost for free; UI-7 render-to-video sits naturally on top of Project 3 §3a's libav integration; UI-10 timeline is the most ambitious (8-12 weeks, hard prereq on UI-5). All gated on Project 3 reaching at least Windows-x64.
 
 Each item is independently shippable and independently revertible.
 
