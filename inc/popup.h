@@ -9,7 +9,7 @@
              MenuPopupFont: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BrowserList ---> MP
+    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BrowserList ---> MenuPopup
                                           |
                                           +------> BRWT ---> MenuPopupFont
 
@@ -18,17 +18,17 @@
 #define POPUP_H
 
 /************************************
-    MP - Generic popup menu class
+    MenuPopup - Generic popup menu class
 *************************************/
-#define MP_PAR BrowserList
-#define kclsMP 'MP'
-typedef class MP *PMP;
-class MP : public MP_PAR
+#define MenuPopup_PAR BrowserList
+#define kclsMenuPopup 'MP'
+typedef class MenuPopup *PMenuPopup;
+class MenuPopup : public MenuPopup_PAR
 {
     ASSERT
     MARKMEM
     RTCLASS_DEC
-    CMD_MAP_DEC(MP)
+    CMD_MAP_DEC(MenuPopup)
 
   protected:
     long _cid;  // cid to enqueue to apply selection
@@ -37,13 +37,13 @@ class MP : public MP_PAR
   protected:
     virtual void _ApplySelection(long ithumSelect, long sid);
     virtual long _IthumFromThum(long thumSelect, long sidSelect);
-    MP(PGraphicsObjectBlock pgcb) : MP_PAR(pgcb)
+    MenuPopup(PGraphicsObjectBlock pgcb) : MenuPopup_PAR(pgcb)
     {
     }
     bool _FInit(PResourceCache prca);
 
   public:
-    static PMP PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
+    static PMenuPopup PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
                       ChunkIdentification ckiRoot, ChunkTagOrType ctg, PCommandHandler pcmh, long cid, bool fMoveTop);
 
     virtual bool FCmdSelIdle(PCommand pcmd);

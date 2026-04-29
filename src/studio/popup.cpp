@@ -14,24 +14,24 @@
 #include "studio.h"
 ASSERTNAME
 
-RTCLASS(MP)
+RTCLASS(MenuPopup)
 RTCLASS(MenuPopupFont)
 
-BEGIN_CMD_MAP(MP, BrowserDisplay)
-ON_CID_GEN(cidSelIdle, &MP::FCmdSelIdle, pvNil)
+BEGIN_CMD_MAP(MenuPopup, BrowserDisplay)
+ON_CID_GEN(cidSelIdle, &MenuPopup::FCmdSelIdle, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new popup menu
 ***************************************************************************/
-PMP MP::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
+PMenuPopup MenuPopup::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
                ChunkIdentification ckiRoot, ChunkTagOrType ctg, PCommandHandler pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
     AssertPo(pcmh, 0);
 
-    PMP pmp;
+    PMenuPopup pmp;
     GraphicsObjectBlock gcb;
     PStudio pstdio;
     long cthum;
@@ -47,7 +47,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd,
     if (!_FBuildGcb(&gcb, kidParent, kidMenu))
         return pvNil;
 
-    pmp = NewObj MP(&gcb);
+    pmp = NewObj MenuPopup(&gcb);
     if (pvNil == pmp)
         goto LFail;
     if (!pmp->_FInitGok(prca, kidMenu))
@@ -107,7 +107,7 @@ LFail:
 /***************************************************************************
     Enqueue a cid saying what was selected
 ***************************************************************************/
-void MP::_ApplySelection(long ithumSelect, long sid)
+void MenuPopup::_ApplySelection(long ithumSelect, long sid)
 {
     AssertThis(0);
 
@@ -137,7 +137,7 @@ void MP::_ApplySelection(long ithumSelect, long sid)
     Keywords:
 
 ************************************************************ PETED ***********/
-long MP::_IthumFromThum(long thumSelect, long sidSelect)
+long MenuPopup::_IthumFromThum(long thumSelect, long sidSelect)
 {
     AssertBaseThis(0);
 
@@ -157,7 +157,7 @@ long MP::_IthumFromThum(long thumSelect, long sidSelect)
         Assert(ithum >= 0 || ithum == ivNil, "Returning invalid ithum");
     }
     else
-        ithum = MP_PAR::_IthumFromThum(thumSelect, sidSelect);
+        ithum = MenuPopup_PAR::_IthumFromThum(thumSelect, sidSelect);
     return ithum;
 }
 
@@ -165,32 +165,32 @@ long MP::_IthumFromThum(long thumSelect, long sidSelect)
     Do selection idle processing.  Make sure not to change any selection
     states.
 ***************************************************************************/
-bool MP::FCmdSelIdle(PCommand pcmd)
+bool MenuPopup::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    MP_PAR::FCmdSelIdle(pcmd);
+    MenuPopup_PAR::FCmdSelIdle(pcmd);
     return fTrue;
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MP.
+    Assert the validity of the MenuPopup.
 ***************************************************************************/
-void MP::AssertValid(ulong grf)
+void MenuPopup::AssertValid(ulong grf)
 {
-    MP_PAR::AssertValid(fobjAllocated);
+    MenuPopup_PAR::AssertValid(fobjAllocated);
     AssertBasePo(_pcmh, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the MP
+    Mark memory used by the MenuPopup
 ***************************************************************************/
-void MP::MarkMem(void)
+void MenuPopup::MarkMem(void)
 {
     AssertThis(0);
-    MP_PAR::MarkMem();
+    MenuPopup_PAR::MarkMem();
     MarkMemObj(_pcmh);
 }
 #endif // DEBUG
