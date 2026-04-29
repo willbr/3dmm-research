@@ -228,7 +228,7 @@ class EDML : public EDML_PAR
 
   protected:
     // the text
-    BSM _bsm;
+    MemoryByteStream _bsm;
     PDynamicArray _pglich;
 
     EDML(PEDPAR pedpar);

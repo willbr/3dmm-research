@@ -398,7 +398,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
     MIDCHD midchd;
     MIDTR midtr;
     bool fSmpte;
-    BSM bsm;
+    MemoryByteStream bsm;
     RAT ratTempo;
     ulong tsTempo, tsRawTempo, tsLast, ts, dts;
     byte rgbT[5];
