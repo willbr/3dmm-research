@@ -188,6 +188,85 @@ The BRender 1.3.2 / 1997 source predates `<stdint.h>`, contains inline x86 assem
 
 ---
 
+## Studio UI features (incremental backlog)
+
+Discrete UX additions that don't fit Projects 1-3 but are individually shippable. None of these touch the `.3MM` file format, so they're all compat-safe by construction. Listed roughly in increasing scope.
+
+### UI-1: Exact-input dialogs for rotate / move / scale (low effort, low risk)
+
+**Why:** Today every transform tool is mouse-drag-driven only. Authors who want "rotate exactly 90°" or "move actor to (X, Y, Z) = (50, 0, 100)" have no way to do it precisely.
+
+**Implementation:** new `cidRotateActorTo` / `cidMoveActorTo` / `cidScaleActorTo` cids. Each has a small dialog with X/Y/Z text fields and an absolute/relative radio. Studio handler reads the dialog and calls `Movie::FRotateActr` / a new `Movie::FMoveActrTo` wrapper / `Movie::FScaleActr`. Add toolbox glyphs in `sectools.cht` or as menu items in `popups.cht`. Engine API is already there (`FRotateActr` accepts BRA radians, body has `SetPosition`); only the studio UI needs work.
+
+**Scope: 2-3 days per tool.** Touches: 1 dialog, 1 cid handler, 1 wrapper method, 1 glyph each.
+
+### UI-2: Numeric pose readout (low effort, low risk)
+
+**Why:** Authors editing a path can't see exact actor coordinates. A status-line readout showing "X=12.3 Y=0.0 Z=-45.7 RotY=90°" updated on every tick eliminates a class of "did I move it where I meant to?" bugs.
+
+**Implementation:** small `gob` rendered in a corner of the viewport, polls `Pscen()->PactrSelected()->Pbody()->GetPosition()` and orientation each frame. No engine changes required.
+
+**Scope: half a day.**
+
+### UI-3: Constrain-to-axis modifier (low effort, low risk)
+
+**Why:** When you want to drag an actor along just one axis, holding Shift should lock the others. Standard 3D-tool behavior; absent today.
+
+**Implementation:** in `MovieView::_FActorMouseDrag`, when `_grfcust & fcustShift`, snap the dominant axis component and zero the others before passing to `FMoveActr`. Same applies to rotation tools.
+
+**Scope: 1-2 days.**
+
+### UI-4: Free-fly preview camera (medium effort, medium risk)
+
+**Why:** Today cameras are pre-authored presets per background; authors pick from N pre-baked angles via the camera browser, recorded as `sevtChngCamera`. There is no way to look at a shot from any other angle while editing. A free-fly preview camera lets authors orbit/pan/dolly during editing to inspect the scene; recorded playback still uses the preset.
+
+**Importantly:** this is editor-only. The recorded `.3MM` still references preset cameras via `sevtChngCamera`. Nothing about the file format changes. Recording a free-positioned camera into a movie is a **3DMMPlus** feature (requires `sevtChngCameraMatrix` or per-movie `CameraPosition` chunks; either way it breaks 1995 compat).
+
+**Implementation:**
+
+- New `_fFreeCam` flag on `MovieView` (or `Scene`).
+- New tools `toolCamOrbit`, `toolCamPan`, `toolCamDolly`, `toolCamZoom`. Mouse-drag deltas modify a held `BMAT34` + FOV in place. Each tick calls `World::SetCamera(pbmat34, ...)` directly (`bren/bwld.cpp:429`), **bypassing `Background::FSetCamera`** so the preset state isn't disturbed.
+- "Reset to preset" button — `_pbkgd->FSetCamera(pbwld, _pbkgd->Icam())`.
+- Force-reset to preset when entering playback (`Movie::FPlaying()` true) or when starting to record actor motion.
+- Actor placement (click-to-place ground-zero projection, `Background::_bmat34Mouse`) **always uses the preset matrix**, never the preview camera. Otherwise users would place actors based on a temporary view and be confused when the recorded shot has them in the "wrong" place.
+- Toolbox UI: new "Camera" cover under the Settings primary tools — glyphs in `popups.cht`, scripts firing the new cids, command-map handlers in `studio.cpp`.
+
+**Scope: 2-3 weeks.** Risk: medium. No file format changes, no compat exposure, no LP64 concerns — can ship without waiting on Project 1.
+
+### UI-5: Multi-actor selection (high effort, medium-high risk)
+
+**Why:** Today `Scene::_pactrSelected` is exactly one pointer (`inc/scene.h:147`). Operating on N actors requires N independent edits. Standard editor multi-select would let users rotate, move, copy, or delete a group at once.
+
+**Implementation:**
+
+- `Scene::_pactrSelected` → `PDynamicArray _pglpactrSelected` (list).
+- `SelectActr(pactr)` becomes `SelectActr(pactr, fAdd, fToggle)` for shift/ctrl-click semantics. Marquee selection becomes a new tool with a picking pass.
+- Every `PactrSelected()` callsite needs a "operate on first / fan out / disable when multi" decision.
+- Tool semantics need design choices: rotation around each actor's pivot or group centroid? Squash/stretch per-actor or as a group bounding-box? `BuildActionMenu()` becomes intersection of available actions across the selection.
+- Hilite distinguishes primary selection (path/action menu active) from secondary (also selected) — different colors.
+- Undo: a multi-actor change must coalesce into one undo group, not N independent ones.
+- Ship behind a `fMultiSelect` feature flag; preserve original single-select behavior when off.
+
+**Scope: 3-5 weeks.** Risk: medium-high — touches every tool path. Compat-safe (selection state isn't persisted to `.3MM`).
+
+### UI-6: Integer UI scaling for modern displays (medium effort, medium risk)
+
+**Why:** Studio runs at fixed 640×480, illegible on modern Retina/4K displays. Authors want 2x/3x/4x scale.
+
+**Implementation: defer to Project 3.** SDL3 provides this almost for free via `SDL_SetRenderLogicalPresentation` with `SDL_LOGICAL_PRESENTATION_INTEGER_SCALE`. Doing it on Win32 first would require introducing a logical-canvas concept into Kauai's `gob.cpp` + `gfxwin.cpp` plus mouse-coord unscaling on the input path — 2-3 weeks of work that becomes nearly free under SDL3.
+
+**Scope: 1-2 days as part of Project 3 SDL3 backend; 2-3 weeks if attempted on Win32 first.** Don't do the Win32 version.
+
+### Recommended order
+
+Bundles into roughly three phases:
+
+1. **Quick wins (1-2 weeks total):** UI-1, UI-2, UI-3. Each ships visible value, each proves the "add a tool" pattern works without disturbing anything load-bearing. These can be done in any order, or by different contributors in parallel.
+2. **Free-fly camera (2-3 weeks):** UI-4. Higher value, more design surface; requires the camera-cover toolbar and careful interaction with actor-placement projection.
+3. **Multi-select + UI scaling (Project 3-era):** UI-5 needs careful undo/menu design; UI-6 falls out of Project 3's SDL3 backend almost for free. Both deferred until the cross-platform port is on Windows-x64 at minimum.
+
+Each item is independently shippable and independently revertible.
+
 ## Sequencing
 
 1. **Project 0 (renames)** — already in flight. Background task; can interleave with anything else.
