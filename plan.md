@@ -377,6 +377,40 @@ Listed roughly in increasing scope.
 
 **Risk:** medium. Edge case to watch: BKGDs reference content (palette chunks, lights, default sound) that may itself be tagged. Embedding a BKGD requires resolving and either copying or sharing those references. The garbage-collection logic at save time has to be careful not to drop chunks that the embedded BKGD's children still reference.
 
+### UI-10: Flash-style timeline widget (high effort, low risk)
+
+**Why:** Today the studio's only timeline UI is a single frame slider plus a scene scrollbar. Authors can't see at a glance when an actor enters or leaves, when a sound starts, when a camera cut happens. Multi-actor scenes are hard to visualize. A Flash-style timeline — horizontal time axis, vertical layer stack, bars showing object lifetimes, keyframe icons for scene events, scrubbable playhead — is a substantial UX upgrade.
+
+**Why this codebase is well-suited:**
+
+- The data is already there in the right shape. `Scene::_pggsevFrm` is literally a list of `(nfrm, sevt, payload)` tuples — exactly what a timeline visualizes. Actor paths are per-frame continuous keyframed data (`PATH` chunks). The playhead is `Scene::_nfrmCur`.
+- No file format changes required — purely a new view onto existing data.
+- No engine API changes for read-only visualization. For drag-to-retime editing, the engine already has scene-chop / scene-paste primitives that shift events; the timeline just exposes them via a new UI path.
+- Compat-safe by construction (UI-only).
+
+**Phased implementation:**
+
+- **Phase 1 — Read-only visualization (~3-4 weeks).** New `gob` rendered below the 3D viewport (or pop-out). Horizontal axis: frames. Vertical layers: one per actor (lifetime bar from sevtAddActr to scene end), one per text box, one per sound channel, one per camera (cuts shown as keyframe markers), one per scene-level event. Playhead drawn at `_nfrmCur`. Click-to-scrub: clicking on the timeline jumps `_nfrmCur` to that frame. No editing yet, just a viewer that always stays in sync with the live scene state.
+- **Phase 2 — Drag-to-scrub + multi-select (~2-3 weeks, depends on UI-5).** Drag the playhead. Multi-select keyframes. The undo-grouping work in UI-5 unblocks bulk timeline operations.
+- **Phase 3 — Drag-to-retime events (~3-4 weeks).** Drag a keyframe to a different frame, scene event's `nfrm` updates. Drag an actor's lifetime bar to shift their entire path data — uses existing scene-chop / scene-paste primitives under the hood. Bulk drag of N keyframes coalesces to one undo group (UI-5 prerequisite).
+- **Phase 4 — Bonus features (variable scope).** Onion skinning (overlay neighboring frames), tweening visualization, keyframe-type icons (different glyph per `sevt`), zoom in/out on the timeline, horizontal scroll for long scenes. These are individually scoped sub-features that can be added or skipped per priority.
+
+**Layout challenge:**
+
+640×480 is small. The timeline needs vertical space the studio doesn't easily give up. Options:
+
+- Pop-out window (Kauai supports MDI gob trees). Simple but requires multi-window coordination.
+- Replace one of the secondary tool panels when timeline mode is active (toggle on/off via toolbar button).
+- Wait for UI-6 (integer UI scaling) — at 2x scale the studio has 1280×960 logical pixels and the timeline can sit below the viewport without crowding.
+
+The "wait for UI-6" path is probably the cleanest, which also implies waiting for Project 3 SDL3 backend to land integer scaling cheaply. Or just ship Phase 1 in pop-out form on the existing 640×480 layout and let UI-6 unblock the integrated layout later.
+
+**Scope: 8-12 weeks** for Phases 1-3. Risk: low — no engine changes, no file format, no compat exposure. The risk is purely scope creep; Flash-style timelines are notoriously fractal (per-property keyframes, custom interpolation curves, motion paths overlaid on viewport, layer locking/visibility, frame labels, looping markers). Stay disciplined with the phased rollout.
+
+**Dependencies:** UI-5 (multi-actor selection) is a hard prerequisite for Phase 2-3 because the undo-grouping infrastructure for bulk operations is the same problem solved twice if done independently. UI-6 (integer scaling) is a soft prerequisite for the integrated layout (Phase 1 can ship as pop-out without it).
+
+**Compat:** zero. This is purely a new view + new UI input paths over existing data. The on-disk `.3MM` format doesn't even know the timeline exists.
+
 ### Recommended order
 
 Bundles into roughly four phases:
@@ -385,6 +419,7 @@ Bundles into roughly four phases:
 2. **Free-fly camera (2-3 weeks):** UI-4. Higher value, more design surface; requires the camera-cover toolbar and careful interaction with actor-placement projection. Editor-only — doesn't touch the file format.
 3. **Scene library + camera persistence (5-9 weeks):** UI-8 (scene library, ~2-3 weeks) and UI-9 (custom camera authoring, ~4-6 weeks). UI-9 depends on UI-4. UI-8 is independent of UI-9 but synergizes — once UI-9 lands, scene library files can carry custom cameras as long as they ride along with their embedded BKGDs.
 4. **Project 3-era (UI-5, UI-6, UI-7):** UI-5 multi-select needs careful undo/menu design (3-5 weeks); UI-6 integer UI scaling falls out of SDL3's renderer almost for free; UI-7 render-to-video sits naturally on top of Project 3 §3a's libav integration. All gated on Project 3 reaching at least Windows-x64.
+5. **Timeline (8-12 weeks, gated on UI-5):** UI-10. The most ambitious UI feature in the backlog. Phases 1-3 land sequentially; Phase 4 bonus features are individually scoped sub-tasks.
 
 Each item is independently shippable and independently revertible.
 
