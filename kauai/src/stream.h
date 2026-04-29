@@ -12,7 +12,7 @@
 
     Stream classes.
 
-    A BSM is a byte stream in memory.  The data is stored contiguously, so
+    A MemoryByteStream is a byte stream in memory.  The data is stored contiguously, so
     should be used only for relatively small streams.
 
     A FileByteStream is a byte stream with pieces stored in files and other pieces
@@ -27,15 +27,15 @@ using Group::PGeneralGroup;
 /***************************************************************************
     Byte stream in memory.  The entire stream is in contiguous memory.
 ***************************************************************************/
-typedef class BSM *PBSM;
-#define BSM_PAR BASE
-#define kclsBSM 'BSM'
-class BSM : public BSM_PAR
+typedef class MemoryByteStream *PMemoryByteStream;
+#define MemoryByteStream_PAR BASE
+#define kclsMemoryByteStream 'BSM'
+class MemoryByteStream : public MemoryByteStream_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(BSM)
+    NOCOPY(MemoryByteStream)
 
   protected:
     HQ _hqrgb;
@@ -45,8 +45,8 @@ class BSM : public BSM_PAR
     bool _FEnsureSize(long cbMin, bool fShrink);
 
   public:
-    BSM(void);
-    ~BSM(void);
+    MemoryByteStream(void);
+    ~MemoryByteStream(void);
 
     void SetMinGrow(long cb);
     bool FEnsureSpace(long cb, bool fShrink);

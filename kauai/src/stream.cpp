@@ -7,7 +7,7 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Stream classes.  BSM is totally in memory.  FileByteStream allows a stream
+    Stream classes.  MemoryByteStream is totally in memory.  FileByteStream allows a stream
     to have pieces in files and other pieces in memory.
 
 ***************************************************************************/
@@ -17,13 +17,13 @@ ASSERTNAME
 // min size of initial piece on file
 const long kcbMinFloFile = 2048;
 
-RTCLASS(BSM)
+RTCLASS(MemoryByteStream)
 RTCLASS(FileByteStream)
 
 /***************************************************************************
     Constructor for an in-memory byte stream.
 ***************************************************************************/
-BSM::BSM(void)
+MemoryByteStream::MemoryByteStream(void)
 {
     _hqrgb = hqNil;
     _ibMac = 0;
@@ -34,7 +34,7 @@ BSM::BSM(void)
 /***************************************************************************
     Destructor for an in-memory byte stream.
 ***************************************************************************/
-BSM::~BSM(void)
+MemoryByteStream::~MemoryByteStream(void)
 {
     AssertThis(fobjAssertFull);
 
@@ -44,7 +44,7 @@ BSM::~BSM(void)
 /***************************************************************************
     Set the amount to grow by.
 ***************************************************************************/
-void BSM::SetMinGrow(long cb)
+void MemoryByteStream::SetMinGrow(long cb)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -54,9 +54,9 @@ void BSM::SetMinGrow(long cb)
 
 /***************************************************************************
     Make sure there is at least cb bytes of space.  If fShrink is true,
-    the amount of memory allocated by the BSM may decrease.
+    the amount of memory allocated by the MemoryByteStream may decrease.
 ***************************************************************************/
-bool BSM::FEnsureSpace(long cb, bool fShrink)
+bool MemoryByteStream::FEnsureSpace(long cb, bool fShrink)
 {
     AssertThis(0);
 
@@ -67,7 +67,7 @@ bool BSM::FEnsureSpace(long cb, bool fShrink)
     Return a locked pointer into the byte stream.  The stream is stored
     contiguously.
 ***************************************************************************/
-void *BSM::PvLock(long ib)
+void *MemoryByteStream::PvLock(long ib)
 {
     AssertThis(0);
     AssertIn(ib, 0, _ibMac + 1);
@@ -80,7 +80,7 @@ void *BSM::PvLock(long ib)
 /***************************************************************************
     Unlock the stream.
 ***************************************************************************/
-void BSM::Unlock(void)
+void MemoryByteStream::Unlock(void)
 {
     AssertThis(0);
 
@@ -91,7 +91,7 @@ void BSM::Unlock(void)
 /***************************************************************************
     Fetch some bytes from the stream.
 ***************************************************************************/
-void BSM::FetchRgb(long ib, long cb, void *prgb)
+void MemoryByteStream::FetchRgb(long ib, long cb, void *prgb)
 {
     AssertThis(0);
     AssertIn(ib, 0, _ibMac + 1);
@@ -106,7 +106,7 @@ void BSM::FetchRgb(long ib, long cb, void *prgb)
     Replace the range [ib,ib + cbDel) with cbIns bytes from prgb.  If cbIns
     is zero, prgb may be nil.
 ***************************************************************************/
-bool BSM::FReplace(void *prgb, long cbIns, long ib, long cbDel)
+bool MemoryByteStream::FReplace(void *prgb, long cbIns, long ib, long cbDel)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cbIns, 0, kcbMax);
@@ -131,7 +131,7 @@ bool BSM::FReplace(void *prgb, long cbIns, long ib, long cbDel)
 /***************************************************************************
     Write the byte stream to a file.
 ***************************************************************************/
-bool BSM::FWriteRgb(PFileLocation pflo, long ib)
+bool MemoryByteStream::FWriteRgb(PFileLocation pflo, long ib)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -143,7 +143,7 @@ bool BSM::FWriteRgb(PFileLocation pflo, long ib)
 /***************************************************************************
     Write the byte stream to a block.
 ***************************************************************************/
-bool BSM::FWriteRgb(PDataBlock pblck, long ib)
+bool MemoryByteStream::FWriteRgb(PDataBlock pblck, long ib)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
@@ -166,7 +166,7 @@ bool BSM::FWriteRgb(PDataBlock pblck, long ib)
     Make sure the hq is at least cbMin bytes.  If fShrink is true, make the
     hq exactly cbMin bytes long.
 ***************************************************************************/
-bool BSM::_FEnsureSize(long cbMin, bool fShrink)
+bool MemoryByteStream::_FEnsureSize(long cbMin, bool fShrink)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cbMin, 0, kcbMax);
@@ -196,9 +196,9 @@ bool BSM::_FEnsureSize(long cbMin, bool fShrink)
 /***************************************************************************
     Assert the validity of a byte stream (FileByteStream).
 ***************************************************************************/
-void BSM::AssertValid(ulong grf)
+void MemoryByteStream::AssertValid(ulong grf)
 {
-    BSM_PAR::AssertValid(grf);
+    MemoryByteStream_PAR::AssertValid(grf);
     AssertIn(_ibMac, 0, kcbMax);
     AssertIn(_cbMinGrow, 0, kcbMax);
     if (_ibMac > 0)
@@ -211,12 +211,12 @@ void BSM::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the BSM.
+    Mark memory for the MemoryByteStream.
 ***************************************************************************/
-void BSM::MarkMem(void)
+void MemoryByteStream::MarkMem(void)
 {
     AssertValid(fobjAssertFull);
-    BSM_PAR::MarkMem();
+    MemoryByteStream_PAR::MarkMem();
     MarkHq(_hqrgb);
 }
 #endif // DEBUG
