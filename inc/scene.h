@@ -144,7 +144,8 @@ class Scene : public Scene_PAR
     PMovie _pmvie;         // Movie this scene is a part of.
     PBackground _pbkgd;         // Background for this scene.
     ulong _grfscen;       // Disabled functionality.
-    PActor _pactrSelected; // Currently selected actor, if any
+    PActor _pactrSelected; // Primary selected actor (still authoritative single-select pointer)
+    PDynamicArray _pglpactrSelExtra; // Additional selected actors (excluding primary). pvNil when no extras.
     PTBOX _ptboxSelected; // Currently selected tbox, if any
     TRANS _trans;         // Transition at the end of the scene.
     PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
@@ -291,6 +292,11 @@ class Scene : public Scene_PAR
         return _pactrSelected;
     }
     void SelectActr(Actor *pactr);                      // Sets the selected actor
+    bool FIsActrSelected(PActor pactr); // primary OR in extras
+    long CactrSelected(void);           // total count: 0 if primary is pvNil, else 1 + extras count
+    PActor PactrSelectedAt(long iactr); // 0 = primary, 1..N = extras in insertion order
+    bool FToggleActrSelected(PActor pactr); // shift-click entry: add if absent, remove if present. fFalse on alloc failure.
+    void ClearSelection(void);          // empty primary AND extras; drop all hilites
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {
