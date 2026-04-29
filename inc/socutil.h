@@ -144,6 +144,40 @@ class ActorUndo : public ActorUndo_PAR
 };
 
 //
+// Undo object for a single drag of the move tool that affects N selected actors.
+// Owns N child ActorUndo snapshots and undoes/redoes them as a unit.
+//
+typedef class ActorMoveGroupUndo *PActorMoveGroupUndo;
+
+#define ActorMoveGroupUndo_PAR MovieUndo
+#define kclsActorMoveGroupUndo 'AMGU'
+class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
+{
+    RTCLASS_DEC
+    MARKMEM
+    ASSERT
+
+  protected:
+    PDynamicArray _pglpaund; // List of PActorUndo. Owned (each child is AddRef'd).
+    ActorMoveGroupUndo(void)
+    {
+    }
+
+  public:
+    static PActorMoveGroupUndo PamguNew(void);
+    ~ActorMoveGroupUndo(void);
+
+    bool FAddChild(PActorUndo paund); // Adds and AddRefs the child undo.
+    long Cchild(void)
+    {
+        return _pglpaund == pvNil ? 0 : _pglpaund->IvMac();
+    }
+
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
+};
+
+//
 // Definition of transition types
 //
 enum TRANS

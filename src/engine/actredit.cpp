@@ -1584,3 +1584,148 @@ void ActorUndo::AssertValid(ulong grf)
     AssertNilOrPo(_pactr, 0);
 }
 #endif
+
+RTCLASS(ActorMoveGroupUndo)
+
+/****************************************************
+ *
+ * Allocates a new ActorMoveGroupUndo composite undo object.
+ *
+ * Returns:
+ *  A pointer to the object, or pvNil if it could not be created.
+ *
+ ****************************************************/
+PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
+{
+    PActorMoveGroupUndo pamgu;
+    pamgu = NewObj ActorMoveGroupUndo();
+    if (pamgu == pvNil)
+    {
+        return pvNil;
+    }
+    pamgu->_pglpaund = DynamicArray::PglNew(size(PActorUndo));
+    if (pamgu->_pglpaund == pvNil)
+    {
+        ReleasePpo(&pamgu);
+        return pvNil;
+    }
+    return pamgu;
+}
+
+/****************************************************
+ *
+ * Destructor.  Releases each owned child ActorUndo.
+ *
+ ****************************************************/
+ActorMoveGroupUndo::~ActorMoveGroupUndo(void)
+{
+    AssertBaseThis(0);
+    if (_pglpaund != pvNil)
+    {
+        for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+        {
+            PActorUndo paund;
+            _pglpaund->Get(iaund, &paund);
+            ReleasePpo(&paund);
+        }
+        ReleasePpo(&_pglpaund);
+    }
+}
+
+/****************************************************
+ *
+ * Adds a child ActorUndo to the composite, taking a reference.
+ *
+ * Parameters:
+ *  paund - the child undo to add.
+ *
+ * Returns:
+ *  fTrue on success, fFalse on OOM.
+ *
+ ****************************************************/
+bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
+{
+    AssertThis(0);
+    AssertPo(paund, 0);
+
+    paund->AddRef();
+    if (!_pglpaund->FAdd(&paund))
+    {
+        ReleasePpo(&paund);
+        return fFalse;
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Undoes the composite group drag by undoing each child in order.
+ *
+ ****************************************************/
+bool ActorMoveGroupUndo::FUndo(PDocumentBase pdocb)
+{
+    AssertThis(0);
+    AssertPo(pdocb, 0);
+
+    bool fAllOk = fTrue;
+    for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+    {
+        PActorUndo paund;
+        _pglpaund->Get(iaund, &paund);
+        if (paund != pvNil)
+        {
+            // Mirror MovieUndo's iscen/nfrm onto each child so its FUndo
+            // navigates to the correct frame.
+            paund->SetPmvie(_pmvie);
+            paund->SetIscen(_iscen);
+            paund->SetNfrm(_nfrm);
+            if (!paund->FUndo(pdocb))
+            {
+                fAllOk = fFalse;
+            }
+        }
+    }
+    return fAllOk;
+}
+
+/****************************************************
+ *
+ * Redoes the composite group drag.  ActorUndo::FDo delegates to
+ * FUndo (it's a swap-based undo), so the composite redo is the same
+ * loop as the undo direction.
+ *
+ ****************************************************/
+bool ActorMoveGroupUndo::FDo(PDocumentBase pdocb)
+{
+    return FUndo(pdocb);
+}
+
+#ifdef DEBUG
+/****************************************************
+ * Mark memory used by the ActorMoveGroupUndo and its children.
+ ****************************************************/
+void ActorMoveGroupUndo::MarkMem(void)
+{
+    AssertValid(0);
+    ActorMoveGroupUndo_PAR::MarkMem();
+    MarkMemObj(_pglpaund);
+    if (_pglpaund != pvNil)
+    {
+        for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+        {
+            PActorUndo paund;
+            _pglpaund->Get(iaund, &paund);
+            MarkMemObj(paund);
+        }
+    }
+}
+
+/***************************************************************************
+    Assert the validity of the ActorMoveGroupUndo.
+***************************************************************************/
+void ActorMoveGroupUndo::AssertValid(ulong grf)
+{
+    ActorMoveGroupUndo_PAR::AssertValid(0);
+    AssertPo(_pglpaund, 0);
+}
+#endif
