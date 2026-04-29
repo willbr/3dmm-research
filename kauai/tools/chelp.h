@@ -37,7 +37,7 @@ typedef class HETD *PHETD;
     App class
 ***************************************************************************/
 #define Application_PAR ApplicationBase
-#define kclsApplication 'Application'
+#define kclsApplication 'APP'
 class Application : public Application_PAR
 {
     RTCLASS_DEC
