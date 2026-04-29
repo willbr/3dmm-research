@@ -158,6 +158,7 @@ class MovieView : public MovieView_PAR
     //   do all its own undo objects (e.g. Growing over a long drag could become
     //   a StartGrow/Grow/EndGrow sequence).  This also effects _pactrRestore.
     PActorUndo _paund;        // Actor undo object to save from mouse down to drag.
+    PActorMoveGroupUndo _paundGroup; // Composite undo for multi-select group drag (toolCompose only). pvNil unless N>=2.
     ulong _tsLast;       // Last time a cell was recorded.
     ulong _tsLastSample; // Last time mouse/kbd sampled
     RC _rcFrame;         // Frame for creating a text box.
@@ -200,6 +201,8 @@ class MovieView : public MovieView_PAR
     void _MouseDown(CMD_MOUSE *pcmd);
     void _MouseDrag(CMD_MOUSE *pcmd);
     void _MouseUp(CMD_MOUSE *pcmd);
+
+    void _CommitMoveUndo(void); // commits whichever of _paundGroup / _paund is pending; nil-safe.
 
     void _ActorClicked(PActor pactr, bool fDown);
 
