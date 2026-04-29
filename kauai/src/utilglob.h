@@ -78,7 +78,7 @@ extern Mutex vmutxMem;
     script interpreter.
 ***************************************************************************/
 extern SFL vsflUtil;
-extern RND vrndUtil;
+extern Random vrndUtil;
 
 /***************************************************************************
     Global standard Kauai codec, compression manager, and pointer to

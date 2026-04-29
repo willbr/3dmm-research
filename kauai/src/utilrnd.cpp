@@ -14,14 +14,14 @@
 
 ASSERTNAME
 
-RTCLASS(RND)
+RTCLASS(Random)
 RTCLASS(SFL)
 
 /***************************************************************************
     Constructs a pseudo-random number generator.  If luSeed is zero,
     generates a seed from the current system time (TsCurrentSystem).
 ***************************************************************************/
-RND::RND(ulong luSeed)
+Random::Random(ulong luSeed)
 {
     if (0 == luSeed)
     {
@@ -36,7 +36,7 @@ RND::RND(ulong luSeed)
     Return the next pseudo-random number within the range 0 to lwLim - 1,
     inclusive.
 ***************************************************************************/
-long RND::LwNext(long lwLim)
+long Random::LwNext(long lwLim)
 {
     AssertThis(0);
     AssertIn(lwLim, 1, kcbMax);
@@ -73,7 +73,7 @@ long RND::LwNext(long lwLim)
 /***************************************************************************
     Constructs a shuffled array.
 ***************************************************************************/
-SFL::SFL(ulong luSeed) : RND(luSeed)
+SFL::SFL(ulong luSeed) : Random(luSeed)
 {
     _clw = 0;
     _ilw = 0;
@@ -178,7 +178,7 @@ void SFL::_ShuffleCore(void)
     qrglw = (long *)QvFromHq(_hqrglw);
     for (ilw = _clw; --ilw > 0;)
     {
-        ilwSwap = RND::LwNext(ilw + 1);
+        ilwSwap = Random::LwNext(ilw + 1);
         if (ilwSwap < ilw)
         {
             lw = qrglw[ilw];
@@ -235,7 +235,7 @@ long SFL::LwNext(long lwLim)
         if (0 == _clw)
         {
             // shuffling failed, just use the regular random number
-            return RND::LwNext(lwLim);
+            return Random::LwNext(lwLim);
         }
     }
     else if (_clw == 0)

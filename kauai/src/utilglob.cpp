@@ -36,7 +36,7 @@ Mutex vmutxMem;
 
 // Shuffler and random number generator for the script interpreter
 SFL vsflUtil;
-RND vrndUtil;
+Random vrndUtil;
 
 // Standard Kauai codec
 KCDC vkcdcUtil;
