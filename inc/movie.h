@@ -170,10 +170,14 @@ class MovieView : public MovieView_PAR
     bool _fRespectGround : 1;     // fTrue if Y=0 is enforced.
     bool _fSetFRecordDefault : 1; // fTrue if using hotkeys to rerecord.
     bool _fMouseOn : 1;
-    bool _fEntireScene : 1; // Does positioning effect the entire scene?
+    bool _fEntireScene : 1;    // Does positioning effect the entire scene?
+    bool _fSelToggleArmed : 1; // Shift-clicked an actor at mousedown; apply toggle on mouseup if no drag.
 
     bool _fMouseDownSeen; // Was the mouse depressed during a place.
     PActor _pactrUndo;     // Actor to use for undo object when roll-calling.
+    PActor _pactrSelToggle; // Actor under cursor at the armed shift-click.
+    long _xpSelToggleDown;  // Mousedown x for drag-tolerance check.
+    long _ypSelToggleDown;  // Mousedown y for drag-tolerance check.
 
     AbstractColor _acr;         // Color for painting text.
     long _onn;        // Font for text
