@@ -22,10 +22,10 @@ long const kcdxpBlock = 100;
     Region builder class.  For building the _pglxp of a region and getting
     its bounding rectangle and _dxp value.
 ***************************************************************************/
-typedef class REGBL *PREGBL;
-#define REGBL_PAR BASE
-#define kclsREGBL 'rgbl'
-class REGBL : public REGBL_PAR
+typedef class RegionBuilder *PRegionBuilder;
+#define RegionBuilder_PAR BASE
+#define kclsRegionBuilder 'rgbl'
+class RegionBuilder : public RegionBuilder_PAR
 {
   protected:
     long _ypCur;
@@ -39,11 +39,11 @@ class REGBL : public REGBL_PAR
     long _ixpCur;
 
   public:
-    REGBL(void)
+    RegionBuilder(void)
     {
         _pglxp = pvNil;
     }
-    ~REGBL(void)
+    ~RegionBuilder(void)
     {
         ReleasePpo(&_pglxp);
     }
@@ -76,7 +76,7 @@ class REGBL : public REGBL_PAR
 /***************************************************************************
     Initialize a region builder.
 ***************************************************************************/
-bool REGBL::FInit(RC *prcRef, PDynamicArray pglxp)
+bool RegionBuilder::FInit(RC *prcRef, PDynamicArray pglxp)
 {
     AssertVarMem(prcRef);
     AssertNilOrPo(pglxp, 0);
@@ -110,7 +110,7 @@ bool REGBL::FInit(RC *prcRef, PDynamicArray pglxp)
 /***************************************************************************
     Begin a row.
 ***************************************************************************/
-bool REGBL::FStartRow(long dyp, long cxpMax)
+bool RegionBuilder::FStartRow(long dyp, long cxpMax)
 {
     AssertThis(0);
     Assert(_idypCur == ivNil, "row already started");
@@ -145,7 +145,7 @@ bool REGBL::FStartRow(long dyp, long cxpMax)
 /***************************************************************************
     End a row in the region builder.
 ***************************************************************************/
-void REGBL::EndRow(void)
+void RegionBuilder::EndRow(void)
 {
     AssertThis(0);
     Assert((_ixpCur - _idypCur) & 1, "not an even number of xp values");
@@ -180,7 +180,7 @@ void REGBL::EndRow(void)
 /***************************************************************************
     Clean up and return all the relevant information.
 ***************************************************************************/
-PDynamicArray REGBL::PglxpFree(RC *prc, long *pdxp)
+PDynamicArray RegionBuilder::PglxpFree(RC *prc, long *pdxp)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -529,7 +529,7 @@ void Region::Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY)
     }
 
     RegionScanner regsc;
-    REGBL regbl;
+    RegionBuilder regbl;
 
     regsc.Init(this, &_rc);
     AssertDo(regbl.FInit(&rcScaled, _pglxp), 0);
@@ -679,7 +679,7 @@ bool Region::_FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2
     AssertPo(pregsc2, 0);
     void *pvSwap;
     long dyp;
-    REGBL regbl;
+    RegionBuilder regbl;
 
     if (!regbl.FInit(prc))
         return fFalse;
@@ -845,7 +845,7 @@ bool Region::_FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pre
     AssertPo(pregsc2, 0);
     long dyp;
     void *pvSwap;
-    REGBL regbl;
+    RegionBuilder regbl;
 
     if (!regbl.FInit(prc))
         return fFalse;
@@ -1027,7 +1027,7 @@ bool Region::_FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2)
     AssertPo(pregsc2, 0);
     long dyp;
     long xp1, xp2;
-    REGBL regbl;
+    RegionBuilder regbl;
 
     if (!regbl.FInit(prc))
         return fFalse;
