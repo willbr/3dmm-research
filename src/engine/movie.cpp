@@ -5862,6 +5862,8 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
     pmvu->_dyp = dyp;
     pmvu->_tool = toolCompose;
     pmvu->_tagTool.sid = ksidInvalid;
+    pmvu->_fSelToggleArmed = fFalse;
+    pmvu->_pactrSelToggle = pvNil;
 
     //
     // Make this the active view
@@ -6873,9 +6875,8 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     }
     else if ((Tool() != toolPlace) && (Tool() != toolSceneChop) && (Tool() != toolSceneChopBack))
     {
-
         //
-        // Select the actor under the cursor
+        // Select the actor under the cursor.
         //
         pactr = Pmvie()->Pscen()->PactrSelected();
         AssertNilOrPo(pactr, 0);
@@ -6887,23 +6888,41 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
 
         pactrDup = Pmvie()->Pscen()->PactrFromPt(pcmd->xp, pcmd->yp, &ibset);
 
-        //
-        // Use previously selected actor if mouse in the actor.
-        // Don't change the selected actor if we're using the default tool
-        //
-        if (((pactr == pvNil) || !pactr->FIsInView() || !pactr->FPtIn(pcmd->xp, pcmd->yp, &ibset)) &&
-            Tool() != toolDefault)
+        // Shift-click on an actor with a selection-friendly tool: arm a toggle for mouseup.
+        // Move tool, default tool, and explicit selection tool participate; other tools
+        // collapse to single-select via the existing path below.
+        bool fShiftSelectTool = (Tool() == toolCompose) || (Tool() == toolDefault) || (Tool() == toolActorSelect);
+        if (fShiftSelectTool && (pcmd->grfcust & fcustShift) && pactrDup != pvNil)
         {
-            pactr = pactrDup;
-            AssertNilOrPo(pactr, 0);
+            _fSelToggleArmed = fTrue;
+            _pactrSelToggle = pactrDup;
+            _xpSelToggleDown = pcmd->xp;
+            _ypSelToggleDown = pcmd->yp;
+            Pmvie()->Pbwld()->MarkDirty();
+            // Do NOT call SelectActr here. Toggle fires at mouseup if we didn't drag.
+            // Skip the rest of the mousedown selection flow; existing behavior resumes
+            // at the switch on Tool() below if the user goes on to drag.
         }
+        else
+        {
+            //
+            // Use previously selected actor if mouse in the actor.
+            // Don't change the selected actor if we're using the default tool.
+            //
+            if (((pactr == pvNil) || !pactr->FIsInView() || !pactr->FPtIn(pcmd->xp, pcmd->yp, &ibset)) &&
+                Tool() != toolDefault)
+            {
+                pactr = pactrDup;
+                AssertNilOrPo(pactr, 0);
+            }
 
-        if (pvNil != pactr)
-        {
-            _ActorClicked(pactr, fTrue);
+            if (pvNil != pactr)
+            {
+                _ActorClicked(pactr, fTrue);
+            }
+            Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
+            Pmvie()->Pbwld()->MarkDirty();
         }
-        Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
-        Pmvie()->Pbwld()->MarkDirty();
     }
 
 #ifdef DEBUG
@@ -7679,6 +7698,27 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     PActor pactr = pvNil;
     PActor pactrDup;
     PSceneActorUndo psuna;
+
+    // Shift-click selection toggle: if the user shift-clicked at mousedown
+    // and didn't drag past tolerance, fire the toggle now.
+    if (_fSelToggleArmed)
+    {
+        const long kdxpSelToggleTol = 3;
+        const long kdypSelToggleTol = 3;
+        long dxp = LwAbs(pcmd->xp - _xpSelToggleDown);
+        long dyp = LwAbs(pcmd->yp - _ypSelToggleDown);
+        if (dxp <= kdxpSelToggleTol && dyp <= kdypSelToggleTol)
+        {
+            if (_pactrSelToggle != pvNil && Pmvie()->Pscen() != pvNil)
+            {
+                Pmvie()->Pscen()->FToggleActrSelected(_pactrSelToggle);
+                Pmvie()->Pbwld()->MarkDirty();
+                Pmvie()->MarkViews();
+            }
+        }
+        _fSelToggleArmed = fFalse;
+        _pactrSelToggle = pvNil;
+    }
 
     pmvie = Pmvie();
     AssertPo(pmvie, 0);
