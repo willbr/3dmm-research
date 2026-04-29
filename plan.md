@@ -301,6 +301,7 @@ What landed:
 - Shift-click an actor with the move/default/select tool to toggle its membership in the selection set (3 px drag tolerance disarms the toggle and falls through to the existing single-actor drag).
 - With N≥2 selected, a `toolCompose` drag iterates the selection and applies the same world-space delta to each via `FMoveRoute` / `FTweakRoute`. Cmd-tweak and Shift-entire-subroute modifiers carry through per-actor. One drag = one undo step (incidentally fixed a latent Tweak-undo leak; see commit `c1022fd`).
 - Esc (`kvkEscape`, fixed Mac value at the same time) clears the entire selection.
+- Ctrl+A (Cmd+A on Mac) selects every actor in the current scene via new `Scene::FSelectAllActrs`; first actor becomes primary, rest are added as extras. Falls through to the base in text mode so TBOX edit can still interpret it as select-all-text.
 - Non-move tools collapse to single-select on mousedown via the existing `SelectActr` path — no extra code needed, since Task 1's `SelectActr` clears extras.
 - Compat: pure runtime UI state, never persisted. Original 1995 3DMM playback unaffected.
 

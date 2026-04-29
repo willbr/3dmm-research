@@ -8765,6 +8765,21 @@ bool MovieView::FCmdKey(PCMD_KEY pcmd)
         return fTrue; // command consumed
     }
 
+    // Ctrl+A (Cmd+A on Mac) selects every actor in the current scene.
+    // In text mode, defer to the base class so the focused TBOX edit can
+    // interpret it as "select all text" instead.
+    if (pcmd->vk == 'A' && (pcmd->grfcust & fcustCmd) && !FTextMode())
+    {
+        if (Pmvie()->Pscen() != pvNil)
+        {
+            if (Pmvie()->Pscen()->FSelectAllActrs())
+            {
+                Pmvie()->Pbwld()->MarkDirty();
+            }
+        }
+        return fTrue; // command consumed
+    }
+
     return MovieView_PAR::FCmdKey(pcmd);
 }
 
