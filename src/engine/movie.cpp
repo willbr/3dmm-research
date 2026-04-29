@@ -5803,6 +5803,7 @@ ON_CID_GEN(cidSaveAs, &MovieView::FCmdSave, pvNil)
 ON_CID_GEN(cidSaveCopy, &MovieView::FCmdSave, pvNil)
 ON_CID_GEN(cidIdle, &MovieView::FCmdIdle, pvNil)
 ON_CID_GEN(cidRollOff, &MovieView::FCmdRollOff, pvNil)
+ON_CID_GEN(cidKey, &MovieView::FCmdKeyCore, pvNil)
 END_CMD_MAP_NIL()
 
 RTCLASS(MovieView)
@@ -8663,6 +8664,44 @@ bool MovieView::FCmdRollOff(PCommand pcmd)
     _fMouseOn = fFalse;
 
     return (fFalse);
+}
+
+/***************************************************************************
+ *
+ * Handle a key command. Esc clears the entire selection (primary actor +
+ * extras). All other keys defer to the base class.
+ *
+ * Parameters:
+ *	pcmd - Pointer to the key command to process.
+ *
+ * Returns:
+ *  fTrue if the key was consumed (Esc); otherwise the base class result.
+ *
+ ***************************************************************************/
+bool MovieView::FCmdKey(PCMD_KEY pcmd)
+{
+    AssertThis(0);
+    AssertVarMem(pcmd);
+
+#ifdef WIN
+    const long kvkEsc = VK_ESCAPE;
+#endif
+#ifdef MAC
+    const long kvkEsc = 0x35; // Mac escape key code
+#endif
+
+    if (pcmd->vk == kvkEsc)
+    {
+        if (Pmvie() != pvNil && Pmvie()->Pscen() != pvNil)
+        {
+            Pmvie()->Pscen()->ClearSelection();
+            Pmvie()->InvalViews();
+            Pmvie()->Pbwld()->MarkDirty();
+        }
+        return fTrue; // command consumed
+    }
+
+    return MovieView_PAR::FCmdKey(pcmd);
 }
 
 #ifdef DEBUG

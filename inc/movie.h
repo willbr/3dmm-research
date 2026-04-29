@@ -229,6 +229,7 @@ class MovieView : public MovieView_PAR
     //
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
+    virtual bool FCmdKey(PCMD_KEY pcmd);
     virtual bool FCmdClip(Command *pcmd);
     virtual bool FCmdUndo(PCommand pcmd);
     virtual bool FCloseDoc(bool fAssumeYes, bool fSaveDDG = fFalse);
