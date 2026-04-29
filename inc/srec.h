@@ -8,7 +8,7 @@
     Primary Author: ****** (based on ***** original srec)
     Review Status: reviewed
 
-    BASE ---> SREC
+    BASE ---> SoundRecorder
 
 ***************************************************************************/
 #ifndef SREC_H
@@ -82,10 +82,10 @@ class RIFF
 /****************************************
     The sound recording class
 ****************************************/
-typedef class SREC *PSREC;
-#define SREC_PAR BASE
-#define kclsSREC 'SREC'
-class SREC : public SREC_PAR
+typedef class SoundRecorder *PSoundRecorder;
+#define SoundRecorder_PAR BASE
+#define kclsSoundRecorder 'SREC'
+class SoundRecorder : public SoundRecorder_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -118,8 +118,8 @@ class SREC : public SREC_PAR
     void _UpdateStatus(void);
 
   public:
-    static PSREC PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax);
-    ~SREC(void);
+    static PSoundRecorder PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax);
+    ~SoundRecorder(void);
 
     bool FStart(void);
     bool FStop(void);

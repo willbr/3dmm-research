@@ -1691,7 +1691,7 @@ bool ESLR::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech
     csampSec = kcsampSec;
     do
     {
-        _psrec = SREC::PsrecNew(csampSec, 1, 1, kdtsMaxRecord);
+        _psrec = SoundRecorder::PsrecNew(csampSec, 1, 1, kdtsMaxRecord);
 
         // if we failed, then the pointer is nil
         if (pvNil == _psrec)
