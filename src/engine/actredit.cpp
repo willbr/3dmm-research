@@ -1724,10 +1724,15 @@ void ActorMoveGroupUndo::MarkMem(void)
 
 /***************************************************************************
     Assert the validity of the ActorMoveGroupUndo.
+
+    NOTE: deliberately does NOT chain to MovieUndo_PAR::AssertValid, mirroring
+    ActorUndo::AssertValid. The inherited _pmvie/_iscen/_nfrm slots are only
+    populated by Movie::FAddUndo at commit time; before that (during mousedown
+    while we're building the composite via FAddChild) _pmvie is nil and the
+    parent chain would trip its AssertPo(_pmvie, 0).
 ***************************************************************************/
 void ActorMoveGroupUndo::AssertValid(ulong grf)
 {
-    ActorMoveGroupUndo_PAR::AssertValid(0);
     AssertPo(_pglpaund, 0);
 }
 #endif
