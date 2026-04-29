@@ -284,21 +284,55 @@ Listed roughly in increasing scope.
 
 **Scope: 2-3 weeks.** Risk: medium. No file format changes, no compat exposure, no LP64 concerns — can ship without waiting on Project 1.
 
-### UI-5: Multi-actor selection (high effort, medium-high risk)
+### UI-5: Multi-actor selection — Phase 1 (move-tool MVP) DONE
 
 **Why:** Today `Scene::_pactrSelected` is exactly one pointer (`inc/scene.h:147`). Operating on N actors requires N independent edits. Standard editor multi-select would let users rotate, move, copy, or delete a group at once.
 
-**Implementation:**
+**Phase 1 (move-tool MVP), shipped on branch `c`:**
 
-- `Scene::_pactrSelected` → `PDynamicArray _pglpactrSelected` (list).
-- `SelectActr(pactr)` becomes `SelectActr(pactr, fAdd, fToggle)` for shift/ctrl-click semantics. Marquee selection becomes a new tool with a picking pass.
-- Every `PactrSelected()` callsite needs a "operate on first / fan out / disable when multi" decision.
-- Tool semantics need design choices: rotation around each actor's pivot or group centroid? Squash/stretch per-actor or as a group bounding-box? `BuildActionMenu()` becomes intersection of available actions across the selection.
-- Hilite distinguishes primary selection (path/action menu active) from secondary (also selected) — different colors.
-- Undo: a multi-actor change must coalesce into one undo group, not N independent ones.
-- Ship behind a `fMultiSelect` feature flag; preserve original single-select behavior when off.
+- Spec: `docs/superpowers/specs/2026-04-29-multi-select-move-mvp-design.md`
+- Plan: `docs/superpowers/plans/2026-04-29-multi-select-move-mvp.md`
+- Commits: `b27ac34..bf74f13` (Tasks 1-5 with their fix-ups).
 
-**Scope: 3-5 weeks.** Risk: medium-high — touches every tool path. Compat-safe (selection state isn't persisted to `.3MM`).
+What landed:
+
+- `Scene::_pglpactrSelExtra` (lazy `DynamicArray` of additional selected actors, `pvNil` when no extras) plus `FIsActrSelected` / `CactrSelected` / `PactrSelectedAt` / `FToggleActrSelected` / `ClearSelection` accessors. `SelectActr` clears extras as well as primary; `RemActrCore` scrubs extras when an actor is removed (no dangling pointers).
+- `ActorMoveGroupUndo` composite undo: owns N child `ActorUndo` snapshots and replays them as a unit. The undo loop stops on the first child failure to avoid post-`ClearUndo` perturbation.
+- Shift-click an actor with the move/default/select tool to toggle its membership in the selection set (3 px drag tolerance disarms the toggle and falls through to the existing single-actor drag).
+- With N≥2 selected, a `toolCompose` drag iterates the selection and applies the same world-space delta to each via `FMoveRoute` / `FTweakRoute`. Cmd-tweak and Shift-entire-subroute modifiers carry through per-actor. One drag = one undo step (incidentally fixed a latent Tweak-undo leak; see commit `c1022fd`).
+- Esc (`kvkEscape`, fixed Mac value at the same time) clears the entire selection.
+- Non-move tools collapse to single-select on mousedown via the existing `SelectActr` path — no extra code needed, since Task 1's `SelectActr` clears extras.
+- Compat: pure runtime UI state, never persisted. Original 1995 3DMM playback unaffected.
+
+**Acceptance status (9 criteria from the spec):**
+
+Automated-verified by build + spec-compliance + code-quality reviews:
+
+- (1) Single-actor behavior bit-for-bit identical: build passes; reviewers confirmed single-select code paths unchanged.
+- (5) One-undo-per-drag: code review traced per-actor `ActorUndo` refcount/ownership through `ActorMoveGroupUndo`.
+- (8) Deleting a selected actor leaves no dangling pointer: `RemActrCore` scrubs extras (Task 1 fix-up `3775fcf`).
+- (9) Original 1995 3DMM still loads / plays movies produced: theoretical — nothing was added to disk format.
+
+Deferred to user manual smoke (interactive click sequences, cannot run GUI from a subagent):
+
+- (2) Shift-click on unselected actor adds it; hilite turns on; no drag.
+- (3) Shift-click on selected actor removes it; hilite turns off.
+- (4) N≥2 + `toolCompose` drag translates all selected by the same delta. Cmd / Shift modifiers apply per-actor.
+- (6) Esc clears all selection.
+- (7) Non-move-tool click on actor collapses selection.
+
+**Phase 2+ remaining work (still in scope for "UI-5"):**
+
+- Marquee / box-select / lasso selection.
+- Multi-target rotate (per-actor pivot vs. group centroid?), squash/stretch (per-actor vs. group bounding-box?), scale, costume change, sooner/later, action change.
+- `BuildActionMenu` becomes the intersection of available actions across the selection.
+- Distinct hilite color for primary vs. secondary selected actors.
+- Multi-select for text boxes, and mixed actor + tbox selection.
+- Saved / named selection groups.
+- "Select all in scene" keyboard shortcut.
+- Optional `fMultiSelect` feature flag if a regression risk emerges.
+
+**Scope: phase 1 shipped; phase 2+ is 2-3 weeks of additional work, medium risk** — touches every tool path. Compat-safe (selection state isn't persisted to `.3MM`).
 
 ### UI-6: Integer UI scaling for modern displays (medium effort, medium risk)
 
