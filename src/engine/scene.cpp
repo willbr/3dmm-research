@@ -2499,6 +2499,48 @@ void Scene::ClearSelection(void)
 
 /****************************************************
  *
+ * Selects every actor in the current scene's actor list.
+ * The first actor becomes the primary; the rest are added
+ * as extras. Empty scene clears any existing selection.
+ *
+ * Returns fFalse if a mid-add allocation fails (selection
+ * may end up partial in that case).
+ *
+ ****************************************************/
+bool Scene::FSelectAllActrs(void)
+{
+    AssertThis(0);
+
+    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
+    long iactr;
+    PActor pactr;
+
+    if (cactr == 0)
+    {
+        // No actors: drop any existing selection (primary, extras, tbox).
+        ClearSelection();
+        return fTrue;
+    }
+
+    // Make the first actor primary; SelectActr drops extras and tbox sel.
+    _pglpactr->Get(0, &pactr);
+    SelectActr(pactr);
+
+    // Add the rest as extras. After SelectActr only the primary is selected,
+    // so each toggle here is an add (not a remove).
+    for (iactr = 1; iactr < cactr; iactr++)
+    {
+        _pglpactr->Get(iactr, &pactr);
+        if (!FToggleActrSelected(pactr))
+        {
+            return fFalse;
+        }
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
  * Returns the total number of selected actors:
  * 0 if primary is pvNil, else 1 + extras count.
  *
