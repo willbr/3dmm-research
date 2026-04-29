@@ -17,7 +17,7 @@
 
 /***************************************************************************
     Generic video class. This is an interface that supports the VideoStream
-    (video stream) and GVDW (video window) classes.
+    (video stream) and VideoWindow (video window) classes.
 ***************************************************************************/
 typedef class Video *PVideo;
 #define Video_PAR CommandHandler
@@ -107,10 +107,10 @@ class VideoStream : public VideoStream_PAR
 /****************************************
     Video in a window class.
 ****************************************/
-typedef class GVDW *PGVDW;
-#define GVDW_PAR Video
-#define kclsGVDW 'GVDW'
-class GVDW : public GVDW_PAR
+typedef class VideoWindow *PVideoWindow;
+#define VideoWindow_PAR Video
+#define kclsVideoWindow 'GVDW'
+class VideoWindow : public VideoWindow_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -130,14 +130,14 @@ class GVDW : public GVDW_PAR
     bool _fPlaying : 1;
     bool _fVisible : 1;
 
-    GVDW(long hid);
-    ~GVDW(void);
+    VideoWindow(long hid);
+    ~VideoWindow(void);
 
     virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
     virtual void _SetRc(void);
 
   public:
-    static PGVDW PgvdwNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
+    static PVideoWindow PgvdwNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);
