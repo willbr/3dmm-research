@@ -20,19 +20,19 @@
     A pseudo-random number generator. LwNext returns values from 0 to
     (lwLim - 1), inclusive.
 ***************************************************************************/
-typedef class RND *PRND;
-#define RND_PAR BASE
-#define kclsRND 'RND'
-class RND : public RND_PAR
+typedef class Random *PRandom;
+#define Random_PAR BASE
+#define kclsRandom 'RND'
+class Random : public Random_PAR
 {
     RTCLASS_DEC
-    NOCOPY(RND)
+    NOCOPY(Random)
 
   protected:
     ulong _luSeed;
 
   public:
-    RND(ulong luSeed = 0L);
+    Random(ulong luSeed = 0L);
     virtual long LwNext(long lwLim);
 };
 
@@ -40,7 +40,7 @@ class RND : public RND_PAR
     A shuffled array of numbers.
 ***************************************************************************/
 typedef class SFL *PSFL;
-#define SFL_PAR RND
+#define SFL_PAR Random
 #define kclsSFL 'SFL'
 class SFL : public SFL_PAR
 {

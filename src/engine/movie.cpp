@@ -5604,7 +5604,7 @@ long Movie::LwQueryLocation(long lwType, long lwId)
     {
         RC rcBounds;
         long cactGuessPt = 0;
-        RND rnd;
+        Random rnd;
         long ibset;
 
         pactr = Pscen()->PactrFromArid(lwId);

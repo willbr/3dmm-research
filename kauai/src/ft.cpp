@@ -85,7 +85,7 @@ END_CMD_MAP_NIL()
 
 FrameTesterApp vapp;
 Clock vclok(10000);
-RND vrnd;
+Random vrnd;
 
 AbstractColor _rgacr[] = {kacrBlack,   kacrBlue,   kacrGreen, kacrCyan,  kacrRed,
                 kacrMagenta, kacrYellow, kacrWhite, kacrClear, kacrInvert};

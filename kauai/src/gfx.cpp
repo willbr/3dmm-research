@@ -1518,7 +1518,7 @@ void GraphicsEnvironment::Dissolve(long crcWidth, long crcHeight, AbstractColor 
     ulong tsStart, dtsT;
     byte bFill;
     long cbRowSrc, cbRowDst;
-    RND rnd;
+    Random rnd;
     long lw, cact, irc, crc, crcFill, crcT;
     RC rc1, rc2;
     bool fOnScreen;
