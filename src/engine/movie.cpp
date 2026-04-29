@@ -8683,19 +8683,11 @@ bool MovieView::FCmdKey(PCMD_KEY pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-#ifdef WIN
-    const long kvkEsc = VK_ESCAPE;
-#endif
-#ifdef MAC
-    const long kvkEsc = 0x35; // Mac escape key code
-#endif
-
-    if (pcmd->vk == kvkEsc)
+    if (pcmd->vk == kvkEscape)
     {
-        if (Pmvie() != pvNil && Pmvie()->Pscen() != pvNil)
+        if (Pmvie()->Pscen() != pvNil)
         {
-            Pmvie()->Pscen()->ClearSelection();
-            Pmvie()->InvalViews();
+            Pmvie()->Pscen()->ClearSelection(); // already calls InvalViews internally
             Pmvie()->Pbwld()->MarkDirty();
         }
         return fTrue; // command consumed
