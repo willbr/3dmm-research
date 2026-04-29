@@ -399,8 +399,8 @@ typedef class ActorMoveGroupUndo *PActorMoveGroupUndo;
 class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
 {
     RTCLASS_DEC
-    ASSERT
     MARKMEM
+    ASSERT
 
   protected:
     PDynamicArray _pglpaund; // List of PActorUndo. Owned (each child is AddRef'd).

@@ -147,6 +147,12 @@ class ActorUndo : public ActorUndo_PAR
 // Undo object for a single drag of the move tool that affects N selected actors.
 // Owns N child ActorUndo snapshots and undoes/redoes them as a unit.
 //
+// Invariant: all children must come from the same scene and frame as the
+// composite. FUndo propagates the composite's iscen/nfrm onto each child
+// before invoking it; children's pre-existing scene/frame settings are
+// overwritten. The move-tool drag pipeline guarantees this because a single
+// drag is single-scene and single-frame.
+//
 typedef class ActorMoveGroupUndo *PActorMoveGroupUndo;
 
 #define ActorMoveGroupUndo_PAR MovieUndo

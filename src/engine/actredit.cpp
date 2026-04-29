@@ -1667,25 +1667,27 @@ bool ActorMoveGroupUndo::FUndo(PDocumentBase pdocb)
     AssertThis(0);
     AssertPo(pdocb, 0);
 
-    bool fAllOk = fTrue;
     for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
     {
         PActorUndo paund;
         _pglpaund->Get(iaund, &paund);
-        if (paund != pvNil)
+        if (paund == pvNil)
         {
-            // Mirror MovieUndo's iscen/nfrm onto each child so its FUndo
-            // navigates to the correct frame.
-            paund->SetPmvie(_pmvie);
-            paund->SetIscen(_iscen);
-            paund->SetNfrm(_nfrm);
-            if (!paund->FUndo(pdocb))
-            {
-                fAllOk = fFalse;
-            }
+            continue;
+        }
+        // Mirror MovieUndo's iscen/nfrm onto each child so its FUndo
+        // navigates to the correct frame.
+        paund->SetPmvie(_pmvie);
+        paund->SetIscen(_iscen);
+        paund->SetNfrm(_nfrm);
+        // Stop on the first failure: an ActorUndo failure can trigger
+        // Movie::ClearUndo, after which continuing perturbs further state.
+        if (!paund->FUndo(pdocb))
+        {
+            return fFalse;
         }
     }
-    return fAllOk;
+    return fTrue;
 }
 
 /****************************************************
