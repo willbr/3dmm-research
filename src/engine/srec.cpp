@@ -13,16 +13,16 @@
 
 ASSERTNAME
 
-RTCLASS(SREC)
+RTCLASS(SoundRecorder)
 
 /***************************************************************************
-    Create a new SREC
+    Create a new SoundRecorder
 ***************************************************************************/
-PSREC SREC::PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax)
+PSoundRecorder SoundRecorder::PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax)
 {
-    PSREC psrec;
+    PSoundRecorder psrec;
 
-    psrec = NewObj(SREC);
+    psrec = NewObj(SoundRecorder);
     if (pvNil == psrec)
         return pvNil;
     if (!psrec->_FInit(csampSec, cchan, cbSample, dtsMax))
@@ -35,9 +35,9 @@ PSREC SREC::PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax)
 }
 
 /***************************************************************************
-    Init this SREC
+    Init this SoundRecorder
 ***************************************************************************/
-bool SREC::_FInit(long csampSec, long cchan, long cbSample, ulong dtsMax)
+bool SoundRecorder::_FInit(long csampSec, long cchan, long cbSample, ulong dtsMax)
 {
     AssertBaseThis(0);
     AssertIn(cchan, 0, ksuMax);
@@ -93,9 +93,9 @@ bool SREC::_FInit(long csampSec, long cchan, long cbSample, ulong dtsMax)
 }
 
 /***************************************************************************
-    Clean up and delete this SREC
+    Clean up and delete this SoundRecorder
 ***************************************************************************/
-SREC::~SREC(void)
+SoundRecorder::~SoundRecorder(void)
 {
     AssertBaseThis(0);
 
@@ -115,7 +115,7 @@ SREC::~SREC(void)
 /***************************************************************************
     Open Device for recording
 ***************************************************************************/
-bool SREC::_FOpenRecord(void)
+bool SoundRecorder::_FOpenRecord(void)
 {
     AssertBaseThis(0);
 
@@ -158,7 +158,7 @@ bool SREC::_FOpenRecord(void)
 /***************************************************************************
     Close Device for recording
 ***************************************************************************/
-bool SREC::_FCloseRecord(void)
+bool SoundRecorder::_FCloseRecord(void)
 {
     AssertThis(0);
 
@@ -182,7 +182,7 @@ bool SREC::_FCloseRecord(void)
 /***************************************************************************
     Figure out if we're recording or not
 ***************************************************************************/
-void SREC::_UpdateStatus(void)
+void SoundRecorder::_UpdateStatus(void)
 {
     AssertThis(0);
 
@@ -257,10 +257,10 @@ void SREC::_UpdateStatus(void)
 /***************************************************************************
     Figure out if we're recording or not
 ***************************************************************************/
-void SREC::_WaveInProc(HWAVEIN hwi, UINT uMsg, DWORD dwInstance, DWORD dwParam1, DWORD dwParam2)
+void SoundRecorder::_WaveInProc(HWAVEIN hwi, UINT uMsg, DWORD dwInstance, DWORD dwParam1, DWORD dwParam2)
 {
     // the psrec pointer is a pointer to the class which generated the event and owns the device
-    SREC *psrec = (SREC *)dwInstance;
+    SoundRecorder *psrec = (SoundRecorder *)dwInstance;
 
     switch (uMsg)
     {
@@ -277,7 +277,7 @@ void SREC::_WaveInProc(HWAVEIN hwi, UINT uMsg, DWORD dwInstance, DWORD dwParam1,
 /***************************************************************************
     Start recording
 ***************************************************************************/
-bool SREC::FStart(void)
+bool SoundRecorder::FStart(void)
 {
     AssertThis(0);
     Assert(!_fRecording, "stop previous recording first");
@@ -305,7 +305,7 @@ bool SREC::FStart(void)
 /***************************************************************************
     Stop recording or playing
 ***************************************************************************/
-bool SREC::FStop(void)
+bool SoundRecorder::FStop(void)
 {
     AssertThis(0);
     Assert(_fRecording || _fPlaying, "Nothing to stop");
@@ -331,7 +331,7 @@ bool SREC::FStop(void)
 /***************************************************************************
     Start playing the current sound
 ***************************************************************************/
-bool SREC::FPlay(void)
+bool SoundRecorder::FPlay(void)
 {
     AssertThis(0);
     Assert(_fHaveSound, "No sound to play");
@@ -362,7 +362,7 @@ bool SREC::FPlay(void)
 /***************************************************************************
     Are we recording?
 ***************************************************************************/
-bool SREC::FRecording(void)
+bool SoundRecorder::FRecording(void)
 {
     AssertThis(0);
 
@@ -373,7 +373,7 @@ bool SREC::FRecording(void)
 /***************************************************************************
     Are we playing the current sound?
 ***************************************************************************/
-bool SREC::FPlaying(void)
+bool SoundRecorder::FPlaying(void)
 {
     AssertThis(0);
 
@@ -384,7 +384,7 @@ bool SREC::FPlaying(void)
 /***************************************************************************
     Save the current sound to the given Filename
 ***************************************************************************/
-bool SREC::FSave(PFilename pfni)
+bool SoundRecorder::FSave(PFilename pfni)
 {
     AssertThis(0);
     Assert(_fHaveSound, "Nothing to save!");
@@ -408,22 +408,22 @@ bool SREC::FSave(PFilename pfni)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the SREC.
+    Assert the validity of the SoundRecorder.
 ***************************************************************************/
-void SREC::AssertValid(ulong grf)
+void SoundRecorder::AssertValid(ulong grf)
 {
-    SREC_PAR::AssertValid(fobjAllocated);
+    SoundRecorder_PAR::AssertValid(fobjAllocated);
     Assert(pvNil != _pmixer, "No mixer?");
     Assert(pvNil != _pchannel, "No Channel?");
 }
 
 /***************************************************************************
-    Mark memory used by the SREC
+    Mark memory used by the SoundRecorder
 ***************************************************************************/
-void SREC::MarkMem(void)
+void SoundRecorder::MarkMem(void)
 {
     AssertThis(0);
     MarkPv(_priff);
-    SREC_PAR::MarkMem();
+    SoundRecorder_PAR::MarkMem();
 }
 #endif // DEBUG

@@ -265,7 +265,7 @@ class ESLR : public ESLR_PAR
     PMovie _pmvie;      // The movie to insert sound into
     bool _fSpeech;     // Recording Speech or SFX?
     PEDSL _pedsl;      // Single-line edit control for sound name
-    PSREC _psrec;      // Sound recording object
+    PSoundRecorder _psrec;      // Sound recording object
     Clock _clok;        // Clock to limit sound length
     bool _fRecording;  // Are we recording right now?
     bool _fPlaying;    // Are we playing back the recording?
