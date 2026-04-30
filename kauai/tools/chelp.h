@@ -124,7 +124,7 @@ class LIG : public LIG_PAR
 
   protected:
     PTextDocument _ptxhd;  // the document to put the chunk in
-    PSCB _pscb;    // our scroll bar
+    PScrollBar _pscb;    // our scroll bar
     long _dypCell; // how tall are our cells
 
     LIG(PLID plid, GraphicsObjectBlock *pgcb);

@@ -16,16 +16,16 @@ ASSERTNAME
 //
 //
 //
-// BEGIN MSCB STUFF
+// BEGIN MScrollBar STUFF
 //
 //
 //
 
-RTCLASS(MSCB)
+RTCLASS(MScrollBar)
 
-BEGIN_CMD_MAP(MSCB, GraphicsObject)
-ON_CID_ME(cidDoScroll, MSCB::FCmdScroll, pvNil)
-ON_CID_ME(cidEndScroll, MSCB::FCmdScroll, pvNil)
+BEGIN_CMD_MAP(MScrollBar, GraphicsObject)
+ON_CID_ME(cidDoScroll, MScrollBar::FCmdScroll, pvNil)
+ON_CID_ME(cidEndScroll, MScrollBar::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
 
 /****************************************************
@@ -34,7 +34,7 @@ END_CMD_MAP_NIL()
  * is private, use PmscbNew() for public construction.
  *
  ****************************************************/
-MSCB::MSCB(PMovie pmvie, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
+MScrollBar::MScrollBar(PMovie pmvie, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _pmvie = pmvie;
 }
@@ -51,16 +51,16 @@ MSCB::MSCB(PMovie pmvie, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
  *	A pointer to the scroll bar objects, else pvNil.
  *
  ****************************************************/
-PMSCB MSCB::PmscbNew(PMovie pmvie, PGraphicsObjectBlock pgcb)
+PMScrollBar MScrollBar::PmscbNew(PMovie pmvie, PGraphicsObjectBlock pgcb)
 {
-    PMSCB pmscb;
+    PMScrollBar pmscb;
     RC rc;
     GraphicsObjectBlock gcb;
 
     AssertNilOrPo(pmvie, 0);
     AssertVarMem(pgcb);
 
-    if (pvNil == (pmscb = NewObj MSCB(pmvie, pgcb)))
+    if (pvNil == (pmscb = NewObj MScrollBar(pmvie, pgcb)))
         return pvNil;
 
     //
@@ -68,14 +68,14 @@ PMSCB MSCB::PmscbNew(PMovie pmvie, PGraphicsObjectBlock pgcb)
     //
     rc.Set(0, 32, 200, 48);
     gcb.Set(mscbhidFrame, pmscb, fgobNil, kginDefault, &rc);
-    SCB::PscbNew(&gcb, fscbHorz, 0, 0, 0);
+    ScrollBar::PscbNew(&gcb, fscbHorz, 0, 0, 0);
 
     //
     // Scene slider
     //
     rc.Set(250, 32, 450, 48);
     gcb.Set(mscbhidScene, pmscb, fgobNil, kginDefault, &rc);
-    SCB::PscbNew(&gcb, fscbHorz, 0, 0, 0);
+    ScrollBar::PscbNew(&gcb, fscbHorz, 0, 0, 0);
 
     AssertPo(pmscb, 0);
     return (pmscb);
@@ -92,11 +92,11 @@ PMSCB MSCB::PmscbNew(PMovie pmvie, PGraphicsObjectBlock pgcb)
  *	fTrue if is processed the command, else fFalse.
  *
  ****************************************************/
-bool MSCB::FCmdScroll(PCommand pcmd)
+bool MScrollBar::FCmdScroll(PCommand pcmd)
 {
     long hid, val, dval;
     bool fUp, fPage;
-    PSCB pscb;
+    PScrollBar pscb;
 
     //
     // Verify that the command is for this object
@@ -111,7 +111,7 @@ bool MSCB::FCmdScroll(PCommand pcmd)
     //
     // Get the scroll bar.
     //
-    pscb = (PSCB)PgobFromHidScr(hid);
+    pscb = (PScrollBar)PgobFromHidScr(hid);
 
     if ((pscb == pvNil) || (_pmvie == pvNil))
         return fTrue;
@@ -192,16 +192,16 @@ bool MSCB::FCmdScroll(PCommand pcmd)
  *  None.
  *
  ***************************************************************************/
-void MSCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void MScrollBar::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     String stn;
     RC rc;
-    PSCB pscb;
+    PScrollBar pscb;
 
-    pscb = (PSCB)PgobFromHidScr(mscbhidScene);
+    pscb = (PScrollBar)PgobFromHidScr(mscbhidScene);
 
     if (pscb != pvNil)
     {
@@ -217,7 +217,7 @@ void MSCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
         pscb->InvalRc(pvNil);
     }
 
-    pscb = (PSCB)PgobFromHidScr(mscbhidFrame);
+    pscb = (PScrollBar)PgobFromHidScr(mscbhidFrame);
 
     if (pscb != pvNil)
     {
@@ -274,7 +274,7 @@ void MSCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
  *  None.
  *
  ****************************************************/
-void MSCB::Update()
+void MScrollBar::Update()
 {
     InvalRc(pvNil, kginMark);
 }
@@ -290,7 +290,7 @@ void MSCB::Update()
  *  None.
  *
  ****************************************************/
-void MSCB::SetMvie(PMovie pmvie)
+void MScrollBar::SetMvie(PMovie pmvie)
 {
     _pmvie = pmvie;
 }
@@ -298,7 +298,7 @@ void MSCB::SetMvie(PMovie pmvie)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the MSCB
+ * Mark memory used by the MScrollBar
  *
  * Parameters:
  * 	None.
@@ -307,21 +307,21 @@ void MSCB::SetMvie(PMovie pmvie)
  *  None.
  *
  ****************************************************/
-void MSCB::MarkMem(void)
+void MScrollBar::MarkMem(void)
 {
-    PSCB pscb;
+    PScrollBar pscb;
 
     AssertThis(0);
-    MSCB_PAR::MarkMem();
+    MScrollBar_PAR::MarkMem();
 
-    pscb = (PSCB)PgobFromHidScr(mscbhidFrame);
+    pscb = (PScrollBar)PgobFromHidScr(mscbhidFrame);
 
     if (pscb != pvNil)
     {
         MarkMemObj(pscb);
     }
 
-    pscb = (PSCB)PgobFromHidScr(mscbhidScene);
+    pscb = (PScrollBar)PgobFromHidScr(mscbhidScene);
     if (pscb != pvNil)
     {
         MarkMemObj(pscb);
@@ -329,7 +329,7 @@ void MSCB::MarkMem(void)
 }
 
 /***************************************************************************
- * Assert the validity of the MSCB
+ * Assert the validity of the MScrollBar
  *
  * Parameters:
  * 	grf - bit array of options.
@@ -338,9 +338,9 @@ void MSCB::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MSCB::AssertValid(ulong grf)
+void MScrollBar::AssertValid(ulong grf)
 {
-    MSCB_PAR::AssertValid(fobjAllocated);
+    MScrollBar_PAR::AssertValid(fobjAllocated);
 }
 
 #endif

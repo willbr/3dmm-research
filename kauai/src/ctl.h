@@ -83,10 +83,10 @@ enum
     scaToVal,
 };
 
-typedef class SCB *PSCB;
-#define SCB_PAR CTL
-#define kclsSCB 'SCB'
-class SCB : public SCB_PAR
+typedef class ScrollBar *PScrollBar;
+#define ScrollBar_PAR CTL
+#define kclsScrollBar 'SCB'
+class ScrollBar : public ScrollBar_PAR
 {
     RTCLASS_DEC
 
@@ -100,7 +100,7 @@ class SCB : public SCB_PAR
 #endif // WIN
 
   protected:
-    SCB(PGraphicsObjectBlock pgcb) : CTL(pgcb)
+    ScrollBar(PGraphicsObjectBlock pgcb) : CTL(pgcb)
     {
     }
     bool _FCreate(long val, long valMin, long valMax, ulong grfscb);
@@ -114,7 +114,7 @@ class SCB : public SCB_PAR
     static long DypNormal(void);
     static void GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel);
     static void GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel);
-    static PSCB PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val = 0, long valMin = 0, long valMax = 0);
+    static PScrollBar PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val = 0, long valMin = 0, long valMax = 0);
 
     void SetVal(long val, bool fRedraw = fTrue);
     void SetValMinMax(long val, long valMin, long valMax, bool fRedraw = fTrue);

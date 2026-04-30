@@ -1877,7 +1877,7 @@ PDocumentMDIWindow HETD::PdmdNew(void)
     if (pvNil == (pdmd = HETD_PAR::PdmdNew()))
         return pvNil;
 
-    dxpLig = kdxpCellLig + SCB::DxpNormal();
+    dxpLig = kdxpCellLig + ScrollBar::DxpNormal();
     if (pvNil == (pgob = pdmd->PgobFromHid(khidDmw)))
         goto LFail;
     pgob->GetPos(&rcAbs, &rcRel);

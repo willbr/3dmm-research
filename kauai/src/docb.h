@@ -430,11 +430,11 @@ class DocumentScrollWindowSplitter : public DocumentScrollWindowSplitter_PAR
   public:
     static long DypNormal(void)
     {
-        return SCB::DypNormal() / 2;
+        return ScrollBar::DypNormal() / 2;
     }
     static long DxpNormal(void)
     {
-        return SCB::DxpNormal() / 2;
+        return ScrollBar::DxpNormal() / 2;
     }
     static PDocumentScrollWindowSplitter PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp);
 
