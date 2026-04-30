@@ -21,7 +21,7 @@
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BrowserImportSound (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -692,7 +692,7 @@ class BrowserMusic : public BrowserMusic_PAR
 
   protected:
     long _sty;  // Identifies type of sound
-    PChunkyResourceFile _pcrf; // NOT created here (autosave or BRWI file)
+    PChunkyResourceFile _pcrf; // NOT created here (autosave or BrowserImportSound file)
 
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type
@@ -722,10 +722,10 @@ class BrowserMusic : public BrowserMusic_PAR
    Note: Inherits pgst from the list class
 
 *************************************/
-#define BRWI_PAR BrowserMusic
-#define kclsBRWI 'BRWI'
-typedef class BRWI *PBRWI;
-class BRWI : public BRWI_PAR
+#define BrowserImportSound_PAR BrowserMusic
+#define kclsBrowserImportSound 'BRWI'
+typedef class BrowserImportSound *PBrowserImportSound;
+class BrowserImportSound : public BrowserImportSound_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -740,13 +740,13 @@ class BRWI : public BRWI_PAR
     //
     // Constructors and destructors
     //
-    BRWI(PGraphicsObjectBlock pgcb) : BRWI_PAR(pgcb)
+    BrowserImportSound(PGraphicsObjectBlock pgcb) : BrowserImportSound_PAR(pgcb)
     {
         _idsFont = idsSoundFont;
     }
-    ~BRWI(void);
+    ~BrowserImportSound(void);
 
-    static PBRWI PbrwiNew(PResourceCache prca, long kidGlass, long sty);
+    static PBrowserImportSound PbrwiNew(PResourceCache prca, long kidGlass, long sty);
     bool FInit(PCommand pcmd, ChunkIdentification cki, PStudio pstdio);
 };
 
