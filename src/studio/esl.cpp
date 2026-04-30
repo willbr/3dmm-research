@@ -32,7 +32,7 @@ RTCLASS(ESLA)
 RTCLASS(SpletterNameEditor)
 RTCLASS(ESLL)
 RTCLASS(ListenerSound)
-RTCLASS(ESLR)
+RTCLASS(EaselRecord)
 
 /***************************************************************************
     Function to build a GraphicsObjectBlock for creating a child GraphicsObject
@@ -1616,32 +1616,32 @@ void ListenerSound::MarkMem(void)
 
 //
 //
-//  ESLR (Sound recording easel) stuff begins here
+//  EaselRecord (Sound recording easel) stuff begins here
 //
 //
 
-BEGIN_CMD_MAP(ESLR, ESL)
-ON_CID_GEN(cidEaselRecord, &ESLR::FCmdRecord, pvNil)
-ON_CID_GEN(cidEaselPlay, &ESLR::FCmdPlay, pvNil)
-ON_CID_GEN(cidAlarm, &ESLR::FCmdUpdateMeter, pvNil)
+BEGIN_CMD_MAP(EaselRecord, ESL)
+ON_CID_GEN(cidEaselRecord, &EaselRecord::FCmdRecord, pvNil)
+ON_CID_GEN(cidEaselPlay, &EaselRecord::FCmdPlay, pvNil)
+ON_CID_GEN(cidAlarm, &EaselRecord::FCmdUpdateMeter, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new sound recording easel
 ***************************************************************************/
-PESLR ESLR::PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew)
+PEaselRecord EaselRecord::PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertPo(pstnNew, 0);
 
-    PESLR peslr;
+    PEaselRecord peslr;
     GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidRecordGlass))
         return pvNil;
 
-    peslr = NewObj ESLR(&gcb);
+    peslr = NewObj EaselRecord(&gcb);
     if (pvNil == peslr)
         return pvNil;
     if (!peslr->_FInit(prca, kidRecordGlass, pmvie, fSpeech, pstnNew))
@@ -1658,7 +1658,7 @@ PESLR ESLR::PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString ps
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLR::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew)
+bool EaselRecord::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -1671,7 +1671,7 @@ bool ESLR::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech
     _pmvie = pmvie;
     _fSpeech = fSpeech;
 
-    if (!ESLR_PAR::_FInit(prca, kidEasel))
+    if (!EaselRecord_PAR::_FInit(prca, kidEasel))
         return fFalse;
 
     if (!FBuildGcb(&gcb, kidRecordSoundName, CommandHandler::HidUnique()))
@@ -1721,7 +1721,7 @@ bool ESLR::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech
 /***************************************************************************
     Clean up and delete this easel
 ***************************************************************************/
-ESLR::~ESLR(void)
+EaselRecord::~EaselRecord(void)
 {
     AssertBaseThis(0);
 
@@ -1731,7 +1731,7 @@ ESLR::~ESLR(void)
 /***************************************************************************
     Update the meter that shows how long we've been recording.
 ***************************************************************************/
-void ESLR::_UpdateMeter(void)
+void EaselRecord::_UpdateMeter(void)
 {
     AssertThis(0);
 
@@ -1757,7 +1757,7 @@ void ESLR::_UpdateMeter(void)
 /***************************************************************************
     Start or stop recording
 ***************************************************************************/
-bool ESLR::FCmdRecord(PCommand pcmd)
+bool EaselRecord::FCmdRecord(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1796,7 +1796,7 @@ bool ESLR::FCmdRecord(PCommand pcmd)
 /***************************************************************************
     Time to update the meter that shows how long we've been recording.
 ***************************************************************************/
-bool ESLR::FCmdUpdateMeter(PCommand pcmd)
+bool EaselRecord::FCmdUpdateMeter(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1823,7 +1823,7 @@ bool ESLR::FCmdUpdateMeter(PCommand pcmd)
 /***************************************************************************
     Play the sound that was recorded
 ***************************************************************************/
-bool ESLR::FCmdPlay(PCommand pcmd)
+bool EaselRecord::FCmdPlay(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1878,7 +1878,7 @@ bool ESLR::FCmdPlay(PCommand pcmd)
 /***************************************************************************
     Save the new sound
 ***************************************************************************/
-bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselRecord::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
@@ -1954,18 +1954,18 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLR.
+    Assert the validity of the EaselRecord.
 ***************************************************************************/
-void ESLR::AssertValid(ulong grf)
+void EaselRecord::AssertValid(ulong grf)
 {
     ESLL_PAR::AssertValid(fobjAllocated);
     AssertPo(_psrec, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the ESLR
+    Mark memory used by the EaselRecord
 ***************************************************************************/
-void ESLR::MarkMem(void)
+void EaselRecord::MarkMem(void)
 {
     AssertThis(0);
     ESLL_PAR::MarkMem();

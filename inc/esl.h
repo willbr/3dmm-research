@@ -16,7 +16,7 @@
                                           |
                                           +---> ESLL (listener easel)
                                           |
-                                          +---> ESLR (sound recording easel)
+                                          +---> EaselRecord (sound recording easel)
 
 ***************************************************************************/
 #ifndef ESL_H
@@ -251,15 +251,15 @@ class ESLL : public ESLL_PAR
 /****************************************
     The sound recording easel class
 ****************************************/
-typedef class ESLR *PESLR;
-#define ESLR_PAR ESL
-#define kclsESLR 'ESLR'
-class ESLR : public ESLR_PAR
+typedef class EaselRecord *PEaselRecord;
+#define EaselRecord_PAR ESL
+#define kclsEaselRecord 'ESLR'
+class EaselRecord : public EaselRecord_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(ESLR)
+    CMD_MAP_DEC(EaselRecord)
 
   protected:
     PMovie _pmvie;      // The movie to insert sound into
@@ -272,7 +272,7 @@ class ESLR : public ESLR_PAR
     ulong _tsStartRec; // Time at which we started recording
 
   protected:
-    ESLR(PGraphicsObjectBlock pgcb) : ESL(pgcb), _clok(HidUnique())
+    EaselRecord(PGraphicsObjectBlock pgcb) : ESL(pgcb), _clok(HidUnique())
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew);
@@ -280,8 +280,8 @@ class ESLR : public ESLR_PAR
     void _UpdateMeter(void);
 
   public:
-    static PESLR PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew);
-    ~ESLR(void);
+    static PEaselRecord PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew);
+    ~EaselRecord(void);
 
     bool FCmdRecord(PCommand pcmd);
     bool FCmdPlay(PCommand pcmd);
