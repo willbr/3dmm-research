@@ -15,7 +15,7 @@
 
 ASSERTNAME
 
-RTCLASS(MIDP)
+RTCLASS(MidiPlayer)
 
 const long kdtsMinSlip = kdtsSecond / 30;
 const long klwInfinite = klwMax;
@@ -793,14 +793,14 @@ void MPQUE::_PlayEvt(void)
 /***************************************************************************
     Constructor for the midi player device.
 ***************************************************************************/
-MIDP::MIDP(void)
+MidiPlayer::MidiPlayer(void)
 {
 }
 
 /***************************************************************************
     Destructor for the midi player device.
 ***************************************************************************/
-MIDP::~MIDP(void)
+MidiPlayer::~MidiPlayer(void)
 {
     _Suspend(fTrue);
 }
@@ -808,11 +808,11 @@ MIDP::~MIDP(void)
 /***************************************************************************
     Static method to create the midiplayer device.
 ***************************************************************************/
-PMIDP MIDP::PmidpNew(void)
+PMidiPlayer MidiPlayer::PmidpNew(void)
 {
-    PMIDP pmidp;
+    PMidiPlayer pmidp;
 
-    if (pvNil == (pmidp = NewObj MIDP))
+    if (pvNil == (pmidp = NewObj MidiPlayer))
         return pvNil;
 
     if (!pmidp->_FInit())
@@ -827,7 +827,7 @@ PMIDP MIDP::PmidpNew(void)
 /***************************************************************************
     Allocate a new midi queue.
 ***************************************************************************/
-PSoundQueue MIDP::_PsnqueNew(void)
+PSoundQueue MidiPlayer::_PsnqueNew(void)
 {
     AssertThis(0);
 
@@ -837,7 +837,7 @@ PSoundQueue MIDP::_PsnqueNew(void)
 /***************************************************************************
     Get or release the HMIDIOUT depending on fSuspend.
 ***************************************************************************/
-void MIDP::_Suspend(bool fSuspend)
+void MidiPlayer::_Suspend(bool fSuspend)
 {
     _mido.Suspend(fSuspend);
 }
@@ -845,7 +845,7 @@ void MIDP::_Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume.
 ***************************************************************************/
-void MIDP::SetVlm(long vlm)
+void MidiPlayer::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -855,7 +855,7 @@ void MIDP::SetVlm(long vlm)
 /***************************************************************************
     Get the volume.
 ***************************************************************************/
-long MIDP::VlmCur(void)
+long MidiPlayer::VlmCur(void)
 {
     AssertThis(0);
 

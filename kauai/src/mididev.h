@@ -18,22 +18,22 @@
 /***************************************************************************
     The midi player.
 ***************************************************************************/
-typedef class MIDP *PMIDP;
-#define MIDP_PAR SNDMQ
-#define kclsMIDP 'MIDP'
-class MIDP : public MIDP_PAR
+typedef class MidiPlayer *PMidiPlayer;
+#define MidiPlayer_PAR SNDMQ
+#define kclsMidiPlayer 'MIDP'
+class MidiPlayer : public MidiPlayer_PAR
 {
     RTCLASS_DEC
 
   protected:
-    MIDP(void);
+    MidiPlayer(void);
 
     virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:
-    static PMIDP PmidpNew(void);
-    ~MIDP(void);
+    static PMidiPlayer PmidpNew(void);
+    ~MidiPlayer(void);
 
     // inherited methods
     virtual void SetVlm(long vlm);
