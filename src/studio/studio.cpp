@@ -1138,8 +1138,8 @@ bool Studio::FCmdOpenSoundRecord(PCommand pcmd)
 
     vapp.BeginLongOp();
 
-    // Note: easels are self-managing, so we don't need to keep the PESLR
-    ESLR::PeslrNew(_pcrm, _pmvie, fSpeech, &stn);
+    // Note: easels are self-managing, so we don't need to keep the PEaselRecord
+    EaselRecord::PeslrNew(_pcrm, _pmvie, fSpeech, &stn);
 
     vapp.EndLongOp();
 
