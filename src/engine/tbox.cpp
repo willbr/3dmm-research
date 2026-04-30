@@ -1411,11 +1411,11 @@ bool TBXG::FCmdClip(PCommand pcmd)
 
     Assert(pmvu->FTextMode(), "Bad mode");
 
-    if (((pcmd->cid == cidPaste) || (pcmd->cid == cidPasteTool)) && vpclip->FGetFormat(kclsACLP, &pdocb))
+    if (((pcmd->cid == cidPaste) || (pcmd->cid == cidPasteTool)) && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
     {
         Command cmd;
 
-        if (((PACLP)pdocb)->FRouteOnly())
+        if (((PActorClipboard)pdocb)->FRouteOnly())
         {
             PushErc(ercSocCannotPasteThatHere);
             ReleasePpo(&pdocb);
@@ -1552,7 +1552,7 @@ bool TBXG::_FDoClip(long tool)
 
     case toolPasteText:
 
-        if (!vpclip->FGetFormat(kclsACLP) && !vpclip->FGetFormat(kclsTCLP))
+        if (!vpclip->FGetFormat(kclsActorClipboard) && !vpclip->FGetFormat(kclsTCLP))
         {
             ClearPb(&cmd, size(Command));
             cmd.cid = cidPaste;

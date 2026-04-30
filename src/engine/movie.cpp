@@ -6663,9 +6663,9 @@ bool MovieView::FCmdMouseMove(PCMD_MOUSE pcmd)
             {
                 Pmvie()->Pmcc()->SetCurs(toolComposeAll);
             }
-            else if ((Tool() == toolPasteObject) && vpclip->FGetFormat(kclsACLP, &pdocb))
+            else if ((Tool() == toolPasteObject) && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
             {
-                if (((PACLP)pdocb)->FRouteOnly())
+                if (((PActorClipboard)pdocb)->FRouteOnly())
                     Pmvie()->Pmcc()->SetCurs(toolPasteRte);
                 else
                     Pmvie()->Pmcc()->SetCurs(Tool());
@@ -7078,7 +7078,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     case toolPasteObject:
         if (!_fTextMode)
         {
-            if (vpclip->FGetFormat(kclsACLP, &pdocb) && ((PACLP)pdocb)->FRouteOnly() && (pactr != pvNil))
+            if (vpclip->FGetFormat(kclsActorClipboard, &pdocb) && ((PActorClipboard)pdocb)->FRouteOnly() && (pactr != pvNil))
             {
                 FDoClip(Tool());
                 ReleasePpo(&pdocb);
@@ -8379,9 +8379,9 @@ bool MovieView::FCmdClip(PCommand pcmd)
 
         AssertNilOrPo(ptbox, 0);
 
-        if (pcmd->cid == cidPasteTool && vpclip->FGetFormat(kclsACLP, &pdocb))
+        if (pcmd->cid == cidPasteTool && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
         {
-            fOV = !((PACLP)pdocb)->FRouteOnly();
+            fOV = !((PActorClipboard)pdocb)->FRouteOnly();
             ReleasePpo(&pdocb);
         }
         else if (((ptbox != pvNil) && ptbox->FTextSelected()) ||
@@ -8431,7 +8431,7 @@ bool MovieView::FCmdClip(PCommand pcmd)
         if (fOV)
         {
 
-            if (vpclip->FGetFormat(kclsTCLP) || vpclip->FGetFormat(kclsACLP))
+            if (vpclip->FGetFormat(kclsTCLP) || vpclip->FGetFormat(kclsActorClipboard))
             {
                 FDoClip(toolPasteObject);
             }
@@ -8617,7 +8617,7 @@ bool MovieView::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
     AssertThis(0);
 
     PActor pactr;
-    PACLP paclp;
+    PActorClipboard paclp;
 
     if (FTextMode())
     {
@@ -8638,7 +8638,7 @@ bool MovieView::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
         return (fFalse);
     }
 
-    paclp = ACLP::PaclpNew(pactr, fRteOnly, FPure(_grfcust & fcustShift));
+    paclp = ActorClipboard::PaclpNew(pactr, fRteOnly, FPure(_grfcust & fcustShift));
     AssertNilOrPo(paclp, 0);
 
     *ppdocb = (PDocumentBase)paclp;
@@ -8730,12 +8730,12 @@ bool MovieView::_FPaste(PClipboardObject pclip)
     AssertThis(0);
     AssertPo(pclip, 0);
 
-    PACLP paclp;
+    PActorClipboard paclp;
     PTCLP ptclp;
     PActor pactr;
     bool fRet;
 
-    if (pclip->FGetFormat(kclsACLP, (PDocumentBase *)&paclp))
+    if (pclip->FGetFormat(kclsActorClipboard, (PDocumentBase *)&paclp))
     {
         AssertPo(paclp, 0);
 

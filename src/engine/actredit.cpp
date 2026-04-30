@@ -6,7 +6,7 @@
     Actor Edit.   Cut/Copy/Paste/Undo
 
     Primary authors:
-        ACLP::(clipbd)	Seanse
+        ActorClipboard::(clipbd)	Seanse
         ActorUndo::(undo)	Seanse
         Actor::(undo)	Seanse
         Actor::(vacuum)  *****
@@ -902,7 +902,7 @@ void Actor::Reset(void)
 //
 //
 
-RTCLASS(ACLP)
+RTCLASS(ActorClipboard)
 
 /***************************************************************************
 
@@ -910,16 +910,16 @@ RTCLASS(ACLP)
     This is from the current frame forward
 
 ***************************************************************************/
-PACLP ACLP::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
+PActorClipboard ActorClipboard::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 {
     AssertPo(pactr, 0);
     Assert(!fRteOnly || !fEntireScene, "Expecting subroute only");
 
-    PACLP paclp;
+    PActorClipboard paclp;
     PActor pactrTmp;
     String stn, stnCopyOf;
 
-    paclp = NewObj ACLP();
+    paclp = NewObj ActorClipboard();
 
     if (paclp == pvNil)
     {
@@ -975,7 +975,7 @@ PACLP ACLP::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
     Destroys an actor clipboard object
 
 ***************************************************************************/
-ACLP::~ACLP(void)
+ActorClipboard::~ActorClipboard(void)
 {
     ReleasePpo(&_pactr);
 }
@@ -985,7 +985,7 @@ ACLP::~ACLP(void)
     Pastes an actor clipboard object
 
 ***************************************************************************/
-bool ACLP::FPaste(PMovie pmvie)
+bool ActorClipboard::FPaste(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
@@ -1026,7 +1026,7 @@ bool ACLP::FPaste(PMovie pmvie)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the ACLP
+ * Mark memory used by the ActorClipboard
  *
  * Parameters:
  * 	None.
@@ -1035,14 +1035,14 @@ bool ACLP::FPaste(PMovie pmvie)
  *  None.
  *
  ****************************************************/
-void ACLP::MarkMem(void)
+void ActorClipboard::MarkMem(void)
 {
-    ACLP_PAR::MarkMem();
+    ActorClipboard_PAR::MarkMem();
     MarkMemObj(_pactr);
 }
 
 /***************************************************************************
- * Assert the validity of the ACLP
+ * Assert the validity of the ActorClipboard
  *
  * Parameters:
  *  grf - bit array of options
@@ -1051,9 +1051,9 @@ void ACLP::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void ACLP::AssertValid(ulong grf)
+void ActorClipboard::AssertValid(ulong grf)
 {
-    ACLP_PAR::AssertValid(fobjAllocated);
+    ActorClipboard_PAR::AssertValid(fobjAllocated);
     _pactr->AssertValid(grf);
 }
 
