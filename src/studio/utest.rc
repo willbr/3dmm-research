@@ -170,32 +170,37 @@ BEGIN
                     IDC_STATIC,9,10,165,37
 END
 
-dlidInfo DIALOG DISCARDABLE  0, 0, 200, 238
+dlidInfo DIALOG DISCARDABLE  0, 0, 200, 282
 STYLE DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 CAPTION "Product Info"
 FONT 8, "MS Sans Serif"
 BEGIN
-    DEFPUSHBUTTON   "OK",IDCANCEL,68,222,50,14
+    DEFPUSHBUTTON   "OK",IDCANCEL,68,266,50,14
     LTEXT           "Product Identification Number:",IDC_STATIC,10,40,141,8
-    EDITTEXT        IDC_EDIT4,10,54,145,12,ES_AUTOHSCROLL | ES_READONLY | 
+    EDITTEXT        IDC_EDIT4,10,54,145,12,ES_AUTOHSCROLL | ES_READONLY |
                     NOT WS_BORDER
-    CONTROL         "Fullscreen",IDC_RADIO4,"Button",BS_AUTORADIOBUTTON | 
+    CONTROL         "Fullscreen",IDC_RADIO4,"Button",BS_AUTORADIOBUTTON |
                     WS_GROUP,15,87,156,10
     CONTROL         "Run in Window",IDC_RADIO5,"Button",BS_AUTORADIOBUTTON,
                     15,103,156,10
 #ifdef DEBUG
-    LTEXT           "cactAV:",IDC_STATIC,123,223,27,10
-    EDITTEXT        IDC_EDIT3,152,223,35,12,ES_AUTOHSCROLL
+    LTEXT           "cactAV:",IDC_STATIC,123,267,27,10
+    EDITTEXT        IDC_EDIT3,152,267,35,12,ES_AUTOHSCROLL
 #endif
     LTEXT           "(c) and (p) 1995 Microsoft Corporation.  All rights reserved.",
                     IDC_STATIC,10,27,192,8
-    EDITTEXT        IDC_EDIT2,11,6,149,13,ES_AUTOHSCROLL | ES_READONLY | NOT 
+    EDITTEXT        IDC_EDIT2,11,6,149,13,ES_AUTOHSCROLL | ES_READONLY | NOT
                     WS_BORDER
     GROUPBOX        "Display Options",IDC_STATIC,10,74,170,49
+    CONTROL         "Wireframe rendering",IDC_CHECK2,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,193,156,10
+    CONTROL         "No textures",IDC_CHECK3,"Button",
+                    BS_AUTOCHECKBOX | WS_TABSTOP,15,209,156,10
     CONTROL         "Make these the default settings",IDC_CHECK1,"Button",
-                    BS_AUTOCHECKBOX | WS_TABSTOP,10,193,170,18
+                    BS_AUTOCHECKBOX | WS_TABSTOP,10,237,170,18
     GROUPBOX        "Performance Options",IDC_STATIC,10,129,170,50
-    CONTROL         "Better Quality",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON | 
+    GROUPBOX        "Rendering Options",IDC_STATIC,10,183,170,42
+    CONTROL         "Better Quality",IDC_RADIO1,"Button",BS_AUTORADIOBUTTON |
                     WS_GROUP,15,145,156,10
     CONTROL         "Better Speed",IDC_RADIO2,"Button",BS_AUTORADIOBUTTON,15,
                     161,156,10
