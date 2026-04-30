@@ -7705,13 +7705,17 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             // the actor's rest orientation -- otherwise actors facing different
             // directions tilt around different world axes and the group looks
             // chaotic). Only one of xa/ya/za is non-zero per tick.
+            // Orbit world-axis matches the body world-axis used in
+            // FRotateAroundWorld: tool X uses world Z, tool Z uses world X
+            // (so the canonical face-camera actor's right/forward axes line
+            // up with the user's tool labels).
             BMAT34 bmat;
             if (xa != aZero)
-                BrMatrix34RotateX(&bmat, xa);
+                BrMatrix34RotateZ(&bmat, xa);
             else if (ya != aZero)
                 BrMatrix34RotateY(&bmat, ya);
             else if (za != aZero)
-                BrMatrix34RotateZ(&bmat, za);
+                BrMatrix34RotateX(&bmat, za);
             else
                 BrMatrix34Identity(&bmat);
 
