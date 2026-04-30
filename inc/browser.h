@@ -344,10 +344,10 @@ class BrowserContentList : public BrowserContentList_PAR
 
 /* Browser Content List with Strings -- create one of these when you need to
     browse content by name */
-#define BCLS_PAR BrowserContentList
-typedef class BCLS *PBCLS;
-#define kclsBCLS 'BCLS'
-class BCLS : public BCLS_PAR
+#define BrowserContentListWithStrings_PAR BrowserContentList
+typedef class BrowserContentListWithStrings *PBrowserContentListWithStrings;
+#define kclsBrowserContentListWithStrings 'BCLS'
+class BrowserContentListWithStrings : public BrowserContentListWithStrings_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -357,11 +357,11 @@ class BCLS : public BCLS_PAR
     PStringTable_GST _pgst;
 
   protected:
-    BCLS(void)
+    BrowserContentListWithStrings(void)
     {
         _pgst = pvNil;
     }
-    ~BCLS(void)
+    ~BrowserContentListWithStrings(void)
     {
         ReleasePpo(&_pgst);
     }
@@ -372,7 +372,7 @@ class BCLS : public BCLS_PAR
     virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
+    static PBrowserContentListWithStrings PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
     PStringTable_GST Pgst(void)
