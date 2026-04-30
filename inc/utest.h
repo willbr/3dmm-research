@@ -162,6 +162,7 @@ class Application : public Application_PAR
     bool _FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni);
     bool _FFindMsKidsDir(void);
     bool _FFindMsKidsDirAt(Filename *path);
+    bool _FMsKidsDirIsComplete(Filename *path);
     bool _FCantFindFileDialog(PString pstn);
     bool _FGenericError(PSTZ message);
     bool _FGenericError(PString message);
