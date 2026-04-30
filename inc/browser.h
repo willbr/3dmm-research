@@ -16,7 +16,7 @@
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
-    BrowserDisplay --> BrowserText --> BRWA  (Browser action class)
+    BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
@@ -553,10 +553,10 @@ class BRWN : public BRWN_PAR
    previews
 
 *************************************/
-#define BRWA_PAR BrowserText
-#define kclsBRWA 'BRWA'
-typedef class BRWA *PBRWA;
-class BRWA : public BRWA_PAR
+#define BrowserAction_PAR BrowserText
+#define kclsBrowserAction 'BRWA'
+typedef class BrowserAction *PBrowserAction;
+class BrowserAction : public BrowserAction_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -572,16 +572,16 @@ class BRWA : public BRWA_PAR
     //
     // Constructors and destructors
     //
-    BRWA(PGraphicsObjectBlock pgcb) : BRWA_PAR(pgcb)
+    BrowserAction(PGraphicsObjectBlock pgcb) : BrowserAction_PAR(pgcb)
     {
         _idsFont = idsActionFont;
         _celnStart = 0;
     }
-    ~BRWA(void)
+    ~BrowserAction(void)
     {
     }
 
-    static PBRWA PbrwaNew(PResourceCache prca);
+    static PBrowserAction PbrwaNew(PResourceCache prca);
     bool FBuildApe(PActor pactr);
     bool FBuildGst(PScene pscen);
     virtual bool FCmdChangeCel(PCommand pcmd);

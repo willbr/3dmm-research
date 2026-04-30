@@ -21,7 +21,7 @@
     BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
-    BrowserDisplay --> BrowserText --> BRWA  (Browser action class)
+    BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
@@ -194,13 +194,13 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             goto LFail;
         }
         thumSelect = _pmvie->Pscen()->PactrSelected()->AnidCur();
-        pbrwd = (PBrowserDisplay)BRWA::PbrwaNew(_pcrm);
+        pbrwd = (PBrowserDisplay)BrowserAction::PbrwaNew(_pcrm);
 
         if (pvNil == pbrwd)
             goto LFail;
 
         // Build the string table before initializing
-        if (!((PBRWA)pbrwd)->FBuildGst(_pmvie->Pscen()))
+        if (!((PBrowserAction)pbrwd)->FBuildGst(_pmvie->Pscen()))
             goto LFail;
         if (!((PBrowserText)pbrwd)->FInit(pcmd, thumSelect, thumSelect, this))
             goto LFail;
@@ -492,7 +492,7 @@ LFail:
  * thumSelect is a chid
  *
  **************************************************************************/
-void BRWA::_ApplySelection(long thumSelect, long sid)
+void BrowserAction::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);

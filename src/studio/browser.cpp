@@ -22,7 +22,7 @@
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
-    BrowserDisplay --> BrowserText --> BRWA  (Browser action class)
+    BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
@@ -80,7 +80,7 @@ RTCLASS(BRCNL)
 RTCLASS(BrowserDisplay)
 RTCLASS(BrowserList)
 RTCLASS(BrowserText)
-RTCLASS(BRWA)
+RTCLASS(BrowserAction)
 RTCLASS(BRWP)
 RTCLASS(BRWB)
 RTCLASS(BRWC)
@@ -2524,18 +2524,18 @@ bool BrowserText::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWA BRWA::PbrwaNew(PResourceCache prca)
+PBrowserAction BrowserAction::PbrwaNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
-    PBRWA pbrwa;
+    PBrowserAction pbrwa;
     PKidspaceGraphicObject pgok;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidActionGlass))
         return pvNil;
 
-    if ((pbrwa = NewObj BRWA(&gcb)) == pvNil)
+    if ((pbrwa = NewObj BrowserAction(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2565,7 +2565,7 @@ PBRWA BRWA::PbrwaNew(PResourceCache prca)
  * Build the ape
  *
  ****************************************************/
-bool BRWA::FBuildApe(PActor pactr)
+bool BrowserAction::FBuildApe(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2590,14 +2590,14 @@ bool BRWA::FBuildApe(PActor pactr)
 /***************************************************************************
  *
  * Build the string table for actions prior to action initialization
- * Transfer the string table to BRWA
+ * Transfer the string table to BrowserAction
  *
  * NOTE:  The string table is built from the template as the code already
  * has action names cached on the hard drive for selected actors. The
  * string table is built for fast scrolling.
  *
  **************************************************************************/
-bool BRWA::FBuildGst(PScene pscen)
+bool BrowserAction::FBuildGst(PScene pscen)
 {
     AssertThis(0);
 
@@ -2645,7 +2645,7 @@ LFail:
  * Process Browser Action Selection
  *
  ****************************************************/
-void BRWA::_ProcessSelection(void)
+void BrowserAction::_ProcessSelection(void)
 {
     AssertThis(0);
     _pape->FSetAction(_ithumSelect);
@@ -2663,7 +2663,7 @@ void BRWA::_ProcessSelection(void)
  * Make button(s) invisible on single cel actions
  *
  ****************************************************/
-bool BRWA::FCmdChangeCel(PCommand pcmd)
+bool BrowserAction::FCmdChangeCel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3529,15 +3529,15 @@ void BrowserText::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRWA
+    Mark memory used by the BrowserAction
 
  ****************************************************/
-void BRWA::MarkMem(void)
+void BrowserAction::MarkMem(void)
 {
     AssertThis(0);
 
     MarkMemObj(_pape);
-    BRWA_PAR::MarkMem();
+    BrowserAction_PAR::MarkMem();
 }
 
 /****************************************************
@@ -3655,12 +3655,12 @@ void BrowserText::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRWA
+    Assert the validity of the BrowserAction
 
  ****************************************************/
-void BRWA::AssertValid(ulong grfobj)
+void BrowserAction::AssertValid(ulong grfobj)
 {
-    BRWA_PAR::AssertValid(fobjAllocated);
+    BrowserAction_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pape, 0);
 }
 #endif // DEBUG
