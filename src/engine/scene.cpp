@@ -2541,6 +2541,56 @@ bool Scene::FSelectAllActrs(void)
 
 /****************************************************
  *
+ * Mean of currently-visible selected actors' world positions.
+ * Group rotate / scale tools freeze this at mousedown as the
+ * pivot. Skips actors that aren't FIsInView() at the current
+ * frame so a stale offstage position can't drag the pivot
+ * away from what the user sees.
+ *
+ * Returns fFalse (and leaves outputs untouched) if no selected
+ * actor is currently visible.
+ *
+ ****************************************************/
+bool Scene::FXyzSelectionCentroid(BRS *pxr, BRS *pyr, BRS *pzr)
+{
+    AssertThis(0);
+    AssertVarMem(pxr);
+    AssertVarMem(pyr);
+    AssertVarMem(pzr);
+
+    long cactrSel = CactrSelected();
+    long cactrLive = 0;
+    BRS xrSum = rZero, yrSum = rZero, zrSum = rZero;
+
+    for (long iactr = 0; iactr < cactrSel; iactr++)
+    {
+        PActor pactr = PactrSelectedAt(iactr);
+        if (pactr == pvNil || pactr->Pbody() == pvNil || !pactr->FIsInView())
+        {
+            continue;
+        }
+        BRS xr, yr, zr;
+        pactr->Pbody()->GetPosition(&xr, &yr, &zr);
+        xrSum = BrsAdd(xrSum, xr);
+        yrSum = BrsAdd(yrSum, yr);
+        zrSum = BrsAdd(zrSum, zr);
+        cactrLive++;
+    }
+
+    if (cactrLive == 0)
+    {
+        return fFalse;
+    }
+
+    BRS rCount = BrIntToScalar(cactrLive);
+    *pxr = BrsDiv(xrSum, rCount);
+    *pyr = BrsDiv(yrSum, rCount);
+    *pzr = BrsDiv(zrSum, rCount);
+    return fTrue;
+}
+
+/****************************************************
+ *
  * Returns the total number of selected actors:
  * 0 if primary is pvNil, else 1 + extras count.
  *

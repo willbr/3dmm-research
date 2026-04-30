@@ -5867,6 +5867,9 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
     pmvu->_fSelToggleArmed = fFalse;
     pmvu->_pactrSelToggle = pvNil;
     pmvu->_paundGroup = pvNil;
+    pmvu->_xrPivot = rZero;
+    pmvu->_yrPivot = rZero;
+    pmvu->_zrPivot = rZero;
 
     //
     // Make this the active view
@@ -7110,12 +7113,28 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         {
             vpappb->HideCurs();
 
-            // For toolCompose with multi-selection: snapshot every selected actor
-            // and bundle into an ActorMoveGroupUndo. Other tools and single-select
-            // compose retain the original single-actor _paund flow.
-            long cactrSel = (Tool() == toolCompose && Pmvie()->Pscen() != pvNil)
+            // For multi-selection drags (move / rotate / resize / squash):
+            // snapshot every selected actor and bundle into an
+            // ActorMoveGroupUndo. Single-select retains the _paund flow.
+            // Group rotate / scale also freeze a pivot here.
+            bool fGroupTool = (Tool() == toolCompose) || (Tool() == toolRotateX) ||
+                              (Tool() == toolRotateY) || (Tool() == toolRotateZ) ||
+                              (Tool() == toolResize) || (Tool() == toolSquashStretch);
+            long cactrSel = (fGroupTool && Pmvie()->Pscen() != pvNil)
                                 ? Pmvie()->Pscen()->CactrSelected()
                                 : 1;
+
+            if (cactrSel >= 2 && Tool() != toolCompose)
+            {
+                // Freeze the rotate / scale pivot at the selection centroid.
+                // If no selected actor is currently visible, fall back to the
+                // single-actor flow rather than rotate/scale around an
+                // arbitrary point.
+                if (!Pmvie()->Pscen()->FXyzSelectionCentroid(&_xrPivot, &_yrPivot, &_zrPivot))
+                {
+                    cactrSel = 1;
+                }
+            }
 
             if (cactrSel >= 2)
             {
@@ -7671,7 +7690,63 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             break;
         }
 
-        if (pmvie->FRotateActr(xa, ya, za, FPure(_grfcust & fcustCmd)))
+        // Use _paundGroup as the gate (not a fresh CactrSelected read) so a
+        // mousedown that fell back to single-actor undo (e.g. centroid failed)
+        // doesn't run the multi-actor drag path with a single-actor snapshot.
+        long cactrSel = (_paundGroup != pvNil && Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+
+        if (cactrSel >= 2)
+        {
+            // Multi-actor: orbit each actor's world position around the frozen
+            // pivot AND apply the same per-tick rotation to its body. Only one
+            // of xa/ya/za is non-zero per tick (set by the switch above), so
+            // the world rotation matrix collapses to a single primitive.
+            BMAT34 bmat;
+            BrMatrix34Identity(&bmat);
+            if (xa != aZero)
+                BrMatrix34PostRotateX(&bmat, xa);
+            else if (ya != aZero)
+                BrMatrix34PostRotateY(&bmat, ya);
+            else if (za != aZero)
+                BrMatrix34PostRotateZ(&bmat, za);
+
+            bool fFwd = FPure(_grfcust & fcustCmd);
+            bool fAnyMoved = fFalse;
+            for (long iactr = 0; iactr < cactrSel; iactr++)
+            {
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil || pa->Pbody() == pvNil)
+                {
+                    continue;
+                }
+                BRS xr, yr, zr;
+                pa->Pbody()->GetPosition(&xr, &yr, &zr);
+                BRS dx = BrsSub(xr, _xrPivot);
+                BRS dy = BrsSub(yr, _yrPivot);
+                BRS dz = BrsSub(zr, _zrPivot);
+                // d' = (dx,dy,dz) * R: row-vector * BMAT34 (m[i][j] = row i, col j)
+                BRS rx = BrsAdd(BrsAdd(BrsMul(dx, bmat.m[0][0]), BrsMul(dy, bmat.m[1][0])), BrsMul(dz, bmat.m[2][0]));
+                BRS ry = BrsAdd(BrsAdd(BrsMul(dx, bmat.m[0][1]), BrsMul(dy, bmat.m[1][1])), BrsMul(dz, bmat.m[2][1]));
+                BRS rz = BrsAdd(BrsAdd(BrsMul(dx, bmat.m[0][2]), BrsMul(dy, bmat.m[1][2])), BrsMul(dz, bmat.m[2][2]));
+                BRS dxr = BrsSub(rx, dx);
+                BRS dyr = BrsSub(ry, dy);
+                BRS dzr = BrsSub(rz, dz);
+                bool fMovedThis = fFalse;
+                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                if (pa->FRotate(xa, ya, za, fFwd))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+                Pmvie()->SetDirty();
+                Pmvie()->InvalViews();
+            }
+        }
+        else if (pmvie->FRotateActr(xa, ya, za, FPure(_grfcust & fcustCmd)))
         {
             if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
             {
@@ -7705,7 +7780,40 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (dxrMouse + dyrMouse > 0) ? 0 : fcustShift);
         }
 
-        if (pmvie->FScaleActr(brs2))
+        long cactrSel = (_paundGroup != pvNil && Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+
+        if (cactrSel >= 2)
+        {
+            BRS sm1 = BrsSub(brs2, rOne); // (s - 1)
+            bool fAnyMoved = fFalse;
+            for (long iactr = 0; iactr < cactrSel; iactr++)
+            {
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil || pa->Pbody() == pvNil)
+                {
+                    continue;
+                }
+                BRS xr, yr, zr;
+                pa->Pbody()->GetPosition(&xr, &yr, &zr);
+                BRS dxr = BrsMul(sm1, BrsSub(xr, _xrPivot));
+                BRS dyr = BrsMul(sm1, BrsSub(yr, _yrPivot));
+                BRS dzr = BrsMul(sm1, BrsSub(zr, _zrPivot));
+                bool fMovedThis = fFalse;
+                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                if (pa->FScale(brs2))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+                Pmvie()->SetDirty();
+                Pmvie()->InvalViewsAndScb();
+            }
+        }
+        else if (pmvie->FScaleActr(brs2))
         {
             if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
             {
@@ -7740,7 +7848,47 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (-dxrMouse - dyrMouse < 0) ? 0 : fcustShift);
         }
 
-        if (pmvie->FSquashStretchActr(brs2))
+        long cactrSel = (_paundGroup != pvNil && Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+
+        if (cactrSel >= 2)
+        {
+            // Mirror Movie::FSquashStretchActr's per-axis factors:
+            // sx = brs2, sy = 1/brs2, sz = brs2.
+            BRS sx = brs2;
+            BRS sy = BrsDiv(rOne, brs2);
+            BRS sz = brs2;
+            BRS sxm1 = BrsSub(sx, rOne);
+            BRS sym1 = BrsSub(sy, rOne);
+            BRS szm1 = BrsSub(sz, rOne);
+            bool fAnyMoved = fFalse;
+            for (long iactr = 0; iactr < cactrSel; iactr++)
+            {
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil || pa->Pbody() == pvNil)
+                {
+                    continue;
+                }
+                BRS xr, yr, zr;
+                pa->Pbody()->GetPosition(&xr, &yr, &zr);
+                BRS dxr = BrsMul(sxm1, BrsSub(xr, _xrPivot));
+                BRS dyr = BrsMul(sym1, BrsSub(yr, _yrPivot));
+                BRS dzr = BrsMul(szm1, BrsSub(zr, _zrPivot));
+                bool fMovedThis = fFalse;
+                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                if (pa->FPull(sx, sy, sz))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+                Pmvie()->SetDirty();
+                Pmvie()->InvalViews();
+            }
+        }
+        else if (pmvie->FSquashStretchActr(brs2))
         {
             if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
             {

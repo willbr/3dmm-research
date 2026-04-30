@@ -298,6 +298,8 @@ class Scene : public Scene_PAR
     bool FToggleActrSelected(PActor pactr); // shift-click entry: add if absent, remove if present. fFalse on alloc failure.
     void ClearSelection(void);          // empty primary AND extras; drop all hilites
     bool FSelectAllActrs(void); // select every actor in the current scene; fFalse on alloc failure mid-add
+    // Mean of currently-visible selected actors' world positions. fFalse if zero qualify.
+    bool FXyzSelectionCentroid(BRS *pxr, BRS *pyr, BRS *pzr);
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {

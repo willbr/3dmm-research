@@ -180,6 +180,10 @@ class MovieView : public MovieView_PAR
     long _xpSelToggleDown;  // Mousedown x for drag-tolerance check.
     long _ypSelToggleDown;  // Mousedown y for drag-tolerance check.
 
+    // Group-rotate / -scale pivot, frozen at mousedown when cactrSel >= 2 and the
+    // tool is rotate / resize / squash. Centroid of the visible selected actors.
+    BRS _xrPivot, _yrPivot, _zrPivot;
+
     AbstractColor _acr;         // Color for painting text.
     long _onn;        // Font for text
     long _dypFont;    // Font size for text
