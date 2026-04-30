@@ -30,10 +30,10 @@ enum
     fmidoFastFwd = 0x2,
 };
 
-typedef class MIDO *PMIDO;
-#define MIDO_PAR BASE
-#define kclsMIDO 'MIDO'
-class MIDO : public MIDO_PAR
+typedef class MidiOut *PMidiOut;
+#define MidiOut_PAR BASE
+#define kclsMidiOut 'MIDO'
+class MidiOut : public MidiOut_PAR
 {
     RTCLASS_DEC
 
@@ -62,8 +62,8 @@ class MIDO : public MIDO_PAR
     void _Reset(void);
 
   public:
-    MIDO(void);
-    ~MIDO(void);
+    MidiOut(void);
+    ~MidiOut(void);
 
     void Suspend(bool fSuspend);
     void SetVlm(long vlm);
@@ -74,14 +74,14 @@ class MIDO : public MIDO_PAR
     void Close(long sii);
 };
 
-static MIDO _mido;
+static MidiOut _mido;
 
-RTCLASS(MIDO)
+RTCLASS(MidiOut)
 
 /***************************************************************************
     Constructor for the low level midi output device.
 ***************************************************************************/
-MIDO::MIDO(void)
+MidiOut::MidiOut(void)
 {
     _hmo = hNil;
     _sii = siiNil;
@@ -95,7 +95,7 @@ MIDO::MIDO(void)
 /***************************************************************************
     Destructor for the low level midi output device.
 ***************************************************************************/
-MIDO::~MIDO(void)
+MidiOut::~MidiOut(void)
 {
     AssertThis(0);
 
@@ -107,7 +107,7 @@ MIDO::~MIDO(void)
 /***************************************************************************
     Get the system volume level.
 ***************************************************************************/
-void MIDO::_GetSysVol(void)
+void MidiOut::_GetSysVol(void)
 {
     Assert(hNil != _hmo, "calling _VlmGetSys with nil _hmo");
 
@@ -121,7 +121,7 @@ void MIDO::_GetSysVol(void)
 /***************************************************************************
     Set the system volume level.
 ***************************************************************************/
-void MIDO::_SetSysVol(ulong luVol)
+void MidiOut::_SetSysVol(ulong luVol)
 {
     Assert(hNil != _hmo, "calling _SetSysVol with nil _hmo");
     midiOutSetVolume(_hmo, luVol);
@@ -132,7 +132,7 @@ void MIDO::_SetSysVol(ulong luVol)
     and _luVolSys. We set the system volume to the result of scaling
     _luVolSys by _vlm and _vlmBase.
 ***************************************************************************/
-void MIDO::_SetSysVlm(void)
+void MidiOut::_SetSysVlm(void)
 {
     ulong luVol;
 
@@ -144,7 +144,7 @@ void MIDO::_SetSysVlm(void)
 /***************************************************************************
     Reset the midi device. Assumes that the mutx is already ours.
 ***************************************************************************/
-void MIDO::_Reset(void)
+void MidiOut::_Reset(void)
 {
     AssertThis(0);
 
@@ -172,7 +172,7 @@ void MIDO::_Reset(void)
 /***************************************************************************
     Release or grab the midi output device depending on fSuspend.
 ***************************************************************************/
-void MIDO::Suspend(bool fSuspend)
+void MidiOut::Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -210,7 +210,7 @@ void MIDO::Suspend(bool fSuspend)
 /***************************************************************************
     Set the master volume for the device.
 ***************************************************************************/
-void MIDO::SetVlm(long vlm)
+void MidiOut::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -224,7 +224,7 @@ void MIDO::SetVlm(long vlm)
 /***************************************************************************
     Return the current master volume.
 ***************************************************************************/
-long MIDO::VlmCur(void)
+long MidiOut::VlmCur(void)
 {
     AssertThis(0);
 
@@ -235,7 +235,7 @@ long MIDO::VlmCur(void)
     Play the given midi event. Returns false iff the midi stream should be
     started over from the beginning in fast forward mode.
 ***************************************************************************/
-bool MIDO::FPlay(long sii, long spr, MIDEV *pmidev, long vlm, ulong grfmido)
+bool MidiOut::FPlay(long sii, long spr, MIDEV *pmidev, long vlm, ulong grfmido)
 {
     AssertThis(0);
     AssertVarMem(pmidev);
@@ -314,7 +314,7 @@ LDone:
 /***************************************************************************
     siiOld is being replaced by siiNew.
 ***************************************************************************/
-void MIDO::Transition(long siiOld, long siiNew, long sprNew)
+void MidiOut::Transition(long siiOld, long siiNew, long sprNew)
 {
     AssertThis(0);
 
@@ -331,7 +331,7 @@ void MIDO::Transition(long siiOld, long siiNew, long sprNew)
 /***************************************************************************
     sii is going away.
 ***************************************************************************/
-void MIDO::Close(long sii)
+void MidiOut::Close(long sii)
 {
     AssertThis(0);
 
@@ -348,10 +348,10 @@ void MIDO::Close(long sii)
 /***************************************************************************
     Midi player queue.
 ***************************************************************************/
-typedef class MPQUE *PMPQUE;
-#define MPQUE_PAR SoundQueue
-#define kclsMPQUE 'mpqu'
-class MPQUE : public MPQUE_PAR
+typedef class MidiPlayerQueue *PMidiPlayerQueue;
+#define MidiPlayerQueue_PAR SoundQueue
+#define kclsMidiPlayerQueue 'mpqu'
+class MidiPlayerQueue : public MidiPlayerQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -375,7 +375,7 @@ class MPQUE : public MPQUE_PAR
     bool _fMidevValid : 1; // is _midev valid?
     bool _fDone : 1;       // should the thread terminate?
 
-    MPQUE(void);
+    MidiPlayerQueue(void);
 
     virtual void _Enter(void);
     virtual void _Leave(void);
@@ -395,23 +395,23 @@ class MPQUE : public MPQUE_PAR
     void _PlayEvt(void);
 
   public:
-    static PMPQUE PmpqueNew(void);
-    ~MPQUE(void);
+    static PMidiPlayerQueue PmpqueNew(void);
+    ~MidiPlayerQueue(void);
 };
 
-RTCLASS(MPQUE)
+RTCLASS(MidiPlayerQueue)
 
 /***************************************************************************
     MT: Constructor for a midi player queue.
 ***************************************************************************/
-MPQUE::MPQUE(void)
+MidiPlayerQueue::MidiPlayerQueue(void)
 {
 }
 
 /***************************************************************************
     MP: Destructor for a midi player queue.
 ***************************************************************************/
-MPQUE::~MPQUE(void)
+MidiPlayerQueue::~MidiPlayerQueue(void)
 {
     AssertThis(0);
 
@@ -436,25 +436,25 @@ MPQUE::~MPQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MPQUE.
+    Assert the validity of a MidiPlayerQueue.
 ***************************************************************************/
-void MPQUE::AssertValid(ulong grf)
+void MidiPlayerQueue::AssertValid(ulong grf)
 {
     _mutx.Enter();
 
-    MPQUE_PAR::AssertValid(0);
+    MidiPlayerQueue_PAR::AssertValid(0);
     AssertPo(&_mstp, 0);
 
     _mutx.Leave();
 }
 
 /***************************************************************************
-    Mark memory for the MPQUE.
+    Mark memory for the MidiPlayerQueue.
 ***************************************************************************/
-void MPQUE::MarkMem(void)
+void MidiPlayerQueue::MarkMem(void)
 {
     AssertValid(0);
-    MPQUE_PAR::MarkMem();
+    MidiPlayerQueue_PAR::MarkMem();
 
     _mutx.Enter();
     MarkMemObj(&_mstp);
@@ -465,11 +465,11 @@ void MPQUE::MarkMem(void)
 /***************************************************************************
     MT: Static method to create a new midi player queue.
 ***************************************************************************/
-PMPQUE MPQUE::PmpqueNew(void)
+PMidiPlayerQueue MidiPlayerQueue::PmpqueNew(void)
 {
-    PMPQUE pmpque;
+    PMidiPlayerQueue pmpque;
 
-    if (pvNil == (pmpque = NewObj MPQUE))
+    if (pvNil == (pmpque = NewObj MidiPlayerQueue))
         return pvNil;
 
     if (!pmpque->_FInit())
@@ -482,12 +482,12 @@ PMPQUE MPQUE::PmpqueNew(void)
 /***************************************************************************
     MT: Initialize the midi queue.
 ***************************************************************************/
-bool MPQUE::_FInit(void)
+bool MidiPlayerQueue::_FInit(void)
 {
     AssertBaseThis(0);
     ulong luThread;
 
-    if (!MPQUE_PAR::_FInit())
+    if (!MidiPlayerQueue_PAR::_FInit())
         return fFalse;
 
     // create an auto-reset event to signal that the midi stream at
@@ -497,7 +497,7 @@ bool MPQUE::_FInit(void)
         return fFalse;
 
     // create the thread in a suspended state
-    _hth = CreateThread(pvNil, 1024, MPQUE::_ThreadProc, this, CREATE_SUSPENDED, &luThread);
+    _hth = CreateThread(pvNil, 1024, MidiPlayerQueue::_ThreadProc, this, CREATE_SUSPENDED, &luThread);
     if (hNil == _hth)
         return fFalse;
     SetThreadPriority(_hth, THREAD_PRIORITY_TIME_CRITICAL);
@@ -515,7 +515,7 @@ bool MPQUE::_FInit(void)
 /***************************************************************************
     Enter the critical section protecting member variables.
 ***************************************************************************/
-void MPQUE::_Enter(void)
+void MidiPlayerQueue::_Enter(void)
 {
     _mutx.Enter();
 }
@@ -523,7 +523,7 @@ void MPQUE::_Enter(void)
 /***************************************************************************
     Leave the critical section protecting member variables.
 ***************************************************************************/
-void MPQUE::_Leave(void)
+void MidiPlayerQueue::_Leave(void)
 {
     _mutx.Leave();
 }
@@ -531,7 +531,7 @@ void MPQUE::_Leave(void)
 /***************************************************************************
     MT: Fetch the given sound chunk as a midi stream.
 ***************************************************************************/
-PBaseCacheableObject MPQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
+PBaseCacheableObject MidiPlayerQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -542,7 +542,7 @@ PBaseCacheableObject MPQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg,
 /***************************************************************************
     The element at the head of the queue changed, notify the thread.
 ***************************************************************************/
-void MPQUE::_Queue(long isndinMin)
+void MidiPlayerQueue::_Queue(long isndinMin)
 {
     AssertThis(0);
 
@@ -561,7 +561,7 @@ void MPQUE::_Queue(long isndinMin)
 /***************************************************************************
     Pause the sound at the head of the queue.
 ***************************************************************************/
-void MPQUE::_PauseQueue(long isndinMin)
+void MidiPlayerQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -583,7 +583,7 @@ void MPQUE::_PauseQueue(long isndinMin)
 /***************************************************************************
     Resume the sound at the head of the queue.
 ***************************************************************************/
-void MPQUE::_ResumeQueue(long isndinMin)
+void MidiPlayerQueue::_ResumeQueue(long isndinMin)
 {
     AssertThis(0);
 
@@ -593,9 +593,9 @@ void MPQUE::_ResumeQueue(long isndinMin)
 /***************************************************************************
     AT: Static method. Thread function for the midi thread object.
 ***************************************************************************/
-ulong __stdcall MPQUE::_ThreadProc(void *pv)
+ulong __stdcall MidiPlayerQueue::_ThreadProc(void *pv)
 {
-    PMPQUE pmpque = (PMPQUE)pv;
+    PMidiPlayerQueue pmpque = (PMidiPlayerQueue)pv;
 
     AssertPo(pmpque, 0);
 
@@ -605,7 +605,7 @@ ulong __stdcall MPQUE::_ThreadProc(void *pv)
 /***************************************************************************
     AT: The midi playback thread.
 ***************************************************************************/
-ulong MPQUE::_LuThread(void)
+ulong MidiPlayerQueue::_LuThread(void)
 {
     AssertThis(0);
     bool fRestart;
@@ -637,7 +637,7 @@ ulong MPQUE::_LuThread(void)
     Called when it's time to send the next midi event or when the queue
     has changed. Assumes the mutx is already checked out.
 ***************************************************************************/
-void MPQUE::_DoEvent(bool fRestart, long *pdtsWait)
+void MidiPlayerQueue::_DoEvent(bool fRestart, long *pdtsWait)
 {
     if (fRestart && !_FStartQueue())
         *pdtsWait = klwInfinite;
@@ -670,7 +670,7 @@ void MPQUE::_DoEvent(bool fRestart, long *pdtsWait)
     AT: Start playing the sound at the head of the queue. Return non-zero
     iff the queue wasn't empty. Note that the sound is left in the queue.
 ***************************************************************************/
-bool MPQUE::_FStartQueue(void)
+bool MidiPlayerQueue::_FStartQueue(void)
 {
     SNDIN sndin;
 
@@ -723,7 +723,7 @@ bool MPQUE::_FStartQueue(void)
 /***************************************************************************
     AT: Get the next event. Assumes we already have the mutex.
 ***************************************************************************/
-bool MPQUE::_FGetEvt(void)
+bool MidiPlayerQueue::_FGetEvt(void)
 {
     AssertThis(0);
     ulong ts;
@@ -772,7 +772,7 @@ bool MPQUE::_FGetEvt(void)
 /***************************************************************************
     AT: Play the current event. Assumes we have the member mutex (_mutx).
 ***************************************************************************/
-void MPQUE::_PlayEvt(void)
+void MidiPlayerQueue::_PlayEvt(void)
 {
     AssertThis(0);
     Assert(_fMidevValid, 0);
@@ -831,7 +831,7 @@ PSoundQueue MidiPlayer::_PsnqueNew(void)
 {
     AssertThis(0);
 
-    return MPQUE::PmpqueNew();
+    return MidiPlayerQueue::PmpqueNew();
 }
 
 /***************************************************************************
