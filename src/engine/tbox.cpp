@@ -17,7 +17,7 @@ ASSERTNAME
 
 RTCLASS(TextBox)
 RTCLASS(TBXG)
-RTCLASS(TBXB)
+RTCLASS(TextBoxBase)
 RTCLASS(TextBoxClipboard)
 
 //
@@ -230,7 +230,7 @@ RTCLASS(TUNC)
 
 //
 //
-// BEGIN TBXB and TBXG
+// BEGIN TextBoxBase and TBXG
 //
 //
 /****************************************************
@@ -245,12 +245,12 @@ RTCLASS(TUNC)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
+PTextBoxBase TextBoxBase::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
 {
     AssertPo(ptbox, 0);
     AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
-    PTBXB ptbxb;
+    PTextBoxBase ptbxb;
     PTBXG ptbxg;
     RC rcRel, rcAbs;
     AbstractColor acr;
@@ -258,7 +258,7 @@ PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
     //
     // Create the border
     //
-    ptbxb = NewObj TBXB(ptbox, pgcb);
+    ptbxb = NewObj TextBoxBase(ptbox, pgcb);
     if (ptbxb == pvNil)
     {
         return (pvNil);
@@ -293,7 +293,7 @@ PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
  *  None.
  *
  ****************************************************/
-void TBXB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void TextBoxBase::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -432,7 +432,7 @@ void TBXB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TextBoxBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -671,7 +671,7 @@ bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXB::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool TextBoxBase::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -733,7 +733,7 @@ bool TBXB::FCmdMouseMove(PCMD_MOUSE pcmd)
  *  Anchor point number.
  *
  **************************************************************************/
-TBXT TBXB::_TbxtAnchor(long xp, long yp)
+TBXT TextBoxBase::_TbxtAnchor(long xp, long yp)
 {
     AssertThis(0);
 
@@ -826,7 +826,7 @@ TBXT TBXB::_TbxtAnchor(long xp, long yp)
  *  None.
  *
  **************************************************************************/
-void TBXB::Activate(bool fActive)
+void TextBoxBase::Activate(bool fActive)
 {
     PDocumentDisplayGraphicsObject pddg;
 
@@ -852,7 +852,7 @@ void TBXB::Activate(bool fActive)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXB::FPtIn(long xp, long yp)
+bool TextBoxBase::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
@@ -873,7 +873,7 @@ bool TBXB::FPtIn(long xp, long yp)
         return (fFalse);
     }
 
-    return (TBXB_PAR::FPtIn(xp, yp));
+    return (TextBoxBase_PAR::FPtIn(xp, yp));
 }
 
 /****************************************************
@@ -886,7 +886,7 @@ bool TBXB::FPtIn(long xp, long yp)
  *  None.
  *
  ****************************************************/
-void TBXB::AttachToMouse(void)
+void TextBoxBase::AttachToMouse(void)
 {
     AssertThis(0);
 
@@ -914,7 +914,7 @@ void TBXB::AttachToMouse(void)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TBXB
+ * Mark memory used by the TextBoxBase
  *
  * Parameters:
  * 	None.
@@ -923,15 +923,15 @@ void TBXB::AttachToMouse(void)
  *  None.
  *
  ****************************************************/
-void TBXB::MarkMem(void)
+void TextBoxBase::MarkMem(void)
 {
     AssertThis(0);
-    TBXB_PAR::MarkMem();
+    TextBoxBase_PAR::MarkMem();
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TBXB.
+ * Assert the validity of the TextBoxBase.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -940,9 +940,9 @@ void TBXB::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TBXB::AssertValid(ulong grf)
+void TextBoxBase::AssertValid(ulong grf)
 {
-    TBXB_PAR::AssertValid(fobjAllocated);
+    TextBoxBase_PAR::AssertValid(fobjAllocated);
 }
 
 #endif
@@ -2249,7 +2249,7 @@ bool TextBox::FGotoFrame(long nfrm)
 
     GraphicsObjectBlock gcb;
     PTBXG ptbxg;
-    PTBXB ptbxb;
+    PTextBoxBase ptbxb;
 
     if (Cddg() == 0)
     {
@@ -2273,7 +2273,7 @@ bool TextBox::FGotoFrame(long nfrm)
             // Create a GraphicsObject for this text box
             //
             gcb.Set(khidDdg, Pscen()->Pmvie()->PddgActive(), fgobNil, kginMark, &_rc, pvNil);
-            ptbxb = TBXB::PtbxbNew(this, &gcb);
+            ptbxb = TextBoxBase::PtbxbNew(this, &gcb);
             if (ptbxb == pvNil)
             {
                 return (fFalse);
