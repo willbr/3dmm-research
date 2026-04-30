@@ -3358,7 +3358,7 @@ bool Application::FCmdInfo(PCommand pcmd)
 #ifdef DEBUG
     stn.FAppendSz(PszLit(" (Debug)"));
 #endif // DEBUG
-    stnT.FFormatSz(PszLit(" %d.%d.%04d"), rmj, rmm, rup);
+    stnT.FFormatSz(PszLit(" %d.%d.%04d  built " __DATE__ " " __TIME__), rmj, rmm, rup);
     stn.FAppendStn(&stnT);
     pdlg->FPutStn(iditProductNameInfo, &stn);
 
