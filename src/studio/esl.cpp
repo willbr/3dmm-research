@@ -29,7 +29,7 @@ long csampSec;                                  // sampling rate for recorder ea
 RTCLASS(ESL)
 RTCLASS(ESLT)
 RTCLASS(ESLA)
-RTCLASS(SNE)
+RTCLASS(SpletterNameEditor)
 RTCLASS(ESLL)
 RTCLASS(LSND)
 RTCLASS(ESLR)
@@ -313,7 +313,7 @@ bool ESLT::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
         return fFalse;
     EDPAR edpar(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
                 vpappb->DypTextDef(), tahLeft, tavCenter);
-    _psne = SNE::PsneNew(&edpar, this, &stn);
+    _psne = SpletterNameEditor::PsneNew(&edpar, this, &stn);
     if (pvNil == _psne)
         return fFalse;
     _psne->Activate(fTrue);
@@ -542,7 +542,7 @@ bool ESLT::FCmdSetColor(PCommand pcmd)
 }
 
 /***************************************************************************
-    Update the ActorPreviewEntity when the text of the SNE changed
+    Update the ActorPreviewEntity when the text of the SpletterNameEditor changed
 ***************************************************************************/
 bool ESLT::FTextChanged(PString pstnNew)
 {
@@ -703,7 +703,7 @@ void ESLT::MarkMem(void)
 //
 //
 //
-//  SNE (spletter name editor) stuff begins here
+//  SpletterNameEditor (spletter name editor) stuff begins here
 //
 //
 //
@@ -712,15 +712,15 @@ void ESLT::MarkMem(void)
     Create a new spletter name editor with initial string pstnInit.  Text
     change notifications will be sent to peslt.
 ***************************************************************************/
-PSNE SNE::PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit)
+PSpletterNameEditor SpletterNameEditor::PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit)
 {
     AssertVarMem(pedpar);
     AssertBasePo(peslt, 0);
     AssertPo(pstnInit, 0);
 
-    PSNE psne;
+    PSpletterNameEditor psne;
 
-    psne = NewObj SNE(pedpar);
+    psne = NewObj SpletterNameEditor(pedpar);
     if (pvNil == psne)
         return pvNil;
 
@@ -739,7 +739,7 @@ PSNE SNE::PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit)
     Trap the default FReplace to prevent illegal strings and to notify the
     ESLT that the text has changed.
 ***************************************************************************/
-bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
+bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(0);
 
@@ -750,7 +750,7 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 
     // Note that gin is forced to ginNil here so there's no flicker if
     // the resulting text is illegal
-    if (!SNE_PAR::FReplace(prgch, cchIns, ich1, ich2, ginNil))
+    if (!SpletterNameEditor_PAR::FReplace(prgch, cchIns, ich1, ich2, ginNil))
         return fFalse;
 
     // Look for illegal strings:
@@ -781,7 +781,7 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
                     break;
                 cch++;
             }
-            SNE_PAR::FReplace(rgch, cch, 0, IchMac(), fFalse);
+            SpletterNameEditor_PAR::FReplace(rgch, cch, 0, IchMac(), fFalse);
             GetStn(&stnNew);
         }
     }
@@ -799,21 +799,21 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the SNE.
+    Assert the validity of the SpletterNameEditor.
 ***************************************************************************/
-void SNE::AssertValid(ulong grf)
+void SpletterNameEditor::AssertValid(ulong grf)
 {
-    SNE_PAR::AssertValid(fobjAllocated);
+    SpletterNameEditor_PAR::AssertValid(fobjAllocated);
     AssertBasePo(_peslt, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the SNE
+    Mark memory used by the SpletterNameEditor
 ***************************************************************************/
-void SNE::MarkMem(void)
+void SpletterNameEditor::MarkMem(void)
 {
     AssertThis(0);
-    SNE_PAR::MarkMem();
+    SpletterNameEditor_PAR::MarkMem();
 }
 #endif // DEBUG
 

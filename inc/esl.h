@@ -58,16 +58,16 @@ class ESL : public ESL_PAR
     bool FCmdDismiss(PCommand pcmd); // Handles both OK and Cancel
 };
 
-typedef class ESLT *PESLT; // SNE needs this
+typedef class ESLT *PESLT; // SpletterNameEditor needs this
 /****************************************
     Spletter Name Editor class.  It's
     derived from EDSL, which is a Kauai
     single-line edit control
 ****************************************/
-typedef class SNE *PSNE;
-#define SNE_PAR EDSL
-#define kclsSNE 'SNE'
-class SNE : public SNE_PAR
+typedef class SpletterNameEditor *PSpletterNameEditor;
+#define SpletterNameEditor_PAR EDSL
+#define kclsSpletterNameEditor 'SNE'
+class SpletterNameEditor : public SpletterNameEditor_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -77,12 +77,12 @@ class SNE : public SNE_PAR
     PESLT _peslt; // easel to notify when text changes
 
   protected:
-    SNE(PEDPAR pedpar) : EDSL(pedpar)
+    SpletterNameEditor(PEDPAR pedpar) : EDSL(pedpar)
     {
     }
 
   public:
-    static PSNE PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit);
+    static PSpletterNameEditor PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin);
 };
 
@@ -103,7 +103,7 @@ class ESLT : public ESLT_PAR
     PMovie _pmvie; // Movie that this TDT is in
     PActor _pactr; // Actor of this TDT, or pvNil for new TDT
     PActorPreviewEntity _pape;   // Actor Preview Entity
-    PSNE _psne;   // Spletter Name Editor
+    PSpletterNameEditor _psne;   // Spletter Name Editor
     PResourceCache _prca;   // Resource source for cursors
     PShuffler _psflMtrl;
     PBrowserContentList _pbclMtrl;
