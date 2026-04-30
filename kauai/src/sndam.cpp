@@ -34,7 +34,7 @@ static ulong _luFormat;    // format mixer is in
 static ulong _luCacheTime; // buffer size for mixer
 
 RTCLASS(SDAM)
-RTCLASS(CAMS)
+RTCLASS(CachedAudioManSound)
 RTCLASS(AMQUE)
 
 /***************************************************************************
@@ -244,7 +244,7 @@ void DataBlockStream::MarkMem(void)
 /***************************************************************************
     Constructor for a cached AudioMan sound.
 ***************************************************************************/
-CAMS::CAMS(void)
+CachedAudioManSound::CachedAudioManSound(void)
 {
     AssertBaseThis(fobjAllocated);
 }
@@ -252,7 +252,7 @@ CAMS::CAMS(void)
 /***************************************************************************
     Destructor for a cached AudioMan sound.
 ***************************************************************************/
-CAMS::~CAMS(void)
+CachedAudioManSound::~CachedAudioManSound(void)
 {
     AssertBaseThis(fobjAllocated);
     ReleasePpo(&psnd);
@@ -262,7 +262,7 @@ CAMS::~CAMS(void)
 /***************************************************************************
     Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
@@ -270,10 +270,10 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     AssertVarMem(pcb);
     FileLocation flo;
     bool fPacked;
-    PCAMS pcams = pvNil;
+    PCachedAudioManSound pcams = pvNil;
     PDataBlockStream pstbl = pvNil;
 
-    *pcb = size(CAMS) + size(DataBlockStream);
+    *pcb = size(CachedAudioManSound) + size(DataBlockStream);
     if (pvNil == ppbaco)
         return fTrue;
 
@@ -285,8 +285,8 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     if (pvNil == (pstbl = DataBlockStream::PstblNew(&flo, fPacked)))
         return fFalse;
 
-    *pcb = size(CAMS) + pstbl->CbMem();
-    if (pvNil == (pcams = NewObj CAMS) || FAILED(AllocSoundFromStream(&pcams->psnd, pstbl, fTrue, pvNil)))
+    *pcb = size(CachedAudioManSound) + pstbl->CbMem();
+    if (pvNil == (pcams = NewObj CachedAudioManSound) || FAILED(AllocSoundFromStream(&pcams->psnd, pstbl, fTrue, pvNil)))
     {
         ReleasePpo(&pcams);
     }
@@ -305,13 +305,13 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
 /***************************************************************************
     Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-PCAMS CAMS::PcamsNewLoop(PCAMS pcamsSrc, long cactPlay)
+PCachedAudioManSound CachedAudioManSound::PcamsNewLoop(PCachedAudioManSound pcamsSrc, long cactPlay)
 {
     AssertPo(pcamsSrc, 0);
     Assert(cactPlay != 1, "bad loop count");
-    PCAMS pcams = pvNil;
+    PCachedAudioManSound pcams = pvNil;
 
-    if (pvNil == (pcams = NewObj CAMS) || FAILED(AllocLoopFilter(&pcams->psnd, pcamsSrc->psnd, cactPlay - 1)))
+    if (pvNil == (pcams = NewObj CachedAudioManSound) || FAILED(AllocLoopFilter(&pcams->psnd, pcamsSrc->psnd, cactPlay - 1)))
     {
         ReleasePpo(&pcams);
     }
@@ -328,22 +328,22 @@ PCAMS CAMS::PcamsNewLoop(PCAMS pcamsSrc, long cactPlay)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CAMS.
+    Assert the validity of a CachedAudioManSound.
 ***************************************************************************/
-void CAMS::AssertValid(ulong grf)
+void CachedAudioManSound::AssertValid(ulong grf)
 {
-    CAMS_PAR::AssertValid(0);
+    CachedAudioManSound_PAR::AssertValid(0);
     AssertPo(_pstbl, 0);
     Assert(psnd != pvNil, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CAMS.
+    Mark memory for the CachedAudioManSound.
 ***************************************************************************/
-void CAMS::MarkMem(void)
+void CachedAudioManSound::MarkMem(void)
 {
     AssertValid(0);
-    CAMS_PAR::MarkMem();
+    CachedAudioManSound_PAR::MarkMem();
     if (pvNil != _pstbl)
         _pstbl->MarkMem();
 }
@@ -521,14 +521,14 @@ void AMQUE::_Leave(void)
 }
 
 /***************************************************************************
-    Fetch the given sound chunk as a CAMS.
+    Fetch the given sound chunk as a CachedAudioManSound.
 ***************************************************************************/
 PBaseCacheableObject AMQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return prca->PbacoFetch(ctg, cno, &CAMS::FReadCams);
+    return prca->PbacoFetch(ctg, cno, &CachedAudioManSound::FReadCams);
 }
 
 /***************************************************************************
@@ -544,7 +544,7 @@ void AMQUE::_Queue(long isndinMin)
 
     if (pvNil != _pglsndin)
     {
-        PCAMS pcams;
+        PCachedAudioManSound pcams;
 
         for (isndin = isndinMin; isndin < _pglsndin->IvMac(); isndin++)
         {
@@ -554,7 +554,7 @@ void AMQUE::_Queue(long isndinMin)
                 continue;
 
             // put a loop filter around it to get seamless sample based looping
-            if (pvNil != (pcams = CAMS::PcamsNewLoop((PCAMS)sndin.pbaco, sndin.cactPlay)))
+            if (pvNil != (pcams = CachedAudioManSound::PcamsNewLoop((PCachedAudioManSound)sndin.pbaco, sndin.cactPlay)))
             {
                 sndin.cactPlay = 1; // now it's just one sound
                 ReleasePpo(&sndin.pbaco);
@@ -582,10 +582,10 @@ void AMQUE::_Queue(long isndinMin)
             _pchan->SetVolume(LuVolScale((ulong)(-1), sndin.vlm));
 
             // if the sound is in memory
-            if (((PCAMS)sndin.pbaco)->FInMemory())
+            if (((PCachedAudioManSound)sndin.pbaco)->FInMemory())
             {
                 // set the sound source, with no cache (Since it's in memory)
-                _pchan->SetSoundSrc(((PCAMS)sndin.pbaco)->psnd);
+                _pchan->SetSoundSrc(((PCachedAudioManSound)sndin.pbaco)->psnd);
             }
             else
             {
@@ -597,7 +597,7 @@ void AMQUE::_Queue(long isndinMin)
                 cc.dwCacheTime = 2 * _luCacheTime;
 
                 // set the sound src, using cache cause it's not in memory
-                _pchan->SetCachedSrc(((PCAMS)sndin.pbaco)->psnd, &cc);
+                _pchan->SetCachedSrc(((PCachedAudioManSound)sndin.pbaco)->psnd, &cc);
             }
 
             // if there is a starting offset, apply it
@@ -668,7 +668,7 @@ void AMQUE::Notify(LPSOUND psnd)
     if (pvNil != _pglsndin && _pglsndin->IvMac() > _isndinCur)
     {
         _pglsndin->Get(_isndinCur, &sndin);
-        if (psnd == ((PCAMS)sndin.pbaco)->psnd)
+        if (psnd == ((PCachedAudioManSound)sndin.pbaco)->psnd)
         {
             if (--sndin.cactPlay == 0)
             {
@@ -679,7 +679,7 @@ void AMQUE::Notify(LPSOUND psnd)
             {
                 // play the sound again
                 _pglsndin->Put(_isndinCur, &sndin);
-                _pchan->SetSoundSrc(((PCAMS)sndin.pbaco)->psnd);
+                _pchan->SetSoundSrc(((PCachedAudioManSound)sndin.pbaco)->psnd);
                 _tsStart = TsCurrentSystem();
             }
         }
