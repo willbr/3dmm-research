@@ -85,7 +85,7 @@ extern Random vrndUtil;
     a compression manager. The blck-level compression uses vpcodmUtil.
     Clients are free to redirect this to their own compression manager.
 ***************************************************************************/
-extern KCDC vkcdcUtil;
+extern KauaiCodec vkcdcUtil;
 extern CODM vcodmUtil;
 extern PCODM vpcodmUtil;
 

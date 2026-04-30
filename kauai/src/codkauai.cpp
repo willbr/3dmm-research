@@ -112,12 +112,12 @@ ASSERTNAME
 // REVIEW shonk: should we turn on _Safety?
 #define SAFETY
 
-RTCLASS(KCDC)
+RTCLASS(KauaiCodec)
 
 /***************************************************************************
     Encode or decode a block.
 ***************************************************************************/
-bool KCDC::FConvert(bool fEncode, long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::FConvert(bool fEncode, long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -246,10 +246,10 @@ bool BitArray::FWriteLogEncoded(ulong lu)
 }
 
 /***************************************************************************
-    Compress the data in pvSrc using the KCDC encoding.  Returns false if
+    Compress the data in pvSrc using the KauaiCodec encoding.  Returns false if
     the data can't be compressed. This is not optimized (ie, it's slow).
 ***************************************************************************/
-bool KCDC::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -425,9 +425,9 @@ LFail:
 }
 
 /***************************************************************************
-    Decompress a compressed KCDC stream.
+    Decompress a compressed KauaiCodec stream.
 ***************************************************************************/
-bool KCDC::_FDecode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FDecode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -572,7 +572,7 @@ LFail:
     Compress the data in pvSrc using the KCD2 encoding.  Returns false if
     the data can't be compressed. This is not optimized (ie, it's slow).
 ***************************************************************************/
-bool KCDC::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
@@ -789,7 +789,7 @@ LFail:
 /***************************************************************************
     Decompress a compressed KCD2 stream.
 ***************************************************************************/
-bool KCDC::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
 {
     AssertThis(0);
     AssertIn(cbSrc, 1, kcbMax);
