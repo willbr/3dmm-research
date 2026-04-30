@@ -3359,7 +3359,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     stn.FAppendSz(PszLit(" (Debug)"));
 #endif // DEBUG
     extern const char kszBuildStamp[]; // generated each build (cmake/WriteBuildStamp.cmake)
-    stnT.FFormatSz(PszLit(" %d.%d.%04d  built %s"), rmj, rmm, rup, kszBuildStamp);
+    stnT.FFormatSz(PszLit(" %d.%d.%04d  built %z"), rmj, rmm, rup, kszBuildStamp);
     stn.FAppendStn(&stnT);
     pdlg->FPutStn(iditProductNameInfo, &stn);
 
