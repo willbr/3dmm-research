@@ -18,7 +18,7 @@ RTCLASS(MidiStreamQueue)
 RTCLASS(MidiStreamPlayer)
 RTCLASS(MidiStreamMixer)
 RTCLASS(MidiStreamInterface)
-RTCLASS(WMS)
+RTCLASS(WindowsMidiStream)
 RTCLASS(OMS)
 
 const long kdtsMinSlip = kdtsSecond / 30;
@@ -580,7 +580,7 @@ bool MidiStreamMixer::_FInit(void)
         return fFalse;
     _pglmsos->SetMinGrow(1);
 
-    if (pvNil == (_pmisi = WMS::PwmsNew(_MidiProc, (ulong)this)) &&
+    if (pvNil == (_pmisi = WindowsMidiStream::PwmsNew(_MidiProc, (ulong)this)) &&
         pvNil == (_pmisi = OMS::PomsNew(_MidiProc, (ulong)this)))
     {
         return fFalse;
@@ -1375,14 +1375,14 @@ bool MidiStreamInterface::FActivate(bool fActivate)
 /***************************************************************************
     Constructor for the Win95 Midi stream class.
 ***************************************************************************/
-WMS::WMS(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
+WindowsMidiStream::WindowsMidiStream(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
 /***************************************************************************
     Destructor for the Win95 Midi stream class.
 ***************************************************************************/
-WMS::~WMS(void)
+WindowsMidiStream::~WindowsMidiStream(void)
 {
     if (hNil != _hth)
     {
@@ -1397,7 +1397,7 @@ WMS::~WMS(void)
 
     if (pvNil != _pglpmsir)
     {
-        Assert(0 == _pglpmsir->IvMac(), "WMS still has some active buffers");
+        Assert(0 == _pglpmsir->IvMac(), "WindowsMidiStream still has some active buffers");
         ReleasePpo(&_pglpmsir);
     }
     if (hNil != _hlib)
@@ -1408,13 +1408,13 @@ WMS::~WMS(void)
 }
 
 /***************************************************************************
-    Create a new WMS.
+    Create a new WindowsMidiStream.
 ***************************************************************************/
-PWMS WMS::PwmsNew(PFNMIDI pfn, ulong luUser)
+PWindowsMidiStream WindowsMidiStream::PwmsNew(PFNMIDI pfn, ulong luUser)
 {
-    PWMS pwms;
+    PWindowsMidiStream pwms;
 
-    if (pvNil == (pwms = NewObj WMS(pfn, luUser)))
+    if (pvNil == (pwms = NewObj WindowsMidiStream(pfn, luUser)))
         return pvNil;
 
     if (!pwms->_FInit())
@@ -1424,9 +1424,9 @@ PWMS WMS::PwmsNew(PFNMIDI pfn, ulong luUser)
 }
 
 /***************************************************************************
-    Initialize the WMS: get the addresses of the stream API.
+    Initialize the WindowsMidiStream: get the addresses of the stream API.
 ***************************************************************************/
-bool WMS::_FInit(void)
+bool WindowsMidiStream::_FInit(void)
 {
     OSVERSIONINFO osv;
     ulong luThread;
@@ -1476,7 +1476,7 @@ bool WMS::_FInit(void)
         return fFalse;
 
     // create the thread
-    if (hNil == (_hth = CreateThread(pvNil, 1024, WMS::_ThreadProc, this, 0, &luThread)))
+    if (hNil == (_hth = CreateThread(pvNil, 1024, WindowsMidiStream::_ThreadProc, this, 0, &luThread)))
     {
         return fFalse;
     }
@@ -1487,11 +1487,11 @@ bool WMS::_FInit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a WMS.
+    Assert the validity of a WindowsMidiStream.
 ***************************************************************************/
-void WMS::AssertValid(ulong grf)
+void WindowsMidiStream::AssertValid(ulong grf)
 {
-    WMS_PAR::AssertValid(0);
+    WindowsMidiStream_PAR::AssertValid(0);
     Assert(hNil != _hlib, 0);
     long cpmsir;
 
@@ -1506,15 +1506,15 @@ void WMS::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the WMS.
+    Mark memory for the WindowsMidiStream.
 ***************************************************************************/
-void WMS::MarkMem(void)
+void WindowsMidiStream::MarkMem(void)
 {
     AssertValid(0);
     PMSIR pmsir;
     long ipmsir;
 
-    WMS_PAR::MarkMem();
+    WindowsMidiStream_PAR::MarkMem();
 
     _mutx.Enter();
     for (ipmsir = _pglpmsir->IvMac(); ipmsir-- > 0;)
@@ -1534,7 +1534,7 @@ void WMS::MarkMem(void)
     indicating 1 quarter note per second (1000000 microseconds per quarter).
     The end result is that ticks are milliseconds.
 ***************************************************************************/
-bool WMS::_FOpen(void)
+bool WindowsMidiStream::_FOpen(void)
 {
     AssertThis(0);
 
@@ -1592,7 +1592,7 @@ LDone:
 /***************************************************************************
     Close the midi stream.
 ***************************************************************************/
-bool WMS::_FClose(void)
+bool WindowsMidiStream::_FClose(void)
 {
     AssertThis(0);
 
@@ -1630,7 +1630,7 @@ bool WMS::_FClose(void)
 /***************************************************************************
     Just return the value of our flag, not (hNil != _hms).
 ***************************************************************************/
-bool WMS::FActive(void)
+bool WindowsMidiStream::FActive(void)
 {
     return _fActive;
 }
@@ -1638,11 +1638,11 @@ bool WMS::FActive(void)
 /***************************************************************************
     Need to set _fActive as well.
 ***************************************************************************/
-bool WMS::FActivate(bool fActivate)
+bool WindowsMidiStream::FActivate(bool fActivate)
 {
     bool fRet;
 
-    fRet = WMS_PAR::FActivate(fActivate);
+    fRet = WindowsMidiStream_PAR::FActivate(fActivate);
     if (fRet)
         _fActive = FPure(fActivate);
     return fRet;
@@ -1653,7 +1653,7 @@ bool WMS::FActivate(bool fActivate)
     Reset the midi stream so it's ready to accept new input. Assumes we
     already have the mutx.
 ***************************************************************************/
-void WMS::_ResetStream(void)
+void WindowsMidiStream::_ResetStream(void)
 {
     if (!FActive())
         return;
@@ -1677,7 +1677,7 @@ void WMS::_ResetStream(void)
     This submits a buffer and restarts the midi stream. If the data is
     bigger than 64K, this (in conjunction with _Notify) deals with it.
 ***************************************************************************/
-bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
+bool WindowsMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -1724,7 +1724,7 @@ bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
 /***************************************************************************
     Submits buffers. Assumes the _mutx is already ours.
 ***************************************************************************/
-long WMS::_CmhSubmitBuffers(void)
+long WindowsMidiStream::_CmhSubmitBuffers(void)
 {
     PMSIR pmsir;
     long cbMh;
@@ -1788,7 +1788,7 @@ long WMS::_CmhSubmitBuffers(void)
 /***************************************************************************
     Prepare and submit the given buffer. Assumes the mutx is ours.
 ***************************************************************************/
-bool WMS::_FSubmit(PMH pmh)
+bool WindowsMidiStream::_FSubmit(PMH pmh)
 {
     bool fRestart = (0 == _cmhOut);
 
@@ -1815,7 +1815,7 @@ bool WMS::_FSubmit(PMH pmh)
 /***************************************************************************
     Stop the midi stream.
 ***************************************************************************/
-void WMS::StopPlaying(void)
+void WindowsMidiStream::StopPlaying(void)
 {
     AssertThis(0);
 
@@ -1835,15 +1835,15 @@ void WMS::StopPlaying(void)
     to 0, this stops the midi stream. If the indicated sound is done,
     we notify the client.
 ***************************************************************************/
-void __stdcall WMS::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong lu2)
+void __stdcall WindowsMidiStream::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong lu2)
 {
-    PWMS pwms;
+    PWindowsMidiStream pwms;
     PMH pmh;
 
     if (msg != MOM_DONE)
         return;
 
-    pwms = (PWMS)luUser;
+    pwms = (PWindowsMidiStream)luUser;
     AssertPo(pwms, 0);
     pmh = (PMH)lu1;
     AssertVarMem(pmh);
@@ -1857,7 +1857,7 @@ void __stdcall WMS::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong
     midiStreamStop and midiOutReset. So we just signal another thread to
     do this work.
 ***************************************************************************/
-void WMS::_Notify(HMS hms, PMH pmh)
+void WindowsMidiStream::_Notify(HMS hms, PMH pmh)
 {
     AssertThis(0);
     Assert(hNil != hms, 0);
@@ -1907,13 +1907,13 @@ void WMS::_Notify(HMS hms, PMH pmh)
 }
 
 /***************************************************************************
-    AT: Static method. Thread function for the WMS object. This thread
+    AT: Static method. Thread function for the WindowsMidiStream object. This thread
     just waits for the event to be triggered, indicating that we got
     a callback from the midiStream stuff and it's time to do our callbacks.
 ***************************************************************************/
-ulong __stdcall WMS::_ThreadProc(void *pv)
+ulong __stdcall WindowsMidiStream::_ThreadProc(void *pv)
 {
-    PWMS pwms = (PWMS)pv;
+    PWindowsMidiStream pwms = (PWindowsMidiStream)pv;
 
     AssertPo(pwms, 0);
 
@@ -1924,7 +1924,7 @@ ulong __stdcall WMS::_ThreadProc(void *pv)
     AT: This thread just sleeps until the next sound is due to expire, then
     wakes up and nukes any expired sounds.
 ***************************************************************************/
-ulong WMS::_LuThread(void)
+ulong WindowsMidiStream::_LuThread(void)
 {
     AssertThis(0);
 
@@ -1950,7 +1950,7 @@ ulong WMS::_LuThread(void)
     Check for MSIRs that are done and do the callback on them and free them.
     Assumes the _mutx is checked out exactly once.
 ***************************************************************************/
-void WMS::_DoCallBacks()
+void WindowsMidiStream::_DoCallBacks()
 {
     PMSIR pmsir;
 
