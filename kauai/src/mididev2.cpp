@@ -14,7 +14,7 @@
 ASSERTNAME
 
 RTCLASS(MidiStreamCached)
-RTCLASS(MSQUE)
+RTCLASS(MidiStreamQueue)
 RTCLASS(MidiStreamPlayer)
 RTCLASS(MidiStreamMixer)
 RTCLASS(MidiStreamInterface)
@@ -105,7 +105,7 @@ PSoundQueue MidiStreamPlayer::_PsnqueNew(void)
 {
     AssertThis(0);
 
-    return MSQUE::PmsqueNew(_pmsmix);
+    return MidiStreamQueue::PmsqueNew(_pmsmix);
 }
 
 /***************************************************************************
@@ -325,14 +325,14 @@ void MidiStreamCached::UnlockData(void)
 /***************************************************************************
     Constructor for a midi stream queue.
 ***************************************************************************/
-MSQUE::MSQUE(void)
+MidiStreamQueue::MidiStreamQueue(void)
 {
 }
 
 /***************************************************************************
     Destructor for a midi stream queue.
 ***************************************************************************/
-MSQUE::~MSQUE(void)
+MidiStreamQueue::~MidiStreamQueue(void)
 {
     if (pvNil != _pmsmix)
     {
@@ -343,21 +343,21 @@ MSQUE::~MSQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSQUE.
+    Assert the validity of a MidiStreamQueue.
 ***************************************************************************/
-void MSQUE::AssertValid(ulong grf)
+void MidiStreamQueue::AssertValid(ulong grf)
 {
-    MSQUE_PAR::AssertValid(0);
+    MidiStreamQueue_PAR::AssertValid(0);
     AssertPo(_pmsmix, 0);
 }
 
 /***************************************************************************
-    Mark memory for the MSQUE.
+    Mark memory for the MidiStreamQueue.
 ***************************************************************************/
-void MSQUE::MarkMem(void)
+void MidiStreamQueue::MarkMem(void)
 {
     AssertValid(0);
-    MSQUE_PAR::MarkMem();
+    MidiStreamQueue_PAR::MarkMem();
     MarkMemObj(_pmsmix);
 }
 #endif // DEBUG
@@ -365,12 +365,12 @@ void MSQUE::MarkMem(void)
 /***************************************************************************
     Static method to create a new midi stream queue.
 ***************************************************************************/
-PMSQUE MSQUE::PmsqueNew(PMidiStreamMixer pmsmix)
+PMidiStreamQueue MidiStreamQueue::PmsqueNew(PMidiStreamMixer pmsmix)
 {
     AssertPo(pmsmix, 0);
-    PMSQUE pmsque;
+    PMidiStreamQueue pmsque;
 
-    if (pvNil == (pmsque = NewObj MSQUE))
+    if (pvNil == (pmsque = NewObj MidiStreamQueue))
         return pvNil;
 
     if (!pmsque->_FInit(pmsmix))
@@ -383,12 +383,12 @@ PMSQUE MSQUE::PmsqueNew(PMidiStreamMixer pmsmix)
 /***************************************************************************
     Initialize the midi stream queue.
 ***************************************************************************/
-bool MSQUE::_FInit(PMidiStreamMixer pmsmix)
+bool MidiStreamQueue::_FInit(PMidiStreamMixer pmsmix)
 {
     AssertPo(pmsmix, 0);
     AssertBaseThis(0);
 
-    if (!MSQUE_PAR::_FInit())
+    if (!MidiStreamQueue_PAR::_FInit())
         return fFalse;
 
     _pmsmix = pmsmix;
@@ -401,7 +401,7 @@ bool MSQUE::_FInit(PMidiStreamMixer pmsmix)
 /***************************************************************************
     Enter the critical section protecting member variables.
 ***************************************************************************/
-void MSQUE::_Enter(void)
+void MidiStreamQueue::_Enter(void)
 {
     _mutx.Enter();
 }
@@ -409,7 +409,7 @@ void MSQUE::_Enter(void)
 /***************************************************************************
     Leave the critical section protecting member variables.
 ***************************************************************************/
-void MSQUE::_Leave(void)
+void MidiStreamQueue::_Leave(void)
 {
     _mutx.Leave();
 }
@@ -417,7 +417,7 @@ void MSQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as an MidiStreamCached.
 ***************************************************************************/
-PBaseCacheableObject MSQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
+PBaseCacheableObject MidiStreamQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -428,7 +428,7 @@ PBaseCacheableObject MSQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg,
 /***************************************************************************
     An item was added to or deleted from the queue.
 ***************************************************************************/
-void MSQUE::_Queue(long isndinMin)
+void MidiStreamQueue::_Queue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -461,7 +461,7 @@ LDone:
 /***************************************************************************
     One or more items in the queue were paused.
 ***************************************************************************/
-void MSQUE::_PauseQueue(long isndinMin)
+void MidiStreamQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -483,7 +483,7 @@ void MSQUE::_PauseQueue(long isndinMin)
 /***************************************************************************
     One or more items in the queue were resumed.
 ***************************************************************************/
-void MSQUE::_ResumeQueue(long isndinMin)
+void MidiStreamQueue::_ResumeQueue(long isndinMin)
 {
     AssertThis(0);
 
@@ -494,7 +494,7 @@ void MSQUE::_ResumeQueue(long isndinMin)
     Called by the MidiStreamMixer to tell us that the indicated sound is done.
     WARNING: this is called in an auxillary thread.
 ***************************************************************************/
-void MSQUE::Notify(PMidiStreamCached pmdws)
+void MidiStreamQueue::Notify(PMidiStreamCached pmdws)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -707,7 +707,7 @@ long MidiStreamMixer::VlmCur(void)
 /***************************************************************************
     Play the given midi stream from the indicated queue.
 ***************************************************************************/
-bool MidiStreamMixer::FPlay(PMSQUE pmsque, PMidiStreamCached pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
+bool MidiStreamMixer::FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
 {
     AssertThis(0);
     AssertPo(pmsque, 0);
