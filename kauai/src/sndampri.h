@@ -132,7 +132,7 @@ class CachedAudioManSound : public CachedAudioManSound_PAR
 /***************************************************************************
     Notify sink class.
 ***************************************************************************/
-typedef class AMQUE *PAMQUE; // forward declaration
+typedef class AudioManQueue *PAudioManQueue; // forward declaration
 
 typedef class AudioManNotifySink *PAudioManNotifySink;
 #define AudioManNotifySink_PAR IAMNotifySink
@@ -142,7 +142,7 @@ class AudioManNotifySink : public AudioManNotifySink_PAR
 
   protected:
     long _cactRef;
-    PAMQUE _pamque; // the amque to notify
+    PAudioManQueue _pamque; // the amque to notify
 
   public:
     // IUnknown methods
@@ -163,15 +163,15 @@ class AudioManNotifySink : public AudioManNotifySink_PAR
     }
 
     AudioManNotifySink(void);
-    void Set(PAMQUE pamque);
+    void Set(PAudioManQueue pamque);
 };
 
 /***************************************************************************
     Audioman queue.
 ***************************************************************************/
-#define AMQUE_PAR SoundQueue
-#define kclsAMQUE 'amqu'
-class AMQUE : public AMQUE_PAR
+#define AudioManQueue_PAR SoundQueue
+#define kclsAudioManQueue 'amqu'
+class AudioManQueue : public AudioManQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -182,7 +182,7 @@ class AMQUE : public AMQUE_PAR
     ulong _tsStart;     // when we started the current sound
     AudioManNotifySink _amnot;       // notify sink
 
-    AMQUE(void);
+    AudioManQueue(void);
 
     virtual void _Enter(void);
     virtual void _Leave(void);
@@ -194,8 +194,8 @@ class AMQUE : public AMQUE_PAR
     virtual void _ResumeQueue(long isndinMin);
 
   public:
-    static PAMQUE PamqueNew(void);
-    ~AMQUE(void);
+    static PAudioManQueue PamqueNew(void);
+    ~AudioManQueue(void);
 
     void Notify(LPSOUND psnd);
 };
