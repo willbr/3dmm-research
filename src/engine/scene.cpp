@@ -2593,6 +2593,84 @@ static bool _FNameContainsTag(PString pstn, PZString pszTag)
     return fFalse;
 }
 
+// Returns fTrue iff pstnA and pstnB have at least one tag token in common
+// (case-insensitive). Tag = '#' followed by [A-Za-z0-9_]+, terminated by
+// whitespace / EOS / another '#'.
+static bool _FNamesShareAnyTag(PString pstnA, PString pstnB)
+{
+    achar *prgchA = pstnA->Prgch();
+    long cchA = pstnA->Cch();
+
+    for (long ich = 0; ich < cchA; ich++)
+    {
+        if (prgchA[ich] != '#')
+            continue;
+        // Walk the run of tag chars after '#'.
+        long jch = ich + 1;
+        while (jch < cchA && _FIsTagChar(prgchA[jch]))
+            jch++;
+        long cchTag = jch - ich - 1;
+        if (cchTag == 0)
+            continue;
+        // Build a zero-terminated copy of the tag for _FNameContainsTag.
+        achar rgch[64];
+        if (cchTag > 63)
+            cchTag = 63;
+        for (long k = 0; k < cchTag; k++)
+            rgch[k] = prgchA[ich + 1 + k];
+        rgch[cchTag] = (achar)0;
+        if (_FNameContainsTag(pstnB, rgch))
+            return fTrue;
+    }
+    return fFalse;
+}
+
+/****************************************************
+ *
+ * Select pactrSeed and every other scene actor that shares any #tag
+ * with it. If pactrSeed has no tags, this is just SelectActr(pactrSeed).
+ *
+ ****************************************************/
+bool Scene::FSelectActrsSharingTagsWith(PActor pactrSeed)
+{
+    AssertThis(0);
+    AssertPo(pactrSeed, 0);
+
+    String stnSeed;
+    pactrSeed->GetName(&stnSeed);
+
+    // Quick scan: does the seed have any tags at all?
+    achar *prgch = stnSeed.Prgch();
+    long cch = stnSeed.Cch();
+    bool fHasTag = fFalse;
+    for (long ich = 0; ich < cch && !fHasTag; ich++)
+    {
+        if (prgch[ich] == '#' && ich + 1 < cch && _FIsTagChar(prgch[ich + 1]))
+            fHasTag = fTrue;
+    }
+
+    SelectActr(pactrSeed);
+    if (!fHasTag)
+        return fTrue;
+
+    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
+    String stnOther;
+    for (long iactr = 0; iactr < cactr; iactr++)
+    {
+        PActor pactr;
+        _pglpactr->Get(iactr, &pactr);
+        if (pactr == pvNil || pactr == pactrSeed)
+            continue;
+        pactr->GetName(&stnOther);
+        if (_FNamesShareAnyTag(&stnSeed, &stnOther))
+        {
+            if (!FToggleActrSelected(pactr))
+                return fFalse;
+        }
+    }
+    return fTrue;
+}
+
 /****************************************************
  *
  * Replace the current selection with every actor in the current scene

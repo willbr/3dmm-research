@@ -306,6 +306,12 @@ class Scene : public Scene_PAR
     // string, or another '#'). Returns fFalse on alloc failure mid-build (in
     // which case the selection ends up empty).
     bool FSelectActrsByTag(PZString pszTag);
+    // Select pactrSeed and every other actor in the current scene that
+    // shares at least one #tag with it (set union across pactrSeed's tags).
+    // If pactrSeed has no tags this collapses to SelectActr(pactrSeed) --
+    // single-actor selection.  Used by plain click in _MouseDown so that
+    // clicking a tagged actor recalls its whole group.
+    bool FSelectActrsSharingTagsWith(PActor pactrSeed);
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {

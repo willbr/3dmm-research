@@ -6938,8 +6938,16 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
             if (pvNil != pactr)
             {
                 _ActorClicked(pactr, fTrue);
+                // Plain click on a tagged actor recalls its whole group;
+                // for actors with no tag this collapses to SelectActr, the
+                // pre-tag-feature behaviour. Shift-click bypasses this --
+                // shift-toggle is single-actor by design.
+                Pmvie()->Pscen()->FSelectActrsSharingTagsWith(pactr);
             }
-            Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
+            else
+            {
+                Pmvie()->Pscen()->SelectActr(pvNil);
+            }
             Pmvie()->Pbwld()->MarkDirty();
         }
     }
