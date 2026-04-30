@@ -61,11 +61,11 @@ class Easel : public Easel_PAR
 typedef class EaselText *PEaselText; // SpletterNameEditor needs this
 /****************************************
     Spletter Name Editor class.  It's
-    derived from EDSL, which is a Kauai
+    derived from EditControlSingleLine, which is a Kauai
     single-line edit control
 ****************************************/
 typedef class SpletterNameEditor *PSpletterNameEditor;
-#define SpletterNameEditor_PAR EDSL
+#define SpletterNameEditor_PAR EditControlSingleLine
 #define kclsSpletterNameEditor 'SNE'
 class SpletterNameEditor : public SpletterNameEditor_PAR
 {
@@ -77,7 +77,7 @@ class SpletterNameEditor : public SpletterNameEditor_PAR
     PEaselText _peslt; // easel to notify when text changes
 
   protected:
-    SpletterNameEditor(PEditParameter pedpar) : EDSL(pedpar)
+    SpletterNameEditor(PEditParameter pedpar) : EditControlSingleLine(pedpar)
     {
     }
 
@@ -150,7 +150,7 @@ class EaselActor : public EaselActor_PAR
     PMovie _pmvie; // Movie that this actor is in
     PActor _pactr; // The actor that is being edited
     PActorPreviewEntity _pape;   // Actor Preview Entity
-    PEDSL _pedsl; // Single-line edit control (for actor's name)
+    PEditControlSingleLine _pedsl; // Single-line edit control (for actor's name)
 
   protected:
     EaselActor(PGraphicsObjectBlock pgcb) : Easel(pgcb)
@@ -264,7 +264,7 @@ class EaselRecord : public EaselRecord_PAR
   protected:
     PMovie _pmvie;      // The movie to insert sound into
     bool _fSpeech;     // Recording Speech or SFX?
-    PEDSL _pedsl;      // Single-line edit control for sound name
+    PEditControlSingleLine _pedsl;      // Single-line edit control for sound name
     PSoundRecorder _psrec;      // Sound recording object
     Clock _clok;        // Clock to limit sound length
     bool _fRecording;  // Are we recording right now?

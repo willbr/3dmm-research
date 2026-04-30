@@ -177,10 +177,10 @@ class EDPL : public EDPL_PAR
 ***************************************************************************/
 const long kcchMaxEdsl = kcchMaxStn;
 
-typedef class EDSL *PEDSL;
-#define EDSL_PAR EDPL
-#define kclsEDSL 'EDSL'
-class EDSL : public EDSL_PAR
+typedef class EditControlSingleLine *PEditControlSingleLine;
+#define EditControlSingleLine_PAR EDPL
+#define kclsEditControlSingleLine 'EDSL'
+class EditControlSingleLine : public EditControlSingleLine_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -190,7 +190,7 @@ class EDSL : public EDSL_PAR
     long _cch;
     achar _rgch[kcchMaxEdsl];
 
-    EDSL(PEditParameter pedpar);
+    EditControlSingleLine(PEditParameter pedpar);
 
     // methods of EDCB
     virtual long _LnFromIch(long ich);
@@ -203,7 +203,7 @@ class EDSL : public EDSL_PAR
     virtual void _UnlockLn(long ln, achar *prgch);
 
   public:
-    static PEDSL PedslNew(PEditParameter pedpar);
+    static PEditControlSingleLine PedslNew(PEditParameter pedpar);
 
     virtual long IchMac(void);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin = kginDraw);
