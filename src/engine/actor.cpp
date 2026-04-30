@@ -2431,6 +2431,114 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 
 /***************************************************************************
 
+    Apply a world-axis rotation. FRotate treats (xa,ya,za) as rotations
+    around the actor's LOCAL axes (after the rest orientation TS is applied
+    at render time pbmat = TS * bmat34Cur). For multi-actor rigid group
+    rotation we want every selected actor's body to tilt around the SAME
+    world axis -- otherwise actors with different rest orientations tilt
+    around different world axes and the group rotation looks chaotic.
+
+    The fix is the similarity transform: applying R_world = TS * R_local * TS^-1
+    to the world matrix is equivalent to applying R_local := TS^-1 * R_world * TS
+    to the local-frame bmat34. We build R_world from the input Euler angles,
+    conjugate it through the actor's TS, and PreRotate bmat34 with the
+    resulting matrix using BrMatrix34Pre.
+
+    For a fresh actor whose template has no rest orientation, TS == identity
+    and this collapses to the same matrix FRotate would build via successive
+    PreRotateX/Y/Z calls.
+
+***************************************************************************/
+bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
+{
+    AssertThis(0);
+
+    // No rotation requested -> no-op. Without this guard the BrMatrix34Pre
+    // call below would still apply a (TS^-1 * I * TS) conjugation, and
+    // floating-point error in that compute accumulates across many ticks
+    // when the user holds the mouse button without moving the cursor,
+    // visibly drifting the actor's matrix toward a contraction.
+    if (xa == aZero && ya == aZero && za == aZero)
+        return fTrue;
+
+    BMAT34 *pbmat34;
+    long aet;
+
+    if (!_pggaev->FEnsureSpace(1, kcbVarRot, fgrpNil))
+        return fFalse;
+
+    if (fFromHereFwd)
+    {
+        aet = aetRotF;
+        pbmat34 = &_xfrm.bmat34Fwd;
+        if (_fUseBmat34Cur)
+        {
+            BrMatrix34Copy(pbmat34, &_xfrm.bmat34Cur);
+            if (_xfrm.zaPath != aZero)
+                BrMatrix34PostRotateZ(pbmat34, -_xfrm.zaPath);
+            if (_xfrm.yaPath != aZero)
+                BrMatrix34PostRotateY(pbmat34, -_xfrm.yaPath);
+            if (_xfrm.xaPath != aZero)
+                BrMatrix34PostRotateX(pbmat34, -_xfrm.xaPath);
+        }
+    }
+    else
+    {
+        aet = aetRotH;
+        pbmat34 = &_xfrm.bmat34Cur;
+    }
+
+    // Build the world rotation R from (xa,ya,za).
+    BMAT34 bmatRWorld;
+    BrMatrix34Identity(&bmatRWorld);
+    if (xa != aZero)
+        BrMatrix34PostRotateX(&bmatRWorld, xa);
+    if (ya != aZero)
+        BrMatrix34PostRotateY(&bmatRWorld, ya);
+    if (za != aZero)
+        BrMatrix34PostRotateZ(&bmatRWorld, za);
+
+    // Build TS exactly as _PositionBody does (rest-orientation rotations only;
+    // the per-actor stretching/scaling is irrelevant because it commutes with
+    // pure rotations through identity scale, but rotations that depend on
+    // bmat34TS's rotation part is what matters here).
+    BMAT34 bmatTS;
+    BRA xaRest, yaRest, zaRest;
+    _ptmpl->GetRestOrien(&xaRest, &yaRest, &zaRest);
+    BrMatrix34Identity(&bmatTS);
+    BrMatrix34PostRotateX(&bmatTS, xaRest);
+    BrMatrix34PostRotateY(&bmatTS, yaRest);
+    BrMatrix34PostRotateZ(&bmatTS, zaRest);
+
+    // R_local = TS^-1 * R_world * TS. TS is a rotation (length-preserving),
+    // so its inverse is just the transpose -- LPInverse handles that.
+    BMAT34 bmatTSInv, bmatTmp, bmatRLocal;
+    BrMatrix34LPInverse(&bmatTSInv, &bmatTS);
+    BrMatrix34Mul(&bmatTmp, &bmatRWorld, &bmatTS);
+    BrMatrix34Mul(&bmatRLocal, &bmatTSInv, &bmatTmp);
+
+    // PreRotate bmat34 by R_local: pbmat34 := R_local * pbmat34.
+    BrMatrix34Pre(pbmat34, &bmatRLocal);
+
+    // Re-orthonormalise. Each PreRotate composes two matrix multiplications
+    // worth of FP error (one for the conjugation TS^-1 * R * TS and one for
+    // the Pre itself). Across hundreds of drag ticks that drift the rotation
+    // part of bmat34 away from length-preserving, which the user sees as the
+    // group slowly shrinking. LPNormalise restores the rows to unit length.
+    BMAT34 bmatNorm;
+    BrMatrix34LPNormalise(&bmatNorm, pbmat34);
+    *pbmat34 = bmatNorm;
+
+    if (fFromHereFwd)
+        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _iaevCur, ivNil, faetNil);
+    AssertDo(_FAddDoAev(aet, kcbVarRot, pbmat34), "Ensure space insufficient");
+
+    _PositionBody(&_xyzCur);
+    return fTrue;
+}
+
+/***************************************************************************
+
     "Normalize" the actor
     The revert tool
     Insert normalize transformation events into the event list

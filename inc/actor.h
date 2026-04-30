@@ -631,6 +631,12 @@ class Actor : public Actor_PAR
     bool FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCustom);
     bool FSetStep(BRS dwrStep);
     bool FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd);
+    // Like FRotate but treats (xa,ya,za) as a WORLD-axis rotation rather than
+    // the actor's local-frame axis. Used for multi-actor rigid group rotation
+    // so each selected actor tilts coherently around the same world axis
+    // regardless of its rest orientation. Conjugates through the template's
+    // rest orientation (TS): bmat34 := (TS^-1 * R * TS) * bmat34.
+    bool FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd);
     bool FNormalizeCore(ulong grfnorm);
     void SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz = pvNil);
     bool FScale(BRS rScaleStep);

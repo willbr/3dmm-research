@@ -6895,9 +6895,13 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         pactrDup = Pmvie()->Pscen()->PactrFromPt(pcmd->xp, pcmd->yp, &ibset);
 
         // Shift-click on an actor with a selection-friendly tool: arm a toggle for mouseup.
-        // Move tool, default tool, and explicit selection tool participate; other tools
-        // collapse to single-select via the existing path below.
-        bool fShiftSelectTool = (Tool() == toolCompose) || (Tool() == toolDefault) || (Tool() == toolActorSelect);
+        // Tools that support multi-actor drags participate (move, rotate, resize, squash),
+        // plus the default and explicit-select tools. Other tools collapse to single-select
+        // via the existing path below.
+        bool fShiftSelectTool = (Tool() == toolCompose) || (Tool() == toolDefault) ||
+                                (Tool() == toolActorSelect) || (Tool() == toolRotateX) ||
+                                (Tool() == toolRotateY) || (Tool() == toolRotateZ) ||
+                                (Tool() == toolResize) || (Tool() == toolSquashStretch);
         if (fShiftSelectTool && (pcmd->grfcust & fcustShift) && pactrDup != pvNil)
         {
             _fSelToggleArmed = fTrue;
@@ -7127,12 +7131,13 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
             if (cactrSel >= 2 && Tool() != toolCompose)
             {
                 // Freeze the rotate / scale pivot at the selection centroid.
-                // If no selected actor is currently visible, fall back to the
-                // single-actor flow rather than rotate/scale around an
-                // arbitrary point.
+                // If no selected actor is currently visible the centroid is
+                // undefined; default the pivot to origin -- every per-tick
+                // FMoveRoute will no-op on the offstage actors anyway, so the
+                // drag is harmlessly inert and the group undo entry is empty.
                 if (!Pmvie()->Pscen()->FXyzSelectionCentroid(&_xrPivot, &_yrPivot, &_zrPivot))
                 {
-                    cactrSel = 1;
+                    _xrPivot = _yrPivot = _zrPivot = rZero;
                 }
             }
 
@@ -7690,25 +7695,25 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             break;
         }
 
-        // Use _paundGroup as the gate (not a fresh CactrSelected read) so a
-        // mousedown that fell back to single-actor undo (e.g. centroid failed)
-        // doesn't run the multi-actor drag path with a single-actor snapshot.
-        long cactrSel = (_paundGroup != pvNil && Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
 
         if (cactrSel >= 2)
         {
-            // Multi-actor: orbit each actor's world position around the frozen
-            // pivot AND apply the same per-tick rotation to its body. Only one
-            // of xa/ya/za is non-zero per tick (set by the switch above), so
-            // the world rotation matrix collapses to a single primitive.
+            // Multi-actor rigid group rotation: each actor's world position
+            // orbits the frozen pivot AND each actor's body rotates around the
+            // SAME world axis (via FRotateAroundWorld, which conjugates through
+            // the actor's rest orientation -- otherwise actors facing different
+            // directions tilt around different world axes and the group looks
+            // chaotic). Only one of xa/ya/za is non-zero per tick.
             BMAT34 bmat;
-            BrMatrix34Identity(&bmat);
             if (xa != aZero)
-                BrMatrix34PostRotateX(&bmat, xa);
+                BrMatrix34RotateX(&bmat, xa);
             else if (ya != aZero)
-                BrMatrix34PostRotateY(&bmat, ya);
+                BrMatrix34RotateY(&bmat, ya);
             else if (za != aZero)
-                BrMatrix34PostRotateZ(&bmat, za);
+                BrMatrix34RotateZ(&bmat, za);
+            else
+                BrMatrix34Identity(&bmat);
 
             bool fFwd = FPure(_grfcust & fcustCmd);
             bool fAnyMoved = fFalse;
@@ -7721,19 +7726,18 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
                 }
                 BRS xr, yr, zr;
                 pa->Pbody()->GetPosition(&xr, &yr, &zr);
-                BRS dx = BrsSub(xr, _xrPivot);
-                BRS dy = BrsSub(yr, _yrPivot);
-                BRS dz = BrsSub(zr, _zrPivot);
-                // d' = (dx,dy,dz) * R: row-vector * BMAT34 (m[i][j] = row i, col j)
-                BRS rx = BrsAdd(BrsAdd(BrsMul(dx, bmat.m[0][0]), BrsMul(dy, bmat.m[1][0])), BrsMul(dz, bmat.m[2][0]));
-                BRS ry = BrsAdd(BrsAdd(BrsMul(dx, bmat.m[0][1]), BrsMul(dy, bmat.m[1][1])), BrsMul(dz, bmat.m[2][1]));
-                BRS rz = BrsAdd(BrsAdd(BrsMul(dx, bmat.m[0][2]), BrsMul(dy, bmat.m[1][2])), BrsMul(dz, bmat.m[2][2]));
-                BRS dxr = BrsSub(rx, dx);
-                BRS dyr = BrsSub(ry, dy);
-                BRS dzr = BrsSub(rz, dz);
+                br_vector3 vIn, vOut;
+                vIn.v[0] = BrsSub(xr, _xrPivot);
+                vIn.v[1] = BrsSub(yr, _yrPivot);
+                vIn.v[2] = BrsSub(zr, _zrPivot);
+                BrMatrix34ApplyV(&vOut, &vIn, &bmat);
+                BRS dxr = BrsSub(vOut.v[0], vIn.v[0]);
+                BRS dyr = BrsSub(vOut.v[1], vIn.v[1]);
+                BRS dzr = BrsSub(vOut.v[2], vIn.v[2]);
                 bool fMovedThis = fFalse;
-                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
-                if (pa->FRotate(xa, ya, za, fFwd))
+                bool fMovedRoute = pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                bool fRotated = pa->FRotateAroundWorld(xa, ya, za, fFwd);
+                if (fMovedRoute || fRotated)
                 {
                     fAnyMoved = fTrue;
                 }
@@ -7780,7 +7784,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (dxrMouse + dyrMouse > 0) ? 0 : fcustShift);
         }
 
-        long cactrSel = (_paundGroup != pvNil && Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
 
         if (cactrSel >= 2)
         {
@@ -7848,7 +7852,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (-dxrMouse - dyrMouse < 0) ? 0 : fcustShift);
         }
 
-        long cactrSel = (_paundGroup != pvNil && Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
 
         if (cactrSel >= 2)
         {
