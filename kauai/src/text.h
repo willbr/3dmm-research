@@ -217,10 +217,10 @@ class EditControlSingleLine : public EditControlSingleLine_PAR
 /***************************************************************************
     Multi line edit control.
 ***************************************************************************/
-typedef class EDML *PEDML;
-#define EDML_PAR EDPL
-#define kclsEDML 'EDML'
-class EDML : public EDML_PAR
+typedef class EditControlMultiLine *PEditControlMultiLine;
+#define EditControlMultiLine_PAR EDPL
+#define kclsEditControlMultiLine 'EDML'
+class EditControlMultiLine : public EditControlMultiLine_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -231,7 +231,7 @@ class EDML : public EDML_PAR
     MemoryByteStream _bsm;
     PDynamicArray _pglich;
 
-    EDML(PEditParameter pedpar);
+    EditControlMultiLine(PEditParameter pedpar);
 
     // methods of EDCB
     virtual bool _FInit(void);
@@ -249,8 +249,8 @@ class EDML : public EDML_PAR
     virtual bool _FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel);
 
   public:
-    static PEDML PedmlNew(PEditParameter pedpar);
-    ~EDML(void);
+    static PEditControlMultiLine PedmlNew(PEditParameter pedpar);
+    ~EditControlMultiLine(void);
 
     virtual long IchMac(void);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin = kginDraw);
@@ -261,7 +261,7 @@ class EDML : public EDML_PAR
     Multi line wrapping edit control.
 ***************************************************************************/
 typedef class EditControlMultiLineWrap *PEditControlMultiLineWrap;
-#define EditControlMultiLineWrap_PAR EDML
+#define EditControlMultiLineWrap_PAR EditControlMultiLine
 #define kclsEditControlMultiLineWrap 'EDMW'
 class EditControlMultiLineWrap : public EditControlMultiLineWrap_PAR
 {

@@ -16,7 +16,7 @@ ASSERTNAME
 RTCLASS(EDCB)
 RTCLASS(EditControlSingleLine)
 RTCLASS(EDPL)
-RTCLASS(EDML)
+RTCLASS(EditControlMultiLine)
 RTCLASS(EditControlMultiLineWrap)
 
 const long kdxpInsetEdcb = 2;
@@ -856,7 +856,7 @@ void EDCB::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the EDML.
+    Mark memory for the EditControlMultiLine.
 ***************************************************************************/
 void EDCB::MarkMem(void)
 {
@@ -1292,24 +1292,24 @@ void EditControlSingleLine::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EDML::EDML(PEditParameter pedpar) : EDPL(pedpar)
+EditControlMultiLine::EditControlMultiLine(PEditParameter pedpar) : EDPL(pedpar)
 {
     _bsm.SetMinGrow(256);
 }
 
-EDML::~EDML(void)
+EditControlMultiLine::~EditControlMultiLine(void)
 {
     ReleasePpo(&_pglich);
 }
 
 /***************************************************************************
-    Create a new EDML (multi line edit control).
+    Create a new EditControlMultiLine (multi line edit control).
 ***************************************************************************/
-PEDML EDML::PedmlNew(PEditParameter pedpar)
+PEditControlMultiLine EditControlMultiLine::PedmlNew(PEditParameter pedpar)
 {
-    PEDML pedml;
+    PEditControlMultiLine pedml;
 
-    if (pvNil == (pedml = NewObj EDML(pedpar)))
+    if (pvNil == (pedml = NewObj EditControlMultiLine(pedpar)))
         return pvNil;
     if (!pedml->_FInit())
     {
@@ -1323,7 +1323,7 @@ PEDML EDML::PedmlNew(PEditParameter pedpar)
 /***************************************************************************
     Initialize the multi line edit control.
 ***************************************************************************/
-bool EDML::_FInit(void)
+bool EditControlMultiLine::_FInit(void)
 {
     long ich;
 
@@ -1337,7 +1337,7 @@ bool EDML::_FInit(void)
 /***************************************************************************
     Get a pointer to the characters for the given line.
 ***************************************************************************/
-bool EDML::_FLockLn(long ln, achar **pprgch, long *pcch)
+bool EditControlMultiLine::_FLockLn(long ln, achar **pprgch, long *pcch)
 {
     AssertThis(0);
     AssertIn(ln, 0, _pglich->IvMac() + 1);
@@ -1375,7 +1375,7 @@ bool EDML::_FLockLn(long ln, achar **pprgch, long *pcch)
 /***************************************************************************
     Unlock a line.
 ***************************************************************************/
-void EDML::_UnlockLn(long ln, achar *prgch)
+void EditControlMultiLine::_UnlockLn(long ln, achar *prgch)
 {
     AssertThis(0);
     _bsm.Unlock();
@@ -1384,7 +1384,7 @@ void EDML::_UnlockLn(long ln, achar *prgch)
 /***************************************************************************
     Return the line that ich is on.
 ***************************************************************************/
-long EDML::_LnFromIch(long ich)
+long EditControlMultiLine::_LnFromIch(long ich)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ich, 0, IchMac() + 1);
@@ -1415,7 +1415,7 @@ long EDML::_LnFromIch(long ich)
 /***************************************************************************
     Return the first ich for the given line.
 ***************************************************************************/
-long EDML::_IchMinLn(long ln)
+long EditControlMultiLine::_IchMinLn(long ln)
 {
     AssertThis(0);
     long ich;
@@ -1429,7 +1429,7 @@ long EDML::_IchMinLn(long ln)
 /***************************************************************************
     Return the number of characters.
 ***************************************************************************/
-long EDML::IchMac(void)
+long EditControlMultiLine::IchMac(void)
 {
     AssertBaseThis(0);
     Assert(_bsm.IbMac() % size(achar) == 0, "ibMac not divisible by size(achar)");
@@ -1439,7 +1439,7 @@ long EDML::IchMac(void)
 /***************************************************************************
     Return the number of lines.
 ***************************************************************************/
-long EDML::_LnMac(void)
+long EditControlMultiLine::_LnMac(void)
 {
     AssertThis(0);
     return _pglich->IvMac();
@@ -1449,7 +1449,7 @@ long EDML::_LnMac(void)
     Replace the characters between ich1 and ich2 with those in (prgch, cchIns).
     Calls _UpdateLn() to clean up the display.
 ***************************************************************************/
-bool EDML::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
+bool EditControlMultiLine::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cchIns, 0, kcbMax);
@@ -1514,15 +1514,15 @@ bool EDML::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 /***************************************************************************
     Do a replace operation just on the text.
 ***************************************************************************/
-bool EDML::_FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel)
+bool EditControlMultiLine::_FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel)
 {
     return _bsm.FReplace(prgch, cchIns, ich, cchDel);
 }
 
 /***************************************************************************
-    Estimate the number of new lines (exact for a simple EDML).
+    Estimate the number of new lines (exact for a simple EditControlMultiLine).
 ***************************************************************************/
-long EDML::_ClnEstimate(achar *prgch, long cch)
+long EditControlMultiLine::_ClnEstimate(achar *prgch, long cch)
 {
     long cln;
     long ich;
@@ -1539,7 +1539,7 @@ long EDML::_ClnEstimate(achar *prgch, long cch)
 /***************************************************************************
     Find new line starts starting at lnMin.
 ***************************************************************************/
-long EDML::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
+long EditControlMultiLine::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 {
     long ln;
     long ichPrev;
@@ -1567,7 +1567,7 @@ long EDML::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 /***************************************************************************
     If this is a character we can't accept, return false.
 ***************************************************************************/
-bool EDML::_FFilterCh(achar ch)
+bool EditControlMultiLine::_FFilterCh(achar ch)
 {
     ulong grfch = GrfchFromCh(ch);
 
@@ -1577,7 +1577,7 @@ bool EDML::_FFilterCh(achar ch)
 /***************************************************************************
     Get some text.
 ***************************************************************************/
-long EDML::CchFetch(achar *prgch, long ich, long cchWant)
+long EditControlMultiLine::CchFetch(achar *prgch, long ich, long cchWant)
 {
     AssertThis(0);
     AssertIn(cchWant, 0, kcbMax);
@@ -1593,9 +1593,9 @@ long EDML::CchFetch(achar *prgch, long ich, long cchWant)
 /***************************************************************************
     Assert the validity of a multi-line edit control.
 ***************************************************************************/
-void EDML::AssertValid(ulong grf)
+void EditControlMultiLine::AssertValid(ulong grf)
 {
-    EDML_PAR::AssertValid(0);
+    EditControlMultiLine_PAR::AssertValid(0);
     AssertPo(_pglich, 0);
     AssertPo(&_bsm, 0);
     AssertIn(_pglich->IvMac(), 1, kcbMax);
@@ -1623,12 +1623,12 @@ void EDML::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the EDML.
+    Mark memory for the EditControlMultiLine.
 ***************************************************************************/
-void EDML::MarkMem(void)
+void EditControlMultiLine::MarkMem(void)
 {
     AssertValid(0);
-    EDML_PAR::MarkMem();
+    EditControlMultiLine_PAR::MarkMem();
     MarkMemObj(&_bsm);
     MarkMemObj(_pglich);
 }
@@ -1637,7 +1637,7 @@ void EDML::MarkMem(void)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EditControlMultiLineWrap::EditControlMultiLineWrap(PEditParameter pedpar) : EDML(pedpar)
+EditControlMultiLineWrap::EditControlMultiLineWrap(PEditParameter pedpar) : EditControlMultiLine(pedpar)
 {
 }
 
@@ -1678,7 +1678,7 @@ long EditControlMultiLineWrap::_ClnEstimate(achar *prgch, long cch)
     _pgnv->GetRcFromRgch(&rc, prgch, cch);
     cln = LwMin(cch, 2 * rc.Dxp() / dxp);
 
-    return cln + EDML::_ClnEstimate(prgch, cch);
+    return cln + EditControlMultiLine::_ClnEstimate(prgch, cch);
 }
 
 /***************************************************************************
