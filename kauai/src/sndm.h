@@ -135,10 +135,10 @@ class SoundManager : public SoundManager_PAR
 ***************************************************************************/
 typedef class SoundQueue *PSoundQueue;
 
-typedef class SNDMQ *PSNDMQ;
-#define SNDMQ_PAR SoundDevice
-#define kclsSNDMQ 'snmq'
-class SNDMQ : public SNDMQ_PAR
+typedef class SoundManagerQueue *PSoundManagerQueue;
+#define SoundManagerQueue_PAR SoundDevice
+#define kclsSoundManagerQueue 'snmq'
+class SoundManagerQueue : public SoundManagerQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -164,7 +164,7 @@ class SNDMQ : public SNDMQ_PAR
     virtual void _Suspend(bool fSuspend) = 0;
 
   public:
-    ~SNDMQ(void);
+    ~SoundManagerQueue(void);
 
     // inherited methods
     virtual bool FActive(void);
@@ -207,7 +207,7 @@ struct SNDIN
 };
 
 /***************************************************************************
-    Sound queue for a SNDMQ
+    Sound queue for a SoundManagerQueue
 ***************************************************************************/
 #define SoundQueue_PAR BASE
 #define kclsSoundQueue 'snqu'

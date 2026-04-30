@@ -39,7 +39,7 @@ enum
     Audioman sound device class.
 ***************************************************************************/
 typedef class AudioManSoundDevice *PAudioManSoundDevice;
-#define AudioManSoundDevice_PAR SNDMQ
+#define AudioManSoundDevice_PAR SoundManagerQueue
 #define kclsAudioManSoundDevice 'SDAM'
 class AudioManSoundDevice : public AudioManSoundDevice_PAR
 {

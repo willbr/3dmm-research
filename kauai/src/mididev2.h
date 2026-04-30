@@ -21,7 +21,7 @@ typedef class MidiStreamMixer *PMidiStreamMixer;
     The midi player using a Midi stream.
 ***************************************************************************/
 typedef class MidiStreamPlayer *PMidiStreamPlayer;
-#define MidiStreamPlayer_PAR SNDMQ
+#define MidiStreamPlayer_PAR SoundManagerQueue
 #define kclsMidiStreamPlayer 'MDPS'
 class MidiStreamPlayer : public MidiStreamPlayer_PAR
 {

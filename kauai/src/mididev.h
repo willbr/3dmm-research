@@ -19,7 +19,7 @@
     The midi player.
 ***************************************************************************/
 typedef class MidiPlayer *PMidiPlayer;
-#define MidiPlayer_PAR SNDMQ
+#define MidiPlayer_PAR SoundManagerQueue
 #define kclsMidiPlayer 'MIDP'
 class MidiPlayer : public MidiPlayer_PAR
 {
