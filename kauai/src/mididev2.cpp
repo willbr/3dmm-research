@@ -234,7 +234,7 @@ bool MidiStreamCached::_FInit(PMIDS pmids)
 {
     AssertPo(pmids, 0);
 
-    MSTP mstp;
+    MidiStreamParser mstp;
     ulong tsCur;
     MEV rgmev[100];
     PMEV pmev, pmevLim;

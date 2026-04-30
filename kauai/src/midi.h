@@ -35,13 +35,13 @@ typedef MIDEV *PMIDEV;
 /***************************************************************************
     Midi stream parser. Knows how to parse standard MIDI streams.
 ***************************************************************************/
-typedef class MSTP *PMSTP;
-#define MSTP_PAR BASE
-#define kclsMSTP 'MSTP'
-class MSTP : public MSTP_PAR
+typedef class MidiStreamParser *PMidiStreamParser;
+#define MidiStreamParser_PAR BASE
+#define kclsMidiStreamParser 'MSTP'
+class MidiStreamParser : public MidiStreamParser_PAR
 {
     RTCLASS_DEC
-    NOCOPY(MSTP)
+    NOCOPY(MidiStreamParser)
     ASSERT
     MARKMEM
 
@@ -58,8 +58,8 @@ class MSTP : public MSTP_PAR
     bool _FReadVar(byte **ppbCur, long *plw);
 
   public:
-    MSTP(void);
-    ~MSTP(void);
+    MidiStreamParser(void);
+    ~MidiStreamParser(void);
 
     void Init(PMIDS pmids, ulong tsStart = 0, long lwTempo = 500000);
     bool FGetEvent(PMIDEV pmidev, bool fAdvance = fTrue);
@@ -80,7 +80,7 @@ class MIDS : public MIDS_PAR
   protected:
     HQ _hqrgb;
 
-    friend MSTP;
+    friend MidiStreamParser;
 
     MIDS(void);
 

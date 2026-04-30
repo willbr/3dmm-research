@@ -363,7 +363,7 @@ class MPQUE : public MPQUE_PAR
     HN _hth;        // the thread handle
 
     Mutex _mutx;    // mutex to restrict access to member variables
-    MSTP _mstp;    // midi stream parser
+    MidiStreamParser _mstp;    // midi stream parser
     long _dtsSlip; // amount of time we've slipped by
     long _sii;     // id and priority of sound we're currently serving
     long _spr;

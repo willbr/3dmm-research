@@ -12,13 +12,13 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(MSTP)
+RTCLASS(MidiStreamParser)
 RTCLASS(MIDS)
 
 /***************************************************************************
     Constructor for a midi stream parser.
 ***************************************************************************/
-MSTP::MSTP(void)
+MidiStreamParser::MidiStreamParser(void)
 {
     AssertBaseThis(0);
     _pmids = pvNil;
@@ -27,7 +27,7 @@ MSTP::MSTP(void)
 /***************************************************************************
     Destructor for a midi stream parser.
 ***************************************************************************/
-MSTP::~MSTP(void)
+MidiStreamParser::~MidiStreamParser(void)
 {
     AssertThis(0);
 
@@ -40,7 +40,7 @@ MSTP::~MSTP(void)
     Initialize this midi stream parser to the given midi stream and use the
     given time as the start time.
 ***************************************************************************/
-void MSTP::Init(PMIDS pmids, ulong tsStart, long lwTempo)
+void MidiStreamParser::Init(PMIDS pmids, ulong tsStart, long lwTempo)
 {
     AssertThis(0);
     AssertNilOrPo(pmids, 0);
@@ -74,7 +74,7 @@ void MSTP::Init(PMIDS pmids, ulong tsStart, long lwTempo)
     Get the next midi event. If fAdvance is true, advance to the next event
     after getting this one.
 ***************************************************************************/
-bool MSTP::FGetEvent(PMIDEV pmidev, bool fAdvance)
+bool MidiStreamParser::FGetEvent(PMIDEV pmidev, bool fAdvance)
 {
     AssertThis(0);
     AssertNilOrVarMem(pmidev);
@@ -229,7 +229,7 @@ LFail:
 /***************************************************************************
     Read a variable length quantity.
 ***************************************************************************/
-bool MSTP::_FReadVar(byte **ppbCur, long *plw)
+bool MidiStreamParser::_FReadVar(byte **ppbCur, long *plw)
 {
     AssertThis(0);
     AssertVarMem(ppbCur);
@@ -249,11 +249,11 @@ bool MSTP::_FReadVar(byte **ppbCur, long *plw)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSTP.
+    Assert the validity of a MidiStreamParser.
 ***************************************************************************/
-void MSTP::AssertValid(ulong grf)
+void MidiStreamParser::AssertValid(ulong grf)
 {
-    MSTP_PAR::AssertValid(0);
+    MidiStreamParser_PAR::AssertValid(0);
     if (pvNil == _pmids)
         return;
 
@@ -264,12 +264,12 @@ void MSTP::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the MSTP.
+    Mark memory for the MidiStreamParser.
 ***************************************************************************/
-void MSTP::MarkMem(void)
+void MidiStreamParser::MarkMem(void)
 {
     AssertValid(0);
-    MSTP_PAR::MarkMem();
+    MidiStreamParser_PAR::MarkMem();
     MarkMemObj(_pmids);
 }
 #endif // DEBUG
@@ -388,7 +388,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
 
     struct MIDTR
     {
-        PMSTP pmstp;
+        PMidiStreamParser pmstp;
         MIDEV midevCur;
     };
 
@@ -467,7 +467,7 @@ PMIDS MIDS::PmidsReadNative(Filename *pfni)
         fp += midchd.cb;
 
         // create the midi stream parser for this stream
-        if (pvNil == (midtr.pmstp = NewObj MSTP))
+        if (pvNil == (midtr.pmstp = NewObj MidiStreamParser))
             goto LFail;
         midtr.pmstp->Init(pmids, 0, 500000 /* microseconds per beat */);
         ReleasePpo(&pmids);
