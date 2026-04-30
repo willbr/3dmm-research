@@ -27,7 +27,7 @@
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BrowserImportSound (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -87,7 +87,7 @@ RTCLASS(BrowserCamera)
 RTCLASS(BrowserNamedList)
 RTCLASS(BrowserMusic)
 RTCLASS(BRWR)
-RTCLASS(BRWI)
+RTCLASS(BrowserImportSound)
 RTCLASS(BrowserContentList)
 RTCLASS(BCLS)
 RTCLASS(FNET)
@@ -2026,7 +2026,7 @@ PBrowserMusic BrowserMusic::PbrwmNew(PResourceCache prca, long kidGlass, long st
  * to the current BrowserList lists:
  *	pglthd, pgst
  *
- * Used at initialization time by both the BRWI and
+ * Used at initialization time by both the BrowserImportSound and
  * the BrowserMusic classes.
  *
  * It is assumed that initialization has created
@@ -2714,17 +2714,17 @@ bool BrowserAction::FCmdChangeCel(PCommand pcmd)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWI BRWI::PbrwiNew(PResourceCache prca, long kidGlass, long sty)
+PBrowserImportSound BrowserImportSound::PbrwiNew(PResourceCache prca, long kidGlass, long sty)
 {
     AssertPo(prca, 0);
 
-    PBRWI pbrwi;
+    PBrowserImportSound pbrwi;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    if ((pbrwi = NewObj BRWI(&gcb)) == pvNil)
+    if ((pbrwi = NewObj BrowserImportSound(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2741,10 +2741,10 @@ PBRWI BRWI::PbrwiNew(PResourceCache prca, long kidGlass, long sty)
 
 /***************************************************************************
  *
- * Initialize the BRWI	 (Import Browser)
+ * Initialize the BrowserImportSound	 (Import Browser)
  *
  **************************************************************************/
-bool BRWI::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
+bool BrowserImportSound::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
 {
     AssertBaseThis(0);
 
@@ -3418,7 +3418,7 @@ BRWR::~BRWR(void)
  * Browser Music Import Destructor
  *
  ****************************************************/
-BRWI::~BRWI(void)
+BrowserImportSound::~BrowserImportSound(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pcrf);
@@ -3477,14 +3477,14 @@ void BRWR::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRWI
+    Mark memory used by the BrowserImportSound
 
  ****************************************************/
-void BRWI::MarkMem(void)
+void BrowserImportSound::MarkMem(void)
 {
     AssertThis(0);
     MarkMemObj(_pcrf);
-    BRWI_PAR::MarkMem();
+    BrowserImportSound_PAR::MarkMem();
 }
 
 /****************************************************
@@ -3632,13 +3632,13 @@ void BRWR::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRWI
+    Assert the validity of the BrowserImportSound
 
  ****************************************************/
-void BRWI::AssertValid(ulong grfobj)
+void BrowserImportSound::AssertValid(ulong grfobj)
 {
 
-    BRWI_PAR::AssertValid(fobjAllocated);
+    BrowserImportSound_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pcrf, 0);
 }
 

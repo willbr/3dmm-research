@@ -26,7 +26,7 @@
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BrowserImportSound (Browser import sound class)
 
 NOTE:  In this implementation, browsers are considered to be studio related.
 If for any reason one wanted to decouple them from the studio, then	it would
@@ -255,20 +255,20 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
     //
     case kidBrwsImportFX:
         ckiRoot.ctg = kctgSfth;
-        pbrwd = (PBrowserDisplay)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
+        pbrwd = (PBrowserDisplay)(BrowserImportSound::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
         goto LImport;
     case kidBrwsImportSpeech:
         ckiRoot.ctg = kctgSvth;
-        pbrwd = (PBrowserDisplay)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
+        pbrwd = (PBrowserDisplay)(BrowserImportSound::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
         goto LImport;
     case kidBrwsImportMidi:
         ckiRoot.ctg = kctgSmth;
-        pbrwd = (PBrowserDisplay)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
+        pbrwd = (PBrowserDisplay)(BrowserImportSound::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
     LImport:
         if (pvNil == pbrwd)
             goto LFail;
         // Build the string table before initializing the BrowserDisplay
-        if (!((PBRWI)pbrwd)->FInit(pcmd, ckiRoot, this))
+        if (!((PBrowserImportSound)pbrwd)->FInit(pcmd, ckiRoot, this))
         {
             goto LFail;
         }
@@ -589,13 +589,13 @@ void BrowserMusic::_ApplySelection(long thumSelect, long sid)
 /***************************************************************************
  *
  * Apply an Import Music Selection.
- * Copy the msnd chunk from the open BRWI movie to the current movie
+ * Copy the msnd chunk from the open BrowserImportSound movie to the current movie
  * Then notify the underlying sound browser to update
  *
  * thumSelect is a cnoContent
  *
  **************************************************************************/
-void BRWI::_ApplySelection(long thumSelect, long sid)
+void BrowserImportSound::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
