@@ -604,7 +604,7 @@ bool ApplicationBase::_FInitSound(long wav)
     if (pvNil == (vpsndm = SoundManager::PsndmNew()))
         return fTrue;
 
-    if (pvNil != (psndv = SDAM::PsdamNew(wav)))
+    if (pvNil != (psndv = AudioManSoundDevice::PsdamNew(wav)))
     {
         vpsndm->FAddDevice(kctgWave, psndv);
         ReleasePpo(&psndv);
