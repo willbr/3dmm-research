@@ -87,10 +87,10 @@ typedef class MidiStreamInterface *PMidiStreamInterface;
 /***************************************************************************
     Midi stream queue.
 ***************************************************************************/
-typedef class MSQUE *PMSQUE;
-#define MSQUE_PAR SoundQueue
-#define kclsMSQUE 'msqu'
-class MSQUE : public MSQUE_PAR
+typedef class MidiStreamQueue *PMidiStreamQueue;
+#define MidiStreamQueue_PAR SoundQueue
+#define kclsMidiStreamQueue 'msqu'
+class MidiStreamQueue : public MidiStreamQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -101,7 +101,7 @@ class MSQUE : public MSQUE_PAR
     ulong _tsStart; // when we started the current sound
     PMidiStreamMixer _pmsmix;
 
-    MSQUE(void);
+    MidiStreamQueue(void);
 
     virtual void _Enter(void);
     virtual void _Leave(void);
@@ -113,8 +113,8 @@ class MSQUE : public MSQUE_PAR
     virtual void _ResumeQueue(long isndinMin);
 
   public:
-    static PMSQUE PmsqueNew(PMidiStreamMixer pmsmix);
-    ~MSQUE(void);
+    static PMidiStreamQueue PmsqueNew(PMidiStreamMixer pmsmix);
+    ~MidiStreamQueue(void);
 
     void Notify(PMidiStreamCached pmdws);
 };
@@ -135,7 +135,7 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
   protected:
     struct MSOS
     {
-        PMSQUE pmsque;  // the "channel" or queue that the sound is on
+        PMidiStreamQueue pmsque;  // the "channel" or queue that the sound is on
         PMidiStreamCached pmdws;    // the sound
         long sii;       // its sound id (for a priority tie breaker)
         long spr;       // its priority
@@ -181,7 +181,7 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     static PMidiStreamMixer PmsmixNew(void);
     ~MidiStreamMixer(void);
 
-    bool FPlay(PMSQUE pmsque, PMidiStreamCached pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
+    bool FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
                ulong dtsStart = 0, long vlm = kvlmFull);
 
     void Suspend(bool fSuspend);
