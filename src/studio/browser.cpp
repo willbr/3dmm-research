@@ -25,7 +25,7 @@
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
-    BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
 
@@ -83,7 +83,7 @@ RTCLASS(BrowserText)
 RTCLASS(BrowserAction)
 RTCLASS(BrowserPropActor)
 RTCLASS(BrowserBackground)
-RTCLASS(BRWC)
+RTCLASS(BrowserCamera)
 RTCLASS(BrowserNamedList)
 RTCLASS(BRWM)
 RTCLASS(BRWR)
@@ -2914,17 +2914,17 @@ void BrowserList::_SetCbPcrmMin(void)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWC BRWC::PbrwcNew(PResourceCache prca)
+PBrowserCamera BrowserCamera::PbrwcNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
-    PBRWC pbrwc;
+    PBrowserCamera pbrwc;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidCameraGlass))
         return pvNil;
 
-    if ((pbrwc = NewObj BRWC(&gcb)) == pvNil)
+    if ((pbrwc = NewObj BrowserCamera(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2943,7 +2943,7 @@ PBRWC BRWC::PbrwcNew(PResourceCache prca)
  * Camera's virtual FCmdCancel
  *
  ****************************************************/
-bool BRWC::FCmdCancel(PCommand pcmd)
+bool BrowserCamera::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2959,7 +2959,7 @@ bool BRWC::FCmdCancel(PCommand pcmd)
     // Update the UI
     _pstdio->Pmvie()->Pmcc()->ChangeTool(toolDefault);
 
-    return BRWC_PAR::FCmdCancel(pcmd);
+    return BrowserCamera_PAR::FCmdCancel(pcmd);
 }
 
 /****************************************************

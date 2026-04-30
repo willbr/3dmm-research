@@ -19,7 +19,7 @@
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
-    BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
 
@@ -650,10 +650,10 @@ class BrowserBackground : public BrowserBackground_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWC_PAR BrowserList
-#define kclsBRWC 'BRWC'
-typedef class BRWC *PBRWC;
-class BRWC : public BRWC_PAR
+#define BrowserCamera_PAR BrowserList
+#define kclsBrowserCamera 'BRWC'
+typedef class BrowserCamera *PBrowserCamera;
+class BrowserCamera : public BrowserCamera_PAR
 {
     RTCLASS_DEC
 
@@ -667,12 +667,12 @@ class BRWC : public BRWC_PAR
     //
     // Constructors and destructors
     //
-    BRWC(PGraphicsObjectBlock pgcb) : BRWC_PAR(pgcb)
+    BrowserCamera(PGraphicsObjectBlock pgcb) : BrowserCamera_PAR(pgcb)
     {
     }
-    ~BRWC(void){};
+    ~BrowserCamera(void){};
 
-    static PBRWC PbrwcNew(PResourceCache prca);
+    static PBrowserCamera PbrwcNew(PResourceCache prca);
 
     virtual bool FCmdCancel(PCommand pcmd);
 };
