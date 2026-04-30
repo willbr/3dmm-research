@@ -28,7 +28,7 @@ long csampSec;                                  // sampling rate for recorder ea
 
 RTCLASS(ESL)
 RTCLASS(ESLT)
-RTCLASS(ESLA)
+RTCLASS(EaselActor)
 RTCLASS(SpletterNameEditor)
 RTCLASS(EaselListen)
 RTCLASS(ListenerSound)
@@ -820,33 +820,33 @@ void SpletterNameEditor::MarkMem(void)
 //
 //
 //
-//  ESLA (actor easel) stuff begins here
+//  EaselActor (actor easel) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(ESLA, ESL)
-ON_CID_GEN(cidEaselRotate, &ESLA::FCmdRotate, pvNil)
-ON_CID_GEN(cidEaselCostumes, &ESLA::FCmdTool, pvNil)
-ON_CID_GEN(cidEaselAccessories, &ESLA::FCmdTool, pvNil)
+BEGIN_CMD_MAP(EaselActor, ESL)
+ON_CID_GEN(cidEaselRotate, &EaselActor::FCmdRotate, pvNil)
+ON_CID_GEN(cidEaselCostumes, &EaselActor::FCmdTool, pvNil)
+ON_CID_GEN(cidEaselAccessories, &EaselActor::FCmdTool, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new actor easel
 ***************************************************************************/
-PESLA ESLA::PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr)
+PEaselActor EaselActor::PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertPo(pactr, 0);
 
-    PESLA pesla;
+    PEaselActor pesla;
     GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidCostGlass))
         return pvNil;
 
-    pesla = NewObj ESLA(&gcb);
+    pesla = NewObj EaselActor(&gcb);
     if (pvNil == pesla)
         return pvNil;
     if (!pesla->_FInit(prca, kidCostGlass, pmvie, pactr))
@@ -863,7 +863,7 @@ PESLA ESLA::PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLA::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
+bool EaselActor::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -875,7 +875,7 @@ bool ESLA::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
     String stn;
     EDPAR edpar;
 
-    if (!ESLA_PAR::_FInit(prca, kidEasel))
+    if (!EaselActor_PAR::_FInit(prca, kidEasel))
         return fFalse;
     if (!cost.FGet(pactr->Pbody()))
         return fFalse;
@@ -909,7 +909,7 @@ bool ESLA::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
     _pedsl or _pape because they're GOBs and are automatically destroyed
     with the gob tree.
 ***************************************************************************/
-ESLA::~ESLA(void)
+EaselActor::~EaselActor(void)
 {
     AssertBaseThis(0);
 }
@@ -917,7 +917,7 @@ ESLA::~ESLA(void)
 /***************************************************************************
     Handle a rotate command
 ***************************************************************************/
-bool ESLA::FCmdRotate(PCommand pcmd)
+bool EaselActor::FCmdRotate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -930,7 +930,7 @@ bool ESLA::FCmdRotate(PCommand pcmd)
 /***************************************************************************
     Handle a tool change command
 ***************************************************************************/
-bool ESLA::FCmdTool(PCommand pcmd)
+bool EaselActor::FCmdTool(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -956,7 +956,7 @@ bool ESLA::FCmdTool(PCommand pcmd)
 /***************************************************************************
     Make the changes to _pactr
 ***************************************************************************/
-bool ESLA::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselActor::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
@@ -1025,11 +1025,11 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLA.
+    Assert the validity of the EaselActor.
 ***************************************************************************/
-void ESLA::AssertValid(ulong grf)
+void EaselActor::AssertValid(ulong grf)
 {
-    ESLA_PAR::AssertValid(fobjAllocated);
+    EaselActor_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
     AssertPo(_pactr, 0);
     AssertPo(_pape, 0);
@@ -1037,13 +1037,13 @@ void ESLA::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the ESLA.  The _pape and _pedsl are marked
+    Mark memory used by the EaselActor.  The _pape and _pedsl are marked
     automatically with the GraphicsObject tree.
 ***************************************************************************/
-void ESLA::MarkMem(void)
+void EaselActor::MarkMem(void)
 {
     AssertThis(0);
-    ESLA_PAR::MarkMem();
+    EaselActor_PAR::MarkMem();
 }
 #endif // DEBUG
 

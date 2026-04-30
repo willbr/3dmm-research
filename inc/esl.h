@@ -136,15 +136,15 @@ class ESLT : public ESLT_PAR
 /********************************************
     The actor easel (costume changer) class
 ********************************************/
-typedef class ESLA *PESLA;
-#define ESLA_PAR ESL
-#define kclsESLA 'ESLA'
-class ESLA : public ESLA_PAR
+typedef class EaselActor *PEaselActor;
+#define EaselActor_PAR ESL
+#define kclsEaselActor 'ESLA'
+class EaselActor : public EaselActor_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(ESLA)
+    CMD_MAP_DEC(EaselActor)
 
   protected:
     PMovie _pmvie; // Movie that this actor is in
@@ -153,15 +153,15 @@ class ESLA : public ESLA_PAR
     PEDSL _pedsl; // Single-line edit control (for actor's name)
 
   protected:
-    ESLA(PGraphicsObjectBlock pgcb) : ESL(pgcb)
+    EaselActor(PGraphicsObjectBlock pgcb) : ESL(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLA PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr);
-    ~ESLA(void);
+    static PEaselActor PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr);
+    ~EaselActor(void);
 
     bool FCmdRotate(PCommand pcmd);
     bool FCmdTool(PCommand pcmd);
