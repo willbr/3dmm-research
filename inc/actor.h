@@ -688,10 +688,10 @@ class Actor : public Actor_PAR
 //
 // Actor document for clipping
 //
-typedef class ACLP *PACLP;
-#define ACLP_PAR DocumentBase
-#define kclsACLP 'ACLP'
-class ACLP : public ACLP_PAR
+typedef class ActorClipboard *PActorClipboard;
+#define ActorClipboard_PAR DocumentBase
+#define kclsActorClipboard 'ACLP'
+class ActorClipboard : public ActorClipboard_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -702,7 +702,7 @@ class ACLP : public ACLP_PAR
     bool _fRteOnly;
     String _stnName;
 
-    ACLP(void)
+    ActorClipboard(void)
     {
     }
 
@@ -710,8 +710,8 @@ class ACLP : public ACLP_PAR
     //
     // Constructors and destructors
     //
-    static PACLP PaclpNew(PActor pactr, bool fRteOnly, bool fEndScene = fFalse);
-    ~ACLP(void);
+    static PActorClipboard PaclpNew(PActor pactr, bool fRteOnly, bool fEndScene = fFalse);
+    ~ActorClipboard(void);
 
     //
     // Pasting function
