@@ -18,7 +18,7 @@
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
     BrowserDisplay --> BrowserList  (Browser list class; chunky based)
     BrowserDisplay --> BrowserText  (Browser text class)
-    BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
@@ -26,8 +26,8 @@
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
-    BrowserDisplay --> BrowserList --> BRWN --> BRWM (Browser music class)
-    BrowserDisplay --> BrowserList --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -84,7 +84,7 @@ RTCLASS(BrowserAction)
 RTCLASS(BRWP)
 RTCLASS(BRWB)
 RTCLASS(BRWC)
-RTCLASS(BRWN)
+RTCLASS(BrowserNamedList)
 RTCLASS(BRWM)
 RTCLASS(BRWR)
 RTCLASS(BRWI)
@@ -1836,17 +1836,17 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
 
 /****************************************************
  *
- * BRWN Initialization
+ * BrowserNamedList Initialization
  * -> BrowserList Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
+bool BrowserNamedList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
                  PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    if (!BRWN_PAR::FInit(pcmd, bws, thumSelect, sidSelect, ckiRoot, ctgContent, pstdio, pbrcnl, fWrapScroll,
+    if (!BrowserNamedList_PAR::FInit(pcmd, bws, thumSelect, sidSelect, ckiRoot, ctgContent, pstdio, pbrcnl, fWrapScroll,
                          cthumScroll))
     {
         return fFalse;
@@ -1862,7 +1862,7 @@ bool BRWN::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long
  * Build the thd
  *
  ****************************************************/
-bool BRWN::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl)
+bool BrowserNamedList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1902,7 +1902,7 @@ LFail:
  * Removes the text from the unused tgob
  *
  ****************************************************/
-void BRWN::_ReleaseThumFrame(long ifrm)
+void BrowserNamedList::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
@@ -1917,7 +1917,7 @@ void BRWN::_ReleaseThumFrame(long ifrm)
         ((PTextGraphicsObject)pgob)->SetText(&stn);
     }
 
-    // The BRWN class retains the tgob while the browser is up
+    // The BrowserNamedList class retains the tgob while the browser is up
 }
 
 /****************************************************
@@ -1926,7 +1926,7 @@ void BRWN::_ReleaseThumFrame(long ifrm)
  * current frame
  *
  ****************************************************/
-bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
+bool BrowserNamedList::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(ithd, 0, _pglthd->IvMac());
@@ -1953,7 +1953,7 @@ bool BRWN::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
  * Apply selection & exit
  *
  ****************************************************/
-bool BRWN::FCmdOk(PCommand pcmd)
+bool BrowserNamedList::FCmdOk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
