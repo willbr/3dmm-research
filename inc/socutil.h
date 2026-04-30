@@ -184,6 +184,49 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
 };
 
 //
+// Composite undo for a batch of actor renames -- used by Ctrl+G / Ctrl+Shift+G
+// to apply or strip a #tag across every selected actor as a single undo step.
+//
+// Each entry stores (arid, name-to-restore-on-toggle). FUndo and FDo both
+// swap each actor's current name with the stored name, so undo/redo
+// alternates between the pre- and post-rename states.
+//
+typedef class ActorRenameGroupUndo *PActorRenameGroupUndo;
+
+#define ActorRenameGroupUndo_PAR MovieUndo
+#define kclsActorRenameGroupUndo 'ARGU'
+class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
+{
+    RTCLASS_DEC
+    MARKMEM
+    ASSERT
+
+  protected:
+    // Each entry: GST string = "name to restore on the next FUndo/FDo",
+    //             extra      = long arid.
+    PVirtualStringTable _pgstNames;
+    ActorRenameGroupUndo(void)
+    {
+    }
+
+  public:
+    static PActorRenameGroupUndo PargNew(void);
+    ~ActorRenameGroupUndo(void);
+
+    // Records a rename: pstnPrev is the actor's pre-rename name, which is
+    // what the first FUndo will restore. Mid-loop OOM returns fFalse.
+    bool FAddChild(long arid, PString pstnPrev);
+
+    long Cchild(void)
+    {
+        return _pgstNames == pvNil ? 0 : _pgstNames->IvMac();
+    }
+
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
+};
+
+//
 // Definition of transition types
 //
 enum TRANS

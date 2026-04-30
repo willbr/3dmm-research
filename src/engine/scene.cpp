@@ -2541,6 +2541,98 @@ bool Scene::FSelectAllActrs(void)
 
 /****************************************************
  *
+ * Tag-name helpers (file-local).
+ *
+ * A tag is a '#' immediately followed by one or more characters in the set
+ * [A-Za-z0-9_], terminated by whitespace, end-of-string, or another '#'.
+ * Parsing is ASCII-only and case-insensitive.
+ *
+ ****************************************************/
+static bool _FIsTagChar(achar ch)
+{
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+           (ch >= '0' && ch <= '9') || ch == '_';
+}
+
+static achar _ChLower(achar ch)
+{
+    return (ch >= 'A' && ch <= 'Z') ? (achar)(ch + ('a' - 'A')) : ch;
+}
+
+// Returns fTrue iff the substring at `prgch[ich+1..]` matches `pszTag`
+// case-insensitively as a whole tag token (i.e., terminated by end-of-
+// range or a non-tag char). `ich` points at the '#'.
+static bool _FTagAt(achar *prgch, long cch, long ich, PZString pszTag, long cchTag)
+{
+    long jch;
+    if (ich + 1 + cchTag > cch)
+        return fFalse;
+    for (jch = 0; jch < cchTag; jch++)
+    {
+        if (_ChLower(prgch[ich + 1 + jch]) != _ChLower(pszTag[jch]))
+            return fFalse;
+    }
+    long ichAfter = ich + 1 + cchTag;
+    if (ichAfter < cch && _FIsTagChar(prgch[ichAfter]))
+        return fFalse; // longer tag, not a match
+    return fTrue;
+}
+
+static bool _FNameContainsTag(PString pstn, PZString pszTag)
+{
+    long cch = pstn->Cch();
+    achar *prgch = pstn->Prgch();
+    long cchTag = CchSz(pszTag);
+    if (cchTag == 0)
+        return fFalse;
+    for (long ich = 0; ich < cch; ich++)
+    {
+        if (prgch[ich] == '#' && _FTagAt(prgch, cch, ich, pszTag, cchTag))
+            return fTrue;
+    }
+    return fFalse;
+}
+
+/****************************************************
+ *
+ * Replace the current selection with every actor in the current scene
+ * whose display name contains '#pszTag' as a whole tag token.
+ *
+ ****************************************************/
+bool Scene::FSelectActrsByTag(PZString pszTag)
+{
+    AssertThis(0);
+
+    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
+    PActor pactr;
+    String stnName;
+    bool fAny = fFalse;
+
+    ClearSelection();
+
+    for (long iactr = 0; iactr < cactr; iactr++)
+    {
+        _pglpactr->Get(iactr, &pactr);
+        if (pactr == pvNil)
+            continue;
+        pactr->GetName(&stnName);
+        if (!_FNameContainsTag(&stnName, pszTag))
+            continue;
+        if (!fAny)
+        {
+            SelectActr(pactr);
+            fAny = fTrue;
+        }
+        else if (!FToggleActrSelected(pactr))
+        {
+            return fFalse;
+        }
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
  * Mean of currently-visible selected actors' world positions.
  * Group rotate / scale tools freeze this at mousedown as the
  * pivot. Skips actors that aren't FIsInView() at the current
