@@ -90,7 +90,7 @@ RTCLASS(BrowserRollCall)
 RTCLASS(BrowserImportSound)
 RTCLASS(BrowserContentList)
 RTCLASS(BrowserContentListWithStrings)
-RTCLASS(FNET)
+RTCLASS(ThumbnailFileEnumerator)
 
 BEGIN_CMD_MAP(BrowserDisplay, KidspaceGraphicObject)
 ON_CID_GEN(cidBrowserFwd, &BrowserDisplay::FCmdFwd, pvNil)
@@ -1508,7 +1508,7 @@ bool BrowserContentList::_FBuildThd(PChunkyResourceManager pcrm)
     bool fRet = fTrue;
     PChunkyFile pcfl;
     long sid;
-    FNET fnet;
+    ThumbnailFileEnumerator fnet;
     Filename fniThd;
 
     if (!fnet.FInit())
@@ -1744,7 +1744,7 @@ bool BrowserContentListWithStrings::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrTyp
  * Initialization
  *
  ****************************************************/
-bool FNET::FInit(void)
+bool ThumbnailFileEnumerator::FInit(void)
 {
     AssertThis(0);
 
@@ -1771,7 +1771,7 @@ bool FNET::FInit(void)
  * Note: _idir == 0 -> current product
  *
  ****************************************************/
-bool FNET::FNext(Filename *pfni, long *psid)
+bool ThumbnailFileEnumerator::FNext(Filename *pfni, long *psid)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
@@ -1813,11 +1813,11 @@ bool FNET::FNext(Filename *pfni, long *psid)
 
 /****************************************************
  *
- * Gets the file from the current FNET enumeration
+ * Gets the file from the current ThumbnailFileEnumerator enumeration
  * This uses the current fne.
  *
  ****************************************************/
-bool FNET::_FNextFni(Filename *pfni, long *psid)
+bool ThumbnailFileEnumerator::_FNextFni(Filename *pfni, long *psid)
 {
     AssertThis(0);
     String stnProduct;
@@ -3007,7 +3007,7 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
     ChunkIdentification cki;
     TFC tfc;
     ChildChunkIdentification kid;
-    FNET fnet;
+    ThumbnailFileEnumerator fnet;
     Filename fniThd;
 
     if (!fnet.FInit())
