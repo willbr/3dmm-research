@@ -2205,7 +2205,7 @@ long HETG::_DypTrul(void)
 /***************************************************************************
     Create the ruler.
 ***************************************************************************/
-PTRUL HETG::_PtrulNew(PGraphicsObjectBlock pgcb)
+PTextRuler HETG::_PtrulNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     PAP pap;
