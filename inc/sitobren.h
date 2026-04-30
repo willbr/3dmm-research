@@ -288,7 +288,7 @@ class S2B : public S2B_PAR
     /* Used by TMPL-specific stuff */
     String _stnTmpl;
     String _stnActn;
-    ChildChunkID _chidActn; // Next available ACTN ChildChunkID
+    ChildChunkID _chidActn; // Next available ActionDefinition ChildChunkID
     ChildChunkID _chidBmdl;
     ChildChunkID _chidCmtl;
     short _ibpCur; // current body part #

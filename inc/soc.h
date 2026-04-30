@@ -44,7 +44,7 @@
 #define kctgGldc 'GLDC' // REVIEW *****: obsolete
 #define kctgGgcm 'GGCM'
 #define kctgGllt 'GLLT'
-#define kctgGlms 'GLMS' // motion-match sounds (under ACTN)
+#define kctgGlms 'GLMS' // motion-match sounds (under ActionDefinition)
 #define kctgGgcl 'GGCL'
 #define kctgGlxf 'GLXF'
 #define kctgMsnd 'MSND'

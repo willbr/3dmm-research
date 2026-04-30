@@ -1007,7 +1007,7 @@ const SCRP rgscrpAction[] = {{ptString, ttCalled, "missing name for action"},
 /*-----------------------------------------------------------------------------
 |	_FDoTtActionS2B
 |		Processes a token of type ttNameS2B.  That is, the ttNameS2B
-|	indicates the start of a new ACTN to create.  This handles all of
+|	indicates the start of a new ActionDefinition to create.  This handles all of
 |	the tokens for that command, and prefetches the next token following
 |	all data for this command.
 |
@@ -1048,7 +1048,7 @@ bool S2B::_FDoTtActionS2B(void)
     else if (brsStep == BR_SCALAR(-1))
         brsStep = BR_SCALAR(5.0);
 
-    /* Create the ACTN chunk itself */
+    /* Create the ActionDefinition chunk itself */
     actnf.bo = kboCur;
     actnf.osk = koskCur;
     actnf.grfactn = grfactn;
