@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> ACTN
+    BASE ---> BaseCacheableObject ---> ActionDefinition
     BASE ---> BaseCacheableObject ---> TMPL
 
     A TMPL encapsulates all the data that distinguishes one actor
@@ -31,7 +31,7 @@ using namespace BRender;
 struct CPS
 {
     short chidModl; // ChildChunkID (under TMPL chunk) of model for this body part
-    short imat34;   // index into ACTN's DynamicArray of transforms
+    short imat34;   // index into ActionDefinition's DynamicArray of transforms
 };
 const ByteOrderMask kbomCps = 0x50000000;
 
@@ -44,7 +44,7 @@ const ByteOrderMask kbomCps = 0x50000000;
 ****************************************/
 struct CEL
 {
-    ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ACTN chunk)
+    ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ActionDefinition chunk)
     BRS dwr;      // distance from previous cel
                   //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
 };
@@ -82,13 +82,13 @@ enum
 };
 
 /****************************************
-    ACTN (action): all the information
+    ActionDefinition (action): all the information
     for an action like 'rest' or 'walk'.
 ****************************************/
-typedef class ACTN *PACTN;
-#define ACTN_PAR BaseCacheableObject
-#define kclsACTN 'ACTN'
-class ACTN : public ACTN_PAR
+typedef class ActionDefinition *PActionDefinition;
+#define ActionDefinition_PAR BaseCacheableObject
+#define kclsActionDefinition 'ACTN'
+class ActionDefinition : public ActionDefinition_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -101,15 +101,15 @@ class ACTN : public ACTN_PAR
     ulong _grfactn; // various flags for this action
 
   protected:
-    ACTN(void)
+    ActionDefinition(void)
     {
     } // can't instantiate directly; must use FReadActn
     bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static PACTN PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn);
+    static PActionDefinition PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn);
     static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    ~ACTN(void);
+    ~ActionDefinition(void);
 
     ulong Grfactn(void)
     {
@@ -168,7 +168,7 @@ class TMPL : public TMPL_PAR
     } // can't instantiate directly; must use FReadTmpl
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
-    virtual PACTN _PactnFetch(long anid);
+    virtual PActionDefinition _PactnFetch(long anid);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 

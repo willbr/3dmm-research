@@ -24,7 +24,7 @@
     to draw the TDT in.  TDTs on file are very small, so it is practical to
     store them in the user's document.
 
-    Rather than fetching ACTNs and the default costume from child chunks
+    Rather than fetching ActionDefinitions and the default costume from child chunks
     of the TMPL, TDTs generate them in memory and store them in _pactnCache
     and _pmtrlDefault.  _pactnCache keeps a copy of the last requested
     action so that it doesn't have to be continuously recomputed.
@@ -264,7 +264,7 @@ LFail:
     Get the given action.  If we've built it before, use the cached copy.
     Else build the action, cache it, and return it.
 ***************************************************************************/
-PACTN TDT::_PactnFetch(long tda)
+PActionDefinition TDT::_PactnFetch(long tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
@@ -286,12 +286,12 @@ PACTN TDT::_PactnFetch(long tda)
 /***************************************************************************
     Build the given action
 ***************************************************************************/
-PACTN TDT::_PactnBuild(long tda)
+PActionDefinition TDT::_PactnBuild(long tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
 
-    PACTN pactn;
+    PActionDefinition pactn;
     PGeneralGroup pggcel;
     PDynamicArray pglbmat34 = pvNil;
     ulong grfactn;
@@ -303,7 +303,7 @@ PACTN TDT::_PactnBuild(long tda)
     if (pvNil == pglbmat34)
         goto LFail;
     grfactn = factnStatic | factnRotateY;
-    pactn = ACTN::PactnNew(pggcel, pglbmat34, grfactn);
+    pactn = ActionDefinition::PactnNew(pggcel, pglbmat34, grfactn);
     if (pvNil == pactn)
         goto LFail;
     ReleasePpo(&pggcel);

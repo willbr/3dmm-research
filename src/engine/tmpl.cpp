@@ -26,7 +26,7 @@
      |
      +--Model* - models used in this template
      |
-     +--ACTN* (chid <anid>) - action for this template
+     +--ActionDefinition* (chid <anid>) - action for this template
          |
          +--GGCL (chid 0) - GeneralGroup of cels for this action
          |
@@ -66,20 +66,20 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(ACTN)
+RTCLASS(ActionDefinition)
 RTCLASS(TMPL)
 
 /***************************************************************************
     Create a new action
 ***************************************************************************/
-PACTN ACTN::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn)
+PActionDefinition ActionDefinition::PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn)
 {
     AssertPo(pggcel, 0);
     AssertPo(pglbmat34, 0);
 
-    PACTN pactn;
+    PActionDefinition pactn;
 
-    pactn = NewObj ACTN;
+    pactn = NewObj ActionDefinition;
     if (pvNil == pactn)
         goto LFail;
     pactn->_grfactn = grfactn;
@@ -103,18 +103,18 @@ LFail:
 }
 
 /***************************************************************************
-    A PFNRPO (chunky resource reader function) to read an ACTN from a file
+    A PFNRPO (chunky resource reader function) to read an ActionDefinition from a file
 ***************************************************************************/
-bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    ACTN *pactn;
+    ActionDefinition *pactn;
 
-    *pcb = pblck->Cb(fTrue); // estimate ACTN size (not a good estimate)
+    *pcb = pblck->Cb(fTrue); // estimate ActionDefinition size (not a good estimate)
     if (pvNil == ppbaco)
         return fTrue;
 
@@ -122,7 +122,7 @@ bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
         goto LFail;
     *pcb = pblck->Cb();
 
-    pactn = NewObj ACTN;
+    pactn = NewObj ActionDefinition;
     if (pvNil == pactn || !pactn->_FInit(pcrf->Pcfl(), ctg, cno))
     {
         ReleasePpo(&pactn);
@@ -133,14 +133,14 @@ bool ACTN::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     }
     AssertPo(pactn, 0);
     *ppbaco = pactn;
-    *pcb = size(ACTN) + pactn->_pggcel->CbOnFile() + pactn->_pglbmat34->CbOnFile();
+    *pcb = size(ActionDefinition) + pactn->_pggcel->CbOnFile() + pactn->_pglbmat34->CbOnFile();
     return fTrue;
 }
 
 /***************************************************************************
-    Read an ACTN from a chunk
+    Read an ActionDefinition from a chunk
 ***************************************************************************/
-bool ACTN::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -216,7 +216,7 @@ bool ACTN::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 /***************************************************************************
     Destructor
 ***************************************************************************/
-ACTN::~ACTN(void)
+ActionDefinition::~ActionDefinition(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pggcel);
@@ -226,7 +226,7 @@ ACTN::~ACTN(void)
 /***************************************************************************
     Get a CEL
 ***************************************************************************/
-void ACTN::GetCel(long icel, CEL *pcel)
+void ActionDefinition::GetCel(long icel, CEL *pcel)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -238,7 +238,7 @@ void ACTN::GetCel(long icel, CEL *pcel)
 /***************************************************************************
     Get a CPS
 ***************************************************************************/
-void ACTN::GetCps(long icel, long icps, CPS *pcps)
+void ActionDefinition::GetCps(long icel, long icps, CPS *pcps)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -253,7 +253,7 @@ void ACTN::GetCps(long icel, long icps, CPS *pcps)
     Get a sound for icel.  If there is no sound, ptag's ChunkTagOrType is set to
     ctgNil.
 ***************************************************************************/
-void ACTN::GetSnd(long icel, PTAG ptag)
+void ActionDefinition::GetSnd(long icel, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -273,7 +273,7 @@ void ACTN::GetSnd(long icel, PTAG ptag)
 /***************************************************************************
     Get a transformation matrix
 ***************************************************************************/
-void ACTN::GetMatrix(long imat34, BMAT34 *pbmat34)
+void ActionDefinition::GetMatrix(long imat34, BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertIn(imat34, 0, _pglbmat34->IvMac());
@@ -284,23 +284,23 @@ void ACTN::GetMatrix(long imat34, BMAT34 *pbmat34)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ACTN.
+    Assert the validity of the ActionDefinition.
 ***************************************************************************/
-void ACTN::AssertValid(ulong grf)
+void ActionDefinition::AssertValid(ulong grf)
 {
-    ACTN_PAR::AssertValid(fobjAllocated);
+    ActionDefinition_PAR::AssertValid(fobjAllocated);
     AssertPo(_pggcel, 0);
     AssertPo(_pglbmat34, 0);
     AssertNilOrPo(_pgltagSnd, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the ACTN
+    Mark memory used by the ActionDefinition
 ***************************************************************************/
-void ACTN::MarkMem(void)
+void ActionDefinition::MarkMem(void)
 {
     AssertThis(0);
-    ACTN_PAR::MarkMem();
+    ActionDefinition_PAR::MarkMem();
     MarkMemObj(_pggcel);
     MarkMemObj(_pglbmat34);
     MarkMemObj(_pgltagSnd);
@@ -618,22 +618,22 @@ bool TMPL::FGetActnName(long anid, PString pstn)
 }
 
 /***************************************************************************
-    Reads an ACTN chunk from disk
+    Reads an ActionDefinition chunk from disk
 ***************************************************************************/
-PACTN TMPL::_PactnFetch(long anid)
+PActionDefinition TMPL::_PactnFetch(long anid)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
 
     ChildChunkIdentification kid;
-    ACTN *pactn;
+    ActionDefinition *pactn;
     ChildChunkID chidActn = anid;
 
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), chidActn, kctgActn, &kid))
     {
         return pvNil;
     }
-    pactn = (ACTN *)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, ACTN::FReadActn);
+    pactn = (ActionDefinition *)Pcrf()->PbacoFetch(kid.cki.ctg, kid.cki.cno, ActionDefinition::FReadActn);
     AssertNilOrPo(pactn, 0);
     return pactn;
 }
@@ -670,7 +670,7 @@ bool TMPL::FSetActnCel(BODY *pbody, long anid, long celn, BRS *pdwr)
     AssertNilOrVarMem(pdwr);
 
     long icel;
-    ACTN *pactn = pvNil;
+    ActionDefinition *pactn = pvNil;
     CEL cel;
     short ibprt;
     long cbprt = _pglibactPar->IvMac();
@@ -739,7 +739,7 @@ bool TMPL::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
     AssertIn(anid, 0, _cactn);
     AssertVarMem(pdwr);
 
-    ACTN *pactn;
+    ActionDefinition *pactn;
     long icel;
     CEL cel;
 
@@ -764,7 +764,7 @@ bool TMPL::FGetCcelActn(long anid, long *pccel)
     AssertIn(anid, 0, _cactn);
     AssertVarMem(pccel);
 
-    ACTN *pactn;
+    ActionDefinition *pactn;
 
     pactn = _PactnFetch(anid);
     if (pvNil == pactn)
@@ -784,7 +784,7 @@ bool TMPL::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag)
     AssertVarMem(pfSoundExists);
     AssertVarMem(ptag);
 
-    ACTN *pactn;
+    ActionDefinition *pactn;
     long icel;
 
     *pfSoundExists = fFalse;
@@ -810,7 +810,7 @@ bool TMPL::FGetGrfactn(long anid, ulong *pgrfactn)
     AssertIn(anid, 0, _cactn);
     AssertVarMem(pgrfactn);
 
-    ACTN *pactn;
+    ActionDefinition *pactn;
 
     pactn = _PactnFetch(anid);
     if (pvNil == pactn)

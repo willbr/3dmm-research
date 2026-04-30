@@ -72,7 +72,7 @@ class TDT : public TDT_PAR
     long _tdts;          // TDT shape
     TAG _tagTdf;         // Tag to Three-D Font
     PMaterial_MTRL _pmtrlDefault; // Material_MTRL for TDT's default costume
-    PACTN _pactnCache;   // Last-used action
+    PActionDefinition _pactnCache;   // Last-used action
     long _tdaCache;      // Action in pactnCache
 
   protected:
@@ -83,8 +83,8 @@ class TDT : public TDT_PAR
     PGeneralGroup _PggcmidBuild(void);
     PDynamicArray _Pglbmat34Build(long tda);
     PGeneralGroup _PggcelBuild(long tda);
-    virtual PACTN _PactnFetch(long tda);
-    PACTN _PactnBuild(long tda);
+    virtual PActionDefinition _PactnFetch(long tda);
+    PActionDefinition _PactnBuild(long tda);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
     long _CcelOfTda(long tda);
     void _ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS pdxrText);
