@@ -126,7 +126,7 @@ class MovieSoundMSND : public MovieSoundMSND_PAR
     static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
     static bool FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn = pvNil);
-    static bool FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, String *pstnName, ChunkNumber *pcno);
+    static bool FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno);
     static bool FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     static bool FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno);
     ~MovieSoundMSND(void);

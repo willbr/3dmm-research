@@ -158,7 +158,7 @@ LFail:
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMIDS pmids, String *pstnName, ChunkNumber *pcno)
+bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pcflDest, 0);
     AssertPo(pmids, 0);
@@ -259,7 +259,7 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkN
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
 
-    PMIDS pmids = pvNil;
+    PMidiStream pmids = pvNil;
     Filename fniSrc;
     String stnName;
 
@@ -269,7 +269,7 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkN
     else
         stnName = *pstn;
 
-    pmids = MIDS::PmidsReadNative(&fniSrc);
+    pmids = MidiStream::PmidsReadNative(&fniSrc);
     if (pmids == pvNil)
     {
         PushErc(ercSocBadSoundFile);
