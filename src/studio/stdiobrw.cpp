@@ -22,7 +22,7 @@
 
     Studio Dependent Browsers:
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
-    BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
@@ -166,11 +166,11 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
     case kidBrwsProp:
         ckiRoot.ctg = kctgPrth;
-        pbrwd = (PBrowserDisplay)(BRWP::PbrwpNew(_pcrm, kidPropGlass));
+        pbrwd = (PBrowserDisplay)(BrowserPropActor::PbrwpNew(_pcrm, kidPropGlass));
         goto LActor;
     case kidBrwsActor:
         ckiRoot.ctg = kctgTmth;
-        pbrwd = (PBrowserDisplay)(BRWP::PbrwpNew(_pcrm, kidActorGlass));
+        pbrwd = (PBrowserDisplay)(BrowserPropActor::PbrwpNew(_pcrm, kidActorGlass));
     LActor:
         ckiRoot.cno = cnoNil;
         Assert(pvNil != _pmvie->Pscen(), "Actor browser requires scene");
@@ -181,7 +181,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         // Create BRCNL for context carryover (optional choice)
         if (pbrcn == pvNil)
             pbrcn = NewObj BRCNL;
-        if (!((PBRWP)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, 0, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserPropActor)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, 0, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
         {
             goto LFail;
         }
@@ -456,7 +456,7 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
  *
  *
  **************************************************************************/
-void BRWP::_ApplySelection(long thumSelect, long sid)
+void BrowserPropActor::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
