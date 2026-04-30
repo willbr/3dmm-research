@@ -5401,6 +5401,21 @@ void Movie::MarkViews(void)
     {
         Pbwld()->MarkRenderedRegn(pddg, 0, 0);
     }
+
+    // Force WM_PAINT for the pose-readout strip on the active view so the
+    // X/Y/Z text refreshes during drag (BRender's MarkRenderedRegn only
+    // covers the actor's old/new bounds; the top-left strip stays clean
+    // and otherwise wouldn't repaint until idle / mouseup).
+    if (MovieView::FShowPoseReadout())
+    {
+        PDocumentDisplayGraphicsObject pddgActive = PddgActive();
+        if (pddgActive != pvNil)
+        {
+            RC rcReadout;
+            rcReadout.Set(0, 0, 200, 24);
+            pddgActive->InvalRc(&rcReadout, kginSysInval);
+        }
+    }
 }
 
 /***************************************************************************
