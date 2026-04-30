@@ -23,7 +23,7 @@
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
-    BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
@@ -81,7 +81,7 @@ RTCLASS(BrowserDisplay)
 RTCLASS(BrowserList)
 RTCLASS(BrowserText)
 RTCLASS(BrowserAction)
-RTCLASS(BRWP)
+RTCLASS(BrowserPropActor)
 RTCLASS(BRWB)
 RTCLASS(BRWC)
 RTCLASS(BrowserNamedList)
@@ -2797,17 +2797,17 @@ LFail:
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWP BRWP::PbrwpNew(PResourceCache prca, long kidGlass)
+PBrowserPropActor BrowserPropActor::PbrwpNew(PResourceCache prca, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWP pbrwp;
+    PBrowserPropActor pbrwp;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    if ((pbrwp = NewObj BRWP(&gcb)) == pvNil)
+    if ((pbrwp = NewObj BrowserPropActor(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok

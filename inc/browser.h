@@ -17,7 +17,7 @@
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
-    BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
@@ -593,10 +593,10 @@ class BrowserAction : public BrowserAction_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWP_PAR BrowserList
-#define kclsBRWP 'BRWP'
-typedef class BRWP *PBRWP;
-class BRWP : public BRWP_PAR
+#define BrowserPropActor_PAR BrowserList
+#define kclsBrowserPropActor 'BRWP'
+typedef class BrowserPropActor *PBrowserPropActor;
+class BrowserPropActor : public BrowserPropActor_PAR
 {
     RTCLASS_DEC
 
@@ -607,12 +607,12 @@ class BRWP : public BRWP_PAR
     //
     // Constructors and destructors
     //
-    BRWP(PGraphicsObjectBlock pgcb) : BRWP_PAR(pgcb)
+    BrowserPropActor(PGraphicsObjectBlock pgcb) : BrowserPropActor_PAR(pgcb)
     {
     }
-    ~BRWP(void){};
+    ~BrowserPropActor(void){};
 
-    static PBRWP PbrwpNew(PResourceCache prca, long kidGlass);
+    static PBrowserPropActor PbrwpNew(PResourceCache prca, long kidGlass);
 };
 
 /************************************
