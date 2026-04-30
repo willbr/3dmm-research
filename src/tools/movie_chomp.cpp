@@ -771,7 +771,7 @@ void DumpActorEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
 
         long iaev;
         Base aev;
-        COST cost;
+        BodyCostume cost;
         FramePosition xfrm;
 
         printf("%*.s// length: %d\n", 48, "", pggaev->IvMac());

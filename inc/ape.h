@@ -73,7 +73,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     ActorPreviewEntity(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
-    bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca);
+    bool _FInit(PTMPL ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca);
     void _InitView(void);
     void _SetScale(void);
     void _UpdateView(void);
@@ -82,7 +82,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
-    static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
+    static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTMPL ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
     ~ActorPreviewEntity();
 
     void SetToolMtrl(PTAG ptagMtrl);
