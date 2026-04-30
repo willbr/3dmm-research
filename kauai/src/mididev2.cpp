@@ -16,7 +16,7 @@ ASSERTNAME
 RTCLASS(MidiStreamCached)
 RTCLASS(MSQUE)
 RTCLASS(MidiStreamPlayer)
-RTCLASS(MSMIX)
+RTCLASS(MidiStreamMixer)
 RTCLASS(MISI)
 RTCLASS(WMS)
 RTCLASS(OMS)
@@ -89,7 +89,7 @@ bool MidiStreamPlayer::_FInit(void)
         return fFalse;
 
     // Create the midi stream output scheduler
-    if (pvNil == (_pmsmix = MSMIX::PmsmixNew()))
+    if (pvNil == (_pmsmix = MidiStreamMixer::PmsmixNew()))
         return fFalse;
 
     _Suspend(_cactSuspend > 0 || !_fActive);
@@ -365,7 +365,7 @@ void MSQUE::MarkMem(void)
 /***************************************************************************
     Static method to create a new midi stream queue.
 ***************************************************************************/
-PMSQUE MSQUE::PmsqueNew(PMSMIX pmsmix)
+PMSQUE MSQUE::PmsqueNew(PMidiStreamMixer pmsmix)
 {
     AssertPo(pmsmix, 0);
     PMSQUE pmsque;
@@ -383,7 +383,7 @@ PMSQUE MSQUE::PmsqueNew(PMSMIX pmsmix)
 /***************************************************************************
     Initialize the midi stream queue.
 ***************************************************************************/
-bool MSQUE::_FInit(PMSMIX pmsmix)
+bool MSQUE::_FInit(PMidiStreamMixer pmsmix)
 {
     AssertPo(pmsmix, 0);
     AssertBaseThis(0);
@@ -491,7 +491,7 @@ void MSQUE::_ResumeQueue(long isndinMin)
 }
 
 /***************************************************************************
-    Called by the MSMIX to tell us that the indicated sound is done.
+    Called by the MidiStreamMixer to tell us that the indicated sound is done.
     WARNING: this is called in an auxillary thread.
 ***************************************************************************/
 void MSQUE::Notify(PMidiStreamCached pmdws)
@@ -517,7 +517,7 @@ void MSQUE::Notify(PMidiStreamCached pmdws)
 /***************************************************************************
     Constructor for the midi stream output object.
 ***************************************************************************/
-MSMIX::MSMIX(void)
+MidiStreamMixer::MidiStreamMixer(void)
 {
     _vlmBase = kvlmFull;
     _vlmSound = kvlmFull;
@@ -526,7 +526,7 @@ MSMIX::MSMIX(void)
 /***************************************************************************
     Destructor for the midi stream output object.
 ***************************************************************************/
-MSMIX::~MSMIX(void)
+MidiStreamMixer::~MidiStreamMixer(void)
 {
     Assert(pvNil == _pmisi || !_pmisi->FActive(), "MISI still active!");
 
@@ -543,7 +543,7 @@ MSMIX::~MSMIX(void)
 
     if (pvNil != _pglmsos)
     {
-        Assert(_pglmsos->IvMac() == 0, "MSMIX still has active sounds");
+        Assert(_pglmsos->IvMac() == 0, "MidiStreamMixer still has active sounds");
         ReleasePpo(&_pglmsos);
     }
     ReleasePpo(&_pmisi);
@@ -551,13 +551,13 @@ MSMIX::~MSMIX(void)
 }
 
 /***************************************************************************
-    Static method to create a new MSMIX.
+    Static method to create a new MidiStreamMixer.
 ***************************************************************************/
-PMSMIX MSMIX::PmsmixNew(void)
+PMidiStreamMixer MidiStreamMixer::PmsmixNew(void)
 {
-    PMSMIX pmsmix;
+    PMidiStreamMixer pmsmix;
 
-    if (pvNil == (pmsmix = NewObj MSMIX))
+    if (pvNil == (pmsmix = NewObj MidiStreamMixer))
         return pvNil;
 
     if (!pmsmix->_FInit())
@@ -568,10 +568,10 @@ PMSMIX MSMIX::PmsmixNew(void)
 }
 
 /***************************************************************************
-    Initialize the MSMIX - allocate the pglmsos and the midi stream api
+    Initialize the MidiStreamMixer - allocate the pglmsos and the midi stream api
     object.
 ***************************************************************************/
-bool MSMIX::_FInit(void)
+bool MidiStreamMixer::_FInit(void)
 {
     AssertBaseThis(0);
     ulong luThread;
@@ -590,7 +590,7 @@ bool MSMIX::_FInit(void)
         return fFalse;
 
     // create the thread
-    if (hNil == (_hth = CreateThread(pvNil, 1024, MSMIX::_ThreadProc, this, 0, &luThread)))
+    if (hNil == (_hth = CreateThread(pvNil, 1024, MidiStreamMixer::_ThreadProc, this, 0, &luThread)))
     {
         return fFalse;
     }
@@ -600,11 +600,11 @@ bool MSMIX::_FInit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSMIX.
+    Assert the validity of a MidiStreamMixer.
 ***************************************************************************/
-void MSMIX::AssertValid(ulong grf)
+void MidiStreamMixer::AssertValid(ulong grf)
 {
-    MSMIX_PAR::AssertValid(0);
+    MidiStreamMixer_PAR::AssertValid(0);
     _mutx.Enter();
     Assert(hNil != _hevt, "nil event");
     Assert(hNil != _hth, "nil thread");
@@ -615,13 +615,13 @@ void MSMIX::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the MSMIX.
+    Mark memory for the MidiStreamMixer.
 ***************************************************************************/
-void MSMIX::MarkMem(void)
+void MidiStreamMixer::MarkMem(void)
 {
     AssertValid(0);
 
-    MSMIX_PAR::MarkMem();
+    MidiStreamMixer_PAR::MarkMem();
 
     _mutx.Enter();
     MarkMemObj(_pglmsos);
@@ -634,7 +634,7 @@ void MSMIX::MarkMem(void)
 /***************************************************************************
     Suspend or resume the midi stream mixer.
 ***************************************************************************/
-void MSMIX::Suspend(bool fSuspend)
+void MidiStreamMixer::Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -653,7 +653,7 @@ void MSMIX::Suspend(bool fSuspend)
     If we're currently playing a midi stream stop it. Assumes the mutx is
     already checked out exactly once.
 ***************************************************************************/
-void MSMIX::_StopStream(void)
+void MidiStreamMixer::_StopStream(void)
 {
     AssertThis(0);
 
@@ -680,7 +680,7 @@ void MSMIX::_StopStream(void)
 /***************************************************************************
     Set the volume for the midi stream output device.
 ***************************************************************************/
-void MSMIX::SetVlm(long vlm)
+void MidiStreamMixer::SetVlm(long vlm)
 {
     AssertThis(0);
     ulong luHigh, luLow;
@@ -697,7 +697,7 @@ void MSMIX::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long MSMIX::VlmCur(void)
+long MidiStreamMixer::VlmCur(void)
 {
     AssertThis(0);
 
@@ -707,7 +707,7 @@ long MSMIX::VlmCur(void)
 /***************************************************************************
     Play the given midi stream from the indicated queue.
 ***************************************************************************/
-bool MSMIX::FPlay(PMSQUE pmsque, PMidiStreamCached pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
+bool MidiStreamMixer::FPlay(PMSQUE pmsque, PMidiStreamCached pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
 {
     AssertThis(0);
     AssertPo(pmsque, 0);
@@ -784,7 +784,7 @@ bool MSMIX::FPlay(PMSQUE pmsque, PMidiStreamCached pmdws, long sii, long spr, lo
     The sound list changed so make sure we're playing the first tune.
     Assumes the mutx is already checked out.
 ***************************************************************************/
-void MSMIX::_Restart(bool fNew)
+void MidiStreamMixer::_Restart(bool fNew)
 {
     AssertThis(0);
 
@@ -811,7 +811,7 @@ void MSMIX::_Restart(bool fNew)
     Submit the buffer(s) for the current MSOS. Assumes the mutx is already
     checked out.
 ***************************************************************************/
-void MSMIX::_SubmitBuffers(ulong tsCur)
+void MidiStreamMixer::_SubmitBuffers(ulong tsCur)
 {
     Assert(!_fPlaying, "already playing!");
     long cb, cbSkip;
@@ -907,7 +907,7 @@ void MSMIX::_SubmitBuffers(ulong tsCur)
     Seek into the pmdws the given amount of time, and accumulate key events
     in _pglmevKey.
 ***************************************************************************/
-bool MSMIX::_FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip)
+bool MidiStreamMixer::_FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip)
 {
     AssertPo(pmdws, 0);
     AssertVarMem(pcbSkip);
@@ -1066,12 +1066,12 @@ bool MSMIX::_FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip
 /***************************************************************************
     Call back from the midi stream stuff.
 ***************************************************************************/
-void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
+void MidiStreamMixer::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
 {
-    PMSMIX pmsmix;
+    PMidiStreamMixer pmsmix;
     PMidiStreamCached pmdws;
 
-    pmsmix = (PMSMIX)luUser;
+    pmsmix = (PMidiStreamMixer)luUser;
     AssertPo(pmsmix, 0);
     pmdws = (PMidiStreamCached)lUserDataa;
     AssertNilOrPo(pmdws, 0);
@@ -1082,7 +1082,7 @@ void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
 /***************************************************************************
     The midi stream is done with the given header.
 ***************************************************************************/
-void MSMIX::_Notify(void *pvData, PMidiStreamCached pmdws)
+void MidiStreamMixer::_Notify(void *pvData, PMidiStreamCached pmdws)
 {
     AssertNilOrPo(pmdws, 0);
     MSOS msos;
@@ -1136,11 +1136,11 @@ void MSMIX::_Notify(void *pvData, PMidiStreamCached pmdws)
 }
 
 /***************************************************************************
-    AT: Static method. Thread function for the MSMIX object.
+    AT: Static method. Thread function for the MidiStreamMixer object.
 ***************************************************************************/
-ulong __stdcall MSMIX::_ThreadProc(void *pv)
+ulong __stdcall MidiStreamMixer::_ThreadProc(void *pv)
 {
-    PMSMIX pmsmix = (PMSMIX)pv;
+    PMidiStreamMixer pmsmix = (PMidiStreamMixer)pv;
 
     AssertPo(pmsmix, 0);
 
@@ -1151,7 +1151,7 @@ ulong __stdcall MSMIX::_ThreadProc(void *pv)
     AT: This thread just sleeps until the next sound is due to expire, then
     wakes up and nukes any expired sounds.
 ***************************************************************************/
-ulong MSMIX::_LuThread(void)
+ulong MidiStreamMixer::_LuThread(void)
 {
     AssertThis(0);
     ulong tsCur;

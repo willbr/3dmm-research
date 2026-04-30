@@ -81,7 +81,7 @@ class MidiStreamCached : public MidiStreamCached_PAR
 };
 
 // forward declaration
-typedef class MSMIX *PMSMIX;
+typedef class MidiStreamMixer *PMidiStreamMixer;
 typedef class MISI *PMISI;
 
 /***************************************************************************
@@ -99,21 +99,21 @@ class MSQUE : public MSQUE_PAR
   protected:
     Mutex _mutx;     // restricts access to member variables
     ulong _tsStart; // when we started the current sound
-    PMSMIX _pmsmix;
+    PMidiStreamMixer _pmsmix;
 
     MSQUE(void);
 
     virtual void _Enter(void);
     virtual void _Leave(void);
 
-    virtual bool _FInit(PMSMIX pmsmix);
+    virtual bool _FInit(PMidiStreamMixer pmsmix);
     virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);
 
   public:
-    static PMSQUE PmsqueNew(PMSMIX pmsmix);
+    static PMSQUE PmsqueNew(PMidiStreamMixer pmsmix);
     ~MSQUE(void);
 
     void Notify(PMidiStreamCached pmdws);
@@ -123,10 +123,10 @@ class MSQUE : public MSQUE_PAR
     Midi Stream "mixer". It really just chooses which midi stream to play
     (based on the (spr, sii) priority).
 ***************************************************************************/
-typedef class MSMIX *PMSMIX;
-#define MSMIX_PAR BASE
-#define kclsMSMIX 'msmx'
-class MSMIX : public MSMIX_PAR
+typedef class MidiStreamMixer *PMidiStreamMixer;
+#define MidiStreamMixer_PAR BASE
+#define kclsMidiStreamMixer 'msmx'
+class MidiStreamMixer : public MidiStreamMixer_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -163,7 +163,7 @@ class MSMIX : public MSMIX_PAR
     long _vlmBase;  // the base device volume
     long _vlmSound; // the volume for the current sound
 
-    MSMIX(void);
+    MidiStreamMixer(void);
     bool _FInit(void);
     void _StopStream(void);
     bool _FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip);
@@ -178,8 +178,8 @@ class MSMIX : public MSMIX_PAR
     ulong _LuThread(void);
 
   public:
-    static PMSMIX PmsmixNew(void);
-    ~MSMIX(void);
+    static PMidiStreamMixer PmsmixNew(void);
+    ~MidiStreamMixer(void);
 
     bool FPlay(PMSQUE pmsque, PMidiStreamCached pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
                ulong dtsStart = 0, long vlm = kvlmFull);
