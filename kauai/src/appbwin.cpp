@@ -645,7 +645,7 @@ bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM 
 
     PGraphicsObject pgob;
     PT pt;
-    PSCB pscb;
+    PScrollBar pscb;
     RC rc;
     HDC hdc;
     PAINTSTRUCT ps;
@@ -772,8 +772,8 @@ bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM 
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-        pscb = (PSCB)CTL::PctlFromHctl(GET_WM_HSCROLL_HWND(wParam, lw));
-        if (pvNil != pscb && pscb->FIs(kclsSCB))
+        pscb = (PScrollBar)CTL::PctlFromHctl(GET_WM_HSCROLL_HWND(wParam, lw));
+        if (pvNil != pscb && pscb->FIs(kclsScrollBar))
         {
             pscb->TrackScroll(GET_WM_HSCROLL_CODE(wParam, lw), GET_WM_HSCROLL_POS(wParam, lw));
         }

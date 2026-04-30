@@ -432,7 +432,7 @@ RTCLASS(TDC)
 void TDC::_NewRc(void)
 {
     // set the scroll bar ranges and values
-    PSCB pscb;
+    PScrollBar pscb;
     long dxp, dyp;
     RC rc, rcPar;
 
@@ -449,9 +449,9 @@ void TDC::_NewRc(void)
         return;
     }
 
-    if ((pscb = (PSCB)PgobFromHidScr(khidHScroll)) != pvNil)
+    if ((pscb = (PScrollBar)PgobFromHidScr(khidHScroll)) != pvNil)
         pscb->SetValMinMax(-rc.xpLeft, 0, LwMax(0, rc.Dxp() - rcPar.Dxp()));
-    if ((pscb = (PSCB)PgobFromHidScr(khidVScroll)) != pvNil)
+    if ((pscb = (PScrollBar)PgobFromHidScr(khidVScroll)) != pvNil)
         pscb->SetValMinMax(-rc.ypTop, 0, LwMax(0, rc.Dyp() - rcPar.Dyp()));
 }
 
@@ -523,13 +523,13 @@ DWN *DWN::PdwnNew(void)
     // add a size box and some scroll bar
     WindowSizeBox::PwsbNew(pdwn, fgobNil);
     gcb.Set(khidVScroll, pdwn);
-    SCB::PscbNew(&gcb, fscbVert | fscbStandardRc);
+    ScrollBar::PscbNew(&gcb, fscbVert | fscbStandardRc);
     gcb.Set(khidHScroll, pdwn);
-    SCB::PscbNew(&gcb, fscbHorz | fscbStandardRc);
+    ScrollBar::PscbNew(&gcb, fscbHorz | fscbStandardRc);
 
     // create a content gob
     gcb.Set(98, pdwn);
-    SCB::GetClientRc(fscbVert | fscbHorz, &gcb._rcAbs, &gcb._rcRel);
+    ScrollBar::GetClientRc(fscbVert | fscbHorz, &gcb._rcAbs, &gcb._rcRel);
     pgob = NewObj GraphicsObject(&gcb);
 
     if (pgob == pvNil)
@@ -599,12 +599,12 @@ DWN *DWN::PdwnNew(void)
 bool DWN::FCmdScroll(PCommand pcmd)
 {
     long hid, val, dval;
-    PSCB pscb;
+    PScrollBar pscb;
     PGraphicsObject pgob;
     RC rc;
 
     hid = pcmd->rglw[0];
-    pscb = (PSCB)PgobFromHid(hid);
+    pscb = (PScrollBar)PgobFromHid(hid);
     if (pscb == pvNil)
         return fTrue;
 

@@ -21,7 +21,7 @@ achar _szCtlProp[] = PszLit("CTL");
 #endif // WIN
 
 RTCLASS(CTL)
-RTCLASS(SCB)
+RTCLASS(ScrollBar)
 RTCLASS(WindowSizeBox)
 
 /***************************************************************************
@@ -170,10 +170,10 @@ void CTL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Static method to create a scroll bar.
 ***************************************************************************/
-PSCB SCB::PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val, long valMin, long valMax)
+PScrollBar ScrollBar::PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val, long valMin, long valMax)
 {
     Assert(FPure(grfscb & fscbHorz) != FPure(grfscb & fscbVert), "exactly one of (fscbHorz,fscbVert) should be set");
-    PSCB pscb;
+    PScrollBar pscb;
     GraphicsObjectBlock gcb;
 
     if (grfscb & fscbStandardRc)
@@ -183,7 +183,7 @@ PSCB SCB::PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val, long valMin
         pgcb = &gcb;
     }
 
-    if (pvNil == (pscb = NewObj SCB(pgcb)))
+    if (pvNil == (pscb = NewObj ScrollBar(pgcb)))
         return pvNil;
 
     if (!pscb->_FCreate(val, valMin, valMax, grfscb))
@@ -195,7 +195,7 @@ PSCB SCB::PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val, long valMin
 /***************************************************************************
     Static method to return the normal width of a vertical scroll bar.
 ***************************************************************************/
-long SCB::DxpNormal(void)
+long ScrollBar::DxpNormal(void)
 {
 #ifdef WIN
     static int _dxp = 0;
@@ -212,7 +212,7 @@ long SCB::DxpNormal(void)
 /***************************************************************************
     Static method to return the normal width of a horizontal scroll bar.
 ***************************************************************************/
-long SCB::DypNormal(void)
+long ScrollBar::DypNormal(void)
 {
 #ifdef WIN
     static int _dyp = 0;
@@ -230,24 +230,24 @@ long SCB::DypNormal(void)
     Get the standard rectangles for document window scroll bars.  grfscb
     should contain fscbHorz or fscbVert.
 ***************************************************************************/
-void SCB::GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel)
+void ScrollBar::GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel)
 {
     if (FPure(grfscb & fscbVert))
     {
         prcRel->ypTop = krelZero;
         prcRel->xpLeft = prcRel->xpRight = prcRel->ypBottom = krelOne;
         prcAbs->ypTop = -!(grfscb & fscbShowTop);
-        prcAbs->xpLeft = -SCB::DxpNormal() + !(grfscb & fscbShowRight);
+        prcAbs->xpLeft = -ScrollBar::DxpNormal() + !(grfscb & fscbShowRight);
         prcAbs->xpRight = !(grfscb & fscbShowRight);
-        prcAbs->ypBottom = -SCB::DypNormal() + 1 + !(grfscb & fscbShowBottom);
+        prcAbs->ypBottom = -ScrollBar::DypNormal() + 1 + !(grfscb & fscbShowBottom);
     }
     else
     {
         prcRel->xpLeft = krelZero;
         prcRel->ypTop = prcRel->xpRight = prcRel->ypBottom = krelOne;
-        prcAbs->ypTop = -SCB::DypNormal() + !(grfscb & fscbShowBottom);
+        prcAbs->ypTop = -ScrollBar::DypNormal() + !(grfscb & fscbShowBottom);
         prcAbs->xpLeft = -!(grfscb & fscbShowLeft);
-        prcAbs->xpRight = -SCB::DxpNormal() + 1 + !(grfscb & fscbShowRight);
+        prcAbs->xpRight = -ScrollBar::DxpNormal() + 1 + !(grfscb & fscbShowRight);
         prcAbs->ypBottom = !(grfscb & fscbShowBottom);
     }
 }
@@ -256,21 +256,21 @@ void SCB::GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel)
     Get the standard client window rectangle (assuming the given set of
     scroll bars).
 ***************************************************************************/
-void SCB::GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel)
+void ScrollBar::GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel)
 {
     prcRel->ypTop = prcRel->xpLeft = krelZero;
     prcRel->ypBottom = prcRel->xpRight = krelOne;
     prcAbs->Zero();
     if (grfscb & fscbVert)
-        prcAbs->xpRight = -SCB::DxpNormal() + !(grfscb & fscbShowRight);
+        prcAbs->xpRight = -ScrollBar::DxpNormal() + !(grfscb & fscbShowRight);
     if (grfscb & fscbHorz)
-        prcAbs->ypBottom = -SCB::DypNormal() + !(grfscb & fscbShowBottom);
+        prcAbs->ypBottom = -ScrollBar::DypNormal() + !(grfscb & fscbShowBottom);
 }
 
 /***************************************************************************
     Create the actual system scroll bar.
 ***************************************************************************/
-bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
+bool ScrollBar::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 {
     Assert(_Hctl() == hNil, "scb already created");
     RC rc;
@@ -311,7 +311,7 @@ bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 /***************************************************************************
     Set the value of the scroll bar.
 ***************************************************************************/
-void SCB::SetVal(long val, bool fRedraw)
+void ScrollBar::SetVal(long val, bool fRedraw)
 {
     long lwCur;
 
@@ -336,7 +336,7 @@ void SCB::SetVal(long val, bool fRedraw)
 /***************************************************************************
     Set the min and max of the scroll bar.
 ***************************************************************************/
-void SCB::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
+void ScrollBar::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
 {
     long lwCur;
 
@@ -370,7 +370,7 @@ void SCB::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
 /***************************************************************************
     The hwnd has been activated or deactivated - redraw and validate.
 ***************************************************************************/
-void SCB::_ActivateHwnd(bool fActive)
+void ScrollBar::_ActivateHwnd(bool fActive)
 {
     if (_valMin < _valMax)
     {
@@ -396,7 +396,7 @@ void SCB::_ActivateHwnd(bool fActive)
 /***************************************************************************
     Handle mouse tracking for a scroll bar.
 ***************************************************************************/
-void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void ScrollBar::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     SystemPoint pts;
     short in;
@@ -493,7 +493,7 @@ void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Called in response to a Win WM_HSCROLL or WM_VSCROLL message.
 ***************************************************************************/
-void SCB::TrackScroll(long sb, long lwVal)
+void ScrollBar::TrackScroll(long sb, long lwVal)
 {
     AssertThis(0);
     Command cmd;
@@ -575,8 +575,8 @@ PWindowSizeBox WindowSizeBox::PwsbNew(PGraphicsObject pgob, ulong grfgob)
     PWindowSizeBox pwsb;
 
     rcRel.xpLeft = rcRel.xpRight = rcRel.ypTop = rcRel.ypBottom = krelOne;
-    rcAbs.xpLeft = -SCB::DxpNormal() + 1;
-    rcAbs.ypTop = -SCB::DypNormal() + 1;
+    rcAbs.xpLeft = -ScrollBar::DxpNormal() + 1;
+    rcAbs.ypTop = -ScrollBar::DypNormal() + 1;
     rcAbs.xpRight = rcAbs.ypBottom = 1;
 
     GraphicsObjectBlock gcb(khidSizeBox, pgob, grfgob, kginDefault, &rcAbs, &rcRel);

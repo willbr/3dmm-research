@@ -1265,15 +1265,15 @@ void DocumentDisplayGraphicsObject::_Scroll(long scaHorz, long scaVert, long scv
 ***************************************************************************/
 void DocumentDisplayGraphicsObject::_SetScrollValues(void)
 {
-    PSCB pscb;
+    PScrollBar pscb;
     PGraphicsObject pgob;
 
     pgob = PgobPar();
     if (pgob->FIs(kclsDocumentScrollGraphicsObject))
     {
-        if (pvNil != (pscb = (PSCB)pgob->PgobFromHid(khidVScroll)))
+        if (pvNil != (pscb = (PScrollBar)pgob->PgobFromHid(khidVScroll)))
             pscb->SetValMinMax(_scvVert, 0, _ScvMax(fTrue));
-        if (pvNil != (pscb = (PSCB)pgob->PgobFromHid(khidHScroll)))
+        if (pvNil != (pscb = (PScrollBar)pgob->PgobFromHid(khidHScroll)))
             pscb->SetValMinMax(_scvHorz, 0, _ScvMax(fFalse));
     }
 }
@@ -1926,13 +1926,13 @@ void DocumentMainWindow::GetRcSplit(PDocumentScrollGraphicsObject pdsg, RC *prcB
     {
         rel = qdsed->rcRel.ypTop + LwMulDiv(qdsed->rel, qdsed->rcRel.Dyp(), krelOne);
         prcSplit->ypBottom = LwMulDiv(rc.ypBottom, rel, krelOne);
-        prcSplit->ypTop = prcSplit->ypBottom - SCB::DypNormal();
+        prcSplit->ypTop = prcSplit->ypBottom - ScrollBar::DypNormal();
     }
     else
     {
         rel = qdsed->rcRel.xpLeft + LwMulDiv(qdsed->rel, qdsed->rcRel.Dxp(), krelOne);
         prcSplit->xpRight = LwMulDiv(rc.xpRight, rel, krelOne);
-        prcSplit->xpLeft = prcSplit->xpRight - SCB::DxpNormal();
+        prcSplit->xpLeft = prcSplit->xpRight - ScrollBar::DxpNormal();
     }
 }
 
@@ -2143,17 +2143,17 @@ bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSpli
 
     // Create the scroll bars and split boxes
     GraphicsObjectBlock gcb(khidVScroll, this);
-    SCB::GetStandardRc(fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
+    ScrollBar::GetStandardRc(fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
     gcb._rcAbs.ypTop += DocumentScrollWindowSplitter::DypNormal();
-    if (pvNil == SCB::PscbNew(&gcb, fscbVert) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspVert))
+    if (pvNil == ScrollBar::PscbNew(&gcb, fscbVert) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspVert))
     {
         return fFalse;
     }
 
     gcb._hid = khidHScroll;
-    SCB::GetStandardRc(fscbHorz | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
+    ScrollBar::GetStandardRc(fscbHorz | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
     gcb._rcAbs.xpLeft += DocumentScrollWindowSplitter::DxpNormal();
-    if (pvNil == SCB::PscbNew(&gcb, fscbHorz) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspHorz))
+    if (pvNil == ScrollBar::PscbNew(&gcb, fscbHorz) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspHorz))
     {
         return fFalse;
     }
@@ -2164,7 +2164,7 @@ bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSpli
     pdocb = pdmw->Pdocb();
     AssertBasePo(pdocb, 0);
     gcb._hid = khidDdg;
-    SCB::GetClientRc(fscbHorz | fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
+    ScrollBar::GetClientRc(fscbHorz | fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
     if (pvNil == (_pddg = pdocb->PddgNew(&gcb)))
         return fFalse;
 
@@ -2182,8 +2182,8 @@ bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSpli
 void DocumentScrollGraphicsObject::GetMinMax(RC *prcMinMax)
 {
     AssertThis(0);
-    long dxpScb = SCB::DxpNormal();
-    long dypScb = SCB::DypNormal();
+    long dxpScb = ScrollBar::DxpNormal();
+    long dypScb = ScrollBar::DypNormal();
 
     AssertPo(_pddg, 0);
     _pddg->GetMinMax(prcMinMax);
@@ -2260,7 +2260,7 @@ PDocumentScrollWindowSplitter DocumentScrollWindowSplitter::PdsspNew(PDocumentSc
     {
         gcb._rcRel.xpLeft = gcb._rcRel.xpRight = krelOne;
         gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelZero;
-        gcb._rcAbs.xpLeft = -SCB::DxpNormal();
+        gcb._rcAbs.xpLeft = -ScrollBar::DxpNormal();
         gcb._rcAbs.ypTop = 0;
         gcb._rcAbs.xpRight = 0;
         gcb._rcAbs.ypBottom = DypNormal();
@@ -2270,7 +2270,7 @@ PDocumentScrollWindowSplitter DocumentScrollWindowSplitter::PdsspNew(PDocumentSc
         gcb._rcRel.xpLeft = gcb._rcRel.xpRight = krelZero;
         gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelOne;
         gcb._rcAbs.xpLeft = 0;
-        gcb._rcAbs.ypTop = -SCB::DypNormal();
+        gcb._rcAbs.ypTop = -ScrollBar::DypNormal();
         gcb._rcAbs.xpRight = DxpNormal();
         gcb._rcAbs.ypBottom = 0;
     }
@@ -2352,8 +2352,8 @@ PDocumentScrollSplitMover DocumentScrollSplitMover::PdssmNew(PDocumentScrollGrap
     GraphicsObjectBlock gcb(khidDssm, pdsg);
 
     gcb._rcRel.xpLeft = gcb._rcRel.xpRight = gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelOne;
-    gcb._rcAbs.xpLeft = -SCB::DxpNormal();
-    gcb._rcAbs.ypTop = -SCB::DypNormal();
+    gcb._rcAbs.xpLeft = -ScrollBar::DxpNormal();
+    gcb._rcAbs.ypTop = -ScrollBar::DypNormal();
     gcb._rcAbs.xpRight = gcb._rcAbs.ypBottom = 0;
     pdssm = NewObj DocumentScrollSplitMover(&gcb);
     return pdssm;

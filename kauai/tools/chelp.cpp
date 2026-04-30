@@ -783,8 +783,8 @@ bool LIG::_FInit(PTextDocument ptxhd, long dypCell)
 
     gcb.Set(khidVScroll, this);
     gcb._rcRel.Set(krelOne, 0, krelOne, krelOne);
-    gcb._rcAbs.Set(-SCB::DxpNormal(), -1, 0, 1 - kdxpFrameCcg);
-    if (pvNil == (_pscb = SCB::PscbNew(&gcb, fscbVert, 0, 0, Plid()->Ccki() - 1)))
+    gcb._rcAbs.Set(-ScrollBar::DxpNormal(), -1, 0, 1 - kdxpFrameCcg);
+    if (pvNil == (_pscb = ScrollBar::PscbNew(&gcb, fscbVert, 0, 0, Plid()->Ccki() - 1)))
     {
         return fFalse;
     }
