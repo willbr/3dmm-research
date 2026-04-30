@@ -128,12 +128,12 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         if (pvNil == pbrwd)
             goto LFail;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
+            pbrcn = NewObj BrowserListContext;
 
         // Selection is cno based
-        if (!((PBrowserBackground)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserBackground)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -154,11 +154,11 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         if (pvNil == pbrwd)
             goto LFail;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
+            pbrcn = NewObj BrowserListContext;
         AssertDo(_pmvie->Pscen()->FGetTagBkgd(&tag), "Missing background event");
-        if (!((PBrowserCamera)pbrwd)->FInit(pcmd, kbwsChid, thumSelect, tag.sid, ckiRoot, kctgCath, this, (PBRCNL)pbrcn))
+        if (!((PBrowserCamera)pbrwd)->FInit(pcmd, kbwsChid, thumSelect, tag.sid, ckiRoot, kctgCath, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -178,10 +178,10 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         if (pvNil == pbrwd)
             goto LFail;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
-        if (!((PBrowserPropActor)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, 0, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+            pbrcn = NewObj BrowserListContext;
+        if (!((PBrowserPropActor)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, 0, ckiRoot, ctgNil, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -231,9 +231,9 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         ckiRoot.cno = cnoNil;
         thumSelect = (long)cnoNil;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
+            pbrcn = NewObj BrowserListContext;
 
         pmvu = (PMovieView)(Pmvie()->PddgGet(0));
         ptag = pmvu->PtagTool();
@@ -243,7 +243,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             sid = ptag->sid;
         }
         // Selection is cno based
-        if (!((PBrowserMusic)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserMusic)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
