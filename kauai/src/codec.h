@@ -18,10 +18,10 @@
 /***************************************************************************
     Codec object.
 ***************************************************************************/
-typedef class CODC *PCODC;
-#define CODC_PAR BASE
-#define kclsCODC 'CODC'
-class CODC : public CODC_PAR
+typedef class Codec *PCodec;
+#define Codec_PAR BASE
+#define kclsCodec 'CODC'
+class Codec : public Codec_PAR
 {
     RTCLASS_DEC
 
@@ -48,15 +48,15 @@ class CodecManager : public CodecManager_PAR
 
   protected:
     long _cfmtDef;
-    PCODC _pcodcDef;
+    PCodec _pcodcDef;
     PDynamicArray _pglpcodc;
 
-    virtual bool _FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc);
+    virtual bool _FFindCodec(bool fEncode, long cfmt, PCodec *ppcodc);
     virtual bool _FCodePhq(long cfmt, HQ *phq);
     virtual bool _FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst);
 
   public:
-    CodecManager(PCODC pcodc, long cfmt);
+    CodecManager(PCodec pcodc, long cfmt);
     ~CodecManager(void);
 
     long CfmtDefault(void)
@@ -64,7 +64,7 @@ class CodecManager : public CodecManager_PAR
         return _cfmtDef;
     }
     void SetCfmtDefault(long cfmt);
-    virtual bool FRegisterCodec(PCODC pcodc);
+    virtual bool FRegisterCodec(PCodec pcodc);
     virtual bool FCanDo(long cfmt, bool fEncode);
 
     // Gets the type of compression used on the block (assuming it is
@@ -98,7 +98,7 @@ class CodecManager : public CodecManager_PAR
     The standard Kauai Codec object.
 ***************************************************************************/
 typedef class KauaiCodec *PKauaiCodec;
-#define KauaiCodec_PAR CODC
+#define KauaiCodec_PAR Codec
 #define kclsKauaiCodec 'KCDC'
 class KauaiCodec : public KauaiCodec_PAR
 {
