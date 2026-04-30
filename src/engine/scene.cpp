@@ -6188,7 +6188,7 @@ bool Scene::FStartPlaying()
     long ipactr, iptbox;
     PActor pactr;
     PTBOX ptbox;
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     long nfrmFirst, nfrmLast;
 
     //
@@ -6209,7 +6209,7 @@ bool Scene::FStartPlaying()
         if ((ptbox->FStory() && ptbox->FIsVisible()) ||
             (!ptbox->FStory() && ptbox->FGetLifetime(&nfrmFirst, &nfrmLast) && (nfrmFirst == _nfrmCur)))
         {
-            ptbxg = (PTBXG)ptbox->PddgGet(0);
+            ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
             ptbxg->Scroll(scaNil);
         }
     }
