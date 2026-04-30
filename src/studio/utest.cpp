@@ -312,6 +312,15 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
+    {
+        bool fWireframe = fFalse;
+        bool fNoTexture = fFalse;
+        if (FGetSetRegKey(kszWireframeValue, &fWireframe, size(bool), fregNil))
+            World::SetRenderWireframe(fWireframe);
+        if (FGetSetRegKey(kszNoTextureValue, &fNoTexture, size(bool), fregNil))
+            World::SetNoTexture(fNoTexture);
+    }
+
     if (!_FInitTdt())
     {
         _FGenericError(PszLit("_FInitTdt"));
@@ -3253,6 +3262,8 @@ enum
     iditCactAV,
 #endif // DEBUG
     iditProductNameInfo,
+    iditWireframeInfo,
+    iditNoTextureInfo,
     iditSaveChanges,
     iditRenderModeInfo,
     iditLimInfo
@@ -3335,6 +3346,8 @@ bool Application::FCmdInfo(PCommand pcmd)
     pdlg->FPutLwInEdit(iditCactAV, vcactAV);
 #endif // DEBUG
     pdlg->PutRadio(iditWindowModeInfo, _fRunInWindow ? 1 : 0);
+    pdlg->PutCheck(iditWireframeInfo, World::RenderWireframe());
+    pdlg->PutCheck(iditNoTextureInfo, World::NoTexture());
 
     idit = pdlg->IditDo();
 
@@ -3355,6 +3368,34 @@ bool Application::FCmdInfo(PCommand pcmd)
     {
         bool fSlowCPU = _fSlowCPU;
         FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey);
+    }
+
+    {
+        bool fWireframeNew = FPure(pdlg->FGetCheck(iditWireframeInfo));
+        bool fNoTextureNew = FPure(pdlg->FGetCheck(iditNoTextureInfo));
+        bool fRenderChanged = fFalse;
+        PMovie pmvieT = _Pmvie();
+
+        if (fWireframeNew != FPure(World::RenderWireframe()))
+        {
+            World::SetRenderWireframe(fWireframeNew);
+            fRenderChanged = fTrue;
+        }
+        if (fNoTextureNew != FPure(World::NoTexture()))
+        {
+            World::SetNoTexture(fNoTextureNew);
+            fRenderChanged = fTrue;
+        }
+        if (fRenderChanged && pvNil != pmvieT)
+        {
+            pmvieT->Pbwld()->MarkDirty();
+            pmvieT->InvalViews();
+        }
+        if (fSaveChanges)
+        {
+            FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey);
+            FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey);
+        }
     }
 
     fRunInWindowNew = pdlg->LwGetRadio(iditWindowModeInfo);

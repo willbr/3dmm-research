@@ -116,6 +116,21 @@ class World : public World_PAR
     }
 
     // Rendering stuff
+    static bool _fRenderWireframe;
+    static bool RenderWireframe(void)
+    {
+        return _fRenderWireframe;
+    }
+    static void SetRenderWireframe(bool fOn)
+    {
+        _fRenderWireframe = fOn;
+    }
+    static bool _fNoTexture;
+    static bool NoTexture(void)
+    {
+        return _fNoTexture;
+    }
+    static void SetNoTexture(bool fOn);
     bool FSetHalfMode(bool fHalfX, bool fHalfY);
     bool FHalfX(void)
     {

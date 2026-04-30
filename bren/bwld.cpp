@@ -34,6 +34,88 @@ const long kcbitPixelZ = 16; // Z buffers are 16 bits deep
 const long kcbPixelZ = 2;
 
 bool World::_fBRenderInited = fFalse;
+bool World::_fRenderWireframe = fFalse;
+bool World::_fNoTexture = fFalse;
+
+/***************************************************************************
+    No-texture mode: walk every BRender material, save its colour_map, and
+    clear it (so models render in their flat base color).  Restoring requires
+    remembering the original pixmap pointer per material -- we keep that in
+    a side-table that is rebuilt on every enable.
+***************************************************************************/
+struct _STexBackup
+{
+    BMTL *pbmtl;
+    BPMP *pbpmp;
+};
+static _STexBackup *_prgtexbk = pvNil;
+static long _ctexbk = 0;
+
+static br_uint_32 BR_CALLBACK _ClearTextureCb(br_material *pbmtl, void *)
+{
+    if (pvNil == pbmtl->colour_map)
+        return 0;
+    _prgtexbk[_ctexbk].pbmtl = pbmtl;
+    _prgtexbk[_ctexbk].pbpmp = pbmtl->colour_map;
+    _ctexbk++;
+    pbmtl->colour_map = pvNil;
+    BrMaterialUpdate(pbmtl, BR_MATU_COLOURMAP);
+    return 0;
+}
+
+void World::SetNoTexture(bool fOn)
+{
+    if (_fNoTexture == fOn)
+        return;
+    _fNoTexture = fOn;
+    if (fOn)
+    {
+        long cmtl = BrMaterialCount(pvNil);
+        if (cmtl <= 0)
+            return;
+        if (pvNil != _prgtexbk)
+            FreePpv((void **)&_prgtexbk);
+        _ctexbk = 0;
+        if (!FAllocPv((void **)&_prgtexbk, LwMul(cmtl, size(_STexBackup)), fmemNil, mprNormal))
+            return;
+        BrMaterialEnum(pvNil, _ClearTextureCb, pvNil);
+    }
+    else
+    {
+        long i;
+        for (i = 0; i < _ctexbk; i++)
+        {
+            _prgtexbk[i].pbmtl->colour_map = _prgtexbk[i].pbpmp;
+            BrMaterialUpdate(_prgtexbk[i].pbmtl, BR_MATU_COLOURMAP);
+        }
+        _ctexbk = 0;
+        if (pvNil != _prgtexbk)
+            FreePpv((void **)&_prgtexbk);
+    }
+}
+
+/***************************************************************************
+    Recursively force a render style on every BR_ACTOR_MODEL descendant.
+    Used by the wireframe override: setting only the world root is not
+    sufficient because body parts assign their own non-default render_style
+    (BR_RSTYLE_FACES), which BRender treats as overriding the inherited one.
+***************************************************************************/
+static void _SetModelRenderStyleRec(BACT *pbact, br_uint_8 style)
+{
+    BACT *pchild;
+    for (pchild = pbact->children; pvNil != pchild; pchild = pchild->next)
+    {
+        // Don't touch hilite (selection) actors which use BR_RSTYLE_BOUNDING_EDGES
+        // to draw a wireframe bounding box around selected bodies, or any other
+        // bounding-style actor.
+        if (pchild->type == BR_ACTOR_MODEL && pchild->render_style != BR_RSTYLE_BOUNDING_POINTS &&
+            pchild->render_style != BR_RSTYLE_BOUNDING_EDGES && pchild->render_style != BR_RSTYLE_BOUNDING_FACES)
+        {
+            pchild->render_style = style;
+        }
+        _SetModelRenderStyleRec(pchild, style);
+    }
+}
 
 /***************************************************************************
     Allocate a new BRender world
@@ -296,6 +378,9 @@ void World::CloseBRender(void)
         BrEnd();
         _fBRenderInited = fFalse;
     }
+    if (pvNil != _prgtexbk)
+        FreePpv((void **)&_prgtexbk);
+    _ctexbk = 0;
 }
 
 /***************************************************************************
@@ -502,6 +587,12 @@ void World::Render(void)
     // then clear _pregnDirtyWorking.
     _pregnDirtyScreen->FUnion(_pregnDirtyWorking);
     _pregnDirtyWorking->SetRc(pvNil);
+
+    // Apply user-selected render style override (wireframe).  Each BR_ACTOR_MODEL
+    // body part has its own non-default render_style (BR_RSTYLE_FACES) which
+    // overrides any inherited setting, so we walk the tree and force every model
+    // actor to the desired style.
+    _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
 
     // Render the scene.  This will add stuff to _pregnDirtyWorking
     BrZbSceneRender(&_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
@@ -780,6 +871,8 @@ void World::MarkMem(void)
     MarkMemObj(_pregnDirtyScreen);
     MarkMemObj(_pcrf);
     MarkMemObj(_pgptStretch);
+    if (pvNil != _prgtexbk)
+        MarkPv(_prgtexbk);
 }
 
 /******************************************************************************
