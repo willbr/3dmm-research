@@ -146,7 +146,7 @@ bool KCDC::FConvert(bool fEncode, long cfmt, void *pvSrc, long cbSrc, void *pvDs
 /***************************************************************************
     Bit array class - for writing the compressed data.
 ***************************************************************************/
-class BITA
+class BitArray
 {
   protected:
     byte *_prgb;
@@ -172,7 +172,7 @@ class BITA
 /***************************************************************************
     Set the buffer to write to.
 ***************************************************************************/
-void BITA::Set(void *pvDst, long cbDst)
+void BitArray::Set(void *pvDst, long cbDst)
 {
     AssertPvCb(pvDst, cbDst);
 
@@ -184,7 +184,7 @@ void BITA::Set(void *pvDst, long cbDst)
 /***************************************************************************
     Write some bits.
 ***************************************************************************/
-bool BITA::FWriteBits(ulong lu, long cbit)
+bool BitArray::FWriteBits(ulong lu, long cbit)
 {
     long cb;
 
@@ -230,7 +230,7 @@ bool BITA::FWriteBits(ulong lu, long cbit)
 /***************************************************************************
     Write the value logarithmically encoded.
 ***************************************************************************/
-bool BITA::FWriteLogEncoded(ulong lu)
+bool BitArray::FWriteLogEncoded(ulong lu)
 {
     Assert(lu > 0 && !(lu & 0x80000000), "bad value to encode logarithmically");
     long cbit;
@@ -261,7 +261,7 @@ bool KCDC::_FEncode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbD
     long ibSrc;
     long ibMatch, ibTest, cbMatch, ibMin, cbT;
     byte bMatchNew, bMatchLast;
-    BITA bita;
+    BitArray bita;
     long *pmpsuibStart = pvNil;
     byte *prgbSrc = (byte *)pvSrc;
     long *pmpibibNext = pvNil;
@@ -584,7 +584,7 @@ bool KCDC::_FEncode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcb
     long ibSrc;
     long ibMatch, ibTest, cbMatch, ibMin, cbT;
     byte bMatchNew, bMatchLast;
-    BITA bita;
+    BitArray bita;
     long cbRun;
     long *pmpsuibStart = pvNil;
     byte *prgbSrc = (byte *)pvSrc;
