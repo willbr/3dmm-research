@@ -141,15 +141,15 @@ class SCB : public SCB_PAR
 };
 
 // size box
-typedef class WSB *PWSB;
-#define WSB_PAR CTL
-#define kclsWSB 'WSB'
-class WSB : public WSB_PAR
+typedef class WindowSizeBox *PWindowSizeBox;
+#define WindowSizeBox_PAR CTL
+#define kclsWindowSizeBox 'WSB'
+class WindowSizeBox : public WindowSizeBox_PAR
 {
     RTCLASS_DEC
 
   protected:
-    WSB(PGraphicsObjectBlock pgcb) : CTL(pgcb)
+    WindowSizeBox(PGraphicsObjectBlock pgcb) : CTL(pgcb)
     {
     }
 
@@ -158,7 +158,7 @@ class WSB : public WSB_PAR
 #endif // MAC
 
   public:
-    static PWSB PwsbNew(PGraphicsObject pgob, ulong grfgob);
+    static PWindowSizeBox PwsbNew(PGraphicsObject pgob, ulong grfgob);
 
 #ifdef MAC
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);

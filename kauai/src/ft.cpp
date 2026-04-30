@@ -521,7 +521,7 @@ DWN *DWN::PdwnNew(void)
     AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
 
     // add a size box and some scroll bar
-    WSB::PwsbNew(pdwn, fgobNil);
+    WindowSizeBox::PwsbNew(pdwn, fgobNil);
     gcb.Set(khidVScroll, pdwn);
     SCB::PscbNew(&gcb, fscbVert | fscbStandardRc);
     gcb.Set(khidHScroll, pdwn);

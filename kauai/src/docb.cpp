@@ -1346,7 +1346,7 @@ PDocumentMDIWindow DocumentMDIWindow::PdmdNew(PDocumentBase pdocb)
     rcRel.xpRight = rcRel.ypBottom = krelOne;
     rcAbs.xpLeft = rcAbs.ypTop = 0;
     rcAbs.xpRight = rcAbs.ypBottom = 1;
-    if (pvNil == WSB::PwsbNew(pdmd, fgobNil))
+    if (pvNil == WindowSizeBox::PwsbNew(pdmd, fgobNil))
         goto LFail;
     gcb.Set(khidDmw, pdmd, fgobNil, kginDefault, &rcAbs, &rcRel);
     if (pvNil == pdocb->PdmwNew(&gcb))

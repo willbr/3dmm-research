@@ -22,7 +22,7 @@ achar _szCtlProp[] = PszLit("CTL");
 
 RTCLASS(CTL)
 RTCLASS(SCB)
-RTCLASS(WSB)
+RTCLASS(WindowSizeBox)
 
 /***************************************************************************
     Constructor for a control.
@@ -569,10 +569,10 @@ LEndScroll:
 /***************************************************************************
     Static method to create a window size box.
 ***************************************************************************/
-PWSB WSB::PwsbNew(PGraphicsObject pgob, ulong grfgob)
+PWindowSizeBox WindowSizeBox::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 {
     RC rcRel, rcAbs;
-    PWSB pwsb;
+    PWindowSizeBox pwsb;
 
     rcRel.xpLeft = rcRel.xpRight = rcRel.ypTop = rcRel.ypBottom = krelOne;
     rcAbs.xpLeft = -SCB::DxpNormal() + 1;
@@ -580,7 +580,7 @@ PWSB WSB::PwsbNew(PGraphicsObject pgob, ulong grfgob)
     rcAbs.xpRight = rcAbs.ypBottom = 1;
 
     GraphicsObjectBlock gcb(khidSizeBox, pgob, grfgob, kginDefault, &rcAbs, &rcRel);
-    if ((pwsb = NewObj WSB(&gcb)) == pvNil)
+    if ((pwsb = NewObj WindowSizeBox(&gcb)) == pvNil)
         return pvNil;
 
     Assert(pwsb->PgobPar() != pvNil, "nil parent");
@@ -609,7 +609,7 @@ PWSB WSB::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 /***************************************************************************
     Draw the size box icon.
 ***************************************************************************/
-void WSB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void WindowSizeBox::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     HWND hwnd;
     RC rc;
@@ -640,7 +640,7 @@ void WSB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     The hwnd has been activated or deactivated - redraw and validate.
 ***************************************************************************/
-void WSB::_ActivateHwnd(bool fActive)
+void WindowSizeBox::_ActivateHwnd(bool fActive)
 {
     ValidRc(pvNil, kginDraw);
     InvalRc(pvNil, kginDraw);
