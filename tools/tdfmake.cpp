@@ -8,16 +8,16 @@
     Primary Author: ******
     Review Status: Not yet reviewed
 
-    TDFmake is a command-line tool for building 3-D Font files from a
+    ThreeDFontmake is a command-line tool for building 3-D Font files from a
     set of models.
 
     Usage:
         tdfmake <fontdir1> <fontdir2> ... <destChunkFile>
 
     All the DAT files for a given font should be in a directory.  The
-    directory name becomes the name of the TDF chunk.  The DAT file names
+    directory name becomes the name of the ThreeDFont chunk.  The DAT file names
     should contain a number, which becomes the ChildChunkID of the model chunk
-    under the TDF.
+    under the ThreeDFont.
 
 ***************************************************************************/
 #include "soc.h"
@@ -40,7 +40,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     PChunkyFile pcflDst;
     long ifniSrc;
 
-    fprintf(stderr, "\nMicrosoft (R) TDF Maker\n");
+    fprintf(stderr, "\nMicrosoft (R) ThreeDFont Maker\n");
     fprintf(stderr, "Copyright (C) Microsoft Corp 1995. All rights reserved.\n\n");
 
     BrBegin();
@@ -93,12 +93,12 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     return 0; // no error
 LFail:
     BrEnd();
-    fprintf(stderr, "TDF Maker failed.\n\n");
+    fprintf(stderr, "ThreeDFont Maker failed.\n\n");
     return 1; // error
 }
 
 /***************************************************************************
-    Writes a TDF chunk and child BMDL chunks based on all DAT files in
+    Writes a ThreeDFont chunk and child BMDL chunks based on all DAT files in
     pfniSrcDir to the destination file pcflDst.
 ***************************************************************************/
 bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
@@ -216,7 +216,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
             goto LFail;
         fprintf(stderr, "Added a nonbreaking space character\n");
     }
-    if (!TDF::FCreate(pcrf, pglkid, &stn2))
+    if (!ThreeDFont::FCreate(pcrf, pglkid, &stn2))
         goto LFail;
 
     ReleasePpo(&pcrf);

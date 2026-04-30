@@ -291,7 +291,7 @@ LFail:
 }
 
 /***************************************************************************
-    Adjust glyph for a TDF.  It is centered in X and Z, with Y at the
+    Adjust glyph for a ThreeDFont.  It is centered in X and Z, with Y at the
     baseline, and we do some voodoo to get "kerning" (really "variable
     interletter spacing") to work.
 ***************************************************************************/

@@ -17,7 +17,7 @@
     TMPL // template info
      |
      |
-     +---TDT  (chid 0) // TDT-specific info (shape and tag to TDF)
+     +---TDT  (chid 0) // TDT-specific info (shape and tag to ThreeDFont)
 
     In addition to the usual TMPL fields, TDTs have a _tagTdf and a _tdts.
     _tagTdf tells what font to use for the TDT, and _tdts tells what shape
@@ -349,10 +349,10 @@ PModel TDT::_PmodlFetch(ChildChunkID chidModl)
     AssertThis(0);
     AssertIn(chidModl, 0, _stn.Cch());
 
-    PTDF ptdf;
+    PThreeDFont ptdf;
     PModel pmodl;
 
-    ptdf = (PTDF)vptagm->PbacoFetch(&_tagTdf, TDF::FReadTdf);
+    ptdf = (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
     if (pvNil == ptdf)
         return pvNil;
     pmodl = ptdf->PmodlFetch((uchar)_stn.Psz()[chidModl]);
@@ -436,7 +436,7 @@ PDynamicArray TDT::_Pglbmat34Build(long tda)
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
 
-    PTDF ptdf;
+    PThreeDFont ptdf;
     long cch = _stn.Cch();
     long ich;
     BMAT34 bmat34;
@@ -454,7 +454,7 @@ PDynamicArray TDT::_Pglbmat34Build(long tda)
     BRS dyrHalf;  // half of height of string, if vertical shape
     BRS yrChar;   // position of char in string
 
-    ptdf = (PTDF)vptagm->PbacoFetch(&_tagTdf, TDF::FReadTdf);
+    ptdf = (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
     if (pvNil == ptdf)
         goto LFail;
 
