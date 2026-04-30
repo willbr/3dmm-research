@@ -82,7 +82,7 @@ class MidiStreamCached : public MidiStreamCached_PAR
 
 // forward declaration
 typedef class MidiStreamMixer *PMidiStreamMixer;
-typedef class MISI *PMISI;
+typedef class MidiStreamInterface *PMidiStreamInterface;
 
 /***************************************************************************
     Midi stream queue.
@@ -151,7 +151,7 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     HN _hevt; // to notify the thread that the sound list changed
     HN _hth;  // thread to terminate non-playing sounds
 
-    PMISI _pmisi; // the midi stream interface
+    PMidiStreamInterface _pmisi; // the midi stream interface
     PDynamicArray _pglmsos; // the list of current sounds, in priority order
     long _cpvOut; // number of buffers submitted (0, 1, or 2)
 
@@ -204,10 +204,10 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
 ***************************************************************************/
 typedef void (*PFNMIDI)(ulong luUser, void *pvData, ulong lUserDataa);
 
-typedef class MISI *PMISI;
-#define MISI_PAR BASE
-#define kclsMISI 'MISI'
-class MISI : public MISI_PAR
+typedef class MidiStreamInterface *PMidiStreamInterface;
+#define MidiStreamInterface_PAR BASE
+#define kclsMidiStreamInterface 'MISI'
+class MidiStreamInterface : public MidiStreamInterface_PAR
 {
     RTCLASS_DEC
 
@@ -222,7 +222,7 @@ class MISI : public MISI_PAR
     ulong _luVolSys;
     long _vlmBase; // our current volume relative to _luVolSys.
 
-    MISI(PFNMIDI pfn, ulong luUser);
+    MidiStreamInterface(PFNMIDI pfn, ulong luUser);
 
     virtual bool _FOpen(void) = 0;
     virtual bool _FClose(void) = 0;
@@ -258,7 +258,7 @@ class MISI : public MISI_PAR
     The real midi stream interface.
 ***************************************************************************/
 typedef class WMS *PWMS;
-#define WMS_PAR MISI
+#define WMS_PAR MidiStreamInterface
 #define kclsWMS 'WMS'
 class WMS : public WMS_PAR
 {
@@ -339,7 +339,7 @@ class WMS : public WMS_PAR
     Our fake midi stream class.
 ***************************************************************************/
 typedef class OMS *POMS;
-#define OMS_PAR MISI
+#define OMS_PAR MidiStreamInterface
 #define kclsOMS 'OMS'
 class OMS : public OMS_PAR
 {
