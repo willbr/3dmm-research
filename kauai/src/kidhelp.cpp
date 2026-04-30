@@ -763,7 +763,7 @@ bool TopicGraphicsObject::_FInit(void)
                 chp.acrBack = kacrWhite;
             edpar.Set(hid, this, fgobNil, kginMark, &rc, pvNil, chp.onn, chp.grfont, chp.dypFont, tahLeft, tavTop,
                       chp.acrFore, chp.acrBack);
-            if (pvNil == EDSL::PedslNew(&edpar))
+            if (pvNil == EditControlSingleLine::PedslNew(&edpar))
                 return fFalse;
             break;
 

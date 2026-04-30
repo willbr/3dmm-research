@@ -14,7 +14,7 @@
 ASSERTNAME
 
 RTCLASS(EDCB)
-RTCLASS(EDSL)
+RTCLASS(EditControlSingleLine)
 RTCLASS(EDPL)
 RTCLASS(EDML)
 RTCLASS(EditControlMultiLineWrap)
@@ -1091,19 +1091,19 @@ void EDPL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for single line edit control.
 ***************************************************************************/
-EDSL::EDSL(PEditParameter pedpar) : EDPL(pedpar)
+EditControlSingleLine::EditControlSingleLine(PEditParameter pedpar) : EDPL(pedpar)
 {
     AssertBaseThis(0);
 }
 
 /***************************************************************************
-    Create a new EDSL (single line edit control).
+    Create a new EditControlSingleLine (single line edit control).
 ***************************************************************************/
-PEDSL EDSL::PedslNew(PEditParameter pedpar)
+PEditControlSingleLine EditControlSingleLine::PedslNew(PEditParameter pedpar)
 {
-    PEDSL pedsl;
+    PEditControlSingleLine pedsl;
 
-    if (pvNil == (pedsl = NewObj EDSL(pedpar)))
+    if (pvNil == (pedsl = NewObj EditControlSingleLine(pedpar)))
         return pvNil;
 
     if (!pedsl->_FInit())
@@ -1116,7 +1116,7 @@ PEDSL EDSL::PedslNew(PEditParameter pedpar)
 /***************************************************************************
     Get a pointer to the characters for the given line.
 ***************************************************************************/
-bool EDSL::_FLockLn(long ln, achar **pprgch, long *pcch)
+bool EditControlSingleLine::_FLockLn(long ln, achar **pprgch, long *pcch)
 {
     AssertBaseThis(0);
     AssertVarMem(pprgch);
@@ -1136,7 +1136,7 @@ bool EDSL::_FLockLn(long ln, achar **pprgch, long *pcch)
 /***************************************************************************
     Unlock a line.
 ***************************************************************************/
-void EDSL::_UnlockLn(long ln, achar *prgch)
+void EditControlSingleLine::_UnlockLn(long ln, achar *prgch)
 {
     AssertBaseThis(0);
     Assert(prgch == _rgch, "bad call to _UnlockLn");
@@ -1145,7 +1145,7 @@ void EDSL::_UnlockLn(long ln, achar *prgch)
 /***************************************************************************
     Return the line that ich is on.
 ***************************************************************************/
-long EDSL::_LnFromIch(long ich)
+long EditControlSingleLine::_LnFromIch(long ich)
 {
     AssertBaseThis(0);
     AssertIn(ich, 0, kcbMax);
@@ -1155,7 +1155,7 @@ long EDSL::_LnFromIch(long ich)
 /***************************************************************************
     Return the first ich for the given line.
 ***************************************************************************/
-long EDSL::_IchMinLn(long ln)
+long EditControlSingleLine::_IchMinLn(long ln)
 {
     AssertBaseThis(0);
     return ln == 0 ? 0 : IchMac() + 1;
@@ -1164,7 +1164,7 @@ long EDSL::_IchMinLn(long ln)
 /***************************************************************************
     Return the number of characters.
 ***************************************************************************/
-long EDSL::IchMac(void)
+long EditControlSingleLine::IchMac(void)
 {
     AssertBaseThis(0);
     return _cch;
@@ -1173,7 +1173,7 @@ long EDSL::IchMac(void)
 /***************************************************************************
     Return the number of lines.
 ***************************************************************************/
-long EDSL::_LnMac(void)
+long EditControlSingleLine::_LnMac(void)
 {
     AssertBaseThis(0);
     return 1;
@@ -1183,7 +1183,7 @@ long EDSL::_LnMac(void)
     Replace the characters between ich1 and ich2 with those in (prgch, cchIns).
     Calls _UpdateLn() to clean up the display.
 ***************************************************************************/
-bool EDSL::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
+bool EditControlSingleLine::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(0);
     AssertIn(cchIns, 0, kcbMax);
@@ -1227,7 +1227,7 @@ bool EDSL::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 /***************************************************************************
     If this is a character we can't accept, return false.
 ***************************************************************************/
-bool EDSL::_FFilterCh(achar ch)
+bool EditControlSingleLine::_FFilterCh(achar ch)
 {
     return !(fchControl & GrfchFromCh(ch));
 }
@@ -1235,7 +1235,7 @@ bool EDSL::_FFilterCh(achar ch)
 /***************************************************************************
     Get the text in the edit control.
 ***************************************************************************/
-void EDSL::GetStn(PString pstn)
+void EditControlSingleLine::GetStn(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1247,7 +1247,7 @@ void EDSL::GetStn(PString pstn)
     Set the text in the edit control.  Sets the selection to an insertion
     point at the end of the text.
 ***************************************************************************/
-void EDSL::SetStn(PString pstn, long gin)
+void EditControlSingleLine::SetStn(PString pstn, long gin)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1258,7 +1258,7 @@ void EDSL::SetStn(PString pstn, long gin)
 /***************************************************************************
     Get some text.
 ***************************************************************************/
-long EDSL::CchFetch(achar *prgch, long ich, long cchWant)
+long EditControlSingleLine::CchFetch(achar *prgch, long ich, long cchWant)
 {
     AssertThis(0);
     AssertIn(cchWant, 0, kcbMax);
@@ -1274,15 +1274,15 @@ long EDSL::CchFetch(achar *prgch, long ich, long cchWant)
 /***************************************************************************
     Assert the validity of a single-line edit control.
 ***************************************************************************/
-void EDSL::AssertValid(ulong grf)
+void EditControlSingleLine::AssertValid(ulong grf)
 {
     long ich;
 
-    EDSL_PAR::AssertValid(0);
+    EditControlSingleLine_PAR::AssertValid(0);
     AssertIn(_cch, 0, kcchMaxEdsl + 1);
     for (ich = _cch; ich-- > 0;)
     {
-        Assert(_rgch[ich] != 0, "null character in EDSL");
+        Assert(_rgch[ich] != 0, "null character in EditControlSingleLine");
     }
     AssertIn(_ichAnchor, 0, _cch + 1);
     AssertIn(_ichOther, 0, _cch + 1);

@@ -2160,7 +2160,7 @@ PTED TED::PtedNew(void)
             rcRel.Set(i * krelOne / 3, j * krelOne / 9, (i + 1) * krelOne / 3, (j + 1) * krelOne / 9);
             edpar.Set(hid++, pted, fgobNil, kginDefault, &rcAbs, &rcRel, vntl.OnnSystem(), fontNil, 12, rgtah[i],
                       rgtav[j], kacrBlue, kacrYellow);
-            EDSL::PedslNew(&edpar);
+            EditControlSingleLine::PedslNew(&edpar);
         }
     }
 

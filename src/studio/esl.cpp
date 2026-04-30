@@ -893,7 +893,7 @@ bool EaselActor::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor
     _pmvie = pmvie;
     _pactr = pactr;
     _pactr->GetName(&stn);
-    _pedsl = EDSL::PedslNew(&edpar);
+    _pedsl = EditControlSingleLine::PedslNew(&edpar);
     if (pvNil == _pedsl)
         return fFalse;
     _pedsl->SetStn(&stn);
@@ -1678,7 +1678,7 @@ bool EaselRecord::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool 
         return fFalse;
     edpar.Set(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
               vpappb->DypTextDef(), tahLeft, tavCenter);
-    _pedsl = EDSL::PedslNew(&edpar);
+    _pedsl = EditControlSingleLine::PedslNew(&edpar);
     if (pvNil == _pedsl)
         return fFalse;
     _pedsl->SetStn(pstnNew, fFalse);
