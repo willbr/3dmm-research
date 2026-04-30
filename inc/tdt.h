@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> TMPL ---> ThreeDText  (Three-D Text)
+    BASE ---> BaseCacheableObject ---> Template ---> ThreeDText  (Three-D Text)
 
 ***************************************************************************/
 #ifndef ThreeDText_H
@@ -58,7 +58,7 @@ enum
     3-D Text class
 ****************************************/
 typedef class ThreeDText *PThreeDText;
-#define ThreeDText_PAR TMPL
+#define ThreeDText_PAR Template
 #define kclsThreeDText 'TDT'
 class ThreeDText : public ThreeDText_PAR
 {

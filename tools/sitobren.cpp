@@ -5,12 +5,12 @@
 
     sitobren.cpp
     Main module for sitobren, a utility for converting SoftImage
-    .hrc files into chunky files with the appropriate TMPL chunk
+    .hrc files into chunky files with the appropriate Template chunk
     and all its associated children.
 
     Syntax of a sitobren script (.s2b file):
 
-    ACTOR ChunkNumber <TMPL-id> NAMED "<actor_name>" [XREST <xaRest>]
+    ACTOR ChunkNumber <Template-id> NAMED "<actor_name>" [XREST <xaRest>]
         [YREST <yaRest>] [ZREST <zaRest>] [FLAGS <cust_mat_only>]
         [BPSETS <bpsets>]
     ACTION NAMED "<action_name>" FILEBASE "<file_name_base>"
@@ -38,8 +38,8 @@
         <action_name>
         <bkgd_name>      -- any string conforming to actor/action naming
             conventions
-        <TMPL-id>
-        <Background-id>        -- Chunk number for TMPL or Background chunk
+        <Template-id>
+        <Background-id>        -- Chunk number for Template or Background chunk
         <xaRest>
         <yaRest>
         <zaRest>         -- Any valid integer, units are degrees
@@ -914,7 +914,7 @@ const SCRP rgscrpActor[] = {{ptLong, ttCno, "missing ChunkNumber for actor"},
 /*-----------------------------------------------------------------------------
 |	_FDoTtActor
 |		Processes a token of type ttActor.  That is, the ttActor
-|	indicates the start of a new TMPL to create.  This handles all of
+|	indicates the start of a new Template to create.  This handles all of
 |	the tokens for that command, and prefetches the next token following
 |	all data for this command.
 |

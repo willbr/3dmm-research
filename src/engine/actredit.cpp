@@ -746,7 +746,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     long iaev;
     long dnfrm;
 #ifdef BUG1888
-    PTMPL ptmpl;
+    PTemplate ptmpl;
     PChunkyResourceFile pcrf;
     TAG tag;
 
@@ -775,7 +775,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
                 return fFalse;
             }
             // Get a template based on the new tag
-            ptmpl = (PTMPL)vptagm->PbacoFetch(&tag, TMPL::FReadTmpl);
+            ptmpl = (PTemplate)vptagm->PbacoFetch(&tag, Template::FReadTmpl);
             if (pvNil == ptmpl)
             {
                 TagManager::CloseTag(&tag);

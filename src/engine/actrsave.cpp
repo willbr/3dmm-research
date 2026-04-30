@@ -71,7 +71,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
         Warn("Dev: Why are we saving an actor who has no first frame number?");
 #endif // DEBUG
 
-    // Save and adopt TMPL chunk if it's a ksidUseCrf chunk
+    // Save and adopt Template chunk if it's a ksidUseCrf chunk
     if (_tagTmpl.sid == ksidUseCrf)
     {
         Assert(_ptmpl->FIsTdt(), "only ThreeDTexts should be embedded in user doc");
@@ -183,8 +183,8 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
         goto LFail;
     pactr->_pglsmm->SetMinGrow(kcsmmGrow);
 
-    // Now that the tags are open, fetch the TMPL
-    pactr->_ptmpl = (PTMPL)vptagm->PbacoFetch(&pactr->_tagTmpl, TMPL::FReadTmpl);
+    // Now that the tags are open, fetch the Template
+    pactr->_ptmpl = (PTemplate)vptagm->PbacoFetch(&pactr->_tagTmpl, Template::FReadTmpl);
     if (pvNil == pactr->_ptmpl)
         goto LFail;
 
@@ -270,12 +270,12 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     if (_tagTmpl.sid == ksidUseCrf)
     {
         // Actor is a ThreeDText.  Tag might be wrong if this actor was imported,
-        // so look for child TMPL.
+        // so look for child Template.
         ChildChunkIdentification kid;
 
         if (!pcfl->FGetKidChidCtg(kctgActr, cno, 0, kctgTmpl, &kid))
         {
-            Bug("where's the child TMPL?");
+            Bug("where's the child Template?");
             return fTrue; // hope the tag is correct
         }
         _tagTmpl.cno = kid.cki.cno;
@@ -507,17 +507,17 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
         PDynamicArray pgltagTmpl;
 
         // Actor is a ThreeDText.  Tag might be wrong if this actor was imported,
-        // so look for child TMPL.
+        // so look for child Template.
         if (pcfl->FGetKidChidCtg(kctgActr, cno, 0, kctgTmpl, &kid))
         {
             actf.tagTmpl.cno = kid.cki.cno;
         }
         else
         {
-            Bug("where's the child TMPL?");
+            Bug("where's the child Template?");
         }
 
-        pgltagTmpl = TMPL::PgltagFetch(pcfl, actf.tagTmpl.ctg, actf.tagTmpl.cno, pfError);
+        pgltagTmpl = Template::PgltagFetch(pcfl, actf.tagTmpl.ctg, actf.tagTmpl.cno, pfError);
         if (*pfError)
         {
             ReleasePpo(&pgltagTmpl);

@@ -341,7 +341,7 @@ class Actor : public Actor_PAR
     // Note: _tagTmpl cannot be derived from _ptmpl
     PGeneralGroup _pggaev;      // GeneralGroup pointer to Actor EVent list
     PDynamicArray _pglrpt;      // DynamicArray pointer to actor's route
-    TMPL *_ptmpl;     // Actor body & action list template
+    Template *_ptmpl;     // Actor body & action list template
     BODY *_pbody;     // Actor's body
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
     TAG _tagSnd;      // Sound (played on entrance)
@@ -552,7 +552,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return pbody == _pbody;
     }
-    bool FIsMyTmpl(TMPL *ptmpl)
+    bool FIsMyTmpl(Template *ptmpl)
     {
         AssertBaseThis(0);
         return _ptmpl == ptmpl;
@@ -563,7 +563,7 @@ class Actor : public Actor_PAR
         return FPure(_fModeRecord);
     }
     bool FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent);
-    PTMPL Ptmpl(void)
+    PTemplate Ptmpl(void)
     {
         AssertBaseThis(0);
         return _ptmpl;

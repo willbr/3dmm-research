@@ -160,7 +160,7 @@ bool Actor::_FInit(TAG *ptagTmpl)
     AssertBaseThis(0);
     AssertVarMem(ptagTmpl);
 
-    _ptmpl = (PTMPL)vptagm->PbacoFetch(ptagTmpl, TMPL::FReadTmpl);
+    _ptmpl = (PTemplate)vptagm->PbacoFetch(ptagTmpl, Template::FReadTmpl);
     if (pvNil == _ptmpl)
         return fFalse;
 
@@ -5525,13 +5525,13 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     AssertThis(0);
     AssertVarMem(ptagTmplNew);
 
-    PTMPL ptmpl;
+    PTemplate ptmpl;
     long cbsetNew;
     long iaev;
     Base aev;
     Costume aevcost;
 
-    ptmpl = (PTMPL)vptagm->PbacoFetch(ptagTmplNew, TMPL::FReadTmpl);
+    ptmpl = (PTemplate)vptagm->PbacoFetch(ptagTmplNew, Template::FReadTmpl);
     if (pvNil == ptmpl)
         return fFalse;
     if (ptmpl->FIsTdt())
@@ -5551,7 +5551,7 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     _tagTmpl = *ptagTmplNew;
     TagManager::DupTag(ptagTmplNew);
 
-    // If the new TMPL is not a ThreeDText, we're done...although currently this
+    // If the new Template is not a ThreeDText, we're done...although currently this
     // function should only be called with ptagTmplNew being a ThreeDText
     if (!ptmpl->FIsTdt())
         return fTrue;

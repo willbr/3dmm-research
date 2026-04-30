@@ -9,17 +9,17 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
     BASE ---> BaseCacheableObject ---> ActionDefinition
-    BASE ---> BaseCacheableObject ---> TMPL
+    BASE ---> BaseCacheableObject ---> Template
 
-    A TMPL encapsulates all the data that distinguishes one actor
+    A Template encapsulates all the data that distinguishes one actor
     "species" from another, including the species' models, actions,
     and custom texture maps.  One or more BODY classes are created based
-    on a TMPL, and the TMPL attaches models and materials to the body
+    on a Template, and the Template attaches models and materials to the body
     based on more abstract concepts like actions and costumes.
 
 *************************************************************************/
-#ifndef TMPL_H
-#define TMPL_H
+#ifndef Template_H
+#define Template_H
 
 using namespace BRender;
 
@@ -30,7 +30,7 @@ using namespace BRender;
 ****************************************/
 struct CPS
 {
-    short chidModl; // ChildChunkID (under TMPL chunk) of model for this body part
+    short chidModl; // ChildChunkID (under Template chunk) of model for this body part
     short imat34;   // index into ActionDefinition's DynamicArray of transforms
 };
 const ByteOrderMask kbomCps = 0x50000000;
@@ -135,15 +135,15 @@ enum
 };
 
 /****************************************
-    TMPL: The template class.
+    Template: The template class.
     anid is an action ID.
     cmid is a costume ID.
     celn is a cel number.
 ****************************************/
-typedef class TMPL *PTMPL;
-#define TMPL_PAR BaseCacheableObject
-#define kclsTMPL 'TMPL'
-class TMPL : public TMPL_PAR
+typedef class Template *PTemplate;
+#define Template_PAR BaseCacheableObject
+#define kclsTemplate 'TMPL'
+class Template : public Template_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -163,7 +163,7 @@ class TMPL : public TMPL_PAR
     String _stn;         // Template name
 
   protected:
-    TMPL(void)
+    Template(void)
     {
     } // can't instantiate directly; must use FReadTmpl
     bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
@@ -174,12 +174,12 @@ class TMPL : public TMPL_PAR
 
   public:
     static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    ~TMPL(void);
+    ~Template(void);
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
-    // TMPL / BODY stuff
+    // Template / BODY stuff
     void GetName(PString pstn); // default name of actor or text of the ThreeDText
-    PBODY PbodyCreate(void); // Creates a body based on this TMPL
+    PBODY PbodyCreate(void); // Creates a body based on this Template
     void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
     bool FIsTdt(void)
     {
@@ -212,4 +212,4 @@ class TMPL : public TMPL_PAR
     bool FSameAccCmids(long cmid1, long cmid2);
 };
 
-#endif TMPL_H
+#endif Template_H

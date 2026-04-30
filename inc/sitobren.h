@@ -92,10 +92,10 @@ typedef struct _tmapd
 
 enum
 {
-    ttActor = ttLimChlx, // TMPL initialization
-    ttActionS2B,         // Define a single action for the TMPL
+    ttActor = ttLimChlx, // Template initialization
+    ttActionS2B,         // Define a single action for the Template
     ttBackgroundS2B,     // Define a background
-    ttCostume,           // Define a costime for a TMPL
+    ttCostume,           // Define a costime for a Template
 
     ttPosition, // SoftImage POS_STATIC token
     ttInterest, // SoftImage INT_STATIC token
@@ -285,7 +285,7 @@ class S2B : public S2B_PAR
     S2BTK _s2btk; // current script token
     int _iZsign;  // Z multiplier
 
-    /* Used by TMPL-specific stuff */
+    /* Used by Template-specific stuff */
     String _stnTmpl;
     String _stnActn;
     ChildChunkID _chidActn; // Next available ActionDefinition ChildChunkID
@@ -316,7 +316,7 @@ class S2B : public S2B_PAR
     /* General items */
     uint _mdVerbose : 2, _uRound : 4, _uRoundXF : 4;
     bool _fContinue : 1, _fPreprocess : 1, _fFixWrap : 1;
-    /* TMPL-specific items */
+    /* Template-specific items */
     bool _fMakeGlpi : 1, _fColorOnly : 1, _fMakeCostume : 1, _fCostumeOnly : 1;
     uint _mdBPS : 2;
 
@@ -333,7 +333,7 @@ class S2B : public S2B_PAR
     bool _FReadCmdline(char *szResult, bool *pfGotTok, const SCRP rgscrp[], ...);
     void _DumpHeader(ChunkTagOrType ctg, ChunkNumber cno, PString pstnName, bool fPack);
 
-    /* TMPL-specific stuff */
+    /* Template-specific stuff */
     bool _FInitGlpiCost(bool fForceCost);
     bool _FProcessModel(Model *pmodel, BMAT34 bmat34Acc, PBMHR *ppbmhr, PString pstnSubmodel = pvNil,
                         PBMHR pbmhrParent = pvNil, int cLevel = 0);
