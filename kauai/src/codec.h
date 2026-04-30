@@ -97,10 +97,10 @@ class CODM : public CODM_PAR
 /***************************************************************************
     The standard Kauai Codec object.
 ***************************************************************************/
-typedef class KCDC *PKCDC;
-#define KCDC_PAR CODC
-#define kclsKCDC 'KCDC'
-class KCDC : public KCDC_PAR
+typedef class KauaiCodec *PKauaiCodec;
+#define KauaiCodec_PAR CODC
+#define kclsKauaiCodec 'KCDC'
+class KauaiCodec : public KauaiCodec_PAR
 {
     RTCLASS_DEC
 

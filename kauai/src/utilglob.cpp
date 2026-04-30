@@ -39,7 +39,7 @@ Shuffler vsflUtil;
 Random vrndUtil;
 
 // Standard Kauai codec
-KCDC vkcdcUtil;
+KauaiCodec vkcdcUtil;
 
 // Standard compression manager - gets initialized with the standard
 // Kauai codec. Clients can add additional codecs or redirect vpcodmUtil
