@@ -15,7 +15,7 @@
 #ifndef MIDIDEV2_H
 #define MIDIDEV2_H
 
-typedef class MSMIX *PMSMIX;
+typedef class MidiStreamMixer *PMidiStreamMixer;
 
 /***************************************************************************
     The midi player using a Midi stream.
@@ -30,7 +30,7 @@ class MidiStreamPlayer : public MidiStreamPlayer_PAR
     MARKMEM
 
   protected:
-    PMSMIX _pmsmix;
+    PMidiStreamMixer _pmsmix;
 
     MidiStreamPlayer(void);
 
