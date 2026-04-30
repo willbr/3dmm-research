@@ -3334,10 +3334,10 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
     AssertVarMem(pibset);
 
     Actor *pactr;
-    BODY *pbody;
+    Body *pbody;
     long ipactr;
 
-    pbody = BODY::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
+    pbody = Body::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
     if (pvNil == pbody)
     {
         return pvNil;

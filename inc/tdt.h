@@ -105,8 +105,8 @@ class ThreeDText : public ThreeDText_PAR
     void GetInfo(PString pstn, long *ptdts, PTAG ptagTdf);
     bool FChange(PString pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
-    bool FAdjustBody(PBODY pbody);
-    virtual bool FSetDefaultCost(PBODY pbody);
+    bool FAdjustBody(PBody pbody);
+    virtual bool FSetDefaultCost(PBody pbody);
     virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
     virtual bool FGetActnName(long anid, PString pstn);
 };

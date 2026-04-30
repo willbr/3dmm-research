@@ -5505,7 +5505,7 @@ void Actor::Hilite(void)
 {
     AssertThis(0);
 
-    BODY::SetHiliteColor(_fTimeFrozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
+    Body::SetHiliteColor(_fTimeFrozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
     _pbody->Hilite();
 }
 

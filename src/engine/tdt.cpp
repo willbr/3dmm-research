@@ -32,8 +32,8 @@
     The user can change a ThreeDText's text, shape, and/or font with FChange().
     When this happens, all the internal lists affecting the ThreeDText's shape,
     costume, etc., are changed via _FInitLists().  After changing a ThreeDText,
-    you should call FAdjustBody on any BODYs based on that ThreeDText.  In
-    Socrates, there should only be one BODY per ThreeDText, so this shouldn't be
+    you should call FAdjustBody on any Bodys based on that ThreeDText.  In
+    Socrates, there should only be one Body per ThreeDText, so this shouldn't be
     a problem.
 
 ***************************************************************************/
@@ -139,7 +139,7 @@ PThreeDText ThreeDText::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
 
     // This is a bit of a hack, but it makes life easier.  Without it,
     // the code would have to deal with body part sets with no body
-    // parts in them, and Template and BODY would have problems with that
+    // parts in them, and Template and Body would have problems with that
     // (for one thing, they would compute _cbset incorrectly).
     if (ptdt->_stn.Cch() == 0)
     {
@@ -361,7 +361,7 @@ PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
 }
 
 /***************************************************************************
-    Build the BACT tree DynamicArray for BODY creation.  ThreeDTexts all have the same
+    Build the BACT tree DynamicArray for Body creation.  ThreeDTexts all have the same
     body part tree: every part is a child of the root.
 ***************************************************************************/
 PDynamicArray ThreeDText::_PglibactParBuild(void)
@@ -383,7 +383,7 @@ PDynamicArray ThreeDText::_PglibactParBuild(void)
 }
 
 /***************************************************************************
-    Build the body part set DynamicArray for BODY creation.  For ThreeDTexts, all body parts
+    Build the body part set DynamicArray for Body creation.  For ThreeDTexts, all body parts
     belong to a single body part set
 ***************************************************************************/
 PDynamicArray ThreeDText::_PglibsetBuild(void)
@@ -634,7 +634,7 @@ bool ThreeDText::FChange(PString pstn, long tdts, PTAG ptagTdf)
 
     // This is a bit of a hack, but it makes life easier.  Without it,
     // the code would have to deal with body part sets with no body
-    // parts in them, and Template and BODY would have problems with that
+    // parts in them, and Template and Body would have problems with that
     // (for one thing, they would compute _cbset incorrectly).
     if (_stn.Cch() == 0)
     {
@@ -674,7 +674,7 @@ void ThreeDText::GetInfo(PString pstn, long *ptdts, PTAG ptagTdf)
 /***************************************************************************
     Adjust the given body's shape, since its owning ThreeDText has changed
 ***************************************************************************/
-bool ThreeDText::FAdjustBody(PBODY pbody)
+bool ThreeDText::FAdjustBody(PBody pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -688,7 +688,7 @@ bool ThreeDText::FAdjustBody(PBODY pbody)
     Set the default costume.  This always succeeds for ThreeDTexts because they
     keep the PMaterial_MTRL in memory.
 ***************************************************************************/
-bool ThreeDText::FSetDefaultCost(PBODY pbody)
+bool ThreeDText::FSetDefaultCost(PBody pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);

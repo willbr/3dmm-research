@@ -13,7 +13,7 @@
 
     A Template encapsulates all the data that distinguishes one actor
     "species" from another, including the species' models, actions,
-    and custom texture maps.  One or more BODY classes are created based
+    and custom texture maps.  One or more Body classes are created based
     on a Template, and the Template attaches models and materials to the body
     based on more abstract concepts like actions and costumes.
 
@@ -154,8 +154,8 @@ class Template : public Template_PAR
     BRA _yaRest;
     BRA _zaRest;
     ulong _grftmpl;
-    PDynamicArray _pglibactPar; // DynamicArray of parent IDs (shorts) to build BODY
-    PDynamicArray _pglibset;    // DynamicArray of body-part-set IDs to build BODY
+    PDynamicArray _pglibactPar; // DynamicArray of parent IDs (shorts) to build Body
+    PDynamicArray _pglibset;    // DynamicArray of body-part-set IDs to build Body
     PGeneralGroup _pggcmid;     // List of costumes for each body part set
     long _ccmid;      // Count of custom costumes
     long _cbset;      // Count of body part sets
@@ -177,9 +177,9 @@ class Template : public Template_PAR
     ~Template(void);
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
-    // Template / BODY stuff
+    // Template / Body stuff
     void GetName(PString pstn); // default name of actor or text of the ThreeDText
-    PBODY PbodyCreate(void); // Creates a body based on this Template
+    PBody PbodyCreate(void); // Creates a body based on this Template
     void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
     bool FIsTdt(void)
     {
@@ -196,14 +196,14 @@ class Template : public Template_PAR
         return _cactn;
     } // count of actions
     virtual bool FGetActnName(long anid, PString pstn);
-    bool FSetActnCel(PBODY pbody, long anid, long celn, BRS *pdwr = pvNil);
+    bool FSetActnCel(PBody pbody, long anid, long celn, BRS *pdwr = pvNil);
     bool FGetGrfactn(long anid, ulong *pgrfactn);
     bool FGetDwrActnCel(long anid, long celn, BRS *pdwr);
     bool FGetCcelActn(long anid, long *pccel);
     bool FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag);
 
     // Costume stuff
-    virtual bool FSetDefaultCost(PBODY pbody); // applies default costume
+    virtual bool FSetDefaultCost(PBody pbody); // applies default costume
     virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
     long CcmidOfBset(long ibset);
     long CmidOfBset(long ibset, long icmid);

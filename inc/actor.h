@@ -342,7 +342,7 @@ class Actor : public Actor_PAR
     PGeneralGroup _pggaev;      // GeneralGroup pointer to Actor EVent list
     PDynamicArray _pglrpt;      // DynamicArray pointer to actor's route
     Template *_ptmpl;     // Actor body & action list template
-    BODY *_pbody;     // Actor's body
+    Body *_pbody;     // Actor's body
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
     TAG _tagSnd;      // Sound (played on entrance)
     Scene *_pscen;     // Underlying scene
@@ -547,7 +547,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return (_fOnStage);
     }
-    bool FIsMyBody(BODY *pbody)
+    bool FIsMyBody(Body *pbody)
     {
         AssertBaseThis(0);
         return pbody == _pbody;
@@ -568,7 +568,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return _ptmpl;
     }
-    PBODY Pbody(void)
+    PBody Pbody(void)
     {
         AssertBaseThis(0);
         return _pbody;
