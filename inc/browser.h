@@ -20,8 +20,8 @@
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -683,10 +683,10 @@ class BrowserCamera : public BrowserCamera_PAR
    Derived from the Browser Named List Class
 
 *************************************/
-#define BRWM_PAR BrowserNamedList
-#define kclsBRWM 'brwm'
-typedef class BRWM *PBRWM;
-class BRWM : public BRWM_PAR
+#define BrowserMusic_PAR BrowserNamedList
+#define kclsBrowserMusic 'brwm'
+typedef class BrowserMusic *PBrowserMusic;
+class BrowserMusic : public BrowserMusic_PAR
 {
     RTCLASS_DEC
 
@@ -704,13 +704,13 @@ class BRWM : public BRWM_PAR
     //
     // Constructors and destructors
     //
-    BRWM(PGraphicsObjectBlock pgcb) : BRWM_PAR(pgcb)
+    BrowserMusic(PGraphicsObjectBlock pgcb) : BrowserMusic_PAR(pgcb)
     {
         _idsFont = idsSoundFont;
     }
-    ~BRWM(void){};
+    ~BrowserMusic(void){};
 
-    static PBRWM PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio);
+    static PBrowserMusic PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio);
     virtual bool FCmdFile(PCommand pcmd); // Upon portfolio completion
     virtual bool FCmdDel(PCommand pcmd);  // Delete user sound
 };
@@ -722,7 +722,7 @@ class BRWM : public BRWM_PAR
    Note: Inherits pgst from the list class
 
 *************************************/
-#define BRWI_PAR BRWM
+#define BRWI_PAR BrowserMusic
 #define kclsBRWI 'BRWI'
 typedef class BRWI *PBRWI;
 class BRWI : public BRWI_PAR
@@ -732,7 +732,7 @@ class BRWI : public BRWI_PAR
     MARKMEM
 
   protected:
-    // The following are already handled by BRWM
+    // The following are already handled by BrowserMusic
     // virtual void _ProcessSelection(void);
     virtual void _ApplySelection(long thumSelect, long sid);
 

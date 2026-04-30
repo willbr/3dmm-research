@@ -25,8 +25,8 @@
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BRWI (Browser import sound class)
 
 NOTE:  In this implementation, browsers are considered to be studio related.
 If for any reason one wanted to decouple them from the studio, then	it would
@@ -214,15 +214,15 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
     case kidBrwsFX:
         ckiRoot.ctg = kctgSfth;
-        pbrwd = (PBrowserDisplay)(BRWM::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
+        pbrwd = (PBrowserDisplay)(BrowserMusic::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
         goto LMusic;
     case kidBrwsSpeech:
         ckiRoot.ctg = kctgSvth;
-        pbrwd = (PBrowserDisplay)(BRWM::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
+        pbrwd = (PBrowserDisplay)(BrowserMusic::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
         goto LMusic;
     case kidBrwsMidi:
         ckiRoot.ctg = kctgSmth;
-        pbrwd = (PBrowserDisplay)(BRWM::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
+        pbrwd = (PBrowserDisplay)(BrowserMusic::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
     LMusic:
         if (pvNil == pbrwd)
             goto LFail;
@@ -243,7 +243,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             sid = ptag->sid;
         }
         // Selection is cno based
-        if (!((PBRWM)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserMusic)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
         {
             goto LFail;
         }
@@ -533,7 +533,7 @@ void BrowserAction::_ApplySelection(long thumSelect, long sid)
  * thumSelect is a cnoContent
  *
  **************************************************************************/
-void BRWM::_ApplySelection(long thumSelect, long sid)
+void BrowserMusic::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
