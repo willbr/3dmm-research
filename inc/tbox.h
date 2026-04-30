@@ -17,9 +17,9 @@
 
             GraphicsObject  ---> TextBoxBase
 
-        Textbox Ddg (TBXG)
+        Textbox Ddg (TextBoxGobject)
 
-            RichTextDocumentGraphicsObject ---> TBXG  (created as a child Gob of a TextBoxBase)
+            RichTextDocumentGraphicsObject ---> TextBoxGobject  (created as a child Gob of a TextBoxBase)
 
     Cut/Copy/Paste Stuff
 
@@ -110,35 +110,35 @@ class TextBoxBase : public TextBoxBase_PAR
 
 //
 //
-// The DocumentDisplayGraphicsObject for a single textbox (TBXG).
+// The DocumentDisplayGraphicsObject for a single textbox (TextBoxGobject).
 //
 //
 
-#define TBXG_PAR RichTextDocumentGraphicsObject
+#define TextBoxGobject_PAR RichTextDocumentGraphicsObject
 
-typedef class TBXG *PTBXG;
-#define kclsTBXG 'TBXG'
-class TBXG : public TBXG_PAR
+typedef class TextBoxGobject *PTextBoxGobject;
+#define kclsTextBoxGobject 'TBXG'
+class TextBoxGobject : public TextBoxGobject_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(TBXG)
+    CMD_MAP_DEC(TextBoxGobject)
 
   private:
     PTextBoxBase _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
 
-    TBXG(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
+    TextBoxGobject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
     {
     }
-    ~TBXG(void);
+    ~TextBoxGobject(void);
 
   public:
     //
     // Creation function
     //
-    static PTBXG PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
+    static PTextBoxGobject PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
 
     //
     // Accessors
@@ -229,7 +229,7 @@ class TextBox : public TextBox_PAR
     static PTBOX PtboxNew(PScene pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
     PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb)
     {
-        return TBXG::PtbxgNew(this, pgcb);
+        return TextBoxGobject::PtbxgNew(this, pgcb);
     }
     static PTBOX PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen);
     bool FWrite(PChunkyFile pcfl, ChunkNumber cno);
@@ -293,7 +293,7 @@ class TextBox : public TextBox_PAR
     }
 
     //
-    // TBXG/TextBoxBase specific funtions
+    // TextBoxGobject/TextBoxBase specific funtions
     //
     void GetRc(RC *prc)
     {

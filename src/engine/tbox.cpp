@@ -16,7 +16,7 @@
 ASSERTNAME
 
 RTCLASS(TextBox)
-RTCLASS(TBXG)
+RTCLASS(TextBoxGobject)
 RTCLASS(TextBoxBase)
 RTCLASS(TextBoxClipboard)
 
@@ -230,7 +230,7 @@ RTCLASS(TUNC)
 
 //
 //
-// BEGIN TextBoxBase and TBXG
+// BEGIN TextBoxBase and TextBoxGobject
 //
 //
 /****************************************************
@@ -251,7 +251,7 @@ PTextBoxBase TextBoxBase::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
     AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
     PTextBoxBase ptbxb;
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     RC rcRel, rcAbs;
     AbstractColor acr;
 
@@ -270,7 +270,7 @@ PTextBoxBase TextBoxBase::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
     rcAbs.Set(kdzpBorderTbox, kdzpBorderTbox, -kdzpBorderTbox, -kdzpBorderTbox);
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     pgcb->Set(pgcb->_hid, ptbxb, pgcb->_grfgob, pgcb->_gin, &rcAbs, &rcRel);
-    if (pvNil == (ptbxg = (PTBXG)ptbox->PddgNew(pgcb)))
+    if (pvNil == (ptbxg = (PTextBoxGobject)ptbox->PddgNew(pgcb)))
     {
         ReleasePpo(&ptbxb);
         return (pvNil);
@@ -534,7 +534,7 @@ bool TextBoxBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
 
             if (!(pcmd->grfcust & fcustMouse))
             {
-                PTBXG ptbxg = (PTBXG)_ptbox->PddgGet(0);
+                PTextBoxGobject ptbxg = (PTextBoxGobject)_ptbox->PddgGet(0);
                 AssertPo(ptbxg, 0);
                 ptbxg->_FDoClip(pmvu->Tool());
                 vpcex->EndMouseTracking();
@@ -951,18 +951,18 @@ void TextBoxBase::AssertValid(ulong grf)
 // Disable the some default rich text functionality,
 // and then intercept other commands.
 //
-BEGIN_CMD_MAP(TBXG, DocumentDisplayGraphicsObject)
+BEGIN_CMD_MAP(TextBoxGobject, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidSave, pvNil, pvNil)
 ON_CID_GEN(cidClose, pvNil, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 ON_CID_GEN(cidSaveAs, pvNil, pvNil)
 ON_CID_GEN(cidSaveCopy, pvNil, pvNil)
-ON_CID_GEN(cidCutTool, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidCopyTool, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidPasteTool, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidPaste, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidCut, &TBXG::FCmdClip, pvNil)
-ON_CID_GEN(cidCopy, &TBXG::FCmdClip, pvNil)
+ON_CID_GEN(cidCutTool, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidCopyTool, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidPasteTool, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidPaste, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidCut, &TextBoxGobject::FCmdClip, pvNil)
+ON_CID_GEN(cidCopy, &TextBoxGobject::FCmdClip, pvNil)
 ON_CID_GEN(cidUndo, pvNil, pvNil)
 ON_CID_GEN(cidRedo, pvNil, pvNil)
 END_CMD_MAP_NIL()
@@ -972,7 +972,7 @@ END_CMD_MAP_NIL()
  * Destructor for text box DDGs.
  *
  ****************************************************/
-TBXG::~TBXG()
+TextBoxGobject::~TextBoxGobject()
 {
 }
 
@@ -988,14 +988,14 @@ TBXG::~TBXG()
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
+PTextBoxGobject TextBoxGobject::PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
 {
     AssertPo(ptbox, 0);
     AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
-    if (pvNil == (ptbxg = NewObj TBXG(ptbox, pgcb)))
+    if (pvNil == (ptbxg = NewObj TextBoxGobject(ptbox, pgcb)))
     {
         return (pvNil);
     }
@@ -1022,7 +1022,7 @@ PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
  *  None.
  *
  ****************************************************/
-void TBXG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void TextBoxGobject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1046,7 +1046,7 @@ void TBXG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     rc.FIntersect(prcClip);
     pgnv->ClipRc(&rc);
 
-    TBXG_PAR::Draw(pgnv, &rc);
+    TextBoxGobject_PAR::Draw(pgnv, &rc);
 }
 
 /***************************************************************************
@@ -1060,14 +1060,14 @@ void TBXG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
  *  None.
  *
  **************************************************************************/
-void TBXG::Activate(bool fActive)
+void TextBoxGobject::Activate(bool fActive)
 {
     AssertThis(0);
 
     PTBOX ptbox = (PTBOX)_pdocb;
     AssertPo(ptbox, 0);
 
-    TBXG_PAR::Activate(fActive);
+    TextBoxGobject_PAR::Activate(fActive);
     ptbox->Select(fActive);
 }
 
@@ -1084,7 +1084,7 @@ void TBXG::Activate(bool fActive)
  *  None.
  *
  **************************************************************************/
-void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
+void TextBoxGobject::InvalCp(long cp, long ccpIns, long ccpDel)
 {
     PMovieView pmvu;
     PTBOX ptbox = (PTBOX)_pdocb;
@@ -1101,7 +1101,7 @@ void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
         ptbox->Pscen()->Pmvie()->Pmcc()->ChangeTool(toolTboxMove);
     }
 
-    TBXG_PAR::InvalCp(cp, ccpIns, ccpDel);
+    TextBoxGobject_PAR::InvalCp(cp, ccpIns, ccpDel);
 }
 
 /***************************************************************************
@@ -1115,7 +1115,7 @@ void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool TextBoxGobject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1171,7 +1171,7 @@ bool TBXG::FCmdMouseMove(PCMD_MOUSE pcmd)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TextBoxGobject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1206,7 +1206,7 @@ bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
     //
     if ((pmvu->Tool() != toolTboxFillBkgd) && (pmvu->Tool() != toolTboxStory) && (pmvu->Tool() != toolTboxCredit))
     {
-        TBXG_PAR::FCmdTrackMouse(pcmd);
+        TextBoxGobject_PAR::FCmdTrackMouse(pcmd);
     }
 
     if ((pcmd->cid == cidMouseDown) && (pcmd->grfcust & fcustMouse))
@@ -1299,7 +1299,7 @@ bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FPtIn(long xp, long yp)
+bool TextBoxGobject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
@@ -1321,7 +1321,7 @@ bool TBXG::FPtIn(long xp, long yp)
         return (fFalse);
     }
 
-    return (TBXG_PAR::FPtIn(xp, yp));
+    return (TextBoxGobject_PAR::FPtIn(xp, yp));
 }
 
 /***************************************************************************
@@ -1339,7 +1339,7 @@ bool TBXG::FPtIn(long xp, long yp)
  *	Width in pixels.
  *
  **************************************************************************/
-long TBXG::_DxpDoc()
+long TextBoxGobject::_DxpDoc()
 {
     AssertBaseThis(0);
 
@@ -1361,7 +1361,7 @@ long TBXG::_DxpDoc()
  * 	None.
  *
  **************************************************************************/
-void TBXG::_NewRc(void)
+void TextBoxGobject::_NewRc(void)
 {
     AssertBaseThis(0);
 
@@ -1379,7 +1379,7 @@ void TBXG::_NewRc(void)
 
     _rcOld = rc;
 
-    TBXG_PAR::_NewRc();
+    TextBoxGobject_PAR::_NewRc();
 
     long cpLim = _ptxtb->CpMac() - 1;
 
@@ -1397,7 +1397,7 @@ void TBXG::_NewRc(void)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdClip(PCommand pcmd)
+bool TextBoxGobject::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1466,7 +1466,7 @@ bool TBXG::FCmdClip(PCommand pcmd)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
+bool TextBoxGobject::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1504,7 +1504,7 @@ bool TBXG::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
         break;
 
     default:
-        return (TBXG_PAR::FEnableDdgCmd(pcmd, pgrfeds));
+        return (TextBoxGobject_PAR::FEnableDdgCmd(pcmd, pgrfeds));
     }
 
     return (fTrue);
@@ -1521,7 +1521,7 @@ bool TBXG::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::_FDoClip(long tool)
+bool TextBoxGobject::_FDoClip(long tool)
 {
     AssertThis(0);
 
@@ -1542,7 +1542,7 @@ bool TBXG::_FDoClip(long tool)
             ClearPb(&cmd, size(Command));
             cmd.cid = (tool == toolCutText) ? cidCut : cidCopy;
             ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            if (!TBXG_PAR::FCmdClip(&cmd))
+            if (!TextBoxGobject_PAR::FCmdClip(&cmd))
             {
                 return (fFalse);
             }
@@ -1557,7 +1557,7 @@ bool TBXG::_FDoClip(long tool)
             ClearPb(&cmd, size(Command));
             cmd.cid = cidPaste;
             ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            return (TBXG_PAR::FCmdClip(&cmd));
+            return (TextBoxGobject_PAR::FCmdClip(&cmd));
         }
         else
         {
@@ -1642,7 +1642,7 @@ bool TBXG::_FDoClip(long tool)
  *  fTrue if yes, else fFalse.
  *
  ****************************************************/
-bool TBXG::FNeedToScroll()
+bool TextBoxGobject::FNeedToScroll()
 {
     AssertThis(0);
 
@@ -1674,7 +1674,7 @@ bool TBXG::FNeedToScroll()
  *  None.
  *
  ****************************************************/
-void TBXG::Scroll(long scaVert)
+void TextBoxGobject::Scroll(long scaVert)
 {
     AssertThis(0);
 
@@ -1703,7 +1703,7 @@ void TBXG::Scroll(long scaVert)
  *  None.
  *
  ****************************************************/
-bool TBXG::FTextSelected(void)
+bool TextBoxGobject::FTextSelected(void)
 {
     AssertThis(0);
     return (_cpAnchor != _cpOther);
@@ -1723,9 +1723,9 @@ bool TBXG::FTextSelected(void)
  * 	None.
  *
  ****************************************************/
-void TBXG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
+void TextBoxGobject::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 {
-    TBXG_PAR::_FetchChp(cp, pchp, pcpMin, pcpLim);
+    TextBoxGobject_PAR::_FetchChp(cp, pchp, pcpMin, pcpLim);
 
     if (pchp->acrFore == kacrBlack)
     {
@@ -1736,7 +1736,7 @@ void TBXG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TBXG
+ * Mark memory used by the TextBoxGobject
  *
  * Parameters:
  * 	None.
@@ -1745,16 +1745,16 @@ void TBXG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
  *  None.
  *
  ****************************************************/
-void TBXG::MarkMem(void)
+void TextBoxGobject::MarkMem(void)
 {
     AssertThis(0);
-    TBXG_PAR::MarkMem();
+    TextBoxGobject_PAR::MarkMem();
     MarkMemObj(_ptbxb);
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TBXG.
+ * Assert the validity of the TextBoxGobject.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -1763,9 +1763,9 @@ void TBXG::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TBXG::AssertValid(ulong grf)
+void TextBoxGobject::AssertValid(ulong grf)
 {
-    TBXG_PAR::AssertValid(fobjAllocated);
+    TextBoxGobject_PAR::AssertValid(fobjAllocated);
     AssertPo(_ptbxb, 0);
 }
 
@@ -2030,10 +2030,10 @@ void TextBox::SetTypeCore(bool fStory)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     _fStory = fStory;
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
     if (ptbxg == pvNil)
@@ -2059,9 +2059,9 @@ void TextBox::AttachToMouse(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
     if (ptbxg == pvNil)
@@ -2213,7 +2213,7 @@ void TextBox::Select(bool fSel)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     if (fSel == _fSel)
     {
@@ -2225,7 +2225,7 @@ void TextBox::Select(bool fSel)
     if (Cddg() > 0)
     {
         Assert(Cddg() == 1, "Multiple views on text boxes not allowed");
-        ptbxg = (PTBXG)PddgGet(0);
+        ptbxg = (PTextBoxGobject)PddgGet(0);
         AssertPo(ptbxg, 0);
         ptbxg->Ptbxb()->Activate(fSel);
         ptbxg->Ptbxb()->InvalRc(pvNil);
@@ -2248,7 +2248,7 @@ bool TextBox::FGotoFrame(long nfrm)
     AssertThis(0);
 
     GraphicsObjectBlock gcb;
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     PTextBoxBase ptbxb;
 
     if (Cddg() == 0)
@@ -2257,7 +2257,7 @@ bool TextBox::FGotoFrame(long nfrm)
     }
     else
     {
-        ptbxg = (PTBXG)PddgGet(0);
+        ptbxg = (PTextBoxGobject)PddgGet(0);
     }
     AssertNilOrPo(ptbxg, 0);
 
@@ -2534,10 +2534,10 @@ bool TextBox::FSetAcrText(AbstractColor acr)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
     if (ptbxg == pvNil)
@@ -2566,14 +2566,14 @@ bool TextBox::FSetDypFontText(long dypFont)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DocumentDisplayGraphicsObject isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2596,14 +2596,14 @@ bool TextBox::FSetStyleText(ulong grfont)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DocumentDisplayGraphicsObject isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2626,14 +2626,14 @@ bool TextBox::FSetOnnText(long onn)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DocumentDisplayGraphicsObject isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2713,11 +2713,11 @@ bool TextBox::FNeedToScroll(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     if ((_nfrmCur == _nfrmFirst) && !_fStory)
     {
-        ptbxg = (PTBXG)PddgGet(0);
+        ptbxg = (PTextBoxGobject)PddgGet(0);
         AssertPo(ptbxg, 0);
         return (ptbxg->FNeedToScroll());
     }
@@ -2739,9 +2739,9 @@ void TextBox::Scroll(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertPo(ptbxg, 0);
     ptbxg->Scroll(scaLineDown);
 }
@@ -2761,14 +2761,14 @@ bool TextBox::FTextSelected(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     if (!FIsVisible())
     {
         return (fFalse);
     }
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertPo(ptbxg, 0);
     return (ptbxg->FTextSelected());
 }
@@ -3129,7 +3129,7 @@ bool TUNS::FDo(PDocumentBase pdocb)
     AssertPo(pdocb, 0);
 
     PTBOX ptbox;
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     RC rc;
 
     if (!_pmvie->FSwitchScen(_iscen))
@@ -3153,7 +3153,7 @@ bool TUNS::FDo(PDocumentBase pdocb)
     ptbox->GetRc(&rc);
     ptbox->SetRc(&_rc);
 
-    ptbxg = (PTBXG)ptbox->PddgGet(0);
+    ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
     AssertPo(ptbxg, 0);
     ptbxg->Ptbxb()->SetPos(&_rc);
     _pmvie->Pscen()->SelectTbox(ptbox);
