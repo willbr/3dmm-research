@@ -684,7 +684,7 @@ TTW *TTW::PttwNew(void)
     TTW *pttw;
     String stn;
     RC rc;
-    PEDPL pedpl;
+    PEditControlPlain pedpl;
     GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if ((pttw = NewObj TTW(&gcb)) == pvNil)
