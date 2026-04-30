@@ -174,8 +174,8 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     Filename fniUserDoc;
     long fFirstTimeUser;
     long fSkipSplashScreen = fFalse;
-    String kids_dir;
-    
+
+
     FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
 
     // Only allow one copy of 3DMM to run at a time:
@@ -234,11 +234,6 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         _fDontReportInitFailure = fTrue;
         goto LFail;
     }
-
-    #ifdef DEBUG
-        kids_dir.SetSz("C:\\Program Files (x86)\\Microsoft Kids");
-        _fniMsKidsDir.FBuildFromPath(&kids_dir, kftgDir);
-    #endif // DEBUG
 
     // Init product names for tagman & _fniProductDir & potentially _stnProduct
     if (!_FInitProductNames())
@@ -2311,48 +2306,66 @@ bool Application::_FFindMsKidsDir(void)
     AssertBaseThis(0);
     Assert(_stnProductLong.Cch() > 0 && _stnProductShort.Cch() > 0, "_stnProductLong and _stnProductShort must exist");
 
-    Filename fni;
-    ZString szMsKidsDir;
     String stn;
-    String stnUsers;
 
-    // szMsKidsDir[0] = chNil;
-    // if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(ZString), fregMachine | fregString))
-    // {
-    //     Warn("Missing InstallDirectory registry entry or registry error");
-    // }
-    // stn = szMsKidsDir;
-    stn = "";
+    // Candidate kids-dir roots, in priority order. We descend each through
+    // _FFindMsKidsDirAt (Microsoft Kids/MSKIDS) and prefer the first one whose
+    // 3D Movie Maker subdir contains BLDGDATA.CHK -- that file ships only with
+    // a real install, so it cleanly distinguishes a complete tree from a dev
+    // dist/ that only has chomped artifacts. If no candidate is complete, we
+    // still fall back to the first candidate that at least had a Microsoft Kids
+    // subdir, so the original error-reporting path is preserved.
+    Filename rgfniCand[4];
+    long cfniCand = 0;
 
-    if (stn.Cch() == 0 || !_fniMsKidsDir.FBuildFromPath(&stn, kftgDir) || tYes != _fniMsKidsDir.TExists())
+    rgfniCand[cfniCand] = _fniExe;
+    if (rgfniCand[cfniCand].FSetLeaf(pvNil, kftgDir))
+        cfniCand++;
+
+    rgfniCand[cfniCand] = _fniCurrentDir;
+    if (rgfniCand[cfniCand].FSetLeaf(pvNil, kftgDir))
+        cfniCand++;
+
+    stn = PszLit("C:\\Program Files (x86)");
+    if (rgfniCand[cfniCand].FBuildFromPath(&stn, kftgDir) && tYes == rgfniCand[cfniCand].TExists())
+        cfniCand++;
+
+    stn = PszLit("C:\\Program Files");
+    if (rgfniCand[cfniCand].FBuildFromPath(&stn, kftgDir) && tYes == rgfniCand[cfniCand].TExists())
+        cfniCand++;
+
+    Filename fniFirstHit;
+    bool fHaveFirstHit = fFalse;
+
+    for (long i = 0; i < cfniCand; i++)
     {
-        // REVIEW *****: this artificial search is temp until we have a
-        // real setup program and users have a InstallDirectory registry entry
-        _fniMsKidsDir = _fniExe;
-        if (!_fniMsKidsDir.FSetLeaf(pvNil, kftgDir))
-            return fFalse;
-        /* FOONE: hack out search to top of DIR
-        while (_fniMsKidsDir.FUpDir(pvNil, ffniMoveToDir))
-            ;
-        */
-
-        // if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
-        // {
-        //     _fniMsKidsDir = _fniCurrentDir;
-        //     if (!_fniMsKidsDir.FSetLeaf(pvNil, kftgDir))
-        //         return fFalse;
-        //     if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
-        //     {
-        //         Warn("Can't find Microsoft Kids or MSKIDS.");
-        //         stn = PszLit("Microsoft Kids");
-        //         _FCantFindFileDialog(&stn); // ignore failure
-        //         return fFalse;
-        //     }
-        // }
+        Filename fni = rgfniCand[i];
+        if (!_FFindMsKidsDirAt(&fni))
+            continue;
+        if (!fHaveFirstHit)
+        {
+            fniFirstHit = fni;
+            fHaveFirstHit = fTrue;
+        }
+        if (_FMsKidsDirIsComplete(&fni))
+        {
+            _fniMsKidsDir = fni;
+            AssertPo(&_fniMsKidsDir, ffniDir);
+            return fTrue;
+        }
     }
 
-    AssertPo(&_fniMsKidsDir, ffniDir);
-    return fTrue;
+    if (fHaveFirstHit)
+    {
+        _fniMsKidsDir = fniFirstHit;
+        AssertPo(&_fniMsKidsDir, ffniDir);
+        return fTrue;
+    }
+
+    Warn("Can't find Microsoft Kids or MSKIDS.");
+    stn = PszLit("Microsoft Kids");
+    _FCantFindFileDialog(&stn); // ignore failure
+    return fFalse;
 }
 
 /***************************************************************************
@@ -2378,6 +2391,31 @@ bool Application::_FFindMsKidsDirAt(Filename *path)
 
     AssertPo(path, ffniDir);
     return fTrue;
+}
+
+/***************************************************************************
+    Returns true if the given Microsoft Kids dir contains a complete 3DMM
+    install. We probe for "3D Movie Maker/BLDGDATA.CHK" because BLDGDATA.CHK
+    is original-release content that is never produced by our build, so its
+    presence reliably distinguishes a full install from a freshly-installed
+    dist/ tree containing only chomped artifacts.
+***************************************************************************/
+bool Application::_FMsKidsDirIsComplete(Filename *path)
+{
+    Filename fni = *path;
+    String stn;
+
+    stn = _stnProductLong;
+    if (!fni.FDownDir(&stn, ffniMoveToDir))
+    {
+        stn = _stnProductShort;
+        if (!fni.FDownDir(&stn, ffniMoveToDir))
+            return fFalse;
+    }
+    stn = PszLit("BLDGDATA.CHK");
+    if (!fni.FSetLeaf(&stn))
+        return fFalse;
+    return tYes == fni.TExists();
 }
 
 /***************************************************************************
