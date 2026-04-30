@@ -17,11 +17,11 @@
     Studio Independent Browsers:
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
     BrowserDisplay --> BrowserList  (Browser list class; chunky based)
-    BrowserDisplay --> BRWT  (Browser text class)
+    BrowserDisplay --> BrowserText  (Browser text class)
     BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
-    BrowserDisplay --> BRWT --> BRWA  (Browser action class)
+    BrowserDisplay --> BrowserText --> BRWA  (Browser action class)
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
@@ -202,7 +202,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         // Build the string table before initializing
         if (!((PBRWA)pbrwd)->FBuildGst(_pmvie->Pscen()))
             goto LFail;
-        if (!((PBRWT)pbrwd)->FInit(pcmd, thumSelect, thumSelect, this))
+        if (!((PBrowserText)pbrwd)->FInit(pcmd, thumSelect, thumSelect, this))
             goto LFail;
         break;
 

@@ -11,12 +11,12 @@
     Studio Independent Browsers:
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
     BrowserDisplay --> BrowserList  (Browser list class; chunky based)
-    BrowserDisplay --> BRWT  (Browser text class)
+    BrowserDisplay --> BrowserText  (Browser text class)
     BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
-    BrowserDisplay --> BRWT --> BRWA  (Browser action class)
+    BrowserDisplay --> BrowserText --> BRWA  (Browser action class)
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
@@ -465,10 +465,10 @@ class BrowserList : public BrowserList_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWT_PAR BrowserDisplay
-#define kclsBRWT 'BRWT'
-typedef class BRWT *PBRWT;
-class BRWT : public BRWT_PAR
+#define BrowserText_PAR BrowserDisplay
+#define kclsBrowserText 'BRWT'
+typedef class BrowserText *PBrowserText;
+class BrowserText : public BrowserText_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -492,13 +492,13 @@ class BRWT : public BRWT_PAR
     //
     // Constructors and destructors
     //
-    BRWT(PGraphicsObjectBlock pgcb) : BRWT_PAR(pgcb)
+    BrowserText(PGraphicsObjectBlock pgcb) : BrowserText_PAR(pgcb)
     {
         _idsFont = idsNil;
     }
-    ~BRWT(void);
+    ~BrowserText(void);
 
-    static PBRWT PbrwtNew(PResourceCache prca, long kidPar, long kidBrwt);
+    static PBrowserText PbrwtNew(PResourceCache prca, long kidPar, long kidBrwt);
     void SetGst(PStringTable_GST pgst);
     bool FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
@@ -553,7 +553,7 @@ class BRWN : public BRWN_PAR
    previews
 
 *************************************/
-#define BRWA_PAR BRWT
+#define BRWA_PAR BrowserText
 #define kclsBRWA 'BRWA'
 typedef class BRWA *PBRWA;
 class BRWA : public BRWA_PAR

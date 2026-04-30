@@ -17,12 +17,12 @@
     Studio Independent Browsers:
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
     BrowserDisplay --> BrowserList  (Browser list class; chunky based)
-    BrowserDisplay --> BRWT  (Browser text class)
+    BrowserDisplay --> BrowserText  (Browser text class)
     BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
-    BrowserDisplay --> BRWT --> BRWA  (Browser action class)
+    BrowserDisplay --> BrowserText --> BRWA  (Browser action class)
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
@@ -38,7 +38,7 @@
     This file contains the browser display code.
 
     To add additional browsers, create a derived class of
-    the BrowserDisplay, BrowserList or BRWT classes.
+    the BrowserDisplay, BrowserList or BrowserText classes.
 
     If a browser is to be chunky file based, the BrowserList class can be used.
     It includes KidspaceGraphicObjectDescriptor chunks which are grandchildren of _ckiRoot (cnoNil
@@ -51,7 +51,7 @@
     of filling frames from KidspaceGraphicObjectDescriptor thumbnails which are children of a single
     given chunk.
 
-    Text class browsers (BRWT) create child TGOBs for each frame.
+    Text class browsers (BrowserText) create child TGOBs for each frame.
 
     Only cidBrowserCancel and cidBrowserOk exit the browser.
     cidBrowserSelect is selection only, not application of the selection.
@@ -79,7 +79,7 @@ RTCLASS(BrowserContext)
 RTCLASS(BRCNL)
 RTCLASS(BrowserDisplay)
 RTCLASS(BrowserList)
-RTCLASS(BRWT)
+RTCLASS(BrowserText)
 RTCLASS(BRWA)
 RTCLASS(BRWP)
 RTCLASS(BRWB)
@@ -2419,17 +2419,17 @@ bool BRWM::FCmdDel(PCommand pcmd)
  *	A pointer to the object, else pvNil.
  *
  ****************************************************/
-PBRWT BRWT::PbrwtNew(PResourceCache prca, long kidPar, long kidGlass)
+PBrowserText BrowserText::PbrwtNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWT pbrwt;
+    PBrowserText pbrwt;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
 
-    if ((pbrwt = NewObj BRWT(&gcb)) == pvNil)
+    if ((pbrwt = NewObj BrowserText(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2446,10 +2446,10 @@ PBRWT BRWT::PbrwtNew(PResourceCache prca, long kidPar, long kidGlass)
 
 /****************************************************
  *
- * Set the Gst for BRWT text
+ * Set the Gst for BrowserText text
  *
  ****************************************************/
-void BRWT::SetGst(PStringTable_GST pgst)
+void BrowserText::SetGst(PStringTable_GST pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -2462,10 +2462,10 @@ void BRWT::SetGst(PStringTable_GST pgst)
 
 /****************************************************
  *
- * Initialize BRWT TextGraphicsObject & text
+ * Initialize BrowserText TextGraphicsObject & text
  *
  ****************************************************/
-bool BRWT::FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
+bool BrowserText::FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2490,7 +2490,7 @@ bool BRWT::FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdi
  * current frame
  *
  ****************************************************/
-bool BRWT::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
+bool BrowserText::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(istn, 0, _pgst->IvMac());
@@ -3393,7 +3393,7 @@ BrowserList::~BrowserList(void)
  * Browser Text Destructor
  *
  ****************************************************/
-BRWT::~BRWT(void)
+BrowserText::~BrowserText(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgst);
@@ -3516,15 +3516,15 @@ void BrowserList::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRWT
+    Mark memory used by the BrowserText
 
  ****************************************************/
-void BRWT::MarkMem(void)
+void BrowserText::MarkMem(void)
 {
     AssertThis(0);
 
     MarkMemObj(_pgst);
-    BRWT_PAR::MarkMem();
+    BrowserText_PAR::MarkMem();
 }
 
 /****************************************************
@@ -3644,12 +3644,12 @@ void BRWI::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRWT
+    Assert the validity of the BrowserText
 
  ****************************************************/
-void BRWT::AssertValid(ulong grfobj)
+void BrowserText::AssertValid(ulong grfobj)
 {
-    BRWT_PAR::AssertValid(fobjAllocated);
+    BrowserText_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pgst, 0);
 }
 
