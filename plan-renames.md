@@ -58,65 +58,65 @@ Match what the existing pass established:
 
 Each cluster is one batch of related commits. Recommend doing one cluster per session — names within a cluster cross-reference each other and refactoring them together avoids intermediate broken builds.
 
-### A. Browser hierarchy (studio) — `inc/browser.h`, `src/studio/browser.cpp`, `src/studio/stdiobrw.cpp`
+### A. Browser hierarchy (studio) — DONE
 
-`BRWT`, `BRWN`, `BRWA`, `BRWP`, `BRWB`, `BRWC`, `BRWM`, `BRWI`, `BRWR`, `BRCNL`, `BCLS`, `FNET`. Already partially modernized — `BRWL → BrowserList`, `BCL → BrowserContentList`, `BRWD → BrowserDisplay`, `BWS → BrowserSelectionFlags`. Finish the family. **Touch count is high (184 occurrences for the BRW* core)** — biggest single cluster, do it on a clean afternoon.
+`BRWT → BrowserText`, `BRWN → BrowserNamedList`, `BRWA → BrowserAction`, `BRWP → BrowserPropActor`, `BRWB → BrowserBackground`, `BRWC → BrowserCamera`, `BRWM → BrowserMusic`, `BRWI → BrowserImportSound`, `BRWR → BrowserRollCall`, `BRCNL → BrowserListContext`, `BCLS → BrowserContentListWithStrings`, `FNET → ThumbnailFileEnumerator`.
 
-### B. Easel / sound recorder — `inc/esl.h`
+### B. Easel / sound recorder — DONE
 
-`ESL`, `ESLT`, `ESLA`, `ESLL`, `ESLR`, `LSND`, `SNE`. Suggested: `Easel`, `EaselTextureMap`/`EaselTitle`, `EaselActorContent`, `EaselListenSound`, `EaselRecordSound`. Read class bodies to decide T/A/L/R expansions.
+`ESL → Easel`, `ESLT → EaselText`, `ESLA → EaselActor`, `ESLL → EaselListen`, `ESLR → EaselRecord`, `LSND → ListenerSound`, `SNE → SpletterNameEditor`.
 
-### C. Studio popups, splot, scene sorter — `inc/popup.h`, `inc/splot.h`, `inc/scnsort.h`
+### C. Studio popups, splot, scene sorter — DONE
 
-`MP`, `MPFNT`, `SPLOT`, `GOMP`. Small batch.
+`MP → MenuPopup`, `MPFNT → MenuPopupFont`, `SPLOT → SplotMachine`, `GOMP → GraphicsObjectMenuPopup` (from earlier passes).
 
-### D. Engine actor/body/template — `inc/actor.h`, `inc/body.h`, `inc/tmpl.h`, `inc/tdf.h`, `inc/tdt.h`, `inc/tbox.h`
+### D. Engine actor/body/template — DONE
 
-`ACLP`, `BODY`, `COST`, `ACTN`, `TMPL`, `TDF`, `TDT`, `TBXB`, `TBXG`, `TCLP`. Suggested: `ActorClipboard`, `Body`, `Costume`, `Action`, `Template`, `ThreeDFont`, `ThreeDText`, `TextBoxBase`, `TextBoxGobject`, `TextBoxClipboard`. **Heavy cross-references with engine internals** — budget time.
+`ACLP → ActorClipboard`, `BODY → Body`, `COST → BodyCostume` (couldn't use `Costume` — collides with existing `struct Costume` event payload in actor.h), `ACTN → ActionDefinition` (couldn't use `Action` — collides with existing `struct Action` event payload in actor.h), `TMPL → Template`, `TDF → ThreeDFont`, `TDT → ThreeDText`, `TBXB → TextBoxBase`, `TBXG → TextBoxGobject`, `TCLP → TextBoxClipboard`.
 
-### E. Sound record — `inc/srec.h`
+### E. Sound record — DONE
 
-`SREC`, `RIFF`. Small.
+`SREC → SoundRecorder`, `RIFF → RiffWriter` (from earlier passes).
 
-### F. Kidspace gor* — `kauai/src/kidspace.h`
+### F. Kidspace gor* — DONE
 
-`GORF`, `GORB`, `GORT`, `GORV` (frame, button?, transition?, video?). Read the class bodies — these are subclasses of `GORP` (which has already been renamed to `GraphicalObjectRepresentation`), so suffix the same way: `GraphicalObjectRepresentationFrame`, etc. Verbose but matches the established pattern.
+`GORF → GraphicalObjectRepresentationFill`, `GORB → GraphicalObjectRepresentationBitmap`, `GORT → GraphicalObjectRepresentationTile`, `GORV → GraphicalObjectRepresentationVideo` (from earlier passes).
 
-### G. Text editor stack — `kauai/src/text.h`, `kauai/src/textdoc.h`, `kauai/src/rtxt.h`
+### G. Text editor stack — DONE
 
-`EDPAR`, `EDCB`, `EDPL`, `EDSL`, `EDML`, `EDMW`, `TXDC`, `TXDD`, `TRUL`, `CHR`, `CHRD`. Editor parameter, edit control base, plain-text line, single-line, multi-line, multi-line-window, text-doc class, text-doc display, text-rule, character-run-data, etc. Read carefully before naming.
+`TRUL → TextRuler`, `EDPAR → EditParameter`, `EDMW → EditControlMultiLineWrap`, `EDSL → EditControlSingleLine`, `EDML → EditControlMultiLine`, `EDPL → EditControlPlain`, `EDCB → EditControlBase`, `TXDD → TextDocumentByteStreamDisplay`, `TXDC → TextDocumentByteStream`.
 
-### H. MIDI subsystem — `kauai/src/midi.h`, `mididev.h`, `mididev2.h`, `mdev2pri.h`
+### H. MIDI subsystem — DONE
 
-`MIDS`, `MSTP`, `MIDP`, `MIDO`, `MPQUE`, `MDPS`, `MSMIX`, `MISI`, `MSQUE`, `WMS`, `OMS`, `MDWS`. Big cluster but tightly scoped — all live within the MIDI files. Likely candidates: `MidiStream`, `MidiStopper`, `MidiPlayer`, `MidiOut`, `MidiPlayerQueue`, `MidiDevicePerformanceState`, etc.
+`MDWS → MidiStreamCached`, `MSTP → MidiStreamParser`, `MIDS → MidiStream`, `MIDP → MidiPlayer`, `MIDO → MidiOut`, `MPQUE → MidiPlayerQueue`, `MDPS → MidiStreamPlayer`, `MSMIX → MidiStreamMixer`, `MISI → MidiStreamInterface`, `MSQUE → MidiStreamQueue`, `WMS → WindowsMidiStream`, `OMS → OurMidiStream`.
 
-### I. AudioMan — `kauai/src/sndam.h`, `sndampri.h`, `sndm.h`
+### I. AudioMan — DONE
 
-`SDAM`, `STBL`, `CAMS`, `AMNOT`, `AMQUE`, `SNDMQ`. Soundtrack from AudioMan, sample table base, channel/mixer thing, AudioMan notification, AudioMan queue, sound-manager queue.
+`STBL → DataBlockStream`, `AMNOT → AudioManNotifySink`, `CAMS → CachedAudioManSound`, `AMQUE → AudioManQueue`, `SDAM → AudioManSoundDevice`, `SNDMQ → SoundManagerQueue`.
 
-### J. Codec — `kauai/src/codec.h`, `codkauai.cpp`
+### J. Codec — DONE
 
-`CODC`, `CODM`, `KCDC`, `BITA`. Codec base, codec manager?, Kauai codec, bit accumulator?
+`BITA → BitArray`, `KCDC → KauaiCodec`, `CODM → CodecManager`, `CODC → Codec`.
 
-### K. Video — `kauai/src/video.h`
+### K. Video — DONE
 
-`GVID`, `GVDS`, `GVDW`. Generic video, video stream, video window.
+`GVID → GenericVideo`, `GVDS → GenericVideoStream`, `GVDW → GenericVideoWindow` (from earlier passes).
 
-### L. Geometry — `kauai/src/utilint.h` (PT, RC, RAT)
+### L. Geometry — `kauai/src/utilint.h` (PT, RC, RAT) — DEFERRED
 
 **HIGHEST RISK.** `PT` and `RC` are everywhere — point and rectangle types used pervasively. Suggested: `Point`, `Rectangle`, `Rational` (for `RAT`). Conflicts with platform headers possible (`Point` clashes with macOS `Point` typedef, `Rectangle` with GDI `Rectangle()` function). Either:
 - Defer this one until after Project 1 (64-bit) and during Project 3 (SDL/Mac port) where you'll see the conflicts immediately, OR
 - Pick non-clashing names: `KauaiPoint`, `KauaiRectangle`. Less elegant but safer.
 
-My recommendation: **defer until Mac port**. Don't fight platform header conflicts on speculation.
+**Decision: deferred until Mac port** — don't fight platform header conflicts on speculation.
 
-### M. Stream / spell / random / region
+### M. Stream / spell / random / region — DONE
 
-`BSM` (`stream.h`), `SPLC` (`spell.h`), `RND`, `SFL` (`utilrnd.h`), `REGBL` (`region.cpp`). Small one-offs. Easy fillers between bigger clusters.
+`BSM`, `SPLC`, `RND`, `SFL`, `REGBL` (from earlier passes).
 
-### N. Controls — `kauai/src/ctl.h`
+### N. Controls — DONE
 
-`CTL`, `SCB`, `WSB`. Control, scrollbar, window-scroll-bar. Used across the studio UI — touch count similar to browser cluster. Do it as its own batch.
+`WSB → WindowSizeBox`, `SCB → ScrollBar`, `CTL → Control`.
 
 ## Skip / defer
 
@@ -124,24 +124,24 @@ My recommendation: **defer until Mac port**. Don't fight platform header conflic
 - **`sitobren.h`** (`S2B`, `S2BLX`). Build is disabled (no SoftImage SDK). Skip.
 - **`*.cht` chunk-source files** if a rename target is *only* referenced from `.cht` files, double-check whether it actually IS a C++ type vs. a chunky-file token — chompy syntax sometimes looks similar.
 
-## Sequencing
+## Sequencing — completed
 
-Do clusters in roughly this order — early ones are isolated, late ones are pervasive:
+Order actually used (early small/contained, late pervasive):
 
-1. C (popups/splot/scnsort) — small warm-up
-2. E (srec) — small
-3. M (stream/spell/random/region) — small one-offs
-4. F (kidspace gor*) — moderate, contained
-5. K (video) — moderate, contained
-6. J (codec) — moderate
-7. H (MIDI) — bigger but file-local
-8. I (AudioMan) — bigger but file-local
-9. B (easels) — moderate, more cross-references
-10. G (text editor) — bigger, cross-references
-11. N (controls) — pervasive across studio
-12. A (browsers) — biggest single cluster
-13. D (actor/body/template) — pervasive across engine
-14. **Defer L (PT/RC/RAT) until Project 3 / Mac port** to surface platform-header conflicts naturally
+1. C (popups/splot/scnsort) — done
+2. E (srec) — done
+3. M (stream/spell/random/region) — done
+4. F (kidspace gor*) — done
+5. K (video) — done
+6. J (codec) — done
+7. H (MIDI) — done
+8. I (AudioMan) — done
+9. B (easels) — done
+10. G (text editor) — done
+11. N (controls) — done
+12. A (browsers) — done
+13. D (actor/body/template) — done
+14. **L (PT/RC/RAT) — deferred until Project 3 / Mac port** to surface platform-header conflicts naturally
 
 ## Done criteria
 
@@ -149,3 +149,5 @@ Do clusters in roughly this order — early ones are isolated, late ones are per
 - `cmake --build build` clean across Debug + Release
 - `git diff <chomped chunks>` is byte-identical before/after each batch (renames must not affect emitted `.chk` files)
 - No new entries in the queue — leftover items have been triaged into "skip" or moved to a later phase
+
+All clusters except L are complete; L is intentionally deferred.
