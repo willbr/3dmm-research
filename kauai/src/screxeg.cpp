@@ -1146,12 +1146,12 @@ void GraphicsObjectInterpreter::_DoAlert(long op)
 ***************************************************************************/
 void GraphicsObjectInterpreter::_DoEditControl(long hid, long stid, bool fGet)
 {
-    PEDCB pedcb;
+    PEditControlBase pedcb;
     long cch;
     achar rgch[kcchMaxStn];
     String stn;
 
-    if (_fError || pvNil == (pedcb = (PEDCB)_PgobFromHid(hid)) || !pedcb->FIs(kclsEDCB))
+    if (_fError || pvNil == (pedcb = (PEditControlBase)_PgobFromHid(hid)) || !pedcb->FIs(kclsEditControlBase))
     {
         Debug(_WarnSz(PszLit("Missing edit control for (Get|Set)Edit (gid = %d)"), hid));
         return;

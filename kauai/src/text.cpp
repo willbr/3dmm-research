@@ -13,7 +13,7 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(EDCB)
+RTCLASS(EditControlBase)
 RTCLASS(EditControlSingleLine)
 RTCLASS(EditControlPlain)
 RTCLASS(EditControlMultiLine)
@@ -73,7 +73,7 @@ void EditParameter::SetFont(long onn, ulong grfont, long dypFont, long tah, long
 /***************************************************************************
     Constructor for edit control.
 ***************************************************************************/
-EDCB::EDCB(PGraphicsObjectBlock pgcb, long cmhl) : GraphicsObject(pgcb)
+EditControlBase::EditControlBase(PGraphicsObjectBlock pgcb, long cmhl) : GraphicsObject(pgcb)
 {
     AssertBaseThis(0);
     _cmhl = cmhl;
@@ -84,7 +84,7 @@ EDCB::EDCB(PGraphicsObjectBlock pgcb, long cmhl) : GraphicsObject(pgcb)
 /***************************************************************************
     Constructor for edit control.
 ***************************************************************************/
-EDCB::~EDCB(void)
+EditControlBase::~EditControlBase(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgnv);
@@ -93,7 +93,7 @@ EDCB::~EDCB(void)
 /***************************************************************************
     Initialize the edit control.
 ***************************************************************************/
-bool EDCB::_FInit(void)
+bool EditControlBase::_FInit(void)
 {
     AssertBaseThis(0);
     PGraphicsPort pgpt;
@@ -120,7 +120,7 @@ bool EDCB::_FInit(void)
 /***************************************************************************
     Draw the contents of the gob.
 ***************************************************************************/
-void EDCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void EditControlBase::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -145,7 +145,7 @@ void EDCB::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Handle a mousedown in the edit control.
 ***************************************************************************/
-bool EDCB::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool EditControlBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -193,7 +193,7 @@ bool EDCB::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Handle a key down.
 ***************************************************************************/
-bool EDCB::FCmdKey(PCMD_KEY pcmd)
+bool EditControlBase::FCmdKey(PCMD_KEY pcmd)
 {
     const long kcchInsBuf = 64;
     AssertThis(0);
@@ -390,7 +390,7 @@ LInsert:
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool EDCB::FCmdSelIdle(PCommand pcmd)
+bool EditControlBase::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -411,16 +411,16 @@ bool EDCB::FCmdSelIdle(PCommand pcmd)
 /***************************************************************************
     Handle an activate sel command.
 ***************************************************************************/
-bool EDCB::FCmdActivateSel(PCommand pcmd)
+bool EditControlBase::FCmdActivateSel(PCommand pcmd)
 {
     Activate(fTrue);
     return fTrue;
 }
 
 /***************************************************************************
-    Either make the selection for the EDCB active or inactive.
+    Either make the selection for the EditControlBase active or inactive.
 ***************************************************************************/
-void EDCB::Activate(bool fActive)
+void EditControlBase::Activate(bool fActive)
 {
     AssertThis(0);
     vpcex->RemoveCmh(this, _cmhl);
@@ -434,7 +434,7 @@ void EDCB::Activate(bool fActive)
     Get the rectangle that is to contain the text.  This allows derived
     classes to have borders, etc.
 ***************************************************************************/
-void EDCB::_GetRcContent(RC *prc)
+void EditControlBase::_GetRcContent(RC *prc)
 {
     GetRc(prc, cooLocal);
 }
@@ -443,7 +443,7 @@ void EDCB::_GetRcContent(RC *prc)
     Set the vis for the GraphicsEnvironment to be the intersection of the GraphicsObject's vis and
     the content rc.
 ***************************************************************************/
-void EDCB::_InitGnv(PGraphicsEnvironment pgnv)
+void EditControlBase::_InitGnv(PGraphicsEnvironment pgnv)
 {
     RC rc;
 
@@ -454,7 +454,7 @@ void EDCB::_InitGnv(PGraphicsEnvironment pgnv)
 /***************************************************************************
     The rectangle has changed - show the selection.
 ***************************************************************************/
-void EDCB::_NewRc(void)
+void EditControlBase::_NewRc(void)
 {
     ShowSel(fTrue, ginNil);
 }
@@ -462,7 +462,7 @@ void EDCB::_NewRc(void)
 /***************************************************************************
     Set the selection.
 ***************************************************************************/
-void EDCB::SetSel(long ichAnchor, long ichOther, long gin)
+void EditControlBase::SetSel(long ichAnchor, long ichOther, long gin)
 {
     AssertThis(0);
     long ichMac = IchMac();
@@ -504,7 +504,7 @@ void EDCB::SetSel(long ichAnchor, long ichOther, long gin)
 /***************************************************************************
     Turn the sel on or off according to fOn.
 ***************************************************************************/
-void EDCB::_SwitchSel(bool fOn, long gin)
+void EditControlBase::_SwitchSel(bool fOn, long gin)
 {
     AssertThis(0);
 
@@ -522,7 +522,7 @@ void EDCB::_SwitchSel(bool fOn, long gin)
 /***************************************************************************
     Make sure the selection is visible (or at least _ichOther is).
 ***************************************************************************/
-void EDCB::ShowSel(bool fForceJustification, long gin)
+void EditControlBase::ShowSel(bool fForceJustification, long gin)
 {
     AssertThis(0);
     long ln, lnHope;
@@ -588,7 +588,7 @@ void EDCB::ShowSel(bool fForceJustification, long gin)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void EDCB::_InvertSel(PGraphicsEnvironment pgnv, long gin)
+void EditControlBase::_InvertSel(PGraphicsEnvironment pgnv, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -619,7 +619,7 @@ void EDCB::_InvertSel(PGraphicsEnvironment pgnv, long gin)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void EDCB::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long gin)
+void EditControlBase::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -692,7 +692,7 @@ void EDCB::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long
 /***************************************************************************
     Update the correct lines on screen.
 ***************************************************************************/
-void EDCB::_UpdateLn(long ln, long clnIns, long clnDel, long dypDel, long gin)
+void EditControlBase::_UpdateLn(long ln, long clnIns, long clnDel, long dypDel, long gin)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac());
@@ -746,7 +746,7 @@ void EDCB::_UpdateLn(long ln, long clnIns, long clnDel, long dypDel, long gin)
 /***************************************************************************
     Scroll the text in the edit control.
 ***************************************************************************/
-void EDCB::_Scroll(long dxp, long dyp, long gin)
+void EditControlBase::_Scroll(long dxp, long dyp, long gin)
 {
     AssertThis(0);
     RC rc;
@@ -760,7 +760,7 @@ void EDCB::_Scroll(long dxp, long dyp, long gin)
 /***************************************************************************
     Return the yp for the given character.
 ***************************************************************************/
-long EDCB::_YpFromIch(long ich)
+long EditControlBase::_YpFromIch(long ich)
 {
     return _YpFromLn(_LnFromIch(ich));
 }
@@ -768,7 +768,7 @@ long EDCB::_YpFromIch(long ich)
 /***************************************************************************
     Return the single character at ich.
 ***************************************************************************/
-achar EDCB::_ChFetch(long ich)
+achar EditControlBase::_ChFetch(long ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac());
@@ -782,7 +782,7 @@ achar EDCB::_ChFetch(long ich)
     Return ich of the previous character, skipping line feed characters. If
     fWord is true, skip to the beginning of a word.
 ***************************************************************************/
-long EDCB::_IchPrev(long ich, bool fWord)
+long EditControlBase::_IchPrev(long ich, bool fWord)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac() + 2);
@@ -814,7 +814,7 @@ long EDCB::_IchPrev(long ich, bool fWord)
     Return ich of the next character, skipping line feed characters. If
     fWord is true, skip to the beginning of the next word.
 ***************************************************************************/
-long EDCB::_IchNext(long ich, bool fWord)
+long EditControlBase::_IchNext(long ich, bool fWord)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac() + 1);
@@ -844,24 +844,24 @@ long EDCB::_IchNext(long ich, bool fWord)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the EDCB
+    Assert the validity of the EditControlBase
 ***************************************************************************/
-void EDCB::AssertValid(ulong grf)
+void EditControlBase::AssertValid(ulong grf)
 {
-    EDCB_PAR::AssertValid(0);
+    EditControlBase_PAR::AssertValid(0);
     AssertIn(_ichAnchor, 0, kcbMax);
     AssertIn(_ichOther, 0, kcbMax);
     AssertPo(_pgnv, 0);
-    // REVIEW shonk: fill in EDCB::AssertValid
+    // REVIEW shonk: fill in EditControlBase::AssertValid
 }
 
 /***************************************************************************
     Mark memory for the EditControlMultiLine.
 ***************************************************************************/
-void EDCB::MarkMem(void)
+void EditControlBase::MarkMem(void)
 {
     AssertValid(0);
-    EDCB_PAR::MarkMem();
+    EditControlBase_PAR::MarkMem();
     MarkMemObj(_pgnv);
 }
 #endif
@@ -869,7 +869,7 @@ void EDCB::MarkMem(void)
 /***************************************************************************
     Constructor for plain edit control.
 ***************************************************************************/
-EditControlPlain::EditControlPlain(PEditParameter pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
+EditControlPlain::EditControlPlain(PEditParameter pedpar) : EditControlBase(&pedpar->_gcb, pedpar->_cmhl)
 {
     // inputs are all asserted in AssertThis
     _onn = pedpar->_onn;
