@@ -15,13 +15,13 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(TXDC)
-RTCLASS(TXDD)
+RTCLASS(TextDocumentByteStream)
+RTCLASS(TextDocumentByteStreamDisplay)
 
 /***************************************************************************
     Constructor for a text document.
 ***************************************************************************/
-TXDC::TXDC(PDocumentBase pdocb, ulong grfdoc) : DocumentBase(pdocb, grfdoc)
+TextDocumentByteStream::TextDocumentByteStream(PDocumentBase pdocb, ulong grfdoc) : DocumentBase(pdocb, grfdoc)
 {
     _pbsf = pvNil;
     _pfil = pvNil;
@@ -30,7 +30,7 @@ TXDC::TXDC(PDocumentBase pdocb, ulong grfdoc) : DocumentBase(pdocb, grfdoc)
 /***************************************************************************
     Destructor for a text document.
 ***************************************************************************/
-TXDC::~TXDC(void)
+TextDocumentByteStream::~TextDocumentByteStream(void)
 {
     ReleasePpo(&_pbsf);
     ReleasePpo(&_pfil);
@@ -39,14 +39,14 @@ TXDC::~TXDC(void)
 /***************************************************************************
     Create a new document based on the given text file and or text stream.
 ***************************************************************************/
-PTXDC TXDC::PtxdcNew(PFilename pfni, PFileByteStream pbsf, PDocumentBase pdocb, ulong grfdoc)
+PTextDocumentByteStream TextDocumentByteStream::PtxdcNew(PFilename pfni, PFileByteStream pbsf, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
     AssertNilOrPo(pdocb, 0);
-    PTXDC ptxdc;
+    PTextDocumentByteStream ptxdc;
 
-    if (pvNil == (ptxdc = NewObj TXDC(pdocb, grfdoc)))
+    if (pvNil == (ptxdc = NewObj TextDocumentByteStream(pdocb, grfdoc)))
         return pvNil;
 
     if (!ptxdc->_FInit(pfni, pbsf))
@@ -56,9 +56,9 @@ PTXDC TXDC::PtxdcNew(PFilename pfni, PFileByteStream pbsf, PDocumentBase pdocb, 
 }
 
 /***************************************************************************
-    Initialize the TXDC.
+    Initialize the TextDocumentByteStream.
 ***************************************************************************/
-bool TXDC::_FInit(PFilename pfni, PFileByteStream pbsf)
+bool TextDocumentByteStream::_FInit(PFilename pfni, PFileByteStream pbsf)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -92,19 +92,19 @@ bool TXDC::_FInit(PFilename pfni, PFileByteStream pbsf)
 }
 
 /***************************************************************************
-    Create a new TXDD to display the TXDC.
+    Create a new TextDocumentByteStreamDisplay to display the TextDocumentByteStream.
 ***************************************************************************/
-PDocumentDisplayGraphicsObject TXDC::PddgNew(PGraphicsObjectBlock pgcb)
+PDocumentDisplayGraphicsObject TextDocumentByteStream::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
-    return TXDD::PtxddNew(this, pgcb, _pbsf, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef());
+    return TextDocumentByteStreamDisplay::PtxddNew(this, pgcb, _pbsf, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef());
 }
 
 /***************************************************************************
     Get the current Filename for the doc.  Return false if the doc is not
     currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool TXDC::FGetFni(Filename *pfni)
+bool TextDocumentByteStream::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -122,7 +122,7 @@ bool TXDC::FGetFni(Filename *pfni)
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool TXDC::FSaveToFni(Filename *pfni, bool fSetFni)
+bool TextDocumentByteStream::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
@@ -175,22 +175,22 @@ bool TXDC::FSaveToFni(Filename *pfni, bool fSetFni)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXDC.
+    Assert the validity of a TextDocumentByteStream.
 ***************************************************************************/
-void TXDC::AssertValid(ulong grf)
+void TextDocumentByteStream::AssertValid(ulong grf)
 {
-    TXDC_PAR::AssertValid(0);
+    TextDocumentByteStream_PAR::AssertValid(0);
     AssertPo(_pbsf, 0);
     AssertNilOrPo(_pfil, 0);
 }
 
 /***************************************************************************
-    Mark memory for the TXDC.
+    Mark memory for the TextDocumentByteStream.
 ***************************************************************************/
-void TXDC::MarkMem(void)
+void TextDocumentByteStream::MarkMem(void)
 {
     AssertValid(0);
-    TXDC_PAR::MarkMem();
+    TextDocumentByteStream_PAR::MarkMem();
     MarkMemObj(_pbsf);
 }
 #endif // DEBUG
@@ -198,7 +198,7 @@ void TXDC::MarkMem(void)
 /***************************************************************************
     Constructor for a text document display gob.
 ***************************************************************************/
-TXDD::TXDD(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+TextDocumentByteStreamDisplay::TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     AssertPo(pbsf, 0);
     Assert(vntl.FValidOnn(onn), "bad onn");
@@ -221,21 +221,21 @@ TXDD::TXDD(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf,
 }
 
 /***************************************************************************
-    Destructor for TXDD.
+    Destructor for TextDocumentByteStreamDisplay.
 ***************************************************************************/
-TXDD::~TXDD(void)
+TextDocumentByteStreamDisplay::~TextDocumentByteStreamDisplay(void)
 {
     ReleasePpo(&_pglichStarts);
 }
 
 /***************************************************************************
-    Create a new TXDD.
+    Create a new TextDocumentByteStreamDisplay.
 ***************************************************************************/
-PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont)
+PTextDocumentByteStreamDisplay TextDocumentByteStreamDisplay::PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont)
 {
-    PTXDD ptxdd;
+    PTextDocumentByteStreamDisplay ptxdd;
 
-    if (pvNil == (ptxdd = NewObj TXDD(pdocb, pgcb, pbsf, onn, grfont, dypFont)))
+    if (pvNil == (ptxdd = NewObj TextDocumentByteStreamDisplay(pdocb, pgcb, pbsf, onn, grfont, dypFont)))
         return pvNil;
 
     if (!ptxdd->_FInit())
@@ -250,13 +250,13 @@ PTXDD TXDD::PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteSt
 }
 
 /***************************************************************************
-    Initialize the TXDD.
+    Initialize the TextDocumentByteStreamDisplay.
 ***************************************************************************/
-bool TXDD::_FInit(void)
+bool TextDocumentByteStreamDisplay::_FInit(void)
 {
     long ib;
 
-    if (!TXDD_PAR::_FInit())
+    if (!TextDocumentByteStreamDisplay_PAR::_FInit())
         return fFalse;
     if (pvNil == (_pglichStarts = DynamicArray::PglNew(size(long))))
         return fFalse;
@@ -271,9 +271,9 @@ bool TXDD::_FInit(void)
 }
 
 /***************************************************************************
-    The TXDD has changed sizes, set the _clnDisp.
+    The TextDocumentByteStreamDisplay has changed sizes, set the _clnDisp.
 ***************************************************************************/
-void TXDD::_NewRc(void)
+void TextDocumentByteStreamDisplay::_NewRc(void)
 {
     AssertThis(0);
     RC rc;
@@ -282,16 +282,16 @@ void TXDD::_NewRc(void)
     _clnDisp = LwMax(1, LwDivAway(rc.Dyp(), _dypLine));
     _clnDispWhole = LwMax(1, rc.Dyp() / _dypLine);
     _Reformat(_clnDisp);
-    TXDD_PAR::_NewRc();
+    TextDocumentByteStreamDisplay_PAR::_NewRc();
 }
 
 /***************************************************************************
-    Deactivate the TXDD - turn off the selection.
+    Deactivate the TextDocumentByteStreamDisplay - turn off the selection.
 ***************************************************************************/
-void TXDD::_Activate(bool fActive)
+void TextDocumentByteStreamDisplay::_Activate(bool fActive)
 {
     AssertThis(0);
-    TXDD_PAR::_Activate(fActive);
+    TextDocumentByteStreamDisplay_PAR::_Activate(fActive);
     if (!fActive)
         _SwitchSel(fFalse, fFalse);
 }
@@ -299,7 +299,7 @@ void TXDD::_Activate(bool fActive)
 /***************************************************************************
     Find new line starts starting at lnMin.
 ***************************************************************************/
-void TXDD::_Reformat(long lnMin, long *pclnIns, long *pclnDel)
+void TextDocumentByteStreamDisplay::_Reformat(long lnMin, long *pclnIns, long *pclnDel)
 {
     AssertThis(0);
     AssertIn(lnMin, 0, kcbMax);
@@ -357,7 +357,7 @@ LDone:
 /***************************************************************************
     Find new line starts starting at lnMin.
 ***************************************************************************/
-void TXDD::_ReformatEdit(long ichMinEdit, long cchIns, long cchDel, long *plnNew, long *pclnIns, long *pclnDel)
+void TextDocumentByteStreamDisplay::_ReformatEdit(long ichMinEdit, long cchIns, long cchDel, long *plnNew, long *pclnIns, long *pclnDel)
 {
     AssertThis(0);
     AssertIn(ichMinEdit, 0, kcbMax);
@@ -411,7 +411,7 @@ void TXDD::_ReformatEdit(long ichMinEdit, long cchIns, long cchDel, long *plnNew
 /***************************************************************************
     Fetch a character of the stream through the cache.
 ***************************************************************************/
-bool TXDD::_FFetchCh(long ich, achar *pch)
+bool TextDocumentByteStreamDisplay::_FFetchCh(long ich, achar *pch)
 {
     AssertThis(0);
     AssertIn(_ichMinCache, 0, _pbsf->IbMac() + 1);
@@ -474,7 +474,7 @@ bool TXDD::_FFetchCh(long ich, achar *pch)
 /***************************************************************************
     Find the start of the line that ich is on.
 ***************************************************************************/
-bool TXDD::_FFindLineStart(long ich, long *pich)
+bool TextDocumentByteStreamDisplay::_FFindLineStart(long ich, long *pich)
 {
     AssertThis(0);
     AssertVarMem(pich);
@@ -520,7 +520,7 @@ bool TXDD::_FFindLineStart(long ich, long *pich)
     with the characters between ich and the line start (but not more
     than cchMax characters).
 ***************************************************************************/
-bool TXDD::_FFindNextLineStart(long ich, long *pich, achar *prgch, long cchMax)
+bool TextDocumentByteStreamDisplay::_FFindNextLineStart(long ich, long *pich, achar *prgch, long cchMax)
 {
     AssertThis(0);
     AssertVarMem(pich);
@@ -579,7 +579,7 @@ bool TXDD::_FFindNextLineStart(long ich, long *pich, achar *prgch, long cchMax)
     Find the start of the line that ich is on.  This routine assumes
     that _pglichStarts is valid and tries to use it.
 ***************************************************************************/
-bool TXDD::_FFindLineStartCached(long ich, long *pich)
+bool TextDocumentByteStreamDisplay::_FFindLineStartCached(long ich, long *pich)
 {
     AssertThis(0);
     long ln = _LnFromIch(ich);
@@ -597,7 +597,7 @@ bool TXDD::_FFindLineStartCached(long ich, long *pich)
     with the characters between ich and the line start (but not more
     than cchMax characters).
 ***************************************************************************/
-bool TXDD::_FFindNextLineStartCached(long ich, long *pich, achar *prgch, long cchMax)
+bool TextDocumentByteStreamDisplay::_FFindNextLineStartCached(long ich, long *pich, achar *prgch, long cchMax)
 {
     AssertThis(0);
     if (pvNil == prgch || cchMax == 0)
@@ -617,7 +617,7 @@ bool TXDD::_FFindNextLineStartCached(long ich, long *pich, achar *prgch, long cc
 /***************************************************************************
     Draw the contents of the gob.
 ***************************************************************************/
-void TXDD::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void TextDocumentByteStreamDisplay::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -650,7 +650,7 @@ void TXDD::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 /***************************************************************************
     Fetch the characters for the given line.
 ***************************************************************************/
-void TXDD::_FetchLineLn(long ln, achar *prgch, long cchMax, long *pcch, long *pichMin)
+void TextDocumentByteStreamDisplay::_FetchLineLn(long ln, achar *prgch, long cchMax, long *pcch, long *pichMin)
 {
     AssertThis(0);
     long ichMin, ichLim;
@@ -666,7 +666,7 @@ void TXDD::_FetchLineLn(long ln, achar *prgch, long cchMax, long *pcch, long *pi
 /***************************************************************************
     Fetch the characters for the given line.
 ***************************************************************************/
-void TXDD::_FetchLineIch(long ich, achar *prgch, long cchMax, long *pcch, long *pichMin)
+void TextDocumentByteStreamDisplay::_FetchLineIch(long ich, achar *prgch, long cchMax, long *pcch, long *pichMin)
 {
     AssertThis(0);
     long ichMin, ichLim;
@@ -682,7 +682,7 @@ void TXDD::_FetchLineIch(long ich, achar *prgch, long cchMax, long *pcch, long *
 /***************************************************************************
     Draw the line in the given GraphicsEnvironment.
 ***************************************************************************/
-void TXDD::_DrawLine(PGraphicsEnvironment pgnv, RC *prcClip, long yp, achar *prgch, long cch)
+void TextDocumentByteStreamDisplay::_DrawLine(PGraphicsEnvironment pgnv, RC *prcClip, long yp, achar *prgch, long cch)
 {
     AssertThis(0);
     long xp, xpOrigin, xpPrev;
@@ -753,7 +753,7 @@ void TXDD::_DrawLine(PGraphicsEnvironment pgnv, RC *prcClip, long yp, achar *prg
 /***************************************************************************
     Return the maximum scroll value for this view of the doc.
 ***************************************************************************/
-long TXDD::_ScvMax(bool fVert)
+long TextDocumentByteStreamDisplay::_ScvMax(bool fVert)
 {
     if (fVert)
     {
@@ -770,7 +770,7 @@ long TXDD::_ScvMax(bool fVert)
 /***************************************************************************
     Perform a scroll according to scaHorz and scaVert.
 ***************************************************************************/
-void TXDD::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
+void TextDocumentByteStreamDisplay::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
 {
     AssertThis(0);
     RC rc;
@@ -877,7 +877,7 @@ void TXDD::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool TXDD::FCmdSelIdle(PCommand pcmd)
+bool TextDocumentByteStreamDisplay::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -898,7 +898,7 @@ bool TXDD::FCmdSelIdle(PCommand pcmd)
 /***************************************************************************
     Set the selection.
 ***************************************************************************/
-void TXDD::SetSel(long ichAnchor, long ichOther, bool fDraw)
+void TextDocumentByteStreamDisplay::SetSel(long ichAnchor, long ichOther, bool fDraw)
 {
     AssertThis(0);
     long ichMac = _pbsf->IbMac();
@@ -939,7 +939,7 @@ void TXDD::SetSel(long ichAnchor, long ichOther, bool fDraw)
 /***************************************************************************
     Turn the sel on or off according to fOn.
 ***************************************************************************/
-void TXDD::_SwitchSel(bool fOn, bool fDraw)
+void TextDocumentByteStreamDisplay::_SwitchSel(bool fOn, bool fDraw)
 {
     AssertThis(0);
     if (FPure(fOn) != FPure(_fSelOn))
@@ -955,7 +955,7 @@ void TXDD::_SwitchSel(bool fOn, bool fDraw)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void TXDD::_InvertSel(PGraphicsEnvironment pgnv, bool fDraw)
+void TextDocumentByteStreamDisplay::_InvertSel(PGraphicsEnvironment pgnv, bool fDraw)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -989,7 +989,7 @@ void TXDD::_InvertSel(PGraphicsEnvironment pgnv, bool fDraw)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void TXDD::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, bool fDraw)
+void TextDocumentByteStreamDisplay::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, bool fDraw)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1062,11 +1062,11 @@ void TXDD::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, bool
 }
 
 /***************************************************************************
-    Find the line in the TXDD that is displaying the given ich.  Returns -1
+    Find the line in the TextDocumentByteStreamDisplay that is displaying the given ich.  Returns -1
     if the ich is before the first displayed ich and returns _clnDisp if
     ich is after the last displayed ich.
 ***************************************************************************/
-long TXDD::_LnFromIch(long ich)
+long TextDocumentByteStreamDisplay::_LnFromIch(long ich)
 {
     AssertThis(0);
     long lnMin, lnLim, ln;
@@ -1093,7 +1093,7 @@ long TXDD::_LnFromIch(long ich)
     Return the ich of the first character on the given line.  If ln < 0,
     returns 0; if ln >= _clnDisp, returns IbMac().
 ***************************************************************************/
-long TXDD::_IchMinLn(long ln)
+long TextDocumentByteStreamDisplay::_IchMinLn(long ln)
 {
     AssertThis(0);
     long ich;
@@ -1109,7 +1109,7 @@ long TXDD::_IchMinLn(long ln)
 /***************************************************************************
     Return the xp location of the given ich on the given line.
 ***************************************************************************/
-long TXDD::_XpFromLnIch(PGraphicsEnvironment pgnv, long ln, long ich)
+long TextDocumentByteStreamDisplay::_XpFromLnIch(PGraphicsEnvironment pgnv, long ln, long ich)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1128,7 +1128,7 @@ long TXDD::_XpFromLnIch(PGraphicsEnvironment pgnv, long ln, long ich)
 /***************************************************************************
     Return the xp location of the given ich.
 ***************************************************************************/
-long TXDD::_XpFromIch(long ich)
+long TextDocumentByteStreamDisplay::_XpFromIch(long ich)
 {
     AssertThis(0);
     long ichMin, cch;
@@ -1148,7 +1148,7 @@ long TXDD::_XpFromIch(long ich)
     Return the xp location of the end of the given (rgch, cch), assuming
     it starts at the beginning of a line.
 ***************************************************************************/
-long TXDD::_XpFromRgch(PGraphicsEnvironment pgnv, achar *prgch, long cch)
+long TextDocumentByteStreamDisplay::_XpFromRgch(PGraphicsEnvironment pgnv, achar *prgch, long cch)
 {
     AssertThis(0);
     long xp, xpOrigin;
@@ -1204,7 +1204,7 @@ long TXDD::_XpFromRgch(PGraphicsEnvironment pgnv, achar *prgch, long cch)
 /***************************************************************************
     Find the character that is closest to xp on the given line.
 ***************************************************************************/
-long TXDD::_IchFromLnXp(long ln, long xp)
+long TextDocumentByteStreamDisplay::_IchFromLnXp(long ln, long xp)
 {
     AssertThis(0);
     long ichMin, cch;
@@ -1221,7 +1221,7 @@ long TXDD::_IchFromLnXp(long ln, long xp)
     Find the character that is closest to xp on the same line as the given
     character.
 ***************************************************************************/
-long TXDD::_IchFromIchXp(long ich, long xp)
+long TextDocumentByteStreamDisplay::_IchFromIchXp(long ich, long xp)
 {
     AssertThis(0);
     long ichMin, cch;
@@ -1234,7 +1234,7 @@ long TXDD::_IchFromIchXp(long ich, long xp)
 /***************************************************************************
     Find the character that is closest to xp on the given line.
 ***************************************************************************/
-long TXDD::_IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp)
+long TextDocumentByteStreamDisplay::_IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp)
 {
     AssertThis(0);
     long xpT;
@@ -1265,7 +1265,7 @@ long TXDD::_IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp)
 /***************************************************************************
     Make sure the selection is visible (or at least _ichOther is).
 ***************************************************************************/
-void TXDD::ShowSel(bool fDraw)
+void TextDocumentByteStreamDisplay::ShowSel(bool fDraw)
 {
     AssertThis(0);
     long ln, lnHope;
@@ -1344,9 +1344,9 @@ void TXDD::ShowSel(bool fDraw)
 }
 
 /***************************************************************************
-    Handle a mousedown in the TXDD.
+    Handle a mousedown in the TextDocumentByteStreamDisplay.
 ***************************************************************************/
-bool TXDD::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TextDocumentByteStreamDisplay::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1404,7 +1404,7 @@ bool TXDD::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Handle a key down.
 ***************************************************************************/
-bool TXDD::FCmdKey(PCMD_KEY pcmd)
+bool TextDocumentByteStreamDisplay::FCmdKey(PCMD_KEY pcmd)
 {
     AssertThis(0);
     const long kcchInsBuf = 64;
@@ -1599,7 +1599,7 @@ LInsert:
 /***************************************************************************
     Replaces the characters between ich1 and ich2 with the given ones.
 ***************************************************************************/
-bool TXDD::FReplace(achar *prgch, long cch, long ich1, long ich2, bool fDraw)
+bool TextDocumentByteStreamDisplay::FReplace(achar *prgch, long cch, long ich1, long ich2, bool fDraw)
 {
     AssertThis(0);
     _SwitchSel(fFalse, fTrue);
@@ -1615,10 +1615,10 @@ bool TXDD::FReplace(achar *prgch, long cch, long ich1, long ich2, bool fDraw)
 }
 
 /***************************************************************************
-    Invalidate all TXDDs on this text doc.  Also dirties the document.
+    Invalidate all TextDocumentByteStreamDisplays on this text doc.  Also dirties the document.
     Should be called by any code that edits the document.
 ***************************************************************************/
-void TXDD::_InvalAllTxdd(long ich, long cchIns, long cchDel)
+void TextDocumentByteStreamDisplay::_InvalAllTxdd(long ich, long cchIns, long cchDel)
 {
     AssertThis(0);
     long ipddg;
@@ -1627,18 +1627,18 @@ void TXDD::_InvalAllTxdd(long ich, long cchIns, long cchDel)
     // mark the document dirty
     _pdocb->SetDirty();
 
-    // inform the TXDDs
+    // inform the TextDocumentByteStreamDisplays
     for (ipddg = 0; pvNil != (pddg = _pdocb->PddgGet(ipddg)); ipddg++)
     {
-        if (pddg->FIs(kclsTXDD))
-            ((PTXDD)pddg)->_InvalIch(ich, cchIns, cchDel);
+        if (pddg->FIs(kclsTextDocumentByteStreamDisplay))
+            ((PTextDocumentByteStreamDisplay)pddg)->_InvalIch(ich, cchIns, cchDel);
     }
 }
 
 /***************************************************************************
-    Invalidate the display from ich.  If we're the active TXDD, also redraw.
+    Invalidate the display from ich.  If we're the active TextDocumentByteStreamDisplay, also redraw.
 ***************************************************************************/
-void TXDD::_InvalIch(long ich, long cchIns, long cchDel)
+void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel)
 {
     AssertThis(0);
     Assert(!_fSelOn, "why is the sel on during an invalidation?");
@@ -1713,10 +1713,10 @@ void TXDD::_InvalIch(long ich, long cchIns, long cchDel)
     true.  If ppdocb == pvNil just return whether the selection is
     non-empty.
 ***************************************************************************/
-bool TXDD::_FCopySel(PDocumentBase *ppdocb)
+bool TextDocumentByteStreamDisplay::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
-    PTXDC ptxdc;
+    PTextDocumentByteStream ptxdc;
     long ich1, ich2;
 
     if ((ich1 = _ichOther) == (ich2 = _ichAnchor))
@@ -1726,7 +1726,7 @@ bool TXDD::_FCopySel(PDocumentBase *ppdocb)
         return fTrue;
 
     SortLw(&ich1, &ich2);
-    if (pvNil != (ptxdc = TXDC::PtxdcNew()))
+    if (pvNil != (ptxdc = TextDocumentByteStream::PtxdcNew()))
     {
         if (!ptxdc->Pbsf()->FReplaceBsf(_pbsf, ich1, ich2 - ich1, 0, 0))
             ReleasePpo(&ptxdc);
@@ -1739,7 +1739,7 @@ bool TXDD::_FCopySel(PDocumentBase *ppdocb)
 /***************************************************************************
     Clear (delete) the current selection.
 ***************************************************************************/
-void TXDD::_ClearSel(void)
+void TextDocumentByteStreamDisplay::_ClearSel(void)
 {
     AssertThis(0);
     FReplace(pvNil, 0, _ichAnchor, _ichOther, fTrue);
@@ -1748,21 +1748,21 @@ void TXDD::_ClearSel(void)
 /***************************************************************************
     Paste the given doc into this one.
 ***************************************************************************/
-bool TXDD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
+bool TextDocumentByteStreamDisplay::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
     long ich1, ich2, cch;
-    PTXDC ptxdc;
+    PTextDocumentByteStream ptxdc;
     PFileByteStream pbsf;
 
-    if (cidPaste != cid || !pclip->FGetFormat(kclsTXDC))
+    if (cidPaste != cid || !pclip->FGetFormat(kclsTextDocumentByteStream))
         return fFalse;
 
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsTXDC, (PDocumentBase *)&ptxdc))
+    if (!pclip->FGetFormat(kclsTextDocumentByteStream, (PDocumentBase *)&ptxdc))
         return fFalse;
 
     AssertPo(ptxdc, 0);
@@ -1793,23 +1793,23 @@ bool TXDD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXDD.
+    Assert the validity of a TextDocumentByteStreamDisplay.
 ***************************************************************************/
-void TXDD::AssertValid(ulong grf)
+void TextDocumentByteStreamDisplay::AssertValid(ulong grf)
 {
     // REVIEW shonk: fill in more
-    TXDD_PAR::AssertValid(0);
+    TextDocumentByteStreamDisplay_PAR::AssertValid(0);
     AssertPo(_pbsf, 0);
     AssertPo(_pglichStarts, 0);
 }
 
 /***************************************************************************
-    Mark memory for the TXDD.
+    Mark memory for the TextDocumentByteStreamDisplay.
 ***************************************************************************/
-void TXDD::MarkMem(void)
+void TextDocumentByteStreamDisplay::MarkMem(void)
 {
     AssertValid(0);
-    TXDD_PAR::MarkMem();
+    TextDocumentByteStreamDisplay_PAR::MarkMem();
     MarkMemObj(_pbsf);
     MarkMemObj(_pglichStarts);
 }

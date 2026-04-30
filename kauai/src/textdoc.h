@@ -21,10 +21,10 @@
 /***************************************************************************
     Text document.  A doc wrapper for a FileByteStream.
 ***************************************************************************/
-typedef class TXDC *PTXDC;
-#define TXDC_PAR DocumentBase
-#define kclsTXDC 'TXDC'
-class TXDC : public TXDC_PAR
+typedef class TextDocumentByteStream *PTextDocumentByteStream;
+#define TextDocumentByteStream_PAR DocumentBase
+#define kclsTextDocumentByteStream 'TXDC'
+class TextDocumentByteStream : public TextDocumentByteStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -34,12 +34,12 @@ class TXDC : public TXDC_PAR
     PFileByteStream _pbsf;
     PFileObject _pfil;
 
-    TXDC(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXDC(void);
+    TextDocumentByteStream(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~TextDocumentByteStream(void);
     bool _FInit(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil);
 
   public:
-    static PTXDC PtxdcNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    static PTextDocumentByteStream PtxdcNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
     PFileByteStream Pbsf(void)
     {
@@ -52,15 +52,15 @@ class TXDC : public TXDC_PAR
 };
 
 /***************************************************************************
-    Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TXDC.
+    Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TextDocumentByteStream.
 ***************************************************************************/
 const long kcchMaxLine = 512;
 const long kdxpIndentTxdd = 5;
 
-typedef class TXDD *PTXDD;
-#define TXDD_PAR DocumentDisplayGraphicsObject
-#define kclsTXDD 'TXDD'
-class TXDD : public TXDD_PAR
+typedef class TextDocumentByteStreamDisplay *PTextDocumentByteStreamDisplay;
+#define TextDocumentByteStreamDisplay_PAR DocumentDisplayGraphicsObject
+#define kclsTextDocumentByteStreamDisplay 'TXDD'
+class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -92,8 +92,8 @@ class TXDD : public TXDD_PAR
     long _ichMinCache;
     long _ichLimCache;
 
-    TXDD(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
-    ~TXDD(void);
+    TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
+    ~TextDocumentByteStreamDisplay(void);
     virtual bool _FInit(void);
     virtual void _NewRc(void);
     virtual void _Activate(bool fActive);
@@ -139,7 +139,7 @@ class TXDD : public TXDD_PAR
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PTXDD PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
+    static PTextDocumentByteStreamDisplay PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
