@@ -393,6 +393,49 @@ install(FILES $<FILTER:$<TARGET_PROPERTY:studio,CHOMPED_CHUNKS>,EXCLUDE,.+UTEST[
 install(FILES $<FILTER:$<TARGET_PROPERTY:studio,CHOMPED_CHUNKS>,INCLUDE,.+UTEST[.]chk$>
   RENAME 3dmovie.chk
   DESTINATION "Microsoft Kids/3D Movie Maker")
+
+# Overlay non-chomped data (BLDGDATA.CHK, *.3TH, *.3CN, MSCREATE.DIR, help
+# files, fix.dat, ...) from an existing system install so dist/ becomes a
+# self-contained, runnable tree. Files we produce ourselves take precedence:
+# the overlay copy only fills in destinations that don't already exist.
+# Sequenced before the cd3 SAMPLES install below: that step hard-errors when
+# cd3/SAMPLES/ is missing locally, and we want the overlay to land regardless.
+if(WIN32)
+  set(MSKIDS_OVERLAY_DIR "C:/Program Files (x86)/Microsoft Kids"
+    CACHE PATH "Existing 3DMM install to overlay non-chomped data from. Set to empty to skip.")
+endif()
+install(CODE "
+  set(_overlay [[${MSKIDS_OVERLAY_DIR}]])
+  if(_overlay AND IS_DIRECTORY \"\${_overlay}\")
+    message(STATUS \"Overlaying non-chomped data from \${_overlay}\")
+    # Only mirror the subdirs 3DMM actually reads. Skip third-party content
+    # (DORAEMON, EXPANSIONS, ...) and skip executables -- our build owns the
+    # exe.
+    file(GLOB_RECURSE _3dmm_files
+      RELATIVE \"\${_overlay}\"
+      \"\${_overlay}/3D Movie Maker/*\")
+    file(GLOB_RECURSE _user_files
+      RELATIVE \"\${_overlay}\"
+      \"\${_overlay}/Users/*\")
+    set(_overlay_files \${_3dmm_files} \${_user_files} \"MSCREATE.DIR\")
+    foreach(_rel IN LISTS _overlay_files)
+      if(_rel MATCHES \"\\\\.(exe|EXE)$\")
+        continue()
+      endif()
+      set(_src \"\${_overlay}/\${_rel}\")
+      if(NOT EXISTS \"\${_src}\")
+        continue()
+      endif()
+      set(_dst \"\${CMAKE_INSTALL_PREFIX}/Microsoft Kids/\${_rel}\")
+      if(NOT EXISTS \"\${_dst}\")
+        get_filename_component(_dst_dir \"\${_dst}\" DIRECTORY)
+        file(MAKE_DIRECTORY \"\${_dst_dir}\")
+        file(COPY \"\${_src}\" DESTINATION \"\${_dst_dir}\")
+      endif()
+    endforeach()
+  endif()
+")
+
 install(FILES $<TARGET_PROPERTY:studio,3DMM_SAMPLES>
   DESTINATION "Microsoft Kids/Users/Melanie")
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/cd9/"
