@@ -257,10 +257,10 @@ class MidiStreamInterface : public MidiStreamInterface_PAR
 /***************************************************************************
     The real midi stream interface.
 ***************************************************************************/
-typedef class WMS *PWMS;
-#define WMS_PAR MidiStreamInterface
-#define kclsWMS 'WMS'
-class WMS : public WMS_PAR
+typedef class WindowsMidiStream *PWindowsMidiStream;
+#define WindowsMidiStream_PAR MidiStreamInterface
+#define kclsWindowsMidiStream 'WMS'
+class WindowsMidiStream : public WindowsMidiStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -305,7 +305,7 @@ class WMS : public WMS_PAR
     MMRESULT(WINAPI *_pfnRestart)(HMS hms);
     MMRESULT(WINAPI *_pfnStop)(HMS hms);
 
-    WMS(PFNMIDI pfn, ulong luUser);
+    WindowsMidiStream(PFNMIDI pfn, ulong luUser);
     bool _FInit(void);
 
     virtual bool _FOpen(void);
@@ -323,8 +323,8 @@ class WMS : public WMS_PAR
     ulong _LuThread(void);
 
   public:
-    static PWMS PwmsNew(PFNMIDI pfn, ulong luUser);
-    ~WMS(void);
+    static PWindowsMidiStream PwmsNew(PFNMIDI pfn, ulong luUser);
+    ~WindowsMidiStream(void);
 
 #ifdef STREAM_BUG
     virtual bool FActive(void);
