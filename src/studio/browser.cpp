@@ -24,7 +24,7 @@
     BrowserDisplay --> BRWR  (Roll call class)
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
-    BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
+    BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
@@ -82,7 +82,7 @@ RTCLASS(BrowserList)
 RTCLASS(BrowserText)
 RTCLASS(BrowserAction)
 RTCLASS(BrowserPropActor)
-RTCLASS(BRWB)
+RTCLASS(BrowserBackground)
 RTCLASS(BRWC)
 RTCLASS(BrowserNamedList)
 RTCLASS(BRWM)
@@ -2829,17 +2829,17 @@ PBrowserPropActor BrowserPropActor::PbrwpNew(PResourceCache prca, long kidGlass)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWB BRWB::PbrwbNew(PResourceCache prca)
+PBrowserBackground BrowserBackground::PbrwbNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
-    PBRWB pbrwb;
+    PBrowserBackground pbrwb;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidSettingsGlass))
         return pvNil;
 
-    if ((pbrwb = NewObj BRWB(&gcb)) == pvNil)
+    if ((pbrwb = NewObj BrowserBackground(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2858,7 +2858,7 @@ PBRWB BRWB::PbrwbNew(PResourceCache prca)
  * Background's virtual FCmdCancel
  *
  ****************************************************/
-bool BRWB::FCmdCancel(PCommand pcmd)
+bool BrowserBackground::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2878,7 +2878,7 @@ bool BRWB::FCmdCancel(PCommand pcmd)
         _pstdio->SetDisplayCast(fTrue);
     else
         _pstdio->SetDisplayCast(fFalse);
-    return BRWB_PAR::FCmdCancel(pcmd);
+    return BrowserBackground_PAR::FCmdCancel(pcmd);
 }
 
 /****************************************************
