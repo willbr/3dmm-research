@@ -311,9 +311,9 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         bool fWireframe = fFalse;
         bool fNoTexture = fFalse;
         bool fShowPoseReadout = fFalse;
-        if (FGetSetRegKey(kszWireframeValue, &fWireframe, size(bool), fregNil))
+        if (FGetSetRegKey(kszWireframeValue, &fWireframe, size(bool), fregBinary))
             World::SetRenderWireframe(fWireframe);
-        if (FGetSetRegKey(kszNoTextureValue, &fNoTexture, size(bool), fregNil))
+        if (FGetSetRegKey(kszNoTextureValue, &fNoTexture, size(bool), fregBinary))
             World::SetNoTexture(fNoTexture);
         if (FGetSetRegKey(kszShowPoseReadoutValue, &fShowPoseReadout, size(bool), fregBinary))
             MovieView::SetShowPoseReadout(fShowPoseReadout);
@@ -834,7 +834,7 @@ bool Application::_FEnsureDisplayResolution(void)
     }
 
     // See if there's a res switch preference in the registry
-    if (!FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregNil, &fNoValue))
+    if (!FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregBinary, &fNoValue))
     {
         // Registry error...just run in a window
         _fRunInWindow = fTrue;
@@ -925,7 +925,7 @@ LSwitchFailed:
     // try to set pref to fFalse
     fSwitchRes = fFalse;
 LWriteReg:
-    FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey);
+    FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
     return fTrue;
 }
 
@@ -2039,7 +2039,7 @@ bool Application::_FDetermineIfSlowCPU(void)
     bool fSlowCPU;
 
     // If user has a saved preference, read and use that
-    if (FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregNil))
+    if (FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregBinary))
     {
         _fSlowCPU = fSlowCPU;
         return fTrue;
@@ -3410,7 +3410,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     if (fSaveChanges)
     {
         bool fSlowCPU = _fSlowCPU;
-        FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey);
+        FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey | fregBinary);
     }
 
     {
@@ -3443,8 +3443,8 @@ bool Application::FCmdInfo(PCommand pcmd)
         }
         if (fSaveChanges)
         {
-            FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey);
-            FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey);
+            FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey | fregBinary);
+            FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey | fregBinary);
             FGetSetRegKey(kszShowPoseReadoutValue, &fPoseReadoutNew, size(bool), fregSetKey | fregBinary);
         }
     }
@@ -3491,7 +3491,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     {
         bool fSwitchRes = !_fRunInWindow;
 
-        FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey);
+        FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
     }
 
 #ifdef DEBUG
