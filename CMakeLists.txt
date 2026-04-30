@@ -321,6 +321,17 @@ target_include_directories(engine PUBLIC
 target_link_libraries(engine PUBLIC kauai brender)
 
 # On non-windows WIN32 is a no-op
+set(STUDIO_BUILD_STAMP_SRC "${PROJECT_BINARY_DIR}/generated/studio/build_stamp.cpp")
+add_custom_target(studio_build_stamp ALL
+    BYPRODUCTS "${STUDIO_BUILD_STAMP_SRC}"
+    COMMAND ${CMAKE_COMMAND}
+        -DOUT=${STUDIO_BUILD_STAMP_SRC}
+        -P ${PROJECT_SOURCE_DIR}/cmake/WriteBuildStamp.cmake
+    COMMENT "Generating studio build stamp"
+    VERBATIM
+)
+set_source_files_properties("${STUDIO_BUILD_STAMP_SRC}" PROPERTIES GENERATED TRUE)
+
 add_executable(studio WIN32)
 target_sources(studio
     PRIVATE
@@ -340,7 +351,9 @@ target_sources(studio
     "${PROJECT_SOURCE_DIR}/src/studio/utest.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/utest.rc"
     "${PROJECT_SOURCE_DIR}/src/studio/utest.rc2"
+    "${STUDIO_BUILD_STAMP_SRC}"
 )
+add_dependencies(studio studio_build_stamp)
 target_include_directories(studio
   PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
   "${PROJECT_SOURCE_DIR}/src")
