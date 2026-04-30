@@ -1736,3 +1736,90 @@ void ActorMoveGroupUndo::AssertValid(ulong grf)
     AssertPo(_pglpaund, 0);
 }
 #endif
+
+/****************************************************
+ *
+ * ActorRenameGroupUndo: composite undo for batched actor renames driven by
+ * the tag-group hotkeys (Ctrl+G / Ctrl+Shift+G). Each entry is a pair
+ * (arid, name-to-restore-on-toggle); FUndo and FDo both swap each actor's
+ * current name with the stored name, so undo and redo alternate between the
+ * pre- and post-rename states.
+ *
+ ****************************************************/
+
+RTCLASS(ActorRenameGroupUndo)
+
+PActorRenameGroupUndo ActorRenameGroupUndo::PargNew(void)
+{
+    PActorRenameGroupUndo parg;
+    parg = NewObj ActorRenameGroupUndo();
+    if (parg == pvNil)
+        return pvNil;
+    parg->_pgstNames = (PVirtualStringTable)StringTable_GST::PgstNew(size(long));
+    if (parg->_pgstNames == pvNil)
+    {
+        ReleasePpo(&parg);
+        return pvNil;
+    }
+    return parg;
+}
+
+ActorRenameGroupUndo::~ActorRenameGroupUndo(void)
+{
+    AssertBaseThis(0);
+    ReleasePpo(&_pgstNames);
+}
+
+bool ActorRenameGroupUndo::FAddChild(long arid, PString pstnPrev)
+{
+    AssertThis(0);
+    AssertPo(pstnPrev, 0);
+    return _pgstNames->FAddStn(pstnPrev, &arid);
+}
+
+bool ActorRenameGroupUndo::FUndo(PDocumentBase pdocb)
+{
+    AssertThis(0);
+    AssertPo(pdocb, 0);
+    AssertPo(_pmvie, 0);
+
+    String stnStored, stnCurrent;
+    long arid;
+    long cstn = _pgstNames->IvMac();
+
+    for (long istn = 0; istn < cstn; istn++)
+    {
+        _pgstNames->GetStn(istn, &stnStored);
+        _pgstNames->GetExtra(istn, &arid);
+        // Capture the current (post-rename) name so a subsequent FDo/FUndo
+        // can flip back to it. If the actor isn't in roll-call any more
+        // (e.g. removed since the rename), skip but keep the entry so a
+        // round-trip stays well-formed.
+        if (!_pmvie->FGetName(arid, &stnCurrent))
+            continue;
+        if (!_pmvie->FNameActr(arid, &stnStored))
+            return fFalse;
+        // Swap: store the just-replaced name so the next toggle restores it.
+        _pgstNames->FPutStn(istn, &stnCurrent);
+    }
+    return fTrue;
+}
+
+bool ActorRenameGroupUndo::FDo(PDocumentBase pdocb)
+{
+    return FUndo(pdocb);
+}
+
+#ifdef DEBUG
+void ActorRenameGroupUndo::MarkMem(void)
+{
+    AssertValid(0);
+    ActorRenameGroupUndo_PAR::MarkMem();
+    MarkMemObj(_pgstNames);
+}
+
+void ActorRenameGroupUndo::AssertValid(ulong grf)
+{
+    AssertPo(_pgstNames, 0);
+}
+#endif

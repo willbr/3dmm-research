@@ -8915,6 +8915,132 @@ bool MovieView::FCmdRollOff(PCommand pcmd)
  *  fTrue if the key was consumed (Esc); otherwise the base class result.
  *
  ***************************************************************************/
+// File-local helpers for the actor-tag-group hotkeys (Ctrl+G / Ctrl+Shift+G /
+// Ctrl+1..9). Tag syntax: '#' followed by [A-Za-z0-9_]+, terminated by
+// whitespace, end-of-string, or another '#'. ASCII-only.
+static bool _FIsTagCharMv(achar ch)
+{
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+           (ch >= '0' && ch <= '9') || ch == '_';
+}
+
+// Walk pstn, find each '#N...' tag, parse the run of digits as an integer.
+// Returns the largest integer seen, or 0 if no purely-numeric tag is found.
+static long _LwMaxNumericTagInName(PString pstn)
+{
+    achar *prgch = pstn->Prgch();
+    long cch = pstn->Cch();
+    long lwMax = 0;
+    for (long ich = 0; ich < cch; ich++)
+    {
+        if (prgch[ich] != '#')
+            continue;
+        long jch = ich + 1;
+        long lw = 0;
+        bool fAllDigits = (jch < cch && prgch[jch] >= '0' && prgch[jch] <= '9');
+        while (jch < cch && _FIsTagCharMv(prgch[jch]))
+        {
+            if (!(prgch[jch] >= '0' && prgch[jch] <= '9'))
+            {
+                fAllDigits = fFalse;
+                break;
+            }
+            lw = lw * 10 + (prgch[jch] - '0');
+            jch++;
+        }
+        if (fAllDigits && jch > ich + 1 && lw > lwMax)
+            lwMax = lw;
+    }
+    return lwMax;
+}
+
+// Walks every actor in the current scene's roll-call and returns
+// max(numeric tags) + 1, or 1 if none. Auto-numbering for Ctrl+G.
+static long _LwNextFreeNumericTagInScene(PScene pscen, PMovie pmvie)
+{
+    AssertPo(pscen, 0);
+    AssertPo(pmvie, 0);
+
+    long cactr = pscen->Cactr();
+    long lwMax = 0;
+    String stn;
+    PDynamicArray pglpactr = pscen->PglRollCall();
+    if (pglpactr == pvNil)
+        return 1;
+    for (long iactr = 0; iactr < cactr; iactr++)
+    {
+        PActor pactr;
+        pglpactr->Get(iactr, &pactr);
+        if (pactr == pvNil)
+            continue;
+        pactr->GetName(&stn);
+        long lw = _LwMaxNumericTagInName(&stn);
+        if (lw > lwMax)
+            lwMax = lw;
+    }
+    return lwMax + 1;
+}
+
+// Strips the rightmost '#tag' from pstn (with any single preceding space).
+// Sets *pfStripped to fTrue iff anything was removed. No-op + fFalse if
+// the name has no tag.
+static void _StripRightmostTag(PString pstn, bool *pfStripped)
+{
+    AssertPo(pstn, 0);
+    AssertVarMem(pfStripped);
+
+    *pfStripped = fFalse;
+    achar *prgch = pstn->Prgch();
+    long cch = pstn->Cch();
+
+    for (long ich = cch - 1; ich >= 0; ich--)
+    {
+        if (prgch[ich] != '#')
+            continue;
+        // Verify this is a real tag: at least one tag char follows.
+        if (ich + 1 >= cch || !_FIsTagCharMv(prgch[ich + 1]))
+            continue;
+        // Verify the run after '#' is all tag chars (no embedded space).
+        long jch;
+        for (jch = ich + 1; jch < cch && _FIsTagCharMv(prgch[jch]); jch++)
+            ;
+        if (jch != cch)
+            continue; // there's non-tag content after this '#tag'; not the rightmost tag
+        // Eat one preceding space so "Foo #1" -> "Foo".
+        long ichDel = ich;
+        if (ichDel > 0 && prgch[ichDel - 1] == ' ')
+            ichDel--;
+        pstn->Delete(ichDel, cch - ichDel);
+        *pfStripped = fTrue;
+        return;
+    }
+}
+
+// Helper: append " #N" to a copy of pstnIn into pstnOut.
+static bool _FAppendNumericTag(PString pstnIn, long lwTag, PString pstnOut)
+{
+    *pstnOut = *pstnIn;
+    if (!pstnOut->FAppendCh((achar)' '))
+        return fFalse;
+    if (!pstnOut->FAppendCh((achar)'#'))
+        return fFalse;
+    achar rgch[16];
+    long cch = 0;
+    long lwTmp = lwTag;
+    do
+    {
+        rgch[cch++] = (achar)('0' + (lwTmp % 10));
+        lwTmp /= 10;
+    } while (lwTmp > 0 && cch < 15);
+    // rgch is little-endian; append in reverse.
+    for (long ich = cch - 1; ich >= 0; ich--)
+    {
+        if (!pstnOut->FAppendCh(rgch[ich]))
+            return fFalse;
+    }
+    return fTrue;
+}
+
 bool MovieView::FCmdKey(PCMD_KEY pcmd)
 {
     AssertThis(0);
@@ -8943,6 +9069,107 @@ bool MovieView::FCmdKey(PCMD_KEY pcmd)
             }
         }
         return fTrue; // command consumed
+    }
+
+    // Ctrl+G: tag the current selection as group #N (auto-numbered).
+    // Ctrl+Shift+G: strip the rightmost #tag from each selected actor.
+    // In text mode defer to the base.
+    if (pcmd->vk == 'G' && (pcmd->grfcust & fcustCmd) && !FTextMode())
+    {
+        PScene pscen = Pmvie()->Pscen();
+        if (pscen != pvNil && pscen->CactrSelected() >= 1)
+        {
+            bool fStrip = FPure(pcmd->grfcust & fcustShift);
+            PActorRenameGroupUndo parg = ActorRenameGroupUndo::PargNew();
+            if (parg == pvNil)
+            {
+                PushErc(ercSocNotUndoable);
+                return fTrue;
+            }
+            long cactrSel = pscen->CactrSelected();
+            long lwTag = fStrip ? 0 : _LwNextFreeNumericTagInScene(pscen, Pmvie());
+            bool fOk = fTrue;
+            bool fAnyChanged = fFalse;
+            for (long iactr = 0; fOk && iactr < cactrSel; iactr++)
+            {
+                PActor pactr = pscen->PactrSelectedAt(iactr);
+                if (pactr == pvNil)
+                    continue;
+                String stnOld, stnNew;
+                pactr->GetName(&stnOld);
+                if (fStrip)
+                {
+                    stnNew = stnOld;
+                    bool fStripped = fFalse;
+                    _StripRightmostTag(&stnNew, &fStripped);
+                    if (!fStripped)
+                        continue; // actor had no tag; skip without recording undo
+                }
+                else
+                {
+                    if (!_FAppendNumericTag(&stnOld, lwTag, &stnNew))
+                    {
+                        fOk = fFalse;
+                        break;
+                    }
+                }
+                if (!parg->FAddChild(pactr->Arid(), &stnOld))
+                {
+                    fOk = fFalse;
+                    break;
+                }
+                if (!Pmvie()->FNameActr(pactr->Arid(), &stnNew))
+                {
+                    fOk = fFalse;
+                    break;
+                }
+                fAnyChanged = fTrue;
+            }
+            if (!fOk)
+            {
+                ReleasePpo(&parg);
+                Pmvie()->ClearUndo();
+                PushErc(ercSocNotUndoable);
+            }
+            else if (fAnyChanged)
+            {
+                if (!Pmvie()->FAddUndo(parg))
+                {
+                    PushErc(ercSocNotUndoable);
+                    Pmvie()->ClearUndo();
+                }
+                ReleasePpo(&parg);
+                Pmvie()->SetDirty();
+            }
+            else
+            {
+                ReleasePpo(&parg);
+            }
+        }
+        return fTrue;
+    }
+
+    // Ctrl+1..Ctrl+9: replace the current selection with all actors in the
+    // current scene whose name has the matching numeric #tag, and warp the
+    // cursor to the (newly-primary) actor so it's clear which group was
+    // recalled. Silent no-op if the tag isn't bound to any actor.
+    if (pcmd->vk >= '1' && pcmd->vk <= '9' && (pcmd->grfcust & fcustCmd) && !FTextMode())
+    {
+        PScene pscen = Pmvie()->Pscen();
+        if (pscen != pvNil)
+        {
+            achar szTag[2];
+            szTag[0] = (achar)pcmd->vk;
+            szTag[1] = (achar)0;
+            if (pscen->FSelectActrsByTag(szTag) && pscen->CactrSelected() >= 1)
+            {
+                PActor pactr = pscen->PactrSelectedAt(0);
+                if (pactr != pvNil)
+                    WarpCursToActor(pactr);
+                Pmvie()->Pbwld()->MarkDirty();
+            }
+        }
+        return fTrue;
     }
 
     return MovieView_PAR::FCmdKey(pcmd);

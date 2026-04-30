@@ -300,6 +300,12 @@ class Scene : public Scene_PAR
     bool FSelectAllActrs(void); // select every actor in the current scene; fFalse on alloc failure mid-add
     // Mean of currently-visible selected actors' world positions. fFalse if zero qualify.
     bool FXyzSelectionCentroid(BRS *pxr, BRS *pyr, BRS *pzr);
+    // Replace the current selection with every actor in the current scene
+    // whose display name contains the tag '#pszTag' (ASCII, case-insensitive,
+    // matches '#pszTag' as a whole token terminated by whitespace, end-of-
+    // string, or another '#'). Returns fFalse on alloc failure mid-build (in
+    // which case the selection ends up empty).
+    bool FSelectActrsByTag(PZString pszTag);
     PActor PactrFromPt(long xp, long yp, long *pibset); // Gets actor pointed at by the mouse.
     PDynamicArray PglRollCall(void)                              // Return a list of all actors in scene.
     {
