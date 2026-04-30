@@ -704,7 +704,7 @@ TTW *TTW::PttwNew(void)
     rc.Offset(5, 0);
     EditParameter edpar(khidEdit, pttw, fgobNil, kginDefault, &rc, pvNil, vntl.OnnSystem(), fontNil, 12, tahLeft, tavTop,
                 kacrBlue, kacrYellow);
-    pedpl = EDMW::PedmwNew(&edpar);
+    pedpl = EditControlMultiLineWrap::PedmwNew(&edpar);
     if (pvNil != pedpl)
         pedpl->Activate(fTrue);
 
@@ -2182,7 +2182,7 @@ PTED TED::PtedNew(void)
             rcRel.Set(i * krelOne / 3, (j + 6) * krelOne / 9, (i + 1) * krelOne / 3, (j + 7) * krelOne / 9);
             edpar.Set(hid++, pted, fgobNil, kginDefault, &rcAbs, &rcRel, vntl.OnnSystem(), fontNil, 12, rgtah[i],
                       rgtav[j], kacrBlue, kacrYellow);
-            EDMW::PedmwNew(&edpar);
+            EditControlMultiLineWrap::PedmwNew(&edpar);
         }
     }
     return pted;

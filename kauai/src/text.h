@@ -260,17 +260,17 @@ class EDML : public EDML_PAR
 /***************************************************************************
     Multi line wrapping edit control.
 ***************************************************************************/
-typedef class EDMW *PEDMW;
-#define EDMW_PAR EDML
-#define kclsEDMW 'EDMW'
-class EDMW : public EDMW_PAR
+typedef class EditControlMultiLineWrap *PEditControlMultiLineWrap;
+#define EditControlMultiLineWrap_PAR EDML
+#define kclsEditControlMultiLineWrap 'EDMW'
+class EditControlMultiLineWrap : public EditControlMultiLineWrap_PAR
 {
     RTCLASS_DEC
 
   protected:
-    EDMW(PEditParameter pedpar);
+    EditControlMultiLineWrap(PEditParameter pedpar);
 
-    // methods EDMW
+    // methods EditControlMultiLineWrap
     virtual long _ClnEstimate(achar *prgch, long cch);
     virtual long _LnReformat(long lnMin, long *pclnDel, long *pclnIns);
 
@@ -278,7 +278,7 @@ class EDMW : public EDMW_PAR
     virtual void _NewRc(void);
 
   public:
-    static PEDMW PedmwNew(PEditParameter pedpar);
+    static PEditControlMultiLineWrap PedmwNew(PEditParameter pedpar);
 };
 
 #endif //! TEXT_H
