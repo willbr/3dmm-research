@@ -310,10 +310,13 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     {
         bool fWireframe = fFalse;
         bool fNoTexture = fFalse;
+        bool fShowPoseReadout = fFalse;
         if (FGetSetRegKey(kszWireframeValue, &fWireframe, size(bool), fregNil))
             World::SetRenderWireframe(fWireframe);
         if (FGetSetRegKey(kszNoTextureValue, &fNoTexture, size(bool), fregNil))
             World::SetNoTexture(fNoTexture);
+        if (FGetSetRegKey(kszShowPoseReadoutValue, &fShowPoseReadout, size(bool), fregBinary))
+            MovieView::SetShowPoseReadout(fShowPoseReadout);
     }
 
     if (!_FInitTdt())
@@ -3302,6 +3305,7 @@ enum
     iditProductNameInfo,
     iditWireframeInfo,
     iditNoTextureInfo,
+    iditPoseReadoutInfo,
     iditSaveChanges,
     iditRenderModeInfo,
     iditLimInfo
@@ -3386,6 +3390,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     pdlg->PutRadio(iditWindowModeInfo, _fRunInWindow ? 1 : 0);
     pdlg->PutCheck(iditWireframeInfo, World::RenderWireframe());
     pdlg->PutCheck(iditNoTextureInfo, World::NoTexture());
+    pdlg->PutCheck(iditPoseReadoutInfo, MovieView::FShowPoseReadout());
 
     idit = pdlg->IditDo();
 
@@ -3411,6 +3416,7 @@ bool Application::FCmdInfo(PCommand pcmd)
     {
         bool fWireframeNew = FPure(pdlg->FGetCheck(iditWireframeInfo));
         bool fNoTextureNew = FPure(pdlg->FGetCheck(iditNoTextureInfo));
+        bool fPoseReadoutNew = FPure(pdlg->FGetCheck(iditPoseReadoutInfo));
         bool fRenderChanged = fFalse;
         PMovie pmvieT = _Pmvie();
 
@@ -3424,6 +3430,12 @@ bool Application::FCmdInfo(PCommand pcmd)
             World::SetNoTexture(fNoTextureNew);
             fRenderChanged = fTrue;
         }
+        if (fPoseReadoutNew != FPure(MovieView::FShowPoseReadout()))
+        {
+            MovieView::SetShowPoseReadout(fPoseReadoutNew);
+            if (pvNil != pmvieT)
+                pmvieT->InvalViews();
+        }
         if (fRenderChanged && pvNil != pmvieT)
         {
             pmvieT->Pbwld()->MarkDirty();
@@ -3433,6 +3445,7 @@ bool Application::FCmdInfo(PCommand pcmd)
         {
             FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey);
             FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey);
+            FGetSetRegKey(kszShowPoseReadoutValue, &fPoseReadoutNew, size(bool), fregSetKey | fregBinary);
         }
     }
 
