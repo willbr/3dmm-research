@@ -8031,18 +8031,6 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     }
     break;
     }
-
-    // Pose readout sits on the top-left strip; BRender's per-frame dirty
-    // region only covers the actor bounds, so the readout text wouldn't
-    // refresh during drag without an explicit kginSysInval here. Scoped to
-    // the drag handler so it doesn't fire from animation / playback ticks
-    // (which would queue a paint storm).
-    if (_fShowPoseReadout)
-    {
-        RC rcReadout;
-        rcReadout.Set(0, 0, 200, 24);
-        InvalRc(&rcReadout, kginSysInval);
-    }
 }
 
 /***************************************************************************
