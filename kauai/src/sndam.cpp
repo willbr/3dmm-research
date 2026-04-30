@@ -23,7 +23,7 @@ ASSERTNAME
 #define CHECK_AUDIO_DEVCAPS
 
 // Initialize the maximum mem footprint of wave sounds.
-long SDAM::vcbMaxMemWave = 40 * 1024;
+long AudioManSoundDevice::vcbMaxMemWave = 40 * 1024;
 
 static IAMMixer *_pamix; // the audioman mixer
 static ulong _luGroup;   // the group number
@@ -33,7 +33,7 @@ static long _cactGroup;  // group nesting count
 static ulong _luFormat;    // format mixer is in
 static ulong _luCacheTime; // buffer size for mixer
 
-RTCLASS(SDAM)
+RTCLASS(AudioManSoundDevice)
 RTCLASS(CachedAudioManSound)
 RTCLASS(AudioManQueue)
 
@@ -181,7 +181,7 @@ PDataBlockStream DataBlockStream::PstblNew(FileLocation *pflo, bool fPacked)
         }
 
         // see if it's too big to keep in memory
-        if (pstbl->CbMem() > SDAM::vcbMaxMemWave)
+        if (pstbl->CbMem() > AudioManSoundDevice::vcbMaxMemWave)
         {
             // try to put the sound on disk
             HQ hq = pblck->HqFree();
@@ -206,7 +206,7 @@ PDataBlockStream DataBlockStream::PstblNew(FileLocation *pflo, bool fPacked)
             // cache to the hard drive or memory, depending on the size
             DataBlock blck(pflo);
 
-            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > SDAM::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
+            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > AudioManSoundDevice::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
             {
                 delete pstbl;
                 return pvNil;
@@ -691,7 +691,7 @@ void AudioManQueue::Notify(LPSOUND psnd)
 /***************************************************************************
     Constructor for the audioman device.
 ***************************************************************************/
-SDAM::SDAM(void)
+AudioManSoundDevice::AudioManSoundDevice(void)
 {
     _vlm = kvlmFull;
     _luVolSys = (ulong)(-1);
@@ -700,7 +700,7 @@ SDAM::SDAM(void)
 /***************************************************************************
     Destructor for the audioman device.
 ***************************************************************************/
-SDAM::~SDAM(void)
+AudioManSoundDevice::~AudioManSoundDevice(void)
 {
     AssertBaseThis(0);
 
@@ -710,11 +710,11 @@ SDAM::~SDAM(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SDAM.
+    Assert the validity of a AudioManSoundDevice.
 ***************************************************************************/
-void SDAM::AssertValid(ulong grf)
+void AudioManSoundDevice::AssertValid(ulong grf)
 {
-    SDAM_PAR::AssertValid(0);
+    AudioManSoundDevice_PAR::AssertValid(0);
     Assert(_pamix != pvNil, 0);
 }
 #endif // DEBUG
@@ -722,11 +722,11 @@ void SDAM::AssertValid(ulong grf)
 /***************************************************************************
     Static method to create the audioman device.
 ***************************************************************************/
-PSDAM SDAM::PsdamNew(long wav)
+PAudioManSoundDevice AudioManSoundDevice::PsdamNew(long wav)
 {
-    PSDAM psdam;
+    PAudioManSoundDevice psdam;
 
-    if (pvNil == (psdam = NewObj SDAM))
+    if (pvNil == (psdam = NewObj AudioManSoundDevice))
         return pvNil;
 
     if (!psdam->_FInit(wav))
@@ -792,13 +792,13 @@ bool FHaveWaveDevice(DWORD dwReqFormats)
 /***************************************************************************
     Initialize the audioman device.
 ***************************************************************************/
-bool SDAM::_FInit(long wav)
+bool AudioManSoundDevice::_FInit(long wav)
 {
     AssertBaseThis(0);
     MIXERCONFIG mixc;
     ADVMIXCONFIG amxc;
 
-    if (!SDAM_PAR::_FInit())
+    if (!AudioManSoundDevice_PAR::_FInit())
         return fFalse;
 
     // get IAMMixer interface
@@ -872,7 +872,7 @@ bool SDAM::_FInit(long wav)
 /***************************************************************************
     Allocate a new audioman queue.
 ***************************************************************************/
-PSoundQueue SDAM::_PsnqueNew(void)
+PSoundQueue AudioManSoundDevice::_PsnqueNew(void)
 {
     AssertThis(0);
 
@@ -882,7 +882,7 @@ PSoundQueue SDAM::_PsnqueNew(void)
 /***************************************************************************
     Activate or deactivate audioman.
 ***************************************************************************/
-void SDAM::_Suspend(bool fSuspend)
+void AudioManSoundDevice::_Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -903,7 +903,7 @@ void SDAM::_Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume.
 ***************************************************************************/
-void SDAM::SetVlm(long vlm)
+void AudioManSoundDevice::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -918,7 +918,7 @@ void SDAM::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long SDAM::VlmCur(void)
+long AudioManSoundDevice::VlmCur(void)
 {
     AssertThis(0);
 
@@ -928,7 +928,7 @@ long SDAM::VlmCur(void)
 /***************************************************************************
     Begin a synchronization group.
 ***************************************************************************/
-void SDAM::BeginSynch(void)
+void AudioManSoundDevice::BeginSynch(void)
 {
     AssertThis(0);
 
@@ -939,7 +939,7 @@ void SDAM::BeginSynch(void)
 /***************************************************************************
     End a synchronization group.
 ***************************************************************************/
-void SDAM::EndSynch(void)
+void AudioManSoundDevice::EndSynch(void)
 {
     AssertThis(0);
 
