@@ -1114,8 +1114,8 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     if (!vptagm->FCacheTagToHD(&tagTdf))
         return fTrue;
 
-    // Note: easels are self-managing, so we don't need to keep the PESLT
-    ESLT::PesltNew(_pcrm, _pmvie, pvNil, &stn, tdtsNormal, &tagTdf);
+    // Note: easels are self-managing, so we don't need to keep the PEaselText
+    EaselText::PesltNew(_pcrm, _pmvie, pvNil, &stn, tdtsNormal, &tagTdf);
 
     vapp.EndLongOp();
 
@@ -1882,7 +1882,7 @@ bool Studio::FCmdActorEaselOpen(PCommand pcmd)
     //
     if (pactr->Ptmpl()->FIsTdt())
     {
-        ESLT::PesltNew(_pcrm, _pmvie, pactr);
+        EaselText::PesltNew(_pcrm, _pmvie, pactr);
     }
     else
     {

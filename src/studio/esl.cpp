@@ -27,7 +27,7 @@ const long kcsampSec = 11025;                   // sampling rate for recorder ea
 long csampSec;                                  // sampling rate for recorder easel
 
 RTCLASS(ESL)
-RTCLASS(ESLT)
+RTCLASS(EaselText)
 RTCLASS(EaselActor)
 RTCLASS(SpletterNameEditor)
 RTCLASS(EaselListen)
@@ -185,27 +185,27 @@ void ESL::MarkMem(void)
 //
 //
 //
-//  ESLT (text easel) stuff begins here
+//  EaselText (text easel) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(ESLT, ESL)
-ON_CID_GEN(cidEaselRotate, &ESLT::FCmdRotate, pvNil)
-ON_CID_GEN(cidEaselTransmogrify, &ESLT::FCmdTransmogrify, pvNil)
-ON_CID_GEN(cidEaselFont, &ESLT::FCmdStartPopup, pvNil)
-ON_CID_GEN(cidEaselShape, &ESLT::FCmdStartPopup, pvNil)
-ON_CID_GEN(cidEaselTexture, &ESLT::FCmdStartPopup, pvNil)
-ON_CID_GEN(cidEaselSetFont, &ESLT::FCmdSetFont, pvNil)
-ON_CID_GEN(cidEaselSetShape, &ESLT::FCmdSetShape, pvNil)
-ON_CID_GEN(cidEaselSetColor, &ESLT::FCmdSetColor, pvNil)
+BEGIN_CMD_MAP(EaselText, ESL)
+ON_CID_GEN(cidEaselRotate, &EaselText::FCmdRotate, pvNil)
+ON_CID_GEN(cidEaselTransmogrify, &EaselText::FCmdTransmogrify, pvNil)
+ON_CID_GEN(cidEaselFont, &EaselText::FCmdStartPopup, pvNil)
+ON_CID_GEN(cidEaselShape, &EaselText::FCmdStartPopup, pvNil)
+ON_CID_GEN(cidEaselTexture, &EaselText::FCmdStartPopup, pvNil)
+ON_CID_GEN(cidEaselSetFont, &EaselText::FCmdSetFont, pvNil)
+ON_CID_GEN(cidEaselSetShape, &EaselText::FCmdSetShape, pvNil)
+ON_CID_GEN(cidEaselSetColor, &EaselText::FCmdSetColor, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new text easel.  If pactr is pvNil, this is for a new TDT
     and pstnNew, tdtsNew, and ptagTdfNew will be used as initial values.
 ***************************************************************************/
-PESLT ESLT::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
+PEaselText EaselText::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -215,13 +215,13 @@ PESLT ESLT::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString ps
         AssertIn(tdtsNew, 0, tdtsLim);
     AssertNilOrVarMem(ptagTdfNew);
 
-    PESLT peslt;
+    PEaselText peslt;
     GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidSpltGlass))
         return pvNil;
 
-    peslt = NewObj ESLT(&gcb);
+    peslt = NewObj EaselText(&gcb);
     if (pvNil == peslt)
         return pvNil;
     if (!peslt->_FInit(prca, kidSpltGlass, pmvie, pactr, pstnNew, tdtsNew, ptagTdfNew))
@@ -238,13 +238,13 @@ PESLT ESLT::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString ps
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLT::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
+bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
-    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use ESLT for TDTs");
+    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use EaselText for TDTs");
     AssertNilOrPo(pstnNew, 0);
     if (tdtsNew != tdtsNil)
         AssertIn(tdtsNew, 0, tdtsLim);
@@ -260,7 +260,7 @@ bool ESLT::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
     _pactr = pactr;
     _pmvie = pmvie;
 
-    if (!ESLT_PAR::_FInit(prca, kidEasel))
+    if (!EaselText_PAR::_FInit(prca, kidEasel))
         return fFalse;
     if (!FBuildGcb(&gcb, kidSpltPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
@@ -328,7 +328,7 @@ bool ESLT::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
     _psne or _pape because they're GOBs and are automatically destroyed
     with the gob tree.
 ***************************************************************************/
-ESLT::~ESLT(void)
+EaselText::~EaselText(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_psflTdts);
@@ -341,7 +341,7 @@ ESLT::~ESLT(void)
 /***************************************************************************
     Handle a rotate command
 ***************************************************************************/
-bool ESLT::FCmdRotate(PCommand pcmd)
+bool EaselText::FCmdRotate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -354,7 +354,7 @@ bool ESLT::FCmdRotate(PCommand pcmd)
 /***************************************************************************
     Handle a transmogrify command (pick a random shape, font, and material)
 ***************************************************************************/
-bool ESLT::FCmdTransmogrify(PCommand pcmd)
+bool EaselText::FCmdTransmogrify(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -417,7 +417,7 @@ bool ESLT::FCmdTransmogrify(PCommand pcmd)
 /***************************************************************************
     Start a popup
 ***************************************************************************/
-bool ESLT::FCmdStartPopup(PCommand pcmd)
+bool EaselText::FCmdStartPopup(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -463,7 +463,7 @@ bool ESLT::FCmdStartPopup(PCommand pcmd)
         break;
 
     default:
-        Bug("Invalid cid for ESLT::FCmdStartPopup");
+        Bug("Invalid cid for EaselText::FCmdStartPopup");
         break;
     }
 
@@ -476,7 +476,7 @@ bool ESLT::FCmdStartPopup(PCommand pcmd)
 /***************************************************************************
     Handle a command to change the font
 ***************************************************************************/
-bool ESLT::FCmdSetFont(PCommand pcmd)
+bool EaselText::FCmdSetFont(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -503,7 +503,7 @@ bool ESLT::FCmdSetFont(PCommand pcmd)
 /***************************************************************************
     Handle a command to change the shape
 ***************************************************************************/
-bool ESLT::FCmdSetShape(PCommand pcmd)
+bool EaselText::FCmdSetShape(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -522,7 +522,7 @@ bool ESLT::FCmdSetShape(PCommand pcmd)
 /***************************************************************************
     Handle a command to change the color
 ***************************************************************************/
-bool ESLT::FCmdSetColor(PCommand pcmd)
+bool EaselText::FCmdSetColor(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -544,9 +544,9 @@ bool ESLT::FCmdSetColor(PCommand pcmd)
 /***************************************************************************
     Update the ActorPreviewEntity when the text of the SpletterNameEditor changed
 ***************************************************************************/
-bool ESLT::FTextChanged(PString pstnNew)
+bool EaselText::FTextChanged(PString pstnNew)
 {
-    AssertBaseThis(0); // we may still be setting up the ESLT
+    AssertBaseThis(0); // we may still be setting up the EaselText
     AssertPo(pstnNew, 0);
 
     return _pape->FChangeTdt(pstnNew, tdtsNil, pvNil);
@@ -555,7 +555,7 @@ bool ESLT::FTextChanged(PString pstnNew)
 /***************************************************************************
     Make the changes to pactr
 ***************************************************************************/
-bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
@@ -667,11 +667,11 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLT.
+    Assert the validity of the EaselText.
 ***************************************************************************/
-void ESLT::AssertValid(ulong grf)
+void EaselText::AssertValid(ulong grf)
 {
-    ESLT_PAR::AssertValid(fobjAllocated);
+    EaselText_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
     AssertNilOrPo(_pactr, 0);
     AssertPo(_pape, 0);
@@ -685,13 +685,13 @@ void ESLT::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the ESLT.  The _pape and _psne are marked
+    Mark memory used by the EaselText.  The _pape and _psne are marked
     automatically with the GraphicsObject tree.
 ***************************************************************************/
-void ESLT::MarkMem(void)
+void EaselText::MarkMem(void)
 {
     AssertThis(0);
-    ESLT_PAR::MarkMem();
+    EaselText_PAR::MarkMem();
     MarkMemObj(_psflTdts);
     MarkMemObj(_psflTdf);
     MarkMemObj(_psflMtrl);
@@ -712,7 +712,7 @@ void ESLT::MarkMem(void)
     Create a new spletter name editor with initial string pstnInit.  Text
     change notifications will be sent to peslt.
 ***************************************************************************/
-PSpletterNameEditor SpletterNameEditor::PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit)
+PSpletterNameEditor SpletterNameEditor::PsneNew(PEDPAR pedpar, PEaselText peslt, PString pstnInit)
 {
     AssertVarMem(pedpar);
     AssertBasePo(peslt, 0);
@@ -737,7 +737,7 @@ PSpletterNameEditor SpletterNameEditor::PsneNew(PEDPAR pedpar, PESLT peslt, PStr
 
 /***************************************************************************
     Trap the default FReplace to prevent illegal strings and to notify the
-    ESLT that the text has changed.
+    EaselText that the text has changed.
 ***************************************************************************/
 bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
