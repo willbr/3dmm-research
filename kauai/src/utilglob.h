@@ -86,8 +86,8 @@ extern Random vrndUtil;
     Clients are free to redirect this to their own compression manager.
 ***************************************************************************/
 extern KauaiCodec vkcdcUtil;
-extern CODM vcodmUtil;
-extern PCODM vpcodmUtil;
+extern CodecManager vcodmUtil;
+extern PCodecManager vpcodmUtil;
 
 /***************************************************************************
     Debug memory globals

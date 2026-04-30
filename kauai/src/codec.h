@@ -37,10 +37,10 @@ class CODC : public CODC_PAR
 /***************************************************************************
     Codec manager.
 ***************************************************************************/
-typedef class CODM *PCODM;
-#define CODM_PAR BASE
-#define kclsCODM 'CODM'
-class CODM : public CODM_PAR
+typedef class CodecManager *PCodecManager;
+#define CodecManager_PAR BASE
+#define kclsCodecManager 'CODM'
+class CodecManager : public CodecManager_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -56,8 +56,8 @@ class CODM : public CODM_PAR
     virtual bool _FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst);
 
   public:
-    CODM(PCODC pcodc, long cfmt);
-    ~CODM(void);
+    CodecManager(PCODC pcodc, long cfmt);
+    ~CodecManager(void);
 
     long CfmtDefault(void)
     {
