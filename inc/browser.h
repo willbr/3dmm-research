@@ -12,7 +12,7 @@
     BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
     BrowserDisplay --> BrowserList  (Browser list class; chunky based)
     BrowserDisplay --> BrowserText  (Browser text class)
-    BrowserDisplay --> BrowserList --> BRWN  (Browser named list class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
     BrowserDisplay --> BRWR  (Roll call class)
@@ -20,8 +20,8 @@
     BrowserDisplay --> BrowserList --> BRWP	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
-    BrowserDisplay --> BrowserList --> BRWN --> BRWM (Browser music class)
-    BrowserDisplay --> BrowserList --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -287,7 +287,7 @@ struct ThumbnailDescriptor
     ChunkNumber cno;       // KidspaceGraphicObjectDescriptor cno
     ChildChunkID chidThum; // KidspaceGraphicObjectDescriptor's parent's ChildChunkID (relative to KidspaceGraphicObjectDescriptor parent's parent)
     long ithd;     // Original index for this ThumbnailDescriptor, before sorting (used to
-                   // retrieve proper String for the BRWN-derived browsers)
+                   // retrieve proper String for the BrowserNamedList-derived browsers)
 };
 
 /* Browser Content List Base --  create one of these when you want a list of a
@@ -510,10 +510,10 @@ class BrowserText : public BrowserText_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWN_PAR BrowserList
-#define kclsBRWN 'BRWN'
-typedef class BRWN *PBRWN;
-class BRWN : public BRWN_PAR
+#define BrowserNamedList_PAR BrowserList
+#define kclsBrowserNamedList 'BRWN'
+typedef class BrowserNamedList *PBrowserNamedList;
+class BrowserNamedList : public BrowserNamedList_PAR
 {
     RTCLASS_DEC
 
@@ -530,10 +530,10 @@ class BRWN : public BRWN_PAR
     //
     // Constructors and destructors
     //
-    BRWN(PGraphicsObjectBlock pgcb) : BRWN_PAR(pgcb)
+    BrowserNamedList(PGraphicsObjectBlock pgcb) : BrowserNamedList_PAR(pgcb)
     {
     }
-    ~BRWN(void){};
+    ~BrowserNamedList(void){};
     virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
                        PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
@@ -683,7 +683,7 @@ class BRWC : public BRWC_PAR
    Derived from the Browser Named List Class
 
 *************************************/
-#define BRWM_PAR BRWN
+#define BRWM_PAR BrowserNamedList
 #define kclsBRWM 'brwm'
 typedef class BRWM *PBRWM;
 class BRWM : public BRWM_PAR
