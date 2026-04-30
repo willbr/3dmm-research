@@ -170,10 +170,10 @@ class ESLA : public ESLA_PAR
 /****************************************
     Listener sound class
 ****************************************/
-typedef class LSND *PLSND;
-#define LSND_PAR BASE
-#define kclsLSND 'LSND'
-class LSND : public LSND_PAR
+typedef class ListenerSound *PListenerSound;
+#define ListenerSound_PAR BASE
+#define kclsListenerSound 'LSND'
+class ListenerSound : public ListenerSound_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -192,11 +192,11 @@ class LSND : public LSND_PAR
     bool _fMatcher;   // Whether this is a motion-matched sound
 
   public:
-    LSND(void)
+    ListenerSound(void)
     {
         _pgltag = pvNil;
     }
-    ~LSND(void);
+    ~ListenerSound(void);
 
     bool FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicArray *ppgltag, long vlm, bool fLoop, long objID,
                bool fMatcher);
@@ -226,11 +226,11 @@ class ESLL : public ESLL_PAR
     PMovie _pmvie; // Movie that these sounds are in
     PScene _pscen; // Scene that these sounds are in
     PActor _pactr; // Actor that sounds are attached to (or pvNil)
-    LSND _lsndSpeech;
-    LSND _lsndSfx;
-    LSND _lsndMidi;
-    LSND _lsndSpeechMM;
-    LSND _lsndSfxMM;
+    ListenerSound _lsndSpeech;
+    ListenerSound _lsndSfx;
+    ListenerSound _lsndMidi;
+    ListenerSound _lsndSpeechMM;
+    ListenerSound _lsndSfxMM;
 
   protected:
     ESLL(PGraphicsObjectBlock pgcb) : ESL(pgcb)

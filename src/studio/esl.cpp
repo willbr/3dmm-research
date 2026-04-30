@@ -31,7 +31,7 @@ RTCLASS(ESLT)
 RTCLASS(ESLA)
 RTCLASS(SpletterNameEditor)
 RTCLASS(ESLL)
-RTCLASS(LSND)
+RTCLASS(ListenerSound)
 RTCLASS(ESLR)
 
 /***************************************************************************
@@ -1203,7 +1203,7 @@ bool ESLL::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
 /***************************************************************************
     Are there valid sounds in this Lsnd?
 ***************************************************************************/
-bool LSND::FValidSnd(void)
+bool ListenerSound::FValidSnd(void)
 {
     AssertThis(0);
     PMovieSoundMSND pmsnd;
@@ -1446,15 +1446,15 @@ void ESLL::MarkMem(void)
 
 //
 //
-//  LSND (Listener Sound) stuff begins here
+//  ListenerSound (Listener Sound) stuff begins here
 //
 //
 
 /***************************************************************************
-    Initialize a LSND.  Note that the LSND takes over the reference to
+    Initialize a ListenerSound.  Note that the ListenerSound takes over the reference to
     *ppgltag.
 ***************************************************************************/
-bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicArray *ppgltag, long vlm, bool fLoop, long objID,
+bool ListenerSound::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicArray *ppgltag, long vlm, bool fLoop, long objID,
                  bool fMatcher)
 {
     AssertBaseThis(0);
@@ -1534,9 +1534,9 @@ LFound:
 }
 
 /***************************************************************************
-    Play the LSND's sound
+    Play the ListenerSound's sound
 ***************************************************************************/
-void LSND::Play(void)
+void ListenerSound::Play(void)
 {
     AssertThis(0);
 
@@ -1570,10 +1570,10 @@ void LSND::Play(void)
 }
 
 /***************************************************************************
-    Return whether the LSND has changed.  Specifies new volume and whether
+    Return whether the ListenerSound has changed.  Specifies new volume and whether
     the sound was nuked.
 ***************************************************************************/
-bool LSND::FChanged(long *pvlmNew, bool *pfNuked)
+bool ListenerSound::FChanged(long *pvlmNew, bool *pfNuked)
 {
     AssertThis(0);
     AssertVarMem(pvlmNew);
@@ -1585,9 +1585,9 @@ bool LSND::FChanged(long *pvlmNew, bool *pfNuked)
 }
 
 /***************************************************************************
-    Destroy a LSND
+    Destroy a ListenerSound
 ***************************************************************************/
-LSND::~LSND(void)
+ListenerSound::~ListenerSound(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgltag);
@@ -1595,21 +1595,21 @@ LSND::~LSND(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the LSND.
+    Assert the validity of the ListenerSound.
 ***************************************************************************/
-void LSND::AssertValid(ulong grf)
+void ListenerSound::AssertValid(ulong grf)
 {
-    LSND_PAR::AssertValid(0);
+    ListenerSound_PAR::AssertValid(0);
     AssertNilOrPo(_pgltag, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the LSND
+    Mark memory used by the ListenerSound
 ***************************************************************************/
-void LSND::MarkMem(void)
+void ListenerSound::MarkMem(void)
 {
     AssertThis(0);
-    LSND_PAR::MarkMem();
+    ListenerSound_PAR::MarkMem();
     MarkMemObj(_pgltag);
 }
 #endif // DEBUG
