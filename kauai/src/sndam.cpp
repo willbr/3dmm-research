@@ -35,7 +35,7 @@ static ulong _luCacheTime; // buffer size for mixer
 
 RTCLASS(SDAM)
 RTCLASS(CachedAudioManSound)
-RTCLASS(AMQUE)
+RTCLASS(AudioManQueue)
 
 /***************************************************************************
     Constructor for a streamed block.
@@ -359,9 +359,9 @@ AudioManNotifySink::AudioManNotifySink(void)
 }
 
 /***************************************************************************
-    Set the AMQUE that we're to notify.
+    Set the AudioManQueue that we're to notify.
 ***************************************************************************/
-void AudioManNotifySink::Set(PAMQUE pamque)
+void AudioManNotifySink::Set(PAudioManQueue pamque)
 {
     AssertNilOrVarMem(pamque);
     _pamque = pamque;
@@ -419,7 +419,7 @@ STDMETHODIMP_(ULONG) AudioManNotifySink::Release(void)
 }
 
 /***************************************************************************
-    The indicated sound is done. Just tell the AMQUE that we got a notify.
+    The indicated sound is done. Just tell the AudioManQueue that we got a notify.
 ***************************************************************************/
 STDMETHODIMP_(void) AudioManNotifySink::OnCompletion(LPSOUND pSound, DWORD dwPosition)
 {
@@ -432,14 +432,14 @@ STDMETHODIMP_(void) AudioManNotifySink::OnCompletion(LPSOUND pSound, DWORD dwPos
 /***************************************************************************
     Constructor for an audioman queue.
 ***************************************************************************/
-AMQUE::AMQUE(void)
+AudioManQueue::AudioManQueue(void)
 {
 }
 
 /***************************************************************************
     Destructor for an audioman queue.
 ***************************************************************************/
-AMQUE::~AMQUE(void)
+AudioManQueue::~AudioManQueue(void)
 {
     if (pvNil != _pchan)
         StopAll();
@@ -448,11 +448,11 @@ AMQUE::~AMQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a AMQUE.
+    Assert the validity of a AudioManQueue.
 ***************************************************************************/
-void AMQUE::AssertValid(ulong grf)
+void AudioManQueue::AssertValid(ulong grf)
 {
-    AMQUE_PAR::AssertValid(0);
+    AudioManQueue_PAR::AssertValid(0);
     Assert(pvNil != _pchan, 0);
 }
 #endif // DEBUG
@@ -460,11 +460,11 @@ void AMQUE::AssertValid(ulong grf)
 /***************************************************************************
     Static method to create a new audioman queue.
 ***************************************************************************/
-PAMQUE AMQUE::PamqueNew(void)
+PAudioManQueue AudioManQueue::PamqueNew(void)
 {
-    PAMQUE pamque;
+    PAudioManQueue pamque;
 
-    if (pvNil == (pamque = NewObj AMQUE))
+    if (pvNil == (pamque = NewObj AudioManQueue))
         return pvNil;
 
     if (!pamque->_FInit())
@@ -478,11 +478,11 @@ PAMQUE AMQUE::PamqueNew(void)
     Initialize the audioman queue. Allocate the audioman channel and the
     _pglsndin.
 ***************************************************************************/
-bool AMQUE::_FInit(void)
+bool AudioManQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (!AMQUE_PAR::_FInit())
+    if (!AudioManQueue_PAR::_FInit())
         return fFalse;
 
     if (FAILED(_pamix->AllocChannel(&_pchan)))
@@ -507,7 +507,7 @@ bool AMQUE::_FInit(void)
 /***************************************************************************
     Enter the critical section protecting member variables.
 ***************************************************************************/
-void AMQUE::_Enter(void)
+void AudioManQueue::_Enter(void)
 {
     _mutx.Enter();
 }
@@ -515,7 +515,7 @@ void AMQUE::_Enter(void)
 /***************************************************************************
     Leave the critical section protecting member variables.
 ***************************************************************************/
-void AMQUE::_Leave(void)
+void AudioManQueue::_Leave(void)
 {
     _mutx.Leave();
 }
@@ -523,7 +523,7 @@ void AMQUE::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as a CachedAudioManSound.
 ***************************************************************************/
-PBaseCacheableObject AMQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
+PBaseCacheableObject AudioManQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -534,7 +534,7 @@ PBaseCacheableObject AMQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg,
 /***************************************************************************
     An item was added to or deleted from the queue.
 ***************************************************************************/
-void AMQUE::_Queue(long isndinMin)
+void AudioManQueue::_Queue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -625,7 +625,7 @@ void AMQUE::_Queue(long isndinMin)
 /***************************************************************************
     One or more items in the queue were paused.
 ***************************************************************************/
-void AMQUE::_PauseQueue(long isndinMin)
+void AudioManQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -647,7 +647,7 @@ void AMQUE::_PauseQueue(long isndinMin)
 /***************************************************************************
     One or more items in the queue were resumed.
 ***************************************************************************/
-void AMQUE::_ResumeQueue(long isndinMin)
+void AudioManQueue::_ResumeQueue(long isndinMin)
 {
     AssertThis(0);
 
@@ -658,7 +658,7 @@ void AMQUE::_ResumeQueue(long isndinMin)
     Called by our notify sink to tell us that the indicated sound is done.
     WARNING: this is called in an auxillary thread.
 ***************************************************************************/
-void AMQUE::Notify(LPSOUND psnd)
+void AudioManQueue::Notify(LPSOUND psnd)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -876,7 +876,7 @@ PSoundQueue SDAM::_PsnqueNew(void)
 {
     AssertThis(0);
 
-    return AMQUE::PamqueNew();
+    return AudioManQueue::PamqueNew();
 }
 
 /***************************************************************************
