@@ -772,7 +772,7 @@ bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM 
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-        pscb = (PScrollBar)CTL::PctlFromHctl(GET_WM_HSCROLL_HWND(wParam, lw));
+        pscb = (PScrollBar)Control::PctlFromHctl(GET_WM_HSCROLL_HWND(wParam, lw));
         if (pvNil != pscb && pscb->FIs(kclsScrollBar))
         {
             pscb->TrackScroll(GET_WM_HSCROLL_CODE(wParam, lw), GET_WM_HSCROLL_POS(wParam, lw));
