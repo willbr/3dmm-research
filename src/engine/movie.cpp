@@ -6205,6 +6205,27 @@ void MovieView::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
         {
             pgnv->FrameRcApt(&_rcFrame, &vaptLtGray, kacrBlack, kacrWhite);
         }
+
+        //
+        // Numeric pose readout for selected actor (UI-2). Shows world X/Y/Z
+        // of the primary selection in the top-left of the viewport when the
+        // toggle is on (Product Info dialog).
+        //
+        if (_fShowPoseReadout)
+        {
+            PActor pactrSel = Pmvie()->Pscen()->PactrSelected();
+            if (pactrSel != pvNil && pactrSel->Pbody() != pvNil)
+            {
+                // Read live BRender transform so the readout tracks during
+                // drag. Actor::GetXyzWorld reads committed path data and is
+                // stale until mouseup.
+                BRS xr, yr, zr;
+                String stn;
+                pactrSel->Pbody()->GetPosition(&xr, &yr, &zr);
+                stn.FFormatSz(PszLit("X=%d Y=%d Z=%d"), BrScalarToInt(xr), BrScalarToInt(yr), BrScalarToInt(zr));
+                pgnv->DrawStn(&stn, 4, 4, kacrBlack, kacrWhite);
+            }
+        }
     }
     else
     {
@@ -6350,6 +6371,7 @@ void MovieView::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxr
 bool MovieView::_fKbdDelayed = fFalse;
 long MovieView::_dtsKbdDelay;
 long MovieView::_dtsKbdRepeat;
+bool MovieView::_fShowPoseReadout = fFalse;
 
 /***************************************************************************
  *

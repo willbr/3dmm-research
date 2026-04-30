@@ -52,6 +52,7 @@
 #define IDC_EDIT3 1025
 #define IDC_CHECK2 1026
 #define IDC_CHECK3 1027
+#define IDC_CHECK4 1028
 #define cidInfo 40038
 #define cidWriteBmps 40039
 #define cidHelpBook 40040
@@ -65,7 +66,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE 226
 #define _APS_NEXT_COMMAND_VALUE 40045
-#define _APS_NEXT_CONTROL_VALUE 1028
+#define _APS_NEXT_CONTROL_VALUE 1029
 #define _APS_NEXT_SYMED_VALUE 128
 #endif
 #endif

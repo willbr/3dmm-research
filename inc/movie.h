@@ -134,6 +134,20 @@ class MovieView : public MovieView_PAR
     static long _dtsKbdDelay;  // System keyboard delay before first repeat
     static long _dtsKbdRepeat; // System keyboard delay between repeats
 
+    static bool _fShowPoseReadout; // Off by default; UI-2 actor pose overlay.
+
+  public:
+    static bool FShowPoseReadout(void)
+    {
+        return _fShowPoseReadout;
+    }
+    static void SetShowPoseReadout(bool fOn)
+    {
+        _fShowPoseReadout = fOn;
+    }
+
+  protected:
+
     long _dxp;
     long _dyp; // width and height rendered area.
 
