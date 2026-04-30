@@ -134,9 +134,9 @@ class CAMS : public CAMS_PAR
 ***************************************************************************/
 typedef class AMQUE *PAMQUE; // forward declaration
 
-typedef class AMNOT *PAMNOT;
-#define AMNOT_PAR IAMNotifySink
-class AMNOT : public AMNOT_PAR
+typedef class AudioManNotifySink *PAudioManNotifySink;
+#define AudioManNotifySink_PAR IAMNotifySink
+class AudioManNotifySink : public AudioManNotifySink_PAR
 {
     ASSERT
 
@@ -162,7 +162,7 @@ class AMNOT : public AMNOT_PAR
     {
     }
 
-    AMNOT(void);
+    AudioManNotifySink(void);
     void Set(PAMQUE pamque);
 };
 
@@ -180,7 +180,7 @@ class AMQUE : public AMQUE_PAR
     Mutex _mutx;         // restricts access to member variables
     IAMChannel *_pchan; // the audioman channel
     ulong _tsStart;     // when we started the current sound
-    AMNOT _amnot;       // notify sink
+    AudioManNotifySink _amnot;       // notify sink
 
     AMQUE(void);
 

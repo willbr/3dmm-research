@@ -352,7 +352,7 @@ void CAMS::MarkMem(void)
 /***************************************************************************
     Constructor for our notify sink.
 ***************************************************************************/
-AMNOT::AMNOT(void)
+AudioManNotifySink::AudioManNotifySink(void)
 {
     _cactRef = 1;
     _pamque = pvNil;
@@ -361,7 +361,7 @@ AMNOT::AMNOT(void)
 /***************************************************************************
     Set the AMQUE that we're to notify.
 ***************************************************************************/
-void AMNOT::Set(PAMQUE pamque)
+void AudioManNotifySink::Set(PAMQUE pamque)
 {
     AssertNilOrVarMem(pamque);
     _pamque = pamque;
@@ -369,9 +369,9 @@ void AMNOT::Set(PAMQUE pamque)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a AMNOT.
+    Assert the validity of a AudioManNotifySink.
 ***************************************************************************/
-void AMNOT::AssertValid(ulong grf)
+void AudioManNotifySink::AssertValid(ulong grf)
 {
     AssertThisMem();
     AssertNilOrVarMem(_pamque);
@@ -379,9 +379,9 @@ void AMNOT::AssertValid(ulong grf)
 #endif // DEBUG
 
 /***************************************************************************
-    QueryInterface for AMNOT.
+    QueryInterface for AudioManNotifySink.
 ***************************************************************************/
-STDMETHODIMP AMNOT::QueryInterface(REFIID riid, void **ppv)
+STDMETHODIMP AudioManNotifySink::QueryInterface(REFIID riid, void **ppv)
 {
     AssertThis(0);
 
@@ -399,7 +399,7 @@ STDMETHODIMP AMNOT::QueryInterface(REFIID riid, void **ppv)
 /***************************************************************************
     Increment the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) AMNOT::AddRef(void)
+STDMETHODIMP_(ULONG) AudioManNotifySink::AddRef(void)
 {
     AssertThis(0);
     return ++_cactRef;
@@ -408,7 +408,7 @@ STDMETHODIMP_(ULONG) AMNOT::AddRef(void)
 /***************************************************************************
     Decrement the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) AMNOT::Release(void)
+STDMETHODIMP_(ULONG) AudioManNotifySink::Release(void)
 {
     AssertThis(0);
     long cactRef;
@@ -421,7 +421,7 @@ STDMETHODIMP_(ULONG) AMNOT::Release(void)
 /***************************************************************************
     The indicated sound is done. Just tell the AMQUE that we got a notify.
 ***************************************************************************/
-STDMETHODIMP_(void) AMNOT::OnCompletion(LPSOUND pSound, DWORD dwPosition)
+STDMETHODIMP_(void) AudioManNotifySink::OnCompletion(LPSOUND pSound, DWORD dwPosition)
 {
     AssertThis(0);
 
