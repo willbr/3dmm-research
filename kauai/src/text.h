@@ -46,10 +46,10 @@ class EditParameter
 /***************************************************************************
     Edit control base class.
 ***************************************************************************/
-typedef class EDCB *PEDCB;
-#define EDCB_PAR GraphicsObject
-#define kclsEDCB 'EDCB'
-class EDCB : public EDCB_PAR
+typedef class EditControlBase *PEditControlBase;
+#define EditControlBase_PAR GraphicsObject
+#define kclsEditControlBase 'EDCB'
+class EditControlBase : public EditControlBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -76,7 +76,7 @@ class EDCB : public EDCB_PAR
     long _xp;
     long _yp;
 
-    EDCB(PGraphicsObjectBlock pgcb, long cmhl);
+    EditControlBase(PGraphicsObjectBlock pgcb, long cmhl);
 
     virtual bool _FInit(void);
 
@@ -108,7 +108,7 @@ class EDCB : public EDCB_PAR
     virtual void _InitGnv(PGraphicsEnvironment pgnv);
 
   public:
-    ~EDCB(void);
+    ~EditControlBase(void);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
@@ -138,7 +138,7 @@ class EDCB : public EDCB_PAR
     line edit controls with a single font.
 ***************************************************************************/
 typedef class EditControlPlain *PEditControlPlain;
-#define EditControlPlain_PAR EDCB
+#define EditControlPlain_PAR EditControlBase
 #define kclsEditControlPlain 'EDPL'
 class EditControlPlain : public EditControlPlain_PAR
 {
@@ -158,7 +158,7 @@ class EditControlPlain : public EditControlPlain_PAR
 
     EditControlPlain(PEditParameter pedpar);
 
-    // methods of EDCB
+    // methods of EditControlBase
     virtual bool _FInit(void);
     virtual long _XpFromIch(long ich);
     virtual long _YpFromLn(long ln);
@@ -192,7 +192,7 @@ class EditControlSingleLine : public EditControlSingleLine_PAR
 
     EditControlSingleLine(PEditParameter pedpar);
 
-    // methods of EDCB
+    // methods of EditControlBase
     virtual long _LnFromIch(long ich);
     virtual long _IchMinLn(long ln);
     virtual long _LnMac(void);
@@ -233,7 +233,7 @@ class EditControlMultiLine : public EditControlMultiLine_PAR
 
     EditControlMultiLine(PEditParameter pedpar);
 
-    // methods of EDCB
+    // methods of EditControlBase
     virtual bool _FInit(void);
     virtual long _LnFromIch(long ich);
     virtual long _IchMinLn(long ln);
