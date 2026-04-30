@@ -21,7 +21,7 @@
     BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
-    BrowserDisplay --> BRWR  (Roll call class)
+    BrowserDisplay --> BrowserRollCall  (Roll call class)
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
@@ -86,7 +86,7 @@ RTCLASS(BrowserBackground)
 RTCLASS(BrowserCamera)
 RTCLASS(BrowserNamedList)
 RTCLASS(BrowserMusic)
-RTCLASS(BRWR)
+RTCLASS(BrowserRollCall)
 RTCLASS(BrowserImportSound)
 RTCLASS(BrowserContentList)
 RTCLASS(BCLS)
@@ -2967,17 +2967,17 @@ bool BrowserCamera::FCmdCancel(PCommand pcmd)
  * Create a BRoWser Roll Call object
  *
  ****************************************************/
-PBRWR BRWR::PbrwrNew(PResourceCache prca, long kid)
+PBrowserRollCall BrowserRollCall::PbrwrNew(PResourceCache prca, long kid)
 {
     AssertPo(prca, 0);
 
-    PBRWR pbrwr;
+    PBrowserRollCall pbrwr;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kid))
         return pvNil;
 
-    if ((pbrwr = NewObj BRWR(&gcb)) == pvNil)
+    if ((pbrwr = NewObj BrowserRollCall(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2995,7 +2995,7 @@ PBRWR BRWR::PbrwrNew(PResourceCache prca, long kid)
  * Initialize a BRoWser Roll Call object
  *
  ****************************************************/
-bool BRWR::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithumDisplay, PStudio pstdio)
+bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithumDisplay, PStudio pstdio)
 {
     AssertThis(0);
 
@@ -3080,7 +3080,7 @@ LFail:
  * Update the RollCall : Select actor arid
  *
  ****************************************************/
-bool BRWR::FUpdate(long arid, PStudio pstdio)
+bool BrowserRollCall::FUpdate(long arid, PStudio pstdio)
 {
     AssertThis(0);
     long ithumDisplay;
@@ -3115,7 +3115,7 @@ bool BRWR::FUpdate(long arid, PStudio pstdio)
  * underneath the code.
  *
  ****************************************************/
-void BRWR::_ProcessSelection(void)
+void BrowserRollCall::_ProcessSelection(void)
 {
     AssertThis(0);
 
@@ -3134,7 +3134,7 @@ void BRWR::_ProcessSelection(void)
  * Browser Roll Call Cthum
  *
  ****************************************************/
-long BRWR::_Cthum(void)
+long BrowserRollCall::_Cthum(void)
 {
     AssertThis(0);
     String stn;
@@ -3144,7 +3144,7 @@ long BRWR::_Cthum(void)
     long cthum = 0;
     bool fProp;
 
-    Assert(_ctg == kctgPrth || _ctg == kctgTmth, "Invalid BRWR initialization");
+    Assert(_ctg == kctgPrth || _ctg == kctgTmth, "Invalid BrowserRollCall initialization");
 
     if (_pstdio->Pmvie() == pvNil)
         return 0;
@@ -3170,7 +3170,7 @@ long BRWR::_Cthum(void)
  * Iarid from Ithum
  *
  ****************************************************/
-long BRWR::_IaridFromIthum(long ithum, long iaridFirst)
+long BrowserRollCall::_IaridFromIthum(long ithum, long iaridFirst)
 {
     AssertThis(0);
     String stn;
@@ -3208,7 +3208,7 @@ long BRWR::_IaridFromIthum(long ithum, long iaridFirst)
  * copy of Billy)
  *
  ****************************************************/
-long BRWR::_IthumFromArid(long aridSelect)
+long BrowserRollCall::_IthumFromArid(long aridSelect)
 {
     AssertThis(0);
 
@@ -3253,7 +3253,7 @@ long BRWR::_IthumFromArid(long aridSelect)
  * Advance the gob (thumbnail) index
  *
  ****************************************************/
-bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
+bool BrowserRollCall::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(ithum, 0, _pstdio->Pmvie()->CmactrMac());
@@ -3327,7 +3327,7 @@ bool BRWR::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
  * Clear rollover help
  *
  ****************************************************/
-bool BRWR::_FClearHelp(long ifrm)
+bool BrowserRollCall::_FClearHelp(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
@@ -3345,7 +3345,7 @@ bool BRWR::_FClearHelp(long ifrm)
  * Assumes gob based.
  *
  ****************************************************/
-void BRWR::_ReleaseThumFrame(long ifrm)
+void BrowserRollCall::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
@@ -3407,7 +3407,7 @@ BrowserText::~BrowserText(void)
  * Browser RollCall Destructor
  *
  ****************************************************/
-BRWR::~BRWR(void)
+BrowserRollCall::~BrowserRollCall(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pcrm);
@@ -3465,14 +3465,14 @@ void BRCNL::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRWR
+    Mark memory used by the BrowserRollCall
 
  ****************************************************/
-void BRWR::MarkMem(void)
+void BrowserRollCall::MarkMem(void)
 {
     AssertThis(0);
     MarkMemObj(_pcrm);
-    BRWR_PAR::MarkMem();
+    BrowserRollCall_PAR::MarkMem();
 }
 
 /****************************************************
@@ -3620,13 +3620,13 @@ void BrowserList::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRWR
+    Assert the validity of the BrowserRollCall
 
  ****************************************************/
-void BRWR::AssertValid(ulong grfobj)
+void BrowserRollCall::AssertValid(ulong grfobj)
 {
 
-    BRWR_PAR::AssertValid(fobjAllocated);
+    BrowserRollCall_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pcrm, 0);
 }
 

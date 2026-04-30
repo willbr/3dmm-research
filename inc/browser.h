@@ -15,7 +15,7 @@
     BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
-    BrowserDisplay --> BRWR  (Roll call class)
+    BrowserDisplay --> BrowserRollCall  (Roll call class)
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
@@ -756,10 +756,10 @@ class BrowserImportSound : public BrowserImportSound_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWR_PAR BrowserDisplay
-#define kclsBRWR 'BRWR'
-typedef class BRWR *PBRWR;
-class BRWR : public BRWR_PAR
+#define BrowserRollCall_PAR BrowserDisplay
+#define kclsBrowserRollCall 'BRWR'
+typedef class BrowserRollCall *PBrowserRollCall;
+class BrowserRollCall : public BrowserRollCall_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -784,14 +784,14 @@ class BRWR : public BRWR_PAR
     //
     // Constructors and destructors
     //
-    BRWR(PGraphicsObjectBlock pgcb) : BRWR_PAR(pgcb)
+    BrowserRollCall(PGraphicsObjectBlock pgcb) : BrowserRollCall_PAR(pgcb)
     {
         _fApplyingSel = fFalse;
         _idsFont = idsRollCallFont;
     }
-    ~BRWR(void);
+    ~BrowserRollCall(void);
 
-    static PBRWR PbrwrNew(PResourceCache prca, long kid);
+    static PBrowserRollCall PbrwrNew(PResourceCache prca, long kid);
     void Init(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FInit(PCommand pcmd, ChunkTagOrType ctg, long ithumDisplay, PStudio pstdio);

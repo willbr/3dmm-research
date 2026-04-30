@@ -276,7 +276,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
     case kidRollCallProp:
         Assert(pvNil == _pbrwrProp, "Roll Call browser already up");
-        _pbrwrProp = BRWR::PbrwrNew(_pcrm, kidRollCallProp);
+        _pbrwrProp = BrowserRollCall::PbrwrNew(_pcrm, kidRollCallProp);
         pbrwd = (PBrowserDisplay)_pbrwrProp;
         if (pvNil == pbrwd)
             goto LFail;
@@ -295,7 +295,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
     case kidRollCallActor:
         Assert(pvNil == _pbrwrActr, "Roll Call browser already up");
-        _pbrwrActr = BRWR::PbrwrNew(_pcrm, kidRollCallActor);
+        _pbrwrActr = BrowserRollCall::PbrwrNew(_pcrm, kidRollCallActor);
         pbrwd = (PBrowserDisplay)_pbrwrActr;
         if (pvNil == pbrwd)
             goto LFail;
@@ -642,7 +642,7 @@ void BrowserImportSound::_ApplySelection(long thumSelect, long sid)
  * thumSelect equals ithum
  *
  **************************************************************************/
-void BRWR::_ApplySelection(long thumSelect, long sid)
+void BrowserRollCall::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 

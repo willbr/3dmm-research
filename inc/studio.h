@@ -60,8 +60,8 @@ class Studio : public Studio_PAR
     PSMCC _psmcc;
     PDynamicArray _pglpbrcn;
     long _aridSelected;
-    PBRWR _pbrwrActr;
-    PBRWR _pbrwrProp;
+    PBrowserRollCall _pbrwrActr;
+    PBrowserRollCall _pbrwrProp;
     PDynamicArray _pglcmg;        // Cno map tmpl->gokd for rollcall
     PDynamicArray _pglclr;        // Color table for common palette
     bool _fDisplayCast; // Display movie's cast
@@ -163,11 +163,11 @@ class Studio : public Studio_PAR
     {
         return _aridSelected;
     }
-    PBRWR PbrwrActr(void)
+    PBrowserRollCall PbrwrActr(void)
     {
         return _pbrwrActr;
     }
-    PBRWR PbrwrProp(void)
+    PBrowserRollCall PbrwrProp(void)
     {
         return _pbrwrProp;
     }
