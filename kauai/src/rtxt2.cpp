@@ -13,7 +13,7 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(TRUL)
+RTCLASS(TextRuler)
 
 const long kdxpMax = 0x01000000;
 
@@ -2479,7 +2479,7 @@ long TextDocumentGraphicsObject::_DypTrul(void)
 /***************************************************************************
     Create the ruler.
 ***************************************************************************/
-PTRUL TextDocumentGraphicsObject::_PtrulNew(PGraphicsObjectBlock pgcb)
+PTextRuler TextDocumentGraphicsObject::_PtrulNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return pvNil;

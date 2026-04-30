@@ -427,7 +427,7 @@ class HETG : public HETG_PAR
 
     // we have our own ruler
     virtual long _DypTrul(void);
-    virtual PTRUL _PtrulNew(PGraphicsObjectBlock pgcb);
+    virtual PTextRuler _PtrulNew(PGraphicsObjectBlock pgcb);
 
     // override _DrawLinExtra so we can put boxes around grouped text.
     virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
@@ -472,7 +472,7 @@ const long kstidReplace = 2;
     The ruler for a help text document.
 ***************************************************************************/
 typedef class HTRU *PHTRU;
-#define HTRU_PAR TRUL
+#define HTRU_PAR TextRuler
 #define kclsHTRU 'HTRU'
 class HTRU : public HTRU_PAR
 {

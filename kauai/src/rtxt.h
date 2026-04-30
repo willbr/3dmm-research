@@ -418,7 +418,7 @@ class RichTextUndo : public RichTextUndo_PAR
 ***************************************************************************/
 const long kdxpIndentTxtg = (kdzpInch / 8);
 const long kcchMaxLineTxtg = 512;
-typedef class TRUL *PTRUL;
+typedef class TextRuler *PTextRuler;
 
 enum
 {
@@ -467,7 +467,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     bool _fSelByWord : 1;
 
     // the ruler
-    PTRUL _ptrul;
+    PTextRuler _ptrul;
 
     TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb);
     ~TextDocumentGraphicsObject(void);
@@ -499,7 +499,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
     virtual long _DypTrul(void);
-    virtual PTRUL _PtrulNew(PGraphicsObjectBlock pgcb);
+    virtual PTextRuler _PtrulNew(PGraphicsObjectBlock pgcb);
     virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
@@ -614,15 +614,15 @@ class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
 /***************************************************************************
     The ruler for a rich text document.
 ***************************************************************************/
-typedef class TRUL *PTRUL;
-#define TRUL_PAR GraphicsObject
-#define kclsTRUL 'TRUL'
-class TRUL : public TRUL_PAR
+typedef class TextRuler *PTextRuler;
+#define TextRuler_PAR GraphicsObject
+#define kclsTextRuler 'TRUL'
+class TextRuler : public TextRuler_PAR
 {
     RTCLASS_DEC
 
   protected:
-    TRUL(GraphicsObjectBlock *pgcb) : TRUL_PAR(pgcb)
+    TextRuler(GraphicsObjectBlock *pgcb) : TextRuler_PAR(pgcb)
     {
     }
 
