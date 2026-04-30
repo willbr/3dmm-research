@@ -8,9 +8,9 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    Here's the TMPL chunk tree (* means more than one chunk can go here):
+    Here's the Template chunk tree (* means more than one chunk can go here):
 
-    TMPL - template flags
+    Template - template flags
      |
      +--GLPI (chid 0) - parent IDs (BODY part hierarchy)
      |
@@ -43,7 +43,7 @@
     body part of an actor, such as a leg or head.  The CPS tells what
     BRender model to use for the body part for this cel and what matrix to
     use to orient it to its parent body part.  Each time the cel number is
-    changed, TMPL reads each CPS of the new cel and updates each body part
+    changed, Template reads each CPS of the new cel and updates each body part
     to use the new model and transformation matrix.
 
     About the GGCM: it is indexed by body part set, and tells how many
@@ -67,7 +67,7 @@
 ASSERTNAME
 
 RTCLASS(ActionDefinition)
-RTCLASS(TMPL)
+RTCLASS(Template)
 
 /***************************************************************************
     Create a new action
@@ -308,26 +308,26 @@ void ActionDefinition::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    A PFNRPO (chunky resource reader function) to read TMPL objects.
+    A PFNRPO (chunky resource reader function) to read Template objects.
 ***************************************************************************/
-bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    TMPL *ptmpl;
+    Template *ptmpl;
     ChildChunkIdentification kid;
 
-    *pcb = pblck->Cb(fTrue); // estimate TMPL size (not a good estimate)
+    *pcb = pblck->Cb(fTrue); // estimate Template size (not a good estimate)
     if (pvNil == ppbaco)
         return fTrue;
 
     if (pcrf->Pcfl()->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
         ptmpl = NewObj ThreeDText;
     else
-        ptmpl = NewObj TMPL;
+        ptmpl = NewObj Template;
     if (pvNil == ptmpl || !ptmpl->_FInit(pcrf->Pcfl(), ctg, cno))
     {
         ReleasePpo(&ptmpl);
@@ -344,15 +344,15 @@ bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     else
     {
         *pcb =
-            size(TMPL) + ptmpl->_pglibactPar->CbOnFile() + ptmpl->_pglibset->CbOnFile() + ptmpl->_pggcmid->CbOnFile();
+            size(Template) + ptmpl->_pglibactPar->CbOnFile() + ptmpl->_pglibset->CbOnFile() + ptmpl->_pggcmid->CbOnFile();
     }
     return fTrue;
 }
 
 /***************************************************************************
-    Read a TMPL from a chunk
+    Read a Template from a chunk
 ***************************************************************************/
-bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool Template::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
 
@@ -385,7 +385,7 @@ bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for ThreeDTexts.
 ***************************************************************************/
-bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
+bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -393,7 +393,7 @@ bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 
     TemplateOnFile tmplf;
 
-    // Add TMPL chunk
+    // Add Template chunk
     tmplf.bo = kboCur;
     tmplf.osk = koskCur;
     tmplf.xaRest = _xaRest;
@@ -412,9 +412,9 @@ bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 }
 
 /***************************************************************************
-    Read a TMPL from a chunk
+    Read a Template from a chunk
 ***************************************************************************/
-bool TMPL::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
@@ -447,7 +447,7 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     _pglibset = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == _pglibset)
         return fFalse;
-    Assert(_pglibset->CbEntry() == size(short), "Bad TMPL _pglibset!");
+    Assert(_pglibset->CbEntry() == size(short), "Bad Template _pglibset!");
     if (kboOther == bo)
         SwapBytesRgsw(_pglibset->QvGet(0), _pglibset->IvMac());
 
@@ -489,8 +489,8 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     _pggcmid = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == _pggcmid)
         return fFalse;
-    Assert(_pggcmid->CbFixed() == size(long), "Bad TMPL _pggcmid");
-    Assert(_pggcmid->IvMac() == _cbset, "Bad TMPL _pggcmid");
+    Assert(_pggcmid->CbFixed() == size(long), "Bad Template _pggcmid");
+    Assert(_pggcmid->IvMac() == _cbset, "Bad Template _pggcmid");
     if (kboOther == bo)
     {
         for (ibset = 0; ibset < _cbset; ibset++)
@@ -500,7 +500,7 @@ bool TMPL::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
         }
     }
     return fTrue;
-// REVIEW *****: temp code until Pete converts our TMPL content
+// REVIEW *****: temp code until Pete converts our Template content
 LBuildGgcm:
     long ikid;
     PCustomMaterial_CMTL pcmtl;
@@ -554,7 +554,7 @@ LBuildGgcm:
 /***************************************************************************
     Clean up and delete template
 ***************************************************************************/
-TMPL::~TMPL(void)
+Template::~Template(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pglibactPar);
@@ -563,11 +563,11 @@ TMPL::~TMPL(void)
 }
 
 /***************************************************************************
-    Return a list of all tags embedded in this TMPL.  Note that a
+    Return a list of all tags embedded in this Template.  Note that a
     return value of pvNil does not mean an error occurred, but simply that
-    this TMPL has no embedded tags.
+    this Template has no embedded tags.
 ***************************************************************************/
-PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
+PDynamicArray Template::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
@@ -578,7 +578,7 @@ PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumbe
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
         return ThreeDText::PgltagFetch(pcfl, ctg, cno, pfError);
     else
-        return pvNil; // standard TMPLs have no embedded tags
+        return pvNil; // standard Templates have no embedded tags
 }
 
 /***************************************************************************
@@ -588,7 +588,7 @@ PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumbe
     on each body part (no null pointers for bact->material).  So the user
     will never see a body part that isn't texture mapped.
 ***************************************************************************/
-PBODY TMPL::PbodyCreate(void)
+PBODY Template::PbodyCreate(void)
 {
     AssertThis(0);
     PBODY pbody = BODY::PbodyNew(_pglibactPar, _pglibset);
@@ -604,7 +604,7 @@ PBODY TMPL::PbodyCreate(void)
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
-bool TMPL::FGetActnName(long anid, PString pstn)
+bool Template::FGetActnName(long anid, PString pstn)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -620,7 +620,7 @@ bool TMPL::FGetActnName(long anid, PString pstn)
 /***************************************************************************
     Reads an ActionDefinition chunk from disk
 ***************************************************************************/
-PActionDefinition TMPL::_PactnFetch(long anid)
+PActionDefinition Template::_PactnFetch(long anid)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -641,7 +641,7 @@ PActionDefinition TMPL::_PactnFetch(long anid)
 /***************************************************************************
     Reads a Model chunk from disk
 ***************************************************************************/
-PModel TMPL::_PmodlFetch(ChildChunkID chidModl)
+PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
 
@@ -662,7 +662,7 @@ PModel TMPL::_PmodlFetch(ChildChunkID chidModl)
     matrices for the given cel of the given action.  Also returns the
     distance to the next cel in *pdwr.
 ***************************************************************************/
-bool TMPL::FSetActnCel(BODY *pbody, long anid, long celn, BRS *pdwr)
+bool Template::FSetActnCel(BODY *pbody, long anid, long celn, BRS *pdwr)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -733,7 +733,7 @@ LEnd:
 /***************************************************************************
     Retrieves the distance travelled by cel celn of action anid.
 ***************************************************************************/
-bool TMPL::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
+bool Template::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -758,7 +758,7 @@ bool TMPL::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
 /***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
-bool TMPL::FGetCcelActn(long anid, long *pccel)
+bool Template::FGetCcelActn(long anid, long *pccel)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -777,7 +777,7 @@ bool TMPL::FGetCcelActn(long anid, long *pccel)
 /***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
-bool TMPL::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag)
+bool Template::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -804,7 +804,7 @@ bool TMPL::FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag)
 /***************************************************************************
     Retrieves the distance travelled by cel celn of action anid.
 ***************************************************************************/
-bool TMPL::FGetGrfactn(long anid, ulong *pgrfactn)
+bool Template::FGetGrfactn(long anid, ulong *pgrfactn)
 {
     AssertThis(0);
     AssertIn(anid, 0, _cactn);
@@ -823,7 +823,7 @@ bool TMPL::FGetGrfactn(long anid, ulong *pgrfactn)
 /***************************************************************************
     Get orientation for template when actor has no path
 ***************************************************************************/
-void TMPL::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
+void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
 {
     AssertThis(0);
     AssertVarMem(pxa);
@@ -838,7 +838,7 @@ void TMPL::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
 /***************************************************************************
     Puts default costume on pbody
 ***************************************************************************/
-bool TMPL::FSetDefaultCost(BODY *pbody)
+bool Template::FSetDefaultCost(BODY *pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -876,7 +876,7 @@ LEnd:
 /***************************************************************************
     Returns the number of custom materials available for ibset
 ***************************************************************************/
-long TMPL::CcmidOfBset(long ibset)
+long Template::CcmidOfBset(long ibset)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -887,7 +887,7 @@ long TMPL::CcmidOfBset(long ibset)
 /***************************************************************************
     Returns the icmid'th CMID available for ibset
 ***************************************************************************/
-long TMPL::CmidOfBset(long ibset, long icmid)
+long Template::CmidOfBset(long ibset, long icmid)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -903,7 +903,7 @@ long TMPL::CmidOfBset(long ibset, long icmid)
     Tells whether ibset holds accessories by checking to see if one of
     its costumes has model children.
 ***************************************************************************/
-bool TMPL::FBsetIsAccessory(long ibset)
+bool Template::FBsetIsAccessory(long ibset)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -929,7 +929,7 @@ bool TMPL::FBsetIsAccessory(long ibset)
     if ibset is the parent of an accessory, that accessory is returned in
     *pibsetAcc.
 ***************************************************************************/
-bool TMPL::FIbsetAccOfIbset(long ibset, long *pibsetAcc)
+bool Template::FIbsetAccOfIbset(long ibset, long *pibsetAcc)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _cbset);
@@ -977,7 +977,7 @@ bool TMPL::FIbsetAccOfIbset(long ibset, long *pibsetAcc)
     See if cmid1 and cmid2 are for the same accessory by comparing child
     model chunks
 ***************************************************************************/
-bool TMPL::FSameAccCmids(long cmid1, long cmid2)
+bool Template::FSameAccCmids(long cmid1, long cmid2)
 {
     AssertThis(0);
 
@@ -993,9 +993,9 @@ bool TMPL::FSameAccCmids(long cmid1, long cmid2)
 }
 
 /***************************************************************************
-    Get a custom material.  The cmid is really the chid under the TMPL.
+    Get a custom material.  The cmid is really the chid under the Template.
 ***************************************************************************/
-PCustomMaterial_CMTL TMPL::PcmtlFetch(long cmid)
+PCustomMaterial_CMTL Template::PcmtlFetch(long cmid)
 {
     AssertThis(0);
     AssertIn(cmid, 0, _ccmid);
@@ -1015,7 +1015,7 @@ PCustomMaterial_CMTL TMPL::PcmtlFetch(long cmid)
 /***************************************************************************
     Puts the template's name into pstn
 ***************************************************************************/
-void TMPL::GetName(PString pstn)
+void Template::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1025,14 +1025,14 @@ void TMPL::GetName(PString pstn)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TMPL.
+    Assert the validity of the Template.
 ***************************************************************************/
-void TMPL::AssertValid(ulong grftmpl)
+void Template::AssertValid(ulong grftmpl)
 {
     long ibset;
     long ccmid;
 
-    TMPL_PAR::AssertValid(fobjAllocated);
+    Template_PAR::AssertValid(fobjAllocated);
     AssertPo(_pglibactPar, 0);
     AssertPo(_pglibset, 0);
     AssertPo(_pggcmid, 0);
@@ -1048,12 +1048,12 @@ void TMPL::AssertValid(ulong grftmpl)
 }
 
 /***************************************************************************
-    Mark memory used by the TMPL
+    Mark memory used by the Template
 ***************************************************************************/
-void TMPL::MarkMem(void)
+void Template::MarkMem(void)
 {
     AssertThis(0);
-    TMPL_PAR::MarkMem();
+    Template_PAR::MarkMem();
     MarkMemObj(_pglibactPar);
     MarkMemObj(_pglibset);
     MarkMemObj(_pggcmid);

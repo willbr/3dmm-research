@@ -8,24 +8,24 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    ThreeDText, the 3-D Text class, is a derived class of TMPL.  Most clients
-    (Actor, Movie, etc) can treat ThreeDTexts like regular TMPLs.  But they have
+    ThreeDText, the 3-D Text class, is a derived class of Template.  Most clients
+    (Actor, Movie, etc) can treat ThreeDTexts like regular Templates.  But they have
     some extra functionality and work internally very differently from
-    TMPLs.  Chunkwise, all the information for a ThreeDText is in the TMPL
+    Templates.  Chunkwise, all the information for a ThreeDText is in the Template
     chunk or the single ThreeDText child chunk:
 
-    TMPL // template info
+    Template // template info
      |
      |
      +---ThreeDText  (chid 0) // ThreeDText-specific info (shape and tag to ThreeDFont)
 
-    In addition to the usual TMPL fields, ThreeDTexts have a _tagTdf and a _tdts.
+    In addition to the usual Template fields, ThreeDTexts have a _tagTdf and a _tdts.
     _tagTdf tells what font to use for the ThreeDText, and _tdts tells what shape
     to draw the ThreeDText in.  ThreeDTexts on file are very small, so it is practical to
     store them in the user's document.
 
     Rather than fetching ActionDefinitions and the default costume from child chunks
-    of the TMPL, ThreeDTexts generate them in memory and store them in _pactnCache
+    of the Template, ThreeDTexts generate them in memory and store them in _pactnCache
     and _pmtrlDefault.  _pactnCache keeps a copy of the last requested
     action so that it doesn't have to be continuously recomputed.
 
@@ -42,7 +42,7 @@ ASSERTNAME
 
 RTCLASS(ThreeDText)
 
-const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under TMPL chunk
+const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under Template chunk
 
 // All actions have a step size of kdwrStep, except tdaWalk
 const BRS kdwrStepWalk = BR_SCALAR(1.0); // step size for walk action
@@ -65,7 +65,7 @@ bool ThreeDText::FSetActionNames(PStringTable_GST pgstAction)
 
 /****************************************
     3-D Text On File...this gets put in
-    a child chunk of a TMPL
+    a child chunk of a Template
 ****************************************/
 struct ThreeDTextF
 {
@@ -139,7 +139,7 @@ PThreeDText ThreeDText::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
 
     // This is a bit of a hack, but it makes life easier.  Without it,
     // the code would have to deal with body part sets with no body
-    // parts in them, and TMPL and BODY would have problems with that
+    // parts in them, and Template and BODY would have problems with that
     // (for one thing, they would compute _cbset incorrectly).
     if (ptdt->_stn.Cch() == 0)
     {
@@ -160,7 +160,7 @@ PThreeDText ThreeDText::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
 }
 
 /***************************************************************************
-    Read the generic TMPL info and the ThreeDText-specific info (tdts and tagTdf),
+    Read the generic Template info and the ThreeDText-specific info (tdts and tagTdf),
     then call _FInitLists to build the rest of the ThreeDText.
 ***************************************************************************/
 bool ThreeDText::_FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl)
@@ -405,7 +405,7 @@ PDynamicArray ThreeDText::_PglibsetBuild(void)
 }
 
 /***************************************************************************
-    Build the costume GeneralGroup for TMPL creation.  For ThreeDTexts, the costume is
+    Build the costume GeneralGroup for Template creation.  For ThreeDTexts, the costume is
     simple: all body part sets get cmid 0.
 ***************************************************************************/
 PGeneralGroup ThreeDText::_PggcmidBuild(void)
@@ -634,7 +634,7 @@ bool ThreeDText::FChange(PString pstn, long tdts, PTAG ptagTdf)
 
     // This is a bit of a hack, but it makes life easier.  Without it,
     // the code would have to deal with body part sets with no body
-    // parts in them, and TMPL and BODY would have problems with that
+    // parts in them, and Template and BODY would have problems with that
     // (for one thing, they would compute _cbset incorrectly).
     if (_stn.Cch() == 0)
     {
@@ -710,7 +710,7 @@ PCustomMaterial_CMTL ThreeDText::PcmtlFetch(long cmid)
 }
 
 /***************************************************************************
-    Write the ThreeDText out as a TMPL hierarchy.
+    Write the ThreeDText out as a Template hierarchy.
 ***************************************************************************/
 bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {

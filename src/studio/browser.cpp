@@ -2602,7 +2602,7 @@ bool BrowserAction::FBuildGst(PScene pscen)
     AssertThis(0);
 
     String stn;
-    PTMPL ptmpl;
+    PTemplate ptmpl;
     long cactn;
     long iactn;
     PStringTable_GST pgst;

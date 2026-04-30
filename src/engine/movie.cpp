@@ -358,7 +358,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
 
     //
     // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
-    // serious cache-coherency problems otherwise.  TMPL data is not
+    // serious cache-coherency problems otherwise.  Template data is not
     // read-only, and chunk numbers change over time.
     //
     pmvie->_pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
@@ -1029,7 +1029,7 @@ bool Movie::FIsIaridTdt(long iarid)
  *
  * Parameters:
  *   arid - The arid to set.
- *   ptag - Pointer to the TMPL tag.
+ *   ptag - Pointer to the Template tag.
  *
  * Returns:
  *	 none
@@ -2401,7 +2401,7 @@ bool Movie::_FMakeCrfValid(void)
 
     //
     // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
-    // serious cache-coherency problems otherwise.  TMPL data is not
+    // serious cache-coherency problems otherwise.  Template data is not
     // read-only, and chunk numbers change over time.
     //
     _pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
@@ -2761,7 +2761,7 @@ bool Movie::_FDoGarbageCollection(PChunkyFile pcfl)
 
 /****************************************************
  *
- * Removes all Material_MTRL and TMPL chunks that are not
+ * Removes all Material_MTRL and Template chunks that are not
  * referenced by any actors in this movie.
  *
  * Parameters:
@@ -2832,7 +2832,7 @@ bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
             }
             else if (kctgTmpl == cki.ctg)
             {
-                pfnrpo = TMPL::FReadTmpl;
+                pfnrpo = Template::FReadTmpl;
             }
             else
             {

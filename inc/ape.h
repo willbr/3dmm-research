@@ -55,7 +55,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
 
   protected:
     PWorld _pbwld;       // BRender world to draw actor in
-    PTMPL _ptmpl;       // Template (or ThreeDText) of the actor being previewed
+    PTemplate _ptmpl;       // Template (or ThreeDText) of the actor being previewed
     PBODY _pbody;       // Body of the actor being previewed
     ActorPreviewEntityTool _apet;         // Currently selected tool
     PDynamicArray _pglgms;        // What materials are attached to what body part sets
@@ -73,7 +73,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     ActorPreviewEntity(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
-    bool _FInit(PTMPL ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca);
+    bool _FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca);
     void _InitView(void);
     void _SetScale(void);
     void _UpdateView(void);
@@ -82,7 +82,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
-    static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTMPL ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
+    static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
     ~ActorPreviewEntity();
 
     void SetToolMtrl(PTAG ptagMtrl);

@@ -148,7 +148,7 @@ class MovieView : public MovieView_PAR
 
     long _anidTool;     // Current selected action
     TAG _tagTool;       // Tag associated with current tool.
-    PTMPL _ptmplTool;   // Template associated with the current tool.
+    PTemplate _ptmplTool;   // Template associated with the current tool.
     long _cmidTool;     // Costume id associated with current tool.
     bool _fCyclingCels; // Are we cycling cels in toolRecord?
     long _tool;         // Current tool loaded on cursor
@@ -783,7 +783,7 @@ class Movie : public Movie_PAR
     long AridSelected(void);
     bool FGetName(long arid, PString pstn);      // Return the name of a specific actor.
     bool FNameActr(long arid, PString pstn);     // Set the name of this actor.
-    void ChangeActrTag(long arid, PTAG ptag); // Change an actor's TMPL tag
+    void ChangeActrTag(long arid, PTAG ptag); // Change an actor's Template tag
     long CmactrMac(void)
     {
         AssertThis(0);
