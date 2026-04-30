@@ -24,7 +24,7 @@
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
-    BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
 
@@ -150,7 +150,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         ckiRoot.cno = _pmvie->Pscen()->Pbkgd()->Cno();
 
         thumSelect = _pmvie->Pscen()->Pbkgd()->Icam();
-        pbrwd = (PBrowserDisplay)(BRWC::PbrwcNew(_pcrm));
+        pbrwd = (PBrowserDisplay)(BrowserCamera::PbrwcNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;
 
@@ -158,7 +158,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         if (pbrcn == pvNil)
             pbrcn = NewObj BRCNL;
         AssertDo(_pmvie->Pscen()->FGetTagBkgd(&tag), "Missing background event");
-        if (!((PBRWC)pbrwd)->FInit(pcmd, kbwsChid, thumSelect, tag.sid, ckiRoot, kctgCath, this, (PBRCNL)pbrcn))
+        if (!((PBrowserCamera)pbrwd)->FInit(pcmd, kbwsChid, thumSelect, tag.sid, ckiRoot, kctgCath, this, (PBRCNL)pbrcn))
         {
             goto LFail;
         }
@@ -393,7 +393,7 @@ PBrowserContext Studio::_PbrcnFromBrwdid(long brwdid)
  * thumSelect is an index and a chid
  *
  **************************************************************************/
-void BRWC::_ApplySelection(long thumSelect, long sid)
+void BrowserCamera::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
