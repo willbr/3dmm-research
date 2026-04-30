@@ -213,10 +213,10 @@ CREATE_SCRIPT("Background -- create")
 	//
 	// Initialize all globally accessible state information
 	//
-	.fAllSceneDoors = fFalse;
-	.fAllActorDoors = fFalse;
-	.fAllSoundDoors = fFalse;
-	.fAllTextDoors = fFalse;
+	.fAllSceneDoors = fTrue;
+	.fAllActorDoors = fTrue;
+	.fAllSoundDoors = fTrue;
+	.fAllTextDoors = fTrue;
 	.fEnableActorTools = fFalse;
 	.fEnableSceneTools = fFalse;
 	.fEnableTboxTools = fFalse;
