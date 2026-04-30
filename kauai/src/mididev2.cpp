@@ -15,7 +15,7 @@ ASSERTNAME
 
 RTCLASS(MidiStreamCached)
 RTCLASS(MSQUE)
-RTCLASS(MDPS)
+RTCLASS(MidiStreamPlayer)
 RTCLASS(MSMIX)
 RTCLASS(MISI)
 RTCLASS(WMS)
@@ -27,14 +27,14 @@ const long kcbMaxWmsBuffer = 0x0000FFFF / size(MEV) * size(MEV);
 /***************************************************************************
     Constructor for the midi stream device.
 ***************************************************************************/
-MDPS::MDPS(void)
+MidiStreamPlayer::MidiStreamPlayer(void)
 {
 }
 
 /***************************************************************************
     Destructor for the midi stream device.
 ***************************************************************************/
-MDPS::~MDPS(void)
+MidiStreamPlayer::~MidiStreamPlayer(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pmsmix);
@@ -42,21 +42,21 @@ MDPS::~MDPS(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MDPS.
+    Assert the validity of a MidiStreamPlayer.
 ***************************************************************************/
-void MDPS::AssertValid(ulong grf)
+void MidiStreamPlayer::AssertValid(ulong grf)
 {
-    MDPS_PAR::AssertValid(0);
+    MidiStreamPlayer_PAR::AssertValid(0);
     AssertPo(_pmsmix, 0);
 }
 
 /***************************************************************************
-    Mark memory for the MDPS.
+    Mark memory for the MidiStreamPlayer.
 ***************************************************************************/
-void MDPS::MarkMem(void)
+void MidiStreamPlayer::MarkMem(void)
 {
     AssertValid(0);
-    MDPS_PAR::MarkMem();
+    MidiStreamPlayer_PAR::MarkMem();
     MarkMemObj(_pmsmix);
 }
 #endif // DEBUG
@@ -64,11 +64,11 @@ void MDPS::MarkMem(void)
 /***************************************************************************
     Static method to create the midi stream device.
 ***************************************************************************/
-PMDPS MDPS::PmdpsNew(void)
+PMidiStreamPlayer MidiStreamPlayer::PmdpsNew(void)
 {
-    PMDPS pmdps;
+    PMidiStreamPlayer pmdps;
 
-    if (pvNil == (pmdps = NewObj MDPS))
+    if (pvNil == (pmdps = NewObj MidiStreamPlayer))
         return pvNil;
 
     if (!pmdps->_FInit())
@@ -81,11 +81,11 @@ PMDPS MDPS::PmdpsNew(void)
 /***************************************************************************
     Initialize the midi stream device.
 ***************************************************************************/
-bool MDPS::_FInit(void)
+bool MidiStreamPlayer::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (!MDPS_PAR::_FInit())
+    if (!MidiStreamPlayer_PAR::_FInit())
         return fFalse;
 
     // Create the midi stream output scheduler
@@ -101,7 +101,7 @@ bool MDPS::_FInit(void)
 /***************************************************************************
     Allocate a new midi stream queue.
 ***************************************************************************/
-PSoundQueue MDPS::_PsnqueNew(void)
+PSoundQueue MidiStreamPlayer::_PsnqueNew(void)
 {
     AssertThis(0);
 
@@ -111,7 +111,7 @@ PSoundQueue MDPS::_PsnqueNew(void)
 /***************************************************************************
     Activate or deactivate the midi stream device.
 ***************************************************************************/
-void MDPS::_Suspend(bool fSuspend)
+void MidiStreamPlayer::_Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -121,7 +121,7 @@ void MDPS::_Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume.
 ***************************************************************************/
-void MDPS::SetVlm(long vlm)
+void MidiStreamPlayer::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -131,7 +131,7 @@ void MDPS::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long MDPS::VlmCur(void)
+long MidiStreamPlayer::VlmCur(void)
 {
     AssertThis(0);
 

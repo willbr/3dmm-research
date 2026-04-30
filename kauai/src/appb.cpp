@@ -611,7 +611,7 @@ bool ApplicationBase::_FInitSound(long wav)
     }
 
     // create the midi playback device - use the stream one
-    if (pvNil != (psndv = MDPS::PmdpsNew()))
+    if (pvNil != (psndv = MidiStreamPlayer::PmdpsNew()))
     {
         vpsndm->FAddDevice(kctgMidi, psndv);
         ReleasePpo(&psndv);

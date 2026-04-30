@@ -20,10 +20,10 @@ typedef class MSMIX *PMSMIX;
 /***************************************************************************
     The midi player using a Midi stream.
 ***************************************************************************/
-typedef class MDPS *PMDPS;
-#define MDPS_PAR SNDMQ
-#define kclsMDPS 'MDPS'
-class MDPS : public MDPS_PAR
+typedef class MidiStreamPlayer *PMidiStreamPlayer;
+#define MidiStreamPlayer_PAR SNDMQ
+#define kclsMidiStreamPlayer 'MDPS'
+class MidiStreamPlayer : public MidiStreamPlayer_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -32,15 +32,15 @@ class MDPS : public MDPS_PAR
   protected:
     PMSMIX _pmsmix;
 
-    MDPS(void);
+    MidiStreamPlayer(void);
 
     virtual bool _FInit(void);
     virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:
-    static PMDPS PmdpsNew(void);
-    ~MDPS(void);
+    static PMidiStreamPlayer PmdpsNew(void);
+    ~MidiStreamPlayer(void);
 
     // inherited methods
     virtual void SetVlm(long vlm);
