@@ -15,7 +15,7 @@ ASSERTNAME
 
 RTCLASS(EDCB)
 RTCLASS(EditControlSingleLine)
-RTCLASS(EDPL)
+RTCLASS(EditControlPlain)
 RTCLASS(EditControlMultiLine)
 RTCLASS(EditControlMultiLineWrap)
 
@@ -869,7 +869,7 @@ void EDCB::MarkMem(void)
 /***************************************************************************
     Constructor for plain edit control.
 ***************************************************************************/
-EDPL::EDPL(PEditParameter pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
+EditControlPlain::EditControlPlain(PEditParameter pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
 {
     // inputs are all asserted in AssertThis
     _onn = pedpar->_onn;
@@ -885,14 +885,14 @@ EDPL::EDPL(PEditParameter pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
 }
 
 /***************************************************************************
-    Initialize the EDPL.
+    Initialize the EditControlPlain.
 ***************************************************************************/
-bool EDPL::_FInit(void)
+bool EditControlPlain::_FInit(void)
 {
     AssertBaseThis(0);
     RC rc;
 
-    if (!EDPL_PAR::_FInit())
+    if (!EditControlPlain_PAR::_FInit())
         return fFalse;
 
     // get the _dypLine value
@@ -906,7 +906,7 @@ bool EDPL::_FInit(void)
 /***************************************************************************
     Return the yp for the given line.
 ***************************************************************************/
-long EDPL::_YpFromLn(long ln)
+long EditControlPlain::_YpFromLn(long ln)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac() + 1);
@@ -927,7 +927,7 @@ long EDPL::_YpFromLn(long ln)
 /***************************************************************************
     Return which line the yp belongs in.
 ***************************************************************************/
-long EDPL::_LnFromYp(long yp)
+long EditControlPlain::_LnFromYp(long yp)
 {
     AssertThis(0);
     long yp0 = _YpFromLn(0);
@@ -937,7 +937,7 @@ long EDPL::_LnFromYp(long yp)
 /***************************************************************************
     Hilite the rectangle.
 ***************************************************************************/
-void EDPL::_HiliteRc(PGraphicsEnvironment pgnv, RC *prc)
+void EditControlPlain::_HiliteRc(PGraphicsEnvironment pgnv, RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -947,7 +947,7 @@ void EDPL::_HiliteRc(PGraphicsEnvironment pgnv, RC *prc)
 /***************************************************************************
     Return the xp for the given character.
 ***************************************************************************/
-long EDPL::_XpFromIch(long ich)
+long EditControlPlain::_XpFromIch(long ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac() + 1);
@@ -984,7 +984,7 @@ long EDPL::_XpFromIch(long ich)
     (for traditional selection). If fClosest is false, it finds the character
     that the xp value is over.
 ***************************************************************************/
-long EDPL::_IchFromLnXp(long ln, long xp, bool fClosest)
+long EditControlPlain::_IchFromLnXp(long ln, long xp, bool fClosest)
 {
     AssertThis(0);
     long xpT;
@@ -1018,7 +1018,7 @@ long EDPL::_IchFromLnXp(long ln, long xp, bool fClosest)
 /***************************************************************************
     Draw the given line in the given GraphicsEnvironment.
 ***************************************************************************/
-void EDPL::_DrawLine(PGraphicsEnvironment pgnv, long ln)
+void EditControlPlain::_DrawLine(PGraphicsEnvironment pgnv, long ln)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac() + 1);
@@ -1053,7 +1053,7 @@ void EDPL::_DrawLine(PGraphicsEnvironment pgnv, long ln)
 /***************************************************************************
     Return the origin for drawing text.
 ***************************************************************************/
-long EDPL::_XpOrigin(void)
+long EditControlPlain::_XpOrigin(void)
 {
     AssertThis(0);
     RC rc;
@@ -1074,9 +1074,9 @@ long EDPL::_XpOrigin(void)
 /***************************************************************************
     Assert the validity of a single-line edit control.
 ***************************************************************************/
-void EDPL::AssertValid(ulong grf)
+void EditControlPlain::AssertValid(ulong grf)
 {
-    EDPL_PAR::AssertValid(0);
+    EditControlPlain_PAR::AssertValid(0);
     Assert(vntl.FValidOnn(_onn), 0);
     AssertIn(_dypFont, 1, kswMax);
     AssertIn(_tah, 0, tahLim);
@@ -1091,7 +1091,7 @@ void EDPL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for single line edit control.
 ***************************************************************************/
-EditControlSingleLine::EditControlSingleLine(PEditParameter pedpar) : EDPL(pedpar)
+EditControlSingleLine::EditControlSingleLine(PEditParameter pedpar) : EditControlPlain(pedpar)
 {
     AssertBaseThis(0);
 }
@@ -1292,7 +1292,7 @@ void EditControlSingleLine::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EditControlMultiLine::EditControlMultiLine(PEditParameter pedpar) : EDPL(pedpar)
+EditControlMultiLine::EditControlMultiLine(PEditParameter pedpar) : EditControlPlain(pedpar)
 {
     _bsm.SetMinGrow(256);
 }

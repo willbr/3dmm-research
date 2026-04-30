@@ -137,10 +137,10 @@ class EDCB : public EDCB_PAR
     Plain edit control - virtual class supporting single line and multi
     line edit controls with a single font.
 ***************************************************************************/
-typedef class EDPL *PEDPL;
-#define EDPL_PAR EDCB
-#define kclsEDPL 'EDPL'
-class EDPL : public EDPL_PAR
+typedef class EditControlPlain *PEditControlPlain;
+#define EditControlPlain_PAR EDCB
+#define kclsEditControlPlain 'EDPL'
+class EditControlPlain : public EditControlPlain_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -156,7 +156,7 @@ class EDPL : public EDPL_PAR
     AbstractColor _acrBack;
     long _dypLine;
 
-    EDPL(PEditParameter pedpar);
+    EditControlPlain(PEditParameter pedpar);
 
     // methods of EDCB
     virtual bool _FInit(void);
@@ -178,7 +178,7 @@ class EDPL : public EDPL_PAR
 const long kcchMaxEdsl = kcchMaxStn;
 
 typedef class EditControlSingleLine *PEditControlSingleLine;
-#define EditControlSingleLine_PAR EDPL
+#define EditControlSingleLine_PAR EditControlPlain
 #define kclsEditControlSingleLine 'EDSL'
 class EditControlSingleLine : public EditControlSingleLine_PAR
 {
@@ -198,7 +198,7 @@ class EditControlSingleLine : public EditControlSingleLine_PAR
     virtual long _LnMac(void);
     virtual bool _FFilterCh(achar ch);
 
-    // methods of EDPL
+    // methods of EditControlPlain
     virtual bool _FLockLn(long ln, achar **pprgch, long *pcch);
     virtual void _UnlockLn(long ln, achar *prgch);
 
@@ -218,7 +218,7 @@ class EditControlSingleLine : public EditControlSingleLine_PAR
     Multi line edit control.
 ***************************************************************************/
 typedef class EditControlMultiLine *PEditControlMultiLine;
-#define EditControlMultiLine_PAR EDPL
+#define EditControlMultiLine_PAR EditControlPlain
 #define kclsEditControlMultiLine 'EDML'
 class EditControlMultiLine : public EditControlMultiLine_PAR
 {
@@ -240,7 +240,7 @@ class EditControlMultiLine : public EditControlMultiLine_PAR
     virtual long _LnMac(void);
     virtual bool _FFilterCh(achar ch);
 
-    // methods of EDPL
+    // methods of EditControlPlain
     virtual bool _FLockLn(long ln, achar **pprgch, long *pcch);
     virtual void _UnlockLn(long ln, achar *prgch);
 
