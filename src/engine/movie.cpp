@@ -8385,7 +8385,7 @@ bool MovieView::FCmdClip(PCommand pcmd)
             ReleasePpo(&pdocb);
         }
         else if (((ptbox != pvNil) && ptbox->FTextSelected()) ||
-                 ((pcmd->cid == cidPasteTool) && vpclip->FGetFormat(kclsTCLP)))
+                 ((pcmd->cid == cidPasteTool) && vpclip->FGetFormat(kclsTextBoxClipboard)))
         {
             if (ptbox != pvNil)
             {
@@ -8431,7 +8431,7 @@ bool MovieView::FCmdClip(PCommand pcmd)
         if (fOV)
         {
 
-            if (vpclip->FGetFormat(kclsTCLP) || vpclip->FGetFormat(kclsActorClipboard))
+            if (vpclip->FGetFormat(kclsTextBoxClipboard) || vpclip->FGetFormat(kclsActorClipboard))
             {
                 FDoClip(toolPasteObject);
             }
@@ -8522,9 +8522,9 @@ bool MovieView::FDoClip(long tool)
     case toolPasteObject:
         if (!vpclip->FDocIsClip(pvNil))
         {
-            PTCLP ptclp;
+            PTextBoxClipboard ptclp;
 
-            if (vpclip->FGetFormat(kclsTCLP, (PDocumentBase *)&ptclp))
+            if (vpclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
             {
                 AssertPo(ptclp, 0);
 
@@ -8731,7 +8731,7 @@ bool MovieView::_FPaste(PClipboardObject pclip)
     AssertPo(pclip, 0);
 
     PActorClipboard paclp;
-    PTCLP ptclp;
+    PTextBoxClipboard ptclp;
     PActor pactr;
     bool fRet;
 
@@ -8767,7 +8767,7 @@ bool MovieView::_FPaste(PClipboardObject pclip)
         return fRet;
     }
 
-    if (pclip->FGetFormat(kclsTCLP, (PDocumentBase *)&ptclp))
+    if (pclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
     {
         AssertPo(ptclp, 0);
 

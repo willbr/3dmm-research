@@ -23,9 +23,9 @@
 
     Cut/Copy/Paste Stuff
 
-        Clipboard object (TCLP)
+        Clipboard object (TextBoxClipboard)
 
-            DocumentBase ---> TCLP
+            DocumentBase ---> TextBoxClipboard
 
 ***************************************************************************/
 
@@ -321,11 +321,11 @@ class TextBox : public TextBox_PAR
 // Textbox document for clipping
 //
 //
-typedef class TCLP *PTCLP;
+typedef class TextBoxClipboard *PTextBoxClipboard;
 
-#define TCLP_PAR DocumentBase
-#define kclsTCLP 'TCLP'
-class TCLP : public TCLP_PAR
+#define TextBoxClipboard_PAR DocumentBase
+#define kclsTextBoxClipboard 'TCLP'
+class TextBoxClipboard : public TextBoxClipboard_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -333,7 +333,7 @@ class TCLP : public TCLP_PAR
 
   protected:
     PTBOX _ptbox; // Text box copy.
-    TCLP(void)
+    TextBoxClipboard(void)
     {
     }
 
@@ -341,8 +341,8 @@ class TCLP : public TCLP_PAR
     //
     // Constructors and destructors
     //
-    static PTCLP PtclpNew(PTBOX ptbox);
-    ~TCLP(void);
+    static PTextBoxClipboard PtclpNew(PTBOX ptbox);
+    ~TextBoxClipboard(void);
 
     //
     // Pasting

@@ -18,7 +18,7 @@ ASSERTNAME
 RTCLASS(TextBox)
 RTCLASS(TBXG)
 RTCLASS(TBXB)
-RTCLASS(TCLP)
+RTCLASS(TextBoxClipboard)
 
 //
 // How many pixels a scrolling text box scrolls by
@@ -1437,7 +1437,7 @@ bool TBXG::FCmdClip(PCommand pcmd)
     {
 
     case cidPaste:
-        _FDoClip(vpclip->FGetFormat(kclsTCLP) ? toolPasteObject : toolPasteText);
+        _FDoClip(vpclip->FGetFormat(kclsTextBoxClipboard) ? toolPasteObject : toolPasteText);
         break;
 
     case cidCut:
@@ -1497,7 +1497,7 @@ bool TBXG::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
         //
         // Now check if clipboard is a text box.
         //
-        if (!vpclip->FGetFormat(kclsTCLP))
+        if (!vpclip->FGetFormat(kclsTextBoxClipboard))
         {
             *pgrfeds = fedsDisable;
         }
@@ -1527,7 +1527,7 @@ bool TBXG::_FDoClip(long tool)
 
     PTBOX ptbox = (PTBOX)_pdocb;
     PTBOX ptboxDup;
-    PTCLP ptclp;
+    PTextBoxClipboard ptclp;
     Command cmd;
 
     AssertPo(ptbox, 0);
@@ -1552,7 +1552,7 @@ bool TBXG::_FDoClip(long tool)
 
     case toolPasteText:
 
-        if (!vpclip->FGetFormat(kclsActorClipboard) && !vpclip->FGetFormat(kclsTCLP))
+        if (!vpclip->FGetFormat(kclsActorClipboard) && !vpclip->FGetFormat(kclsTextBoxClipboard))
         {
             ClearPb(&cmd, size(Command));
             cmd.cid = cidPaste;
@@ -1580,7 +1580,7 @@ bool TBXG::_FDoClip(long tool)
         //
         // Create the clip board object
         //
-        ptclp = TCLP::PtclpNew(ptboxDup);
+        ptclp = TextBoxClipboard::PtclpNew(ptboxDup);
         AssertNilOrPo(ptclp, 0);
         if (ptclp == pvNil)
         {
@@ -1608,7 +1608,7 @@ bool TBXG::_FDoClip(long tool)
 
     case toolPasteObject:
 
-        if (vpclip->FGetFormat(kclsTCLP, (PDocumentBase *)&ptclp))
+        if (vpclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
         {
             AssertPo(ptclp, 0);
             bool fRet;
@@ -3655,7 +3655,7 @@ void TUNC::AssertValid(ulong grf)
 //
 //
 //
-// BEGIN TCLP
+// BEGIN TextBoxClipboard
 //
 //
 //
@@ -3666,7 +3666,7 @@ void TUNC::AssertValid(ulong grf)
  * Destructor for text box clipboard documents
  *
  **************************************************************************/
-TCLP::~TCLP(void)
+TextBoxClipboard::~TextBoxClipboard(void)
 {
     ReleasePpo(&_ptbox);
 }
@@ -3682,13 +3682,13 @@ TCLP::~TCLP(void)
  *  Pointer to a clipboard document, or pvNil if failure.
  *
  **************************************************************************/
-PTCLP TCLP::PtclpNew(PTBOX ptbox)
+PTextBoxClipboard TextBoxClipboard::PtclpNew(PTBOX ptbox)
 {
     AssertPo(ptbox, 0);
 
-    PTCLP ptclp;
+    PTextBoxClipboard ptclp;
 
-    ptclp = NewObj TCLP();
+    ptclp = NewObj TextBoxClipboard();
 
     if (ptclp == pvNil)
     {
@@ -3711,7 +3711,7 @@ PTCLP TCLP::PtclpNew(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool TCLP::FPaste(PScene pscen)
+bool TextBoxClipboard::FPaste(PScene pscen)
 {
     AssertThis(0);
     AssertPo(pscen, 0);
@@ -3754,7 +3754,7 @@ bool TCLP::FPaste(PScene pscen)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TCLP
+ * Mark memory used by the TextBoxClipboard
  *
  * Parameters:
  * 	None.
@@ -3763,16 +3763,16 @@ bool TCLP::FPaste(PScene pscen)
  *  None.
  *
  ****************************************************/
-void TCLP::MarkMem(void)
+void TextBoxClipboard::MarkMem(void)
 {
     AssertThis(0);
-    TCLP_PAR::MarkMem();
+    TextBoxClipboard_PAR::MarkMem();
     MarkMemObj(_ptbox);
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TCLP.
+ * Assert the validity of the TextBoxClipboard.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -3781,9 +3781,9 @@ void TCLP::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TCLP::AssertValid(ulong grf)
+void TextBoxClipboard::AssertValid(ulong grf)
 {
-    TCLP_PAR::AssertValid(fobjAllocated);
+    TextBoxClipboard_PAR::AssertValid(fobjAllocated);
     AssertPo(_ptbox, 0);
 }
 
