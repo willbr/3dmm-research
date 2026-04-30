@@ -89,7 +89,7 @@ RTCLASS(BrowserMusic)
 RTCLASS(BrowserRollCall)
 RTCLASS(BrowserImportSound)
 RTCLASS(BrowserContentList)
-RTCLASS(BCLS)
+RTCLASS(BrowserContentListWithStrings)
 RTCLASS(FNET)
 
 BEGIN_CMD_MAP(BrowserDisplay, KidspaceGraphicObject)
@@ -1102,7 +1102,7 @@ bool BrowserList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification 
         goto LFail;
 
     /* We passed the pglthd and pgst in, so no need to get them back before
-        releasing the BCLS */
+        releasing the BrowserContentListWithStrings */
     Assert(_pglthd->CactRef() > 1, "DynamicArray of THDs will be lost!");
 
     fRet = fTrue;
@@ -1422,7 +1422,7 @@ PBrowserContentList BrowserContentList::PbclNew(PChunkyResourceManager pcrm, Chu
     return pbcl;
 }
 
-bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd)
+bool BrowserContentListWithStrings::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
@@ -1435,7 +1435,7 @@ bool BCLS::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, Ch
         pgst->AddRef();
     _pgst = pgst;
 
-    if (!BCLS_PAR::_FInit(pcrm, pckiRoot, ctgContent, pglthd))
+    if (!BrowserContentListWithStrings_PAR::_FInit(pcrm, pckiRoot, ctgContent, pglthd))
         goto LFail;
 
     return fTrue;
@@ -1472,11 +1472,11 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd, PStringTable_GST pgst, bool fOnlineOnly)
+PBrowserContentListWithStrings BrowserContentListWithStrings::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd, PStringTable_GST pgst, bool fOnlineOnly)
 {
-    PBCLS pbcls;
+    PBrowserContentListWithStrings pbcls;
 
-    pbcls = NewObj BCLS;
+    pbcls = NewObj BrowserContentListWithStrings;
     if (pbcls == pvNil)
         goto LFail;
 
@@ -1702,7 +1702,7 @@ LFail:
     return fFalse;
 }
 
-bool BCLS::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
+bool BrowserContentListWithStrings::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1711,7 +1711,7 @@ bool BCLS::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *
     if (!_FSetNameGst(pcfl, pkid->cki.ctg, pkid->cki.cno))
         goto LFail;
 
-    if (!BCLS_PAR::_FAddGokdToThd(pcfl, sid, pkid))
+    if (!BrowserContentListWithStrings_PAR::_FAddGokdToThd(pcfl, sid, pkid))
         goto LFail;
 
     return fTrue;
@@ -1724,7 +1724,7 @@ LFail:
  * Save the name of the Par chunk in the Gst
  *
  ****************************************************/
-bool BCLS::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool BrowserContentListWithStrings::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1867,7 +1867,7 @@ bool BrowserNamedList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentifica
     AssertThis(0);
 
     bool fRet = fFalse;
-    PBCLS pbcls = pvNil;
+    PBrowserContentListWithStrings pbcls = pvNil;
 
     if (!fBuildGl)
     {
@@ -1882,12 +1882,12 @@ bool BrowserNamedList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentifica
     //
     Assert(ctg != cnoNil || pcki->ctg == ctgNil, "Invalid browser call");
 
-    pbcls = BCLS::PbclsNew(pcrm, pcki, ctg, _pglthd, _pgst);
+    pbcls = BrowserContentListWithStrings::PbclsNew(pcrm, pcki, ctg, _pglthd, _pgst);
     if (pbcls == pvNil)
         goto LFail;
 
     /* We passed the pglthd and pgst in, so no need to get them back before
-        releasing the BCLS */
+        releasing the BrowserContentListWithStrings */
     Assert(_pglthd->CactRef() > 1, "DynamicArray of THDs will be lost!");
     Assert(_pgst->CactRef() > 1, "StringTable_GST will be lost!");
 
@@ -3551,9 +3551,9 @@ void BrowserContentList::MarkMem(void)
     MarkMemObj(_pglthd);
 }
 
-void BCLS::MarkMem(void)
+void BrowserContentListWithStrings::MarkMem(void)
 {
-    BCLS_PAR::MarkMem();
+    BrowserContentListWithStrings_PAR::MarkMem();
     MarkMemObj(_pgst);
 }
 
@@ -3582,9 +3582,9 @@ void BrowserListContext::AssertValid(ulong grfobj)
     BrowserContentList AssertValid
 
  ****************************************************/
-void BCLS::AssertValid(ulong grf)
+void BrowserContentListWithStrings::AssertValid(ulong grf)
 {
-    BCLS_PAR::AssertValid(grf);
+    BrowserContentListWithStrings_PAR::AssertValid(grf);
     AssertPo(_pgst, 0);
 }
 void BrowserContentList::AssertValid(ulong grf)
