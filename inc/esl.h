@@ -10,7 +10,7 @@
 
     BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> ESL (generic easel)
                                           |
-                                          +---> ESLT (text easel)
+                                          +---> EaselText (text easel)
                                           |
                                           +---> ESLC (costume easel)
                                           |
@@ -58,7 +58,7 @@ class ESL : public ESL_PAR
     bool FCmdDismiss(PCommand pcmd); // Handles both OK and Cancel
 };
 
-typedef class ESLT *PESLT; // SpletterNameEditor needs this
+typedef class EaselText *PEaselText; // SpletterNameEditor needs this
 /****************************************
     Spletter Name Editor class.  It's
     derived from EDSL, which is a Kauai
@@ -74,7 +74,7 @@ class SpletterNameEditor : public SpletterNameEditor_PAR
     MARKMEM
 
   protected:
-    PESLT _peslt; // easel to notify when text changes
+    PEaselText _peslt; // easel to notify when text changes
 
   protected:
     SpletterNameEditor(PEDPAR pedpar) : EDSL(pedpar)
@@ -82,22 +82,22 @@ class SpletterNameEditor : public SpletterNameEditor_PAR
     }
 
   public:
-    static PSpletterNameEditor PsneNew(PEDPAR pedpar, PESLT peslt, PString pstnInit);
+    static PSpletterNameEditor PsneNew(PEDPAR pedpar, PEaselText peslt, PString pstnInit);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin);
 };
 
 /****************************************
     The text easel class
 ****************************************/
-typedef class ESLT *PESLT;
-#define ESLT_PAR ESL
-#define kclsESLT 'ESLT'
-class ESLT : public ESLT_PAR
+typedef class EaselText *PEaselText;
+#define EaselText_PAR ESL
+#define kclsEaselText 'ESLT'
+class EaselText : public EaselText_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(ESLT)
+    CMD_MAP_DEC(EaselText)
 
   protected:
     PMovie _pmvie; // Movie that this TDT is in
@@ -112,16 +112,16 @@ class ESLT : public ESLT_PAR
     PShuffler _psflTdts;
 
   protected:
-    ESLT(PGraphicsObjectBlock pgcb) : ESL(pgcb)
+    EaselText(PGraphicsObjectBlock pgcb) : ESL(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew);
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLT PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew = pvNil, long tdtsNew = tdtsNil,
+    static PEaselText PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew = pvNil, long tdtsNew = tdtsNil,
                           PTAG ptagTdfNew = pvNil);
-    ~ESLT(void);
+    ~EaselText(void);
 
     bool FCmdRotate(PCommand pcmd);
     bool FCmdTransmogrify(PCommand pcmd);
