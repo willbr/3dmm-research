@@ -992,7 +992,7 @@ bool Actor::_FDoAevCore(long iaev)
     AssertIn(iaev, 0, _pggaev->IvMac());
 
     Base aev;
-    COST cost;
+    BodyCostume cost;
 
     _pggaev->GetFixed(iaev, &aev);
     if (aev.nfrm != _nfrmCur)

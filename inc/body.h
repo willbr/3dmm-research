@@ -124,14 +124,14 @@ class BODY : public BODY_PAR
 };
 
 /****************************************
-    The COST class, which is used to
+    The BodyCostume class, which is used to
     save and restore a BODY's entire
     costume for unwinding purposes
 ****************************************/
-typedef class COST *PCOST;
-#define COST_PAR BASE
-#define kclsCOST 'COST'
-class COST : public COST_PAR
+typedef class BodyCostume *PBodyCostume;
+#define BodyCostume_PAR BASE
+#define kclsBodyCostume 'COST'
+class BodyCostume : public BodyCostume_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -145,8 +145,8 @@ class COST : public COST_PAR
     void _Clear(void); // release _prgpo and material references
 
   public:
-    COST(void);
-    ~COST(void);
+    BodyCostume(void);
+    ~BodyCostume(void);
 
     bool FGet(PBODY pbody); // read and store BODY's costume
 

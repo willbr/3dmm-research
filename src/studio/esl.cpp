@@ -251,7 +251,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     AssertNilOrVarMem(ptagTdfNew);
 
     GraphicsObjectBlock gcb;
-    COST cost;
+    BodyCostume cost;
     String stn;
     bool fNewTdt = (pactr == pvNil);
     PTDT ptdt;
@@ -871,7 +871,7 @@ bool EaselActor::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor
     AssertPo(pactr, 0);
 
     GraphicsObjectBlock gcb;
-    COST cost;
+    BodyCostume cost;
     String stn;
     EditParameter edpar;
 

@@ -115,7 +115,7 @@
 ASSERTNAME
 
 RTCLASS(BODY)
-RTCLASS(COST)
+RTCLASS(BodyCostume)
 
 // Specification of hilite color.  REVIEW *****: should these
 // values (or the PBMTL itself?) be passed in by the client?
@@ -1261,7 +1261,7 @@ void BODY::MarkMem(void)
 /***************************************************************************
     Create a blank costume -- no materials are attached yet
 ***************************************************************************/
-COST::COST(void)
+BodyCostume::BodyCostume(void)
 {
     TrashVar(&_cbset);
     _prgpo = pvNil;
@@ -1270,7 +1270,7 @@ COST::COST(void)
 /***************************************************************************
     Destroy a costume
 ***************************************************************************/
-COST::~COST(void)
+BodyCostume::~BodyCostume(void)
 {
     AssertBaseThis(0);
     _Clear();
@@ -1279,7 +1279,7 @@ COST::~COST(void)
 /***************************************************************************
     Release all arrays and references
 ***************************************************************************/
-void COST::_Clear(void)
+void BodyCostume::_Clear(void)
 {
     AssertBaseThis(0);
 
@@ -1297,7 +1297,7 @@ void COST::_Clear(void)
 /***************************************************************************
     Get a costume from a BODY
 ***************************************************************************/
-bool COST::FGet(BODY *pbody)
+bool BodyCostume::FGet(BODY *pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -1338,7 +1338,7 @@ bool COST::FGet(BODY *pbody)
     default costume, then restores the old costume to the BODY as much as
     is appropriate.
 ***************************************************************************/
-void COST::Set(PBODY pbody, bool fAllowDifferentShape)
+void BodyCostume::Set(PBODY pbody, bool fAllowDifferentShape)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -1370,9 +1370,9 @@ void COST::Set(PBODY pbody, bool fAllowDifferentShape)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the COST.
+    Assert the validity of the BodyCostume.
 ***************************************************************************/
-void COST::AssertValid(ulong grf)
+void BodyCostume::AssertValid(ulong grf)
 {
     long ibset;
     BASE *po;
@@ -1392,9 +1392,9 @@ void COST::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the COST
+    Mark memory used by the BodyCostume
 ***************************************************************************/
-void COST::MarkMem(void)
+void BodyCostume::MarkMem(void)
 {
     AssertThis(0);
 
