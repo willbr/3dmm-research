@@ -77,12 +77,12 @@ class SpletterNameEditor : public SpletterNameEditor_PAR
     PEaselText _peslt; // easel to notify when text changes
 
   protected:
-    SpletterNameEditor(PEDPAR pedpar) : EDSL(pedpar)
+    SpletterNameEditor(PEditParameter pedpar) : EDSL(pedpar)
     {
     }
 
   public:
-    static PSpletterNameEditor PsneNew(PEDPAR pedpar, PEaselText peslt, PString pstnInit);
+    static PSpletterNameEditor PsneNew(PEditParameter pedpar, PEaselText peslt, PString pstnInit);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin);
 };
 

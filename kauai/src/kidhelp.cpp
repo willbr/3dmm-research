@@ -702,7 +702,7 @@ bool TopicGraphicsObject::_FInit(void)
     long hid;
     CHP chp;
     RC rc;
-    EDPAR edpar;
+    EditParameter edpar;
     String stn;
     PTextDocument ptxhd = Ptxhd();
 

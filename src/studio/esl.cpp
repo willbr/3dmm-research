@@ -311,7 +311,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     // Set up the edit box
     if (!FBuildGcb(&gcb, kidSpltEditBox, CommandHandler::HidUnique()))
         return fFalse;
-    EDPAR edpar(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
+    EditParameter edpar(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
                 vpappb->DypTextDef(), tahLeft, tavCenter);
     _psne = SpletterNameEditor::PsneNew(&edpar, this, &stn);
     if (pvNil == _psne)
@@ -712,7 +712,7 @@ void EaselText::MarkMem(void)
     Create a new spletter name editor with initial string pstnInit.  Text
     change notifications will be sent to peslt.
 ***************************************************************************/
-PSpletterNameEditor SpletterNameEditor::PsneNew(PEDPAR pedpar, PEaselText peslt, PString pstnInit)
+PSpletterNameEditor SpletterNameEditor::PsneNew(PEditParameter pedpar, PEaselText peslt, PString pstnInit)
 {
     AssertVarMem(pedpar);
     AssertBasePo(peslt, 0);
@@ -873,7 +873,7 @@ bool EaselActor::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor
     GraphicsObjectBlock gcb;
     COST cost;
     String stn;
-    EDPAR edpar;
+    EditParameter edpar;
 
     if (!EaselActor_PAR::_FInit(prca, kidEasel))
         return fFalse;
@@ -1666,7 +1666,7 @@ bool EaselRecord::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool 
     AssertPo(pstnNew, 0);
 
     GraphicsObjectBlock gcb;
-    EDPAR edpar;
+    EditParameter edpar;
 
     _pmvie = pmvie;
     _fSpeech = fSpeech;
