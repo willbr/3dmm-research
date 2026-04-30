@@ -50,10 +50,10 @@ typedef HMIDIOUT HMS;
 /***************************************************************************
     This is the midi stream cached object.
 ***************************************************************************/
-typedef class MDWS *PMDWS;
-#define MDWS_PAR BaseCacheableObject
-#define kclsMDWS 'MDWS'
-class MDWS : public MDWS_PAR
+typedef class MidiStreamCached *PMidiStreamCached;
+#define MidiStreamCached_PAR BaseCacheableObject
+#define kclsMidiStreamCached 'MDWS'
+class MidiStreamCached : public MidiStreamCached_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -63,14 +63,14 @@ class MDWS : public MDWS_PAR
     PDynamicArray _pglmev;
     ulong _dts;
 
-    MDWS(void);
+    MidiStreamCached(void);
     bool _FInit(PMIDS pmids);
 
   public:
     static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PMDWS PmdwsRead(PDataBlock pblck);
+    static PMidiStreamCached PmdwsRead(PDataBlock pblck);
 
-    ~MDWS(void);
+    ~MidiStreamCached(void);
 
     ulong Dts(void)
     {
@@ -116,7 +116,7 @@ class MSQUE : public MSQUE_PAR
     static PMSQUE PmsqueNew(PMSMIX pmsmix);
     ~MSQUE(void);
 
-    void Notify(PMDWS pmdws);
+    void Notify(PMidiStreamCached pmdws);
 };
 
 /***************************************************************************
@@ -136,7 +136,7 @@ class MSMIX : public MSMIX_PAR
     struct MSOS
     {
         PMSQUE pmsque;  // the "channel" or queue that the sound is on
-        PMDWS pmdws;    // the sound
+        PMidiStreamCached pmdws;    // the sound
         long sii;       // its sound id (for a priority tie breaker)
         long spr;       // its priority
         long cactPlay;  // how many times to play the sound
@@ -166,13 +166,13 @@ class MSMIX : public MSMIX_PAR
     MSMIX(void);
     bool _FInit(void);
     void _StopStream(void);
-    bool _FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip);
+    bool _FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip);
     void _Restart(bool fNew = fFalse);
     void _WaitForBuffers(void);
     void _SubmitBuffers(ulong tsCur);
 
     static void _MidiProc(ulong luUser, void *pvData, ulong lUserDataa);
-    void _Notify(void *pvData, PMDWS pmdws);
+    void _Notify(void *pvData, PMidiStreamCached pmdws);
 
     static ulong __stdcall _ThreadProc(void *pv);
     ulong _LuThread(void);
@@ -181,7 +181,7 @@ class MSMIX : public MSMIX_PAR
     static PMSMIX PmsmixNew(void);
     ~MSMIX(void);
 
-    bool FPlay(PMSQUE pmsque, PMDWS pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
+    bool FPlay(PMSQUE pmsque, PMidiStreamCached pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
                ulong dtsStart = 0, long vlm = kvlmFull);
 
     void Suspend(bool fSuspend);

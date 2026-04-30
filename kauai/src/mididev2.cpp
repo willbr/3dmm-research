@@ -13,7 +13,7 @@
 #include "mdev2pri.h"
 ASSERTNAME
 
-RTCLASS(MDWS)
+RTCLASS(MidiStreamCached)
 RTCLASS(MSQUE)
 RTCLASS(MDPS)
 RTCLASS(MSMIX)
@@ -141,35 +141,35 @@ long MDPS::VlmCur(void)
 /***************************************************************************
     Constructor for a midi stream object.
 ***************************************************************************/
-MDWS::MDWS(void)
+MidiStreamCached::MidiStreamCached(void)
 {
 }
 
 /***************************************************************************
     Destructor for a Win95 midi stream object.
 ***************************************************************************/
-MDWS::~MDWS(void)
+MidiStreamCached::~MidiStreamCached(void)
 {
     ReleasePpo(&_pglmev);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MDWS.
+    Assert the validity of a MidiStreamCached.
 ***************************************************************************/
-void MDWS::AssertValid(ulong grf)
+void MidiStreamCached::AssertValid(ulong grf)
 {
-    MDWS_PAR::AssertValid(0);
+    MidiStreamCached_PAR::AssertValid(0);
     AssertPo(_pglmev, 0);
 }
 
 /***************************************************************************
-    Mark memory for the MDWS.
+    Mark memory for the MidiStreamCached.
 ***************************************************************************/
-void MDWS::MarkMem(void)
+void MidiStreamCached::MarkMem(void)
 {
     AssertValid(0);
-    MDWS_PAR::MarkMem();
+    MidiStreamCached_PAR::MarkMem();
     MarkMemObj(_pglmev);
 }
 #endif // DEBUG
@@ -177,13 +177,13 @@ void MDWS::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MDWS::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool MidiStreamCached::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PMDWS pmdws;
+    PMidiStreamCached pmdws;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)
@@ -199,7 +199,7 @@ bool MDWS::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
         TrashVar(pcb);
         return fFalse;
     }
-    *pcb = pmdws->_pglmev->IvMac() * size(MEV) + size(MDWS);
+    *pcb = pmdws->_pglmev->IvMac() * size(MEV) + size(MidiStreamCached);
 
     *ppbaco = pmdws;
     return fTrue;
@@ -208,17 +208,17 @@ bool MDWS::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
 /***************************************************************************
     Read a midi stream from the given block.
 ***************************************************************************/
-PMDWS MDWS::PmdwsRead(PDataBlock pblck)
+PMidiStreamCached MidiStreamCached::PmdwsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 
     PMIDS pmids;
-    PMDWS pmdws;
+    PMidiStreamCached pmdws;
 
     if (pvNil == (pmids = MIDS::PmidsRead(pblck)))
         return pvNil;
 
-    if (pvNil != (pmdws = NewObj MDWS) && !pmdws->_FInit(pmids))
+    if (pvNil != (pmdws = NewObj MidiStreamCached) && !pmdws->_FInit(pmids))
         ReleasePpo(&pmdws);
 
     ReleasePpo(&pmids);
@@ -228,9 +228,9 @@ PMDWS MDWS::PmdwsRead(PDataBlock pblck)
 }
 
 /***************************************************************************
-    Initialize the MDWS with the midi data in *pmids.
+    Initialize the MidiStreamCached with the midi data in *pmids.
 ***************************************************************************/
-bool MDWS::_FInit(PMIDS pmids)
+bool MidiStreamCached::_FInit(PMIDS pmids)
 {
     AssertPo(pmids, 0);
 
@@ -303,7 +303,7 @@ bool MDWS::_FInit(PMIDS pmids)
 /***************************************************************************
     Return a locked pointer to the data.
 ***************************************************************************/
-void *MDWS::PvLockData(long *pcb)
+void *MidiStreamCached::PvLockData(long *pcb)
 {
     AssertThis(0);
     AssertVarMem(pcb);
@@ -315,7 +315,7 @@ void *MDWS::PvLockData(long *pcb)
 /***************************************************************************
     Balance a call to PvLockData.
 ***************************************************************************/
-void MDWS::UnlockData(void)
+void MidiStreamCached::UnlockData(void)
 {
     AssertThis(0);
 
@@ -415,14 +415,14 @@ void MSQUE::_Leave(void)
 }
 
 /***************************************************************************
-    Fetch the given sound chunk as an MDWS.
+    Fetch the given sound chunk as an MidiStreamCached.
 ***************************************************************************/
 PBaseCacheableObject MSQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return prca->PbacoFetch(ctg, cno, &MDWS::FReadMdws);
+    return prca->PbacoFetch(ctg, cno, &MidiStreamCached::FReadMdws);
 }
 
 /***************************************************************************
@@ -443,7 +443,7 @@ void MSQUE::_Queue(long isndinMin)
             if (0 < sndin.cactPause)
                 break;
 
-            if (0 == sndin.cactPause && _pmsmix->FPlay(this, (PMDWS)sndin.pbaco, sndin.sii, sndin.spr, sndin.cactPlay,
+            if (0 == sndin.cactPause && _pmsmix->FPlay(this, (PMidiStreamCached)sndin.pbaco, sndin.sii, sndin.spr, sndin.cactPlay,
                                                        sndin.dtsStart, sndin.vlm))
             {
                 _tsStart = TsCurrentSystem() - sndin.dtsStart;
@@ -494,7 +494,7 @@ void MSQUE::_ResumeQueue(long isndinMin)
     Called by the MSMIX to tell us that the indicated sound is done.
     WARNING: this is called in an auxillary thread.
 ***************************************************************************/
-void MSQUE::Notify(PMDWS pmdws)
+void MSQUE::Notify(PMidiStreamCached pmdws)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -707,7 +707,7 @@ long MSMIX::VlmCur(void)
 /***************************************************************************
     Play the given midi stream from the indicated queue.
 ***************************************************************************/
-bool MSMIX::FPlay(PMSQUE pmsque, PMDWS pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
+bool MSMIX::FPlay(PMSQUE pmsque, PMidiStreamCached pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
 {
     AssertThis(0);
     AssertPo(pmsque, 0);
@@ -907,7 +907,7 @@ void MSMIX::_SubmitBuffers(ulong tsCur)
     Seek into the pmdws the given amount of time, and accumulate key events
     in _pglmevKey.
 ***************************************************************************/
-bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
+bool MSMIX::_FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip)
 {
     AssertPo(pmdws, 0);
     AssertVarMem(pcbSkip);
@@ -1069,11 +1069,11 @@ bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
 void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
 {
     PMSMIX pmsmix;
-    PMDWS pmdws;
+    PMidiStreamCached pmdws;
 
     pmsmix = (PMSMIX)luUser;
     AssertPo(pmsmix, 0);
-    pmdws = (PMDWS)lUserDataa;
+    pmdws = (PMidiStreamCached)lUserDataa;
     AssertNilOrPo(pmdws, 0);
 
     pmsmix->_Notify(pvData, pmdws);
@@ -1082,7 +1082,7 @@ void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
 /***************************************************************************
     The midi stream is done with the given header.
 ***************************************************************************/
-void MSMIX::_Notify(void *pvData, PMDWS pmdws)
+void MSMIX::_Notify(void *pvData, PMidiStreamCached pmdws)
 {
     AssertNilOrPo(pmdws, 0);
     MSOS msos;
