@@ -6906,6 +6906,15 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
             // Skip the rest of the mousedown selection flow; existing behavior resumes
             // at the switch on Tool() below if the user goes on to drag.
         }
+        else if (fShiftSelectTool && pactrDup != pvNil &&
+                 Pmvie()->Pscen()->CactrSelected() >= 2 && Pmvie()->Pscen()->FIsActrSelected(pactrDup))
+        {
+            // Plain click (no shift) on an actor that is already part of an existing
+            // multi-selection: do NOT collapse the selection via SelectActr, so a
+            // click-drag moves the whole group. Without this, SelectActr would clear
+            // the extras list and the drag would only translate the clicked actor.
+            Pmvie()->Pbwld()->MarkDirty();
+        }
         else
         {
             //
