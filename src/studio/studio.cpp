@@ -1886,7 +1886,7 @@ bool Studio::FCmdActorEaselOpen(PCommand pcmd)
     }
     else
     {
-        ESLA::PeslaNew(_pcrm, _pmvie, pactr);
+        EaselActor::PeslaNew(_pcrm, _pmvie, pactr);
     }
 
     vapp.EndLongOp();
