@@ -702,7 +702,7 @@ TTW *TTW::PttwNew(void)
     rc.ypTop = 0;
     rc.ypBottom = 100;
     rc.Offset(5, 0);
-    EDPAR edpar(khidEdit, pttw, fgobNil, kginDefault, &rc, pvNil, vntl.OnnSystem(), fontNil, 12, tahLeft, tavTop,
+    EditParameter edpar(khidEdit, pttw, fgobNil, kginDefault, &rc, pvNil, vntl.OnnSystem(), fontNil, 12, tahLeft, tavTop,
                 kacrBlue, kacrYellow);
     pedpl = EDMW::PedmwNew(&edpar);
     if (pvNil != pedpl)
@@ -2133,7 +2133,7 @@ bool FrameTesterApp::FCmdTextEdit(PCommand pcmd)
 PTED TED::PtedNew(void)
 {
     RC rcRel, rcAbs;
-    EDPAR edpar;
+    EditParameter edpar;
     PTED pted;
     String stn;
     long i, j;

@@ -25,7 +25,7 @@ const long kdxpInsetSled = 2;
 /***************************************************************************
     Constructor for edit control parameter block.
 ***************************************************************************/
-EDPAR::EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+EditParameter::EditParameter(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
              long tah, long tav, AbstractColor acrFore, AbstractColor acrBack, long cmhl)
     : _gcb(hid, pgob, grfgob, gin, prcAbs, prcRel)
 {
@@ -40,9 +40,9 @@ EDPAR::EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs,
 }
 
 /***************************************************************************
-    Set the data in the EDPAR.
+    Set the data in the EditParameter.
 ***************************************************************************/
-void EDPAR::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
+void EditParameter::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
                 long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack, long cmhl)
 {
     _gcb.Set(hid, pgob, grfgob, gin, prcAbs, prcRel);
@@ -57,9 +57,9 @@ void EDPAR::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcA
 }
 
 /***************************************************************************
-    Set the font portion of the EDPAR.
+    Set the font portion of the EditParameter.
 ***************************************************************************/
-void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack)
+void EditParameter::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack)
 {
     _onn = onn;
     _grfont = grfont;
@@ -869,7 +869,7 @@ void EDCB::MarkMem(void)
 /***************************************************************************
     Constructor for plain edit control.
 ***************************************************************************/
-EDPL::EDPL(PEDPAR pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
+EDPL::EDPL(PEditParameter pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
 {
     // inputs are all asserted in AssertThis
     _onn = pedpar->_onn;
@@ -1091,7 +1091,7 @@ void EDPL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for single line edit control.
 ***************************************************************************/
-EDSL::EDSL(PEDPAR pedpar) : EDPL(pedpar)
+EDSL::EDSL(PEditParameter pedpar) : EDPL(pedpar)
 {
     AssertBaseThis(0);
 }
@@ -1099,7 +1099,7 @@ EDSL::EDSL(PEDPAR pedpar) : EDPL(pedpar)
 /***************************************************************************
     Create a new EDSL (single line edit control).
 ***************************************************************************/
-PEDSL EDSL::PedslNew(PEDPAR pedpar)
+PEDSL EDSL::PedslNew(PEditParameter pedpar)
 {
     PEDSL pedsl;
 
@@ -1292,7 +1292,7 @@ void EDSL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EDML::EDML(PEDPAR pedpar) : EDPL(pedpar)
+EDML::EDML(PEditParameter pedpar) : EDPL(pedpar)
 {
     _bsm.SetMinGrow(256);
 }
@@ -1305,7 +1305,7 @@ EDML::~EDML(void)
 /***************************************************************************
     Create a new EDML (multi line edit control).
 ***************************************************************************/
-PEDML EDML::PedmlNew(PEDPAR pedpar)
+PEDML EDML::PedmlNew(PEditParameter pedpar)
 {
     PEDML pedml;
 
@@ -1637,14 +1637,14 @@ void EDML::MarkMem(void)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EDMW::EDMW(PEDPAR pedpar) : EDML(pedpar)
+EDMW::EDMW(PEditParameter pedpar) : EDML(pedpar)
 {
 }
 
 /***************************************************************************
     Create a new multi-line wrapping edit control.
 ***************************************************************************/
-PEDMW EDMW::PedmwNew(PEDPAR pedpar)
+PEDMW EDMW::PedmwNew(PEditParameter pedpar)
 {
     PEDMW pedmw;
 

@@ -17,8 +17,8 @@
 #define TEXT_H
 
 // edit control parameters
-typedef class EDPAR *PEDPAR;
-class EDPAR
+typedef class EditParameter *PEditParameter;
+class EditParameter
 {
   public:
     GraphicsObjectBlock _gcb;
@@ -31,10 +31,10 @@ class EDPAR
     AbstractColor _acrBack;
     long _cmhl;
 
-    EDPAR(void)
+    EditParameter(void)
     {
     }
-    EDPAR(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+    EditParameter(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
           long tah = tahLeft, long tav = tavTop, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrWhite, long cmhl = 0);
 
     void Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
@@ -156,7 +156,7 @@ class EDPL : public EDPL_PAR
     AbstractColor _acrBack;
     long _dypLine;
 
-    EDPL(PEDPAR pedpar);
+    EDPL(PEditParameter pedpar);
 
     // methods of EDCB
     virtual bool _FInit(void);
@@ -190,7 +190,7 @@ class EDSL : public EDSL_PAR
     long _cch;
     achar _rgch[kcchMaxEdsl];
 
-    EDSL(PEDPAR pedpar);
+    EDSL(PEditParameter pedpar);
 
     // methods of EDCB
     virtual long _LnFromIch(long ich);
@@ -203,7 +203,7 @@ class EDSL : public EDSL_PAR
     virtual void _UnlockLn(long ln, achar *prgch);
 
   public:
-    static PEDSL PedslNew(PEDPAR pedpar);
+    static PEDSL PedslNew(PEditParameter pedpar);
 
     virtual long IchMac(void);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin = kginDraw);
@@ -231,7 +231,7 @@ class EDML : public EDML_PAR
     MemoryByteStream _bsm;
     PDynamicArray _pglich;
 
-    EDML(PEDPAR pedpar);
+    EDML(PEditParameter pedpar);
 
     // methods of EDCB
     virtual bool _FInit(void);
@@ -249,7 +249,7 @@ class EDML : public EDML_PAR
     virtual bool _FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel);
 
   public:
-    static PEDML PedmlNew(PEDPAR pedpar);
+    static PEDML PedmlNew(PEditParameter pedpar);
     ~EDML(void);
 
     virtual long IchMac(void);
@@ -268,7 +268,7 @@ class EDMW : public EDMW_PAR
     RTCLASS_DEC
 
   protected:
-    EDMW(PEDPAR pedpar);
+    EDMW(PEditParameter pedpar);
 
     // methods EDMW
     virtual long _ClnEstimate(achar *prgch, long cch);
@@ -278,7 +278,7 @@ class EDMW : public EDMW_PAR
     virtual void _NewRc(void);
 
   public:
-    static PEDMW PedmwNew(PEDPAR pedpar);
+    static PEDMW PedmwNew(PEditParameter pedpar);
 };
 
 #endif //! TEXT_H
