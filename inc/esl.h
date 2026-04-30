@@ -8,19 +8,19 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> ESL (generic easel)
+    BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> Easel (generic easel)
                                           |
                                           +---> EaselText (text easel)
                                           |
-                                          +---> ESLC (costume easel)
+                                          +---> EaselC (costume easel)
                                           |
                                           +---> EaselListen (listener easel)
                                           |
                                           +---> EaselRecord (sound recording easel)
 
 ***************************************************************************/
-#ifndef ESL_H
-#define ESL_H
+#ifndef Easel_H
+#define Easel_H
 
 // Function to build a GraphicsObjectBlock to construct a child under a parent
 bool FBuildGcb(PGraphicsObjectBlock pgcb, long kidParent, long kidChild);
@@ -31,18 +31,18 @@ void SetGokState(long kid, long st);
 /*****************************
     The generic easel class
 *****************************/
-typedef class ESL *PESL;
-#define ESL_PAR KidspaceGraphicObject
-#define kclsESL 'ESL'
-class ESL : public ESL_PAR
+typedef class Easel *PEasel;
+#define Easel_PAR KidspaceGraphicObject
+#define kclsEasel 'ESL'
+class Easel : public Easel_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(ESL)
+    CMD_MAP_DEC(Easel)
 
   protected:
-    ESL(PGraphicsObjectBlock pgcb) : KidspaceGraphicObject(pgcb)
+    Easel(PGraphicsObjectBlock pgcb) : KidspaceGraphicObject(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel);
@@ -52,8 +52,8 @@ class ESL : public ESL_PAR
     }
 
   public:
-    static PESL PeslNew(PResourceCache prca, long kidParent, long hidEasel);
-    ~ESL(void);
+    static PEasel PeslNew(PResourceCache prca, long kidParent, long hidEasel);
+    ~Easel(void);
 
     bool FCmdDismiss(PCommand pcmd); // Handles both OK and Cancel
 };
@@ -90,7 +90,7 @@ class SpletterNameEditor : public SpletterNameEditor_PAR
     The text easel class
 ****************************************/
 typedef class EaselText *PEaselText;
-#define EaselText_PAR ESL
+#define EaselText_PAR Easel
 #define kclsEaselText 'ESLT'
 class EaselText : public EaselText_PAR
 {
@@ -112,7 +112,7 @@ class EaselText : public EaselText_PAR
     PShuffler _psflTdts;
 
   protected:
-    EaselText(PGraphicsObjectBlock pgcb) : ESL(pgcb)
+    EaselText(PGraphicsObjectBlock pgcb) : Easel(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew);
@@ -137,7 +137,7 @@ class EaselText : public EaselText_PAR
     The actor easel (costume changer) class
 ********************************************/
 typedef class EaselActor *PEaselActor;
-#define EaselActor_PAR ESL
+#define EaselActor_PAR Easel
 #define kclsEaselActor 'ESLA'
 class EaselActor : public EaselActor_PAR
 {
@@ -153,7 +153,7 @@ class EaselActor : public EaselActor_PAR
     PEDSL _pedsl; // Single-line edit control (for actor's name)
 
   protected:
-    EaselActor(PGraphicsObjectBlock pgcb) : ESL(pgcb)
+    EaselActor(PGraphicsObjectBlock pgcb) : Easel(pgcb)
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr);
@@ -213,7 +213,7 @@ class ListenerSound : public ListenerSound_PAR
     The listener easel class
 ****************************************/
 typedef class EaselListen *PEaselListen;
-#define EaselListen_PAR ESL
+#define EaselListen_PAR Easel
 #define kclsEaselListen 'ESLL'
 class EaselListen : public EaselListen_PAR
 {
@@ -233,7 +233,7 @@ class EaselListen : public EaselListen_PAR
     ListenerSound _lsndSfxMM;
 
   protected:
-    EaselListen(PGraphicsObjectBlock pgcb) : ESL(pgcb)
+    EaselListen(PGraphicsObjectBlock pgcb) : Easel(pgcb)
     {
     }
 
@@ -252,7 +252,7 @@ class EaselListen : public EaselListen_PAR
     The sound recording easel class
 ****************************************/
 typedef class EaselRecord *PEaselRecord;
-#define EaselRecord_PAR ESL
+#define EaselRecord_PAR Easel
 #define kclsEaselRecord 'ESLR'
 class EaselRecord : public EaselRecord_PAR
 {
@@ -272,7 +272,7 @@ class EaselRecord : public EaselRecord_PAR
     ulong _tsStartRec; // Time at which we started recording
 
   protected:
-    EaselRecord(PGraphicsObjectBlock pgcb) : ESL(pgcb), _clok(HidUnique())
+    EaselRecord(PGraphicsObjectBlock pgcb) : Easel(pgcb), _clok(HidUnique())
     {
     }
     bool _FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew);
@@ -288,4 +288,4 @@ class EaselRecord : public EaselRecord_PAR
     bool FCmdUpdateMeter(PCommand pcmd);
 };
 
-#endif ESL_H
+#endif Easel_H

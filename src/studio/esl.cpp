@@ -9,7 +9,7 @@
     Listener Easel: *****
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    ESL is the base class for all easels.  It handles cidEaselOk and
+    Easel is the base class for all easels.  It handles cidEaselOk and
     cidEaselCancel commands, and calls the virtual _FAcceptChanges()
     function for cidEaselOk.
 
@@ -26,7 +26,7 @@ const long kdtimMeterUpdate = kdtimSecond / 10; // interval to update meter
 const long kcsampSec = 11025;                   // sampling rate for recorder easel
 long csampSec;                                  // sampling rate for recorder easel
 
-RTCLASS(ESL)
+RTCLASS(Easel)
 RTCLASS(EaselText)
 RTCLASS(EaselActor)
 RTCLASS(SpletterNameEditor)
@@ -71,29 +71,29 @@ void SetGokState(long kid, long st)
 //
 //
 //
-//  ESL (generic easel) stuff begins here
+//  Easel (generic easel) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(ESL, KidspaceGraphicObject)
-ON_CID_GEN(cidEaselOk, &ESL::FCmdDismiss, pvNil)
-ON_CID_GEN(cidEaselCancel, &ESL::FCmdDismiss, pvNil)
+BEGIN_CMD_MAP(Easel, KidspaceGraphicObject)
+ON_CID_GEN(cidEaselOk, &Easel::FCmdDismiss, pvNil)
+ON_CID_GEN(cidEaselCancel, &Easel::FCmdDismiss, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new easel
 ***************************************************************************/
-PESL ESL::PeslNew(PResourceCache prca, long kidParent, long kidEasel)
+PEasel Easel::PeslNew(PResourceCache prca, long kidParent, long kidEasel)
 {
     AssertPo(prca, 0);
 
     GraphicsObjectBlock gcb;
-    PESL pesl;
+    PEasel pesl;
 
     if (!FBuildGcb(&gcb, kidParent, kidEasel))
         return pvNil;
-    pesl = NewObj ESL(&gcb);
+    pesl = NewObj Easel(&gcb);
     if (pvNil == pesl)
         return pvNil;
     if (!pesl->_FInit(prca, kidEasel))
@@ -109,12 +109,12 @@ PESL ESL::PeslNew(PResourceCache prca, long kidParent, long kidEasel)
 /***************************************************************************
     Initialize the easel and make it visible
 ***************************************************************************/
-bool ESL::_FInit(PResourceCache prca, long kidEasel)
+bool Easel::_FInit(PResourceCache prca, long kidEasel)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
 
-    if (!ESL_PAR::_FInit(vpapp->Pkwa(), kidEasel, prca))
+    if (!Easel_PAR::_FInit(vpapp->Pkwa(), kidEasel, prca))
         return fFalse;
     if (!_FEnterState(ksnoInit))
         return fFalse;
@@ -129,7 +129,7 @@ bool ESL::_FInit(PResourceCache prca, long kidEasel)
 /***************************************************************************
     Clean up and delete this easel
 ***************************************************************************/
-ESL::~ESL(void)
+Easel::~Easel(void)
 {
     AssertBaseThis(0);
 
@@ -140,7 +140,7 @@ ESL::~ESL(void)
 /***************************************************************************
     Dismiss and delete this easel
 ***************************************************************************/
-bool ESL::FCmdDismiss(PCommand pcmd)
+bool Easel::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -165,20 +165,20 @@ bool ESL::FCmdDismiss(PCommand pcmd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESL.
+    Assert the validity of the Easel.
 ***************************************************************************/
-void ESL::AssertValid(ulong grf)
+void Easel::AssertValid(ulong grf)
 {
-    ESL_PAR::AssertValid(fobjAllocated);
+    Easel_PAR::AssertValid(fobjAllocated);
 }
 
 /***************************************************************************
-    Mark memory used by the ESL
+    Mark memory used by the Easel
 ***************************************************************************/
-void ESL::MarkMem(void)
+void Easel::MarkMem(void)
 {
     AssertThis(0);
-    ESL_PAR::MarkMem();
+    Easel_PAR::MarkMem();
 }
 #endif // DEBUG
 
@@ -190,7 +190,7 @@ void ESL::MarkMem(void)
 //
 //
 
-BEGIN_CMD_MAP(EaselText, ESL)
+BEGIN_CMD_MAP(EaselText, Easel)
 ON_CID_GEN(cidEaselRotate, &EaselText::FCmdRotate, pvNil)
 ON_CID_GEN(cidEaselTransmogrify, &EaselText::FCmdTransmogrify, pvNil)
 ON_CID_GEN(cidEaselFont, &EaselText::FCmdStartPopup, pvNil)
@@ -825,7 +825,7 @@ void SpletterNameEditor::MarkMem(void)
 //
 //
 
-BEGIN_CMD_MAP(EaselActor, ESL)
+BEGIN_CMD_MAP(EaselActor, Easel)
 ON_CID_GEN(cidEaselRotate, &EaselActor::FCmdRotate, pvNil)
 ON_CID_GEN(cidEaselCostumes, &EaselActor::FCmdTool, pvNil)
 ON_CID_GEN(cidEaselAccessories, &EaselActor::FCmdTool, pvNil)
@@ -1056,7 +1056,7 @@ void EaselActor::MarkMem(void)
 //  speech sound
 //
 
-BEGIN_CMD_MAP(EaselListen, ESL)
+BEGIN_CMD_MAP(EaselListen, Easel)
 ON_CID_GEN(cidEaselVol, &EaselListen::FCmdVlm, pvNil)
 ON_CID_GEN(cidEaselPlay, &EaselListen::FCmdPlay, pvNil)
 END_CMD_MAP_NIL()
@@ -1620,7 +1620,7 @@ void ListenerSound::MarkMem(void)
 //
 //
 
-BEGIN_CMD_MAP(EaselRecord, ESL)
+BEGIN_CMD_MAP(EaselRecord, Easel)
 ON_CID_GEN(cidEaselRecord, &EaselRecord::FCmdRecord, pvNil)
 ON_CID_GEN(cidEaselPlay, &EaselRecord::FCmdPlay, pvNil)
 ON_CID_GEN(cidAlarm, &EaselRecord::FCmdUpdateMeter, pvNil)

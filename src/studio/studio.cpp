@@ -1878,7 +1878,7 @@ bool Studio::FCmdActorEaselOpen(PCommand pcmd)
 
     //
     // Start the easel.
-    // Note: easels are self-managing, so we don't need to keep the PESL
+    // Note: easels are self-managing, so we don't need to keep the PEasel
     //
     if (pactr->Ptmpl()->FIsTdt())
     {
