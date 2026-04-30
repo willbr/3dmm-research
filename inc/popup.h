@@ -11,7 +11,7 @@
 
     BASE ---> CommandHandler ---> GraphicsObject ---> KidspaceGraphicObject ---> BrowserDisplay ---> BrowserList ---> MenuPopup
                                           |
-                                          +------> BRWT ---> MenuPopupFont
+                                          +------> BrowserText ---> MenuPopupFont
 
 ***************************************************************************/
 #ifndef POPUP_H
@@ -52,7 +52,7 @@ class MenuPopup : public MenuPopup_PAR
 /************************************
     MenuPopupFont - Font popup menu class
 *************************************/
-#define MenuPopupFont_PAR BRWT
+#define MenuPopupFont_PAR BrowserText
 #define kclsMenuPopupFont 'mpft'
 typedef class MenuPopupFont *PMenuPopupFont;
 class MenuPopupFont : public MenuPopupFont_PAR
