@@ -40,11 +40,11 @@ RTCLASS(AMQUE)
 /***************************************************************************
     Constructor for a streamed block.
 ***************************************************************************/
-STBL::STBL(void)
+DataBlockStream::DataBlockStream(void)
 {
     AssertThisMem();
 
-    // WARNING: this is not allocated using our NewObj because STBL is not
+    // WARNING: this is not allocated using our NewObj because DataBlockStream is not
     // based on BASE. So fields are not automatically initialized to 0.
     _cactRef = 1;
     _ib = 0;
@@ -53,15 +53,15 @@ STBL::STBL(void)
 /***************************************************************************
     Destructor for a streamed block.
 ***************************************************************************/
-STBL::~STBL(void)
+DataBlockStream::~DataBlockStream(void)
 {
     AssertThisMem();
 }
 
 /***************************************************************************
-    QueryInterface for STBL.
+    QueryInterface for DataBlockStream.
 ***************************************************************************/
-STDMETHODIMP STBL::QueryInterface(REFIID riid, void **ppv)
+STDMETHODIMP DataBlockStream::QueryInterface(REFIID riid, void **ppv)
 {
     AssertThis(0);
 
@@ -79,7 +79,7 @@ STDMETHODIMP STBL::QueryInterface(REFIID riid, void **ppv)
 /***************************************************************************
     Increment the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) STBL::AddRef(void)
+STDMETHODIMP_(ULONG) DataBlockStream::AddRef(void)
 {
     AssertThis(0);
     return ++_cactRef;
@@ -88,7 +88,7 @@ STDMETHODIMP_(ULONG) STBL::AddRef(void)
 /***************************************************************************
     Decrement the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) STBL::Release(void)
+STDMETHODIMP_(ULONG) DataBlockStream::Release(void)
 {
     AssertThis(0);
     long cactRef;
@@ -101,7 +101,7 @@ STDMETHODIMP_(ULONG) STBL::Release(void)
 /***************************************************************************
     Read some stuff.
 ***************************************************************************/
-STDMETHODIMP STBL::Read(void *pv, ULONG cb, ULONG *pcb)
+STDMETHODIMP DataBlockStream::Read(void *pv, ULONG cb, ULONG *pcb)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -124,7 +124,7 @@ STDMETHODIMP STBL::Read(void *pv, ULONG cb, ULONG *pcb)
 /***************************************************************************
     Seek to a place.
 ***************************************************************************/
-STDMETHODIMP STBL::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *plibNewPosition)
+STDMETHODIMP DataBlockStream::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *plibNewPosition)
 {
     AssertThis(0);
     AssertNilOrVarMem(plibNewPosition);
@@ -159,14 +159,14 @@ STDMETHODIMP STBL::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *
 /***************************************************************************
     Static method to create a new stream wrapper around a flo.
 ***************************************************************************/
-PSTBL STBL::PstblNew(FileLocation *pflo, bool fPacked)
+PDataBlockStream DataBlockStream::PstblNew(FileLocation *pflo, bool fPacked)
 {
     AssertPo(pflo, ffloReadable);
-    PSTBL pstbl;
+    PDataBlockStream pstbl;
     DataBlock blck;
     PDataBlock pblck;
 
-    if (pvNil == (pstbl = new STBL))
+    if (pvNil == (pstbl = new DataBlockStream))
         return pvNil;
 
     pblck = &pstbl->_blck;
@@ -206,7 +206,7 @@ PSTBL STBL::PstblNew(FileLocation *pflo, bool fPacked)
             // cache to the hard drive or memory, depending on the size
             DataBlock blck(pflo);
 
-            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(STBL) > SDAM::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
+            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > SDAM::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
             {
                 delete pstbl;
                 return pvNil;
@@ -222,9 +222,9 @@ PSTBL STBL::PstblNew(FileLocation *pflo, bool fPacked)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a STBL.
+    Assert the validity of a DataBlockStream.
 ***************************************************************************/
-void STBL::AssertValid(ulong grf)
+void DataBlockStream::AssertValid(ulong grf)
 {
     AssertThisMem();
     AssertPo(&_blck, 0);
@@ -232,9 +232,9 @@ void STBL::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the STBL.
+    Mark memory for the DataBlockStream.
 ***************************************************************************/
-void STBL::MarkMem(void)
+void DataBlockStream::MarkMem(void)
 {
     AssertValid(0);
     MarkMemObj(&_blck);
@@ -271,9 +271,9 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     FileLocation flo;
     bool fPacked;
     PCAMS pcams = pvNil;
-    PSTBL pstbl = pvNil;
+    PDataBlockStream pstbl = pvNil;
 
-    *pcb = size(CAMS) + size(STBL);
+    *pcb = size(CAMS) + size(DataBlockStream);
     if (pvNil == ppbaco)
         return fTrue;
 
@@ -282,7 +282,7 @@ bool CAMS::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
         return fFalse;
 
     fPacked = pcrf->Pcfl()->FPacked(ctg, cno);
-    if (pvNil == (pstbl = STBL::PstblNew(&flo, fPacked)))
+    if (pvNil == (pstbl = DataBlockStream::PstblNew(&flo, fPacked)))
         return fFalse;
 
     *pcb = size(CAMS) + pstbl->CbMem();

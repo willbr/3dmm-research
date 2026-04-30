@@ -19,9 +19,9 @@
 /***************************************************************************
     IStream interface for a DataBlock.
 ***************************************************************************/
-typedef class STBL *PSTBL;
-#define STBL_PAR IStream
-class STBL : public STBL_PAR
+typedef class DataBlockStream *PDataBlockStream;
+#define DataBlockStream_PAR IStream
+class DataBlockStream : public DataBlockStream_PAR
 {
     ASSERT
     MARKMEM
@@ -31,8 +31,8 @@ class STBL : public STBL_PAR
     long _ib;
     DataBlock _blck;
 
-    STBL(void);
-    ~STBL(void);
+    DataBlockStream(void);
+    ~DataBlockStream(void);
 
   public:
     // IUnknown methods
@@ -87,10 +87,10 @@ class STBL : public STBL_PAR
         return E_NOTIMPL;
     }
 
-    static PSTBL PstblNew(FileLocation *pflo, bool fPacked);
+    static PDataBlockStream PstblNew(FileLocation *pflo, bool fPacked);
     long CbMem(void)
     {
-        return size(STBL) + _blck.CbMem();
+        return size(DataBlockStream) + _blck.CbMem();
     }
     bool FInMemory(void)
     {
@@ -112,7 +112,7 @@ class CAMS : public CAMS_PAR
 
   protected:
     // this is just so we can do a MarkMemObj on it while AudioMan has it
-    PSTBL _pstbl;
+    PDataBlockStream _pstbl;
 
     CAMS(void);
 
