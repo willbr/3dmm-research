@@ -322,10 +322,22 @@ Deferred to user manual smoke (interactive click sequences, cannot run GUI from 
 - (6) Esc clears all selection.
 - (7) Non-move-tool click on actor collapses selection.
 
+**Phase 2a (rotate / resize / squash-stretch around group centroid) shipped on branch `c`:**
+
+- Spec: `docs/superpowers/specs/2026-04-30-multi-select-rotate-scale-design.md`
+- Plan: `docs/superpowers/plans/2026-04-30-multi-select-rotate-scale.md`
+
+What landed:
+
+- `Scene::FXyzSelectionCentroid` averages currently-visible (`FIsInView`) selected actors' world positions.
+- `MovieView::_xrPivot/_yrPivot/_zrPivot` capture the centroid at mousedown when the tool is rotate / resize / squash and N≥2 are selected; same `ActorMoveGroupUndo` infrastructure as Phase 1 captures per-actor snapshots.
+- `_MouseDrag` rotate / resize / squash branches on `_paundGroup != pvNil`: per actor per tick, compute world-space `delta_i` to orbit/scale the actor around the frozen pivot, then `FMoveRoute(delta_i)` and `FRotate / FScale / FPull` for the local body change. Cmd modifier (`fFromHereFwd`) carries through. Single-select path unchanged.
+- One drag = one undo step (reuses `ActorMoveGroupUndo`).
+
 **Phase 2+ remaining work (still in scope for "UI-5"):**
 
 - Marquee / box-select / lasso selection.
-- Multi-target rotate (per-actor pivot vs. group centroid?), squash/stretch (per-actor vs. group bounding-box?), scale, costume change, sooner/later, action change.
+- Multi-target costume change, sooner/later, action change.
 - `BuildActionMenu` becomes the intersection of available actions across the selection.
 - Distinct hilite color for primary vs. secondary selected actors.
 - Multi-select for text boxes, and mixed actor + tbox selection.
