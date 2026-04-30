@@ -12,9 +12,9 @@
 
     Template - template flags
      |
-     +--GLPI (chid 0) - parent IDs (BODY part hierarchy)
+     +--GLPI (chid 0) - parent IDs (Body part hierarchy)
      |
-     +--GLBS (chid 0) - body part sets for BODY
+     +--GLBS (chid 0) - body part sets for Body
      |
      +--GGCM (chid 0) - custom costumes per body part set (GeneralGroup of cmids)
      |
@@ -588,10 +588,10 @@ PDynamicArray Template::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkN
     on each body part (no null pointers for bact->material).  So the user
     will never see a body part that isn't texture mapped.
 ***************************************************************************/
-PBODY Template::PbodyCreate(void)
+PBody Template::PbodyCreate(void)
 {
     AssertThis(0);
-    PBODY pbody = BODY::PbodyNew(_pglibactPar, _pglibset);
+    PBody pbody = Body::PbodyNew(_pglibactPar, _pglibset);
 
     if (pvNil == pbody || !FSetDefaultCost(pbody))
     {
@@ -662,7 +662,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
     matrices for the given cel of the given action.  Also returns the
     distance to the next cel in *pdwr.
 ***************************************************************************/
-bool Template::FSetActnCel(BODY *pbody, long anid, long celn, BRS *pdwr)
+bool Template::FSetActnCel(Body *pbody, long anid, long celn, BRS *pdwr)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -838,7 +838,7 @@ void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
 /***************************************************************************
     Puts default costume on pbody
 ***************************************************************************/
-bool Template::FSetDefaultCost(BODY *pbody)
+bool Template::FSetDefaultCost(Body *pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);

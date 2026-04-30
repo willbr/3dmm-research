@@ -324,7 +324,7 @@ void ActorPreviewEntity::SetCustomView(BRA xa, BRA ya, BRA za)
 }
 
 /***************************************************************************
-    Rotate the BODY to see a different view
+    Rotate the Body to see a different view
 ***************************************************************************/
 void ActorPreviewEntity::ChangeView(void)
 {
@@ -372,7 +372,7 @@ void ActorPreviewEntity::_SetScale(void)
     AssertThis(0);
 
     RC rcView;
-    BCB bcbBody; // 3-D bounds of BODY
+    BCB bcbBody; // 3-D bounds of Body
     BRS dxrBody, dyrBody, dzrBody;
     BRS rDydxBody;
     BRS xrCam, yrCam, zrCam;
@@ -465,7 +465,7 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
     AssertVarMem(pcmd);
 
     PBACT pbact;
-    PBODY pbody;
+    PBody pbody;
     long ibset;
     long ibsetAcc;
 
@@ -474,8 +474,8 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
         SetCursCno(_prca, kcrsDefault);
         if (_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         {
-            pbody = BODY::PbodyFromBact(pbact, &ibset);
-            Assert(pbody == _pbody, "what BODY is this?");
+            pbody = Body::PbodyFromBact(pbact, &ibset);
+            Assert(pbody == _pbody, "what Body is this?");
             if (_apet.apt == aptIncCmtl)
             {
                 if (_ptmpl->CcmidOfBset(ibset) > 1)
@@ -504,7 +504,7 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
     AssertThis(0);
 
     PBACT pbact;
-    PBODY pbody;
+    PBody pbody;
     long ibset;
     long ibsetAcc;
     GeneralMaterialSpec gms;
@@ -516,8 +516,8 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
     }
     if (!_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         return fTrue;
-    pbody = BODY::PbodyFromBact(pbact, &ibset);
-    Assert(pbody == _pbody, "what BODY is this?");
+    pbody = Body::PbodyFromBact(pbact, &ibset);
+    Assert(pbody == _pbody, "what Body is this?");
 
     switch (_apet.apt)
     {
@@ -709,7 +709,7 @@ bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
     AssertNilOrVarMem(ptagTdf);
 
     PThreeDText ptdtNew = pvNil;
-    PBODY pbodyNew = pvNil;
+    PBody pbodyNew = pvNil;
 
     ptdtNew = ((PThreeDText)_ptmpl)->PtdtDup();
     if (pvNil == ptdtNew)

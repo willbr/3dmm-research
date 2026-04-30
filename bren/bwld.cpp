@@ -547,7 +547,7 @@ void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
 }
 
 /***************************************************************************
-    Render the world.  First, notify all BODYs that we're about to render,
+    Render the world.  First, notify all Bodys that we're about to render,
     so they can clear their _pregn's.  Then clean the RGB and Z working
     buffers, since they're probably dirty from the last render.  Update
     some regions, and render everything.
@@ -563,12 +563,12 @@ void World::Render(void)
         return;
 
     // Note that we only call pfnbeginrend on immediate children of
-    // the world, because that will hit all the BODYs in Socrates.
+    // the world, because that will hit all the Bodys in Socrates.
     if (pvNil != _pfnbeginrend)
     {
         for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
         {
-            // BODY roots are BR_ACTOR_NONE
+            // Body roots are BR_ACTOR_NONE
             if (pbact->type == BR_ACTOR_NONE)
                 _pfnbeginrend(pbact);
         }
@@ -599,7 +599,7 @@ void World::Render(void)
 
     for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
     {
-        // BODY roots are BR_ACTOR_NONE
+        // Body roots are BR_ACTOR_NONE
         if (pbact->type == BR_ACTOR_NONE && pvNil != _pfngetrect)
         {
             _pfngetrect(pbact, &rc);
