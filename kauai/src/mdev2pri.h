@@ -338,10 +338,10 @@ class WindowsMidiStream : public WindowsMidiStream_PAR
 /***************************************************************************
     Our fake midi stream class.
 ***************************************************************************/
-typedef class OMS *POMS;
-#define OMS_PAR MidiStreamInterface
-#define kclsOMS 'OMS'
-class OMS : public OMS_PAR
+typedef class OurMidiStream *POurMidiStream;
+#define OurMidiStream_PAR MidiStreamInterface
+#define kclsOurMidiStream 'OMS'
+class OurMidiStream : public OurMidiStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -372,7 +372,7 @@ class OMS : public OMS_PAR
     PMEV _pmevLim;
     ulong _tsCur;
 
-    OMS(PFNMIDI pfn, ulong luUser);
+    OurMidiStream(PFNMIDI pfn, ulong luUser);
     bool _FInit(void);
 
     virtual bool _FOpen(void);
@@ -383,8 +383,8 @@ class OMS : public OMS_PAR
     void _ReleaseBuffers(void);
 
   public:
-    static POMS PomsNew(PFNMIDI pfn, ulong luUser);
-    ~OMS(void);
+    static POurMidiStream PomsNew(PFNMIDI pfn, ulong luUser);
+    ~OurMidiStream(void);
 
     virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
     virtual void StopPlaying(void);
