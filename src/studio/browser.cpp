@@ -76,7 +76,7 @@
 ASSERTNAME
 
 RTCLASS(BrowserContext)
-RTCLASS(BRCNL)
+RTCLASS(BrowserListContext)
 RTCLASS(BrowserDisplay)
 RTCLASS(BrowserList)
 RTCLASS(BrowserText)
@@ -887,7 +887,7 @@ PBrowserList BrowserList::PbrwlNew(PResourceCache prca, long kidPar, long kidGla
  *
  ****************************************************/
 bool BrowserList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
-                 PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
+                 PBrowserListContext pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1160,9 +1160,9 @@ void BrowserList::_CacheContext(void)
 {
     if (_pbrcn != pvNil)
     {
-        PBRCNL pbrcnl = (PBRCNL)_pbrcn;
+        PBrowserListContext pbrcnl = (PBrowserListContext)_pbrcn;
 
-        Assert(pbrcnl->FIs(kclsBRCNL), "Bad context buffer");
+        Assert(pbrcnl->FIs(kclsBrowserListContext), "Bad context buffer");
 
         BrowserList_PAR::_CacheContext();
 
@@ -1841,7 +1841,7 @@ bool FNET::_FNextFni(Filename *pfni, long *psid)
  *
  ****************************************************/
 bool BrowserNamedList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
-                 PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
+                 PBrowserListContext pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -3429,7 +3429,7 @@ BrowserImportSound::~BrowserImportSound(void)
  * Browser Context Destructor
  *
  ****************************************************/
-BRCNL::~BRCNL(void)
+BrowserListContext::~BrowserListContext(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&pglthd);
@@ -3451,16 +3451,16 @@ void BrowserContext::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRCNL
+    Mark memory used by the BrowserListContext
 
  ****************************************************/
-void BRCNL::MarkMem(void)
+void BrowserListContext::MarkMem(void)
 {
     AssertThis(0);
     MarkMemObj(pglthd);
     MarkMemObj(pgst);
     MarkMemObj(pcrm);
-    BRCNL_PAR::MarkMem();
+    BrowserListContext_PAR::MarkMem();
 }
 
 /****************************************************
@@ -3569,12 +3569,12 @@ void BrowserContext::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRCNL
+    Assert the validity of the BrowserListContext
 
  ****************************************************/
-void BRCNL::AssertValid(ulong grfobj)
+void BrowserListContext::AssertValid(ulong grfobj)
 {
-    BRCNL_PAR::AssertValid(fobjAllocated);
+    BrowserListContext_PAR::AssertValid(fobjAllocated);
 }
 
 /****************************************************

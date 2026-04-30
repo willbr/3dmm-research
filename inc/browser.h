@@ -239,17 +239,17 @@ class BrowserDisplay : public BrowserDisplay_PAR
     of the same browser
 
 *************************************/
-#define BRCNL_PAR BrowserContext
-#define kclsBRCNL 'brcl'
-typedef class BRCNL *PBRCNL;
-class BRCNL : public BRCNL_PAR
+#define BrowserListContext_PAR BrowserContext
+#define kclsBrowserListContext 'brcl'
+typedef class BrowserListContext *PBrowserListContext;
+class BrowserListContext : public BrowserListContext_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    ~BRCNL(void);
+    ~BrowserListContext(void);
 
   public:
     long cthumCD;
@@ -456,7 +456,7 @@ class BrowserList : public BrowserList_PAR
 
     static PBrowserList PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
     virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
-                       PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
+                       PBrowserListContext pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
 /************************************
@@ -535,7 +535,7 @@ class BrowserNamedList : public BrowserNamedList_PAR
     }
     ~BrowserNamedList(void){};
     virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
-                       PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
+                       PBrowserListContext pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
     virtual bool FCmdOk(PCommand pcmd);
 };
