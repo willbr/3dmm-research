@@ -44,8 +44,8 @@ KauaiCodec vkcdcUtil;
 // Standard compression manager - gets initialized with the standard
 // Kauai codec. Clients can add additional codecs or redirect vpcodmUtil
 // to a different compression manager with their own codecs
-CODM vcodmUtil(&vkcdcUtil, kcfmtKauai2);
-PCODM vpcodmUtil = &vcodmUtil;
+CodecManager vcodmUtil(&vkcdcUtil, kcfmtKauai2);
+PCodecManager vpcodmUtil = &vcodmUtil;
 
 // Standard scalable application clok.
 UniversalScalableApplicationClock _usac;
