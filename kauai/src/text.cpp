@@ -17,7 +17,7 @@ RTCLASS(EDCB)
 RTCLASS(EDSL)
 RTCLASS(EDPL)
 RTCLASS(EDML)
-RTCLASS(EDMW)
+RTCLASS(EditControlMultiLineWrap)
 
 const long kdxpInsetEdcb = 2;
 const long kdxpInsetSled = 2;
@@ -1637,18 +1637,18 @@ void EDML::MarkMem(void)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EDMW::EDMW(PEditParameter pedpar) : EDML(pedpar)
+EditControlMultiLineWrap::EditControlMultiLineWrap(PEditParameter pedpar) : EDML(pedpar)
 {
 }
 
 /***************************************************************************
     Create a new multi-line wrapping edit control.
 ***************************************************************************/
-PEDMW EDMW::PedmwNew(PEditParameter pedpar)
+PEditControlMultiLineWrap EditControlMultiLineWrap::PedmwNew(PEditParameter pedpar)
 {
-    PEDMW pedmw;
+    PEditControlMultiLineWrap pedmw;
 
-    if (pvNil == (pedmw = NewObj EDMW(pedpar)))
+    if (pvNil == (pedmw = NewObj EditControlMultiLineWrap(pedpar)))
         return pvNil;
     if (!pedmw->_FInit())
     {
@@ -1662,7 +1662,7 @@ PEDMW EDMW::PedmwNew(PEditParameter pedpar)
 /***************************************************************************
     Return an estimate of how many new lines there are in the text to insert.
 ***************************************************************************/
-long EDMW::_ClnEstimate(achar *prgch, long cch)
+long EditControlMultiLineWrap::_ClnEstimate(achar *prgch, long cch)
 {
     // the common case
     if (cch <= 1)
@@ -1686,7 +1686,7 @@ long EDMW::_ClnEstimate(achar *prgch, long cch)
     lnMin's line start.  Returns the first line that changed (1 less than
     the first line start that changed).
 ***************************************************************************/
-long EDMW::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
+long EditControlMultiLineWrap::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 {
     const long kcichMax = 128;
     long rgich[kcichMax];
@@ -1808,7 +1808,7 @@ long EDMW::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 
         if (!_pglich->FInsert(lnCur, &ich))
         {
-            Warn("memory failure in EDMW::_LnReformat");
+            Warn("memory failure in EditControlMultiLineWrap::_LnReformat");
             break;
         }
         clnIns++;
@@ -1827,7 +1827,7 @@ LDone:
     Doesn't continue past a return character.  Return the number of locations
     found.
 ***************************************************************************/
-long EDMW::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax)
+long EditControlMultiLineWrap::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax)
 {
     AssertIn(ich, 0, IchMac() + 1);
     AssertPvCb(prgch, IchMac() * size(achar));
@@ -1860,7 +1860,7 @@ long EDMW::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax
 /***************************************************************************
     The size of the GraphicsObject changed - relayout.
 ***************************************************************************/
-void EDMW::_NewRc(void)
+void EditControlMultiLineWrap::_NewRc(void)
 {
     AssertThis(0);
     long clnDel, clnIns;
