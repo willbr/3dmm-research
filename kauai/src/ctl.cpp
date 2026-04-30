@@ -17,17 +17,17 @@ ASSERTNAME
 const long _klwMaxScroll = 20000; // should be less than 32K
 
 #ifdef WIN
-achar _szCtlProp[] = PszLit("CTL");
+achar _szCtlProp[] = PszLit("Control");
 #endif // WIN
 
-RTCLASS(CTL)
+RTCLASS(Control)
 RTCLASS(ScrollBar)
 RTCLASS(WindowSizeBox)
 
 /***************************************************************************
     Constructor for a control.
 ***************************************************************************/
-CTL::CTL(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
+Control::Control(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _hctl = hNil;
 }
@@ -35,7 +35,7 @@ CTL::CTL(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 /***************************************************************************
     Destructor for controls.
 ***************************************************************************/
-CTL::~CTL(void)
+Control::~Control(void)
 {
     if (_hctl != hNil)
     {
@@ -58,11 +58,11 @@ CTL::~CTL(void)
 }
 
 /***************************************************************************
-    Sets the OS control for the CTL.  If this fails, it frees the control.
+    Sets the OS control for the Control.  If this fails, it frees the control.
 ***************************************************************************/
-bool CTL::_FSetHctl(HCTL hctl)
+bool Control::_FSetHctl(HControl hctl)
 {
-    Assert(_hctl == hNil, "CTL already has an OS control");
+    Assert(_hctl == hNil, "Control already has an OS control");
     if (hctl != hNil)
     {
 #ifdef MAC
@@ -81,22 +81,22 @@ bool CTL::_FSetHctl(HCTL hctl)
 }
 
 /***************************************************************************
-    Return the CTL associated with the given HCTL.
+    Return the Control associated with the given HControl.
 ***************************************************************************/
-PCTL CTL::PctlFromHctl(HCTL hctl)
+PControl Control::PctlFromHctl(HControl hctl)
 {
 #ifdef MAC
-    return (PCTL)GetCRefCon(hctl);
+    return (PControl)GetCRefCon(hctl);
 #endif // MAC
 #ifdef WIN
-    return (PCTL)GetProp(hctl, _szCtlProp);
+    return (PControl)GetProp(hctl, _szCtlProp);
 #endif // WIN
 }
 
 /***************************************************************************
     The control may have been moved - move the OS control.
 ***************************************************************************/
-void CTL::_NewRc(void)
+void Control::_NewRc(void)
 {
     RC rc;
     SystemRectangle rcs;
@@ -137,7 +137,7 @@ void CTL::_NewRc(void)
 /***************************************************************************
     Draw routine for a control.
 ***************************************************************************/
-void CTL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
+void Control::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     if (_hctl == hNil)
         return;
@@ -276,7 +276,7 @@ bool ScrollBar::_FCreate(long val, long valMin, long valMax, ulong grfscb)
     RC rc;
     SystemRectangle rcs;
     HWND hwnd;
-    HCTL hctl;
+    HControl hctl;
 
     _fVert = FPure(grfscb & fscbVert);
     if ((hwnd = _HwndGetRc(&rc)) == hNil)
@@ -590,7 +590,7 @@ PWindowSizeBox WindowSizeBox::PwsbNew(PGraphicsObject pgob, ulong grfgob)
     RC rc;
     SystemRectangle rcs;
     HWND hwnd;
-    HCTL hctl;
+    HControl hctl;
 
     hwnd = pwsb->_HwndGetRc(&rc);
     rcs = SystemRectangle(rc);

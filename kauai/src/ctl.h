@@ -13,39 +13,39 @@
     Standard controls (scroll bars, etc).
 
 ***************************************************************************/
-#ifndef CTL_H
-#define CTL_H
+#ifndef Control_H
+#define Control_H
 
 #ifdef WIN
-typedef HWND HCTL;
+typedef HWND HControl;
 #elif defined(MAC)
-typedef ControlHandle HCTL;
+typedef ControlHandle HControl;
 #endif // MAC
 
 // general control
-typedef class CTL *PCTL;
-#define CTL_PAR GraphicsObject
-#define kclsCTL 'CTL'
-class CTL : public CTL_PAR
+typedef class Control *PControl;
+#define Control_PAR GraphicsObject
+#define kclsControl 'CTL'
+class Control : public Control_PAR
 {
     RTCLASS_DEC
 
   private:
-    HCTL _hctl;
+    HControl _hctl;
 
   protected:
-    CTL(PGraphicsObjectBlock pgcb);
-    ~CTL(void);
+    Control(PGraphicsObjectBlock pgcb);
+    ~Control(void);
 
     virtual void _NewRc(void);
-    HCTL _Hctl(void)
+    HControl _Hctl(void)
     {
         return _hctl;
     }
-    bool _FSetHctl(HCTL hctl);
+    bool _FSetHctl(HControl hctl);
 
   public:
-    static PCTL PctlFromHctl(HCTL hctl);
+    static PControl PctlFromHctl(HControl hctl);
 
 #ifdef MAC
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
@@ -84,7 +84,7 @@ enum
 };
 
 typedef class ScrollBar *PScrollBar;
-#define ScrollBar_PAR CTL
+#define ScrollBar_PAR Control
 #define kclsScrollBar 'SCB'
 class ScrollBar : public ScrollBar_PAR
 {
@@ -100,7 +100,7 @@ class ScrollBar : public ScrollBar_PAR
 #endif // WIN
 
   protected:
-    ScrollBar(PGraphicsObjectBlock pgcb) : CTL(pgcb)
+    ScrollBar(PGraphicsObjectBlock pgcb) : Control(pgcb)
     {
     }
     bool _FCreate(long val, long valMin, long valMax, ulong grfscb);
@@ -142,14 +142,14 @@ class ScrollBar : public ScrollBar_PAR
 
 // size box
 typedef class WindowSizeBox *PWindowSizeBox;
-#define WindowSizeBox_PAR CTL
+#define WindowSizeBox_PAR Control
 #define kclsWindowSizeBox 'WSB'
 class WindowSizeBox : public WindowSizeBox_PAR
 {
     RTCLASS_DEC
 
   protected:
-    WindowSizeBox(PGraphicsObjectBlock pgcb) : CTL(pgcb)
+    WindowSizeBox(PGraphicsObjectBlock pgcb) : Control(pgcb)
     {
     }
 
@@ -165,4 +165,4 @@ class WindowSizeBox : public WindowSizeBox_PAR
 #endif // MAC
 };
 
-#endif //! CTL_H
+#endif //! Control_H
