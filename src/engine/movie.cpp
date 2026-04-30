@@ -486,7 +486,7 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTabl
         if (paridLim != pvNil && mactr.arid >= *paridLim)
             *paridLim = mactr.arid + 1;
 
-        // Open the tags, since they might be TDTs
+        // Open the tags, since they might be ThreeDTexts
         AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, pcrf), "Should never fail when not copying the tag");
 
         (*ppgst)->PutExtra(imactr, &mactr);
@@ -1094,7 +1094,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
             {
                 TAG tagTmpl;
                 mactr.cactRef++;
-                // TDTs sometimes need to update tagTmpl
+                // ThreeDTexts sometimes need to update tagTmpl
                 pactr->GetTagTmpl(&tagTmpl);
                 if (fcmpEq != TagManager::FcmpCompareTags(&mactr.tagTmpl, &tagTmpl))
                 {
@@ -1131,7 +1131,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
     }
     mactr.cactRef = 1;
     pactr->GetTagTmpl(&mactr.tagTmpl);
-    // Open the tag, since it might be a TDT
+    // Open the tag, since it might be a ThreeDText
     AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _pcrfAutoSave), "Should never fail when not copying the tag");
     if (_pgstmactr->FAddStn(pstn, &mactr))
     {
@@ -2099,28 +2099,28 @@ bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
  * Adds a new 3-D Text object to the user's document.
  *
  * Parameters:
- *  pstn - TDT text
- *  tdts - the TDT shape
- *  ptagTdf - a tag to the TDT's font
+ *  pstn - ThreeDText text
+ *  tdts - the ThreeDText shape
+ *  ptagTdf - a tag to the ThreeDText's font
  *
  * Returns:
- *  fTrue if success, fFalse if couldn't add the TDT
+ *  fTrue if success, fFalse if couldn't add the ThreeDText
  *
  ****************************************************/
 bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    Assert(pstn->Cch() > 0, "can't insert 0-length TDT");
+    Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
     AssertIn(tdts, 0, tdtsLim);
     AssertVarMem(ptagTdf);
 
     PChunkyFile pcfl;
     ChunkNumber cno;
-    PTDT ptdt;
+    PThreeDText ptdt;
     TAG tagTdt;
 
-    ptdt = TDT::PtdtNew(pstn, tdts, ptagTdf);
+    ptdt = ThreeDText::PtdtNew(pstn, tdts, ptagTdf);
     if (pvNil == ptdt)
         return fFalse;
 
@@ -2167,30 +2167,30 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
 
 /****************************************************
  *
- * Edits the TDT attached to pactr.
+ * Edits the ThreeDText attached to pactr.
  *
  * Parameters:
  *  pactr - Pointer to actor to change
- *  pstn - New TDT text
- *	tdts - New TDT shape
- *  ptagTdf - New TDT font
+ *  pstn - New ThreeDText text
+ *	tdts - New ThreeDText shape
+ *  ptagTdf - New ThreeDText font
  *
  * Returns:
- *  fTrue if success, fFalse if couldn't change the TDT
+ *  fTrue if success, fFalse if couldn't change the ThreeDText
  *
  ****************************************************/
 bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
-    Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a TDT");
+    Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a ThreeDText");
     AssertPo(pstn, 0);
     AssertIn(tdts, 0, tdtsLim);
     AssertVarMem(ptagTdf);
 
     long ich;
     bool fNonSpaceFound;
-    PTDT ptdtNew;
+    PThreeDText ptdtNew;
     TAG tagTdtNew;
     PChunkyFile pcfl;
     ChunkNumber cno;
@@ -2211,7 +2211,7 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
         return FRemActr();
     }
 
-    ptdtNew = TDT::PtdtNew(pstn, tdts, ptagTdf);
+    ptdtNew = ThreeDText::PtdtNew(pstn, tdts, ptagTdf);
     if (pvNil == ptdtNew)
         return fFalse;
 

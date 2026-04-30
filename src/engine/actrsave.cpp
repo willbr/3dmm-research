@@ -74,10 +74,10 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     // Save and adopt TMPL chunk if it's a ksidUseCrf chunk
     if (_tagTmpl.sid == ksidUseCrf)
     {
-        Assert(_ptmpl->FIsTdt(), "only TDTs should be embedded in user doc");
+        Assert(_ptmpl->FIsTdt(), "only ThreeDTexts should be embedded in user doc");
         if (!pcfl->FFind(_tagTmpl.ctg, _tagTmpl.cno))
         {
-            if (!((PTDT)_ptmpl)->FWrite(pcfl, _tagTmpl.ctg, &cnoTmpl))
+            if (!((PThreeDText)_ptmpl)->FWrite(pcfl, _tagTmpl.ctg, &cnoTmpl))
                 return fFalse;
             // Keep ChunkNumber the same
             pcfl->Move(_tagTmpl.ctg, cnoTmpl, _tagTmpl.ctg, _tagTmpl.cno);
@@ -269,7 +269,7 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
 
     if (_tagTmpl.sid == ksidUseCrf)
     {
-        // Actor is a TDT.  Tag might be wrong if this actor was imported,
+        // Actor is a ThreeDText.  Tag might be wrong if this actor was imported,
         // so look for child TMPL.
         ChildChunkIdentification kid;
 
@@ -506,7 +506,7 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
     {
         PDynamicArray pgltagTmpl;
 
-        // Actor is a TDT.  Tag might be wrong if this actor was imported,
+        // Actor is a ThreeDText.  Tag might be wrong if this actor was imported,
         // so look for child TMPL.
         if (pcfl->FGetKidChidCtg(kctgActr, cno, 0, kctgTmpl, &kid))
         {

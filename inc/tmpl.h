@@ -178,7 +178,7 @@ class TMPL : public TMPL_PAR
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
     // TMPL / BODY stuff
-    void GetName(PString pstn); // default name of actor or text of the TDT
+    void GetName(PString pstn); // default name of actor or text of the ThreeDText
     PBODY PbodyCreate(void); // Creates a body based on this TMPL
     void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
     bool FIsTdt(void)

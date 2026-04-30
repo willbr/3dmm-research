@@ -8,11 +8,11 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> TMPL ---> TDT  (Three-D Text)
+    BASE ---> BaseCacheableObject ---> TMPL ---> ThreeDText  (Three-D Text)
 
 ***************************************************************************/
-#ifndef TDT_H
-#define TDT_H
+#ifndef ThreeDText_H
+#define ThreeDText_H
 
 // 3-D Text Shapes - the positions and orientations of the letters
 enum
@@ -57,10 +57,10 @@ enum
 /****************************************
     3-D Text class
 ****************************************/
-typedef class TDT *PTDT;
-#define TDT_PAR TMPL
-#define kclsTDT 'TDT'
-class TDT : public TDT_PAR
+typedef class ThreeDText *PThreeDText;
+#define ThreeDText_PAR TMPL
+#define kclsThreeDText 'TDT'
+class ThreeDText : public ThreeDText_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -69,9 +69,9 @@ class TDT : public TDT_PAR
   protected:
     static PStringTable_GST _pgstAction; // Action names
 
-    long _tdts;          // TDT shape
+    long _tdts;          // ThreeDText shape
     TAG _tagTdf;         // Tag to Three-D Font
-    PMaterial_MTRL _pmtrlDefault; // Material_MTRL for TDT's default costume
+    PMaterial_MTRL _pmtrlDefault; // Material_MTRL for ThreeDText's default costume
     PActionDefinition _pactnCache;   // Last-used action
     long _tdaCache;      // Action in pactnCache
 
@@ -97,10 +97,10 @@ class TDT : public TDT_PAR
     static void MarkActionNames(void);
 #endif
 
-    static PTDT PtdtNew(PString pstn, long tdts, PTAG ptagTdf);
-    ~TDT(void);
+    static PThreeDText PtdtNew(PString pstn, long tdts, PTAG ptagTdf);
+    ~ThreeDText(void);
     static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
-    PTDT PtdtDup(void);
+    PThreeDText PtdtDup(void);
 
     void GetInfo(PString pstn, long *ptdts, PTAG ptagTdf);
     bool FChange(PString pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
@@ -111,4 +111,4 @@ class TDT : public TDT_PAR
     virtual bool FGetActnName(long anid, PString pstn);
 };
 
-#endif // TDT_H
+#endif // ThreeDText_H

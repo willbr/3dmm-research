@@ -100,8 +100,8 @@ class EaselText : public EaselText_PAR
     CMD_MAP_DEC(EaselText)
 
   protected:
-    PMovie _pmvie; // Movie that this TDT is in
-    PActor _pactr; // Actor of this TDT, or pvNil for new TDT
+    PMovie _pmvie; // Movie that this ThreeDText is in
+    PActor _pactr; // Actor of this ThreeDText, or pvNil for new ThreeDText
     PActorPreviewEntity _pape;   // Actor Preview Entity
     PSpletterNameEditor _psne;   // Spletter Name Editor
     PResourceCache _prca;   // Resource source for cursors
