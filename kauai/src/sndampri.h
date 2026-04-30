@@ -101,10 +101,10 @@ class DataBlockStream : public DataBlockStream_PAR
 /***************************************************************************
     Cached AudioMan Sound.
 ***************************************************************************/
-typedef class CAMS *PCAMS;
-#define CAMS_PAR BaseCacheableObject
-#define kclsCAMS 'CAMS'
-class CAMS : public CAMS_PAR
+typedef class CachedAudioManSound *PCachedAudioManSound;
+#define CachedAudioManSound_PAR BaseCacheableObject
+#define kclsCachedAudioManSound 'CAMS'
+class CachedAudioManSound : public CachedAudioManSound_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -114,11 +114,11 @@ class CAMS : public CAMS_PAR
     // this is just so we can do a MarkMemObj on it while AudioMan has it
     PDataBlockStream _pstbl;
 
-    CAMS(void);
+    CachedAudioManSound(void);
 
   public:
-    ~CAMS(void);
-    static PCAMS PcamsNewLoop(PCAMS pcamsSrc, long cactPlay);
+    ~CachedAudioManSound(void);
+    static PCachedAudioManSound PcamsNewLoop(PCachedAudioManSound pcamsSrc, long cactPlay);
 
     IAMSound *psnd; // the sound to use
 
