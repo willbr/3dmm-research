@@ -8354,6 +8354,18 @@ LEndTracking:
 #ifdef WIN
     ClipCursor(NULL);
 #endif // WIN
+
+    // Refresh the pose readout once at mouseup. BRender's per-frame dirty
+    // region only covers the actor bounds, so the top-left readout strip
+    // stays clean through the drag and would otherwise display the
+    // pre-drag position until the next selection change. One inval per
+    // mouseup is safe (no paint-storm).
+    if (_fShowPoseReadout)
+    {
+        RC rcReadout;
+        rcReadout.Set(0, 0, 200, 24);
+        InvalRc(&rcReadout, kginSysInval);
+    }
 }
 
 /***************************************************************************
