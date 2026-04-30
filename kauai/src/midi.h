@@ -17,7 +17,7 @@
 
 using namespace Chunky;
 
-typedef class MIDS *PMIDS;
+typedef class MidiStream *PMidiStream;
 
 // midi event
 struct MIDEV
@@ -53,7 +53,7 @@ class MidiStreamParser : public MidiStreamParser_PAR
     byte *_pbCur;
     byte _bStatus;
 
-    Debug(long _cactLongLock;) PMIDS _pmids;
+    Debug(long _cactLongLock;) PMidiStream _pmids;
 
     bool _FReadVar(byte **ppbCur, long *plw);
 
@@ -61,7 +61,7 @@ class MidiStreamParser : public MidiStreamParser_PAR
     MidiStreamParser(void);
     ~MidiStreamParser(void);
 
-    void Init(PMIDS pmids, ulong tsStart = 0, long lwTempo = 500000);
+    void Init(PMidiStream pmids, ulong tsStart = 0, long lwTempo = 500000);
     bool FGetEvent(PMIDEV pmidev, bool fAdvance = fTrue);
 };
 
@@ -69,9 +69,9 @@ class MidiStreamParser : public MidiStreamParser_PAR
     Midi Stream object - this is like a MTrk chunk in a standard MIDI file,
     with timing in milliseconds.
 ***************************************************************************/
-#define MIDS_PAR BaseCacheableObject
-#define kclsMIDS 'MIDS'
-class MIDS : public MIDS_PAR
+#define MidiStream_PAR BaseCacheableObject
+#define kclsMidiStream 'MIDS'
+class MidiStream : public MidiStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -82,15 +82,15 @@ class MIDS : public MIDS_PAR
 
     friend MidiStreamParser;
 
-    MIDS(void);
+    MidiStream(void);
 
     static long _CbEncodeLu(ulong lu, byte *prgb);
 
   public:
     static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
-    static PMIDS PmidsRead(PDataBlock pblck);
-    static PMIDS PmidsReadNative(Filename *pfni);
-    ~MIDS(void);
+    static PMidiStream PmidsRead(PDataBlock pblck);
+    static PMidiStream PmidsReadNative(Filename *pfni);
+    ~MidiStream(void);
 
     virtual bool FWrite(PDataBlock pblck);
     virtual long CbOnFile(void);

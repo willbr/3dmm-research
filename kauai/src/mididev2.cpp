@@ -212,10 +212,10 @@ PMidiStreamCached MidiStreamCached::PmdwsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 
-    PMIDS pmids;
+    PMidiStream pmids;
     PMidiStreamCached pmdws;
 
-    if (pvNil == (pmids = MIDS::PmidsRead(pblck)))
+    if (pvNil == (pmids = MidiStream::PmidsRead(pblck)))
         return pvNil;
 
     if (pvNil != (pmdws = NewObj MidiStreamCached) && !pmdws->_FInit(pmids))
@@ -230,7 +230,7 @@ PMidiStreamCached MidiStreamCached::PmdwsRead(PDataBlock pblck)
 /***************************************************************************
     Initialize the MidiStreamCached with the midi data in *pmids.
 ***************************************************************************/
-bool MidiStreamCached::_FInit(PMIDS pmids)
+bool MidiStreamCached::_FInit(PMidiStream pmids)
 {
     AssertPo(pmids, 0);
 

@@ -64,7 +64,7 @@ class MidiStreamCached : public MidiStreamCached_PAR
     ulong _dts;
 
     MidiStreamCached(void);
-    bool _FInit(PMIDS pmids);
+    bool _FInit(PMidiStream pmids);
 
   public:
     static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);

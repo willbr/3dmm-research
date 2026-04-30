@@ -839,7 +839,7 @@ void Compiler::_ParseBodyMidi(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
     Filename fni;
     DataBlock blck;
     Token tok;
-    PMIDS pmids;
+    PMidiStream pmids;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -847,7 +847,7 @@ void Compiler::_ParseBodyMidi(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
         goto LFail;
     }
 
-    if (pvNil == (pmids = MIDS::PmidsReadNative(&fni)))
+    if (pvNil == (pmids = MidiStream::PmidsReadNative(&fni)))
     {
         _Error(ertReadMidi);
         goto LFail;

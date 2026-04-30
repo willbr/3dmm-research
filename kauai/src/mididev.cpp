@@ -536,7 +536,7 @@ PBaseCacheableObject MPQUE::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg,
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return prca->PbacoFetch(ctg, cno, &MIDS::FReadMids);
+    return prca->PbacoFetch(ctg, cno, &MidiStream::FReadMids);
 }
 
 /***************************************************************************
@@ -694,7 +694,7 @@ bool MPQUE::_FStartQueue(void)
         _spr = sndin.spr;
         _vlm = sndin.vlm;
         _tsStart = TsCurrentSystem() - sndin.dtsStart;
-        _mstp.Init((PMIDS)sndin.pbaco, _tsStart);
+        _mstp.Init((PMidiStream)sndin.pbaco, _tsStart);
         _dtsSlip = TsCurrentSystem() - sndin.dtsStart - _tsStart;
         _grfmido = fmidoNil;
         _fMidevValid = fFalse;
@@ -756,7 +756,7 @@ bool MPQUE::_FGetEvt(void)
     if (ts != kluMax && ts > _tsStart)
         _tsStart = ts;
 
-    _mstp.Init((PMIDS)sndin.pbaco, _tsStart);
+    _mstp.Init((PMidiStream)sndin.pbaco, _tsStart);
     _dtsSlip = TsCurrentSystem() - _tsStart;
     if (!_mstp.FGetEvent(&_midev))
     {
@@ -783,7 +783,7 @@ void MPQUE::_PlayEvt(void)
         SNDIN sndin;
 
         _pglsndin->Get(_isndinCur, &sndin);
-        _mstp.Init((PMIDS)sndin.pbaco, _tsStart);
+        _mstp.Init((PMidiStream)sndin.pbaco, _tsStart);
         _grfmido |= fmidoFastFwd;
     }
     _fMidevValid = fFalse;
