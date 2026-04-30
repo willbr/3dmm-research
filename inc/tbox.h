@@ -13,13 +13,13 @@
 
     Drawing stuff
 
-        Textbox border (TBXB)
+        Textbox border (TextBoxBase)
 
-            GraphicsObject  ---> TBXB
+            GraphicsObject  ---> TextBoxBase
 
         Textbox Ddg (TBXG)
 
-            RichTextDocumentGraphicsObject ---> TBXG  (created as a child Gob of a TBXB)
+            RichTextDocumentGraphicsObject ---> TBXG  (created as a child Gob of a TextBoxBase)
 
     Cut/Copy/Paste Stuff
 
@@ -45,7 +45,7 @@
 
 //
 //
-// The border for a single textbox (TBXB)
+// The border for a single textbox (TextBoxBase)
 //
 //
 
@@ -65,11 +65,11 @@ enum TBXT
     tbxtMove
 };
 
-#define TBXB_PAR GraphicsObject
+#define TextBoxBase_PAR GraphicsObject
 
-typedef class TBXB *PTBXB;
-#define kclsTBXB 'TBXB'
-class TBXB : public TBXB_PAR
+typedef class TextBoxBase *PTextBoxBase;
+#define kclsTextBoxBase 'TBXB'
+class TextBoxBase : public TextBoxBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -83,7 +83,7 @@ class TBXB : public TBXB_PAR
     long _ypPrev;         // Previous y coord of the mouse.
     RC _rcOrig;           // Original size of the border.
 
-    TBXB(PTBOX ptbox, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
+    TextBoxBase(PTBOX ptbox, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
         _ptbox = ptbox;
     }
@@ -94,7 +94,7 @@ class TBXB : public TBXB_PAR
     //
     // Creates a text box with border
     //
-    static PTBXB PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
+    static PTextBoxBase PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
 
     //
     // Overridden routines
@@ -126,7 +126,7 @@ class TBXG : public TBXG_PAR
     CMD_MAP_DEC(TBXG)
 
   private:
-    PTBXB _ptbxb; // Enclosing border.
+    PTextBoxBase _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
 
     TBXG(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
@@ -143,11 +143,11 @@ class TBXG : public TBXG_PAR
     //
     // Accessors
     //
-    void SetTbxb(PTBXB ptbxb)
+    void SetTbxb(PTextBoxBase ptbxb)
     {
         _ptbxb = ptbxb;
     }
-    PTBXB Ptbxb(void)
+    PTextBoxBase Ptbxb(void)
     {
         return _ptbxb;
     }
@@ -179,7 +179,7 @@ class TBXG : public TBXG_PAR
     bool FTextSelected(void);
 
     //
-    // Only for TBXB
+    // Only for TextBoxBase
     //
     bool _FDoClip(long tool); // Actually does a clipboard command.
 };
@@ -293,7 +293,7 @@ class TextBox : public TextBox_PAR
     }
 
     //
-    // TBXG/TBXB specific funtions
+    // TBXG/TextBoxBase specific funtions
     //
     void GetRc(RC *prc)
     {
