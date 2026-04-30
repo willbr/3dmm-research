@@ -17,7 +17,7 @@ RTCLASS(MidiStreamCached)
 RTCLASS(MSQUE)
 RTCLASS(MidiStreamPlayer)
 RTCLASS(MidiStreamMixer)
-RTCLASS(MISI)
+RTCLASS(MidiStreamInterface)
 RTCLASS(WMS)
 RTCLASS(OMS)
 
@@ -528,7 +528,7 @@ MidiStreamMixer::MidiStreamMixer(void)
 ***************************************************************************/
 MidiStreamMixer::~MidiStreamMixer(void)
 {
-    Assert(pvNil == _pmisi || !_pmisi->FActive(), "MISI still active!");
+    Assert(pvNil == _pmisi || !_pmisi->FActive(), "MidiStreamInterface still active!");
 
     if (hNil != _hth)
     {
@@ -838,7 +838,7 @@ void MidiStreamMixer::_SubmitBuffers(ulong tsCur)
             _pglmsos->Put(imsos, &msos);
         }
 
-        // Calling SetVlm causes us to tell the MISI about the new volume
+        // Calling SetVlm causes us to tell the MidiStreamInterface about the new volume
         _vlmSound = msos.vlm;
         SetVlm(_vlmBase);
 
@@ -1222,7 +1222,7 @@ ulong MidiStreamMixer::_LuThread(void)
 /***************************************************************************
     Constructor for the MIDI stream interface.
 ***************************************************************************/
-MISI::MISI(PFNMIDI pfn, ulong luUser)
+MidiStreamInterface::MidiStreamInterface(PFNMIDI pfn, ulong luUser)
 {
     AssertBaseThis(0);
     Assert(pvNil != pfn, 0);
@@ -1238,7 +1238,7 @@ MISI::MISI(PFNMIDI pfn, ulong luUser)
 /***************************************************************************
     Reset the midi device.
 ***************************************************************************/
-void MISI::_Reset(void)
+void MidiStreamInterface::_Reset(void)
 {
     Assert(hNil != _hms, 0);
     long iv;
@@ -1257,7 +1257,7 @@ void MISI::_Reset(void)
 /***************************************************************************
     Get the system volume level.
 ***************************************************************************/
-void MISI::_GetSysVol(void)
+void MidiStreamInterface::_GetSysVol(void)
 {
     Assert(hNil != _hms, "calling _GetSysVol with nil _hms");
     ulong lu0, lu1, lu2;
@@ -1310,7 +1310,7 @@ void MISI::_GetSysVol(void)
 /***************************************************************************
     Set the system volume level.
 ***************************************************************************/
-void MISI::_SetSysVol(ulong luVol)
+void MidiStreamInterface::_SetSysVol(ulong luVol)
 {
     Assert(hNil != _hms, "calling _SetSysVol with nil _hms");
     midiOutSetVolume(_hms, luVol);
@@ -1321,7 +1321,7 @@ void MISI::_SetSysVol(ulong luVol)
     and _luVolSys. We set the system volume to the result of scaling
     _luVolSys by _vlmBase.
 ***************************************************************************/
-void MISI::_SetSysVlm(void)
+void MidiStreamInterface::_SetSysVlm(void)
 {
     ulong luVol;
 
@@ -1332,7 +1332,7 @@ void MISI::_SetSysVlm(void)
 /***************************************************************************
     Set the volume for the midi stream output device.
 ***************************************************************************/
-void MISI::SetVlm(long vlm)
+void MidiStreamInterface::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -1347,7 +1347,7 @@ void MISI::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long MISI::VlmCur(void)
+long MidiStreamInterface::VlmCur(void)
 {
     AssertThis(0);
 
@@ -1357,7 +1357,7 @@ long MISI::VlmCur(void)
 /***************************************************************************
     Return whether the midi stream output device is active.
 ***************************************************************************/
-bool MISI::FActive(void)
+bool MidiStreamInterface::FActive(void)
 {
     return hNil != _hms;
 }
@@ -1365,7 +1365,7 @@ bool MISI::FActive(void)
 /***************************************************************************
     Activate or deactivate the Midi stream output object.
 ***************************************************************************/
-bool MISI::FActivate(bool fActivate)
+bool MidiStreamInterface::FActivate(bool fActivate)
 {
     AssertThis(0);
 
@@ -1375,7 +1375,7 @@ bool MISI::FActivate(bool fActivate)
 /***************************************************************************
     Constructor for the Win95 Midi stream class.
 ***************************************************************************/
-WMS::WMS(PFNMIDI pfn, ulong luUser) : MISI(pfn, luUser)
+WMS::WMS(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
@@ -1991,7 +1991,7 @@ void WMS::_DoCallBacks()
 /***************************************************************************
     Constructor for our own midi stream api implementation.
 ***************************************************************************/
-OMS::OMS(PFNMIDI pfn, ulong luUser) : MISI(pfn, luUser)
+OMS::OMS(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
