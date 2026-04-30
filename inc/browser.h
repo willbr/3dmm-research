@@ -18,7 +18,7 @@
     BrowserDisplay --> BRWR  (Roll call class)
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
-    BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
+    BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
@@ -621,10 +621,10 @@ class BrowserPropActor : public BrowserPropActor_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWB_PAR BrowserList
-#define kclsBRWB 'BRWB'
-typedef class BRWB *PBRWB;
-class BRWB : public BRWB_PAR
+#define BrowserBackground_PAR BrowserList
+#define kclsBrowserBackground 'BRWB'
+typedef class BrowserBackground *PBrowserBackground;
+class BrowserBackground : public BrowserBackground_PAR
 {
     RTCLASS_DEC
 
@@ -635,12 +635,12 @@ class BRWB : public BRWB_PAR
     //
     // Constructors and destructors
     //
-    BRWB(PGraphicsObjectBlock pgcb) : BRWB_PAR(pgcb)
+    BrowserBackground(PGraphicsObjectBlock pgcb) : BrowserBackground_PAR(pgcb)
     {
     }
-    ~BRWB(void){};
+    ~BrowserBackground(void){};
 
-    static PBRWB PbrwbNew(PResourceCache prca);
+    static PBrowserBackground PbrwbNew(PResourceCache prca);
     virtual bool FCmdCancel(PCommand pcmd);
 };
 

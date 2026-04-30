@@ -23,7 +23,7 @@
     Studio Dependent Browsers:
     BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
-    BrowserDisplay --> BrowserList --> BRWB	(Browser background class)
+    BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BRWC	(Browser camera class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
     BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
@@ -124,7 +124,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             sid = tag.sid;
         }
 
-        pbrwd = (PBrowserDisplay)(BRWB::PbrwbNew(_pcrm));
+        pbrwd = (PBrowserDisplay)(BrowserBackground::PbrwbNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;
 
@@ -133,7 +133,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
             pbrcn = NewObj BRCNL;
 
         // Selection is cno based
-        if (!((PBRWB)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserBackground)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
         {
             goto LFail;
         }
@@ -416,7 +416,7 @@ void BRWC::_ApplySelection(long thumSelect, long sid)
  * thumSelect is a cno
  *
  **************************************************************************/
-void BRWB::_ApplySelection(long thumSelect, long sid)
+void BrowserBackground::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
