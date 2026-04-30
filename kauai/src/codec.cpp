@@ -14,7 +14,7 @@
 ASSERTNAME
 
 RTCLASS(CodecManager)
-RTCLASS(CODC)
+RTCLASS(Codec)
 
 /***************************************************************************
     The header on a compressed block consists of the cfmt (a long in big
@@ -26,7 +26,7 @@ const long kcbCodecHeader = 2 * size(long);
     Constructor for the compression manager. pcodc is an optional default
     codec. cfmt is the default compression format.
 ***************************************************************************/
-CodecManager::CodecManager(PCODC pcodc, long cfmt)
+CodecManager::CodecManager(PCodec pcodc, long cfmt)
 {
     AssertNilOrPo(pcodc, 0);
     Assert(cfmtNil != cfmt, "nil default compression format");
@@ -51,7 +51,7 @@ CodecManager::~CodecManager(void)
     if (pvNil != _pglpcodc)
     {
         long ipcodc;
-        PCODC pcodc;
+        PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
         {
@@ -86,7 +86,7 @@ void CodecManager::MarkMem(void)
     if (pvNil != _pglpcodc)
     {
         long ipcodc;
-        PCODC pcodc;
+        PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
         {
@@ -117,12 +117,12 @@ void CodecManager::SetCfmtDefault(long cfmt)
 /***************************************************************************
     Add a codec to the compression manager.
 ***************************************************************************/
-bool CodecManager::FRegisterCodec(PCODC pcodc)
+bool CodecManager::FRegisterCodec(PCodec pcodc)
 {
     AssertThis(0);
     AssertPo(pcodc, 0);
 
-    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = DynamicArray::PglNew(size(PCODC))))
+    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = DynamicArray::PglNew(size(PCodec))))
         return fFalse;
 
     if (!_pglpcodc->FAdd(&pcodc))
@@ -138,7 +138,7 @@ bool CodecManager::FRegisterCodec(PCODC pcodc)
 bool CodecManager::FCanDo(long cfmt, bool fEncode)
 {
     AssertThis(0);
-    PCODC pcodc;
+    PCodec pcodc;
 
     if (cfmtNil == cfmt)
         return fFalse;
@@ -172,7 +172,7 @@ bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, long *pcfmt)
 /***************************************************************************
     Look for a codec that can handle the given format.
 ***************************************************************************/
-bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc)
+bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCodec *ppcodc)
 {
     AssertThis(0);
     AssertVarMem(ppcodc);
@@ -187,7 +187,7 @@ bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc)
     if (pvNil != _pglpcodc)
     {
         long ipcodc;
-        PCODC pcodc;
+        PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
         {
@@ -261,7 +261,7 @@ bool CodecManager::_FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long 
     AssertVarMem(pcbDst);
 
     byte *prgb;
-    PCODC pcodc;
+    PCodec pcodc;
 
     if (cfmtNil != cfmt)
     {
