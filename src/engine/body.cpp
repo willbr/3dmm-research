@@ -1334,7 +1334,7 @@ bool BodyCostume::FGet(BODY *pbody)
     a (possibly) different number of body part sets.  In that case, the
     smaller number of materials are copied.  For example, when changing
     the number of characters in a 3-D Text object, the code grabs the
-    current costume, resizes the TDT and BODY, sets the TDT's BODY to the
+    current costume, resizes the ThreeDText and BODY, sets the ThreeDText's BODY to the
     default costume, then restores the old costume to the BODY as much as
     is appropriate.
 ***************************************************************************/

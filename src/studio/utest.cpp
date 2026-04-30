@@ -1650,12 +1650,12 @@ bool Application::_FInitTdt(void)
 
     PStringTable_GST pgst;
 
-    // set TDT action names
+    // set ThreeDText action names
     pgst = _PgstRead(kcnoGstAction);
     if (pvNil == pgst)
         return fFalse;
     Assert(pgst->CbExtra() == size(long), "bad Action string table");
-    if (!TDT::FSetActionNames(pgst))
+    if (!ThreeDText::FSetActionNames(pgst))
     {
         ReleasePpo(&pgst);
         return fFalse;
@@ -4668,7 +4668,7 @@ void Application::MarkMem(void)
     Application_PAR::MarkMem();
     MarkMemObj(vptagm);
     Material_MTRL::MarkShadeTable();
-    TDT::MarkActionNames();
+    ThreeDText::MarkActionNames();
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);
     MarkMemObj(_pmvieHandoff);

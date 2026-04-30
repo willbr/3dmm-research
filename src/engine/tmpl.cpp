@@ -325,7 +325,7 @@ bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
         return fTrue;
 
     if (pcrf->Pcfl()->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
-        ptmpl = NewObj TDT;
+        ptmpl = NewObj ThreeDText;
     else
         ptmpl = NewObj TMPL;
     if (pvNil == ptmpl || !ptmpl->_FInit(pcrf->Pcfl(), ctg, cno))
@@ -339,7 +339,7 @@ bool TMPL::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber c
     *ppbaco = ptmpl;
     if (ptmpl->_grftmpl & ftmplTdt)
     {
-        *pcb = size(TDT);
+        *pcb = size(ThreeDText);
     }
     else
     {
@@ -383,7 +383,7 @@ bool TMPL::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     Write the TemplateOnFile chunk.  Creates a new chunk and returns the ChunkNumber in pcno.
 
     Note: In Socrates, normal actor templates are read-only, but this
-    function will get called for TDTs.
+    function will get called for ThreeDTexts.
 ***************************************************************************/
 bool TMPL::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
@@ -576,7 +576,7 @@ PDynamicArray TMPL::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumbe
 
     *pfError = fFalse;
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTdt, &kid))
-        return TDT::PgltagFetch(pcfl, ctg, cno, pfError);
+        return ThreeDText::PgltagFetch(pcfl, ctg, cno, pfError);
     else
         return pvNil; // standard TMPLs have no embedded tags
 }
@@ -912,7 +912,7 @@ bool TMPL::FBsetIsAccessory(long ibset)
     ChildChunkIdentification kid;
 
     if (pvNil == Pcrf())
-        return fFalse; // probably a TDT
+        return fFalse; // probably a ThreeDText
 
     cmid = CmidOfBset(ibset, 0);
     if (!Pcrf()->Pcfl()->FGetKidChidCtg(Ctg(), Cno(), cmid, kctgCmtl, &kid))

@@ -55,7 +55,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
 
   protected:
     PWorld _pbwld;       // BRender world to draw actor in
-    PTMPL _ptmpl;       // Template (or TDT) of the actor being previewed
+    PTMPL _ptmpl;       // Template (or ThreeDText) of the actor being previewed
     PBODY _pbody;       // Body of the actor being previewed
     ActorPreviewEntityTool _apet;         // Currently selected tool
     PDynamicArray _pglgms;        // What materials are attached to what body part sets

@@ -884,7 +884,7 @@ class Movie : public Movie_PAR
     //
     // 3-D Text stuff
     //
-    bool FInsTdt(PString pstn, long tdts, PTAG ptagTdf); // Inserts a TDT into this movie.
+    bool FInsTdt(PString pstn, long tdts, PTAG ptagTdf); // Inserts a ThreeDText into this movie.
     bool FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf);
 
     //

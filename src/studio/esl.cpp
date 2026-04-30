@@ -202,7 +202,7 @@ ON_CID_GEN(cidEaselSetColor, &EaselText::FCmdSetColor, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
-    Create a new text easel.  If pactr is pvNil, this is for a new TDT
+    Create a new text easel.  If pactr is pvNil, this is for a new ThreeDText
     and pstnNew, tdtsNew, and ptagTdfNew will be used as initial values.
 ***************************************************************************/
 PEaselText EaselText::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
@@ -244,7 +244,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
-    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use EaselText for TDTs");
+    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use EaselText for ThreeDTexts");
     AssertNilOrPo(pstnNew, 0);
     if (tdtsNew != tdtsNil)
         AssertIn(tdtsNew, 0, tdtsLim);
@@ -254,7 +254,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     BodyCostume cost;
     String stn;
     bool fNewTdt = (pactr == pvNil);
-    PTDT ptdt;
+    PThreeDText ptdt;
 
     _prca = prca;
     _pactr = pactr;
@@ -283,7 +283,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
         AssertIn(tdtsNew, 0, tdtsLim);
         AssertVarMem(ptagTdfNew);
 
-        ptdt = TDT::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
+        ptdt = ThreeDText::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
         if (pvNil == ptdt)
             return fFalse;
         _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
@@ -294,11 +294,11 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     }
     else
     {
-        // We have to make a duplicate TDT rather than use the existing one
-        // because the user may experimentally change the TDT, then hit Cancel.
+        // We have to make a duplicate ThreeDText rather than use the existing one
+        // because the user may experimentally change the ThreeDText, then hit Cancel.
         if (!cost.FGet(pactr->Pbody()))
             return fFalse;
-        ptdt = ((PTDT)pactr->Ptmpl())->PtdtDup();
+        ptdt = ((PThreeDText)pactr->Ptmpl())->PtdtDup();
         if (pvNil == ptdt)
             return fFalse;
         _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
@@ -564,7 +564,7 @@ bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
     bool fNonSpaceFound = fFalse;
     PActor pactrDup = pvNil;
     bool fChangesMade = fFalse;
-    PTDT ptdtOld;
+    PThreeDText ptdtOld;
     String stnOld;
     long tdtsOld;
     TAG tagTdfOld;
@@ -577,7 +577,7 @@ bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
     long cmid;
     TAG tagMtrl;
 
-    if (pvNil == _pactr) // new TDT
+    if (pvNil == _pactr) // new ThreeDText
     {
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
         for (ich = 0; ich < stnNew.Cch(); ich++)
@@ -613,12 +613,12 @@ bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
     }
     else
     {
-        ptdtOld = (PTDT)_pactr->Ptmpl();
+        ptdtOld = (PThreeDText)_pactr->Ptmpl();
 
         if (!_pactr->FDup(&pactrDup))
             goto LFail;
 
-        // first apply TDT changes
+        // first apply ThreeDText changes
         ptdtOld->GetInfo(&stnOld, &tdtsOld, &tagTdfOld);
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
         if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TagManager::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
@@ -763,7 +763,7 @@ bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich
 #ifdef DEBUG
     else if (stnNew.Cch() == 5 && stnNew.Psz()[0] == ChLit(')') && stnNew.Psz()[4] == ChLit('('))
     {
-        // Hack for testing: ")xxx(" changes the TDT to
+        // Hack for testing: ")xxx(" changes the ThreeDText to
         // all ASCII values from xxx to xxx + kcchMaxTdt (or up to chNil).
         String stnT;
         achar rgch[kcchMaxTdt];
@@ -787,7 +787,7 @@ bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich
     }
 #endif // DEBUG
 
-    // Notify the easel so the TDT can be updated
+    // Notify the easel so the ThreeDText can be updated
     if (!_peslt->FTextChanged(&stnNew))
         SetStn(&stnOld, fFalse);
 

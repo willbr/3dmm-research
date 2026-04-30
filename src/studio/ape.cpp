@@ -14,10 +14,10 @@
     the ActorPreviewEntity will cycle through the cels of the current action.
 
     ActorPreviewEntity supports some simple editing operations, such as changing
-    materials and TDT properties.  The client must query these changes
+    materials and ThreeDText properties.  The client must query these changes
     before destroying the ActorPreviewEntity to make changes to the real actor.
 
-    The ActorPreviewEntity is currently used by the action browser, TDT easel, and
+    The ActorPreviewEntity is currently used by the action browser, ThreeDText easel, and
     costume changer easel.
 
 ***************************************************************************/
@@ -699,19 +699,19 @@ long ActorPreviewEntity::_CmidNext(long ibset, long icmidCur, bool fNextAccessor
 }
 
 /***************************************************************************
-    Change this ActorPreviewEntity's TDT properties
+    Change this ActorPreviewEntity's ThreeDText properties
 ***************************************************************************/
 bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "FChangeTdt is only for TDTs");
+    Assert(_ptmpl->FIsTdt(), "FChangeTdt is only for ThreeDTexts");
     AssertNilOrPo(pstn, 0);
     AssertNilOrVarMem(ptagTdf);
 
-    PTDT ptdtNew = pvNil;
+    PThreeDText ptdtNew = pvNil;
     PBODY pbodyNew = pvNil;
 
-    ptdtNew = ((PTDT)_ptmpl)->PtdtDup();
+    ptdtNew = ((PThreeDText)_ptmpl)->PtdtDup();
     if (pvNil == ptdtNew)
         goto LFail;
     pbodyNew = _pbody->PbodyDup();
@@ -739,13 +739,13 @@ LFail:
 }
 
 /***************************************************************************
-    Set material of this TDT to ptagMtrl
+    Set material of this ThreeDText to ptagMtrl
 ***************************************************************************/
 bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "FSetTdtMtrl is only for TDTs");
-    Assert(_pbody->Cbset() == 1, "TDTs should only have one body part set");
+    Assert(_ptmpl->FIsTdt(), "FSetTdtMtrl is only for ThreeDTexts");
+    Assert(_pbody->Cbset() == 1, "ThreeDTexts should only have one body part set");
     AssertVarMem(ptagMtrl);
 
     PMaterial_MTRL pmtrl;
@@ -768,13 +768,13 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 }
 
 /***************************************************************************
-    Get the ChunkNumber of the Material_MTRL attached to this TDT.  Returns fFalse if there
+    Get the ChunkNumber of the Material_MTRL attached to this ThreeDText.  Returns fFalse if there
     is no Material_MTRL attached or the Material_MTRL didn't come from a chunk.
 ***************************************************************************/
 bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "FGetTdtMtrlCno is only for TDTs");
+    Assert(_ptmpl->FIsTdt(), "FGetTdtMtrlCno is only for ThreeDTexts");
     AssertVarMem(pcno);
 
     PMaterial_MTRL pmtrl;
@@ -791,17 +791,17 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 }
 
 /***************************************************************************
-    Return info about the TDT
+    Return info about the ThreeDText
 ***************************************************************************/
 void ActorPreviewEntity::GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "GetTdtInfo is only for TDTs");
+    Assert(_ptmpl->FIsTdt(), "GetTdtInfo is only for ThreeDTexts");
     AssertNilOrVarMem(pstn);
     AssertNilOrVarMem(ptdts);
     AssertNilOrVarMem(ptagTdf);
 
-    ((PTDT)_ptmpl)->GetInfo(pstn, ptdts, ptagTdf);
+    ((PThreeDText)_ptmpl)->GetInfo(pstn, ptdts, ptagTdf);
 }
 
 /***************************************************************************

@@ -1094,10 +1094,10 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     ThumbnailDescriptor thd;
 
     vapp.BeginLongOp();
-    vapp.GetStnProduct(&stn); // Default string for TDT easel is product name
+    vapp.GetStnProduct(&stn); // Default string for ThreeDText easel is product name
 
     // Find the first font available for this source, cache it, and use it
-    // as the default font for the TDT easel.
+    // as the default font for the ThreeDText easel.
     cki.ctg = kctgTfth;
     cki.cno = cnoNil;
     pbcl = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
@@ -2701,7 +2701,7 @@ void Studio::MarkMem(void)
     MarkMemObj(_pglcmg);
     MarkMemObj(_pglclr);
     MarkMemObj(_ptgobTitle);
-    TDT::MarkActionNames();
+    ThreeDText::MarkActionNames();
 
     //
     // Mark browser objects

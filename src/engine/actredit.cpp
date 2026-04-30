@@ -751,11 +751,11 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     TAG tag;
 
     //
-    // Ensure that the tag to the TDT being pasted is in the current movie.
+    // Ensure that the tag to the ThreeDText being pasted is in the current movie.
     //
     if (FIsTdt())
     {
-        Assert(_tagTmpl.sid == ksidUseCrf, "TDTs should be stored in a document!");
+        Assert(_tagTmpl.sid == ksidUseCrf, "ThreeDTexts should be stored in a document!");
 
         if (!pscen->Pmvie()->FEnsureAutosave(&pcrf))
         {

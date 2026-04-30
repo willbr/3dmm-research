@@ -5536,7 +5536,7 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
         return fFalse;
     if (ptmpl->FIsTdt())
     {
-        if (!((PTDT)ptmpl)->FAdjustBody(_pbody))
+        if (!((PThreeDText)ptmpl)->FAdjustBody(_pbody))
         {
             ReleasePpo(&ptmpl);
             return fFalse;
@@ -5551,8 +5551,8 @@ bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
     _tagTmpl = *ptagTmplNew;
     TagManager::DupTag(ptagTmplNew);
 
-    // If the new TMPL is not a TDT, we're done...although currently this
-    // function should only be called with ptagTmplNew being a TDT
+    // If the new TMPL is not a ThreeDText, we're done...although currently this
+    // function should only be called with ptagTmplNew being a ThreeDText
     if (!ptmpl->FIsTdt())
         return fTrue;
 
