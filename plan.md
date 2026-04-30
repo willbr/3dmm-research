@@ -334,6 +334,18 @@ What landed:
 - `_MouseDrag` rotate / resize / squash branches on `_paundGroup != pvNil`: per actor per tick, compute world-space `delta_i` to orbit/scale the actor around the frozen pivot, then `FMoveRoute(delta_i)` and `FRotate / FScale / FPull` for the local body change. Cmd modifier (`fFromHereFwd`) carries through. Single-select path unchanged.
 - One drag = one undo step (reuses `ActorMoveGroupUndo`).
 
+**Phase 3 (named selection groups via hashtag tags) shipped on branch `c`:**
+
+- Spec: `docs/superpowers/specs/2026-04-30-actor-tag-groups-design.md`
+- Plan: `docs/superpowers/plans/2026-04-30-actor-tag-groups.md`
+
+What landed:
+
+- `Scene::FSelectActrsByTag` parses ASCII `#tag` substrings out of actor names (case-insensitive) and replaces the current selection with every matching actor in the scene.
+- `ActorRenameGroupUndo` composite undo for batched actor-rename ops (mirrors `ActorMoveGroupUndo`'s shape but uses a `StringTable_GST` to store the swap state).
+- `Ctrl+G` appends the next free `#N` (auto-numbered, scene-local) to every selected actor's name. `Ctrl+Shift+G` strips the rightmost tag from each selected actor. `Ctrl+1`..`Ctrl+9` re-selects the matching numeric group.
+- Tags ride in the existing `_pgstmactr` string table inside the movie chunk — no on-disk format change. Original 1995 3DMM displays the tag suffix verbatim; round-trip is preserved.
+
 **Phase 2+ remaining work (still in scope for "UI-5"):**
 
 - Marquee / box-select / lasso selection.
@@ -341,8 +353,7 @@ What landed:
 - `BuildActionMenu` becomes the intersection of available actions across the selection.
 - Distinct hilite color for primary vs. secondary selected actors.
 - Multi-select for text boxes, and mixed actor + tbox selection.
-- Saved / named selection groups.
-- "Select all in scene" keyboard shortcut.
+- Phase B of named groups: alphanumeric tag picker (`Ctrl+/`), dimmed `#tag` rendering in roll-call, movie-wide `#tag` operations.
 - Optional `fMultiSelect` feature flag if a regression risk emerges.
 
 **Scope: phase 1 shipped; phase 2+ is 2-3 weeks of additional work, medium risk** — touches every tool path. Compat-safe (selection state isn't persisted to `.3MM`).
