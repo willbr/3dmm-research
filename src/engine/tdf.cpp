@@ -9,15 +9,15 @@
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
 
-    TDFs (3-D Fonts) are simply collections of models, one model per ASCII
-    character.	The TDF class holds general font information such as the
+    ThreeDFonts (3-D Fonts) are simply collections of models, one model per ASCII
+    character.	The ThreeDFont class holds general font information such as the
     count of characters in the font and the maximum height of the
     characters.  It also holds an array of widths and heights of every
     character, to allow proportional spacing.  Fetching a letter's model
-    from a TDF involves	looking for a child chunk of the TDF chunk with a
+    from a ThreeDFont involves	looking for a child chunk of the ThreeDFont chunk with a
     ChildChunkID equal to the ASCII value of the desired character:
 
-    TDF  // Contains font info (width and height of characters)
+    ThreeDFont  // Contains font info (width and height of characters)
      |
      +---BMDL (chid 0) // Model for ASCII character 0
      |
@@ -30,7 +30,7 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TDF)
+RTCLASS(ThreeDFont)
 
 const long kcchTdfDefault = 256;        // for size estimates and authoring
 const BRS kdxrSpacing = BR_SCALAR(0.0); // horizontal space between chars
@@ -39,38 +39,38 @@ const BRS kdyrLeading = BR_SCALAR(0.5); // vertical space between chars
 /****************************************
     3-D Font On File
 ****************************************/
-struct TDFF
+struct ThreeDFontF
 {
     short bo;
     short osk;
     long cch;
     BRS dyrMax;
-    // These variable-length arrays follow the TDFF in the TDF chunk
+    // These variable-length arrays follow the ThreeDFontF in the ThreeDFont chunk
     //  BRS rgdxr[cch];
     //  BRS rgdyr[cch];
 };
 const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr!
 
 /***************************************************************************
-    A PFNRPO to read a TDF from a file.
+    A PFNRPO to read a ThreeDFont from a file.
 ***************************************************************************/
-bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
+bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    TDF *ptdf;
+    ThreeDFont *ptdf;
 
-    // Estimate TDF size in memory.
+    // Estimate ThreeDFont size in memory.
     if (pblck->FPacked())
-        *pcb = size(TDF) + LwMul(kcchTdfDefault, size(BRS) + size(BRS));
+        *pcb = size(ThreeDFont) + LwMul(kcchTdfDefault, size(BRS) + size(BRS));
     else
         *pcb = pblck->Cb();
     if (pvNil == ppbaco)
         return fTrue;
-    ptdf = NewObj TDF;
+    ptdf = NewObj ThreeDFont;
     if (pvNil == ptdf || !ptdf->_FInit(pblck))
     {
         TrashVar(ppbaco);
@@ -79,7 +79,7 @@ bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno
         return fFalse;
     }
     AssertPo(ptdf, 0);
-    *pcb = size(TDF) + LwMul(ptdf->_cch, size(BRS) + size(BRS));
+    *pcb = size(ThreeDFont) + LwMul(ptdf->_cch, size(BRS) + size(BRS));
     *ppbaco = ptdf;
     return fTrue;
 }
@@ -88,29 +88,29 @@ bool TDF::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno
     Initialize the font.  Does not clean up on failure because the
     destructor will.
 ***************************************************************************/
-bool TDF::_FInit(PDataBlock pblck)
+bool ThreeDFont::_FInit(PDataBlock pblck)
 {
     AssertBaseThis(0);
     AssertPo(pblck, 0);
 
-    TDFF tdff;
+    ThreeDFontF tdff;
     long cbrgdwr; // space taken by rgdxr or rgdyr
 
     if (!pblck->FUnpackData())
         return fFalse;
-    if (pblck->Cb() < size(TDFF))
+    if (pblck->Cb() < size(ThreeDFontF))
     {
         PushErc(ercSocBadTdf);
         return fFalse;
     }
-    if (!pblck->FReadRgb(&tdff, size(TDFF), 0))
+    if (!pblck->FReadRgb(&tdff, size(ThreeDFontF), 0))
         return fFalse;
     if (kboCur != tdff.bo)
         SwapBytesBom(&tdff, kbomTdff);
-    Assert(kboCur == tdff.bo, "bad TDFF");
+    Assert(kboCur == tdff.bo, "bad ThreeDFontF");
     _cch = tdff.cch;
     cbrgdwr = LwMul(_cch, size(BRS));
-    if (pblck->Cb() != size(TDFF) + cbrgdwr + cbrgdwr)
+    if (pblck->Cb() != size(ThreeDFontF) + cbrgdwr + cbrgdwr)
     {
         PushErc(ercSocBadTdf);
         return fFalse;
@@ -120,7 +120,7 @@ bool TDF::_FInit(PDataBlock pblck)
     // Read _prgdxr
     if (!FAllocPv((void **)&_prgdxr, cbrgdwr, fmemNil, mprNormal))
         return fFalse;
-    if (!pblck->FReadRgb(_prgdxr, cbrgdwr, size(TDFF)))
+    if (!pblck->FReadRgb(_prgdxr, cbrgdwr, size(ThreeDFontF)))
         return fFalse;
     AssertBomRglw(kbomBrs, size(BRS));
     if (kboCur != tdff.bo)
@@ -129,7 +129,7 @@ bool TDF::_FInit(PDataBlock pblck)
     // Read _prgdyr
     if (!FAllocPv((void **)&_prgdyr, cbrgdwr, fmemNil, mprNormal))
         return fFalse;
-    if (!pblck->FReadRgb(_prgdyr, cbrgdwr, size(TDFF) + cbrgdwr))
+    if (!pblck->FReadRgb(_prgdyr, cbrgdwr, size(ThreeDFontF) + cbrgdwr))
         return fFalse;
     AssertBomRglw(kbomBrs, size(BRS));
     if (kboCur != tdff.bo)
@@ -139,9 +139,9 @@ bool TDF::_FInit(PDataBlock pblck)
 }
 
 /***************************************************************************
-    TDF destructor
+    ThreeDFont destructor
 ***************************************************************************/
-TDF::~TDF(void)
+ThreeDFont::~ThreeDFont(void)
 {
     AssertBaseThis(0);
 
@@ -150,12 +150,12 @@ TDF::~TDF(void)
 }
 
 /***************************************************************************
-    This authoring-only API creates a new TDF chunk in pcrf, with child
+    This authoring-only API creates a new ThreeDFont chunk in pcrf, with child
     models as specified in pglkid.  This function does not create a new
-    TDF instance in memory...to do that, call FReadTdf with the values
+    ThreeDFont instance in memory...to do that, call FReadTdf with the values
     returned in pckiTdf.
 ***************************************************************************/
-bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf)
+bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf)
 {
     AssertPo(pcrf, 0);
     AssertPo(pglkid, 0);
@@ -165,7 +165,7 @@ bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, 
     ChunkIdentification ckiTdf;
     ChildChunkIdentification kid;
     ChildChunkIdentification kid2;
-    TDFF tdff;
+    ThreeDFontF tdff;
     BRS *prgdxr = pvNil;
     BRS *prgdyr = pvNil;
     PModel pmodl;
@@ -197,9 +197,9 @@ bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, 
     if (!FAllocPv((void **)&prgdyr, cbrgdwr, fmemClear, mprNormal))
         goto LFail;
 
-    // Create the TDF chunk
+    // Create the ThreeDFont chunk
     ckiTdf.ctg = kctgTdf;
-    if (!pcrf->Pcfl()->FAdd(size(TDFF) + cbrgdwr + cbrgdwr, ckiTdf.ctg, &ckiTdf.cno, &blck))
+    if (!pcrf->Pcfl()->FAdd(size(ThreeDFontF) + cbrgdwr + cbrgdwr, ckiTdf.ctg, &ckiTdf.cno, &blck))
     {
         goto LFail;
     }
@@ -231,11 +231,11 @@ bool TDF::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, 
             tdff.dyrMax = prgdyr[kid.chid];
         ReleasePpo(&pmodl);
     }
-    if (!blck.FWriteRgb(&tdff, size(TDFF), 0))
+    if (!blck.FWriteRgb(&tdff, size(ThreeDFontF), 0))
         goto LFail;
-    if (!blck.FWriteRgb(prgdxr, cbrgdwr, size(TDFF)))
+    if (!blck.FWriteRgb(prgdxr, cbrgdwr, size(ThreeDFontF)))
         goto LFail;
-    if (!blck.FWriteRgb(prgdyr, cbrgdwr, size(TDFF) + cbrgdwr))
+    if (!blck.FWriteRgb(prgdyr, cbrgdwr, size(ThreeDFontF) + cbrgdwr))
         goto LFail;
     FreePpv((void **)&prgdxr);
     FreePpv((void **)&prgdyr);
@@ -253,7 +253,7 @@ LFail:
     Get a model for a character from the font.  The chid is equal to the
     ASCII (or Unicode) value of the desired character.
 ***************************************************************************/
-PModel TDF::PmodlFetch(ChildChunkID chid)
+PModel ThreeDFont::PmodlFetch(ChildChunkID chid)
 {
     AssertThis(0);
 
@@ -273,7 +273,7 @@ PModel TDF::PmodlFetch(ChildChunkID chid)
 /***************************************************************************
     Return the width of the given character
 ***************************************************************************/
-BRS TDF::DxrChar(long ich)
+BRS ThreeDFont::DxrChar(long ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, _cch);
@@ -284,7 +284,7 @@ BRS TDF::DxrChar(long ich)
 /***************************************************************************
     Return the height of the given character
 ***************************************************************************/
-BRS TDF::DyrChar(long ich)
+BRS ThreeDFont::DyrChar(long ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, _cch);
@@ -294,11 +294,11 @@ BRS TDF::DyrChar(long ich)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TDF.
+    Assert the validity of the ThreeDFont.
 ***************************************************************************/
-void TDF::AssertValid(ulong grf)
+void ThreeDFont::AssertValid(ulong grf)
 {
-    TDF_PAR::AssertValid(fobjAllocated);
+    ThreeDFont_PAR::AssertValid(fobjAllocated);
     AssertIn(_cch, 0, klwMax);
     AssertIn(_dyrMax, 0, BR_SCALAR_MAX);
     AssertPvCb(_prgdxr, LwMul(_cch, size(BRS)));
@@ -306,12 +306,12 @@ void TDF::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the TDF
+    Mark memory used by the ThreeDFont
 ***************************************************************************/
-void TDF::MarkMem(void)
+void ThreeDFont::MarkMem(void)
 {
     AssertThis(0);
-    TDF_PAR::MarkMem();
+    ThreeDFont_PAR::MarkMem();
     MarkPv(_prgdxr);
     MarkPv(_prgdyr);
 }
