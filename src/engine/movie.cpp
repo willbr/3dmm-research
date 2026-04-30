@@ -5401,21 +5401,6 @@ void Movie::MarkViews(void)
     {
         Pbwld()->MarkRenderedRegn(pddg, 0, 0);
     }
-
-    // Force WM_PAINT for the pose-readout strip on the active view so the
-    // X/Y/Z text refreshes during drag (BRender's MarkRenderedRegn only
-    // covers the actor's old/new bounds; the top-left strip stays clean
-    // and otherwise wouldn't repaint until idle / mouseup).
-    if (MovieView::FShowPoseReadout())
-    {
-        PDocumentDisplayGraphicsObject pddgActive = PddgActive();
-        if (pddgActive != pvNil)
-        {
-            RC rcReadout;
-            rcReadout.Set(0, 0, 200, 24);
-            pddgActive->InvalRc(&rcReadout, kginSysInval);
-        }
-    }
 }
 
 /***************************************************************************
@@ -8045,6 +8030,18 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         }
     }
     break;
+    }
+
+    // Pose readout sits on the top-left strip; BRender's per-frame dirty
+    // region only covers the actor bounds, so the readout text wouldn't
+    // refresh during drag without an explicit kginSysInval here. Scoped to
+    // the drag handler so it doesn't fire from animation / playback ticks
+    // (which would queue a paint storm).
+    if (_fShowPoseReadout)
+    {
+        RC rcReadout;
+        rcReadout.Set(0, 0, 200, 24);
+        InvalRc(&rcReadout, kginSysInval);
     }
 }
 
