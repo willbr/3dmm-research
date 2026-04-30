@@ -816,10 +816,10 @@ struct CMG // Gokd Cno Map
    Enumerates current product first
 
 *************************************/
-#define FNET_PAR BASE
-#define kclsFNET 'FNET'
-typedef class FNET *PFNET;
-class FNET : public FNET_PAR
+#define ThumbnailFileEnumerator_PAR BASE
+#define kclsThumbnailFileEnumerator 'FNET'
+typedef class ThumbnailFileEnumerator *PThumbnailFileEnumerator;
+class ThumbnailFileEnumerator : public ThumbnailFileEnumerator_PAR
 {
     RTCLASS_DEC
 
@@ -839,11 +839,11 @@ class FNET : public FNET_PAR
     //
     // Constructors and destructors
     //
-    FNET(void) : FNET_PAR()
+    ThumbnailFileEnumerator(void) : ThumbnailFileEnumerator_PAR()
     {
         _fInited = fFalse;
     }
-    ~FNET(void){};
+    ~ThumbnailFileEnumerator(void){};
 
     bool FInit(void);
     bool FNext(Filename *pfni, long *psid = pvNil);
