@@ -19,7 +19,7 @@ RTCLASS(MidiStreamPlayer)
 RTCLASS(MidiStreamMixer)
 RTCLASS(MidiStreamInterface)
 RTCLASS(WindowsMidiStream)
-RTCLASS(OMS)
+RTCLASS(OurMidiStream)
 
 const long kdtsMinSlip = kdtsSecond / 30;
 const long kcbMaxWmsBuffer = 0x0000FFFF / size(MEV) * size(MEV);
@@ -581,7 +581,7 @@ bool MidiStreamMixer::_FInit(void)
     _pglmsos->SetMinGrow(1);
 
     if (pvNil == (_pmisi = WindowsMidiStream::PwmsNew(_MidiProc, (ulong)this)) &&
-        pvNil == (_pmisi = OMS::PomsNew(_MidiProc, (ulong)this)))
+        pvNil == (_pmisi = OurMidiStream::PomsNew(_MidiProc, (ulong)this)))
     {
         return fFalse;
     }
@@ -1991,14 +1991,14 @@ void WindowsMidiStream::_DoCallBacks()
 /***************************************************************************
     Constructor for our own midi stream api implementation.
 ***************************************************************************/
-OMS::OMS(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
+OurMidiStream::OurMidiStream(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
 /***************************************************************************
     Destructor for our midi stream.
 ***************************************************************************/
-OMS::~OMS(void)
+OurMidiStream::~OurMidiStream(void)
 {
     if (hNil != _hth)
     {
@@ -2021,13 +2021,13 @@ OMS::~OMS(void)
 }
 
 /***************************************************************************
-    Create a new OMS.
+    Create a new OurMidiStream.
 ***************************************************************************/
-POMS OMS::PomsNew(PFNMIDI pfn, ulong luUser)
+POurMidiStream OurMidiStream::PomsNew(PFNMIDI pfn, ulong luUser)
 {
-    POMS poms;
+    POurMidiStream poms;
 
-    if (pvNil == (poms = NewObj OMS(pfn, luUser)))
+    if (pvNil == (poms = NewObj OurMidiStream(pfn, luUser)))
         return pvNil;
 
     if (!poms->_FInit())
@@ -2037,9 +2037,9 @@ POMS OMS::PomsNew(PFNMIDI pfn, ulong luUser)
 }
 
 /***************************************************************************
-    Initialize the OMS.
+    Initialize the OurMidiStream.
 ***************************************************************************/
-bool OMS::_FInit(void)
+bool OurMidiStream::_FInit(void)
 {
     AssertBaseThis(0);
     ulong luThread;
@@ -2052,7 +2052,7 @@ bool OMS::_FInit(void)
         return fFalse;
 
     // create the thread in a suspended state
-    if (hNil == (_hth = CreateThread(pvNil, 1024, OMS::_ThreadProc, this, CREATE_SUSPENDED, &luThread)))
+    if (hNil == (_hth = CreateThread(pvNil, 1024, OurMidiStream::_ThreadProc, this, CREATE_SUSPENDED, &luThread)))
     {
         return fFalse;
     }
@@ -2067,11 +2067,11 @@ bool OMS::_FInit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a OMS.
+    Assert the validity of a OurMidiStream.
 ***************************************************************************/
-void OMS::AssertValid(ulong grf)
+void OurMidiStream::AssertValid(ulong grf)
 {
-    OMS_PAR::AssertValid(0);
+    OurMidiStream_PAR::AssertValid(0);
 
     _mutx.Enter();
     Assert(hNil != _hth, "nil thread");
@@ -2081,12 +2081,12 @@ void OMS::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the OMS.
+    Mark memory for the OurMidiStream.
 ***************************************************************************/
-void OMS::MarkMem(void)
+void OurMidiStream::MarkMem(void)
 {
     AssertValid(0);
-    OMS_PAR::MarkMem();
+    OurMidiStream_PAR::MarkMem();
 
     _mutx.Enter();
     MarkMemObj(_pglmsb);
@@ -2097,7 +2097,7 @@ void OMS::MarkMem(void)
 /***************************************************************************
     Open the stream.
 ***************************************************************************/
-bool OMS::_FOpen(void)
+bool OurMidiStream::_FOpen(void)
 {
     AssertThis(0);
 
@@ -2129,7 +2129,7 @@ LDone:
 /***************************************************************************
     Close the stream.
 ***************************************************************************/
-bool OMS::_FClose(void)
+bool OurMidiStream::_FClose(void)
 {
     AssertThis(0);
 
@@ -2165,7 +2165,7 @@ bool OMS::_FClose(void)
 /***************************************************************************
     Queue a buffer to the midi stream.
 ***************************************************************************/
-bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
+bool OurMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -2209,7 +2209,7 @@ bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
     Stop the stream and release all buffers. The buffer notifies are
     asynchronous.
 ***************************************************************************/
-void OMS::StopPlaying(void)
+void OurMidiStream::StopPlaying(void)
 {
     AssertThis(0);
 
@@ -2228,9 +2228,9 @@ void OMS::StopPlaying(void)
 /***************************************************************************
     AT: Static method. Thread function for the midi stream object.
 ***************************************************************************/
-ulong __stdcall OMS::_ThreadProc(void *pv)
+ulong __stdcall OurMidiStream::_ThreadProc(void *pv)
 {
-    POMS poms = (POMS)pv;
+    POurMidiStream poms = (POurMidiStream)pv;
 
     AssertPo(poms, 0);
 
@@ -2240,7 +2240,7 @@ ulong __stdcall OMS::_ThreadProc(void *pv)
 /***************************************************************************
     AT: The midi stream playback thread.
 ***************************************************************************/
-ulong OMS::_LuThread(void)
+ulong OurMidiStream::_LuThread(void)
 {
     AssertThis(0);
     MSB msb;
@@ -2345,7 +2345,7 @@ ulong OMS::_LuThread(void)
     Release all buffers up to _imsbCur. Assumes that we have the mutx
     checked out exactly once.
 ***************************************************************************/
-void OMS::_ReleaseBuffers(void)
+void OurMidiStream::_ReleaseBuffers(void)
 {
     MSB msb;
 
