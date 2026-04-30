@@ -26,8 +26,8 @@
     BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
     BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
     BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM (Browser music class)
-    BrowserDisplay --> BrowserList --> BrowserNamedList --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BRWI (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -85,7 +85,7 @@ RTCLASS(BrowserPropActor)
 RTCLASS(BrowserBackground)
 RTCLASS(BrowserCamera)
 RTCLASS(BrowserNamedList)
-RTCLASS(BRWM)
+RTCLASS(BrowserMusic)
 RTCLASS(BRWR)
 RTCLASS(BRWI)
 RTCLASS(BrowserContentList)
@@ -1987,18 +1987,18 @@ bool BrowserNamedList::FCmdOk(PCommand pcmd)
  * Create a BRoWser Music Sound object
  *
  ****************************************************/
-PBRWM BRWM::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio)
+PBrowserMusic BrowserMusic::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio)
 {
     AssertPo(prca, 0);
     AssertPo(pstdio, 0);
 
-    PBRWM pbrwm;
+    PBrowserMusic pbrwm;
     GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    if ((pbrwm = NewObj BRWM(&gcb)) == pvNil)
+    if ((pbrwm = NewObj BrowserMusic(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2027,13 +2027,13 @@ PBRWM BRWM::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdi
  *	pglthd, pgst
  *
  * Used at initialization time by both the BRWI and
- * the BRWM classes.
+ * the BrowserMusic classes.
  *
  * It is assumed that initialization has created
  * (if empty) lists at this point.
  *
  ****************************************************/
-bool BRWM::_FUpdateLists(void)
+bool BrowserMusic::_FUpdateLists(void)
 {
     AssertThis(0);
 
@@ -2106,7 +2106,7 @@ bool BRWM::_FUpdateLists(void)
  * Test to see if a sound is already in the lists
  *
  ****************************************************/
-bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
+bool BrowserMusic::_FSndListed(ChunkNumber cno, long *pithd)
 {
     AssertBaseThis(0);
 
@@ -2131,7 +2131,7 @@ bool BRWM::_FSndListed(ChunkNumber cno, long *pithd)
  * Extend the BrowserList lists
  *
  ****************************************************/
-bool BRWM::_FAddThd(String *pstn, ChunkIdentification *pcki)
+bool BrowserMusic::_FAddThd(String *pstn, ChunkIdentification *pcki)
 {
     AssertBaseThis(0);
     ThumbnailDescriptor thd;
@@ -2163,7 +2163,7 @@ LFail1:
  * Import sound browser
  *
  ****************************************************/
-void BRWM::_ProcessSelection(void)
+void BrowserMusic::_ProcessSelection(void)
 {
     AssertThis(0);
     PMovieSoundMSND pmsnd;
@@ -2202,7 +2202,7 @@ void BRWM::_ProcessSelection(void)
  * execution
  *
  ****************************************************/
-bool BRWM::FCmdFile(PCommand pcmd)
+bool BrowserMusic::FCmdFile(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2337,7 +2337,7 @@ LEnd:
  * Browser Command Handler : (For deleting user snds)
  *
  ****************************************************/
-bool BRWM::FCmdDel(PCommand pcmd)
+bool BrowserMusic::FCmdDel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
