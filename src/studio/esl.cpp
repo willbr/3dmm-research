@@ -30,7 +30,7 @@ RTCLASS(ESL)
 RTCLASS(ESLT)
 RTCLASS(ESLA)
 RTCLASS(SpletterNameEditor)
-RTCLASS(ESLL)
+RTCLASS(EaselListen)
 RTCLASS(ListenerSound)
 RTCLASS(EaselRecord)
 
@@ -1049,28 +1049,28 @@ void ESLA::MarkMem(void)
 
 //
 //
-//  ESLL (EaSeL Listener)
+//  EaselListen (EaSeL Listener)
 //	The Listener displays either all background sounds or the
 //  actor Sound Effects and the actor Speech sounds of highest precedence.
 //  Note:  A sounder speech sound takes precedence over a motion match
 //  speech sound
 //
 
-BEGIN_CMD_MAP(ESLL, ESL)
-ON_CID_GEN(cidEaselVol, &ESLL::FCmdVlm, pvNil)
-ON_CID_GEN(cidEaselPlay, &ESLL::FCmdPlay, pvNil)
+BEGIN_CMD_MAP(EaselListen, ESL)
+ON_CID_GEN(cidEaselVol, &EaselListen::FCmdVlm, pvNil)
+ON_CID_GEN(cidEaselPlay, &EaselListen::FCmdPlay, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new listener easel
 ***************************************************************************/
-PESLL ESLL::PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr)
+PEaselListen EaselListen::PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
 
-    PESLL pesll;
+    PEaselListen pesll;
     GraphicsObjectBlock gcb;
     long kidGlass;
 
@@ -1082,7 +1082,7 @@ PESLL ESLL::PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr)
     if (!FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    pesll = NewObj ESLL(&gcb);
+    pesll = NewObj EaselListen(&gcb);
     if (pvNil == pesll)
         return pvNil;
     if (!pesll->_FInit(prca, kidGlass, pmvie, pactr))
@@ -1099,7 +1099,7 @@ PESLL ESLL::PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLL::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
+bool EaselListen::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
@@ -1110,7 +1110,7 @@ bool ESLL::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr
     long vlm;
     bool fLoop;
 
-    if (!ESLL_PAR::_FInit(prca, kidEasel))
+    if (!EaselListen_PAR::_FInit(prca, kidEasel))
         return fFalse;
     _pmvie = pmvie;
     _pscen = pmvie->Pscen();
@@ -1233,7 +1233,7 @@ bool ListenerSound::FValidSnd(void)
 /***************************************************************************
     Clean up and delete this easel
 ***************************************************************************/
-ESLL::~ESLL(void)
+EaselListen::~EaselListen(void)
 {
     AssertBaseThis(0);
 }
@@ -1241,7 +1241,7 @@ ESLL::~ESLL(void)
 /***************************************************************************
     Handle a Listener volume change command
 ***************************************************************************/
-bool ESLL::FCmdVlm(PCommand pcmd)
+bool EaselListen::FCmdVlm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1277,7 +1277,7 @@ bool ESLL::FCmdVlm(PCommand pcmd)
 /***************************************************************************
     Handle a Listener play command
 ***************************************************************************/
-bool ESLL::FCmdPlay(PCommand pcmd)
+bool EaselListen::FCmdPlay(PCommand pcmd)
 {
     AssertVarMem(pcmd);
     AssertNilOrPo(_pactr, 0);
@@ -1321,7 +1321,7 @@ bool ESLL::FCmdPlay(PCommand pcmd)
     create an undo object here, but we currently don't.  Scene sounds would
     require a new type of undo object so that's definitely not supported.
 ***************************************************************************/
-bool ESLL::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselListen::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
@@ -1422,20 +1422,20 @@ bool ESLL::_FAcceptChanges(bool *pfDismissEasel)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLL.
+    Assert the validity of the EaselListen.
 ***************************************************************************/
-void ESLL::AssertValid(ulong grf)
+void EaselListen::AssertValid(ulong grf)
 {
-    ESLL_PAR::AssertValid(fobjAllocated);
+    EaselListen_PAR::AssertValid(fobjAllocated);
 }
 
 /***************************************************************************
-    Mark memory used by the ESLL
+    Mark memory used by the EaselListen
 ***************************************************************************/
-void ESLL::MarkMem(void)
+void EaselListen::MarkMem(void)
 {
     AssertThis(0);
-    ESLL_PAR::MarkMem();
+    EaselListen_PAR::MarkMem();
     MarkMemObj(&_lsndSpeech);
     MarkMemObj(&_lsndSfx);
     MarkMemObj(&_lsndSpeechMM);
@@ -1958,7 +1958,7 @@ LFail:
 ***************************************************************************/
 void EaselRecord::AssertValid(ulong grf)
 {
-    ESLL_PAR::AssertValid(fobjAllocated);
+    EaselListen_PAR::AssertValid(fobjAllocated);
     AssertPo(_psrec, 0);
 }
 
@@ -1968,7 +1968,7 @@ void EaselRecord::AssertValid(ulong grf)
 void EaselRecord::MarkMem(void)
 {
     AssertThis(0);
-    ESLL_PAR::MarkMem();
+    EaselListen_PAR::MarkMem();
     MarkMemObj(_psrec);
 }
 #endif // DEBUG

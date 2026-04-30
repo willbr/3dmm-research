@@ -2199,8 +2199,8 @@ bool Studio::FCmdListenerEaselOpen(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    // Note: easels are self-managing, so we don't need to keep the PESLL
-    ESLL::PesllNew(_pcrm, _pmvie, _pmvie->Pscen()->PactrSelected());
+    // Note: easels are self-managing, so we don't need to keep the PEaselListen
+    EaselListen::PesllNew(_pcrm, _pmvie, _pmvie->Pscen()->PactrSelected());
     return fTrue;
 }
 

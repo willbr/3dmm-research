@@ -14,7 +14,7 @@
                                           |
                                           +---> ESLC (costume easel)
                                           |
-                                          +---> ESLL (listener easel)
+                                          +---> EaselListen (listener easel)
                                           |
                                           +---> EaselRecord (sound recording easel)
 
@@ -212,15 +212,15 @@ class ListenerSound : public ListenerSound_PAR
 /****************************************
     The listener easel class
 ****************************************/
-typedef class ESLL *PESLL;
-#define ESLL_PAR ESL
-#define kclsESLL 'ESLL'
-class ESLL : public ESLL_PAR
+typedef class EaselListen *PEaselListen;
+#define EaselListen_PAR ESL
+#define kclsEaselListen 'ESLL'
+class EaselListen : public EaselListen_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(ESLL)
+    CMD_MAP_DEC(EaselListen)
 
   protected:
     PMovie _pmvie; // Movie that these sounds are in
@@ -233,7 +233,7 @@ class ESLL : public ESLL_PAR
     ListenerSound _lsndSfxMM;
 
   protected:
-    ESLL(PGraphicsObjectBlock pgcb) : ESL(pgcb)
+    EaselListen(PGraphicsObjectBlock pgcb) : ESL(pgcb)
     {
     }
 
@@ -241,8 +241,8 @@ class ESLL : public ESLL_PAR
     virtual bool _FAcceptChanges(bool *pfDismissEasel);
 
   public:
-    static PESLL PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr);
-    ~ESLL(void);
+    static PEaselListen PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr);
+    ~EaselListen(void);
 
     bool FCmdVlm(PCommand pcmd);
     bool FCmdPlay(PCommand pcmd);
