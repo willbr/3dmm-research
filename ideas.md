@@ -9,5 +9,5 @@ background editor in imgui
 actor editor in imgui
 prop editor in imgui
 
-use zig build?
+use zig build?  or just a batch file?
 
