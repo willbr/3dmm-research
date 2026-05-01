@@ -1194,7 +1194,7 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNu
     }
     if (bo == kboOther)
     {
-        SwapBytesRglw(_pglmpe->QvGet(0), LwMul(_pglmpe->IvMac(), size(MPE)) / size(long));
+        SwapBytesRglw(_pglmpe->QvGet(0), LwMul(_pglmpe->IvMac(), size(MPE)) / size(int32_t));
     }
 
     // get the text property arguments
