@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    The GeneralGroup of TAGFs is maintained in sorted order.  It is sorted by sid,
+    The GeneralGroup of CachedTags is maintained in sorted order.  It is sorted by sid,
     then by	ChunkTagOrType, then by ChunkNumber.
 
 ***************************************************************************/
@@ -18,17 +18,16 @@ ASSERTNAME
 RTCLASS(TagList)
 
 /****************************************
-    TAGF, or "tag-flag" struct, stores
-    the tag that you want to cache and
-    whether to cache its children
-    automatically or not.
+    CachedTag stores the tag that you
+    want to cache and whether to cache
+    its children automatically or not.
 ****************************************/
-struct TAGF
+struct CachedTag
 {
     TAG tag;
     bool fCacheChildren;
 };
-static_assert(sizeof(TAGF) == 20, "TAGF on-disk layout drift");
+static_assert(sizeof(CachedTag) == 20, "CachedTag on-disk layout drift");
 
 /****************************************
     ChidCtgPair: "chid-ctg" struct, for
@@ -69,7 +68,7 @@ bool TagList::_FInit(void)
 {
     AssertBaseThis(0);
 
-    _pggtagf = GeneralGroup::PggNew(size(TAGF));
+    _pggtagf = GeneralGroup::PggNew(size(CachedTag));
     if (pvNil == _pggtagf)
         return fFalse;
     return fTrue;
@@ -103,7 +102,7 @@ void TagList::GetTag(long itag, PTAG ptag)
     AssertIn(itag, 0, Ctag());
     AssertVarMem(ptag);
 
-    TAGF tagf;
+    CachedTag tagf;
 
     _pggtagf->GetFixed(itag, &tagf);
     *ptag = tagf.tag;
@@ -122,7 +121,7 @@ bool TagList::_FFindTag(PTAG ptag, long *pitag)
     AssertVarMem(ptag);
     AssertVarMem(pitag);
 
-    TAGF *qtagf;
+    CachedTag *qtagf;
     long itagfMin, itagfLim, itagf;
     long sid = ptag->sid;
     ChunkTagOrType ctg = ptag->ctg;
@@ -134,11 +133,11 @@ bool TagList::_FFindTag(PTAG ptag, long *pitag)
         return fFalse;
     }
 
-    // Do a binary search.  The TAGFs are sorted by (sid, ctg, cno).
+    // Do a binary search.  The CachedTags are sorted by (sid, ctg, cno).
     for (itagfMin = 0, itagfLim = _pggtagf->IvMac(); itagfMin < itagfLim;)
     {
         itagf = (itagfMin + itagfLim) / 2;
-        qtagf = (TAGF *)_pggtagf->QvFixedGet(itagf);
+        qtagf = (CachedTag *)_pggtagf->QvFixedGet(itagf);
         if (sid < qtagf->tag.sid)
             itagfLim = itagf;
         else if (sid > qtagf->tag.sid)
@@ -172,11 +171,11 @@ bool TagList::FInsertTag(PTAG ptag, bool fCacheChildren)
     AssertVarMem(ptag);
 
     long itag;
-    TAGF tagf;
+    CachedTag tagf;
 
     if (!_FFindTag(ptag, &itag))
     {
-        // Build and insert TAGF into fixed part of GeneralGroup
+        // Build and insert CachedTag into fixed part of GeneralGroup
         tagf.tag = *ptag;
         tagf.fCacheChildren = fCacheChildren;
         if (!_pggtagf->FInsert(itag, 0, pvNil, &tagf))
@@ -215,7 +214,7 @@ bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
         return fFalse;
     }
 #ifdef DEBUG
-    TAGF tagf;
+    CachedTag tagf;
     _pggtagf->GetFixed(itagf, &tagf);
     if (tagf.tag.ctg != ptag->ctg || tagf.tag.cno != ptag->cno)
         Bug("_FFindTag has a bug");
@@ -252,7 +251,7 @@ bool TagList::FCacheTags(void)
     AssertThis(0);
 
     long itagf;
-    TAGF tagf;
+    CachedTag tagf;
     long ccc; // count of ChidCtgPairs
     long icc;
     ChidCtgPair cc;

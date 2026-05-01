@@ -27,7 +27,7 @@ class TagList : public TagList_PAR
     MARKMEM
 
   protected:
-    PGeneralGroup _pggtagf; // TAGF for fixed part, array of cc's for variable part
+    PGeneralGroup _pggtagf; // CachedTag for fixed part, array of ChidCtgPair for variable part
 
   protected:
     bool _FInit(void);
