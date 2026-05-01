@@ -4035,6 +4035,16 @@ void Application::DisplayErrors(void)
     {
         String stnErr;
 
+        // Mirror the popped erc to the crash log so the on-screen "internal
+        // error: NNN" dialog text is recoverable from disk later. The dialog
+        // path that follows (TModal + helptopic) is its own thing -- not
+        // routed through _FGenericError or AppendCrashLog otherwise.
+        {
+            char szDiag[64];
+            wsprintfA(szDiag, "DisplayErrors: erc=%ld", erc);
+            AppendCrashLog("DISPLAY_ERROR", szDiag);
+        }
+
         vpers->Clear();
 
         //
@@ -4090,8 +4100,57 @@ void Application::DisplayErrors(void)
         case ercSocWaveInProblems:
         case ercSocCreatedUserDir:
 
-            /* Display a generic error message, with the error code in it */
-            stnErr.FFormatSz(PszLit("%d"), erc);
+            /* Display a generic error message, with both the symbolic name
+             * and a short description of what went wrong -- the bare numeric
+             * code by itself ("Internal error: 103") was unactionable. The
+             * mapping is hand-maintained here against framedef.h / utilerro.h
+             * because there's no runtime erc -> name table in kauai. */
+            {
+                const char *pszName = "(unknown)";
+                const char *pszDesc = "no description available";
+                switch (erc)
+                {
+                case ercOomHq:              pszName = "ercOomHq";              pszDesc = "out of memory (HQ allocation)"; break;
+                case ercOomPv:              pszName = "ercOomPv";              pszDesc = "out of memory (PV allocation)"; break;
+                case ercOomNew:             pszName = "ercOomNew";             pszDesc = "out of memory (new)"; break;
+                case ercFilePerm:           pszName = "ercFilePerm";           pszDesc = "file permission denied"; break;
+                case ercFileOpen:           pszName = "ercFileOpen";           pszDesc = "couldn't open file"; break;
+                case ercFileCreate:         pszName = "ercFileCreate";         pszDesc = "couldn't create file"; break;
+                case ercFileSwapNames:      pszName = "ercFileSwapNames";      pszDesc = "couldn't swap file names"; break;
+                case ercFileRename:         pszName = "ercFileRename";         pszDesc = "couldn't rename file"; break;
+                case ercFniGeneral:         pszName = "ercFniGeneral";         pszDesc = "filename error (general)"; break;
+                case ercFniDelete:          pszName = "ercFniDelete";          pszDesc = "couldn't delete file"; break;
+                case ercFniRename:          pszName = "ercFniRename";          pszDesc = "couldn't rename file"; break;
+                case ercFniMismatch:        pszName = "ercFniMismatch";        pszDesc = "filename mismatch"; break;
+                case ercFniDirCreate:       pszName = "ercFniDirCreate";       pszDesc = "couldn't create directory"; break;
+                case ercFneGeneral:         pszName = "ercFneGeneral";         pszDesc = "file enumerator error"; break;
+                case ercCflCreate:          pszName = "ercCflCreate";          pszDesc = "couldn't create chunky file"; break;
+                case ercCflSaveCopy:        pszName = "ercCflSaveCopy";        pszDesc = "couldn't save copy of chunky file"; break;
+                case ercSndmCantInit:       pszName = "ercSndmCantInit";       pszDesc = "sound manager init failed"; break;
+                case ercSndmPartialInit:    pszName = "ercSndmPartialInit";    pszDesc = "sound manager partial init"; break;
+                case ercGfxCantDraw:        pszName = "ercGfxCantDraw";        pszDesc = "graphics: drawing failed"; break;
+                case ercGfxCantSetFont:     pszName = "ercGfxCantSetFont";     pszDesc = "graphics: couldn't set font"; break;
+                case ercGfxNoFontList:      pszName = "ercGfxNoFontList";      pszDesc = "graphics: no font list"; break;
+                case ercGfxCantSetPalette:  pszName = "ercGfxCantSetPalette";  pszDesc = "graphics: couldn't set palette"; break;
+                case ercDlgCantGetArgs:     pszName = "ercDlgCantGetArgs";     pszDesc = "dialog: couldn't get arguments"; break;
+                case ercDlgCantFind:        pszName = "ercDlgCantFind";        pszDesc = "dialog: couldn't find resource"; break;
+                case ercRtxdTooMuchText:    pszName = "ercRtxdTooMuchText";    pszDesc = "rich text: too much text"; break;
+                case ercRtxdReadFailed:     pszName = "ercRtxdReadFailed";     pszDesc = "rich text: read failed"; break;
+                case ercRtxdSaveFailed:     pszName = "ercRtxdSaveFailed";     pszDesc = "rich text: save failed"; break;
+                case ercCantOpenVideo:      pszName = "ercCantOpenVideo";      pszDesc = "couldn't open video"; break;
+                case ercMbmpCantOpenBitmap: pszName = "ercMbmpCantOpenBitmap"; pszDesc = "couldn't open masked bitmap"; break;
+                case ercSocTdtTooLong:      pszName = "ercSocTdtTooLong";      pszDesc = "3D text too long"; break;
+                case ercSocWaveInProblems:  pszName = "ercSocWaveInProblems";  pszDesc = "wave-in capture problems"; break;
+                case ercSocCreatedUserDir:  pszName = "ercSocCreatedUserDir";  pszDesc = "created user directory"; break;
+                }
+                stnErr.FFormatSz(PszLit("%d (%z) -- %z"), erc, pszName, pszDesc);
+                // Mirror to crash log so the on-screen text is recoverable later.
+                {
+                    char szLog[256];
+                    wsprintfA(szLog, "DisplayErrors -> generic: erc=%ld %s -- %s", erc, pszName, pszDesc);
+                    AppendCrashLog("DISPLAY_ERROR", szLog);
+                }
+            }
             if (!vapp.Pkwa()->Pstrg()->FPut(kstidGenericError, &stnErr))
                 stnErr.SetNil();
             erc = ktpcercSocGenericError;
