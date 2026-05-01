@@ -20,6 +20,8 @@
 #ifndef ACTOR_H
 #define ACTOR_H
 
+#include <cstdint>
+
 using namespace BRender;
 
 //
@@ -111,9 +113,9 @@ enum
 
 struct RouteLocation // RouTE Location - a function of space and time
 {
-    int irpt;      // The preceding node for the given point
-    BRS dwrOffset; // Absolute linear distance beyond node irpt
-    long dnfrm;    // Delta frame number (ie, time) at this point
+    int32_t irpt;      // The preceding node for the given point
+    BRS dwrOffset;     // Absolute linear distance beyond node irpt
+    int32_t dnfrm;     // Delta frame number (ie, time) at this point
 
     bool operator==(RouteLocation &rtel)
     {
@@ -157,10 +159,10 @@ namespace ActorEvent {
 // Fixed part of the GeneralGroup:
 struct Base
 {
-    long aet;  // Actor Event Type
-    long nfrm; // Absolute frame number (* Only valid < current event)
+    int32_t aet;        // Actor Event Type
+    int32_t nfrm;       // Absolute frame number (* Only valid < current event)
     RouteLocation rtel; // RouTE Location for this event
-};             // Additional event parameters (in the GeneralGroup)
+};                      // Additional event parameters (in the GeneralGroup)
 static_assert(sizeof(Base) == 20, "ActorEvent::Base on-disk layout drift");
 typedef Base *PBase;
 
@@ -219,8 +221,8 @@ const ByteOrderMask kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
 
 struct Action
 {
-    long anid;
-    long celn; // starting cel of action
+    int32_t anid;
+    int32_t celn; // starting cel of action
 };
 static_assert(sizeof(Action) == 8, "ActorEvent::Action on-disk layout drift");
 const ByteOrderMask kbomAevactn = 0xf0000000;
@@ -229,8 +231,8 @@ const ByteOrderMask kbomAevactn = 0xf0000000;
 // Marshalled to/from CostumeOnFile at the GG I/O boundary in actrsave.cpp.
 struct Costume
 {
-    long ibset;    // body part set
-    long cmid;     // costume ID (for custom costumes)
+    int32_t ibset; // body part set
+    int32_t cmid;  // costume ID (for custom costumes)
     tribool fCmtl; // vs fMtrl
     TAG tag;
 };
@@ -239,8 +241,8 @@ const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
 // Wire format for Costume. Fixed at 28 bytes on every architecture.
 struct CostumeOnFile
 {
-    long ibset;
-    long cmid;
+    int32_t ibset;
+    int32_t cmid;
     tribool fCmtl;
     TAGOnFile tag;
 };
@@ -249,13 +251,13 @@ static_assert(sizeof(CostumeOnFile) == 28, "ActorEvent::CostumeOnFile wire forma
 // Runtime form: embeds full TAG. Allowed to grow on x64.
 struct Sound
 {
-    tribool fLoop;    // loop count
-    tribool fQueue;   // queued sound
-    long vlm;         // volume
-    long celn;        // motion match	: ivNil if not
-    long sty;         // sound type
-    tribool fNoSound; // no sound
-    ChildChunkID chid;        // user sound requires chid
+    tribool fLoop;     // loop count
+    tribool fQueue;    // queued sound
+    int32_t vlm;       // volume
+    int32_t celn;      // motion match	: ivNil if not
+    int32_t sty;       // sound type
+    tribool fNoSound;  // no sound
+    ChildChunkID chid; // user sound requires chid
     TAG tag;
 };
 const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
@@ -265,9 +267,9 @@ struct SoundOnFile
 {
     tribool fLoop;
     tribool fQueue;
-    long vlm;
-    long celn;
-    long sty;
+    int32_t vlm;
+    int32_t celn;
+    int32_t sty;
     tribool fNoSound;
     ChildChunkID chid;
     TAGOnFile tag;
