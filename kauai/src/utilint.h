@@ -16,6 +16,8 @@
 #ifndef UTILINT_H
 #define UTILINT_H
 
+#include <cstdint>
+
 /****************************************
     Scalar constants
 ****************************************/
@@ -310,8 +312,12 @@ inline long LwMul(long lw1, long lw2)
     Byte Swapping
 ****************************************/
 
-// byte order mask
-typedef ulong ByteOrderMask;
+// byte order mask: a packed array of 16 2-bit lane descriptors used by
+// SwapBytesBom to byteswap a struct field-by-field. Pinned to 32 bits via
+// uint32_t so the kbom* literals (e.g. 0xC0000000) keep the same bit layout
+// on every architecture; bare `unsigned long` would silently widen to 64 bits
+// on LP64 (Linux/Mac x64) and reinterpret the high half as extra fields.
+typedef uint32_t ByteOrderMask;
 
 void SwapBytesBom(void *pv, ByteOrderMask bom);
 void SwapBytesRgsw(void *psw, long csw);
