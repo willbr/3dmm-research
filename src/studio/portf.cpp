@@ -474,7 +474,10 @@ bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTS
  child of the common dlg.
 
 ***************************************************************************/
-UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
+// Win64 LPOFNHOOKPROC widened to (UINT_PTR (*)(HWND, UINT, WPARAM, LPARAM)).
+// On x86 these match the original (UINT, UINT, LONG) at the byte level; on
+// x64 wParam/lParam are pointer-sized.
+UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
@@ -489,13 +492,13 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
         lpOfn = (OPENFILENAME *)lParam;
         pdiPortfolio = (PDLGINFO)(lpOfn->lCustData);
 
-        SetWindowLong(hwndCustom, GWL_USERDATA, (LONG)pdiPortfolio);
+        SetWindowLongPtr(hwndCustom, GWLP_USERDATA, (LONG_PTR)pdiPortfolio);
 
         hwndDlg = GetParent(hwndCustom);
 
         // Give ourselves a way to access the custom dlg hwnd
         // from the common dlg subclass wndproc.
-        SetWindowLong(hwndDlg, GWL_USERDATA, (LONG)hwndCustom);
+        SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)hwndCustom);
 
         // Hide common dlg controls that we're not interested in here. Use the Common Dialog
         // Message for hiding the control. The documentation on CDM_HIDECONTROL doesn't really
@@ -563,24 +566,25 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
         // the window anyway..
 
         // Subclass the push btns to prevent the background flashing in the default color.
-        lpBtnProc = (WNDPROC)SetWindowLong(GetDlgItem(hwndCustom, IDC_BUTTON1), GWL_WNDPROC, (LONG)SubClassBtnProc);
+        // Use the *Ptr variants so the WNDPROC pointer round-trips correctly on Win64.
+        lpBtnProc = (WNDPROC)SetWindowLongPtr(GetDlgItem(hwndCustom, IDC_BUTTON1), GWLP_WNDPROC, (LONG_PTR)SubClassBtnProc);
 
         lpOtherBtnProc =
-            (WNDPROC)SetWindowLong(GetDlgItem(hwndCustom, IDC_BUTTON2), GWL_WNDPROC, (LONG)SubClassBtnProc);
+            (WNDPROC)SetWindowLongPtr(GetDlgItem(hwndCustom, IDC_BUTTON2), GWLP_WNDPROC, (LONG_PTR)SubClassBtnProc);
         Assert(lpBtnProc == lpOtherBtnProc, "Custom portfolio buttons (ok/cancel) have different window procs");
 
         lpOtherBtnProc =
-            (WNDPROC)SetWindowLong(GetDlgItem(hwndCustom, IDC_BUTTON3), GWL_WNDPROC, (LONG)SubClassBtnProc);
+            (WNDPROC)SetWindowLongPtr(GetDlgItem(hwndCustom, IDC_BUTTON3), GWLP_WNDPROC, (LONG_PTR)SubClassBtnProc);
         Assert(lpBtnProc == lpOtherBtnProc, "Custom portfolio buttons (ok/home) have different window procs");
 
         // Subclass the preview window to allow custom draw.
         lpPreviewProc =
-            (WNDPROC)SetWindowLong(GetDlgItem(hwndCustom, IDC_PREVIEW), GWL_WNDPROC, (LONG)SubClassPreviewProc);
+            (WNDPROC)SetWindowLongPtr(GetDlgItem(hwndCustom, IDC_PREVIEW), GWLP_WNDPROC, (LONG_PTR)SubClassPreviewProc);
 
         // Subclass the main common dlg window to stop static control backgrounds being
         // fill with the current system color. Instead use a color that matches our
         // custom background bitmap.
-        lpDlgProc = (WNDPROC)SetWindowLong(hwndDlg, GWL_WNDPROC, (LONG)SubClassDlgProc);
+        lpDlgProc = (WNDPROC)SetWindowLongPtr(hwndDlg, GWLP_WNDPROC, (LONG_PTR)SubClassDlgProc);
 
         // For the save portfolio we want the file name control to have focus when displayed.
         if (!pdiPortfolio->fIsOpen)
@@ -796,7 +800,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             // Win95 has finished doing any resizing of the custom dlg and the controls.
             // So take any special action now to ensure the portfolio still looks good.
 
-            PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
+            PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLongPtr(hwndCustom, GWLP_USERDATA);
             SystemRectangle rcsApp;
             POINT ptBtn;
             int ypBtn;
@@ -925,7 +929,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             // Do this if we ever have a way of querying the user with a help topic
             // from inside the portfolio.
         case CDN_FILEOK: {
-            PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
+            PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLongPtr(hwndCustom, GWLP_USERDATA);
 
             // User has hit OK or Save. Is the user trying to save over an existing file?
             if (pdiPortfolio->fIsOpen != fTrue)
@@ -957,7 +961,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                             SetFocus(GetDlgItem(GetParent(hwndCustom), edt1));
 
                             // Let win95 know that the portfolio is to stay up.
-                            SetWindowLong(hwndCustom, DWL_MSGRESULT, 1);
+                            SetWindowLongPtr(hwndCustom, DWLP_MSGRESULT, 1);
                             return (1);
                         }
                     }
@@ -982,7 +986,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
     case WM_PAINT: {
         PDLGINFO pdiPortfolio;
 
-        pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
+        pdiPortfolio = (PDLGINFO)GetWindowLongPtr(hwndCustom, GWLP_USERDATA);
 
         // Repaint the entire portfolio.
         RepaintPortfolio(hwndCustom);
@@ -1015,7 +1019,7 @@ void RepaintPortfolio(HWND hwndCustom)
     PAINTSTRUCT ps;
     TEXTMETRIC tmCaption;
     ZString szCaption;
-    PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
+    PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLongPtr(hwndCustom, GWLP_USERDATA);
     PMaskedBitmapMBMP pmbmp, pmbmpBtn;
     int iBtn;
     ChunkNumber cnoBack;
@@ -1217,7 +1221,7 @@ void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, SystemRectangle 
     ZString szFile;
     ErrorStack ersT;
     ErrorStack *pers;
-    PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
+    PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLongPtr(hwndCustom, GWLP_USERDATA);
     bool fPreviewed = fFalse;
     RC rcPreview(*prcsPreview);
 
@@ -1487,7 +1491,7 @@ LRESULT CALLBACK SubClassDlgProc(HWND hwndDlg, UINT msg, WPARAM wParam, LPARAM l
         // custom dlg now, to prevent the common dlg controls appearing before
         // the portfolio background. Note that GetDlgItem(hwndDlg, <custom dlg id>)
         // returns zero here, as the Menu part of the custom dlg is zero.
-        HWND hwndCustom = (HWND)GetWindowLong(hwndDlg, GWL_USERDATA);
+        HWND hwndCustom = (HWND)GetWindowLongPtr(hwndDlg, GWLP_USERDATA);
 
         if (hwndCustom != 0)
             UpdateWindow(hwndCustom);

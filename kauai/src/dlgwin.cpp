@@ -236,9 +236,11 @@ LFail:
 }
 
 /***************************************************************************
-    Windows dialog proc.
+    Windows dialog proc. Returns INT_PTR (= 4 bytes on x86, 8 bytes on Win64),
+    matching the DLGPROC typedef. The return values used here (fTrue/fFalse,
+    item indices) all fit in the low 32 bits regardless of architecture.
 ***************************************************************************/
-BOOL CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
+INT_PTR CALLBACK _FDlgCore(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 {
     PDialog pdlg;
     DialogItem dit;
@@ -384,7 +386,7 @@ long Dialog::IditDo(long iditFocus)
 
     dlgi.pdlg = this;
     dlgi.iditFocus = iditFocus;
-    idit = DialogBoxParam(vwig.hinst, MIR(_rid), vwig.hwndApp, &_FDlgCore, (long)&dlgi);
+    idit = (long)DialogBoxParam(vwig.hinst, MIR(_rid), vwig.hwndApp, &_FDlgCore, (LPARAM)&dlgi);
 
     return idit;
 }
