@@ -131,9 +131,9 @@ Types surfaced during the 2026-05-01 sized-types audit that survived earlier pas
 - `TFC → BrowserThumbEntry` — `inc/browser.h:73` — "Browser ThumbFile Cki Struct" per the file comment. 12-byte on-disk struct: bo/osk + 3-way union over `(ctg,cno)` / `(grfontMask,grfont)` / `(ctg,chid)`. Per-thumbnail entry written into thumbnail-browser chunks.
 - `CMG → GokdCnoMap` — `inc/browser.h:807` — comment already says "Gokd Cno Map".
 - `CPS → CelPartSpec` — `inc/tmpl.h:31` — already documented as such in the comment.
-- `CEL → ?` — `inc/tmpl.h:46` — "Cel" is a valid 2D-animation term but ambiguous in a 3D-engine codebase. Decide whether to leave as-is or expand (e.g., `AnimationCel`, `BodyCel`).
+- `CEL → AnimationCel` — DONE.
 - `KEYTT → LexerKeywordEntry` — `kauai/src/chcm.h:73` — keyword/token-type lookup-table entry. Pairs a `PZString` keyword (e.g. `"PALETTE"`, `"CURSOR"`) with a `long tt` token-type enum. Used by the chunky-source-file lexer/compiler.
-- `WIG → ?` — `kauai/src/appb.h:32` — Windows window-init globals struct.
+- `WIG → WindowsAppGlobals` — DONE. Variable `vwig` retained per Hungarian-prefix-in-variable-names convention.
 
 Excluded from this cluster:
 - `BCB` (`bren/inc/bren.h:84`) — inside BRender wrapper; treat alongside any future BRender modernization.

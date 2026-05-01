@@ -95,7 +95,7 @@ Surveyed: `inc/`, `src/engine/`. Excluded: kauai chunk-format internals (`Chunky
 | `TemplateOnFile` | `tmpl.h:54` | — | bo, osk, swPad | grftmpl | `BRA`x3 | grftmpl widens |
 | `ActionChunkOnFile` | `tmpl.h:67` | — | bo, osk | grfactn | — | grfactn widens |
 | `MovieSoundFile` | `msnd.h:76` | sty, vlmDefault | bo, osk | — | `bool` | clean |
-| `CEL` | `tmpl.h:45` | — | — | — | `ChildChunkID` (widens), `BRS` | trailing `CPS[]` variable part |
+| `AnimationCel` (was `CEL`) | `tmpl.h:46` | — | — | — | `ChildChunkID` (widens), `BRS` | trailing `CPS[]` variable part |
 | `CPS` | `tmpl.h:31` | — | chidModl, imat34 | — | — | trivial — both already 16-bit |
 | `RoutePoint` | `actor.h:28` | — | — | — | `BRS`x3 | clean |
 | `RouteDistancePoint` | `actor.h:52` | — | — | — | `RoutePoint`, `BRS` | clean |
