@@ -43,25 +43,36 @@ endif()
 #  get_property(CMAKE_CXX_CLANG_TIDY TARGET Clang::Tidy PROPERTY IMPORTED_LOCATION)
 #endif()
 
+# IN_80386 gates inline x86 __asm fast paths in kauai (codkauai, gfx,
+# mbmpgui, utilcopy, utilint, utilrnd). Each block has a portable C #else
+# branch, and MSVC x64 cannot compile __asm at all -- so on x64 we drop
+# the define and the C fallback takes over. Keep the define on x86 builds
+# only.
+set(SOC_X86 FALSE)
+if (CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set(SOC_X86 TRUE)
+endif()
+
 # Local Tooling
 add_compile_definitions(
   $<$<PLATFORM_ID:Windows>:WIN>
-  $<$<PLATFORM_ID:Windows>:IN_80386>
+  $<$<BOOL:${SOC_X86}>:IN_80386>
   $<$<CONFIG:Debug>:DEBUG>
 )
 
-if (NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-  message(FATAL_ERROR "Cannot compile for 64-bit yet")
+# kcdc-386 / kcd2-386 are codegen tools that emit kcdc_386.h / kcd2_386.h --
+# inline-__asm tables consumed by codkauai.cpp inside #ifdef IN_80386. They
+# cannot currently cross-compile (host-as-target only) and the generated
+# headers are only needed when IN_80386 is defined, so build them on x86 only.
+if (SOC_X86)
+  add_executable(kcdc-386 EXCLUDE_FROM_ALL)
+  target_sources(kcdc-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcdc_386.c")
+  target_include_directories(kcdc-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
+
+  add_executable(kcd2-386 EXCLUDE_FROM_ALL)
+  target_sources(kcd2-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcd2_386.c")
+  target_include_directories(kcd2-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
 endif()
-
-# NOTE: kcdc-386 and kcd2-386 prevent cross compiling at this time.
-add_executable(kcdc-386 EXCLUDE_FROM_ALL)
-target_sources(kcdc-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcdc_386.c")
-target_include_directories(kcdc-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
-
-add_executable(kcd2-386 EXCLUDE_FROM_ALL)
-target_sources(kcd2-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcd2_386.c")
-target_include_directories(kcd2-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
 
 if (NOT TARGET 3DMMForever::AudioMan)
   add_library(audioman)
@@ -167,21 +178,23 @@ target_link_libraries(chelpdmp PRIVATE kauai)
 file(GLOB building-chunk-sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/building/*.cht")
 file(GLOB studio-chunk-sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/studio/*.cht")
 
-add_custom_command(
-  OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
-  COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
-  COMMAND kcdc-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
-  COMMENT "Generating kcdc_386.h"
-  VERBATIM
-)
+if (SOC_X86)
+  add_custom_command(
+    OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
+    COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
+    COMMAND kcdc-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
+    COMMENT "Generating kcdc_386.h"
+    VERBATIM
+  )
 
-add_custom_command(
-  OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
-  COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
-  COMMAND kcd2-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
-  COMMENT "Generating kcd2_386.h"
-  VERBATIM
-)
+  add_custom_command(
+    OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
+    COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
+    COMMAND kcd2-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
+    COMMENT "Generating kcd2_386.h"
+    VERBATIM
+  )
+endif()
 
 add_compile_options($<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/wd4430>)
 add_library(kauai)
@@ -193,8 +206,8 @@ target_include_directories(
 
 target_sources(kauai
   PRIVATE
-    "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
-    "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
+    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h>
+    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h>
 
     "${PROJECT_SOURCE_DIR}/kauai/src/appb.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/base.cpp"
