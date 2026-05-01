@@ -1782,7 +1782,7 @@ void TextBoxGobject::AssertValid(ulong grf)
 //
 // header information for saving text boxes to a file
 //
-struct TBOXH
+struct TextBoxOnFile
 {
     short bo;
     short osk;
@@ -1795,7 +1795,7 @@ struct TBOXH
     ChildChunkID chid;
     bool fStory;
 };
-static_assert(sizeof(TBOXH) == 36, "TBOXH on-disk layout drift");
+static_assert(sizeof(TextBoxOnFile) == 36, "TextBoxOnFile on-disk layout drift");
 
 /****************************************************
  *
@@ -1886,15 +1886,15 @@ PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen
 
     PTBOX ptbox;
     DataBlock blck;
-    TBOXH tboxh;
+    TextBoxOnFile tboxh;
     ChildChunkIdentification kid;
     PChunkyFile pcfl = pcrf->Pcfl();
 
     //
     // Find the chunk and read in the header.
     //
-    if (!pcfl->FFind(kctgTbox, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(TBOXH)) ||
-        !blck.FReadRgb(&tboxh, size(TBOXH), 0))
+    if (!pcfl->FFind(kctgTbox, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(TextBoxOnFile)) ||
+        !blck.FReadRgb(&tboxh, size(TextBoxOnFile), 0))
     {
         PushErc(ercSocBadFile);
         return (pvNil);
@@ -1957,7 +1957,7 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    TBOXH tboxh;
+    TextBoxOnFile tboxh;
     ChunkIdentification cki;
 
     tboxh.bo = kboCur;
@@ -1984,7 +1984,7 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
         return (fFalse);
     }
 
-    if (!pcfl->FPutPv((void *)&tboxh, size(TBOXH), kctgTbox, cno))
+    if (!pcfl->FPutPv((void *)&tboxh, size(TextBoxOnFile), kctgTbox, cno))
     {
         pcfl->DeleteChild(kctgTbox, cno, cki.ctg, cki.cno, 0);
         return (fFalse);
