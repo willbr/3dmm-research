@@ -180,15 +180,21 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     // Get the default sound
     if (pcfl->FGetKidChidCtg(ctg, cno, kchidBds, kctgBds, &kid))
     {
+        BackgroundDefaultSoundOnFile bdsOnFile;
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || !blck.FUnpackData())
             goto LFail;
-        if (blck.Cb() != size(BackgroundDefaultSound))
+        if (blck.Cb() != size(BackgroundDefaultSoundOnFile))
             goto LFail;
-        if (!blck.FReadRgb(&_bds, size(BackgroundDefaultSound), 0))
+        if (!blck.FReadRgb(&bdsOnFile, size(BackgroundDefaultSoundOnFile), 0))
             goto LFail;
-        if (kboCur != _bds.bo)
-            SwapBytesBom(&_bds, kbomBds);
-        Assert(kboCur == _bds.bo, "bad BackgroundDefaultSound");
+        if (kboCur != bdsOnFile.bo)
+            SwapBytesBom(&bdsOnFile, kbomBds);
+        Assert(kboCur == bdsOnFile.bo, "bad BackgroundDefaultSound");
+        _bds.bo = bdsOnFile.bo;
+        _bds.osk = bdsOnFile.osk;
+        _bds.vlm = bdsOnFile.vlm;
+        _bds.fLoop = bdsOnFile.fLoop;
+        TagFromOnFile(&_bds.tagSnd, bdsOnFile.tagSnd);
     }
     else
     {

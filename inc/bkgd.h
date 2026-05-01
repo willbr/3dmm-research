@@ -84,6 +84,9 @@ const ByteOrderMask kbomCam = BomField(
 /****************************************
     Background Default Sound
 ****************************************/
+// Runtime form of the background default sound. Holds a real TAG (with
+// runtime pcrf pointer); never serialized directly. See
+// BackgroundDefaultSoundOnFile below for the wire format.
 struct BackgroundDefaultSound
 {
     short bo;
@@ -92,7 +95,18 @@ struct BackgroundDefaultSound
     bool fLoop;
     TAG tagSnd;
 };
-static_assert(sizeof(BackgroundDefaultSound) == 28, "BackgroundDefaultSound on-disk layout drift");
+
+// On-disk form: 28 bytes, TAGOnFile in place of TAG. Convert at the
+// blck.FReadRgb / blck.FWrite boundary in bkgd.cpp.
+struct BackgroundDefaultSoundOnFile
+{
+    short bo;
+    short osk;
+    long vlm;
+    bool fLoop;
+    TAGOnFile tagSnd;
+};
+static_assert(sizeof(BackgroundDefaultSoundOnFile) == 28, "BackgroundDefaultSoundOnFile wire format drift -- must stay 1995-compatible");
 const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
 
 /****************************************
