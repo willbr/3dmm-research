@@ -103,9 +103,13 @@ if (BREN_X86)
   )
 else()
   # C fallbacks for the .ASM functions, used on non-x86.
+  # zb_fallback.c also lives here because brender_fw consumes pmmemops.c
+  # which references _MemCopyBits_A / _MemFill_A / _MemRectFill_A from
+  # memloops.asm; they need to be visible at fw link time.
   target_sources(brender_fw PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/fallback/blockops.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/fallback/fixed_fallback.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fallback/zb_fallback.c"
   )
 endif()
 
@@ -187,6 +191,7 @@ target_compile_definitions(brender_zb PRIVATE
   BASED_FIXED=1
   $<IF:$<CONFIG:Debug>,DEBUG=1,DEBUG=0>
   $<IF:$<CONFIG:Debug>,PARANOID=1,PARANOID=0>
+  $<$<BOOL:${BREN_X86}>:IN_80386>
 )
 
 if (BREN_X86)
