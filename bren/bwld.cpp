@@ -898,6 +898,198 @@ bool World::FWriteBmp(PFilename pfni)
     return fRet;
 }
 
+/******************************************************************************
+    _FFillHiResBackground
+        Fetch the current background MBMP+ZBMP at native (rcView) resolution
+        and nearest-neighbor upscale into pgptDst / pzbmpDst, which must be
+        sized scale*_rcView.Dxp() x scale*_rcView.Dyp().
+        Used by FWriteBmpScaled.
+******************************************************************************/
+bool World::_FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale)
+{
+    AssertThis(0);
+    AssertPo(pgptDst, 0);
+    AssertPo(pzbmpDst, 0);
+    AssertIn(scale, 1, 17);
+
+    if (pvNil == _pcrf)
+        return fTrue; // no background loaded; leave dst with default fill (0xff Z, 0 RGB)
+
+    PMaskedBitmapMBMP pmbmp = pvNil;
+    PZBMP pzbmpSrc = pvNil;
+    PGraphicsPort pgptFull = pvNil;
+    bool fRet = fFalse;
+    RC rcView = _rcView;
+    RC rcHi(0, 0, LwMul(rcView.Dxp(), scale), LwMul(rcView.Dyp(), scale));
+
+    pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctgRGB, _cnoRGB, MaskedBitmapMBMP::FReadMbmp);
+    if (pvNil == pmbmp)
+        goto LFail;
+    pzbmpSrc = (PZBMP)_pcrf->PbacoFetch(_ctgZ, _cnoZ, ZBMP::FReadZbmp);
+    if (pvNil == pzbmpSrc)
+        goto LFail;
+
+    // Render the MBMP into a full-resolution intermediate, then stretch into the
+    // hi-res destination via CopyPixels (which handles indexed-8 stretching).
+    pgptFull = GraphicsPort::PgptNewOffscreen(&rcView, kcbitPixelRGB);
+    if (pvNil == pgptFull)
+        goto LFail;
+    {
+        GraphicsEnvironment gnvFull(pgptFull);
+        GraphicsEnvironment gnvHi(pgptDst);
+        gnvFull.DrawMbmp(pmbmp, 0, 0);
+        gnvHi.CopyPixels(&gnvFull, &rcView, &rcHi);
+    }
+
+    // Nearest-neighbor upscale the Z buffer. Bilinear would create halfway Z
+    // values that don't represent real surface depths and would cause artifacts
+    // at silhouettes, so we replicate each Z value scale*scale times.
+    {
+        Assert(kcbPixelZ == 2, "Z upscale assumes 16-bit Z");
+        long dxpSrc = rcView.Dxp();
+        long dypSrc = rcView.Dyp();
+        long cbRowSrc = pzbmpSrc->CbRow();
+        long cbRowDst = pzbmpDst->CbRow();
+        Assert(cbRowSrc == LwMul(dxpSrc, kcbPixelZ), "unexpected src Z stride");
+        Assert(cbRowDst == LwMul(LwMul(dxpSrc, scale), kcbPixelZ), "unexpected dst Z stride");
+        byte *pbSrcRow = pzbmpSrc->Prgb();
+        byte *pbDstRow = pzbmpDst->Prgb();
+        for (long ypSrc = 0; ypSrc < dypSrc; ypSrc++)
+        {
+            ushort *psuSrc = (ushort *)pbSrcRow;
+            ushort *psuDst = (ushort *)pbDstRow;
+            for (long xpSrc = 0; xpSrc < dxpSrc; xpSrc++)
+            {
+                ushort suZ = *psuSrc++;
+                for (long i = 0; i < scale; i++)
+                    *psuDst++ = suZ;
+            }
+            // Replicate the row scale-1 more times.
+            byte *pbRowFirst = pbDstRow;
+            for (long i = 1; i < scale; i++)
+            {
+                pbDstRow += cbRowDst;
+                CopyPb(pbRowFirst, pbDstRow, cbRowDst);
+            }
+            pbDstRow += cbRowDst;
+            pbSrcRow += cbRowSrc;
+        }
+    }
+
+    fRet = fTrue;
+
+LFail:
+    ReleasePpo(&pmbmp);
+    ReleasePpo(&pzbmpSrc);
+    ReleasePpo(&pgptFull);
+    return fRet;
+}
+
+/******************************************************************************
+    FWriteBmpScaled
+        Render the current scene into a temporary supersampled buffer
+        (scale x scale times the size of _rcView), then write it as a BMP.
+        Camera, actors, render style and palette match the live render; only
+        the rasterization resolution differs. The live working buffers are
+        untouched, so this can be called at any time.
+
+        BRender's rasterizer is resolution-independent for a given camera
+        (aspect = rcView.Dxp()/rcView.Dyp()), so feeding it scale-sized BPMPs
+        produces a true higher-resolution render of foreground actors. The
+        background bitmap chunk is at native resolution, so we fetch it and
+        nearest-neighbor upscale it as both the seed RGB and the seed Z so
+        actors composite correctly against it.
+
+        Half-mode is ignored: the screenshot always uses _rcView dimensions
+        as the basis (scale=4 yields 4x of the on-screen viewport, not 4x of
+        the half-mode reduced buffer).
+******************************************************************************/
+bool World::FWriteBmpScaled(PFilename pfni, long scale)
+{
+    AssertThis(0);
+    AssertPo(pfni, 0);
+    AssertIn(scale, 1, 17);
+
+    // BRender's Z-buffered scene renderer caps a single BPMP at roughly 1024
+    // pixels on the wide axis (the shipped rasterizer is named PIZ2TP1024)
+    // and emits a "pixelmap is too big" fatal otherwise. Tiling can't save us
+    // either: BR_CAMERA_PERSPECTIVE_FOV always projects camera-space (0,0) to
+    // the BPMP center, and bpmp.origin_x/y is for 2D primitive placement, not
+    // 3D projection -- there's no native off-axis sub-frustum to hook. So
+    // `scale` is treated as a ceiling: we render at the largest in-spec scale
+    // and ignore anything above that.
+    const long kdxpRenderMax = 2048;
+
+    long scaleRender = scale;
+    while (scaleRender > 1 &&
+           (LwMul(_rcView.Dxp(), scaleRender) > kdxpRenderMax || LwMul(_rcView.Dyp(), scaleRender) > kdxpRenderMax))
+    {
+        scaleRender--;
+    }
+
+    bool fRet = fFalse;
+    PGraphicsPort pgptRender = pvNil;
+    PZBMP pzbmpRender = pvNil;
+    long dxpRender = LwMul(_rcView.Dxp(), scaleRender);
+    long dypRender = LwMul(_rcView.Dyp(), scaleRender);
+    RC rcRender(0, 0, dxpRender, dypRender);
+    // Zero-init: BRender reads base_x / base_y / flags / map / context that
+    // the live engine leaves at zero (its class-member BPMPs are value-init).
+    BPMP bpmpRGB = {};
+    BPMP bpmpZ = {};
+    RC rcLock;
+
+    pgptRender = GraphicsPort::PgptNewOffscreen(&rcRender, kcbitPixelRGB);
+    if (pvNil == pgptRender)
+        goto LFail;
+    pzbmpRender = ZBMP::PzbmpNew(dxpRender, dypRender);
+    if (pvNil == pzbmpRender)
+        goto LFail;
+
+    if (!_FFillHiResBackground(pgptRender, pzbmpRender, scaleRender))
+        goto LFail;
+
+    // Match Render()'s wireframe override.
+    _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
+
+    bpmpRGB.type = BR_PMT_INDEX_8;
+    bpmpRGB.row_bytes = (short)LwMul(dxpRender, kcbPixelRGB);
+    bpmpRGB.width = (ushort)dxpRender;
+    bpmpRGB.height = (ushort)dypRender;
+    bpmpRGB.origin_x = (short)(dxpRender / 2);
+    bpmpRGB.origin_y = (short)(dypRender / 2);
+    bpmpRGB.pixels = pgptRender->PrgbLockPixels();
+
+    bpmpZ.type = BR_PMT_DEPTH_16;
+    bpmpZ.row_bytes = (short)LwMul(dxpRender, kcbPixelZ);
+    bpmpZ.width = (ushort)dxpRender;
+    bpmpZ.height = (ushort)dypRender;
+    bpmpZ.origin_x = bpmpRGB.origin_x;
+    bpmpZ.origin_y = bpmpRGB.origin_y;
+    bpmpZ.pixels = pzbmpRender->Prgb();
+
+    BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
+    GraphicsPort::Flush();
+    pgptRender->Unlock();
+
+    {
+        // PglclrGetPalette() allocates a fresh palette copy that the caller
+        // owns -- FWriteBitmap doesn't release it. (FWriteBmp above leaks for
+        // the same reason; left untouched here.)
+        PDynamicArray pglclr = GraphicsPort::PglclrGetPalette();
+        fRet = FWriteBitmap(pfni, pgptRender->PrgbLockPixels(&rcLock), pglclr, dxpRender, dypRender);
+        pgptRender->Unlock();
+        ReleasePpo(&pglclr);
+    }
+
+LFail:
+    // Lock/Unlock pairs are balanced on every success path. The only goto
+    // LFail jumps happen before any Lock, so we just release here.
+    ReleasePpo(&pgptRender);
+    ReleasePpo(&pzbmpRender);
+    return fRet;
+}
+
 #endif // DEBUG
 
 } // end of namespace BRender

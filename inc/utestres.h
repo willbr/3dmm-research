@@ -58,6 +58,7 @@
 #define cidHelpBook 40040
 #define cidToggleXY 40041
 #define cidMap 40042
+#define cidWriteBmpHires 40043
 #define IDC_STATIC -1
 
 // Next default values for new objects
@@ -65,7 +66,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE 226
-#define _APS_NEXT_COMMAND_VALUE 40045
+#define _APS_NEXT_COMMAND_VALUE 40046
 #define _APS_NEXT_CONTROL_VALUE 1029
 #define _APS_NEXT_SYMED_VALUE 128
 #endif

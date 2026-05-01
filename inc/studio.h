@@ -126,6 +126,7 @@ class Studio : public Studio_PAR
 
 #ifdef DEBUG
     bool FCmdWriteBmps(PCommand pcmd);
+    bool FCmdWriteBmpHires(PCommand pcmd);
 #endif // DEBUG
 
     //

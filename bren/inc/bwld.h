@@ -75,6 +75,9 @@ class World : public World_PAR
     bool _FInit(long dxp, long dyp, bool fHalfX, bool fHalfY);
     bool _FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY);
     void _CleanWorkingBuffers(void);
+#ifdef DEBUG
+    bool _FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale);
+#endif // DEBUG
     static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
                                     BRS dzpNear, BRS dzpFar, void *pbwld);
     static void BR_CALLBACK _ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle,
@@ -147,6 +150,7 @@ class World : public World_PAR
 
 #ifdef DEBUG
     bool FWriteBmp(PFilename pfni);
+    bool FWriteBmpScaled(PFilename pfni, long scale);
 #endif // DEBUG
 };
 
