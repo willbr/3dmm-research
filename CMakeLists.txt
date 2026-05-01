@@ -372,6 +372,7 @@ target_sources(studio
     "${PROJECT_SOURCE_DIR}/src/studio/ape.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/browser.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/esl.cpp"
+    "${PROJECT_SOURCE_DIR}/src/studio/mcpserv.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/mminstal.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/popup.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/portf.cpp"
