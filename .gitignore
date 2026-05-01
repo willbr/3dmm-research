@@ -4,7 +4,9 @@ obj/
 out/
 .vs/
 dist/
+dist-x64/
 build/
+build-x64/
 .cache/
 
 # Local Claude scratch files

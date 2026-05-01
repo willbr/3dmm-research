@@ -61,6 +61,49 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "MinSizeRel"
       }
+    },
+    {
+      "name": "msvc:x64:base",
+      "inherits": "msvc:base",
+      "hidden": true,
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "binaryDir": "${sourceDir}/build-x64",
+      "installDir": "${sourceDir}/dist-x64"
+    },
+    {
+      "displayName": "MSVC x64 Release",
+      "name": "x64:msvc:release",
+      "inherits": "msvc:x64:base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "displayName": "MSVC x64 Debug",
+      "name": "x64:msvc:debug",
+      "inherits": "msvc:x64:base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "displayName": "MSVC x64 RelWithDebInfo",
+      "name": "x64:msvc:relwithdebinfo",
+      "inherits": "msvc:x64:base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "displayName": "MSVC x64 MinSizeRel",
+      "name": "x64:msvc:minsizerel",
+      "inherits": "msvc:x64:base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel"
+      }
     }
 
   ]
