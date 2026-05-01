@@ -20,7 +20,7 @@ cmake --build build
 
 Output: `build/3dmovie.exe` plus chomped `.chk` data files under `build/3dmovie/`.
 
-`CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` (static CRT). Compile flags include `/permissive-` and `/Zc:strictStrings-` (the latter is needed because `/permissive-` would otherwise force `const char*` for literals and break legacy code). `WIN` and `IN_80386` are defined on Windows builds; `DEBUG` is defined in Debug.
+`CMAKE_MSVC_RUNTIME_LIBRARY` is `MultiThreaded` (static CRT). Compile flags include `/permissive-` and `/Zc:strictStrings-` (the latter is needed because `/permissive-` would otherwise force `const char*` for literals and break legacy code). `WIN` is defined on Windows builds; `IN_80386` is defined only on x86 (32-bit) builds — it gates inline `__asm` fast paths in kauai that don't compile under MSVC x64; the portable C `#else` branches handle non-x86. `DEBUG` is defined in Debug.
 
 Most auxiliary targets are `EXCLUDE_FROM_ALL` — built only when explicitly requested, e.g. `cmake --build build --target chomp`. These include the Kauai authoring tools (`chomp`, `ched`, `chelp`, `chelpdmp`, `chmerge`, `kpack`, `mkmbmp`), the test apps (`ft`, `ut`), and `movie-chomp`.
 
