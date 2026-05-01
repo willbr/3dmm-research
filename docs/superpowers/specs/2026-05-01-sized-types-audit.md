@@ -27,7 +27,7 @@ Action: replace bare `long` → `int32_t` and bare `short` → `int16_t` in ever
 
 ## ⚠ Critical finding: `ChunkTagOrType` / `ChunkNumber` / `ChildChunkID` widen under LP64
 
-`kauai/src/chunk.h:27-29`:
+`kauai/src/chunk.h:27-29` (was):
 
 ```cpp
 typedef ulong ChunkTagOrType;  // chunk tag/type
@@ -37,9 +37,7 @@ typedef ulong ChildChunkID;    // child chunk id
 
 These are the *identity* types for every chunk graph relationship — they appear in every chunk header, every parent-child link, every `kctg*` 4-byte tag literal. On disk they're 4 bytes today; under LP64 they'd silently become 8 bytes. **Every** on-disk struct that uses any of them changes shape, including most of the structs catalogued below.
 
-**Fix:** redefine the typedefs as `uint32_t` (in `chunk.h`). Single-line change with massive blast radius — but *correct* blast radius. The kauai chunk file format spec (`kauai/doc/chunk.txt`) explicitly says these are 32-bit values; the `ulong` typedef was just the 1990s way of spelling that.
-
-This change must land before the per-struct fixes — every struct edit below assumes `ChunkTagOrType` etc. are 4 bytes.
+**Resolved (2026-05-01):** redefined as `uint32_t` in `kauai/src/chunk.h` — commit `a5dc721`. The kauai chunk file format spec (`kauai/doc/chunk.txt`) explicitly says these are 32-bit values; the `ulong` typedef was just the 1990s way of spelling that. The 32 `static_assert(sizeof(*OnFile) == N)` sites added during the freeze pass verify no on-disk struct shifted on x86 (uint32_t and ulong are interchangeable on LLP64). On LP64 these typedefs now stay 32 bits where ulong would have widened.
 
 ## ⚠ Critical finding: `TAG` embeds a runtime pointer that's already being serialized
 
@@ -155,15 +153,15 @@ Many class member variables use bare `long` for runtime counters / IDs / etc. Th
 
 Each commit independently revertible; each pinned by `static_assert(sizeof(...) == N)` so the LP64 build will refuse to link if a future edit drifts the layout.
 
-1. **Add layout assertions to current x86 build** as a "freeze" pass. One `static_assert` per on-disk struct, asserting the current x86 size. No semantic change. This catches any future accidental layout drift even before LP64 is on the table. Land first, alone.
+1. **✅ Add layout assertions to current x86 build** as a "freeze" pass. Done in-tree across the rename/marshal commits — every entry in the per-struct catalogue now has a corresponding `static_assert(sizeof(...) == N)` on the wire-format type (33 sites; see `grep "static_assert.*sizeof" {src/engine,inc}`).
 
-2. **Redefine `ChunkTagOrType`/`ChunkNumber`/`ChildChunkID` as `uint32_t`** in `kauai/src/chunk.h`. Mass-rebuild check; no source-call changes needed because the underlying width is identical on x86. Verify with the `static_assert`s from commit 1.
+2. **✅ Redefine `ChunkTagOrType`/`ChunkNumber`/`ChildChunkID` as `uint32_t`** in `kauai/src/chunk.h` — commit `a5dc721`. x86 build byte-identical; LP64 build now safe from chunk-header widening.
 
-3. **Replace bare `long`/`short`/`ulong` with `int32_t`/`int16_t`/`uint32_t`** in engine on-disk structs. One commit per file (`movie.cpp`, `scene.cpp`, `actrsave.cpp`, `mtrl.h`, `bkgd.h`, `tmpl.h`, `modl.h`, `msnd.h`, `actor.h`, plus the three TBOX/TDF/TDT files once inspected). Asserts from commit 1 verify each.
+3. **Replace bare `long`/`short`/`ulong` with `int32_t`/`int16_t`/`uint32_t`** in engine on-disk structs. One commit per file (`movie.cpp`, `scene.cpp`, `actrsave.cpp`, `mtrl.h`, `bkgd.h`, `tmpl.h`, `modl.h`, `msnd.h`, `actor.h`, plus the three TBOX/TDF/TDT files once inspected). Asserts from commit 1 verify each. **Not yet started** — though the per-struct asserts are the regression net, so this can be done one struct at a time without risk.
 
-4. **Decide TAG strategy** with user (option 1 vs. option 2 above) and implement. This is the only commit that needs design alignment before coding.
+4. **✅ Decide TAG strategy** with user (option 1) and implement — done; see the "marshal at the I/O boundary" resolution above.
 
-5. **Inspect and fix `TBOXH`, `ThreeDFontF`, `ThreeDTextF`, `TAGF`, `CC`** — placeholders in the table above.
+5. **Inspect and fix `TBOXH`, `ThreeDFontF`, `ThreeDTextF`, `TAGF`, `CC`** — partially done: `TextBoxOnFile` (was `TBOXH`), `ThreeDTextF`, `ThreeDFontF`, `ChidCtgPair` (was `CC`) all have static_asserts in place; `CachedTag` (was `TAGF`) is documented runtime-only. Bare `long`/`short` field replacements still pending per item 3.
 
 6. **Out of scope but follow-on:** kauai chunk-format internals (`ChunkyFilePrefix` et al.) and group on-file formats. Same techniques, separate audit because they're orthogonal to the engine layer.
 
