@@ -250,11 +250,16 @@ class VirtualGroup : public VirtualGroup_PAR
     ASSERT
 
   protected:
+    // Per-entry descriptor inside GG variable storage. Fixed 8-byte wire format
+    // on every architecture; sits between the GeneralGroupOnFile header and the
+    // entries' variable bytes. Bare `long` would silently widen on LP64 and
+    // shift every GG variable-storage layout.
     struct LogicalOffsetAndCount
     {
-        long bv;
-        long cb;
+        int32_t bv;
+        int32_t cb;
     };
+    static_assert(sizeof(LogicalOffsetAndCount) == 8, "LogicalOffsetAndCount wire format drift");
 
     long _bvMac;
     long _clocFree;
