@@ -113,13 +113,67 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     if (!_pglrpt->FWrite(&blck))
         return fFalse;
 
-    // Now write the GGAE chunk:
-    if (!pcfl->FAddChild(kctgActr, cnoActr, kchidGgae, _pggaev->CbOnFile(), kctgGgae, &cnoGgae, &blck))
+    // Now write the GGAE chunk. The runtime _pggaev holds Costume/Sound (with
+    // full TAG including runtime pcrf) for aetCost/aetSnd entries; on x64 those
+    // are wider than the wire format. Marshal into a transient on-file GG that
+    // embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for the wire layout,
+    // then FWrite that.
     {
-        return fFalse;
+        PGeneralGroup pggaevOnFile = GeneralGroup::PggNew(size(Base));
+        if (pvNil == pggaevOnFile)
+            return fFalse;
+        long iaevSave, iaevMacSave = _pggaev->IvMac();
+        Base aevSave;
+        Costume costSave;
+        CostumeOnFile costSaveOnFile;
+        Sound sndSave;
+        SoundOnFile sndSaveOnFile;
+        bool fOk = fTrue;
+        for (iaevSave = 0; iaevSave < iaevMacSave && fOk; iaevSave++)
+        {
+            _pggaev->GetFixed(iaevSave, &aevSave);
+            switch (aevSave.aet)
+            {
+            case aetCost:
+                _pggaev->GetRgb(iaevSave, 0, size(Costume), &costSave);
+                costSaveOnFile.ibset = costSave.ibset;
+                costSaveOnFile.cmid = costSave.cmid;
+                costSaveOnFile.fCmtl = costSave.fCmtl;
+                costSaveOnFile.tag.From(costSave.tag);
+                if (!pggaevOnFile->FInsert(iaevSave, size(CostumeOnFile), &costSaveOnFile, &aevSave))
+                    fOk = fFalse;
+                break;
+            case aetSnd:
+                _pggaev->GetRgb(iaevSave, 0, size(Sound), &sndSave);
+                sndSaveOnFile.fLoop = sndSave.fLoop;
+                sndSaveOnFile.fQueue = sndSave.fQueue;
+                sndSaveOnFile.vlm = sndSave.vlm;
+                sndSaveOnFile.celn = sndSave.celn;
+                sndSaveOnFile.sty = sndSave.sty;
+                sndSaveOnFile.fNoSound = sndSave.fNoSound;
+                sndSaveOnFile.chid = sndSave.chid;
+                sndSaveOnFile.tag.From(sndSave.tag);
+                if (!pggaevOnFile->FInsert(iaevSave, size(SoundOnFile), &sndSaveOnFile, &aevSave))
+                    fOk = fFalse;
+                break;
+            default:
+                if (!pggaevOnFile->FInsert(iaevSave, _pggaev->Cb(iaevSave), _pggaev->QvGet(iaevSave), &aevSave))
+                    fOk = fFalse;
+                break;
+            }
+        }
+        if (!fOk || !pcfl->FAddChild(kctgActr, cnoActr, kchidGgae, pggaevOnFile->CbOnFile(), kctgGgae, &cnoGgae, &blck))
+        {
+            ReleasePpo(&pggaevOnFile);
+            return fFalse;
+        }
+        if (!pggaevOnFile->FWrite(&blck))
+        {
+            ReleasePpo(&pggaevOnFile);
+            return fFalse;
+        }
+        ReleasePpo(&pggaevOnFile);
     }
-    if (!_pggaev->FWrite(&blck))
-        return fFalse;
 
     // Adopt actor sounds into the scene
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
@@ -339,7 +393,13 @@ bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
 }
 
 /***************************************************************************
-    Read the GGAE (_pggaev) chunk
+    Read the GGAE (_pggaev) chunk.
+
+    The wire-format GG embeds CostumeOnFile/SoundOnFile (with TAGOnFile) for
+    aetCost/aetSnd entries; the runtime GG holds Costume/Sound (with full TAG
+    including the runtime pcrf). On x86 the two layouts coincide; on x64 the
+    runtime variant is wider. We marshal entry-by-entry: read into a transient
+    on-file GG, walk it into a fresh runtime GG, then drop the on-file copy.
 ***************************************************************************/
 bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 {
@@ -348,15 +408,72 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
 
     DataBlock blck;
     short bo;
+    PGeneralGroup pggOnFile = pvNil;
+    long iaev, iaevMac;
+    Base aev;
+    CostumeOnFile costOnFile;
+    Costume cost;
+    SoundOnFile sndOnFile;
+    Sound snd;
 
     if (!pcfl->FFind(kctgGgae, cno, &blck))
         return fFalse;
-    _pggaev = GeneralGroup::PggRead(&blck, &bo);
-    if (pvNil == _pggaev)
+    pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+    if (pvNil == pggOnFile)
         return fFalse;
     if (kboOther == bo)
-        _SwapBytesPggaev(_pggaev);
+        _SwapBytesPggaev(pggOnFile);
+
+    _pggaev = GeneralGroup::PggNew(size(Base));
+    if (pvNil == _pggaev)
+        goto LFail;
+
+    iaevMac = pggOnFile->IvMac();
+    for (iaev = 0; iaev < iaevMac; iaev++)
+    {
+        pggOnFile->GetFixed(iaev, &aev);
+        switch (aev.aet)
+        {
+        case aetCost:
+            // Variable part is CostumeOnFile -> Costume marshal.
+            Assert(pggOnFile->Cb(iaev) == size(CostumeOnFile), "bad CostumeOnFile size");
+            CopyPb(pggOnFile->QvGet(iaev), &costOnFile, size(CostumeOnFile));
+            cost.ibset = costOnFile.ibset;
+            cost.cmid = costOnFile.cmid;
+            cost.fCmtl = costOnFile.fCmtl;
+            TagFromOnFile(&cost.tag, costOnFile.tag);
+            if (!_pggaev->FInsert(iaev, size(Costume), &cost, &aev))
+                goto LFail;
+            break;
+        case aetSnd:
+            // Variable part is SoundOnFile -> Sound marshal.
+            Assert(pggOnFile->Cb(iaev) == size(SoundOnFile), "bad SoundOnFile size");
+            CopyPb(pggOnFile->QvGet(iaev), &sndOnFile, size(SoundOnFile));
+            snd.fLoop = sndOnFile.fLoop;
+            snd.fQueue = sndOnFile.fQueue;
+            snd.vlm = sndOnFile.vlm;
+            snd.celn = sndOnFile.celn;
+            snd.sty = sndOnFile.sty;
+            snd.fNoSound = sndOnFile.fNoSound;
+            snd.chid = sndOnFile.chid;
+            TagFromOnFile(&snd.tag, sndOnFile.tag);
+            if (!_pggaev->FInsert(iaev, size(Sound), &snd, &aev))
+                goto LFail;
+            break;
+        default:
+            // No TAG embed: variable part is identical on disk and in runtime.
+            if (!_pggaev->FInsert(iaev, pggOnFile->Cb(iaev), pggOnFile->QvGet(iaev), &aev))
+                goto LFail;
+            break;
+        }
+    }
+
+    ReleasePpo(&pggOnFile);
     return fTrue;
+LFail:
+    ReleasePpo(&pggOnFile);
+    ReleasePpo(&_pggaev);
+    return fFalse;
 }
 
 /***************************************************************************

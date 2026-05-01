@@ -225,6 +225,8 @@ struct Action
 static_assert(sizeof(Action) == 8, "ActorEvent::Action on-disk layout drift");
 const ByteOrderMask kbomAevactn = 0xf0000000;
 
+// Runtime form: embeds full TAG (with runtime pcrf). Allowed to grow on x64.
+// Marshalled to/from CostumeOnFile at the GG I/O boundary in actrsave.cpp.
 struct Costume
 {
     long ibset;    // body part set
@@ -232,9 +234,19 @@ struct Costume
     tribool fCmtl; // vs fMtrl
     TAG tag;
 };
-static_assert(sizeof(Costume) == 28, "ActorEvent::Costume on-disk layout drift");
 const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
 
+// Wire format for Costume. Fixed at 28 bytes on every architecture.
+struct CostumeOnFile
+{
+    long ibset;
+    long cmid;
+    tribool fCmtl;
+    TAGOnFile tag;
+};
+static_assert(sizeof(CostumeOnFile) == 28, "ActorEvent::CostumeOnFile wire format drift");
+
+// Runtime form: embeds full TAG. Allowed to grow on x64.
 struct Sound
 {
     tribool fLoop;    // loop count
@@ -246,8 +258,21 @@ struct Sound
     ChildChunkID chid;        // user sound requires chid
     TAG tag;
 };
-static_assert(sizeof(Sound) == 44, "ActorEvent::Sound on-disk layout drift");
 const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
+
+// Wire format for Sound. Fixed at 44 bytes on every architecture.
+struct SoundOnFile
+{
+    tribool fLoop;
+    tribool fQueue;
+    long vlm;
+    long celn;
+    long sty;
+    tribool fNoSound;
+    ChildChunkID chid;
+    TAGOnFile tag;
+};
+static_assert(sizeof(SoundOnFile) == 44, "ActorEvent::SoundOnFile wire format drift");
 
 const ByteOrderMask kbomAevsize = 0xc0000000;
 const ByteOrderMask kbomAevfreeze = 0xc0000000;
