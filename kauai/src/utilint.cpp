@@ -459,17 +459,24 @@ void SwapBytesRgsw(void *psw, long csw)
 }
 
 /***************************************************************************
-    Swap bytes within an array of long words.
+    Swap bytes within an array of 32-bit words.
+
+    Despite the historical name ("Rglw" / "clw"), this function operates on
+    4-byte words on every architecture — never `sizeof(long)` units. Callers
+    expressing the count as `cb / size(long)` were correct on x86 (where
+    sizeof(long) == 4) but under-count on LP64 (sizeof(long) == 8); use
+    `cb / size(int32_t)` instead. The wire format this byte-swap targets
+    (kauai chunky files) is 32-bit-aligned everywhere.
 ***************************************************************************/
 void SwapBytesRglw(void *plw, long clw)
 {
     AssertIn(clw, 0, kcbMax);
-    AssertPvCb(plw, LwMul(clw, size(long)));
+    AssertPvCb(plw, LwMul(clw, (long)size(int32_t)));
 
     byte b;
     byte *pb = (byte *)plw;
 
-    Assert(size(long) == 4, "code broken");
+    static_assert(size(int32_t) == 4, "32-bit word size invariant violated");
     for (; clw > 0; clw--, pb += 4)
     {
         b = pb[3];
@@ -483,17 +490,18 @@ void SwapBytesRglw(void *plw, long clw)
 
 #ifdef DEBUG
 /***************************************************************************
-    Asserts that the given ByteOrderMask indicates a struct having cb/size(long) longs
-    to be swapped (so SwapBytesRglw can legally be used on an array of
-    these).
+    Asserts that the given ByteOrderMask indicates a struct having cb/4 32-bit
+    words to be swapped (so SwapBytesRglw can legally be used on an array of
+    these). The wire format kbom* masks describe 4-byte fields regardless of
+    sizeof(long).
 ***************************************************************************/
 void AssertBomRglw(ByteOrderMask bom, long cb)
 {
     ByteOrderMask bomT;
     long clw;
 
-    clw = cb / size(long);
-    Assert(cb == clw * size(long), "cb is not a multiple of size(long)");
+    clw = cb / size(int32_t);
+    Assert(cb == clw * (long)size(int32_t), "cb is not a multiple of 4");
     AssertIn(clw, 1, 17);
     bomT = -1L << 2 * (16 - clw);
     Assert(bomT == bom, "wrong bom");

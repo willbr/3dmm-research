@@ -176,7 +176,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
     {
         for (icel = 0; icel < _pggcel->IvMac(); icel++)
         {
-            SwapBytesRglw(_pggcel->QvFixedGet(icel), size(AnimationCel) / size(long));
+            SwapBytesRglw(_pggcel->QvFixedGet(icel), size(AnimationCel) / size(int32_t));
             SwapBytesRgsw(_pggcel->QvGet(icel), _pggcel->Cb(icel) / size(short));
         }
     }
@@ -192,7 +192,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
     AssertBomRglw(kbomBmat34, size(BMAT34));
     if (kboOther == bo)
     {
-        SwapBytesRglw(_pglbmat34->QvGet(0), LwMul(_pglbmat34->IvMac(), size(BMAT34) / size(long)));
+        SwapBytesRglw(_pglbmat34->QvGet(0), LwMul(_pglbmat34->IvMac(), size(BMAT34) / size(int32_t)));
     }
 
     // read (optional) DynamicArray of motion-match sounds (chid 0, ctg kctgGlms).
@@ -510,14 +510,17 @@ bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     _pggcmid = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == _pggcmid)
         return fFalse;
-    Assert(_pggcmid->CbFixed() == size(long), "Bad Template _pggcmid");
+    // _pggcmid stores a 4-byte count per bset (fixed) and a 4-byte cmid array
+    // per bset (variable). Pin to int32_t so LP64 doesn't widen the on-disk
+    // layout (1995 .3MM has 4-byte cmids).
+    Assert(_pggcmid->CbFixed() == size(int32_t), "Bad Template _pggcmid");
     Assert(_pggcmid->IvMac() == _cbset, "Bad Template _pggcmid");
     if (kboOther == bo)
     {
         for (ibset = 0; ibset < _cbset; ibset++)
         {
             SwapBytesRglw(_pggcmid->QvFixedGet(ibset), 1);
-            SwapBytesRglw(_pggcmid->QvGet(ibset), *(long *)_pggcmid->QvFixedGet(ibset));
+            SwapBytesRglw(_pggcmid->QvGet(ibset), *(int32_t *)_pggcmid->QvFixedGet(ibset));
         }
     }
     return fTrue;
@@ -535,7 +538,7 @@ LBuildGgcm:
     if (pvNil == pcrf)
         return fFalse;
 
-    _pggcmid = GeneralGroup::PggNew(size(long));
+    _pggcmid = GeneralGroup::PggNew(size(int32_t));
     if (pvNil == _pggcmid)
     {
         ReleasePpo(&pcrf);
@@ -1063,8 +1066,8 @@ void Template::AssertValid(ulong grftmpl)
     Assert(_pggcmid->IvMac() == _cbset, 0);
     for (ibset = 0; ibset < _cbset; ibset++)
     {
-        ccmid = *(long *)_pggcmid->QvFixedGet(ibset);
-        Assert(_pggcmid->Cb(ibset) / size(long) == ccmid, 0);
+        ccmid = *(int32_t *)_pggcmid->QvFixedGet(ibset);
+        Assert(_pggcmid->Cb(ibset) / size(int32_t) == ccmid, 0);
     }
 }
 

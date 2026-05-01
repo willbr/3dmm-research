@@ -800,7 +800,7 @@ void DumpActorsPath(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PDataBlock 
     AssertBomRglw(kbomRpt, size(RouteDistancePoint));
     if (kboOther == bo)
     {
-        SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(long)));
+        SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
     }
     printf("%*.s" "\t//length of path: %d\n", indent, "", pglrpt->IvMac());
 
@@ -1012,7 +1012,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
             AssertBomRglw(kbomRpt, size(RouteDistancePoint));
             if (kboOther == bo)
             {
-                SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(long)));
+                SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
             }
             // printf("length of path: %d\n", pglrpt->IvMac());
 

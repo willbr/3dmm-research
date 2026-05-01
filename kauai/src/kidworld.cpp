@@ -70,7 +70,7 @@ bool KidspaceGraphicObjectDescriptorLocation::FReadGkds(PChunkyResourceFile pcrf
     pgkds->_hqData = hq;
     pgkds->_gokk = gokdf.gokk;
     if (gokdf.bo == kboOther)
-        SwapBytesRglw(QvFromHq(hq), cb / size(long));
+        SwapBytesRglw(QvFromHq(hq), cb / size(int32_t));
 
     qlop = (LOP *)QvFromHq(hq);
     for (pgkds->_clop = 0;; qlop++)

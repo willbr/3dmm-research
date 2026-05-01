@@ -271,9 +271,16 @@ long LwRoundAway(long lwSrc, long lwBase);
 long LwRoundToward(long lwSrc, long lwBase);
 long LwRoundClosest(long lwSrc, long lwBase);
 
+// Round to a multiple of the kauai 4-byte alignment quantum. The historical
+// name says "Long" because in 1995 `long` was 4 bytes everywhere this code
+// targeted; on LP64 `sizeof(long) == 8` and using it here would silently
+// double the wire-format alignment, breaking every chunky-file payload that
+// relies on this padding. The contract is 4 — see kauai/src/test.cpp's
+// AssertDo(CbRoundToLong(1) == 4, ...) regression test.
 inline long CbRoundToLong(long cb)
 {
-    return (cb + size(long) - 1) & ~(long)(size(long) - 1);
+    constexpr long kcbAlign = 4;
+    return (cb + kcbAlign - 1) & ~(long)(kcbAlign - 1);
 }
 inline long CbRoundToShort(long cb)
 {

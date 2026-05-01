@@ -387,7 +387,7 @@ bool Actor::_FReadRoute(PChunkyFile pcfl, ChunkNumber cno)
     AssertBomRglw(kbomRpt, size(RouteDistancePoint));
     if (kboOther == bo)
     {
-        SwapBytesRglw(_pglrpt->QvGet(0), LwMul(_pglrpt->IvMac(), size(RouteDistancePoint) / size(long)));
+        SwapBytesRglw(_pglrpt->QvGet(0), LwMul(_pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
     }
     return fTrue;
 }
