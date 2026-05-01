@@ -1811,11 +1811,13 @@ void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
         Filename fni;
         FileType ftg;
 
-        // put the warning file at the root of the drive that temp files go on
+        // Put the warning log in the temp directory. The original code walked
+        // FUpDir until it hit the drive root (C:\) -- a 1990s convention that
+        // non-admin Vista+ processes can't write to. Errors from this debug-
+        // only Warn channel must NOT propagate to the user-visible erc stack;
+        // see the vpers->FPop below.
         if (!fni.FGetTemp() || !fni.FSetLeaf(pvNil, kftgDir))
             goto LDone;
-        while (fni.FUpDir(pvNil, ffniMoveToDir))
-            ;
 
         stn = PszLit("_Frame_W");
         if (!fni.FSetLeaf(&stn, kftgText))
@@ -1826,7 +1828,15 @@ void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
         _pfilWarn = FileObject::PfilCreate(&fni);
         FileObject::vftgCreator = ftg;
         if (pvNil == _pfilWarn)
+        {
+            // PfilCreate pushed ercFileCreate. Pop it -- failure to open the
+            // debug warn log isn't actionable by the user; surfacing it as an
+            // "Internal error: 103" dialog is noise. We keep silently falling
+            // through to LDone so subsequent Warn() calls also no-op.
+            long ercT;
+            vpers->FPop(&ercT);
             goto LDone;
+        }
     }
     stnFile.SetSzs(pszsFile);
     stnMsg.SetSzs(pszsMsg);
