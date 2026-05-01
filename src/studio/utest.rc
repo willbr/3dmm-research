@@ -71,6 +71,8 @@ BEGIN
     VK_F1,          cidHelpBook,            VIRTKEY, NOINVERT
     VK_F9,          cidToggleXY,            VIRTKEY, NOINVERT
     VK_F10,         cidWriteBmps,           VIRTKEY, CONTROL, NOINVERT
+    VK_F10,         cidWriteBmpHires,       VIRTKEY, SHIFT, CONTROL,
+                                                    NOINVERT
     "X",            cidCut,                 VIRTKEY, CONTROL, NOINVERT
     "X",            cidShiftCut,            VIRTKEY, SHIFT, CONTROL, 
                                                     NOINVERT

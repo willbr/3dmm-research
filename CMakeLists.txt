@@ -370,6 +370,16 @@ target_chomp_sources(studio
 target_link_libraries(studio PRIVATE engine)
 set_property(TARGET studio PROPERTY OUTPUT_NAME 3dmovie)
 target_link_options(studio BEFORE PRIVATE $<$<LINK_LANG_AND_ID:CXX,MSVC>:/MANIFESTUAC:NO>)
+
+# Mirror the freshly linked exe into ${CMAKE_INSTALL_PREFIX} (dist/ for the
+# default presets) so iterative dev runs of dist/3dmovie.exe pick up rebuilds
+# without needing a separate `cmake --install` step. The chunk/data files are
+# only refreshed by a real install -- this only copies the exe.
+add_custom_command(TARGET studio POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+    "$<TARGET_FILE:studio>" "${CMAKE_INSTALL_PREFIX}/$<TARGET_FILE_NAME:studio>"
+  COMMENT "Mirroring 3dmovie.exe to ${CMAKE_INSTALL_PREFIX}"
+  VERBATIM)
 target_link_options(studio
   BEFORE PRIVATE
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)

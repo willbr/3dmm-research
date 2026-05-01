@@ -12,6 +12,9 @@
 //
 
 #include "studio.h"
+#ifdef WIN
+#include <shlobj.h>
+#endif
 
 ASSERTNAME
 RTCLASS(Studio)
@@ -60,6 +63,7 @@ ON_CID_GEN(cidActorEaselOpen, &Studio::FCmdActorEaselOpen, pvNil)
 ON_CID_GEN(cidListenerEaselOpen, &Studio::FCmdListenerEaselOpen, pvNil)
 #ifdef DEBUG
 ON_CID_GEN(cidWriteBmps, &Studio::FCmdWriteBmps, pvNil)
+ON_CID_GEN(cidWriteBmpHires, &Studio::FCmdWriteBmpHires, pvNil)
 #endif // DEBUG
 END_CMD_MAP_NIL()
 
@@ -2671,6 +2675,63 @@ bool Studio::FCmdWriteBmps(PCommand pcmd)
         _pmvie->SetFWriteBmps(fTrue);
         vpcex->EnqueueCid(cidPlay, this);
     }
+    return fTrue;
+}
+
+/******************************************************************************
+        Write a single supersampled (4x viewport) BMP of the current scene.
+        Camera and actors come from the live state; the live working buffers
+        are not disturbed, so this is safe to invoke at any time.
+******************************************************************************/
+bool Studio::FCmdWriteBmpHires(PCommand pcmd)
+{
+    static long _lwHiresBmp = 0;
+    const long kscaleHires = 4;
+
+    if (_pmvie == pvNil || pvNil == _pmvie->Pbwld())
+        return fTrue;
+    AssertPo(_pmvie, 0);
+
+    // Avoid landing in cwd: when launched from "Program Files (x86)\Microsoft
+    // Kids", relative writes get UAC-virtualized into AppData\Local\
+    // VirtualStore\... which is invisible to the user. Ask the shell for the
+    // user's actual Desktop folder (CSIDL_DESKTOPDIRECTORY honors OneDrive
+    // redirection -- USERPROFILE\Desktop is wrong on a redirected setup).
+    // Filename includes a wall-clock timestamp + per-session counter so a
+    // fresh launch cannot collide with leftovers from previous sessions
+    // (FileObject::PfilCreate fails on existing files -- "internal error 103").
+    achar szDesktop[MAX_PATH];
+    HRESULT hrDesktop = SHGetFolderPath(NULL, CSIDL_DESKTOPDIRECTORY, NULL, SHGFP_TYPE_CURRENT, szDesktop);
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    String stn;
+    if (SUCCEEDED(hrDesktop))
+    {
+        String stnDesktop;
+        stnDesktop.SetSz(szDesktop);
+        if (!stn.FFormatSz(PszLit("%s\\hires_%04d%02d%02d_%02d%02d%02d_%04d.bmp"),
+                           &stnDesktop, (long)st.wYear, (long)st.wMonth, (long)st.wDay,
+                           (long)st.wHour, (long)st.wMinute, (long)st.wSecond, _lwHiresBmp++))
+            return fTrue;
+    }
+    else if (!stn.FFormatSz(PszLit("hires_%04d%02d%02d_%02d%02d%02d_%04d.bmp"),
+                            (long)st.wYear, (long)st.wMonth, (long)st.wDay,
+                            (long)st.wHour, (long)st.wMinute, (long)st.wSecond, _lwHiresBmp++))
+    {
+        return fTrue;
+    }
+
+    Filename fni;
+    if (!fni.FBuildFromPath(&stn))
+        return fTrue;
+    bool fOk = _pmvie->Pbwld()->FWriteBmpScaled(&fni, kscaleHires);
+    String stnPath;
+    fni.GetStnPath(&stnPath);
+    if (fOk)
+        printf("hires screenshot saved: %s\n", stnPath.Psz());
+    else
+        printf("hires screenshot failed: %s\n", stnPath.Psz());
+    fflush(stdout);
     return fTrue;
 }
 #endif // DEBUG
