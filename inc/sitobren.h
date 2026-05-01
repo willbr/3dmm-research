@@ -310,7 +310,7 @@ class S2B : public S2B_PAR
     PBMHR _pbmhr; // BMDL hierarchy for current cel
     int _cMesh;   // count of mesh nodes for current cel
     int _cFace;   // count of all polygons (faces) for current cel
-    CPS *_prgcps;
+    CelPartSpec *_prgcps;
 
     /* Bitfields */
     /* General items */
@@ -347,7 +347,7 @@ class S2B : public S2B_PAR
     void _FlushTmplKids(void);
     bool _FModlfToBmdl(PModelOnFile pmodlf, PBMDL *ppbmdl);
     bool _FBmdlToModlf(PBMDL pbmdl, PModelOnFile *ppmodlf, long *pcb);
-    bool _FSetCps(PBMHR pbmhr, CPS *pcps);
+    bool _FSetCps(PBMHR pbmhr, CelPartSpec *pcps);
     bool _FChidFromModlf(PBMHR pbmhr, ChildChunkID *pchid, PBMDB *ppbmdb = pvNil);
     bool _FAddBmdlParent(PBMDB pbmdb, ChildChunkIdentification *pkid);
     bool _FInsertPhshdb(PHSHDB phshdb, PDynamicArray pglphshdb);

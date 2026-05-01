@@ -551,7 +551,7 @@ PGeneralGroup ThreeDText::_PggcelBuild(long tda)
     long ich;
     PGeneralGroup pggcel;
     AnimationCel cel;
-    CPS *prgcps = pvNil;
+    CelPartSpec *prgcps = pvNil;
     long iv;
     long ccel;
     long icel;
@@ -561,7 +561,7 @@ PGeneralGroup ThreeDText::_PggcelBuild(long tda)
     pggcel = GeneralGroup::PggNew(size(AnimationCel));
     if (pvNil == pggcel)
         goto LFail;
-    if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CPS)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CelPartSpec)), fmemClear, mprNormal))
     {
         goto LFail;
     }
@@ -574,7 +574,7 @@ PGeneralGroup ThreeDText::_PggcelBuild(long tda)
             prgcps[ich].chidModl = (short)ich;
             prgcps[ich].imat34 = (short)(LwMul(icel, cch) + ich);
         }
-        if (!pggcel->FAdd(LwMul(cch, size(CPS)), &iv, prgcps, &cel))
+        if (!pggcel->FAdd(LwMul(cch, size(CelPartSpec)), &iv, prgcps, &cel))
             goto LFail;
     }
     FreePpv((void **)&prgcps);
