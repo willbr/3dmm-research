@@ -15,12 +15,14 @@ static char rscid[] = "$Id: zbmesh.c 1.67 1995/08/31 16:47:54 sam Exp $";
 
 #define SHOW_REVERSED 0
 
-#if BASED_FIXED
+/* The FAST_PROJECT / FAST_CULL paths call into x86 asm fastpaths defined in
+ * mesh386.asm (ZbOSTVGroup_A et al). The matching C fallbacks live in the
+ * #else branches and are correct, just slower. Gate the asm path to x86 so
+ * non-x86 builds use the portable C version. */
+#if BASED_FIXED && defined(IN_80386)
 #define FAST_PROJECT 1
 #define FAST_CULL 	 1
-#endif
-
-#if BASED_FLOAT
+#else
 #define FAST_PROJECT 0
 #define FAST_CULL 	 0
 #endif
