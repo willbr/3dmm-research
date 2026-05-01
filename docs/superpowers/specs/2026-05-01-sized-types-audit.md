@@ -260,9 +260,44 @@ The engine pass touched ~30 structs across 8 files; this kauai pass touches
 11 structs but they sit at the bottom of the dependency stack, used by every
 .3MM read/write, including the bootstrap `kpack`/`chomp` toolchain that
 produces the data files in the build. A regression here breaks the build
-itself, not just runtime. Suggest tackling it as a separate "kauai pass-2"
-plan with its own implementation tasks once we're ready to attempt an LP64
-configure.
+itself, not just runtime.
+
+### Pass 2 implementation status (commits on 2026-05-01)
+
+All 11 surveyed structs have now been pinned to explicit-width types and
+gained `static_assert(sizeof(...) == N)` matching their x86 layouts:
+
+- `DynamicArrayOnFile`, `AllocatedArrayOnFile`, `GeneralGroupOnFile`,
+  `StringTableOnFile` — `d7acdf8`.
+- `LogicalOffsetAndCount` + GG byteswap unit (4 sites in
+  `VirtualGroup::FWrite`/`_FRead` decoupled from `size(long)` and
+  expressed as the literal 2 four-byte words) — `f5160f1`.
+- `ChunkyFilePrefix` (incl. `rglwReserved[23]`), `FreeSpaceMap`,
+  `EmbeddedChunkDescriptorOnFile` — `60ed011`.
+- `ChunkRepresentationBig`/`Small` — `6c5d2fe`.
+
+Build stays clean on x86; 33/33 geometry tests pass after each commit.
+
+### Still out of scope (pass 3 territory)
+
+These didn't change shape *inside* the audited OnFile structs but would
+still bite a real LP64 attempt:
+
+- `CbRoundToLong` (`utilint.h:274`) and the pervasive `size(long) - 1`
+  alignment use inside GG variable storage growth/packing logic
+  (`groups.cpp:1278-1310` etc.). These encode "GG variable storage entries
+  are aligned to size(long) bytes". On x86 = 4 = the disk format. On LP64
+  this becomes 8, breaking the wire format. Fix is structural: introduce
+  a `kcbAlignVarStorage = 4` constant and route everything through that.
+- `SwapBytesRglw` (`utilint.cpp:464`) literally `Assert(size(long) == 4)`.
+  Its name and signature (`long clw`) are misleading — the implementation
+  is hard-coded 4-byte word arithmetic. A pass-3 cleanup should rename to
+  `SwapBytesRgInt32` and change the count parameter type to make the
+  4-byte-word semantics explicit at every call site.
+- `FilePosition` runtime typedef stays `long` (8 bytes on LP64) — fine
+  for the file API surface, but means every `FilePosition` field in
+  in-memory-only structs and locals will widen. Audit those uses if
+  attempting LP64 configure.
 
 ## Out of scope
 
