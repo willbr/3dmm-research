@@ -704,7 +704,7 @@ _MemPixelSet proc uses ebx esi edi es, dest: ptr byte, dest_qual:dword, bytes:dw
 		mov	eax,colour
 		mov	ebx,bytes
 		mov	edi,dest
-		mov	es,dest_qual
+		mov	es,WORD PTR dest_qual	; modern MASM requires explicit 16-bit load
 		cmp	ebx,1
 		je	bpp_1
 		cmp	ebx,2
@@ -738,7 +738,7 @@ _MemPixelSet endp
 _MemPixelGet proc uses ebx esi edi es, dest: ptr byte, dest_qual:dword, bytes:dword
 		mov	ebx,bytes
 		mov	edi,dest
-		mov	es,dest_qual
+		mov	es,WORD PTR dest_qual	; modern MASM requires explicit 16-bit load
 		xor	eax,eax
 
 		cmp	ebx,1
