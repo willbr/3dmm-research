@@ -168,7 +168,7 @@ Each commit independently revertible; each pinned by `static_assert(sizeof(...) 
 
 5. **✅ Inspect and fix `TBOXH`, `ThreeDFontF`, `ThreeDTextF`, `TAGF`, `CC`** — done: `TextBoxOnFile` (was `TBOXH`), `ThreeDTextF`, `ThreeDFontF` all have static_asserts AND explicit-width fields. `ChidCtgPair` (was `CC`) uses ChildChunkID + ChunkTagOrType, both already widened to uint32_t in step 2. `CachedTag` (was `TAGF`) is documented runtime-only, never serialized.
 
-6. **Out of scope but follow-on:** kauai chunk-format internals (`ChunkyFilePrefix` et al.) and group on-file formats. Same techniques, separate audit because they're orthogonal to the engine layer.
+6. **Follow-on, surveyed in pass 2 below:** kauai chunk-format internals (`ChunkyFilePrefix` et al.) and group on-file formats. Same techniques, separate implementation project because they sit at the bottom of the dependency stack and a break here breaks the build itself.
 
 ## Done when
 
@@ -186,10 +186,92 @@ These didn't change shape *inside* the audited structs, but would still bite an 
 - ✅ `sevtChngCamera` / `sevtPause` GG variable-part sizing — pinned 4 sites to `size(int32_t)` / `size(SceneEventPause)` instead of `size(long)` / `size(long)*2`; routed `picamOld`/`icam`/`icamNext` GG accesses through int32_t scratch where the public Scene::FChangeCamCore signature still takes `long` — commit `e5c7c15`.
 - **Out of scope (Project 2 — kauai modernization):** pervasive `size(long)` use inside kauai itself (`groups.cpp` LogicalOffsetAndCount swap unit, `chcm.cpp` codec word size, `screxe.cpp` script word size, `rtxt.cpp` MPE swap, etc.) — these encode a "long is the natural word size" assumption that runs through the whole library; `utilint.cpp:407` literally `Assert(size(long) == 4)`. Modernizing kauai to use explicit int32_t for its serialized word abstraction is a separate effort the size of Project 1 itself.
 
+## Pass 2: Kauai chunk-format internals (surveyed 2026-05-01)
+
+Pass 1 ended at the engine boundary because the kauai container format is
+orthogonal — it sits one layer below the engine's chunk *payloads*. But every
+.3MM file starts with a `ChunkyFilePrefix`, holds an index of
+`ChunkRepresentation*`, and the GG/GST containers wrap their entries in
+`*OnFile` headers. All of these embed bare `long` and the `FilePosition` typedef
+(which is `typedef long FilePosition;` in `kauai/src/file.h:30`). Under LP64
+every one of them widens, breaking compatibility with the 1995 .3MM wire format
+(which is what foone's MIT release of the original codebase reads).
+
+`ChunkTagOrType` / `ChunkNumber` / `ChildChunkID` were already redefined as
+`uint32_t` in pass 1, so anything composed purely of those is already stable.
+The remaining trouble is `long`-typed fields and `FilePosition`.
+
+### Kauai per-struct findings
+
+| Struct | File:line | x86 size | LP64 size | Layout drift cause | Resolution sketch |
+|---|---|---|---|---|---|
+| `ChunkyFilePrefix` | `chunk.cpp:116` | 128 | 240 | 5×long, 3×FilePosition, `long rglwReserved[23]` | Pin all 28 longs to int32_t. The `lwMagic` field is also `long` — pin to int32_t. The reserved array becomes `int32_t rglwReserved[23]`. |
+| `FreeSpaceMap` | `chunk.cpp:135` | 8 | 16 | FilePosition + long | Pin both to int32_t (matches what kauai/doc/chunk.txt says is on disk). |
+| `ChunkRepresentationBig` | `chunk.cpp:155` | 32 | 56 | FilePosition + 5×long | Pin to int32_t. The runtime `_pggcrp` GG stores these directly as `_cbFixed` bytes per entry, and `_cbFixed` is written into `GeneralGroupOnFile.cbFixed` as the on-disk per-entry stride — so this struct's wire layout *is* the index format. Critical. |
+| `ChunkRepresentationSmall` | `chunk.cpp:219` | 20 | 24 | FilePosition only (others are ushort/ulong = 16/32) | Pin FilePosition to int32_t. Note the `luGrfcrpCb` field packs grfcrp + cb (24-bit) into one ulong — already pinned via uint32_t typedef change would be needed (currently still `ulong`). |
+| `EmbeddedChunkDescriptorOnFile` | `chunk.cpp:574` | 24 | 32 | 2×long (cb, ckid) | Pin to int32_t. Used by `FWriteChunkTree` / `PcflReadForestFromFlo` for embedded chunk graphs. |
+| `ChunkNumberMapEntry` | `chunk.cpp:3733` | 12 | 12 | none | ✅ Stable — pure ChunkTagOrType + 2×ChunkNumber. |
+| `DynamicArrayOnFile` | `groups.cpp:465` | 12 | 20 | 2×long (cbEntry, ivMac) | Pin to int32_t. This is the header for *every* DynamicArray on disk. |
+| `AllocatedArrayOnFile` | `groups.cpp:815` | 16 | 28 | 3×long | Pin to int32_t. Header for every AllocatedArray on disk. |
+| `GeneralGroupOnFile` | `groups.cpp:1114` | 20 | 36 | 4×long (ilocMac, bvMac, clocFree, cbFixed) | Pin to int32_t. Header for every GG on disk — including the chunky-file index itself (`_pggcrp` is a GG). |
+| `StringTableOnFile` | `groups2.cpp:73` | 20 | 36 | 4×long | Pin to int32_t. Header for every GST on disk. |
+| `LogicalOffsetAndCount` | `groups.h:253` | 8 | 16 | 2×long (bv, cb) | Pin to int32_t. This is the *per-entry* descriptor inside GG variable storage — one per GG entry, written sequentially after the `GeneralGroupOnFile` header. **Doubly critical**: this is not just a one-time header, it scales with entry count. The GG byteswap path swaps "ivMac longs starting at bv" — that swap unit must change too. |
+
+### `FilePosition`: runtime vs on-disk
+
+`typedef long FilePosition;` at `file.h:30`. Used by `FileObject` for seeking
+and at-position reads/writes. Two competing forces:
+
+1. **On-disk widths**: `ChunkyFilePrefix.fpMac/fpIndex/fpMap`, `FreeSpaceMap.fp`,
+   and `ChunkRepresentation*.fp` are 4 bytes on disk in 1995 3DMM files. They
+   must remain 4 bytes for compat. → On-disk fields must use a fixed-width
+   alias (`int32_t`).
+2. **Runtime ergonomics**: a 32-bit FilePosition limits chunky files to 2 GB.
+   3DMM files are well under 100 MB, but generalising kauai for non-3DMM use
+   would want 64-bit. → Runtime API can stay `long` (8 bytes on LP64) without
+   breaking compat, as long as the I/O layer converts to int32_t at the
+   boundary.
+
+Recommended approach: keep the `FilePosition` runtime typedef as is (so file
+APIs continue to take `long`), but replace each on-disk occurrence with a
+literal `int32_t`. The per-struct findings above all follow this rule —
+the OnFile structs use int32_t directly, never `FilePosition`.
+
+### Estimated work
+
+The 11 affected structs are all in three files (`chunk.cpp`, `groups.cpp`,
+`groups2.cpp`). Each fix is a localised typedef swap plus a `static_assert`,
+following the same pattern pass 1 used for the engine. The byteswap masks
+(`kbomCfp`, `kbomCrpbg*`, `kbomEcdf`, `kbomGlf`, `kbomAlf`, `kbomGgf`,
+`kbomGstf`) are already correct for the 1995 layout; they don't change.
+
+Two structural items need extra care:
+- `LogicalOffsetAndCount` is consumed inline as part of GG variable storage,
+  not via a marshal step. The serialization paths in `VirtualGroup::FWrite`
+  / `_FRead` (`groups.cpp:1135-1230` ish) byteswap N×size(long) at the
+  storage block — that swap unit must become explicit int32_t too.
+- The chunky-file index `_pggcrp` is itself a GG of `ChunkRepresentation*`.
+  Both layers (GG header + per-entry CRP) need their fixes simultaneously
+  for the index to stay readable.
+
+### Why this is its own project
+
+The engine pass touched ~30 structs across 8 files; this kauai pass touches
+11 structs but they sit at the bottom of the dependency stack, used by every
+.3MM read/write, including the bootstrap `kpack`/`chomp` toolchain that
+produces the data files in the build. A regression here breaks the build
+itself, not just runtime. Suggest tackling it as a separate "kauai pass-2"
+plan with its own implementation tasks once we're ready to attempt an LP64
+configure.
+
 ## Out of scope
 
-- Kauai chunk-format internals (`ChunkyFilePrefix`, `ChunkRepresentationBig/Small`, `EmbeddedChunkDescriptorOnFile`, `ChunkNumberMapEntry`).
-- Kauai group on-file formats (`DynamicArrayOnFile`, `AllocatedArrayOnFile`, `GeneralGroupOnFile`, `StringTableOnFile`).
 - `RegionOnFile` (no such type yet — Region is runtime-only).
 - In-memory class member `long`s that aren't part of any on-disk struct.
 - `kbom*` byte-order plumbing audit — that's Project 1 task 3, separate.
+- The pervasive `size(long)` use *inside kauai algorithms* (chcm codec word
+  size, screxe script word size, rtxt MPE swap, etc.) — these are runtime
+  invariants, not on-disk format, but they encode a "long is 4 bytes"
+  assumption (`utilint.cpp:407` literally `Assert(size(long) == 4)`).
+  Modernizing those is project-sized on its own, separate from the on-disk
+  format fix above.
