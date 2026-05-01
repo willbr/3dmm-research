@@ -195,19 +195,40 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
         SwapBytesRglw(_pglbmat34->QvGet(0), LwMul(_pglbmat34->IvMac(), size(BMAT34) / size(long)));
     }
 
-    // read (optional) DynamicArray of motion-match sounds (chid 0, ctg kctgGlms):
+    // read (optional) DynamicArray of motion-match sounds (chid 0, ctg kctgGlms).
+    // On disk each entry is a TAGOnFile (16 bytes); marshal into a fresh runtime
+    // DA whose stride is sizeof(TAG) (wider on x64 due to embedded pcrf).
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgGlms, &kid))
     {
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
             return fFalse;
-        _pgltagSnd = DynamicArray::PglRead(&blck, &bo);
-        if (pvNil == _pgltagSnd)
+        PDynamicArray pglOnFile = DynamicArray::PglRead(&blck, &bo);
+        if (pvNil == pglOnFile)
             return fFalse;
-        AssertBomRglw(kbomTag, size(TAG));
-        if (kboOther == bo)
+        AssertBomRglw(kbomTag, size(TAGOnFile));
+        Assert(pglOnFile->CbEntry() == size(TAGOnFile), "kctgGlms entry size drift");
+        _pgltagSnd = DynamicArray::PglNew(size(TAG), pglOnFile->IvMac());
+        if (pvNil == _pgltagSnd)
         {
-            SwapBytesRglw(_pgltagSnd->QvGet(0), LwMul(_pgltagSnd->IvMac(), size(TAG) / size(long)));
+            ReleasePpo(&pglOnFile);
+            return fFalse;
         }
+        long itag, itagMac = pglOnFile->IvMac();
+        TAGOnFile tagOnFile;
+        TAG tagRuntime;
+        for (itag = 0; itag < itagMac; itag++)
+        {
+            pglOnFile->Get(itag, &tagOnFile);
+            if (kboOther == bo)
+                SwapBytesBom(&tagOnFile, kbomTag);
+            TagFromOnFile(&tagRuntime, tagOnFile);
+            if (!_pgltagSnd->FAdd(&tagRuntime))
+            {
+                ReleasePpo(&pglOnFile);
+                return fFalse;
+            }
+        }
+        ReleasePpo(&pglOnFile);
     }
 
     return fTrue;
