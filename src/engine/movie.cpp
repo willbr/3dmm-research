@@ -170,7 +170,11 @@ static_assert(sizeof(MovieFilePrefix) == 8, "MovieFilePrefix on-disk layout drif
 const ByteOrderMask kbomMfp = 0x55000000;
 
 //
-// Used to keep track of the roll call list of the movie
+// Used to keep track of the roll call list of the movie.
+// Runtime form: embeds a full TAG (with runtime pcrf). Size is allowed to
+// grow on x64 — this struct never reaches disk; the GST is marshalled to/from
+// RollCallActorEntryOnFile at the I/O boundary (see _ReadRollCallExtra and
+// the save path).
 //
 struct RollCallActorEntry
 {
@@ -179,9 +183,19 @@ struct RollCallActorEntry
     ulong grfbrws; // browser properties
     TAG tagTmpl;
 };
-static_assert(sizeof(RollCallActorEntry) == 28, "RollCallActorEntry on-disk layout drift");
 
 typedef RollCallActorEntry *PRollCallActorEntry;
+
+// Wire format for RollCallActorEntry. Fixed at 28 bytes on every architecture
+// because TAGOnFile is fixed-width. This is what lands in the GST on disk.
+struct RollCallActorEntryOnFile
+{
+    long arid;
+    long cactRef;
+    ulong grfbrws;
+    TAGOnFile tagTmpl;
+};
+static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile wire format drift");
 
 const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
@@ -466,6 +480,10 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTabl
     PChunkyFile pcfl = pcrf->Pcfl();
     ChildChunkIdentification kid;
     DataBlock blck;
+    PStringTable_GST pgstOnFile = pvNil;
+    PStringTable_GST pgstRuntime = pvNil;
+    String stn;
+    RollCallActorEntryOnFile mactrOnFile;
     RollCallActorEntry mactr;
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, cno, 0, kctgGst, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
@@ -474,28 +492,48 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTabl
         goto LFail;
     }
 
-    *ppgst = StringTable_GST::PgstRead(&blck, &bo);
-    if (*ppgst == pvNil)
+    // Read the wire-format GST (extras are sized RollCallActorEntryOnFile).
+    pgstOnFile = StringTable_GST::PgstRead(&blck, &bo);
+    if (pgstOnFile == pvNil)
         goto LFail;
 
-    imactrMac = (*ppgst)->IvMac();
+    // Marshal into a fresh runtime GST whose extras are sized RollCallActorEntry
+    // (which on x64 is wider than the wire form because TAG embeds a pointer).
+    pgstRuntime = StringTable_GST::PgstNew(size(RollCallActorEntry));
+    if (pgstRuntime == pvNil)
+        goto LFail;
+
+    imactrMac = pgstOnFile->IvMac();
     for (imactr = 0; imactr < imactrMac; imactr++)
     {
-        (*ppgst)->GetExtra(imactr, &mactr);
+        pgstOnFile->GetStn(imactr, &stn);
+        pgstOnFile->GetExtra(imactr, &mactrOnFile);
         if (bo == kboOther)
-            SwapBytesBom(&mactr, kbomMactr);
+            SwapBytesBom(&mactrOnFile, kbomMactr);
+
+        mactr.arid = mactrOnFile.arid;
+        mactr.cactRef = mactrOnFile.cactRef;
+        mactr.grfbrws = mactrOnFile.grfbrws;
+        TagFromOnFile(&mactr.tagTmpl, mactrOnFile.tagTmpl);
 
         if (paridLim != pvNil && mactr.arid >= *paridLim)
             *paridLim = mactr.arid + 1;
 
-        // Open the tags, since they might be ThreeDTexts
+        // Open the tags, since they might be ThreeDTexts. FOpenTag may
+        // populate mactr.tagTmpl.pcrf for ksidUseCrf tags; that pcrf is the
+        // owning ref balanced by CloseTag, so it must land in the runtime GST.
         AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, pcrf), "Should never fail when not copying the tag");
 
-        (*ppgst)->PutExtra(imactr, &mactr);
+        if (!pgstRuntime->FAddStn(&stn, &mactr))
+            goto LFail;
     }
 
+    ReleasePpo(&pgstOnFile);
+    *ppgst = pgstRuntime;
     return fTrue;
 LFail:
+    ReleasePpo(&pgstOnFile);
+    ReleasePpo(&pgstRuntime);
     TrashVar(ppgst);
     return fFalse;
 }
@@ -2565,15 +2603,42 @@ LRetry:
         kidGstRollCall.cki.cno = cnoNil;
     }
 
-    if (!pcfl->FAdd(_pgstmactr->CbOnFile(), kctgGst, &cno, &blck))
     {
-        goto LFail1;
-    }
-
-    if (!_pgstmactr->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, _cno, kctgGst, cno, 0))
-    {
-        pcfl->Delete(kctgGst, cno);
-        goto LFail1;
+        // Marshal the runtime GST into a transient wire-format GST whose
+        // extras are sized RollCallActorEntryOnFile (28 bytes on every arch).
+        // The runtime GST holds RollCallActorEntry which on x64 is wider, so
+        // we cannot FWrite it directly without breaking the .3MM wire format.
+        PStringTable_GST pgstOnFile = StringTable_GST::PgstNew(size(RollCallActorEntryOnFile));
+        if (pvNil == pgstOnFile)
+            goto LFail1;
+        long imactrSave, imactrMacSave = _pgstmactr->IvMac();
+        String stnSave;
+        RollCallActorEntry mactrSave;
+        RollCallActorEntryOnFile mactrSaveOnFile;
+        bool fOk = fTrue;
+        for (imactrSave = 0; imactrSave < imactrMacSave && fOk; imactrSave++)
+        {
+            _pgstmactr->GetStn(imactrSave, &stnSave);
+            _pgstmactr->GetExtra(imactrSave, &mactrSave);
+            mactrSaveOnFile.arid = mactrSave.arid;
+            mactrSaveOnFile.cactRef = mactrSave.cactRef;
+            mactrSaveOnFile.grfbrws = mactrSave.grfbrws;
+            mactrSaveOnFile.tagTmpl.From(mactrSave.tagTmpl);
+            if (!pgstOnFile->FAddStn(&stnSave, &mactrSaveOnFile))
+                fOk = fFalse;
+        }
+        if (!fOk || !pcfl->FAdd(pgstOnFile->CbOnFile(), kctgGst, &cno, &blck))
+        {
+            ReleasePpo(&pgstOnFile);
+            goto LFail1;
+        }
+        if (!pgstOnFile->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, _cno, kctgGst, cno, 0))
+        {
+            ReleasePpo(&pgstOnFile);
+            pcfl->Delete(kctgGst, cno);
+            goto LFail1;
+        }
+        ReleasePpo(&pgstOnFile);
     }
 
     //
