@@ -278,26 +278,45 @@ gained `static_assert(sizeof(...) == N)` matching their x86 layouts:
 
 Build stays clean on x86; 33/33 geometry tests pass after each commit.
 
-### Still out of scope (pass 3 territory)
+### Pass 3 implementation status (commits on 2026-05-01)
 
-These didn't change shape *inside* the audited OnFile structs but would
-still bite a real LP64 attempt:
+- ✅ `CbRoundToLong` pinned internally to a 4-byte alignment quantum
+  (constexpr) — `6afcc6c`. The historical "Long" name kept; comment
+  on the inline declares the 4-byte contract. All 19 callers (`groups.cpp`,
+  `groups2.cpp`, `mbmp.cpp`, `chcm.cpp`, `kidworld.cpp`, `test.cpp`)
+  unchanged at the call site, fixed at the implementation.
+- ✅ Same commit introduced `kcbAlignVar = 4` in `groups.cpp` and replaced
+  11 GG variable-storage padding sites that used `size(long)` directly
+  (allocation upper bounds, `_FEnsureSizes` growth, MoveRgb tail-byte
+  scratch, `_AdjustLocs` delta validation, etc.).
+- ✅ `SwapBytesRglw` runtime `Assert(size(long) == 4)` upgraded to
+  `static_assert(size(int32_t) == 4)` so the 4-byte-word contract is
+  enforced at compile time. Documented the misleading historical name in
+  the function header. Did **not** rename — minimum-touch fix in keeping
+  with the project's "preserve original" stance — but swept every caller
+  computing `cb / size(long)` and changed to `cb / size(int32_t)`.
+  Sites fixed: 11 across `chcm.cpp`, `chunk.cpp` (3), `kidworld.cpp`,
+  `rtxt.cpp`, `actrsave.cpp`, `bkgd.cpp` (3), `tmpl.cpp` (2),
+  `movie_chomp.cpp` (2) — `678746e`.
+- ✅ `Template::_pggcmid` (GG of 4-byte cmid arrays) pinned its
+  `PggNew(size(long))` creator and `CbFixed() == size(long)` assertion +
+  variable-array length math to `int32_t` — same commit.
 
-- `CbRoundToLong` (`utilint.h:274`) and the pervasive `size(long) - 1`
-  alignment use inside GG variable storage growth/packing logic
-  (`groups.cpp:1278-1310` etc.). These encode "GG variable storage entries
-  are aligned to size(long) bytes". On x86 = 4 = the disk format. On LP64
-  this becomes 8, breaking the wire format. Fix is structural: introduce
-  a `kcbAlignVarStorage = 4` constant and route everything through that.
-- `SwapBytesRglw` (`utilint.cpp:464`) literally `Assert(size(long) == 4)`.
-  Its name and signature (`long clw`) are misleading — the implementation
-  is hard-coded 4-byte word arithmetic. A pass-3 cleanup should rename to
-  `SwapBytesRgInt32` and change the count parameter type to make the
-  4-byte-word semantics explicit at every call site.
-- `FilePosition` runtime typedef stays `long` (8 bytes on LP64) — fine
-  for the file API surface, but means every `FilePosition` field in
-  in-memory-only structs and locals will widen. Audit those uses if
-  attempting LP64 configure.
+### Still out of scope (pass 4 territory if anyone goes there)
+
+- `FilePosition` runtime typedef stays `long` (8 bytes on LP64). On-disk
+  fields are pinned to int32_t already (pass 2). Audit any remaining
+  in-memory-only `FilePosition` uses if attempting an LP64 configure —
+  they'll widen but that's fine for runtime use of the file API.
+- Other `size(long)` use cases that survived the sweep: chcm.cpp's
+  per-block 4-byte tail buffer (`_bsf.IbMac() < size(long)`), screxe.cpp's
+  script word size (built around `long` semantically — script values *are*
+  longs), assertion stack frames (`appbwin.cpp`, `base.cpp`, `utilmem.cpp`),
+  cmd.cpp's `kclwCmd * size(long)` command argument vector. None of these
+  are wire-format; they're runtime invariants where "long" is the intent.
+  Audit case-by-case if doing LP64; many are likely fine to widen.
+- `screxe.cpp` script bytecode uses 32-bit cells but is heavily intertwined
+  with `long`. Treat as separate "kauai script LP64 port" project.
 
 ## Out of scope
 

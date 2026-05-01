@@ -988,7 +988,7 @@ void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 
         // The bits are stored in upside down DIB order!
         ReversePb(pcurh + 1, pcurdir->cb - size(CURH));
-        SwapBytesRglw(pcurh + 1, (pcurdir->cb - size(CURH)) / size(long));
+        SwapBytesRglw(pcurh + 1, (pcurdir->cb - size(CURH)) / size(int32_t));
 
         if (pcurdir->dxp == 16)
         {

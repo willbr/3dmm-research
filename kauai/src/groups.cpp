@@ -42,6 +42,14 @@ RTCLASS(AllocatedGroup)
     subclass (client).  This class just manages resizing the data sections.
 ***************************************************************************/
 
+// 4-byte alignment quantum for GG/GGB variable storage. Historically spelled
+// `size(long)`, which silently doubled to 8 on LP64 — but the .3MM wire format
+// fixes this padding at 4 bytes (matching every existing on-disk GG entry).
+// All uses inside this file that previously read `size(long)` for the
+// GG-padding intent now use kcbAlignVar to keep the runtime layout coherent
+// with the 32-bit on-disk alignment on every architecture.
+static constexpr long kcbAlignVar = 4;
+
 /***************************************************************************
     Destructor for GroupBase.  Frees the hq.
 ***************************************************************************/
@@ -1277,16 +1285,17 @@ bool VirtualGroup::FEnsureSpace(long cvAdd, long cbAdd, ulong grfgrp)
     else
         clocAdd = LwMax(0, cvAdd - _clocFree);
 
-    // we waste at most (size(long) - 1) bytes per element
-    if (clocAdd > kcbMax / size(LogicalOffsetAndCount) - _ivMac || cvAdd > (kcbMax / (_cbFixed + size(long) - 1)) - _bvMac ||
-        cbAdd > kcbMax - _bvMac - cvAdd * (_cbFixed + size(long) - 1))
+    // we waste at most (kcbAlignVar - 1) bytes per element
+    if (clocAdd > kcbMax / size(LogicalOffsetAndCount) - _ivMac ||
+        cvAdd > (kcbMax / (_cbFixed + kcbAlignVar - 1)) - _bvMac ||
+        cbAdd > kcbMax - _bvMac - cvAdd * (_cbFixed + kcbAlignVar - 1))
     {
         Bug("why is this group growing so large?");
         return fFalse;
     }
 
-    return _FEnsureSizes(_bvMac + cbAdd + LwMul(cvAdd, _cbFixed + size(long) - 1), LwMul(_ivMac + clocAdd, size(LogicalOffsetAndCount)),
-                         grfgrp);
+    return _FEnsureSizes(_bvMac + cbAdd + LwMul(cvAdd, _cbFixed + kcbAlignVar - 1),
+                         LwMul(_ivMac + clocAdd, size(LogicalOffsetAndCount)), grfgrp);
 }
 
 /***************************************************************************
@@ -1298,7 +1307,7 @@ void VirtualGroup::SetMinGrow(long cvAdd, long cbAdd)
     AssertIn(cvAdd, 0, kcbMax);
     AssertIn(cbAdd, 0, kcbMax);
 
-    _cbMinGrow1 = CbRoundToLong(cbAdd + LwMul(cvAdd, _cbFixed + size(long) - 1));
+    _cbMinGrow1 = CbRoundToLong(cbAdd + LwMul(cvAdd, _cbFixed + kcbAlignVar - 1));
     _cbMinGrow2 = LwMul(cvAdd, size(LogicalOffsetAndCount));
 }
 
@@ -1310,7 +1319,7 @@ void VirtualGroup::_RemoveRgb(long bv, long cb)
     AssertBaseThis(0);
     AssertIn(bv, 0, _bvMac);
     AssertIn(cb, 1, _bvMac - bv + 1);
-    Assert(cb == CbRoundToLong(cb), "cb not divisible by size(long)");
+    Assert(cb == CbRoundToLong(cb), "cb not aligned to kcbAlignVar");
     byte *qb;
 
     if (bv + cb < _bvMac)
@@ -1333,7 +1342,7 @@ void VirtualGroup::_AdjustLocs(long bvMin, long bvLim, long dcb)
     AssertIn(bvMin, 0, _bvMac + 2);
     AssertIn(bvLim, bvMin, _bvMac + 2);
     AssertIn(dcb, -_bvMac, kcbMax);
-    Assert((dcb % size(long)) == 0, "dcb not divisible by size(long)");
+    Assert((dcb % kcbAlignVar) == 0, "dcb not aligned to kcbAlignVar");
     long cloc;
     LogicalOffsetAndCount *qloc;
 
@@ -1673,7 +1682,7 @@ bool VirtualGroup::FInsertRgb(long iv, long bv, long cb, void *pv)
 /***************************************************************************
     Move cb bytes from position bvSrc in ivSrc to position bvDst in ivDst.
     This can fail only because of the padding used for each entry (at most
-    size(long) additional bytes will need to be allocated).
+    kcbAlignVar additional bytes will need to be allocated).
 ***************************************************************************/
 bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long cb)
 {
@@ -1698,14 +1707,14 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
           (CbRoundToLong(locSrc.cb) - CbRoundToLong(locSrc.cb - cb));
     if (cbT > 0)
     {
-        Assert(cb % size(long) != 0, "why are we here when cb is a multiple of size(long)?");
+        Assert(cb % kcbAlignVar != 0, "why are we here when cb is a multiple of kcbAlignVar?");
         if (!_FEnsureSizes(_bvMac + cbT, LwMul(_ivMac, size(LogicalOffsetAndCount)), fgrpNil))
             return fFalse;
     }
 
     // move most of the bytes
-    cbMove = LwRoundToward(cb, size(long));
-    AssertIn(cb, cbMove, cbMove + size(long));
+    cbMove = LwRoundToward(cb, kcbAlignVar);
+    AssertIn(cb, cbMove, cbMove + kcbAlignVar);
     if (cbMove > 0)
     {
         long bv1 = locSrc.bv + bvSrc + _cbFixed;
@@ -1740,7 +1749,7 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
     // move the last few bytes
     if (cb > cbMove)
     {
-        byte rgb[size(long)];
+        byte rgb[kcbAlignVar];
 
         GetRgb(ivSrc, bvSrc, cb - cbMove, rgb);
         DeleteRgb(ivSrc, bvSrc, cb - cbMove);
@@ -1756,7 +1765,7 @@ bool VirtualGroup::FMoveRgb(long ivSrc, long bvSrc, long ivDst, long bvDst, long
     NOTE: this is kind of goofy.  The only time FMoveRgb could possibly
     fail if we just do the naive thing (FMoveRgb the entire var data,
     then delete the source element) is if _cbFixed is not a multiple
-    of size(long).
+    of kcbAlignVar.
 ***************************************************************************/
 void VirtualGroup::Merge(long ivSrc, long ivDst)
 {
@@ -1767,10 +1776,10 @@ void VirtualGroup::Merge(long ivSrc, long ivDst)
     Assert(!FFree(ivDst), "element free!");
     Assert(ivSrc != ivDst, "can't merge an element with itself!");
     long cb, cbMove, bv;
-    byte rgb[size(long)];
+    byte rgb[kcbAlignVar];
 
     cb = Cb(ivSrc);
-    cbMove = LwRoundToward(cb, size(long));
+    cbMove = LwRoundToward(cb, kcbAlignVar);
     if (cb > cbMove)
         GetRgb(ivSrc, cbMove, cb - cbMove, rgb); // get the tail bytes
 

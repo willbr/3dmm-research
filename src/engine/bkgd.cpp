@@ -229,7 +229,7 @@ bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     AssertBomRglw(kbomLite, size(LightPosition));
     if (kboOther == bo)
     {
-        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LightPosition) / size(long)));
+        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LightPosition) / size(int32_t)));
     }
     _cbactLight = pgllite->IvMac();
     if (!FAllocPv((void **)&_prgbactLight, LwMul(_cbactLight, size(BACT)), fmemClear, mprNormal))
@@ -467,12 +467,12 @@ bool Background::FSetCamera(PWorld pbwld, long icam)
     }
 #endif // DEBUG
 
-    Assert((size(APOS) / size(long)) * size(long) == size(APOS), "APOS not an even number of longs");
+    Assert((size(APOS) / size(int32_t)) * size(int32_t) == size(APOS), "APOS not an even number of 4-byte words");
     if (kboOther == cam.bo)
     {
         SwapBytesBom(&cam, kbomCam);
-        SwapBytesRglw(PvAddBv(&cam, offset(CameraPosition, bmat34Cam)), size(cam.bmat34Cam) / size(long));
-        SwapBytesRglw(PvAddBv(&cam, size(CameraPosition)), capos * (size(APOS) / size(long)));
+        SwapBytesRglw(PvAddBv(&cam, offset(CameraPosition, bmat34Cam)), size(cam.bmat34Cam) / size(int32_t));
+        SwapBytesRglw(PvAddBv(&cam, size(CameraPosition)), capos * (size(APOS) / size(int32_t)));
     }
     Assert(kboCur == cam.bo, "bad cam");
 
