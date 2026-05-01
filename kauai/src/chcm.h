@@ -70,7 +70,7 @@ enum
 };
 
 // lookup table for keywords
-struct KEYTT
+struct LexerKeywordEntry
 {
     PZString pszKeyword;
     long tt;
