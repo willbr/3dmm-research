@@ -15,9 +15,9 @@
 
     Basic movie private classes:
 
-        Movie Scene actions Undo Object (MUNS)
+        Movie Scene actions Undo Object (MovieSceneUndo)
 
-            BASE ---> UndoBase ---> MovieUndo ---> MUNS
+            BASE ---> UndoBase ---> MovieUndo ---> MovieSceneUndo
 
 
 Note: The client of the movie engine should always do all actions through
@@ -67,9 +67,9 @@ const long krSoonerScaleFactor = BR_SCALAR(0.05);
 // UNDO object for scene related actions:  Ins, New, and Rem
 //
 //
-typedef class MUNS *PMUNS;
+typedef class MovieSceneUndo *PMovieSceneUndo;
 
-#define MUNS_PAR MovieUndo
+#define MovieSceneUndo_PAR MovieUndo
 
 enum MUNST
 {
@@ -78,8 +78,8 @@ enum MUNST
     munstSetBkgd
 };
 
-#define kclsMUNS 'MUNS'
-class MUNS : public MUNS_PAR
+#define kclsMovieSceneUndo 'MUNS'
+class MovieSceneUndo : public MovieSceneUndo_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -90,13 +90,13 @@ class MUNS : public MUNS_PAR
     TAG _tag;
     PScene _pscen;
     MUNST _munst;
-    MUNS(void)
+    MovieSceneUndo(void)
     {
     }
 
   public:
-    static PMUNS PmunsNew(void);
-    ~MUNS(void);
+    static PMovieSceneUndo PmunsNew(void);
+    ~MovieSceneUndo(void);
 
     void SetIscen(long iscen)
     {
@@ -130,7 +130,7 @@ class MUNS : public MUNS_PAR
 
 RTCLASS(Movie)
 RTCLASS(MovieUndo)
-RTCLASS(MUNS)
+RTCLASS(MovieSceneUndo)
 
 BEGIN_CMD_MAP(Movie, CommandHandler)
 ON_CID_ME(cidAlarm, &Movie::FCmdAlarm, pvNil)
@@ -1960,7 +1960,7 @@ bool Movie::FRemScen(long iscen)
     AssertIn(iscen, 0, Cscen());
 
     ChildChunkIdentification kid;
-    PMUNS pmuns;
+    PMovieSceneUndo pmuns;
     PScene pscen;
 
     if (_iscen == iscen)
@@ -1985,7 +1985,7 @@ bool Movie::FRemScen(long iscen)
         pscen->HideTboxes();
     }
 
-    pmuns = MUNS::PmunsNew();
+    pmuns = MovieSceneUndo::PmunsNew();
 
     if (pmuns == pvNil)
     {
@@ -3861,7 +3861,7 @@ bool Movie::FAddScen(PTAG ptag)
 
     long iscen;
     TAG tagOld;
-    PMUNS pmuns;
+    PMovieSceneUndo pmuns;
 
     vpappb->BeginLongOp();
 
@@ -3916,7 +3916,7 @@ bool Movie::FAddScen(PTAG ptag)
             _pmsq->FlushMsq();
         }
 
-        pmuns = MUNS::PmunsNew();
+        pmuns = MovieSceneUndo::PmunsNew();
 
         if (pmuns != pvNil)
         {
@@ -9275,10 +9275,10 @@ void MovieView::MarkMem(void)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PMUNS MUNS::PmunsNew()
+PMovieSceneUndo MovieSceneUndo::PmunsNew()
 {
-    PMUNS pmuns;
-    pmuns = NewObj MUNS();
+    PMovieSceneUndo pmuns;
+    pmuns = NewObj MovieSceneUndo();
     return (pmuns);
 }
 
@@ -9287,7 +9287,7 @@ PMUNS MUNS::PmunsNew()
  * Destructor for movies undo objects
  *
  ****************************************************/
-MUNS::~MUNS(void)
+MovieSceneUndo::~MovieSceneUndo(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pscen);
@@ -9304,7 +9304,7 @@ MUNS::~MUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MUNS::FDo(PDocumentBase pdocb)
+bool MovieSceneUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -9359,7 +9359,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MUNS::FUndo(PDocumentBase pdocb)
+bool MovieSceneUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -9398,7 +9398,7 @@ LFail:
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the MUNS
+ * Mark memory used by the MovieSceneUndo
  *
  * Parameters:
  * 	None.
@@ -9407,16 +9407,16 @@ LFail:
  *  None.
  *
  ****************************************************/
-void MUNS::MarkMem(void)
+void MovieSceneUndo::MarkMem(void)
 {
     AssertThis(0);
-    MUNS_PAR::MarkMem();
+    MovieSceneUndo_PAR::MarkMem();
     MarkMemObj(_pscen);
 }
 
 /***************************************************************************
  *
- * Assert the validity of the MUNS.
+ * Assert the validity of the MovieSceneUndo.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -9425,7 +9425,7 @@ void MUNS::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MUNS::AssertValid(ulong grf)
+void MovieSceneUndo::AssertValid(ulong grf)
 {
     AssertNilOrPo(_pscen, 0);
 }
