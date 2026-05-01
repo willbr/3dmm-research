@@ -705,7 +705,7 @@ bool Actor::FPasteRte(PActor pactr)
     //
     // Set new end of path freeze & step events
     //
-    long faevfrz = (long)fTrue;
+    int32_t faevfrz = (int32_t)fTrue;
     BRS dwrStep = rZero;
     aev.aet = aetFreeze;
     aev.rtel.irpt = _rtelCur.irpt + crptNew;

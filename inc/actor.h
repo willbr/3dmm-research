@@ -291,7 +291,7 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 #define kcbVarSize (size(BRS))
 #define kcbVarPull (size(Stretch))
 #define kcbVarSnd (size(Sound))
-#define kcbVarFreeze (size(long))
+#define kcbVarFreeze (size(int32_t))
 #define kcbVarMove (size(RoutePoint))
 #define kcbVarTweak (size(RoutePoint))
 #define kcbVarStep (size(BRS))

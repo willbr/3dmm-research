@@ -707,7 +707,7 @@ void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
     }
 
     case aetFreeze: {
-        long fFrozen; //_fFrozen is a bit
+        int32_t fFrozen; //_fFrozen is a bit
         pggaev->Get(iaev, &fFrozen);
         // _fFrozen = FPure(fFrozen);
         printf("%*.sFreeze()\n", indent, "");
