@@ -409,12 +409,6 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
     DataBlock blck;
     short bo;
     PGeneralGroup pggOnFile = pvNil;
-    long iaev, iaevMac;
-    Base aev;
-    CostumeOnFile costOnFile;
-    Costume cost;
-    SoundOnFile sndOnFile;
-    Sound snd;
 
     if (!pcfl->FFind(kctgGgae, cno, &blck))
         return fFalse;
@@ -424,8 +418,28 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
     if (kboOther == bo)
         _SwapBytesPggaev(pggOnFile);
 
-    _pggaev = GeneralGroup::PggNew(size(Base));
-    if (pvNil == _pggaev)
+    _pggaev = _PggaevMarshalFromOnFile(pggOnFile);
+    return _pggaev != pvNil;
+}
+
+/***************************************************************************
+    Marshal a wire-format pggaev into a fresh runtime pggaev. See header
+    comment in actor.h for ownership rules.
+***************************************************************************/
+PGeneralGroup Actor::_PggaevMarshalFromOnFile(PGeneralGroup pggOnFile)
+{
+    AssertPo(pggOnFile, 0);
+
+    long iaev, iaevMac;
+    Base aev;
+    CostumeOnFile costOnFile;
+    Costume cost;
+    SoundOnFile sndOnFile;
+    Sound snd;
+    PGeneralGroup pggRuntime;
+
+    pggRuntime = GeneralGroup::PggNew(size(Base));
+    if (pvNil == pggRuntime)
         goto LFail;
 
     iaevMac = pggOnFile->IvMac();
@@ -442,7 +456,7 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
             cost.cmid = costOnFile.cmid;
             cost.fCmtl = costOnFile.fCmtl;
             TagFromOnFile(&cost.tag, costOnFile.tag);
-            if (!_pggaev->FInsert(iaev, size(Costume), &cost, &aev))
+            if (!pggRuntime->FInsert(iaev, size(Costume), &cost, &aev))
                 goto LFail;
             break;
         case aetSnd:
@@ -457,23 +471,24 @@ bool Actor::_FReadEvents(PChunkyFile pcfl, ChunkNumber cno)
             snd.fNoSound = sndOnFile.fNoSound;
             snd.chid = sndOnFile.chid;
             TagFromOnFile(&snd.tag, sndOnFile.tag);
-            if (!_pggaev->FInsert(iaev, size(Sound), &snd, &aev))
+            if (!pggRuntime->FInsert(iaev, size(Sound), &snd, &aev))
                 goto LFail;
             break;
         default:
             // No TAG embed: variable part is identical on disk and in runtime.
-            if (!_pggaev->FInsert(iaev, pggOnFile->Cb(iaev), pggOnFile->QvGet(iaev), &aev))
+            if (!pggRuntime->FInsert(iaev, pggOnFile->Cb(iaev), pggOnFile->QvGet(iaev), &aev))
                 goto LFail;
             break;
         }
     }
 
     ReleasePpo(&pggOnFile);
-    return fTrue;
+    return pggRuntime;
+
 LFail:
     ReleasePpo(&pggOnFile);
-    ReleasePpo(&_pggaev);
-    return fFalse;
+    ReleasePpo(&pggRuntime);
+    return pvNil;
 }
 
 /***************************************************************************
@@ -676,6 +691,12 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
         goto LFail;
     if (kboOther == bo)
         _SwapBytesPggaev(pggaev);
+    // Marshal on-file -> runtime so _FIsIaevTag can reinterpret the variable
+    // part as Costume*/Sound* (their layouts only coincide with the OnFile
+    // forms on x86; on x64 the runtime TAG is wider).
+    pggaev = _PggaevMarshalFromOnFile(pggaev);
+    if (pvNil == pggaev)
+        goto LFail;
     pggaev->Lock();
     for (iaev = 0; iaev < pggaev->IvMac(); iaev++)
     {
