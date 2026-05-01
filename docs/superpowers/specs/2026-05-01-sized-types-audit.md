@@ -60,14 +60,37 @@ Today on x86: 4 + 4 + 4 + 4 = 16 bytes. The BOM mask `0xFF000000` byteswaps 4 lo
 
 `TAG` is embedded directly in many on-disk structs (`MACTR.tagTmpl`, `ActorChunkOnFile.tagTmpl`, `BackgroundDefaultSound.tagSnd`, `ActorEvent::Costume.tag`, `ActorEvent::Sound.tag`, `TagChildPair.tag`, etc.). Under x64 LLP64 `pcrf` becomes 8 bytes → `sizeof(TAG)` becomes 20 → every embedding struct's layout shifts by 4 bytes per TAG → first read fails the `blck.Cb()` check.
 
-**Two options:**
+**Resolved (2026-05-01):** Option 1 (split TAG / TAGOnFile, marshal at I/O).
 
-1. **Split TAG into runtime-TAG and on-disk-TAG** (`TAG` and `TAGOnFile`?). Conversion at read/write boundaries. Cleaner long-term but high blast radius — touches every site that reads/writes a TAG.
-2. **Replace `pcrf` field with a 4-byte filler under LP64/x64.** E.g., `union { PChunkyResourceFile pcrf; uint32_t _pcrfPad; };` plus a `static_assert(sizeof(TAG) == 16)` to pin it. Keeps source-call sites identical. Less clean but minimal-diff.
+Implementation:
+- `inc/tagman.h` adds `struct TAGOnFile` (16 bytes always: int32 sid + uint32
+  pcrf-pad + uint32 ctg + uint32 cno), plus `TAGOnFile::From(const TAG&)` and
+  free function `TagFromOnFile(PTAG, const TAGOnFile&)` for conversion.
+- For structs read/written via `blck.FReadRgb` / `pcfl->FPutPv` (one-shot I/O
+  with explicit size), the embedded `TAG` is replaced with `TAGOnFile`
+  directly: `ActorChunkOnFile.tagTmpl`, `ThreeDTextF.tagTdf`,
+  `BackgroundDefaultSound`. No marshal layer needed — the OnFile struct *is*
+  the runtime form for these.
+- For structs stored in kauai containers (GG / GST / DynamicArray) where the
+  container does verbatim memcpy I/O (no per-entry hook), the runtime struct
+  keeps a full `TAG` with pcrf, and a parallel wire-format `XxxOnFile` struct
+  is defined. The I/O sites marshal entry-by-entry: read into transient
+  on-file container, walk into runtime container, drop on-file copy. Save is
+  the mirror. Affected sites:
+  - `RollCallActorEntry` (movie.cpp, GST) — commit `fe09d0d`
+  - `Costume` / `Sound` (actor.h + actrsave.cpp, GG `_pggaev`) — `938e9b9`
+  - `TagChildPair` in `SceneSoundEvent` and sevtSetBkgd's bare TAG (scene.cpp,
+    GG `_pggsevFrm` / `_pggsevStart`) — `46d4756`
+  - `_pgltagSnd` array of TAGs (tmpl.cpp, DA) — `445d38e`
+- Runtime `CachedTag` (tagl.cpp) is allowed to grow on x64 — TagList is built
+  fresh by enumerating scenes, never serialised — commit `cf73d87`.
+- Aspirational `static_assert(sizeof(TAG) == 16)` in tagman.h was relaxed to
+  x86-only — commit `bdc6715`.
 
-Option 1 is the right answer for 3DMMPlus. **Option 2 is the right answer for 3DMMForever** — preserves the wire format and 1995 compat without rewriting every TAG-handling site. Implementation: move `pcrf` out of `TAG` entirely and into a parallel `TagRuntimeData` map keyed by (sid, ctg, cno), or use the union-with-pad trick. The latter is simpler.
-
-This is the single biggest decision in the audit. Defer to the user before implementing.
+Net result: every TAG embed in the codebase is either at the I/O boundary as
+TAGOnFile, or wrapped in a runtime-only container that marshals at I/O. The
+.3MM wire format is byte-for-byte unchanged on every architecture. Runtime
+TAG is free to grow.
 
 ## Per-struct catalogue
 
