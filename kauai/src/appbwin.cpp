@@ -18,7 +18,7 @@
 
 ASSERTNAME
 
-WIG vwig;
+WindowsAppGlobals vwig;
 
 /***************************************************************************
     WinMain for any frame work app. Sets up vwig and calls FrameMain.
