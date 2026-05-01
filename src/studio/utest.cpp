@@ -19,6 +19,7 @@
 #include "studio.h"
 #include "socres.h"
 #include "mminstal.h"
+#include "mcpserv.h"
 #include <shlobj.h> // SHGetFolderPathA, CSIDL_LOCAL_APPDATA, SHCreateDirectoryExA
 
 ASSERTNAME
@@ -561,6 +562,12 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     // }
 
     EnsureInteractive();
+
+#ifdef DEBUG
+    // Bring up the embedded MCP server if `--mcp-server` was passed. No-op
+    // otherwise, so this is safe to call unconditionally in DEBUG builds.
+    mcp::FInit();
+#endif
 
     return fTrue;
 LFail:
@@ -3918,8 +3925,28 @@ LFail:
 /***************************************************************************
     Clean up routine - app is shutting down
 ***************************************************************************/
+#ifdef DEBUG
+/***************************************************************************
+    Override of ApplicationBase::TopOfLoop so the embedded MCP server can
+    drain its inbound JSON-RPC queue once per kauai event-loop tick. Tools
+    run synchronously on this thread, so they can safely touch HWNDs, GDI,
+    and vpcex without thread marshalling.
+***************************************************************************/
+void Application::TopOfLoop(void)
+{
+    Application_PAR::TopOfLoop();
+    mcp::Drain();
+}
+#endif // DEBUG
+
+/***************************************************************************
+    Clean up routine - app is shutting down
+***************************************************************************/
 void Application::_CleanUp(void)
 {
+#ifdef DEBUG
+    mcp::Shutdown();
+#endif
     _FWriteUserData();
     ReleasePpo(&_pstdio);
     ReleasePpo(&_ptatr);

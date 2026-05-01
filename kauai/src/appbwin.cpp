@@ -56,6 +56,13 @@ void AppendCrashLog(const char *pszCategory, const char *pszBody)
 /***************************************************************************
     WinMain for any frame work app. Sets up vwig and calls FrameMain.
 ***************************************************************************/
+// Defined in src/studio/mcpserv.cpp (no-op in release builds). C linkage so
+// kauai doesn't need to know about the mcp:: namespace. Returns 1 if
+// `--mcp-server` was passed on the command line; in that case we must NOT
+// AllocConsole, since the parent (Claude Code or another MCP host) is talking
+// to us over inherited stdin/stdout pipes that AllocConsole would replace.
+extern "C" int Mcp_FEnabledFromCmdLine(const char *psz);
+
 int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR pszs, int wShow)
 {
     vwig.hinst = hinst;
@@ -64,7 +71,8 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR pszs, int wShow)
     vwig.wShow = wShow;
     vwig.lwThreadMain = LwThreadCur();
 #ifdef DEBUG
-    ApplicationBase::CreateConsole();
+    if (!Mcp_FEnabledFromCmdLine(vwig.pszCmdLine))
+        ApplicationBase::CreateConsole();
 #endif
     FrameMain();
     return 0;

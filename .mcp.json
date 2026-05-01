@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "3dmovie": {
+      "command": "C:/Users/wjbr/src/3DMMForever/dist-x64/3dmovie.exe",
+      "args": ["--mcp-server"]
+    }
+  }
+}
