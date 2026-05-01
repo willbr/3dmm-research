@@ -284,7 +284,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         // Create the cno map from tmpl-->gokd
         if (_pglcmg == pvNil)
         {
-            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(CMG), kglcmgGrow)))
+            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(GokdCnoMap), kglcmgGrow)))
                 goto LFail;
             _pglcmg->SetMinGrow(kglcmgGrow);
         }
@@ -303,7 +303,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         // Create the cno map from tmpl-->gokd
         if (_pglcmg == pvNil)
         {
-            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(CMG), kglcmgGrow)))
+            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(GokdCnoMap), kglcmgGrow)))
                 goto LFail;
             _pglcmg->SetMinGrow(kglcmgGrow);
         }
