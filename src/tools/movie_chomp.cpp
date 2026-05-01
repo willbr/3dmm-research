@@ -263,7 +263,7 @@ const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 //
 // Used to keep track of the roll call list of the movie
 //
-struct MACTR
+struct RollCallActorEntry
 {
     long arid;
     long cactRef;
@@ -271,7 +271,7 @@ struct MACTR
     TAG tagTmpl;
 };
 
-typedef MACTR *PMACTR;
+typedef RollCallActorEntry *PRollCallActorEntry;
 
 const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
@@ -455,7 +455,7 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
 
             if (cbExtra > 0)
             {
-                MACTR mactr;
+                RollCallActorEntry mactr;
                 ppgst->GetExtra(iv, &mactr);
                 // printf("%zu\n", cbExtra);
                 // printf("%zu\n", sizeof(long));

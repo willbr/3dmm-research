@@ -172,16 +172,16 @@ const ByteOrderMask kbomMfp = 0x55000000;
 //
 // Used to keep track of the roll call list of the movie
 //
-struct MACTR
+struct RollCallActorEntry
 {
     long arid;
     long cactRef;
     ulong grfbrws; // browser properties
     TAG tagTmpl;
 };
-static_assert(sizeof(MACTR) == 28, "MACTR on-disk layout drift");
+static_assert(sizeof(RollCallActorEntry) == 28, "RollCallActorEntry on-disk layout drift");
 
-typedef MACTR *PMACTR;
+typedef RollCallActorEntry *PRollCallActorEntry;
 
 const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
@@ -293,7 +293,7 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     //
     if (pvNil == pfni)
     {
-        pmvie->_pgstmactr = StringTable_GST::PgstNew(size(MACTR));
+        pmvie->_pgstmactr = StringTable_GST::PgstNew(size(RollCallActorEntry));
         if (pmvie->_pgstmactr == pvNil)
         {
             goto LFail;
@@ -466,7 +466,7 @@ bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTabl
     PChunkyFile pcfl = pcrf->Pcfl();
     ChildChunkIdentification kid;
     DataBlock blck;
-    MACTR mactr;
+    RollCallActorEntry mactr;
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, cno, 0, kctgGst, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
@@ -583,7 +583,7 @@ Movie::~Movie(void)
     AssertBaseThis(0);
 
     long imactr;
-    MACTR mactr;
+    RollCallActorEntry mactr;
 
     ReleasePpo(&_pcrfAutoSave);
     ReleasePpo(&_pfilSave);
@@ -768,7 +768,7 @@ bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG
     AssertPvCb(parid, size(long));
     AssertVarMem(pcactRef);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
 
     if (iarid < 0 || iarid >= _pgstmactr->IvMac())
     {
@@ -804,7 +804,7 @@ bool Movie::FChooseArid(long arid)
     AssertPo(Pscen(), 0);
 
     PActor pactr, pactrDup;
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
     PMovieView pmvu;
 
@@ -925,7 +925,7 @@ bool Movie::FGetName(long arid, PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
@@ -959,7 +959,7 @@ bool Movie::FNameActr(long arid, PString pstn)
     AssertIn(arid, 0, 500);
     AssertPo(pstn, 0);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
@@ -999,7 +999,7 @@ bool Movie::FIsPropBrwsIarid(long iarid)
     AssertThis(0);
     AssertIn(iarid, 0, _pgstmactr->IvMac());
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     _pgstmactr->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsProp);
 }
@@ -1020,7 +1020,7 @@ bool Movie::FIsIaridTdt(long iarid)
     AssertThis(0);
     AssertIn(iarid, 0, _pgstmactr->IvMac());
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     _pgstmactr->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsTdt);
 }
@@ -1043,7 +1043,7 @@ void Movie::ChangeActrTag(long arid, PTAG ptag)
     AssertIn(arid, 0, 500);
     AssertVarMem(ptag);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
@@ -1080,7 +1080,7 @@ bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
     AssertPo(pactr, 0);
     AssertNilOrPo(pstn, 0); // can be pvNil if the actor is already in the movie.
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     if (pactr->Arid() != aridNil)
@@ -1161,7 +1161,7 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
     AssertThis(0);
     AssertPo(pactr, 0);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     //
@@ -2537,7 +2537,7 @@ LRetry:
     //
     if (fCleanRollCall)
     {
-        MACTR mactr;
+        RollCallActorEntry mactr;
         long imactr;
 
         for (imactr = 0; imactr < _pgstmactr->IvMac();)
@@ -4982,7 +4982,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
     for (imactr = 0; imactr < imactrMac; imactr++)
     {
         String stn;
-        MACTR mactr;
+        RollCallActorEntry mactr;
 
         pgstmactr->GetStn(imactr, &stn);
         pgstmactr->GetExtra(imactr, &mactr);
@@ -5065,7 +5065,7 @@ LFail:
         performance here */
     if (pgstmactr != pvNil)
     {
-        MACTR mactr;
+        RollCallActorEntry mactr;
 
         /* Remove added entries to the movie's roll call */
         imactrMac = _pgstmactr->IvMac();
