@@ -69,9 +69,9 @@ bool ThreeDText::FSetActionNames(PStringTable_GST pgstAction)
 ****************************************/
 struct ThreeDTextF
 {
-    short bo;
-    short osk;
-    long tdts;
+    int16_t bo;
+    int16_t osk;
+    int32_t tdts;
     TAGOnFile tagTdf;
 };
 static_assert(sizeof(ThreeDTextF) == 24, "ThreeDTextF on-disk layout drift");

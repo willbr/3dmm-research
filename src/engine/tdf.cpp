@@ -41,9 +41,9 @@ const BRS kdyrLeading = BR_SCALAR(0.5); // vertical space between chars
 ****************************************/
 struct ThreeDFontF
 {
-    short bo;
-    short osk;
-    long cch;
+    int16_t bo;
+    int16_t osk;
+    int32_t cch;
     BRS dyrMax;
     // These variable-length arrays follow the ThreeDFontF in the ThreeDFont chunk
     //  BRS rgdxr[cch];

@@ -1784,14 +1784,14 @@ void TextBoxGobject::AssertValid(ulong grf)
 //
 struct TextBoxOnFile
 {
-    short bo;
-    short osk;
-    long nfrmFirst;
-    long nfrmMax;
-    long xpLeft;
-    long xpRight;
-    long ypTop;
-    long ypBottom;
+    int16_t bo;
+    int16_t osk;
+    int32_t nfrmFirst;
+    int32_t nfrmMax;
+    int32_t xpLeft;
+    int32_t xpRight;
+    int32_t ypTop;
+    int32_t ypBottom;
     ChildChunkID chid;
     bool fStory;
 };
