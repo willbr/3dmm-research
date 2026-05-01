@@ -19,7 +19,12 @@
 #ifdef WIN
 inline void Debugger(void)
 {
+#ifdef IN_80386
     __asm { int 3 }
+#else
+    // MSVC x64: __asm not supported. Use the intrinsic equivalent.
+    __debugbreak();
+#endif
 }
 #endif // WIN
 
