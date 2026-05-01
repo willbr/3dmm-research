@@ -1223,7 +1223,7 @@ identifier		@t_37		?
 model		@t_38		?
 material		@t_39		?
 render_style		br_uint_8		?
-render_data		@t_40		?
+;; render_data field removed to match wrapper bren/inc/actor.h layout.
 t		br_transform		<>
 type_data		@t_41		?
 br_actor		ENDS

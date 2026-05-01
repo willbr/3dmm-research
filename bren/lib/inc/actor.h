@@ -103,11 +103,10 @@ typedef struct br_actor {
 	 */
 	br_uint_8 render_style;
 
-	/*
-	 * Reference to renderer specific data associated with this actor - NULL will
-	 * inherit from parent (root inherits default data)
-	 */
-	void *render_data;
+	/* render_data field removed: the bren/inc/actor.h wrapper that 3DMM
+	 * was originally compiled against predates this field. Restoring the
+	 * pre-render_data layout keeps the wrapper and source struct aligned;
+	 * no code in bren/lib/ actually reads or writes render_data. */
 
 	/*
 	 * Postiton of this actor within parent space
