@@ -28,6 +28,7 @@ struct TAGF
     TAG tag;
     bool fCacheChildren;
 };
+static_assert(sizeof(TAGF) == 20, "TAGF on-disk layout drift");
 
 /****************************************
     CC, or "chid-ctg" struct, for
@@ -40,6 +41,7 @@ struct CC
     ChildChunkID chid;
     ChunkTagOrType ctg;
 };
+static_assert(sizeof(CC) == 8, "CC on-disk layout drift");
 
 /***************************************************************************
     Create a new TagList

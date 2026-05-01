@@ -49,6 +49,7 @@ struct ThreeDFontF
     //  BRS rgdxr[cch];
     //  BRS rgdyr[cch];
 };
+static_assert(sizeof(ThreeDFontF) == 12, "ThreeDFontF on-disk fixed-part layout drift");
 const ByteOrderMask kbomTdff = 0x5F000000; // don't forget to swap rgdxr & rgdyr!
 
 /***************************************************************************
