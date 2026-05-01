@@ -21,6 +21,8 @@
 #ifndef Template_H
 #define Template_H
 
+#include <cstdint>
+
 using namespace BRender;
 
 /****************************************
@@ -30,8 +32,8 @@ using namespace BRender;
 ****************************************/
 struct CelPartSpec
 {
-    short chidModl; // ChildChunkID (under Template chunk) of model for this body part
-    short imat34;   // index into ActionDefinition's DynamicArray of transforms
+    int16_t chidModl; // ChildChunkID (under Template chunk) of model for this body part
+    int16_t imat34;   // index into ActionDefinition's DynamicArray of transforms
 };
 static_assert(sizeof(CelPartSpec) == 4, "CelPartSpec on-disk layout drift");
 const ByteOrderMask kbomCps = 0x50000000;
@@ -55,13 +57,13 @@ const ByteOrderMask kbomCel = 0xf0000000;
 // template on file
 struct TemplateOnFile
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     BRA xaRest; // reminder: BRAs are shorts
     BRA yaRest;
     BRA zaRest;
-    short swPad; // so grftmpl (and the whole TemplateOnFile) is long-aligned
-    ulong grftmpl;
+    int16_t swPad; // so grftmpl (and the whole TemplateOnFile) is long-aligned
+    uint32_t grftmpl;
 };
 static_assert(sizeof(TemplateOnFile) == 16, "TemplateOnFile on-disk layout drift");
 #define kbomTmplf 0x554c0000
@@ -69,12 +71,12 @@ static_assert(sizeof(TemplateOnFile) == 16, "TemplateOnFile on-disk layout drift
 // action chunk on file
 struct ActionChunkOnFile
 {
-    short bo;
-    short osk;
-    long grfactn;
+    int16_t bo;
+    int16_t osk;
+    uint32_t grfactn;
 };
 static_assert(sizeof(ActionChunkOnFile) == 8, "ActionChunkOnFile on-disk layout drift");
-const ulong kbomActnf = 0x5c000000;
+const ByteOrderMask kbomActnf = 0x5c000000;
 
 // grfactn flags
 enum
