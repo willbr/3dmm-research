@@ -377,29 +377,53 @@ compiles cleanly for x64. The fixes:
   `BrFixedATan2Fast`, `BrFixedMulDiv`, `BrFixedMac2Div/3Div/4Div`. Wired
   into `bren/lib/CMakeLists.txt` as a non-x86 fallback.
 
-After all of the above, x64 link still fails on:
-- **AudioMan x86 stubs** (10 symbols: `AllocSoundFromFile`,
-  `AllocSoundFromMemory`, `AllocSoundFromStream`, `AllocConvertFilter`,
-  `AllocLoopFilter`, `AllocTrimFilter`, `AllocBiasFilter`,
-  `GetAudioManMixer`, `SoundToFileAsWave`, `IID_IAMNotifySink`) — all
-  from `kauai/elib/wins/audios.lib`, which is x86-only. AudioMan is
-  already a stub today on x86 per `CLAUDE.md`; an x64 build needs a
-  proper port (or expanded stubs).
-- **BRender ZB rasterizer asm fastpaths** (~12 symbols:
-  `TriangleRenderPIZ2I`, `TrapezoidRenderPIZ2TIA*`, `ZbOSFFV*_A`,
-  `ZbOSTV*_A`, `ZbOSCopyModelToScreen_A`, `_sar16`, `SafeFixedMac2Div`,
-  `_GetSysQual`, `_MemCopyBits_A`, `_MemFill_A`, `_MemRectFill_A`) —
-  the inner-loop triangle scan-converters in `mesh386.asm`,
-  `ti8_piz.asm`, `tt15_piz.asm`, `t_piza*.asm`, etc. This is the
-  scope of the existing `2026-05-01-brender-x64-enablement.md` spec.
-- **DetectLeaks** in kauai's `appb.cpp` `_CleanUp` — small debug stub.
+### Pass 3.6: x64 link landed (2026-05-01)
 
-The build state is therefore: **the entire 3DMMForever non-asm codebase
-now compiles for x64**, and the only x64 work remaining is the two
-already-scoped follow-on projects (AudioMan port + BRender ZB
-asm-to-C). The `brender_zb` x64 path uses a `WARNING` instead of
-`FATAL_ERROR` so future probes can configure-and-build kauai+engine
-without touching the bren CMakeLists.
+After pass 3.5, all `.cpp` / `.c` files compiled for x64 but link still
+failed on AudioMan + BRender ZB asm fastpaths. This pass cleared all of
+those:
+
+- **AudioMan x86 lib gating**: `cmake/FindAudioMan.cmake` now skips the
+  precompiled `kauai/elib/wins/AUDIOS.lib` on non-x86 builds (it was
+  unconditionally found, hiding the source-stub fallback). The top-level
+  `CMakeLists.txt` already had a fallback that builds `audioman` from
+  `audioman/audioman.cpp` when no precompiled lib is found — that
+  fallback now actually engages on x64. All 10 AudioMan symbols
+  (AllocSoundFromFile, GetAudioManMixer, etc.) are stubbed there
+  returning `E_NOTIMPL` / `NULL`. `DetectLeaks` is part of the same
+  stub set.
+- **BRender ZB FAST_PROJECT/FAST_CULL gating**: the `ZbOS*_A` asm
+  fastpaths in `mesh386.asm` already have C fallbacks in `zbmesh.c`
+  inside `#else` branches of `#if FAST_PROJECT/CULL` blocks. Gated
+  the `#define FAST_PROJECT 1` / `FAST_CULL 1` to additionally require
+  `IN_80386`, and added an `IN_80386` compile definition to the
+  `brender_zb` target on x86 builds. On x64 the C fallback paths
+  compile and the asm symbols are no longer referenced.
+- **BRender FW + ZB asm port** (`bren/lib/fallback/zb_fallback.c`):
+  - Stubbed scan-converters: `TrapezoidRenderPIZ2TIA`,
+    `TrapezoidRenderPIZ2TIANT`, `TriangleRenderPIZ2I`. These are the
+    inner triangle rasterizers; the stubs return without rendering. 3D
+    geometry will not appear on x64 builds. UI and 2D rendering work.
+  - Real C ports: `_sar16` (arithmetic shift right 16),
+    `SafeFixedMac2Div` ((a*b + c*d) / e via int64_t with overflow→0),
+    `_GetSysQual` (returns 0 on flat memory). All bit-exact.
+  - Real C ports: `_MemFill_A`, `_MemRectFill_A`, `_MemCopy_A`,
+    `_MemRectCopy_A`, `_MemPixelSet`, `_MemPixelGet`, `_MemCopyBits_A`.
+    These are font-glyph and pixmap blit operations — full
+    implementations preserving bpp 1/2/3/4 dispatch and bit-level glyph
+    masking semantics.
+
+Result: **`3dmovie.exe` produces as a 6.1MB PE32+ x86-64 executable.**
+End-to-end x64 link of the full kauai + engine + studio + brender
+stack succeeds. Only un-implemented behaviour is the 3D triangle
+rasterizer stubs — the actual scan-converter port is still scope of
+`2026-05-01-brender-x64-enablement.md`. Everything else (UI, file I/O,
+chunk format, 2D drawing, font rendering) builds and links cleanly.
+
+Runtime hasn't been tested. Likely needs additional work for
+DirectDraw/COM init, BRender device selection, and the AudioMan stubs
+to fail gracefully — but those are runtime concerns now, not build
+ones.
 
 ### Still out of scope (pass 4 territory)
 
