@@ -16,17 +16,22 @@
 #ifndef CHUNK_H
 #define CHUNK_H
 
+#include <cstdint>
+
 namespace Chunky {
 
 using namespace Group;
 
 /***************************************************************************
-    These must be unsigned longs!  We sort on them and assume in the code
-    that they are unsinged.
+    Chunk identity types. Must be 32-bit unsigned -- sortable as unsigned,
+    and the kauai chunky-file format spec (kauai/doc/chunk.txt) pins them
+    to 32 bits on disk. Were spelled `ulong` originally; uint32_t pins the
+    width on LP64 systems (Linux/Mac x64), where bare `unsigned long` would
+    silently widen to 8 bytes and shift every chunk header.
 ***************************************************************************/
-typedef ulong ChunkTagOrType;  // chunk tag/type
-typedef ulong ChunkNumber;  // chunk number
-typedef ulong ChildChunkID; // child chunk id
+typedef uint32_t ChunkTagOrType; // chunk tag/type
+typedef uint32_t ChunkNumber;    // chunk number
+typedef uint32_t ChildChunkID;   // child chunk id
 
 enum
 {

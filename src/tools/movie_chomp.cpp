@@ -1172,7 +1172,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                         TAG tag;
                         tag = *(PTAG)pggsevStart->QvGet(isevStart);
                         printf("\t\tTAG(\n");
-                        printf("\t\t\tcno=%lu,\n", tag.cno);
+                        printf("\t\t\tcno=%u,\n", tag.cno);
 
                         String background_tag;
                         background_tag.FFormatSz(PszLit("%f"), tag.ctg);
