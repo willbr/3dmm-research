@@ -31,17 +31,17 @@ struct TAGF
 static_assert(sizeof(TAGF) == 20, "TAGF on-disk layout drift");
 
 /****************************************
-    CC, or "chid-ctg" struct, for
+    ChidCtgPair: "chid-ctg" struct, for
     children of a tag.  An array of
     these is the variable part of the
     GeneralGroup.
 ****************************************/
-struct CC
+struct ChidCtgPair
 {
     ChildChunkID chid;
     ChunkTagOrType ctg;
 };
-static_assert(sizeof(CC) == 8, "CC on-disk layout drift");
+static_assert(sizeof(ChidCtgPair) == 8, "ChidCtgPair on-disk layout drift");
 
 /***************************************************************************
     Create a new TagList
@@ -204,9 +204,9 @@ bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
     AssertVarMem(ptag);
 
     long itagf;
-    CC ccNew;
-    CC *prgcc;
-    long ccc; // count of CCs
+    ChidCtgPair ccNew;
+    ChidCtgPair *prgcc;
+    long ccc; // count of ChidCtgPairs
     long icc;
 
     if (!_FFindTag(ptag, &itagf))
@@ -223,14 +223,14 @@ bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
 
     ccNew.chid = chid;
     ccNew.ctg = ctg;
-    ccc = _pggtagf->Cb(itagf) / size(CC);
+    ccc = _pggtagf->Cb(itagf) / size(ChidCtgPair);
     if (ccc == 0)
     {
-        if (!_pggtagf->FPut(itagf, size(CC), &ccNew))
+        if (!_pggtagf->FPut(itagf, size(ChidCtgPair), &ccNew))
             return fFalse;
         return fTrue;
     }
-    prgcc = (CC *)_pggtagf->QvGet(itagf);
+    prgcc = (ChidCtgPair *)_pggtagf->QvGet(itagf);
     // linear search through prgcc to find where to insert ccNew
     for (icc = 0; icc < ccc; icc++)
     {
@@ -239,7 +239,7 @@ bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
         if (prgcc[icc].ctg == ccNew.ctg && prgcc[icc].chid > ccNew.chid)
             break;
     }
-    if (!_pggtagf->FInsertRgb(itagf, icc * size(CC), size(CC), &ccNew))
+    if (!_pggtagf->FInsertRgb(itagf, icc * size(ChidCtgPair), size(ChidCtgPair), &ccNew))
         return fFalse;
     return fTrue;
 }
@@ -253,9 +253,9 @@ bool TagList::FCacheTags(void)
 
     long itagf;
     TAGF tagf;
-    long ccc; // count of CCs
+    long ccc; // count of ChidCtgPairs
     long icc;
-    CC cc;
+    ChidCtgPair cc;
     TAG tag;
 
     for (itagf = 0; itagf < _pggtagf->IvMac(); itagf++)
@@ -266,15 +266,15 @@ bool TagList::FCacheTags(void)
             return fFalse;
 
         // Cache the child tags
-        ccc = _pggtagf->Cb(itagf) / size(CC);
+        ccc = _pggtagf->Cb(itagf) / size(ChidCtgPair);
         for (icc = 0; icc < ccc; icc++)
         {
-            _pggtagf->GetRgb(itagf, icc * size(CC), size(CC), &cc);
+            _pggtagf->GetRgb(itagf, icc * size(ChidCtgPair), size(ChidCtgPair), &cc);
             if (!vptagm->FBuildChildTag(&tagf.tag, cc.chid, cc.ctg, &tag))
                 return fFalse;
             // Note that if we ever have the case where we don't always
-            // want the CC tag to be cached with all its children, we could
-            // change the CC structure to hold a boolean and pass it to
+            // want the ChidCtgPair tag to be cached with all its children, we could
+            // change the ChidCtgPair structure to hold a boolean and pass it to
             // FCacheTagToHD here.
             if (!vptagm->FCacheTagToHD(&tag, fTrue))
                 return fFalse;
