@@ -541,7 +541,11 @@ bool KauaiCodec::_FDecode(void *pvSrc, long cbSrc, void *pvDst, long cbDst, long
                     goto LFail;
             }
 
-            cb += (1 << cbit) + ((luCur >> (cbit + 1)) & ((1 << cbit) - 1));
+            // Same `ibit` term that was missing in _FDecode2 -- see the
+            // matching comment there. Without it the length code is read
+            // from the wrong bit position whenever the iteration started
+            // off byte-aligned (ibit > 0).
+            cb += (1 << cbit) + ((luCur >> (ibit + cbit + 1)) & ((1 << cbit) - 1));
             ibit += cbit + cbit + 1;
 
 #ifdef SAFETY
@@ -864,7 +868,12 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
                 goto LDone;
         }
 
-        cb = (1 << cbit) + ((luCur >> (cbit + 1)) & ((1 << cbit) - 1));
+        // The asm version (see kauai/src/kcd2_386.c Block()) shifts by
+        // `ibit + cbit + 1`. The C version was missing the `ibit` term --
+        // it produced the right result only when the iteration started
+        // byte-aligned (ibit == 0) and silently truncated the length code
+        // for any other ibit, sending the decoder off the rails.
+        cb = (1 << cbit) + ((luCur >> (ibit + cbit + 1)) & ((1 << cbit) - 1));
         ibit += cbit + cbit + 1;
         _Advance(ibit >> 3);
         ibit &= 0x07;
@@ -874,21 +883,47 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
             // literal
 #ifdef SAFETY
             if (pbDst + cb > pbLimDst)
+            {
+                char szDiag[160];
+                wsprintfA(szDiag, "_FDecode2 LIT dst overflow: cb=%ld wrote=%ld lim=%ld ibit=%ld",
+                          cb, (long)(pbDst - (byte *)pvDst), (long)(pbLimDst - (byte *)pvDst), ibit);
+                Bug(szDiag);
                 goto LFail;
+            }
             if (pbSrc - 3 + cb > pbLimSrc)
+            {
+                char szDiag[160];
+                wsprintfA(szDiag, "_FDecode2 LIT src overflow: cb=%ld read=%ld lim=%ld ibit=%ld",
+                          cb, (long)(pbSrc - 3 - (byte *)pvSrc), (long)(pbLimSrc - (byte *)pvSrc), ibit);
+                Bug(szDiag);
                 goto LFail;
+            }
 #endif // SAFETY
+            // Pass over the literal-marker bit. ibit now in 1..8.
             ibit++;
-            bT = (byte) ~(luCur & ((1 << ibit) - 1));
+            // The KCD2 encoder splits the LAST literal byte across the run:
+            // low (8-ibit) bits land at stream positions ibit..7 of the
+            // current input byte (right after the marker), then cb-1 full
+            // intermediate bytes follow byte-aligned, then the high `ibit`
+            // bits land at positions 0..(ibit-1) of the byte after the run.
+            //
+            // The PRIOR C version of this block did
+            //     bT = (byte) ~(luCur & ((1 << ibit) - 1));
+            // which (a) read the wrong bits (low ibit instead of bits ibit..7,
+            // i.e. ibit bits where 8-ibit were written), (b) inverted with `~`
+            // for no reason the encoder calls for, and (c) put the trailing
+            // OR'd bits at low positions instead of high. All three errors
+            // happened to cancel on x86 because the asm decoder is used via
+            // #ifdef IN_80386; the C fallback was untested. Confirmed against
+            // the asm generator at kauai/src/kcd2_386.c (Literal procedure).
+            bT = (byte)((luCur >> ibit) & ((1 << (8 - ibit)) - 1));
             if (cb > 1)
             {
                 CopyPb(pbSrc - 3, pbDst, cb - 1);
                 pbDst += cb - 1;
-                _Advance(cb);
             }
-            else
-                _Advance(1);
-            bT |= luCur & ((1 << ibit) - 1);
+            _Advance(cb);
+            bT |= (byte)((luCur & ((1 << ibit) - 1)) << (8 - ibit));
             *pbDst++ = bT;
         }
         else
@@ -927,7 +962,13 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
 
 #ifdef SAFETY
             if (pbLimDst - pbDst < cb || pbDst - (byte *)pvDst < dib)
+            {
+                char szDiag[160];
+                wsprintfA(szDiag, "_FDecode2 OFF overflow: cb=%ld dib=%ld wrote=%ld lim=%ld",
+                          cb, dib, (long)(pbDst - (byte *)pvDst), (long)(pbLimDst - (byte *)pvDst));
+                Bug(szDiag);
                 goto LFail;
+            }
 #endif // SAFETY
             for (pbT = pbDst - dib; cb-- > 0;)
                 *pbDst++ = *pbT++;

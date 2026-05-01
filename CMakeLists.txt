@@ -120,6 +120,17 @@ target_sources(geometry-test PRIVATE
 )
 target_link_libraries(geometry-test PRIVATE kauai)
 
+# KauaiCodec round-trip tests. On x86 the decoder uses the inline-asm fast
+# path generated from kauai/src/kcd2_386.c; on x64 it falls back to the
+# portable C path inside _FDecode/_FDecode2. The same encoder (always C)
+# feeds both, so this test catches any drift between asm and C decoders
+# without requiring 3dmm to launch and grind through chunky-file decoding.
+add_executable(codec-test EXCLUDE_FROM_ALL)
+target_sources(codec-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/tests/codec_test.cpp"
+)
+target_link_libraries(codec-test PRIVATE kauai)
+
 add_executable(chomp EXCLUDE_FROM_ALL)
 target_sources(chomp PRIVATE "${PROJECT_SOURCE_DIR}/kauai/tools/chomp.cpp")
 target_include_directories(chomp PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
