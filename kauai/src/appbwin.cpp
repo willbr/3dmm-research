@@ -875,7 +875,11 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     stn0.FFormatSz(psz, &stn1, lwLine, &stn2);
 
     // call stack - follow the EBP chain....
+#ifdef IN_80386
     __asm { mov plw,ebp }
+#else
+    plw = pvNil; // x64: no inline asm; assertion stack capture disabled
+#endif
     for (ilw = 0; ilw < kclwChain; ilw++)
     {
         if (pvNil == plw || IsBadReadPtr(plw, 2 * size(long)) || *plw <= (long)plw)

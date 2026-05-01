@@ -223,7 +223,8 @@ void *BASE::operator new(size_t cb)
         pv = _PbaseFromDoi(pdoi);
 
 #ifdef WIN
-        // follow the EBP chain....
+#ifdef IN_80386
+        // follow the EBP chain to capture a debug-mode allocation stack trace.
         long *plw;
         long ilw;
 
@@ -241,6 +242,13 @@ void *BASE::operator new(size_t cb)
                 plw = (long *)*plw;
             }
         }
+#else
+        // x64 doesn't allow inline asm. The diagnostic stack trace is
+        // optional debug instrumentation; leave it empty on x64 for now.
+        // CaptureStackBackTrace would be the proper Win32 replacement.
+        for (long ilw = 0; ilw < kclwStackDoi; ilw++)
+            pdoi->rglwStack[ilw] = 0;
+#endif // IN_80386
 #endif // WIN
 
         // update statistics
