@@ -580,8 +580,8 @@ bool MidiStreamMixer::_FInit(void)
         return fFalse;
     _pglmsos->SetMinGrow(1);
 
-    if (pvNil == (_pmisi = WindowsMidiStream::PwmsNew(_MidiProc, (ulong)this)) &&
-        pvNil == (_pmisi = OurMidiStream::PomsNew(_MidiProc, (ulong)this)))
+    if (pvNil == (_pmisi = WindowsMidiStream::PwmsNew(_MidiProc, (DWORD_PTR)this)) &&
+        pvNil == (_pmisi = OurMidiStream::PomsNew(_MidiProc, (DWORD_PTR)this)))
     {
         return fFalse;
     }
@@ -867,7 +867,7 @@ void MidiStreamMixer::_SubmitBuffers(ulong tsCur)
 
         _cpvOut++;
         pvData = msos.pmdws->PvLockData(&cb);
-        if (_pmisi->FQueueBuffer(pvData, cb, cbSkip, msos.cactPlay, (ulong)msos.pmdws))
+        if (_pmisi->FQueueBuffer(pvData, cb, cbSkip, msos.cactPlay, (DWORD_PTR)msos.pmdws))
         {
             // it worked!
             _fPlaying = fTrue;
@@ -1066,7 +1066,7 @@ bool MidiStreamMixer::_FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, lon
 /***************************************************************************
     Call back from the midi stream stuff.
 ***************************************************************************/
-void MidiStreamMixer::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
+void MidiStreamMixer::_MidiProc(DWORD_PTR luUser, void *pvData, DWORD_PTR lUserDataa)
 {
     PMidiStreamMixer pmsmix;
     PMidiStreamCached pmdws;
@@ -1222,7 +1222,7 @@ ulong MidiStreamMixer::_LuThread(void)
 /***************************************************************************
     Constructor for the MIDI stream interface.
 ***************************************************************************/
-MidiStreamInterface::MidiStreamInterface(PFNMIDI pfn, ulong luUser)
+MidiStreamInterface::MidiStreamInterface(PFNMIDI pfn, DWORD_PTR luUser)
 {
     AssertBaseThis(0);
     Assert(pvNil != pfn, 0);
@@ -1375,7 +1375,7 @@ bool MidiStreamInterface::FActivate(bool fActivate)
 /***************************************************************************
     Constructor for the Win95 Midi stream class.
 ***************************************************************************/
-WindowsMidiStream::WindowsMidiStream(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
+WindowsMidiStream::WindowsMidiStream(PFNMIDI pfn, DWORD_PTR luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
@@ -1410,7 +1410,7 @@ WindowsMidiStream::~WindowsMidiStream(void)
 /***************************************************************************
     Create a new WindowsMidiStream.
 ***************************************************************************/
-PWindowsMidiStream WindowsMidiStream::PwmsNew(PFNMIDI pfn, ulong luUser)
+PWindowsMidiStream WindowsMidiStream::PwmsNew(PFNMIDI pfn, DWORD_PTR luUser)
 {
     PWindowsMidiStream pwms;
 
@@ -1553,7 +1553,7 @@ bool WindowsMidiStream::_FOpen(void)
     if (hNil != _hms)
         goto LDone;
 
-    if (MMSYSERR_NOERROR != (*_pfnOpen)(&_hms, &uT, 1, (ulong)_MidiProc, (ulong)this, CALLBACK_FUNCTION))
+    if (MMSYSERR_NOERROR != (*_pfnOpen)(&_hms, &uT, 1, (DWORD_PTR)_MidiProc, (DWORD_PTR)this, CALLBACK_FUNCTION))
     {
         goto LFail;
     }
@@ -1677,7 +1677,7 @@ void WindowsMidiStream::_ResetStream(void)
     This submits a buffer and restarts the midi stream. If the data is
     bigger than 64K, this (in conjunction with _Notify) deals with it.
 ***************************************************************************/
-bool WindowsMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
+bool WindowsMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -1766,7 +1766,7 @@ long WindowsMidiStream::_CmhSubmitBuffers(void)
         cbMh = LwMin(pmsir->cb - pmsir->ibNext, kcbMaxWmsBuffer);
         pmh->dwBufferLength = cbMh;
         pmh->dwBytesRecorded = cbMh;
-        pmh->dwUser = (ulong)pmsir;
+        pmh->dwUser = (DWORD_PTR)pmsir;
         pmsir->ibNext += cbMh;
         pmsir->rgibLim[imh] = pmsir->ibNext;
 
@@ -1835,7 +1835,7 @@ void WindowsMidiStream::StopPlaying(void)
     to 0, this stops the midi stream. If the indicated sound is done,
     we notify the client.
 ***************************************************************************/
-void __stdcall WindowsMidiStream::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong lu2)
+void __stdcall WindowsMidiStream::_MidiProc(HMS hms, UINT msg, DWORD_PTR luUser, DWORD_PTR lu1, DWORD_PTR lu2)
 {
     PWindowsMidiStream pwms;
     PMH pmh;
@@ -1991,7 +1991,7 @@ void WindowsMidiStream::_DoCallBacks()
 /***************************************************************************
     Constructor for our own midi stream api implementation.
 ***************************************************************************/
-OurMidiStream::OurMidiStream(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
+OurMidiStream::OurMidiStream(PFNMIDI pfn, DWORD_PTR luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
@@ -2023,7 +2023,7 @@ OurMidiStream::~OurMidiStream(void)
 /***************************************************************************
     Create a new OurMidiStream.
 ***************************************************************************/
-POurMidiStream OurMidiStream::PomsNew(PFNMIDI pfn, ulong luUser)
+POurMidiStream OurMidiStream::PomsNew(PFNMIDI pfn, DWORD_PTR luUser)
 {
     POurMidiStream poms;
 
@@ -2165,7 +2165,7 @@ bool OurMidiStream::_FClose(void)
 /***************************************************************************
     Queue a buffer to the midi stream.
 ***************************************************************************/
-bool OurMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
+bool OurMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);

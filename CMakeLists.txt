@@ -405,7 +405,11 @@ add_custom_command(TARGET studio POST_BUILD
   VERBATIM)
 target_link_options(studio
   BEFORE PRIVATE
-    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>
+    # /MAP emits a text symbol map alongside the exe (3dmovie.map). Useful for
+    # resolving raw addresses from the unhandled-exception dialog stack trace
+    # back to function names without needing a full PDB-aware debugger.
+    $<$<LINK_LANG_AND_ID:CXX,MSVC>:/MAP>)
 
 set_property(
     TARGET studio
