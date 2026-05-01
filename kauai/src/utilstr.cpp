@@ -11,6 +11,7 @@
 
 ***************************************************************************/
 #include "util.h"
+#include <cstdarg>
 ASSERTNAME
 
 #include "chtrans.h"
@@ -555,7 +556,11 @@ bool String::FFormat(PString pstnFormat, ...)
     AssertThis(0);
     AssertPo(pstnFormat, 0);
 
-    return FFormatRgch(pstnFormat->Prgch(), pstnFormat->Cch(), (ulong *)(&pstnFormat + 1));
+    va_list va;
+    va_start(va, pstnFormat);
+    bool fRet = FFormatRgch(pstnFormat->Prgch(), pstnFormat->Cch(), va);
+    va_end(va);
+    return fRet;
 }
 
 /***************************************************************************
@@ -566,18 +571,21 @@ bool String::FFormatSz(PZString pszFormat, ...)
     AssertThis(0);
     AssertSz(pszFormat);
 
-    return FFormatRgch(pszFormat, CchSz(pszFormat), (ulong *)(&pszFormat + 1));
+    va_list va;
+    va_start(va, pszFormat);
+    bool fRet = FFormatRgch(pszFormat, CchSz(pszFormat), va);
+    va_end(va);
+    return fRet;
 }
 
 /***************************************************************************
     Core routine for sprintf functionality.
 ***************************************************************************/
-bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserDataa)
+bool String::FFormatRgch(achar *prgchFormat, long cchFormat, va_list va)
 {
     AssertThis(0);
     AssertIn(cchFormat, 0, kcchMaxStn + 1);
     AssertPvCb(prgchFormat, cchFormat * size(achar));
-    AssertVarMem(prglUserDataa);
 
     // Data Write Order - these dwo values are pcode for when to add what
     enum
@@ -592,6 +600,7 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserData
     long cchMin;
     long ivArg;
     ulong lu, luRad;
+    void *pvArg; // pointer-sized arg for %s, %z (8 bytes on Win64)
     achar ch;
     achar rgchT[kcchMaxStn];
     achar *prgchTerm;
@@ -683,31 +692,38 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserData
         }
 
         // code after the switch assumes that prgchTerm points to the
-        // characters to add to the stream and cch is the number of characters
-        AssertPvCb(prglUserDataa, LwMul(ivArg + 1, size(ulong)));
-        lu = prglUserDataa[ivArg++];
+        // characters to add to the stream and cch is the number of characters.
+        // Pull each arg via va_arg with the correct type per format spec --
+        // critical on Win64 where pointers are 8 bytes and homebrew
+        // varargs unpacking by stack-pointer arithmetic is broken.
+        ivArg++; // tracked only for diagnostics; positional %<N> not supported
         prgchTerm = rgchT;
         switch (ch)
         {
         case ChLit('c'):
-            rgchT[0] = (achar)lu;
+            // char promotes to int through varargs.
+            rgchT[0] = (achar)va_arg(va, int);
             cch = 1;
             break;
 
         case ChLit('s'):
-            pstn = (PString)lu;
+            pvArg = va_arg(va, void *);
+            pstn = (PString)pvArg;
             AssertPo(pstn, 0);
             prgchTerm = pstn->Prgch();
             cch = pstn->Cch();
             break;
 
         case ChLit('z'):
-            AssertSz((achar *)lu);
-            prgchTerm = (achar *)lu;
+            pvArg = va_arg(va, void *);
+            AssertSz((achar *)pvArg);
+            prgchTerm = (achar *)pvArg;
             cch = CchSz(prgchTerm);
             break;
 
         case ChLit('f'):
+            // 4-byte file/chunk tag; printed in big-endian byte order.
+            lu = va_arg(va, ulong);
             for (cch = 4; cch-- > 0; lu >>= 8)
             {
                 ch = (achar)(byte)lu;
@@ -719,6 +735,7 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserData
             break;
 
         case ChLit('x'):
+            lu = va_arg(va, ulong);
             // if cchMin is not 0, don't make it longer than cchMin
             if (cchMin > 0 && cchMin < 8)
                 lu &= (1L << (cchMin * 4)) - 1;
@@ -726,6 +743,7 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserData
             goto LUnsigned;
 
         case ChLit('d'):
+            lu = va_arg(va, ulong);
             if ((long)lu < 0)
             {
                 chSign = ChLit('-');
@@ -735,6 +753,7 @@ bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserData
             goto LUnsigned;
 
         case ChLit('u'):
+            lu = va_arg(va, ulong);
             luRad = 10;
         LUnsigned:
             prgchTerm = rgchT + CvFromRgv(rgchT);

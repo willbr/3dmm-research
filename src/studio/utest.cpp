@@ -85,6 +85,47 @@ void FrameMain(void)
 }
 
 /******************************************************************************
+    Append a category-tagged message to %TEMP%\3dmmforever-crash.txt so that
+    diagnostic output (unhandled exceptions, "3D Movie Maker error" dialogs,
+    and "can't find file" dialogs) is captured on disk for later inspection
+    -- without requiring the operator to OCR the modal dialog. Each entry is
+    framed by a timestamped header for easy `tail -n` consumption.
+
+    Category is a short tag like "ABNORMAL_EXIT" / "GENERIC_ERROR" /
+    "CANT_FIND_FILE" so the entries can be grepped by class.
+
+    Best-effort -- silently swallows any I/O failure since we're already in
+    an error path and don't want a logging failure to mask the original.
+******************************************************************************/
+static void _AppendCrashLog(const char *pszCategory, const char *pszBody)
+{
+    char szTempDir[MAX_PATH];
+    DWORD cchTemp = GetTempPathA(MAX_PATH, szTempDir);
+    if (cchTemp == 0 || cchTemp >= MAX_PATH)
+        return;
+    char szPath[MAX_PATH];
+    wsprintfA(szPath, "%s3dmmforever-crash.txt", szTempDir);
+    HANDLE hFile = CreateFileA(szPath, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+        return;
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    char szHeader[160];
+    wsprintfA(szHeader,
+              "\r\n========================================\r\n"
+              "%04d-%02d-%02d %02d:%02d:%02d (PID %lu) %s\r\n"
+              "========================================\r\n",
+              st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+              GetCurrentProcessId(), pszCategory);
+    DWORD cbWritten;
+    WriteFile(hFile, szHeader, (DWORD)lstrlenA(szHeader), &cbWritten, NULL);
+    if (pszBody && *pszBody)
+        WriteFile(hFile, (LPCVOID)pszBody, (DWORD)lstrlenA((LPSTR)pszBody), &cbWritten, NULL);
+    CloseHandle(hFile);
+}
+
+/******************************************************************************
     Run
         Overridden ApplicationBase::Run method, so that we can attempt to recover
         gracefully from a crash.
@@ -217,42 +258,21 @@ void Application::Run(ulong grfapp, ulong grfgob, long ginDef)
         lstrcatA(szMsg, szStack);
 
         // Mirror the diagnostic to %TEMP%\3dmmforever-crash.txt so it can be
-        // grepped programmatically without OCR'ing the dialog. Append (not
-        // overwrite) so multiple back-to-back runs accumulate. Each entry is
-        // prefixed with the current timestamp.
-        char szCrashLog[MAX_PATH] = "";
+        // read programmatically without OCR'ing the dialog.
+        _AppendCrashLog("ABNORMAL_EXIT", szMsg);
+
         char szTempDir[MAX_PATH];
         DWORD cchTemp = GetTempPathA(MAX_PATH, szTempDir);
+        char szTrailer[MAX_PATH + 96];
         if (cchTemp > 0 && cchTemp < MAX_PATH)
-        {
-            wsprintfA(szCrashLog, "%s3dmmforever-crash.txt", szTempDir);
-            HANDLE hFile = CreateFileA(szCrashLog, FILE_APPEND_DATA, FILE_SHARE_READ, NULL,
-                                       OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-            if (hFile != INVALID_HANDLE_VALUE)
-            {
-                SYSTEMTIME st;
-                GetLocalTime(&st);
-                char szHeader[128];
-                wsprintfA(szHeader,
-                          "\r\n========================================\r\n"
-                          "%04d-%02d-%02d %02d:%02d:%02d (PID %lu)\r\n"
-                          "========================================\r\n",
-                          st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
-                          GetCurrentProcessId());
-                DWORD cbWritten;
-                WriteFile(hFile, szHeader, lstrlenA(szHeader), &cbWritten, NULL);
-                WriteFile(hFile, szMsg, lstrlenA(szMsg), &cbWritten, NULL);
-                CloseHandle(hFile);
-            }
-        }
-
-        // Append the file path to the on-screen dialog so the user (or a tool
-        // reading the dialog) can find the on-disk copy.
-        char szTrailer[MAX_PATH + 64];
-        if (szCrashLog[0])
-            wsprintfA(szTrailer, "\r\n\r\nWritten to: %s\r\n\r\nIf this is reproducible, please report it with the above (and any steps).", szCrashLog);
+            wsprintfA(szTrailer,
+                      "\r\n\r\nWritten to: %s3dmmforever-crash.txt\r\n\r\n"
+                      "If this is reproducible, please report it with the above (and any steps to reproduce).",
+                      szTempDir);
         else
-            lstrcpynA(szTrailer, (LPSTR)"\r\n\r\nIf this is reproducible, please report it with the above (and any steps).", sizeof(szTrailer));
+            lstrcpynA(szTrailer,
+                      (LPSTR) "\r\n\r\nIf this is reproducible, please report it with the above (and any steps to reproduce).",
+                      sizeof(szTrailer));
         lstrcatA(szMsg, szTrailer);
 
         MessageBoxA(NULL, szMsg, "3D Movie Maker - Unexpected Exit", MB_ICONERROR | MB_OK);
@@ -1264,6 +1284,13 @@ bool Application::_FCantFindFileDialog(PString pstnFile)
 
     PDialog pdlg;
 
+    // Mirror to crash log so the dialog text is recoverable from disk.
+    {
+        char szPath[kcchMaxStz];
+        pstnFile->GetSzs(szPath);
+        _AppendCrashLog("CANT_FIND_FILE", szPath);
+    }
+
     pdlg = Dialog::PdlgNew(dlidCantFindFile, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
@@ -1305,6 +1332,13 @@ bool Application::_FGenericError(PString message)
     AssertBaseThis(0);
 
     PDialog pdlg;
+
+    // Mirror to crash log so the dialog text is recoverable from disk.
+    {
+        char szBody[kcchMaxStz];
+        message->GetSzs(szBody);
+        _AppendCrashLog("GENERIC_ERROR", szBody);
+    }
 
     pdlg = Dialog::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
     if (pvNil == pdlg)
@@ -1568,8 +1602,11 @@ bool Application::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData
     DWORD dwType;
     HKEY hkey = 0;
 
+    // KEY_WOW64_32KEY: see comment in _FReadTitlesFromReg -- the 1995 installer
+    // populates the WOW6432Node view; an x64 build must opt in to read it.
     if (RegCreateKeyEx((grfreg & fregMachine) ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER, kszSocratesKey, 0, NULL,
-                       REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &hkey, &dwDisposition) != ERROR_SUCCESS)
+                       REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS | KEY_WOW64_32KEY, NULL, &hkey,
+                       &dwDisposition) != ERROR_SUCCESS)
     {
         goto LFail;
     }
@@ -1735,14 +1772,27 @@ bool Application::_FReadTitlesFromReg(PStringTable_GST *ppgst)
     DWORD cchTitle = kcchMaxSz;
     PStringTable_GST pgst;
     long sid;
+    LSTATUS lStatus;
 
     if ((pgst = StringTable_GST::PgstNew(size(long))) == pvNil)
         goto LFail;
-    if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, kszProductsKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL,
-                       &hkey, &dwDisposition) != ERROR_SUCCESS)
+    // KEY_WOW64_32KEY: 1995 3DMM is a 32-bit app and its installer writes the
+    // Products key under HKLM\Software\WOW6432Node\... on Win64. Without this
+    // flag, an x64 build of this exe looks at the native 64-bit registry hive
+    // and finds nothing -- even on a machine where the x86 build works.
+    //
+    // KEY_READ (not KEY_ALL_ACCESS): we only enumerate values here, never
+    // write. KEY_ALL_ACCESS requires admin on HKLM and previously failed with
+    // ERROR_ACCESS_DENIED for non-elevated runs.
+    lStatus = RegOpenKeyEx(HKEY_LOCAL_MACHINE, kszProductsKey, 0, KEY_READ | KEY_WOW64_32KEY, &hkey);
+    dwDisposition = REG_OPENED_EXISTING_KEY; // unused after this; quiet uninit-var
+    if (lStatus != ERROR_SUCCESS)
     {
+        char szDetail[256];
+        wsprintfA(szDetail, "Missing InstallDirectory registry entry or registry error: RegOpenKeyEx(%s) returned %ld",
+                  kszProductsKey, lStatus);
         Warn("Missing InstallDirectory registry entry or registry error");
-        _FGenericError("Missing InstallDirectory registry entry or registry error");
+        _FGenericError(szDetail);
         goto LFail;
     }
 
