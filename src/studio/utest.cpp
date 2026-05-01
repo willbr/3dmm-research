@@ -19,6 +19,7 @@
 #include "studio.h"
 #include "socres.h"
 #include "mminstal.h"
+#include <shlobj.h> // SHGetFolderPathA, CSIDL_LOCAL_APPDATA, SHCreateDirectoryExA
 
 ASSERTNAME
 
@@ -1331,15 +1332,28 @@ bool Application::_FGetUserDirectories(void)
     String stnUsers;
     bool fFirstTimeUser;
 
+    // Diagnostic helper: log which substep failed before returning. Each
+    // entry lands in %TEMP%\3dmmforever-crash.txt as a STEP_FAIL category
+    // so the failure path is recoverable from disk after the bare
+    // _FGetUserDirectories generic-error dialog.
+#define LOG_STEP_FAIL(msg) AppendCrashLog("STEP_FAIL", "_FGetUserDirectories: " msg)
+
     // First, find the Users directory
     _fniUsersDir = _fniMsKidsDir;
     if (!FGetStnApp(idsUsersDir, &stnUsers))
+    {
+        LOG_STEP_FAIL("FGetStnApp(idsUsersDir) failed");
         return fFalse;
+    }
     if (!_fniUsersDir.FDownDir(&stnUsers, ffniMoveToDir))
     {
         _fniUsersDir.GetStnPath(&stn);
         if (!stn.FAppendStn(&stnUsers))
+        {
+            LOG_STEP_FAIL("FDownDir+FAppendStn for Users failed");
             return fFalse;
+        }
+        LOG_STEP_FAIL("FDownDir to Users failed");
         _FCantFindFileDialog(&stn); // ignore failure
         return fFalse;
     }
@@ -1348,12 +1362,19 @@ bool Application::_FGetUserDirectories(void)
     // Find Melanie's dir
     _fniMelanieDir = _fniUsersDir;
     if (!FGetStnApp(idsMelanie, &stn))
+    {
+        LOG_STEP_FAIL("FGetStnApp(idsMelanie) failed");
         return fFalse;
+    }
     if (!_fniMelanieDir.FDownDir(&stn, ffniMoveToDir))
     {
         _fniMelanieDir.GetStnPath(&stnT);
         if (!stnT.FAppendStn(&stn))
+        {
+            LOG_STEP_FAIL("FDownDir+FAppendStn for Melanie failed");
             return fFalse;
+        }
+        LOG_STEP_FAIL("FDownDir to Melanie failed");
         _FCantFindFileDialog(&stnT); // ignore failure
         return fFalse;
     }
@@ -1363,6 +1384,7 @@ bool Application::_FGetUserDirectories(void)
     szDir[0] = chNil;
     if (!FGetSetRegKey(kszHomeDirValue, szDir, size(szDir), fregSetDefault | fregString))
     {
+        LOG_STEP_FAIL("FGetSetRegKey(HomeDir, get-or-default) failed");
         return fFalse;
     }
     stn.SetSz(szDir);
@@ -1372,11 +1394,51 @@ bool Application::_FGetUserDirectories(void)
         fFirstTimeUser = fTrue;
         _fniUserDir = _fniUsersDir;
 
-        // Ensure that user's root directory exists
-        if (!_fniUserDir.FDownDir(&_stnUser, ffniMoveToDir))
+        // Ensure that user's root directory exists.
+        bool fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniMoveToDir);
+        if (!fHaveUserDir)
+            fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniCreateDir | ffniMoveToDir);
+#ifdef WIN
+        // Modern Win locks down Program Files for non-admin users. If the
+        // install lives under Program Files (typical) and we don't have
+        // elevation, the create above hits ERROR_ACCESS_DENIED. Fall back
+        // to %LOCALAPPDATA%\Microsoft Kids\Users\<user> -- the canonical
+        // place for per-user app data on Vista+. This is also where new
+        // saved movies will land going forward, so the registry HomeDir
+        // value below pins the user to that location for next launch.
+        if (!fHaveUserDir)
         {
-            if (!_fniUserDir.FDownDir(&_stnUser, ffniCreateDir | ffniMoveToDir))
-                return fFalse;
+            char szLocal[MAX_PATH];
+            if (SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, szLocal) == S_OK)
+            {
+                String stnLocal;
+                stnLocal.SetSz(szLocal);
+                stnLocal.FAppendSz(PszLit("\\Microsoft Kids\\Users"));
+                // SHCreateDirectoryEx makes intermediates as needed.
+                SHCreateDirectoryExA(NULL, stnLocal.Psz(), NULL);
+                if (_fniUserDir.FBuildFromPath(&stnLocal, kftgDir))
+                {
+                    fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniMoveToDir);
+                    if (!fHaveUserDir)
+                        fHaveUserDir = _fniUserDir.FDownDir(&_stnUser, ffniCreateDir | ffniMoveToDir);
+                }
+            }
+        }
+#endif // WIN
+        if (!fHaveUserDir)
+        {
+            char szDetail[512];
+            char szUserDir[MAX_PATH];
+            char szUser[64];
+            String stnDir;
+            _fniUsersDir.GetStnPath(&stnDir);
+            stnDir.GetSzs(szUserDir);
+            _stnUser.GetSzs(szUser);
+            wsprintfA(szDetail,
+                      "_FGetUserDirectories: could not find or create per-user directory \"%s\" under \"%s\" (or LocalAppData fallback)",
+                      szUser, szUserDir);
+            AppendCrashLog("STEP_FAIL", szDetail);
+            return fFalse;
         }
 
         // Try to write path to user dir to the registry
@@ -1387,15 +1449,26 @@ bool Application::_FGetUserDirectories(void)
     }
 #ifdef WIN
     if (SetCurrentDirectory(szDir) == FALSE)
+    {
+        char szDetail[MAX_PATH + 64];
+        wsprintfA(szDetail, "_FGetUserDirectories: SetCurrentDirectory(%s) failed, GetLastError=%lu",
+                  szDir, GetLastError());
+        AppendCrashLog("STEP_FAIL", szDetail);
         return fFalse;
+    }
 #else  //! WIN
     RawRtn();
 #endif //! WIN
     AssertPo(&_fniUserDir, ffniDir);
 
     if (!FSetProp(kpridFirstTimeUser, fFirstTimeUser))
+    {
+        LOG_STEP_FAIL("FSetProp(kpridFirstTimeUser) failed");
         return fFalse;
+    }
     return fTrue;
+
+#undef LOG_STEP_FAIL
 }
 
 /******************************************************************************
