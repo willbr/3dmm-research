@@ -84,6 +84,11 @@ Implementation:
   fresh by enumerating scenes, never serialised — commit `cf73d87`.
 - Aspirational `static_assert(sizeof(TAG) == 16)` in tagman.h was relaxed to
   x86-only — commit `bdc6715`.
+- `Actor::PgltagFetch` had a stray `PggRead` + `_FIsIaevTag` loop that cast
+  variable-part bytes to runtime `Costume*`/`Sound*` directly off the
+  on-file GG. Refactored: extracted `_PggaevMarshalFromOnFile` from
+  `_FReadEvents` and wired it through `PgltagFetch` so both call sites see
+  runtime layout — commit `6cbf6a1`.
 
 Net result: every TAG embed in the codebase is either at the I/O boundary as
 TAGOnFile, or wrapped in a runtime-only container that marshals at I/O. The
