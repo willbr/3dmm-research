@@ -461,14 +461,17 @@ PDynamicArray DynamicArray::PglDup(void)
     return pgl;
 }
 
-// List on file
+// List on file. Fixed 12-byte wire format on every architecture; bare `long`
+// would silently widen on LP64 (Linux/Mac x64) and break the 1995 .3MM format
+// for every DynamicArray ever written by kauai.
 struct DynamicArrayOnFile
 {
-    short bo;
-    short osk;
-    long cbEntry;
-    long ivMac;
+    int16_t bo;
+    int16_t osk;
+    int32_t cbEntry;
+    int32_t ivMac;
 };
+static_assert(sizeof(DynamicArrayOnFile) == 12, "DynamicArrayOnFile wire format drift");
 const ByteOrderMask kbomGlf = 0x5F000000L;
 
 /***************************************************************************
@@ -811,15 +814,16 @@ PAllocatedArray AllocatedArray::PalDup(void)
     return pal;
 }
 
-// Allocated list on file
+// Allocated list on file. Fixed 16-byte wire format on every architecture.
 struct AllocatedArrayOnFile
 {
-    short bo;
-    short osk;
-    long cbEntry;
-    long ivMac;
-    long cvFree;
+    int16_t bo;
+    int16_t osk;
+    int32_t cbEntry;
+    int32_t ivMac;
+    int32_t cvFree;
 };
+static_assert(sizeof(AllocatedArrayOnFile) == 16, "AllocatedArrayOnFile wire format drift");
 const ByteOrderMask kbomAlf = 0x5FC00000L;
 
 /***************************************************************************
@@ -1110,16 +1114,17 @@ bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
     return fTrue;
 }
 
-// group on file
+// group on file. Fixed 20-byte wire format on every architecture.
 struct GeneralGroupOnFile
 {
-    short bo;
-    short osk;
-    long ilocMac;
-    long bvMac;
-    long clocFree;
-    long cbFixed;
+    int16_t bo;
+    int16_t osk;
+    int32_t ilocMac;
+    int32_t bvMac;
+    int32_t clocFree;
+    int32_t cbFixed;
 };
+static_assert(sizeof(GeneralGroupOnFile) == 20, "GeneralGroupOnFile wire format drift");
 const ByteOrderMask kbomGgf = 0x5FF00000L;
 
 /***************************************************************************
