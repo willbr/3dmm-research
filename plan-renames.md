@@ -118,6 +118,29 @@ Each cluster is one batch of related commits. Recommend doing one cluster per se
 
 `WSB → WindowSizeBox`, `SCB → ScrollBar`, `CTL → Control`.
 
+### O. Engine residual Hungarian — IN FLIGHT
+
+Types surfaced during the 2026-05-01 sized-types audit that survived earlier passes. Most are in `src/engine/` at file scope; a few are in public headers. Order by blast radius (smallest first):
+
+- `CC → ChidCtgPair` — DONE (commit `c2ef0d1`).
+- `TAGF → CachedTag` — DONE (commit `8ad6292`).
+- `MACTR → RollCallActorEntry` — DONE (commit `5c3c699`). Note: `kbomMactr` left as-is per the convention that `kbom*` symbols reference the wire format.
+- `TBOXH → TextBoxOnFile` — `src/engine/tbox.cpp` — header struct for serialized text boxes. The `OnFile` suffix matches `ActorChunkOnFile`, `ThreeDTextF`, etc.
+- `MUNS → ?` — `src/engine/movie.cpp` — Movie undo class. Verify subclass shape before naming.
+- `TUNT / TUNS / TUNH / TUND / TUNC → TextBoxUndo*` — `src/engine/tbox.cpp` — Text box undo subclasses. Read each `_FUndo`/`_FDo` to figure out what each represents (typing? sizing? hilite? delete? composite?).
+- `TFC → BrowserThumbEntry` — `inc/browser.h:73` — "Browser ThumbFile Cki Struct" per the file comment. 12-byte on-disk struct: bo/osk + 3-way union over `(ctg,cno)` / `(grfontMask,grfont)` / `(ctg,chid)`. Per-thumbnail entry written into thumbnail-browser chunks.
+- `CMG → GokdCnoMap` — `inc/browser.h:807` — comment already says "Gokd Cno Map".
+- `CPS → CelPartSpec` — `inc/tmpl.h:31` — already documented as such in the comment.
+- `CEL → ?` — `inc/tmpl.h:46` — "Cel" is a valid 2D-animation term but ambiguous in a 3D-engine codebase. Decide whether to leave as-is or expand (e.g., `AnimationCel`, `BodyCel`).
+- `KEYTT → LexerKeywordEntry` — `kauai/src/chcm.h:73` — keyword/token-type lookup-table entry. Pairs a `PZString` keyword (e.g. `"PALETTE"`, `"CURSOR"`) with a `long tt` token-type enum. Used by the chunky-source-file lexer/compiler.
+- `WIG → ?` — `kauai/src/appb.h:32` — Windows window-init globals struct.
+
+Excluded from this cluster:
+- `BCB` (`bren/inc/bren.h:84`) — inside BRender wrapper; treat alongside any future BRender modernization.
+- `SMPTE` (`kauai/src/audioman.h`) — industry standard time format; leave alone.
+- `BASE` — class name baked into `_PAR` macro convention; leave alone.
+- `MBH`, `MBF`, `ADST` (utilmem) — internal allocator types; defer until any utilmem rewrite.
+
 ## Skip / defer
 
 - **`ft.cpp` test classes** (`GPRC`, `GFRC`, `TDC`, `DWN`, `TTW`, `RTW`, `DOC`, `DOCP`, `DDP`, `DOCPIC`, `DDPIC`, `DOCGPT`, `DDGPT`, `TAN`, `TED`). These are inside `ft.cpp`/`ut.cpp` test apps — `EXCLUDE_FROM_ALL`, low traffic, low value. Skip until everything else is done.
