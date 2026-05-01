@@ -1186,11 +1186,10 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                     }
 
                     case sevtChngCamera: {
-                        long iangle;
-                        iangle = *(long*)pggsevStart->QvGet(isevStart);
-                        // long
+                        int32_t iangle;
+                        iangle = *(int32_t*)pggsevStart->QvGet(isevStart);
                         printf("\t\tsevt=sevtChngCamera,\n");
-                        printf("\t\tiangle=%lu\n", iangle);
+                        printf("\t\tiangle=%d\n", iangle);
                         break;
                     }
 
