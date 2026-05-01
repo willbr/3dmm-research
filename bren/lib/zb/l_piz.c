@@ -32,7 +32,12 @@ static char rscid[] = "$Id: l_piz.c 1.1 1995/08/31 16:52:48 sam Exp $";
 void BR_ASM_CALL LineRenderPIZ2I(struct temp_vertex_fixed *v0,struct temp_vertex_fixed *v1)
 {
 	br_fixed_ls dx,dy;
-	br_fixed_ls pm,dm,pz,dz,pi,di,x0,x1,y0,y1;
+	br_fixed_ls pm,dm,pz,pi,x0,x1,y0,y1;
+	/* dz/di are only assigned inside the dx>0 / dy>0 branches but read in
+	 * the loop body unconditionally. Initialise to 0 so a zero-length line
+	 * doesn't read uninitialised stack (Release builds would silently
+	 * miscompute a pixel; Debug /RTCu traps it). */
+	br_fixed_ls dz = 0, di = 0;
 	int error;
 	int count,offset,base;
 	int X0,Y0,X1,Y1;
