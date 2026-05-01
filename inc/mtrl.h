@@ -24,6 +24,7 @@ struct CustomMaterialOnFile
     short osk;
     long ibset; // which body part set this CustomMaterial_CMTL attaches to
 };
+static_assert(sizeof(CustomMaterialOnFile) == 8, "CustomMaterialOnFile on-disk layout drift");
 const ByteOrderMask kbomCmtlf = 0x5c000000;
 
 // material on file (Material_MTRL chunk)
@@ -39,6 +40,7 @@ struct MaterialOnFile
     byte cIndexRange;    // count of entries in palette for this color
     BRS rPower;          // specular exponent
 };
+static_assert(sizeof(MaterialOnFile) == 20, "MaterialOnFile on-disk layout drift");
 const ByteOrderMask kbomMtrlf = 0x5D530000;
 
 /****************************************

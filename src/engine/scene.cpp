@@ -69,6 +69,7 @@ struct SceneEventPause
     WaitReason wit;
     long dts;
 };
+static_assert(sizeof(SceneEventPause) == 8, "SceneEventPause on-disk layout drift");
 
 //
 // Scene thumbnails
@@ -85,6 +86,7 @@ struct SceneEvent
     long nfrm; // frame number of the event.
     SceneEventType sevt; // event type
 };
+static_assert(sizeof(SceneEvent) == 8, "SceneEvent on-disk layout drift");
 
 const auto kbomSev = 0xF0000000;
 const auto kbomLong = 0xC0000000;
@@ -100,6 +102,7 @@ struct SceneOnFile
     long nfrmFirst;
     TRANS trans;
 };
+static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
 
 const auto kbomScenh = 0x5FC00000;
 /****************************************
@@ -113,6 +116,7 @@ struct TagChildPair
     ChildChunkID chid;
     TAG tag;
 };
+static_assert(sizeof(TagChildPair) == 20, "TagChildPair on-disk layout drift");
 
 /****************************************
     SceneSoundEvent - scene sound event
@@ -173,6 +177,7 @@ struct SceneSoundEvent
         return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
     }
 };
+static_assert(sizeof(SceneSoundEvent) == 16, "SceneSoundEvent on-disk fixed-part layout drift");
 void ReleasePpsse(PSceneSoundEvent *ppsse);
 
 //

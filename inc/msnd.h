@@ -81,6 +81,7 @@ struct MovieSoundFile
     long vlmDefault; // default volume
     bool fInvalid;   // Invalid flag
 };
+static_assert(sizeof(MovieSoundFile) == 16, "MovieSoundFile on-disk layout drift");
 const ByteOrderMask kbomMsndf = 0x5FC00000;
 
 const ChildChunkID kchidSnd = 0; // Movie Sound sound/music
