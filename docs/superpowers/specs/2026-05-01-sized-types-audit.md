@@ -16,7 +16,8 @@
 | `float` / `double` | 4 / 8 | 4 / 8 | ✅ |
 | pointer | 8 | 8 | ❌ widens vs. x86 (4) |
 | `BRS` (`br_scalar` = `br_fixed_ls` or `float`) | 4 | 4 | ✅ stable |
-| `BRA` (`br_angle` = `br_fixed_luf`) | 4 | 4 | ✅ |
+| `BRA` (`br_angle` = `br_fixed_luf`, 16-bit fixed) | 2 | 2 | ✅ |
+| `br_ufraction` (16-bit fixed) | 2 | 2 | ✅ |
 | `ChunkTagOrType` = `ulong` | **4** | **8** | ❌ **see below** |
 | `ChunkNumber` = `ulong` | **4** | **8** | ❌ **see below** |
 | `ChildChunkID` = `ulong` | **4** | **8** | ❌ **see below** |
@@ -109,9 +110,19 @@ Surveyed: `inc/`, `src/engine/`. Excluded: kauai chunk-format internals (`Chunky
 | `ThreeDTextF` | `tdt.cpp:70` | (read needed) | | | | TODO inspect |
 | `TAGF` / `CC` | `tagl.cpp:26,38` | (read needed) | | | | TODO inspect (TagList on-file format) |
 
-### Embedded BRender types (assumed stable)
+### Embedded BRender types (verified stable)
 
-`BRS`/`BRA`/`BMAT34`/`BVEC3`/`BRB`/`br_colour`/`br_ufraction` — all built on `br_fixed_*` or `float`, all 4 bytes per scalar. Stable under both LLP64 and LP64. **Verify** by adding a `static_assert(sizeof(BMAT34) == 48)` or similar near the BRS-using structs in commit 1.
+Empirical sizes from the freeze-pass probe:
+
+- `BRS` = 4 bytes (`br_scalar` = `br_fixed_ls` or `float`)
+- `BRA` = **2 bytes** (`br_angle` = `br_fixed_luf` = 16-bit fixed) — *not 4 as I'd initially assumed*
+- `br_colour` = 4 bytes
+- `br_ufraction` = **2 bytes** (16-bit fixed)
+- `BVEC3` = 12 bytes (3 × BRS)
+- `BMAT34` = 48 bytes (12 × BRS)
+- `BRB` (br_bounds) = 24 bytes (2 × BVEC3)
+
+All scale with BRS only, which is 4 bytes either way. Stable under LLP64 and LP64.
 
 ### Bug-gate / non-on-disk fields to leave alone
 
