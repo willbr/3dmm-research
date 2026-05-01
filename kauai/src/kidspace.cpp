@@ -451,6 +451,29 @@ bool KidspaceGraphicObject::_FAdjustGms(GMSE *pmpgmsgmse)
 
         if (gmsNil == gmse.gmsDst || _gmsCur == gmse.gmsDst)
         {
+#ifdef DEBUG
+            if (fFirst && gmsNil == gmse.gmsDst)
+            {
+                // Identify which transition table we got handed so future
+                // diagnostics aren't a guessing game. The address compare is
+                // O(N) but only runs on the failure path.
+                const char *pszTable = "<unknown>";
+                if (pmpgmsgmse == _mpgmsgmseEnd) pszTable = "End";
+                else if (pmpgmsgmse == _mpgmsgmseMove) pszTable = "Move";
+                else if (pmpgmsgmse == _mpgmsgmseRollOff) pszTable = "RollOff";
+                else if (pmpgmsgmse == _mpgmsgmseMouseDown) pszTable = "MouseDown";
+                else if (pmpgmsgmse == _mpgmsgmseDownOn) pszTable = "DownOn";
+                else if (pmpgmsgmse == _mpgmsgmseDownOff) pszTable = "DownOff";
+                else if (pmpgmsgmse == _mpgmsgmseUpOn) pszTable = "UpOn";
+                else if (pmpgmsgmse == _mpgmsgmseUpOff) pszTable = "UpOff";
+                String stnDiag;
+                stnDiag.FFormatSz(PszLit("invalid gms change: cur=%d (kgmsCur), table=%s, gob hid=0x%x"),
+                                  _gmsCur, pszTable, Hid());
+                SZS szs;
+                stnDiag.GetSzs(szs);
+                Bug(szs);
+            }
+#endif // DEBUG
             Assert(!fFirst || gmsNil != gmse.gmsDst, "invalid change in gms");
 
             if (fStable)
