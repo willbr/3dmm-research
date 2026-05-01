@@ -10,7 +10,7 @@
 ;; Perfect scan, integer vertices, Z buffered
 ;;
 	.386p
-	.model small,c
+	.model flat,c	; was 'small,c' -- modern MASM strict, file is 32-bit flat anyway
 
 	include	zb.inc
 	include 586_macs.inc

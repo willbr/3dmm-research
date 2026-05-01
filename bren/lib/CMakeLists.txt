@@ -144,3 +144,88 @@ if (MSVC)
     _CRT_SECURE_NO_WARNINGS
   )
 endif()
+
+# --- brender_zb: Z-buffered software renderer ---
+#
+# Source list from ZB/MAKEFILE OBJS_C / OBJS_ASM. Excludes test/dev files
+# (testmats.c, zbtest.c, stacksiz.c, resdbg.c) and the floating-point
+# triangle scan-converters that are part of the FLOAT base build only
+# (awtm.c, decal.c, l_pf.c, p_pf.c, persp.c -- the FIXED build uses the
+# z-buffered variants awtmz.c, decalz.c, l_piz.c, p_piz.c, perspz.c).
+
+set(BRENDER_ZB_C
+  zb/awtmz.c
+  zb/bbox.c
+  zb/decalz.c
+  zb/dither.c
+  zb/frcp.c
+  zb/l_piz.c
+  zb/p_piz.c
+  zb/perspz.c
+  zb/zbclip.c
+  zb/zbmatl.c
+  zb/zbmesh.c
+  zb/zbmeshe.c
+  zb/zbmeshp.c
+  zb/zbrendr.c
+  zb/zbsetup.c
+)
+
+add_library(brender_zb STATIC ${BRENDER_ZB_C})
+target_link_libraries(brender_zb PUBLIC brender_fw)
+target_include_directories(brender_zb
+  PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/zb"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fw"
+)
+
+target_compile_definitions(brender_zb PRIVATE
+  $<IF:$<CONFIG:Debug>,STATIC=,STATIC=static>
+  BASED_FIXED=1
+  $<IF:$<CONFIG:Debug>,DEBUG=1,DEBUG=0>
+  $<IF:$<CONFIG:Debug>,PARANOID=1,PARANOID=0>
+)
+
+if (BREN_X86)
+  target_sources(brender_zb PRIVATE
+    zb/mesh386.asm
+    zb/safediv.asm
+    zb/sar16.asm
+    zb/t_piza.asm
+    zb/ti8_piz.asm
+    zb/ti8_pizp.asm
+    zb/tt15_piz.asm
+    zb/tt24_piz.asm
+  )
+  set_source_files_properties(
+    zb/mesh386.asm zb/safediv.asm zb/sar16.asm zb/t_piza.asm
+    zb/ti8_piz.asm zb/ti8_pizp.asm zb/tt15_piz.asm zb/tt24_piz.asm
+    PROPERTIES COMPILE_OPTIONS "/Cp;/DDOS386;/D__VISUALC__=1;/DBASED_FIXED=1"
+  )
+else()
+  # ZB asm fast paths cover the inner triangle scan-converters
+  # (TI8_PIZ, TT15_PIZ, T_PIZA et al). Per-arch fallbacks belong in
+  # the x64 enablement plan; for x86-only this branch is unreachable.
+  message(FATAL_ERROR
+    "brender_zb x64 path not yet implemented -- see follow-on x64 plan")
+endif()
+
+if (MSVC)
+  target_compile_options(brender_zb PRIVATE
+    "$<$<COMPILE_LANGUAGE:C>:/Zp4>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4047>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4133>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4244>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4267>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4311>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4312>"
+    "$<$<COMPILE_LANGUAGE:C>:/wd4229>"
+  )
+  target_compile_definitions(brender_zb PRIVATE
+    WIN32_LEAN_AND_MEAN
+    NOMINMAX
+    _CRT_SECURE_NO_WARNINGS
+  )
+endif()
