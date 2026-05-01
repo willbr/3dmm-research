@@ -72,7 +72,7 @@ struct ThreeDTextF
     short bo;
     short osk;
     long tdts;
-    TAG tagTdf;
+    TAGOnFile tagTdf;
 };
 static_assert(sizeof(ThreeDTextF) == 24, "ThreeDTextF on-disk layout drift");
 const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
@@ -113,8 +113,12 @@ PDynamicArray ThreeDText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, Chun
     if (kboCur != tdtf.bo)
         SwapBytesBom(&tdtf, kbomTdtf);
     Assert(kboCur == tdtf.bo, "bad ThreeDTextF");
-    if (!pgltag->FAdd(&tdtf.tagTdf))
-        goto LFail;
+    {
+        TAG tagTdf;
+        TagFromOnFile(&tagTdf, tdtf.tagTdf);
+        if (!pgltag->FAdd(&tagTdf))
+            goto LFail;
+    }
     return pgltag;
 LFail:
     *pfError = fTrue;
@@ -188,7 +192,7 @@ bool ThreeDText::_FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cn
     if (kboCur != tdtf.bo)
         SwapBytesBom(&tdtf, kbomTdtf);
     Assert(kboCur == tdtf.bo, "bad ThreeDTextF");
-    _tagTdf = tdtf.tagTdf;
+    TagFromOnFile(&_tagTdf, tdtf.tagTdf);
     _tdts = tdtf.tdts;
 
     if (!_FInitLists())
@@ -730,7 +734,7 @@ bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
     tdtf.bo = kboCur;
     tdtf.osk = koskCur;
     tdtf.tdts = _tdts;
-    tdtf.tagTdf = _tagTdf;
+    tdtf.tagTdf.From(_tagTdf);
 
     if (!pcfl->FAddChild(ctg, *pcno, kchidTdt, size(ThreeDTextF), kctgTdt, &cnoTdt, &blck))
     {
