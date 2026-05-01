@@ -112,31 +112,35 @@ const auto kcvnMinForest = 5;
 
 const long klwMagicChunky = BigLittle('CHN2', '2NHC'); // chunky file signature
 
-// chunky file prefix
+// chunky file prefix. Fixed 128-byte wire format on every architecture.
+// FilePosition fields and trailing reserved array are pinned to int32_t so
+// LP64 doesn't silently widen the file header.
 struct ChunkyFilePrefix
 {
-    long lwMagic;   // identifies this as a chunky file
+    int32_t lwMagic;           // identifies this as a chunky file
     ChunkTagOrType ctgCreator; // program that created this file
-    DataVersion dver;      // chunky file version
-    short bo;       // byte order
-    short osk;      // which system wrote this
+    DataVersion dver;          // chunky file version
+    int16_t bo;                // byte order
+    int16_t osk;               // which system wrote this
 
-    FilePosition fpMac;     // logical end of file
-    FilePosition fpIndex;   // location of chunky index
-    long cbIndex; // size of chunky index
-    FilePosition fpMap;     // location of free space map
-    long cbMap;   // size of free space map (may be 0)
+    int32_t fpMac;             // logical end of file
+    int32_t fpIndex;           // location of chunky index
+    int32_t cbIndex;           // size of chunky index
+    int32_t fpMap;             // location of free space map
+    int32_t cbMap;             // size of free space map (may be 0)
 
-    long rglwReserved[23]; // reserved for future use - should be zero
+    int32_t rglwReserved[23];  // reserved for future use - should be zero
 };
+static_assert(sizeof(ChunkyFilePrefix) == 128, "ChunkyFilePrefix wire format drift");
 const ByteOrderMask kbomCfp = 0xB55FFC00L;
 
-// free space map entry
+// free space map entry. Fixed 8-byte wire format on every architecture.
 struct FreeSpaceMap
 {
-    FilePosition fp;
-    long cb;
+    int32_t fp;
+    int32_t cb;
 };
+static_assert(sizeof(FreeSpaceMap) == 8, "FreeSpaceMap wire format drift");
 const ByteOrderMask kbomFsm = 0xF0000000L;
 
 enum
@@ -149,17 +153,21 @@ enum
     fcrpForest = 0x10,  // the chunk contains a forest of chunks
 };
 
-// Chunk Representation (big version) - fixed element in pggcrp
-// variable part of group element is an rgkid and stn data (the name)
-const long kcbMaxCrpbg = klwMax;
+// Chunk Representation (big version) - fixed element in pggcrp.
+// Variable part of group element is an rgkid and stn data (the name).
+//
+// Wire layout: this is the per-entry stride of the chunky-file index GG
+// (`_pggcrp`), serialized via GeneralGroupOnFile.cbFixed. Pinned to 32 bytes
+// on every architecture so the index format matches 1995 .3MM files on LP64.
+const int32_t kcbMaxCrpbg = klwMax;
 struct ChunkRepresentationBig
 {
-    ChunkIdentification cki;      // chunk id
-    FilePosition fp;        // location on file
-    long cb;      // size of data on file
-    long ckid;    // number of owned chunks
-    long ccrpRef; // number of owners of this chunk
-    long rti;     // run-time id
+    ChunkIdentification cki; // chunk id
+    int32_t fp;              // location on file
+    int32_t cb;              // size of data on file
+    int32_t ckid;            // number of owned chunks
+    int32_t ccrpRef;         // number of owners of this chunk
+    int32_t rti;             // run-time id
     union {
         struct
         {
@@ -171,7 +179,7 @@ struct ChunkRepresentationBig
         };
 
         // for cvn >= kcvnMinGrfcrp
-        ulong grfcrp;
+        uint32_t grfcrp;
     };
 
     long BvRgch(void)
@@ -183,19 +191,19 @@ struct ChunkRepresentationBig
         return cbVar - BvRgch();
     }
 
-    ulong Grfcrp(ulong grfcrpMask = (ulong)(-1))
+    uint32_t Grfcrp(uint32_t grfcrpMask = (uint32_t)(-1))
     {
         return grfcrp & grfcrpMask;
     }
-    void ClearGrfcrp(ulong grfcrpT)
+    void ClearGrfcrp(uint32_t grfcrpT)
     {
         grfcrp &= ~grfcrpT;
     }
-    void SetGrfcrp(ulong grfcrpT)
+    void SetGrfcrp(uint32_t grfcrpT)
     {
         grfcrp |= grfcrpT;
     }
-    void AssignGrfcrp(ulong grfcrpT, ulong grfcrpMask = (ulong)(-1))
+    void AssignGrfcrp(uint32_t grfcrpT, uint32_t grfcrpMask = (uint32_t)(-1))
     {
         grfcrp = grfcrp & ~grfcrpMask | grfcrpT & grfcrpMask;
     }
@@ -208,21 +216,23 @@ struct ChunkRepresentationBig
         cb = cbT;
     }
 };
+static_assert(sizeof(ChunkRepresentationBig) == 32, "ChunkRepresentationBig wire format drift");
 const ByteOrderMask kbomCrpbgGrfcrp = 0xFFFF0000L;
 const ByteOrderMask kbomCrpbgBytes = 0xFFFE0000L;
 
-// Chunk Representation (small version) - fixed element in pggcrp
-// variable part of group element is an rgkid and stn data (the name)
-const long kcbMaxCrpsm = 0x00FFFFFF;
-const long kcbitGrfcrp = 8;
-const ulong kgrfcrpAll = (1 << kcbitGrfcrp) - 1;
+// Chunk Representation (small version) - fixed element in pggcrp.
+// Variable part of group element is an rgkid and stn data (the name).
+// Fixed 20 bytes on every architecture (the small-index variant).
+const int32_t kcbMaxCrpsm = 0x00FFFFFF;
+const int32_t kcbitGrfcrp = 8;
+const uint32_t kgrfcrpAll = (1 << kcbitGrfcrp) - 1;
 struct ChunkRepresentationSmall
 {
-    ChunkIdentification cki;          // chunk id
-    FilePosition fp;            // location on file
-    ulong luGrfcrpCb; // low byte is the grfcrp, high 3 bytes is cb
-    ushort ckid;      // number of owned chunks
-    ushort ccrpRef;   // number of owners of this chunk
+    ChunkIdentification cki; // chunk id
+    int32_t fp;              // location on file
+    uint32_t luGrfcrpCb;     // low byte is the grfcrp, high 3 bytes is cb
+    uint16_t ckid;           // number of owned chunks
+    uint16_t ccrpRef;        // number of owners of this chunk
 
     long BvRgch(void)
     {
@@ -233,19 +243,19 @@ struct ChunkRepresentationSmall
         return cbVar - BvRgch();
     }
 
-    ulong Grfcrp(ulong grfcrpMask = (ulong)(-1))
+    uint32_t Grfcrp(uint32_t grfcrpMask = (uint32_t)(-1))
     {
         return luGrfcrpCb & grfcrpMask & kgrfcrpAll;
     }
-    void ClearGrfcrp(ulong grfcrpT)
+    void ClearGrfcrp(uint32_t grfcrpT)
     {
         luGrfcrpCb &= ~(grfcrpT & kgrfcrpAll);
     }
-    void SetGrfcrp(ulong grfcrpT)
+    void SetGrfcrp(uint32_t grfcrpT)
     {
         luGrfcrpCb |= grfcrpT & kgrfcrpAll;
     }
-    void AssignGrfcrp(ulong grfcrpT, ulong grfcrpMask = (ulong)(-1))
+    void AssignGrfcrp(uint32_t grfcrpT, uint32_t grfcrpMask = (uint32_t)(-1))
     {
         luGrfcrpCb = luGrfcrpCb & ~(grfcrpMask & kgrfcrpAll) | grfcrpT & grfcrpMask & kgrfcrpAll;
     }
@@ -258,6 +268,7 @@ struct ChunkRepresentationSmall
         luGrfcrpCb = (cbT << kcbitGrfcrp) | luGrfcrpCb & kgrfcrpAll;
     }
 };
+static_assert(sizeof(ChunkRepresentationSmall) == 20, "ChunkRepresentationSmall wire format drift");
 const ByteOrderMask kbomCrpsm = 0xFF500000L;
 
 #ifdef CHUNK_BIG_INDEX
@@ -571,16 +582,18 @@ PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
     ChunkyFile::PcflReadForestFromFlo reads a CF from a flo and creates a ChunkyFile
     around the data.
 ***************************************************************************/
+// Embedded chunk descriptor. Fixed 24-byte wire format on every architecture.
 struct EmbeddedChunkDescriptorOnFile
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     ChunkTagOrType ctg;
     ChildChunkID chid;
-    long cb;
-    long ckid;
-    ulong grfcrp;
+    int32_t cb;
+    int32_t ckid;
+    uint32_t grfcrp;
 };
+static_assert(sizeof(EmbeddedChunkDescriptorOnFile) == 24, "EmbeddedChunkDescriptorOnFile wire format drift");
 const ByteOrderMask kbomEcdf = 0x5FFC0000L;
 
 /***************************************************************************

@@ -69,16 +69,17 @@ bool VirtualStringTable::_FDup(PVirtualStringTable pgstbDst)
     return fTrue;
 }
 
-// string table on file
+// string table on file. Fixed 20-byte wire format on every architecture.
 struct StringTableOnFile
 {
-    short bo;
-    short osk;
-    long cbEntry;
-    long ibstMac;
-    long bstMac;
-    long cbstFree;
+    int16_t bo;
+    int16_t osk;
+    int32_t cbEntry;
+    int32_t ibstMac;
+    int32_t bstMac;
+    int32_t cbstFree;
 };
+static_assert(sizeof(StringTableOnFile) == 20, "StringTableOnFile wire format drift");
 const ByteOrderMask kbomGstf = 0x5FF00000L;
 
 /***************************************************************************
