@@ -1436,7 +1436,7 @@ bool ChunkyFile::_FReadIndex(void)
             }
             if (bomNil != bom && pcrpbg->ckid > 0)
             {
-                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpbg->ckid * (size(ChildChunkIdentification) / size(long)));
+                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpbg->ckid * (size(ChildChunkIdentification) / size(int32_t)));
             }
             pcrpbg->rti = rtiNil;
 
@@ -1518,7 +1518,7 @@ bool ChunkyFile::_FReadIndex(void)
             }
             if (pcrpsm->ckid > 0 && bomNil != bom)
             {
-                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpsm->ckid * (size(ChildChunkIdentification) / size(long)));
+                SwapBytesRglw(_pggcrp->QvGet(icrp), pcrpsm->ckid * (size(ChildChunkIdentification) / size(int32_t)));
             }
 
             pcrpsm->ClearGrfcrp(fcrpOnExtra);
@@ -1619,7 +1619,7 @@ void ChunkyFile::_ReadFreeMap(void)
         AssertBomRglw(kbomFsm, size(FreeSpaceMap));
         if (bo != kboCur && (cfsm = _csto.pglfsm->IvMac()) > 0)
         {
-            SwapBytesRglw(_csto.pglfsm->QvGet(0), cfsm * (size(FreeSpaceMap) / size(long)));
+            SwapBytesRglw(_csto.pglfsm->QvGet(0), cfsm * (size(FreeSpaceMap) / size(int32_t)));
         }
     }
 }
