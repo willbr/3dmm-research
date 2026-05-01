@@ -34,11 +34,11 @@ RTCLASS(TextBoxClipboard)
 //
 // Undoes changing textbox type operations
 //
-typedef class TUNT *PTUNT;
+typedef class TextBoxUndoType *PTextBoxUndoType;
 
-#define TUNT_PAR MovieUndo
-#define kclsTUNT 'TUNT'
-class TUNT : public TUNT_PAR
+#define TextBoxUndoType_PAR MovieUndo
+#define kclsTextBoxUndoType 'TUNT'
+class TextBoxUndoType : public TextBoxUndoType_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -47,13 +47,13 @@ class TUNT : public TUNT_PAR
   protected:
     long _itbox;
     bool _fStory;
-    TUNT(void)
+    TextBoxUndoType(void)
     {
     }
 
   public:
-    static PTUNT PtuntNew(void);
-    ~TUNT(void);
+    static PTextBoxUndoType PtuntNew(void);
+    ~TextBoxUndoType(void);
 
     void SetType(bool fStory)
     {
@@ -68,16 +68,16 @@ class TUNT : public TUNT_PAR
     virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNT)
+RTCLASS(TextBoxUndoType)
 
 //
 // Undoes sizing operations
 //
-typedef class TUNS *PTUNS;
+typedef class TextBoxUndoSize *PTextBoxUndoSize;
 
-#define TUNS_PAR MovieUndo
-#define kclsTUNS 'TUNS'
-class TUNS : public TUNS_PAR
+#define TextBoxUndoSize_PAR MovieUndo
+#define kclsTextBoxUndoSize 'TUNS'
+class TextBoxUndoSize : public TextBoxUndoSize_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -86,13 +86,13 @@ class TUNS : public TUNS_PAR
   protected:
     long _itbox;
     RC _rc;
-    TUNS(void)
+    TextBoxUndoSize(void)
     {
     }
 
   public:
-    static PTUNS PtunsNew(void);
-    ~TUNS(void);
+    static PTextBoxUndoSize PtunsNew(void);
+    ~TextBoxUndoSize(void);
 
     void SetRc(RC *prc)
     {
@@ -107,16 +107,16 @@ class TUNS : public TUNS_PAR
     virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNS)
+RTCLASS(TextBoxUndoSize)
 
 //
 // Undoes hiding/showing operations
 //
-typedef class TUNH *PTUNH;
+typedef class TextBoxUndoHide *PTextBoxUndoHide;
 
-#define TUNH_PAR MovieUndo
-#define kclsTUNH 'TUNH'
-class TUNH : public TUNH_PAR
+#define TextBoxUndoHide_PAR MovieUndo
+#define kclsTextBoxUndoHide 'TUNH'
+class TextBoxUndoHide : public TextBoxUndoHide_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -127,13 +127,13 @@ class TUNH : public TUNH_PAR
     long _nfrmFirst;
     long _nfrmMax;
 
-    TUNH(void)
+    TextBoxUndoHide(void)
     {
     }
 
   public:
-    static PTUNH PtunhNew(void);
-    ~TUNH(void);
+    static PTextBoxUndoHide PtunhNew(void);
+    ~TextBoxUndoHide(void);
 
     void SetFrmFirst(long nfrmFirst)
     {
@@ -152,16 +152,16 @@ class TUNH : public TUNH_PAR
     virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNH)
+RTCLASS(TextBoxUndoHide)
 
 //
 // Undoes all editing operations
 //
-typedef class TUND *PTUND;
+typedef class TextBoxUndoEdit *PTextBoxUndoEdit;
 
-#define TUND_PAR MovieUndo
-#define kclsTUND 'TUND'
-class TUND : public TUND_PAR
+#define TextBoxUndoEdit_PAR MovieUndo
+#define kclsTextBoxUndoEdit 'TUND'
+class TextBoxUndoEdit : public TextBoxUndoEdit_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -170,13 +170,13 @@ class TUND : public TUND_PAR
   protected:
     PUndoBase _pundb;
     long _itbox;
-    TUND(void)
+    TextBoxUndoEdit(void)
     {
     }
 
   public:
-    static PTUND PtundNew(PUndoBase pundb);
-    ~TUND(void);
+    static PTextBoxUndoEdit PtundNew(PUndoBase pundb);
+    ~TextBoxUndoEdit(void);
 
     void SetItbox(long itbox)
     {
@@ -187,16 +187,16 @@ class TUND : public TUND_PAR
     virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUND)
+RTCLASS(TextBoxUndoEdit)
 
 //
 // Undoes coloring background operations
 //
-typedef class TUNC *PTUNC;
+typedef class TextBoxUndoColor *PTextBoxUndoColor;
 
-#define TUNC_PAR MovieUndo
-#define kclsTUNC 'TUNC'
-class TUNC : public TUNC_PAR
+#define TextBoxUndoColor_PAR MovieUndo
+#define kclsTextBoxUndoColor 'TUNC'
+class TextBoxUndoColor : public TextBoxUndoColor_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -205,13 +205,13 @@ class TUNC : public TUNC_PAR
   protected:
     long _itbox;
     AbstractColor _acr;
-    TUNC(void)
+    TextBoxUndoColor(void)
     {
     }
 
   public:
-    static PTUNC PtuncNew(void);
-    ~TUNC(void);
+    static PTextBoxUndoColor PtuncNew(void);
+    ~TextBoxUndoColor(void);
 
     void SetItbox(long itbox)
     {
@@ -226,7 +226,7 @@ class TUNC : public TUNC_PAR
     virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNC)
+RTCLASS(TextBoxUndoColor)
 
 //
 //
@@ -628,9 +628,9 @@ bool TextBoxBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
             GetRc(&rc, cooLocal);
             if (_rcOrig != rc)
             {
-                PTUNS ptuns;
+                PTextBoxUndoSize ptuns;
 
-                ptuns = TUNS::PtunsNew();
+                ptuns = TextBoxUndoSize::PtunsNew();
                 if (ptuns == pvNil)
                 {
                     PushErc(ercSocNotUndoable);
@@ -1839,7 +1839,7 @@ PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
     ptbox->_pscen = pscen;
     ptbox->_fStory = fStory;
     ptbox->SetAcrBack(kacrClear, fdocNil);
-    Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TUND assumes there is one level of undo!");
+    Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TextBoxUndoEdit assumes there is one level of undo!");
     ptbox->SetCundbMax(1);
 
     return ptbox;
@@ -2089,14 +2089,14 @@ bool TextBox::FSetType(bool fStory)
 {
     AssertThis(0);
 
-    PTUNT ptunt;
+    PTextBoxUndoType ptunt;
 
     if (_fStory == fStory)
     {
         return (fTrue);
     }
 
-    ptunt = TUNT::PtuntNew();
+    ptunt = TextBoxUndoType::PtuntNew();
 
     if (ptunt == pvNil)
     {
@@ -2343,9 +2343,9 @@ bool TextBox::FShow(void)
 {
     AssertThis(0);
 
-    PTUNH ptunh;
+    PTextBoxUndoHide ptunh;
 
-    ptunh = TUNH::PtunhNew();
+    ptunh = TextBoxUndoHide::PtunhNew();
     if (ptunh == pvNil)
     {
         return (fFalse);
@@ -2412,14 +2412,14 @@ bool TextBox::FHide(void)
 {
     AssertThis(0);
 
-    PTUNH ptunh;
+    PTextBoxUndoHide ptunh;
 
     if (_nfrmCur <= _nfrmFirst)
     {
         return (Pscen()->FRemTbox(this));
     }
 
-    ptunh = TUNH::PtunhNew();
+    ptunh = TextBoxUndoHide::PtunhNew();
     if (ptunh == pvNil)
     {
         return (fFalse);
@@ -2494,9 +2494,9 @@ bool TextBox::FSetAcrBack(AbstractColor acr)
 {
     AssertThis(0);
 
-    PTUNC ptunc;
+    PTextBoxUndoColor ptunc;
 
-    ptunc = TUNC::PtuncNew();
+    ptunc = TextBoxUndoColor::PtuncNew();
 
     if (ptunc == pvNil)
     {
@@ -2807,9 +2807,9 @@ bool TextBox::FAddUndo(PUndoBase pundb)
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    PTUND ptund;
+    PTextBoxUndoEdit ptund;
 
-    ptund = TUND::PtundNew(pundb);
+    ptund = TextBoxUndoEdit::PtundNew(pundb);
 
     if (ptund == pvNil)
     {
@@ -2975,10 +2975,10 @@ void TextBox::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNT TUNT::PtuntNew()
+PTextBoxUndoType TextBoxUndoType::PtuntNew()
 {
-    PTUNT ptunt;
-    ptunt = NewObj TUNT();
+    PTextBoxUndoType ptunt;
+    ptunt = NewObj TextBoxUndoType();
     return (ptunt);
 }
 
@@ -2987,7 +2987,7 @@ PTUNT TUNT::PtuntNew()
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNT::~TUNT(void)
+TextBoxUndoType::~TextBoxUndoType(void)
 {
 }
 
@@ -3002,7 +3002,7 @@ TUNT::~TUNT(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNT::FDo(PDocumentBase pdocb)
+bool TextBoxUndoType::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3052,7 +3052,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNT::FUndo(PDocumentBase pdocb)
+bool TextBoxUndoType::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3062,7 +3062,7 @@ bool TUNT::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNT
+ * Mark memory used by the TextBoxUndoType
  *
  * Parameters:
  * 	None.
@@ -3071,18 +3071,18 @@ bool TUNT::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void TUNT::MarkMem(void)
+void TextBoxUndoType::MarkMem(void)
 {
     AssertThis(0);
-    TUNT_PAR::MarkMem();
+    TextBoxUndoType_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNT.
+    Assert the validity of the TextBoxUndoType.
 ***************************************************************************/
-void TUNT::AssertValid(ulong grf)
+void TextBoxUndoType::AssertValid(ulong grf)
 {
-    TUNT_PAR::AssertValid(fobjAllocated);
+    TextBoxUndoType_PAR::AssertValid(fobjAllocated);
 }
 #endif
 
@@ -3097,10 +3097,10 @@ void TUNT::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNS TUNS::PtunsNew()
+PTextBoxUndoSize TextBoxUndoSize::PtunsNew()
 {
-    PTUNS ptuns;
-    ptuns = NewObj TUNS();
+    PTextBoxUndoSize ptuns;
+    ptuns = NewObj TextBoxUndoSize();
     return (ptuns);
 }
 
@@ -3109,7 +3109,7 @@ PTUNS TUNS::PtunsNew()
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNS::~TUNS(void)
+TextBoxUndoSize::~TextBoxUndoSize(void)
 {
 }
 
@@ -3124,7 +3124,7 @@ TUNS::~TUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNS::FDo(PDocumentBase pdocb)
+bool TextBoxUndoSize::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3179,7 +3179,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNS::FUndo(PDocumentBase pdocb)
+bool TextBoxUndoSize::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3189,7 +3189,7 @@ bool TUNS::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNS
+ * Mark memory used by the TextBoxUndoSize
  *
  * Parameters:
  * 	None.
@@ -3198,18 +3198,18 @@ bool TUNS::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void TUNS::MarkMem(void)
+void TextBoxUndoSize::MarkMem(void)
 {
     AssertThis(0);
-    TUNS_PAR::MarkMem();
+    TextBoxUndoSize_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNS.
+    Assert the validity of the TextBoxUndoSize.
 ***************************************************************************/
-void TUNS::AssertValid(ulong grf)
+void TextBoxUndoSize::AssertValid(ulong grf)
 {
-    TUNS_PAR::AssertValid(fobjAllocated);
+    TextBoxUndoSize_PAR::AssertValid(fobjAllocated);
 }
 #endif
 
@@ -3224,10 +3224,10 @@ void TUNS::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNH TUNH::PtunhNew()
+PTextBoxUndoHide TextBoxUndoHide::PtunhNew()
 {
-    PTUNH ptunh;
-    ptunh = NewObj TUNH();
+    PTextBoxUndoHide ptunh;
+    ptunh = NewObj TextBoxUndoHide();
     return (ptunh);
 }
 
@@ -3236,7 +3236,7 @@ PTUNH TUNH::PtunhNew()
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNH::~TUNH(void)
+TextBoxUndoHide::~TextBoxUndoHide(void)
 {
     AssertBaseThis(0);
 }
@@ -3252,7 +3252,7 @@ TUNH::~TUNH(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNH::FDo(PDocumentBase pdocb)
+bool TextBoxUndoHide::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3322,7 +3322,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNH::FUndo(PDocumentBase pdocb)
+bool TextBoxUndoHide::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3332,7 +3332,7 @@ bool TUNH::FUndo(PDocumentBase pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNH
+ * Mark memory used by the TextBoxUndoHide
  *
  * Parameters:
  * 	None.
@@ -3341,18 +3341,18 @@ bool TUNH::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void TUNH::MarkMem(void)
+void TextBoxUndoHide::MarkMem(void)
 {
     AssertThis(0);
-    TUNH_PAR::MarkMem();
+    TextBoxUndoHide_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNH.
+    Assert the validity of the TextBoxUndoHide.
 ***************************************************************************/
-void TUNH::AssertValid(ulong grf)
+void TextBoxUndoHide::AssertValid(ulong grf)
 {
-    TUNH_PAR::AssertValid(fobjAllocated);
+    TextBoxUndoHide_PAR::AssertValid(fobjAllocated);
 }
 #endif
 
@@ -3368,12 +3368,12 @@ void TUNH::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUND TUND::PtundNew(PUndoBase pundb)
+PTextBoxUndoEdit TextBoxUndoEdit::PtundNew(PUndoBase pundb)
 {
     AssertPo(pundb, 0);
 
-    PTUND ptund;
-    ptund = NewObj TUND();
+    PTextBoxUndoEdit ptund;
+    ptund = NewObj TextBoxUndoEdit();
     if (ptund != pvNil)
     {
         ptund->_pundb = pundb;
@@ -3388,7 +3388,7 @@ PTUND TUND::PtundNew(PUndoBase pundb)
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUND::~TUND(void)
+TextBoxUndoEdit::~TextBoxUndoEdit(void)
 {
     AssertBaseThis(0);
 
@@ -3422,7 +3422,7 @@ TUND::~TUND(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUND::FDo(PDocumentBase pdocb)
+bool TextBoxUndoEdit::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3468,7 +3468,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUND::FUndo(PDocumentBase pdocb)
+bool TextBoxUndoEdit::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3505,7 +3505,7 @@ LFail:
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUND
+ * Mark memory used by the TextBoxUndoEdit
  *
  * Parameters:
  * 	None.
@@ -3514,17 +3514,17 @@ LFail:
  *  None.
  *
  ****************************************************/
-void TUND::MarkMem(void)
+void TextBoxUndoEdit::MarkMem(void)
 {
     AssertThis(0);
-    TUND_PAR::MarkMem();
+    TextBoxUndoEdit_PAR::MarkMem();
     MarkMemObj(_pundb);
 }
 
 /***************************************************************************
-    Assert the validity of the TUND.
+    Assert the validity of the TextBoxUndoEdit.
 ***************************************************************************/
-void TUND::AssertValid(ulong grf)
+void TextBoxUndoEdit::AssertValid(ulong grf)
 {
     AssertBaseThis(0);
 }
@@ -3542,11 +3542,11 @@ void TUND::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNC TUNC::PtuncNew(void)
+PTextBoxUndoColor TextBoxUndoColor::PtuncNew(void)
 {
-    PTUNC ptunc;
+    PTextBoxUndoColor ptunc;
 
-    ptunc = NewObj TUNC();
+    ptunc = NewObj TextBoxUndoColor();
     return (ptunc);
 }
 
@@ -3555,7 +3555,7 @@ PTUNC TUNC::PtuncNew(void)
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNC::~TUNC(void)
+TextBoxUndoColor::~TextBoxUndoColor(void)
 {
     AssertBaseThis(0);
 }
@@ -3571,7 +3571,7 @@ TUNC::~TUNC(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNC::FDo(PDocumentBase pdocb)
+bool TextBoxUndoColor::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3621,14 +3621,14 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNC::FUndo(PDocumentBase pdocb)
+bool TextBoxUndoColor::FUndo(PDocumentBase pdocb)
 {
     return (FDo(pdocb));
 }
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNC
+ * Mark memory used by the TextBoxUndoColor
  *
  * Parameters:
  * 	None.
@@ -3637,16 +3637,16 @@ bool TUNC::FUndo(PDocumentBase pdocb)
  *  None.
  *
  ****************************************************/
-void TUNC::MarkMem(void)
+void TextBoxUndoColor::MarkMem(void)
 {
     AssertThis(0);
-    TUNC_PAR::MarkMem();
+    TextBoxUndoColor_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNC.
+    Assert the validity of the TextBoxUndoColor.
 ***************************************************************************/
-void TUNC::AssertValid(ulong grf)
+void TextBoxUndoColor::AssertValid(ulong grf)
 {
     AssertBaseThis(0);
 }
