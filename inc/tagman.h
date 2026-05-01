@@ -40,6 +40,8 @@
 #ifndef TAGM_H
 #define TAGM_H
 
+#include <cstdint>
+
 const long ksidInvalid = -1; // negative SIDs imply an invalid TAG
 const long sidNil = 0;
 const long ksidUseCrf = 0; // chunk is in ptag->pcrf
@@ -59,12 +61,50 @@ struct TAG
     ChunkNumber cno;   // ChunkNumber of chunk
 };
 const ByteOrderMask kbomTag = 0xFF000000;
-// Layout pinned: kbomTag (0xFF000000) byteswaps 4 longs of 4 bytes each = 16
-// bytes, including the 4-byte slot for pcrf which holds garbage on disk.
-// On x64 the pcrf pointer becomes 8 bytes -- TAG must be reshaped before
-// any 64-bit build will round-trip a .3MM correctly. See
+// Layout pinned for x86 only: TAG embeds a runtime PChunkyResourceFile pointer
+// that's 4 bytes here but 8 bytes on x64. To stay 1995-format-compatible
+// without wrapping every TAG in a runtime/on-disk shim, on-disk struct
+// embeds use TAGOnFile (below) and convert at the I/O boundary. See
 // docs/superpowers/specs/2026-05-01-sized-types-audit.md.
-static_assert(sizeof(TAG) == 16, "TAG on-disk layout drift");
+#if !defined(IN_80386)
+static_assert(sizeof(TAG) == 16, "TAG layout pinned only on x86; use TAGOnFile for serialization");
+#else
+static_assert(sizeof(TAG) == 16, "TAG on-disk layout drift on x86");
+#endif
+
+/****************************************
+    On-disk TAG: fixed 16-byte layout matching the 1995 .3MM wire format.
+    The _pcrfPad slot was pcrf in the 1995 in-memory struct; it's always
+    garbage on disk but the 4 bytes are part of the kbomTag swap pattern
+    and the byte count baked into every TAG-embedding chunk header.
+
+    Convert with TAGOnFile::From(const TAG&) on write and
+    TAG::FromOnFile(const TAGOnFile&, PChunkyResourceFile) on read.
+****************************************/
+struct TAGOnFile
+{
+    int32_t sid;
+    uint32_t _pcrfPad; // garbage on disk; written as 0
+    uint32_t ctg;
+    uint32_t cno;
+
+    void From(const TAG &tag)
+    {
+        sid = (int32_t)tag.sid;
+        _pcrfPad = 0;
+        ctg = (uint32_t)tag.ctg;
+        cno = (uint32_t)tag.cno;
+    }
+};
+static_assert(sizeof(TAGOnFile) == 16, "TAGOnFile must stay 16 bytes -- this is the 1995 wire format");
+
+inline void TagFromOnFile(TAG *ptag, const TAGOnFile &tof, PChunkyResourceFile pcrf = pvNil)
+{
+    ptag->sid = tof.sid;
+    ptag->pcrf = pcrf;
+    ptag->ctg = tof.ctg;
+    ptag->cno = tof.cno;
+}
 
 // FNINSCD is a client-supplied callback function to alert the user to
 // insert the given CD.  The name of the source is passed to the callback.
