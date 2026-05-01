@@ -3550,6 +3550,9 @@ bool Application::FCmdInfo(PCommand pcmd)
 #ifdef DEBUG
     stn.FAppendSz(PszLit(" (Debug)"));
 #endif // DEBUG
+    // Surface the build's pointer width so users (and bug reports) can tell
+    // an x64 build from an x86 build at a glance.
+    stn.FAppendSz(sizeof(void *) == 8 ? PszLit(" (64-bit)") : PszLit(" (32-bit)"));
     extern const char kszBuildStamp[]; // generated each build (cmake/WriteBuildStamp.cmake)
     stnT.FFormatSz(PszLit(" %d.%d.%04d  built %z"), rmj, rmm, rup, kszBuildStamp);
     stn.FAppendStn(&stnT);
