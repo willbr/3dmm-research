@@ -21,9 +21,11 @@
 #endif // DEBUG
 
 // define the endian-ness
-#ifdef IN_80386
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define LITTLE_ENDIAN
-#endif // IN_80386
+#elif defined(_M_IX86) || defined(_M_AMD64) || defined(_M_ARM) || defined(_M_ARM64)
+#define LITTLE_ENDIAN
+#endif
 
 #ifdef LITTLE_ENDIAN
 #define BigLittle(a, b) b
