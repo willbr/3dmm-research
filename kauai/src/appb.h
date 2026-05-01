@@ -29,7 +29,7 @@ typedef EVT *PEVT;
 
 #ifdef WIN
 // windows specific globals
-struct WIG
+struct WindowsAppGlobals
 {
     HINSTANCE hinst;
     HINSTANCE hinstPrev;
@@ -43,7 +43,7 @@ struct WIG
     HWND hwndNextViewer; // next clipboard viewer
     long lwThreadMain;   // main thread
 };
-extern WIG vwig;
+extern WindowsAppGlobals vwig;
 #endif // WIN
 
 /***************************************************************************
