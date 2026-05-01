@@ -34,7 +34,7 @@ struct ActorChunkOnFile // Actor chunk on file
     long arid;       // Unique id assigned to this actor.
     long nfrmFirst;  // First frame in this actor's stage life
     long nfrmLast;   // Last frame in this actor's stage life
-    TAG tagTmpl;     // Tag to actor's template
+    TAGOnFile tagTmpl; // Tag to actor's template (16-byte wire format; convert with From / TagFromOnFile)
 };
 static_assert(sizeof(ActorChunkOnFile) == 44, "ActorChunkOnFile on-disk layout drift");
 const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
@@ -101,7 +101,7 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     actf.arid = _arid;
     actf.nfrmFirst = _nfrmFirst;
     actf.nfrmLast = _nfrmLast;
-    actf.tagTmpl = _tagTmpl;
+    actf.tagTmpl.From(_tagTmpl);
     if (!pcfl->FPutPv(&actf, size(ActorChunkOnFile), kctgActr, cnoActr))
         return fFalse;
 
@@ -265,7 +265,7 @@ bool Actor::_FReadActor(PChunkyFile pcfl, ChunkNumber cno)
     _arid = actf.arid;
     _nfrmFirst = actf.nfrmFirst;
     _nfrmLast = actf.nfrmLast;
-    _tagTmpl = actf.tagTmpl;
+    TagFromOnFile(&_tagTmpl, actf.tagTmpl);
     _fLifeDirty = (knfrmInvalid == _nfrmFirst) || (knfrmInvalid == _nfrmLast);
 
     if (_tagTmpl.sid == ksidUseCrf)
@@ -542,8 +542,12 @@ PDynamicArray Actor::PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfErro
         }
     }
 
-    if (!pgltag->FInsert(0, &actf.tagTmpl))
-        goto LFail;
+    {
+        TAG tagTmpl;
+        TagFromOnFile(&tagTmpl, actf.tagTmpl);
+        if (!pgltag->FInsert(0, &tagTmpl))
+            goto LFail;
+    }
 
     // Pull all tags out of the event list:
     if (!pcfl->FGetKidChidCtg(kctgActr, cno, kchidGgae, kctgGgae, &kid))
