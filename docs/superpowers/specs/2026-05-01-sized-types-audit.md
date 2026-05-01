@@ -175,9 +175,9 @@ Each commit independently revertible; each pinned by `static_assert(sizeof(...) 
 
 These didn't change shape *inside* the audited structs, but would still bite an LP64 build:
 
-- `aetFreeze` event variable-part is sized via `sizeof(long)` — see `kcbVarFreeze` macro in `inc/actor.h`. Writes 4 bytes on x86, would write 8 on LP64. Not in a struct so it escaped step 3. One-line fix: change to `sizeof(int32_t)` and ensure read/write sites use int32_t.
+- ✅ `aetFreeze` event variable-part — `kcbVarFreeze` widened to `sizeof(int32_t)` and 7 read/write locals converted from `long` to `int32_t` — commit `bde00d7`.
+- ✅ `ByteOrderMask` typedef widened from `ulong` to `uint32_t` in `kauai/src/utilint.h` — commit `eda46fe`. Runtime-only typedef, no on-disk impact.
 - Format-string sites (`printf("%lu", cno)` etc.) across `src/tools/movie_chomp.cpp` etc. Cosmetic on x86 (warns clean), miscompile on LP64. Mass `%u`/`%d` sweep when LP64 is on the table.
-- `ByteOrderMask` typedef in `kauai/src/utilint.h:314` is still `ulong`. Runtime-only (doesn't reach disk via the struct path), but kbom values are 32-bit hex literals -- on LP64 the typedef would silently widen to 64 bits.
 - Win64 LLP64 pointer-in-CHID-slot bugs in kauai container code. Fixed for `sevtAddActr`/`sevtAddTbox` as a side effect of the TagChildPair work; other instances likely exist and need a separate sweep.
 
 ## Out of scope
