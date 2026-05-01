@@ -31,6 +31,8 @@
 #ifndef MSND_H
 #define MSND_H
 
+#include <cstdint>
+
 // Sound types
 enum
 {
@@ -75,11 +77,11 @@ const long kSndChannels = 1;
 ****************************************/
 struct MovieSoundFile
 {
-    short bo;
-    short osk;
-    long sty;        // sound type
-    long vlmDefault; // default volume
-    bool fInvalid;   // Invalid flag
+    int16_t bo;
+    int16_t osk;
+    int32_t sty;        // sound type
+    int32_t vlmDefault; // default volume
+    bool fInvalid;      // Invalid flag
 };
 static_assert(sizeof(MovieSoundFile) == 16, "MovieSoundFile on-disk layout drift");
 const ByteOrderMask kbomMsndf = 0x5FC00000;
