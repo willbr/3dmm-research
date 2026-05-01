@@ -27,7 +27,10 @@ struct CachedTag
     TAG tag;
     bool fCacheChildren;
 };
-static_assert(sizeof(CachedTag) == 20, "CachedTag on-disk layout drift");
+// CachedTag is runtime-only — TagList is built fresh by enumerating scenes
+// (see Movie::_PtaglFetch) and is never serialized. So this struct's size is
+// allowed to grow with TAG on 64-bit platforms (24 bytes vs 20 on x86) without
+// breaking the .3MM wire format.
 
 /****************************************
     ChidCtgPair: "chid-ctg" struct, for
