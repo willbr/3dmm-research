@@ -177,8 +177,9 @@ These didn't change shape *inside* the audited structs, but would still bite an 
 
 - ✅ `aetFreeze` event variable-part — `kcbVarFreeze` widened to `sizeof(int32_t)` and 7 read/write locals converted from `long` to `int32_t` — commit `bde00d7`.
 - ✅ `ByteOrderMask` typedef widened from `ulong` to `uint32_t` in `kauai/src/utilint.h` — commit `eda46fe`. Runtime-only typedef, no on-disk impact.
-- Format-string sites (`printf("%lu", cno)` etc.) across `src/tools/movie_chomp.cpp` etc. Cosmetic on x86 (warns clean), miscompile on LP64. Mass `%u`/`%d` sweep when LP64 is on the table.
-- Win64 LLP64 pointer-in-CHID-slot bugs in kauai container code. Fixed for `sevtAddActr`/`sevtAddTbox` as a side effect of the TagChildPair work; other instances likely exist and need a separate sweep.
+- ✅ Format-string sites in `movie_chomp.cpp` for fields that became int32/uint32 in step 3 — `%ld`/`%lu` → `%d`/`%u` for `RollCallActorEntryOnFile.{arid,cactRef,grfbrws}`, `ActorEvent::Base.nfrm`, `RouteLocation.dnfrm`, `SceneEvent.nfrm` — commit `a4c478c`. BRS sites (still `long`-typedef'd via BRender) and the generic GST-extra dumper deferred (BRender modernization is a separate story; the generic dumper is structurally broken on LP64 in ways format strings can't fix).
+- ✅ `sevtChngCamera` / `sevtPause` GG variable-part sizing — pinned 4 sites to `size(int32_t)` / `size(SceneEventPause)` instead of `size(long)` / `size(long)*2`; routed `picamOld`/`icam`/`icamNext` GG accesses through int32_t scratch where the public Scene::FChangeCamCore signature still takes `long` — commit `e5c7c15`.
+- **Out of scope (Project 2 — kauai modernization):** pervasive `size(long)` use inside kauai itself (`groups.cpp` LogicalOffsetAndCount swap unit, `chcm.cpp` codec word size, `screxe.cpp` script word size, `rtxt.cpp` MPE swap, etc.) — these encode a "long is the natural word size" assumption that runs through the whole library; `utilint.cpp:407` literally `Assert(size(long) == 4)`. Modernizing kauai to use explicit int32_t for its serialized word abstraction is a separate effort the size of Project 1 itself.
 
 ## Out of scope
 
