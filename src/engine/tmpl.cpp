@@ -170,13 +170,13 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
     _pggcel = GeneralGroup::PggRead(&blck, &bo);
     if (pvNil == _pggcel)
         return fFalse;
-    AssertBomRglw(kbomCel, size(CEL));
+    AssertBomRglw(kbomCel, size(AnimationCel));
     AssertBomRgsw(kbomCps, size(CPS));
     if (kboOther == bo)
     {
         for (icel = 0; icel < _pggcel->IvMac(); icel++)
         {
-            SwapBytesRglw(_pggcel->QvFixedGet(icel), size(CEL) / size(long));
+            SwapBytesRglw(_pggcel->QvFixedGet(icel), size(AnimationCel) / size(long));
             SwapBytesRgsw(_pggcel->QvGet(icel), _pggcel->Cb(icel) / size(short));
         }
     }
@@ -224,9 +224,9 @@ ActionDefinition::~ActionDefinition(void)
 }
 
 /***************************************************************************
-    Get a CEL
+    Get an AnimationCel
 ***************************************************************************/
-void ActionDefinition::GetCel(long icel, CEL *pcel)
+void ActionDefinition::GetCel(long icel, AnimationCel *pcel)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
@@ -259,7 +259,7 @@ void ActionDefinition::GetSnd(long icel, PTAG ptag)
     AssertIn(icel, 0, Ccel());
     AssertVarMem(ptag);
 
-    CEL cel;
+    AnimationCel cel;
 
     ptag->ctg = ctgNil;
     if (pvNil != _pgltagSnd)
@@ -671,7 +671,7 @@ bool Template::FSetActnCel(Body *pbody, long anid, long celn, BRS *pdwr)
 
     long icel;
     ActionDefinition *pactn = pvNil;
-    CEL cel;
+    AnimationCel cel;
     short ibprt;
     long cbprt = _pglibactPar->IvMac();
     CPS cps;
@@ -741,7 +741,7 @@ bool Template::FGetDwrActnCel(long anid, long celn, BRS *pdwr)
 
     ActionDefinition *pactn;
     long icel;
-    CEL cel;
+    AnimationCel cel;
 
     pactn = _PactnFetch(anid);
     if (pvNil == pactn)

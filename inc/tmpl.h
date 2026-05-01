@@ -43,13 +43,13 @@ const ByteOrderMask kbomCps = 0x50000000;
     far the actor should move from the
     previous cel (dwr).
 ****************************************/
-struct CEL
+struct AnimationCel
 {
     ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ActionDefinition chunk)
     BRS dwr;      // distance from previous cel
                   //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
 };
-static_assert(sizeof(CEL) == 8, "CEL on-disk layout drift");
+static_assert(sizeof(AnimationCel) == 8, "AnimationCel on-disk layout drift");
 const ByteOrderMask kbomCel = 0xf0000000;
 
 // template on file
@@ -124,7 +124,7 @@ class ActionDefinition : public ActionDefinition_PAR
     {
         return _pggcel->IvMac();
     }
-    void GetCel(long icel, CEL *pcel);
+    void GetCel(long icel, AnimationCel *pcel);
     void GetCps(long icel, long icps, CPS *pcps);
     void GetMatrix(long imat34, BMAT34 *pbmat34);
     void GetSnd(long icel, PTAG ptagSnd);

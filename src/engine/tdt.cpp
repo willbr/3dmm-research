@@ -550,7 +550,7 @@ PGeneralGroup ThreeDText::_PggcelBuild(long tda)
     long cch = _stn.Cch();
     long ich;
     PGeneralGroup pggcel;
-    CEL cel;
+    AnimationCel cel;
     CPS *prgcps = pvNil;
     long iv;
     long ccel;
@@ -558,7 +558,7 @@ PGeneralGroup ThreeDText::_PggcelBuild(long tda)
 
     ccel = _CcelOfTda(tda);
 
-    pggcel = GeneralGroup::PggNew(size(CEL));
+    pggcel = GeneralGroup::PggNew(size(AnimationCel));
     if (pvNil == pggcel)
         goto LFail;
     if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CPS)), fmemClear, mprNormal))

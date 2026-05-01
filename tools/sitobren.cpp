@@ -1066,7 +1066,7 @@ bool S2B::_FDoTtActionS2B(void)
     {
         Model *pmodel;
         BMAT34 bmat34;
-        CEL cel;
+        AnimationCel cel;
         long cbrgcps;
 
         /* Get the SoftImage data */
@@ -1140,7 +1140,7 @@ bool S2B::_FDoTtActionS2B(void)
                 _ibpCur = 0;
                 if (_FProcessBmhr(&_pbmhr))
                 {
-                    if (_pggcl != pvNil || (_pggcl = GeneralGroup::PggNew(size(CEL))) != pvNil)
+                    if (_pggcl != pvNil || (_pggcl = GeneralGroup::PggNew(size(AnimationCel))) != pvNil)
                         fSuccess = _pggcl->FAdd(cbrgcps, pvNil, _prgcps, &cel);
                 }
             }
