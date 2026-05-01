@@ -499,6 +499,11 @@ class Actor : public Actor_PAR
     bool _FReadRoute(PChunkyFile pcfl, ChunkNumber cno);
     bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
     static void _SwapBytesPggaev(PGeneralGroup pggaev);
+    // Marshal a wire-format pggaev (CostumeOnFile/SoundOnFile variable parts)
+    // into a fresh runtime pggaev (Costume/Sound, with full TAG, pcrf=pvNil).
+    // pggOnFile must already be byteswapped to host order. Releases pggOnFile
+    // on both success and failure. Returns pvNil on failure.
+    static PGeneralGroup _PggaevMarshalFromOnFile(PGeneralGroup pggOnFile);
     bool _FOpenTags(PChunkyResourceFile pcrf);
     static bool _FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
     void _CloseTags(void);
