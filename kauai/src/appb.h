@@ -332,6 +332,14 @@ extern PSoundManager vpsndm;
 // main entry point for the client app
 void FrameMain(void);
 
+// Append a category-tagged diagnostic message to %TEMP%\3dmmforever-crash.txt
+// so user-visible error/assert dialogs can be inspected on disk later. The
+// category is a short uppercase tag (e.g. "ABNORMAL_EXIT", "ASSERT",
+// "GENERIC_ERROR", "CANT_FIND_FILE") used to grep entries by class. Best-
+// effort: silently swallows I/O failure since callers are already in error
+// paths and a logging failure shouldn't mask the original.
+void AppendCrashLog(const char *pszCategory, const char *pszBody);
+
 // alert button kinds
 enum
 {

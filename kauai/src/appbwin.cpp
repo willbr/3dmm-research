@@ -20,6 +20,39 @@ ASSERTNAME
 
 WindowsAppGlobals vwig;
 
+/******************************************************************************
+    AppendCrashLog -- see header in appb.h. Mirrors error/assert dialog text
+    to %TEMP%\3dmmforever-crash.txt with a timestamped header per entry.
+    Best-effort; silently swallows I/O failure.
+******************************************************************************/
+void AppendCrashLog(const char *pszCategory, const char *pszBody)
+{
+    char szTempDir[MAX_PATH];
+    DWORD cchTemp = GetTempPathA(MAX_PATH, szTempDir);
+    if (cchTemp == 0 || cchTemp >= MAX_PATH)
+        return;
+    char szPath[MAX_PATH];
+    wsprintfA(szPath, "%s3dmmforever-crash.txt", szTempDir);
+    HANDLE hFile = CreateFileA(szPath, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS,
+                               FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+        return;
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    char szHeader[160];
+    wsprintfA(szHeader,
+              "\r\n========================================\r\n"
+              "%04d-%02d-%02d %02d:%02d:%02d (PID %lu) %s\r\n"
+              "========================================\r\n",
+              st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+              GetCurrentProcessId(), pszCategory);
+    DWORD cbWritten;
+    WriteFile(hFile, szHeader, (DWORD)lstrlenA(szHeader), &cbWritten, NULL);
+    if (pszBody && *pszBody)
+        WriteFile(hFile, (LPCVOID)pszBody, (DWORD)lstrlenA((LPSTR)pszBody), &cbWritten, NULL);
+    CloseHandle(hFile);
+}
+
 /***************************************************************************
     WinMain for any frame work app. Sets up vwig and calls FrameMain.
 ***************************************************************************/
@@ -957,6 +990,27 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     {
         OutputDebugString(stn2.Psz());
         OutputDebugString(PszLit("\n"));
+    }
+
+    // Mirror the assertion to %TEMP%\3dmmforever-crash.txt so it can be read
+    // off-screen later. Uses a transient String buffer to fit the body (msg +
+    // optional stn1 + optional stn2) into one log entry.
+    {
+        String stnLog;
+        stnLog = stn0;
+        if (stn1.Cch() > 0)
+        {
+            stnLog.FAppendSz(PszLit("\r\n"));
+            stnLog.FAppendStn(&stn1);
+        }
+        if (stn2.Cch() > 0)
+        {
+            stnLog.FAppendSz(PszLit("\r\n"));
+            stnLog.FAppendStn(&stn2);
+        }
+        SZS szsLog;
+        stnLog.GetSzs(szsLog);
+        AppendCrashLog("ASSERT", szsLog);
     }
 
     if (LwThreadCur() != vwig.lwThreadMain)
