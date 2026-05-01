@@ -14,16 +14,18 @@
 #ifndef BKGD_H
 #define BKGD_H
 
+#include <cstdint>
+
 /****************************************
     Background on file
 ****************************************/
 struct BackgroundFile
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     byte bIndexBase;
     byte bPad;
-    short swPad;
+    int16_t swPad;
 };
 static_assert(sizeof(BackgroundFile) == 8, "BackgroundFile on-disk layout drift");
 const ByteOrderMask kbomBkgdf = 0x50000000;
@@ -36,7 +38,7 @@ struct LightPosition
 {
     BMAT34 bmat34;
     BRS rIntensity;
-    long lt; // light type
+    int32_t lt; // light type
 };
 static_assert(sizeof(LightPosition) == 56, "LightPosition on-disk layout drift");
 const ByteOrderMask kbomLite = 0xfffffff0;
@@ -56,12 +58,12 @@ typedef union _apos {
 
 struct CameraPosition
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     BRS zrHither; // Hither (near) plane
     BRS zrYon;    // Yon (far) plane
     BRA aFov;     // Field of view
-    short swPad;
+    int16_t swPad;
     APOS apos;
     BMAT34 bmat34Cam; // Camera view matrix
     // APOS rgapos[];
@@ -89,9 +91,9 @@ const ByteOrderMask kbomCam = BomField(
 // BackgroundDefaultSoundOnFile below for the wire format.
 struct BackgroundDefaultSound
 {
-    short bo;
-    short osk;
-    long vlm;
+    int16_t bo;
+    int16_t osk;
+    int32_t vlm;
     bool fLoop;
     TAG tagSnd;
 };
@@ -100,9 +102,9 @@ struct BackgroundDefaultSound
 // blck.FReadRgb / blck.FWrite boundary in bkgd.cpp.
 struct BackgroundDefaultSoundOnFile
 {
-    short bo;
-    short osk;
-    long vlm;
+    int16_t bo;
+    int16_t osk;
+    int32_t vlm;
     bool fLoop;
     TAGOnFile tagSnd;
 };
