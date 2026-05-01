@@ -125,14 +125,14 @@ Types surfaced during the 2026-05-01 sized-types audit that survived earlier pas
 - `CC → ChidCtgPair` — DONE (commit `c2ef0d1`).
 - `TAGF → CachedTag` — DONE (commit `8ad6292`).
 - `MACTR → RollCallActorEntry` — DONE (commit `5c3c699`). Note: `kbomMactr` left as-is per the convention that `kbom*` symbols reference the wire format.
-- `TBOXH → TextBoxOnFile` — `src/engine/tbox.cpp` — header struct for serialized text boxes. The `OnFile` suffix matches `ActorChunkOnFile`, `ThreeDTextF`, etc.
-- `MUNS → ?` — `src/engine/movie.cpp` — Movie undo class. Verify subclass shape before naming.
-- `TUNT / TUNS / TUNH / TUND / TUNC → TextBoxUndo*` — `src/engine/tbox.cpp` — Text box undo subclasses. Read each `_FUndo`/`_FDo` to figure out what each represents (typing? sizing? hilite? delete? composite?).
-- `TFC → BrowserThumbEntry` — `inc/browser.h:73` — "Browser ThumbFile Cki Struct" per the file comment. 12-byte on-disk struct: bo/osk + 3-way union over `(ctg,cno)` / `(grfontMask,grfont)` / `(ctg,chid)`. Per-thumbnail entry written into thumbnail-browser chunks.
-- `CMG → GokdCnoMap` — `inc/browser.h:807` — comment already says "Gokd Cno Map".
-- `CPS → CelPartSpec` — `inc/tmpl.h:31` — already documented as such in the comment.
+- `TBOXH → TextBoxOnFile` — DONE (commit `e46b5ca`).
+- `MUNS → MovieSceneUndo` — DONE (commit `1b9be5a`).
+- `TUNT/TUNS/TUNH/TUND/TUNC → TextBoxUndo{Type,Size,Hide,Edit,Color}` — DONE (commit `a321645`, bundled — five tightly-related undo subclasses in one file).
+- `TFC → BrowserThumbEntry` — DONE (commit `9aed0d1`; struct definition was bundled into `caddc56`).
+- `CMG → GokdCnoMap` — DONE (commit `caddc56`).
+- `CPS → CelPartSpec` — DONE (commit `b48c24b`).
 - `CEL → AnimationCel` — DONE.
-- `KEYTT → LexerKeywordEntry` — `kauai/src/chcm.h:73` — keyword/token-type lookup-table entry. Pairs a `PZString` keyword (e.g. `"PALETTE"`, `"CURSOR"`) with a `long tt` token-type enum. Used by the chunky-source-file lexer/compiler.
+- `KEYTT → LexerKeywordEntry` — DONE (commit `9cc8fe0`; sitobren straggler in `b48c24b`).
 - `WIG → WindowsAppGlobals` — DONE. Variable `vwig` retained per Hungarian-prefix-in-variable-names convention.
 
 Excluded from this cluster:
