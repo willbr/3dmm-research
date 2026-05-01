@@ -105,6 +105,7 @@ else()
   # C fallbacks for the .ASM functions, used on non-x86.
   target_sources(brender_fw PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/fallback/blockops.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/fallback/fixed_fallback.c"
   )
 endif()
 
@@ -210,9 +211,12 @@ if (BREN_X86)
 else()
   # ZB asm fast paths cover the inner triangle scan-converters
   # (TI8_PIZ, TT15_PIZ, T_PIZA et al). Per-arch fallbacks belong in
-  # the x64 enablement plan; for x86-only this branch is unreachable.
-  message(FATAL_ERROR
-    "brender_zb x64 path not yet implemented -- see follow-on x64 plan")
+  # the x64 enablement plan; on x64 this build is configure-only for
+  # probing kauai/engine LP64 compilation. Linking will fail with
+  # unresolved symbols at the BRender ZB layer.
+  message(WARNING
+    "brender_zb x64 path not yet implemented -- see follow-on x64 plan; "
+    "configure proceeds but link/run will fail")
 endif()
 
 if (MSVC)

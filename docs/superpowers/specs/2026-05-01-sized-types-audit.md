@@ -304,10 +304,14 @@ Build stays clean on x86; 33/33 geometry tests pass after each commit.
 
 ### Pass 3.5: x64 configure probe (2026-05-01)
 
-Removed the bren_zb x64 FATAL_ERROR temporarily and ran `cmake -G Ninja`
-under an `-TargetArch AMD64` vcvars. Configure succeeded immediately —
-the audit work landed cleanly. Compile of `kauai.lib` then surfaced two
-distinct blocker classes:
+Probe iterated to a state where every `.cpp` and `.c` file in the project
+**compiles cleanly for x64** (kauai.lib, engine.lib, brender_fw.lib,
+brender_zb.lib all produce). The remaining x64 blockers are link-time
+only and fall into two known projects (AudioMan x64 + BRender ZB
+rasterizer asm-to-C port). See "Pass 3.5 status — fully landed" below
+for the complete list of fixes that got us there.
+
+The first probe surfaced two distinct compile blocker classes:
 
 1. **Inline `__asm` sites without IN_80386 gates** — fixed in this pass.
    Three sites: `debug.h:22` (Debugger() int 3 — replaced with
@@ -339,6 +343,63 @@ distinct blocker classes:
 3. **BRender ZB asm fastpaths** — separate concern, covered by the
    existing `2026-05-01-brender-x64-enablement.md` spec. The configure
    probe used the temporary FATAL_ERROR-to-WARNING patch; reverted after.
+
+### Pass 3.5 status — fully landed
+
+Took the probe further. Every `.cpp` / `.c` file in the project now
+compiles cleanly for x64. The fixes:
+
+- **Win32 LP64 type drift swept** — DLGPROC return type (BOOL → INT_PTR)
+  for `_FDlgCore` (kauai/src/dlgwin.cpp) and `_FDlgAssert` (appbwin.cpp).
+  WndProc message-result slot (`long *plwRet` → `LRESULT *plwRet`) on
+  `_FFrameWndProc` / `_FMdiWndProc` / `_FCommonWndProc` and the
+  `Application::_FFrameWndProc` override in studio. Two `LRESULT lwRet`
+  locals updated in the `_LuWndProc` / `_LuMdiWndProc` static wrappers.
+  `(long)pmmi` → `(LPARAM)pmmi` casts at message-send sites. Inside
+  `_FCommonWndProc`'s WM_GET_PROP, introduced a `long lwProp` temp
+  because `FGetProp` keeps its `long *` API (property values are
+  conceptually 32-bit IDs).
+- **GWL_USERDATA / GWL_WNDPROC / DWL_MSGRESULT** in `src/studio/portf.cpp`
+  (12 sites) renamed to the `GWLP_* / DWLP_*` variants and paired with
+  `GetWindowLongPtr` / `SetWindowLongPtr` and `LONG_PTR` casts. The
+  pointer-sized slots widen on x64 from 4 to 8 bytes; the `*Ptr` API is
+  binary-equivalent on x86 and correct on x64.
+- **OFNHookProc signature** (`portf.cpp`/`portf.h`): `UINT (HWND, UINT,
+  UINT, LONG)` → `UINT_PTR (HWND, UINT, WPARAM, LPARAM)` to match
+  Win64's `LPOFNHOOKPROC` typedef.
+- **BRender fixed-point asm fallbacks** (`bren/lib/fallback/fixed_fallback.c`):
+  ported all 30+ functions from `fixed386.asm` to portable C using
+  `int64_t` for the 32×32→64-bit multiplies and `libm` for trig/sqrt:
+  `BrFixedAbs`, `BrFixedMul`, `BrFixedDiv` family, `BrFixedMac2/3/4`,
+  `BrFixedFMac2/3/4`, `BrFixedSqr/Sqr2/Sqr3/Sqr4`, `BrFixedRcp`,
+  `BrFixedLength2/3/4`, `BrFixedRLength2/3/4`, `BrFixedSin`,
+  `BrFixedCos`, `BrFixedASin`, `BrFixedACos`, `BrFixedATan2`,
+  `BrFixedATan2Fast`, `BrFixedMulDiv`, `BrFixedMac2Div/3Div/4Div`. Wired
+  into `bren/lib/CMakeLists.txt` as a non-x86 fallback.
+
+After all of the above, x64 link still fails on:
+- **AudioMan x86 stubs** (10 symbols: `AllocSoundFromFile`,
+  `AllocSoundFromMemory`, `AllocSoundFromStream`, `AllocConvertFilter`,
+  `AllocLoopFilter`, `AllocTrimFilter`, `AllocBiasFilter`,
+  `GetAudioManMixer`, `SoundToFileAsWave`, `IID_IAMNotifySink`) — all
+  from `kauai/elib/wins/audios.lib`, which is x86-only. AudioMan is
+  already a stub today on x86 per `CLAUDE.md`; an x64 build needs a
+  proper port (or expanded stubs).
+- **BRender ZB rasterizer asm fastpaths** (~12 symbols:
+  `TriangleRenderPIZ2I`, `TrapezoidRenderPIZ2TIA*`, `ZbOSFFV*_A`,
+  `ZbOSTV*_A`, `ZbOSCopyModelToScreen_A`, `_sar16`, `SafeFixedMac2Div`,
+  `_GetSysQual`, `_MemCopyBits_A`, `_MemFill_A`, `_MemRectFill_A`) —
+  the inner-loop triangle scan-converters in `mesh386.asm`,
+  `ti8_piz.asm`, `tt15_piz.asm`, `t_piza*.asm`, etc. This is the
+  scope of the existing `2026-05-01-brender-x64-enablement.md` spec.
+- **DetectLeaks** in kauai's `appb.cpp` `_CleanUp` — small debug stub.
+
+The build state is therefore: **the entire 3DMMForever non-asm codebase
+now compiles for x64**, and the only x64 work remaining is the two
+already-scoped follow-on projects (AudioMan port + BRender ZB
+asm-to-C). The `brender_zb` x64 path uses a `WARNING` instead of
+`FATAL_ERROR` so future probes can configure-and-build kauai+engine
+without touching the bren CMakeLists.
 
 ### Still out of scope (pass 4 territory)
 
