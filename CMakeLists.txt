@@ -21,6 +21,7 @@ include(CMakeDependentOption)
 include(TargetChompSources)
 
 find_package(AudioMan)
+add_subdirectory(bren/lib)
 find_package(BRender REQUIRED)
 
 # Options
