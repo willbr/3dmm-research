@@ -250,16 +250,26 @@ STATIC struct zb_material_type mat_types_index_8[] = {
 		IDENT("Smooth shading"),
 		BR_MATF_SMOOTH, BR_MATF_SMOOTH,
 		0, 0, 0,
-		ZbRenderFaceGroup_FaceIV, TriangleRenderPIZ2TIA, LineRenderPIZ2TI, PointRenderPIZ2TI,
-//		ZbRenderFaceGroup, TriangleRenderPIZ2I, LineRenderPIZ2I, PointRenderPIZ2,
+		// Was set to the textured renderers in the 1.1.2 snapshot, but the
+		// original Argonaut elib (and the commented-out alternative below)
+		// uses the non-textured PIZ2I family here. The textured variants
+		// dereference zb.material->colour_map unconditionally and crash on
+		// any material without a texture map.
+		ZbRenderFaceGroup, TriangleRenderPIZ2I, LineRenderPIZ2I, PointRenderPIZ2,
+//		ZbRenderFaceGroup_FaceIV, TriangleRenderPIZ2TIA, LineRenderPIZ2TI, PointRenderPIZ2TI,
 		CM_COORDS | CM_I, CM_I,
 	},
 	{
 		IDENT("Flat shading"),
 		0, 0,
 		0, 0, 0,
-//		ZbRenderFaceGroup_FaceI, TriangleRenderPIZ2, LineRenderPIZ2I, PointRenderPIZ2,
-		ZbRenderFaceGroup_FaceIV, TriangleRenderPIZ2TIA, LineRenderPIZ2TI, PointRenderPIZ2TI,
+		// Same fix as above: this is the catch-all (mask=0, match=0) and
+		// must use the non-textured renderers to avoid colour_map deref.
+		// Note: TriangleRenderPIZ2 (the proper flat-shading variant) is
+		// `if 0`'d out in ti8_piz.asm in this 1.1.2 snapshot, so we use the
+		// smooth-capable PIZ2I -- it handles flat as a degenerate case.
+		ZbRenderFaceGroup, TriangleRenderPIZ2I, LineRenderPIZ2I, PointRenderPIZ2,
+//		ZbRenderFaceGroup_FaceIV, TriangleRenderPIZ2TIA, LineRenderPIZ2TI, PointRenderPIZ2TI,
 //		ZbRenderFaceGroup, TriangleRender_Null, LineRender_Null, PointRender_Null,
 		CM_COORDS, 0,
 	},
