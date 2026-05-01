@@ -467,9 +467,9 @@ void DumpRollcall(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError)
                 // _DumpBsf(2);
 
                 printf(", {\n");
-                printf("\t\t\tarid=%ld,\n", mactr.arid);
-                printf("\t\t\tcactRef=%ld,\n", mactr.cactRef);
-                printf("\t\t\tgrfbrws=%lu,\n", mactr.grfbrws);
+                printf("\t\t\tarid=%d,\n", mactr.arid);
+                printf("\t\t\tcactRef=%d,\n", mactr.cactRef);
+                printf("\t\t\tgrfbrws=%u,\n", mactr.grfbrws);
 
                 {
                     printf("\t\t\tTAG(\n");
@@ -622,10 +622,10 @@ void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
     pggaev->GetFixed(iaev, &aev);
 
     printf("%*.sActorEvent(\n", indent, "");
-    printf("%*.s\tnfrm=%ld,\n", indent, "", aev.nfrm);
+    printf("%*.s\tnfrm=%d,\n", indent, "", aev.nfrm);
     printf("%*.s\trtel.irpt=%d,\n", indent, "", aev.rtel.irpt);
     printf("%*.s\trtel.dwrOffset=%ld,\n", indent, "", aev.rtel.dwrOffset);
-    printf("%*.s\trtel.dnfrm=%ld,\n", indent, "", aev.rtel.dnfrm);
+    printf("%*.s\trtel.dnfrm=%d,\n", indent, "", aev.rtel.dnfrm);
 
     indent += 8;
 
@@ -1160,7 +1160,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                 // pggsevFrm->Get(isevStart, &sev);
                 sev = *(PSEV)pggsevStart->QvFixedGet(isevStart);
                 printf("\tSceneEvent(\n");
-                printf("\t\tnfrm=%lu,\n", sev.nfrm);
+                printf("\t\tnfrm=%d,\n", sev.nfrm);
 
                 switch (sev.sevt) {
                     case sevtAddActr:
