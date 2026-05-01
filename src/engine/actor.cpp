@@ -1138,7 +1138,7 @@ bool Actor::_FDoAevCore(long iaev)
         break;
 
     case aetFreeze:
-        long fFrozen; //_fFrozen is a bit
+        int32_t fFrozen; //_fFrozen is a bit
         _pggaev->Get(iaev, &fFrozen);
         _fFrozen = FPure(fFrozen);
         break;
@@ -2246,7 +2246,7 @@ bool Actor::_FFreeze(void)
 {
     AssertThis(0);
 
-    long faevfrz = (long)fTrue;
+    int32_t faevfrz = (int32_t)fTrue;
     return _FAddDoAev(aetFreeze, kcbVarFreeze, &faevfrz);
 }
 
@@ -2259,7 +2259,7 @@ bool Actor::_FFreeze(void)
 bool Actor::_FUnfreeze(void)
 {
     AssertThis(0);
-    long faevfrz = (long)fFalse;
+    int32_t faevfrz = (int32_t)fFalse;
     return _FAddDoAev(aetFreeze, kcbVarFreeze, &faevfrz);
 }
 
@@ -4220,7 +4220,7 @@ bool Actor::_FComputeLifetime(long *pnfrmLast)
                 break;
 
             case aetFreeze:
-                long ffriz;
+                int32_t ffriz;
                 _pggaev->Get(iaev, &ffriz);
                 fFrozen = FPure(ffriz);
                 break;
@@ -5692,7 +5692,7 @@ void Actor::AssertValid(ulong grfobj)
             case aetSnd:
                 break;
             case aetFreeze: {
-                long faevfrz;
+                int32_t faevfrz;
                 _pggaev->Get(iaev, &faevfrz);
                 Assert(_pggaev->Cb(iaev) == kcbVarFreeze, "Corrupt size in event list");
                 break;
