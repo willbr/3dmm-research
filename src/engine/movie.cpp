@@ -162,8 +162,8 @@ const short kcvnMin = 1;
 //
 struct MovieFilePrefix
 {
-    short bo;  // byte order
-    short osk; // which system wrote this
+    int16_t bo;       // byte order
+    int16_t osk;      // which system wrote this
     DataVersion dver; // chunky file version
 };
 static_assert(sizeof(MovieFilePrefix) == 8, "MovieFilePrefix on-disk layout drift");
@@ -178,9 +178,9 @@ const ByteOrderMask kbomMfp = 0x55000000;
 //
 struct RollCallActorEntry
 {
-    long arid;
-    long cactRef;
-    ulong grfbrws; // browser properties
+    int32_t arid;
+    int32_t cactRef;
+    uint32_t grfbrws; // browser properties
     TAG tagTmpl;
 };
 
@@ -190,9 +190,9 @@ typedef RollCallActorEntry *PRollCallActorEntry;
 // because TAGOnFile is fixed-width. This is what lands in the GST on disk.
 struct RollCallActorEntryOnFile
 {
-    long arid;
-    long cactRef;
-    ulong grfbrws;
+    int32_t arid;
+    int32_t cactRef;
+    uint32_t grfbrws;
     TAGOnFile tagTmpl;
 };
 static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile wire format drift");
