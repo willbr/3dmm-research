@@ -39,11 +39,11 @@
     into cels, where each cel describes the position of each body part of
     the actor at one step or phase of the action.  After reaching the last
     cel, the action loops around to the beginning cel and repeats.  Cels
-    consist of a list of cel part specs (CPS).  Each CPS refers to a single
-    body part of an actor, such as a leg or head.  The CPS tells what
+    consist of a list of cel part specs (CelPartSpec).  Each CelPartSpec refers to a single
+    body part of an actor, such as a leg or head.  The CelPartSpec tells what
     BRender model to use for the body part for this cel and what matrix to
     use to orient it to its parent body part.  Each time the cel number is
-    changed, Template reads each CPS of the new cel and updates each body part
+    changed, Template reads each CelPartSpec of the new cel and updates each body part
     to use the new model and transformation matrix.
 
     About the GGCM: it is indexed by body part set, and tells how many
@@ -171,7 +171,7 @@ bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber 
     if (pvNil == _pggcel)
         return fFalse;
     AssertBomRglw(kbomCel, size(AnimationCel));
-    AssertBomRgsw(kbomCps, size(CPS));
+    AssertBomRgsw(kbomCps, size(CelPartSpec));
     if (kboOther == bo)
     {
         for (icel = 0; icel < _pggcel->IvMac(); icel++)
@@ -236,16 +236,16 @@ void ActionDefinition::GetCel(long icel, AnimationCel *pcel)
 }
 
 /***************************************************************************
-    Get a CPS
+    Get a CelPartSpec
 ***************************************************************************/
-void ActionDefinition::GetCps(long icel, long icps, CPS *pcps)
+void ActionDefinition::GetCps(long icel, long icps, CelPartSpec *pcps)
 {
     AssertThis(0);
     AssertIn(icel, 0, Ccel());
-    AssertIn(icps, 0, _pggcel->Cb(icel) / size(CPS));
+    AssertIn(icps, 0, _pggcel->Cb(icel) / size(CelPartSpec));
     AssertVarMem(pcps);
 
-    CPS *prgcps = (CPS *)_pggcel->QvGet(icel);
+    CelPartSpec *prgcps = (CelPartSpec *)_pggcel->QvGet(icel);
     *pcps = prgcps[icps];
 }
 
@@ -674,7 +674,7 @@ bool Template::FSetActnCel(Body *pbody, long anid, long celn, BRS *pdwr)
     AnimationCel cel;
     short ibprt;
     long cbprt = _pglibactPar->IvMac();
-    CPS cps;
+    CelPartSpec cps;
     PModel *prgpmodl = pvNil;
     BMAT34 bmat34;
     bool fRet = fFalse;

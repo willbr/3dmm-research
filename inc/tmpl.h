@@ -28,16 +28,16 @@ using namespace BRender;
     xfrm to apply to a body part for
     one cel
 ****************************************/
-struct CPS
+struct CelPartSpec
 {
     short chidModl; // ChildChunkID (under Template chunk) of model for this body part
     short imat34;   // index into ActionDefinition's DynamicArray of transforms
 };
-static_assert(sizeof(CPS) == 4, "CPS on-disk layout drift");
+static_assert(sizeof(CelPartSpec) == 4, "CelPartSpec on-disk layout drift");
 const ByteOrderMask kbomCps = 0x50000000;
 
 /****************************************
-    Cel: tells what CPS's to apply to an
+    Cel: tells what CelPartSpec's to apply to an
     actor for one cel.  It also tells
     what sound to play (if any), and how
     far the actor should move from the
@@ -47,7 +47,7 @@ struct AnimationCel
 {
     ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ActionDefinition chunk)
     BRS dwr;      // distance from previous cel
-                  //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
+                  //	CelPartSpec rgcps[];	// list of cel part specs (variable part of pggcel)
 };
 static_assert(sizeof(AnimationCel) == 8, "AnimationCel on-disk layout drift");
 const ByteOrderMask kbomCel = 0xf0000000;
@@ -125,7 +125,7 @@ class ActionDefinition : public ActionDefinition_PAR
         return _pggcel->IvMac();
     }
     void GetCel(long icel, AnimationCel *pcel);
-    void GetCps(long icel, long icps, CPS *pcps);
+    void GetCps(long icel, long icps, CelPartSpec *pcps);
     void GetMatrix(long imat34, BMAT34 *pbmat34);
     void GetSnd(long icel, PTAG ptagSnd);
 };

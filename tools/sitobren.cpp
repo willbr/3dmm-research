@@ -422,7 +422,7 @@ void S2B::AssertValid(ulong grf)
     AssertNilOrPo(_pglpbmatdb, grf);
 #endif /* HASH_FIXED */
     AssertValidBmhr(_pbmhr);
-    AssertNilOrPvCb(_prgcps, size(CPS) * _cMesh);
+    AssertNilOrPvCb(_prgcps, size(CelPartSpec) * _cMesh);
 }
 
 void S2BLX::AssertValid(ulong grf)
@@ -1130,7 +1130,7 @@ bool S2B::_FDoTtActionS2B(void)
             if (_mdVerbose > kmdHelpful || (iCel + dCel >= cCel))
                 printf("Found %d mesh nodes, totalling %d polygons\n", _cMesh, _cFace);
         }
-        cbrgcps = size(CPS) * _cMesh;
+        cbrgcps = size(CelPartSpec) * _cMesh;
         fSuccess = fFalse;
 
         if (FAllocPv((void **)&_prgcps, cbrgcps, fmemNil, mprNormal))
@@ -1149,7 +1149,7 @@ bool S2B::_FDoTtActionS2B(void)
             FreePpv((void **)&_prgcps);
         }
         else
-            printf("Couldn't create CPS array -- OOM\n");
+            printf("Couldn't create CelPartSpec array -- OOM\n");
 
         if (!fSuccess)
         {
@@ -3085,7 +3085,7 @@ bool S2B::_FProcessBmhr(PBMHR *ppbmhr, short ibpPar)
                 goto LFail; // _FSetCps already displayed the error
         }
         else
-            Assert(_prgcps == pvNil, "Why is there an array of CPS allocated?");
+            Assert(_prgcps == pvNil, "Why is there an array of CelPartSpec allocated?");
 
         /* Update or verify GLPI */
         if (_fMakeGlpi)
@@ -3948,14 +3948,14 @@ LFail:
 |
 |	Arguments:
 |		PBMHR pbmhr -- pointer to Brender mode hierarchy node to use
-|		CPS *pcps -- pointer to CPS to fill in
+|		CelPartSpec *pcps -- pointer to CelPartSpec to fill in
 |
 |	Returns:
 |		fTrue if it was successful, fFalse otherwise
 |	Keywords:
 |
 -------------------------------------------------------------PETED-----------*/
-bool S2B::_FSetCps(PBMHR pbmhr, CPS *pcps)
+bool S2B::_FSetCps(PBMHR pbmhr, CelPartSpec *pcps)
 {
     long imat34;
     ChildChunkID chid;
@@ -4530,7 +4530,7 @@ long LwcrngNearestBrclr(BRCLR brclr, PDynamicArray pglclr, PDynamicArray pglcrng
 }
 
 /* Array of keywords known by our simple script interpreter */
-static KEYTT _rgkeyttS2B[] = {"ACTOR",
+static LexerKeywordEntry _rgkeyttS2B[] = {"ACTOR",
                               ttActor,
                               "ACTION",
                               ttActionS2B,
