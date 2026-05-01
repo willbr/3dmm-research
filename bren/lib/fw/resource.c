@@ -55,7 +55,13 @@ struct resource_header {
 #endif
 
 #define RES_BOUNDARY 16
-#define RES_ALIGN(x) ((void *)(((br_uint_32)(x)+(RES_BOUNDARY-1)) & ~(RES_BOUNDARY-1)))
+/* Cast through uintptr_t so the alignment math works on Win64 (LLP64), where
+ * pointers are 8 bytes but the historical (br_uint_32) cast is only 4. The
+ * 32-bit cast silently truncated pointers and ResToUser returned garbage --
+ * UserToRes would then walk backward through unrelated memory looking for a
+ * non-zero word and AV the moment it crossed an unmapped page. */
+#include <stdint.h>
+#define RES_ALIGN(x) ((void *)(((uintptr_t)(x)+(RES_BOUNDARY-1)) & ~(uintptr_t)(RES_BOUNDARY-1)))
 
 /*
  * Align the resource pointer
