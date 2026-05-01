@@ -110,6 +110,15 @@ target_sources(ut PRIVATE
 )
 target_link_libraries(ut PRIVATE kauai)
 
+# Geometry math tests for kauai's PT, RC, and Region. Pure unit tests
+# (no I/O, no GUI). Regression net for Project 1's sized-types audit:
+# these are the types most likely to be silently miscompiled under LP64.
+add_executable(geometry-test EXCLUDE_FROM_ALL)
+target_sources(geometry-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/tests/geometry_test.cpp"
+)
+target_link_libraries(geometry-test PRIVATE kauai)
+
 add_executable(chomp EXCLUDE_FROM_ALL)
 target_sources(chomp PRIVATE "${PROJECT_SOURCE_DIR}/kauai/tools/chomp.cpp")
 target_include_directories(chomp PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
