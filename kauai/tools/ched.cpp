@@ -9,16 +9,16 @@
 #include "ched.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(APP, APPB)
-ON_CID_GEN(cidNew, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpen, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidNewText, &APP::FCmdOpen, pvNil)
-ON_CID_GEN(cidOpenText, &APP::FCmdOpen, pvNil)
+BEGIN_CMD_MAP(Application, ApplicationBase)
+ON_CID_GEN(cidNew, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpen, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidNewText, &Application::FCmdOpen, pvNil)
+ON_CID_GEN(cidOpenText, &Application::FCmdOpen, pvNil)
 END_CMD_MAP_NIL()
 
-APP vapp;
+Application vapp;
 
-RTCLASS(APP)
+RTCLASS(Application)
 
 /***************************************************************************
     Main for a frame app.
@@ -29,23 +29,23 @@ void FrameMain(void)
 }
 
 /***************************************************************************
-    Initialize the APP - do the command line parsing thing.
+    Initialize the Application - do the command line parsing thing.
 ***************************************************************************/
-bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
-    if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
+    if (!Application_PAR::_FInit(grfapp, grfgob, ginDef))
         return fFalse;
 
 #ifdef WIN
     // parse the command line and load any resource files and help files
-    FNI fni;
-    STN stn;
+    Filename fni;
+    String stn;
     bool fQuote, fScript, fSkip;
-    PDMD pdmd;
-    PDDG pddg;
-    PDOCB pdocb;
+    PDocumentMDIWindow pdmd;
+    PDocumentDisplayGraphicsObject pddg;
+    PDocumentBase pdocb;
     long lw;
-    PSZ psz = vwig.pszCmdLine;
+    PZString psz = vwig.pszCmdLine;
 
     fSkip = fTrue;
     fScript = fFalse;
@@ -96,7 +96,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
             if (!stn.FGetLw(&lw))
                 continue;
 
-            if (pvNil == (pdmd = DMD::PdmdTop()))
+            if (pvNil == (pdmd = DocumentMDIWindow::PdmdTop()))
                 continue;
             if (pvNil == (pddg = pdmd->Pdocb()->PddgActive()) || !pddg->FIs(kclsDCD))
             {
@@ -109,12 +109,12 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         if (!fni.FBuildFromPath(&stn) || fni.Ftg() == kftgDir)
             continue;
 
-        if (pvNil != (pdocb = DOCB::PdocbFromFni(&fni)))
+        if (pvNil != (pdocb = DocumentBase::PdocbFromFni(&fni)))
         {
             pdocb->ActivateDmd();
             continue;
         }
-        if (pvNil == (pdocb = (PDOCB)DOC::PdocNew(&fni)))
+        if (pvNil == (pdocb = (PDocumentBase)DOC::PdocNew(&fni)))
             continue;
         pdocb->PdmdNew();
         ReleasePpo(&pdocb);
@@ -126,14 +126,14 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 /***************************************************************************
     Get the name for the frame tester app.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void Application::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
 #ifdef UNICODE
-    STN stnDate;
-    STN stnTime;
+    String stnDate;
+    String stnTime;
 
     stnDate.SetSzs(__DATE__);
     stnTime.SetSzs(__TIME__);
@@ -147,25 +147,25 @@ void APP::GetStnAppName(PSTN pstn)
     Update the given window.  *prc is the bounding rectangle of the update
     region.
 ***************************************************************************/
-void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void Application::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
-    if (pvNil == (pgob = GOB::PgobFromHwnd(hwnd)))
+    if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
 
     // for script windows, do offscreen updating
     if (pgob->FIs(kclsTSCG))
         grfapp |= fappOffscreen;
 
-    APP_PAR::UpdateHwnd(hwnd, prc, grfapp);
+    Application_PAR::UpdateHwnd(hwnd, prc, grfapp);
 }
 
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APP::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void Application::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -175,18 +175,18 @@ void APP::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
     if (pgob->FIs(kclsTSCG))
         grfapp |= fappOffscreen;
 
-    APP_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
+    Application_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
 }
 
 /***************************************************************************
     Open an existing or new chunky file for editing.
     Handles cidNew and cidOpen.
 ***************************************************************************/
-bool APP::FCmdOpen(PCMD pcmd)
+bool Application::FCmdOpen(PCommand pcmd)
 {
-    FNI fni;
-    FNI *pfni;
-    PDOCB pdocb;
+    Filename fni;
+    Filename *pfni;
+    PDocumentBase pdocb;
 
     pfni = pvNil;
     switch (pcmd->cid)
@@ -202,14 +202,14 @@ bool APP::FCmdOpen(PCMD pcmd)
             return fTrue;
         }
         pfni = &fni;
-        if (pvNil != (pdocb = DOCB::PdocbFromFni(&fni)))
+        if (pvNil != (pdocb = DocumentBase::PdocbFromFni(&fni)))
         {
             pdocb->ActivateDmd();
             return fTrue;
         }
         // fall through
     case cidNew:
-        pdocb = (PDOCB)DOC::PdocNew(pfni);
+        pdocb = (PDocumentBase)DOC::PdocNew(pfni);
         break;
 
     case cidOpenText:
@@ -219,14 +219,14 @@ bool APP::FCmdOpen(PCMD pcmd)
             return fTrue;
         }
         pfni = &fni;
-        if (pvNil != (pdocb = DOCB::PdocbFromFni(&fni)))
+        if (pvNil != (pdocb = DocumentBase::PdocbFromFni(&fni)))
         {
             pdocb->ActivateDmd();
             return fTrue;
         }
         // fall through
     case cidNewText:
-        pdocb = (PDOCB)CHTXD::PchtxdNew(pfni, pvNil, oskNil);
+        pdocb = (PDocumentBase)CHTXD::PchtxdNew(pfni, pvNil, oskNil);
         break;
     }
 

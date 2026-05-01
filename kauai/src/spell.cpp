@@ -12,19 +12,19 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(SPLC)
+RTCLASS(SpellChecker)
 
 /***************************************************************************
     Constructor for the spell checker.
 ***************************************************************************/
-SPLC::SPLC(void)
+SpellChecker::SpellChecker(void)
 {
 }
 
 /***************************************************************************
     Destructor for the spell checker.
 ***************************************************************************/
-SPLC::~SPLC(void)
+SpellChecker::~SpellChecker(void)
 {
     AssertThis(0);
 
@@ -46,12 +46,12 @@ SPLC::~SPLC(void)
 /***************************************************************************
     Static method to create a new spell checker.
 ***************************************************************************/
-PSPLC SPLC::PsplcNew(SC_LID sclid, PSTN pstnCustom)
+PSpellChecker SpellChecker::PsplcNew(SC_LID sclid, PString pstnCustom)
 {
-    PSPLC psplc;
+    PSpellChecker psplc;
     AssertNilOrPo(pstnCustom, 0);
 
-    if (pvNil == (psplc = NewObj SPLC))
+    if (pvNil == (psplc = NewObj SpellChecker))
         return pvNil;
 
     if (!psplc->_FInit(sclid, pstnCustom))
@@ -65,13 +65,13 @@ PSPLC SPLC::PsplcNew(SC_LID sclid, PSTN pstnCustom)
     Initializes the spell checker - finds the dll, loads the default
     dictionary.
 ***************************************************************************/
-bool SPLC::_FInit(SC_LID sclid, PSTN pstnCustom)
+bool SpellChecker::_FInit(SC_LID sclid, PString pstnCustom)
 {
     AssertThis(0);
     AssertNilOrPo(pstnCustom, 0);
 
     SC_WSC wsc;
-    FNI fni;
+    Filename fni;
 
     if (!_FEnsureDll(sclid))
         return fFalse;
@@ -98,7 +98,7 @@ bool SPLC::_FInit(SC_LID sclid, PSTN pstnCustom)
 /***************************************************************************
     Find the spelling dll and link the functions we need.
 ***************************************************************************/
-bool SPLC::_FEnsureDll(SC_LID sclid)
+bool SpellChecker::_FEnsureDll(SC_LID sclid)
 {
     AssertThis(0);
 
@@ -107,8 +107,8 @@ bool SPLC::_FEnsureDll(SC_LID sclid)
 
     HKEY hkey;
     long cb, lwType;
-    STN stn;
-    SZ sz;
+    String stn;
+    ZString sz;
 
     stn.FFormatSz(PszLit("SOFTWARE\\Microsoft\\Shared Tools\\Proofing Tools") PszLit("\\Spelling\\%d\\Normal"), sclid);
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, stn.Psz(), 0, KEY_QUERY_VALUE, &hkey))
@@ -159,7 +159,7 @@ LError:
 /***************************************************************************
     Find the main dictionary and load it
 ***************************************************************************/
-bool SPLC::_FEnsureMainDict(SC_LID sclid, PFNI pfni)
+bool SpellChecker::_FEnsureMainDict(SC_LID sclid, PFilename pfni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, 0);
@@ -167,8 +167,8 @@ bool SPLC::_FEnsureMainDict(SC_LID sclid, PFNI pfni)
 #ifdef WIN
     HKEY hkey;
     long cb, lwType;
-    STN stn;
-    SZ sz;
+    String stn;
+    ZString sz;
 
     stn.FFormatSz(PszLit("SOFTWARE\\Microsoft\\Shared Tools\\Proofing Tools") PszLit("\\Spelling\\%d\\Normal"), sclid);
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, stn.Psz(), 0, KEY_QUERY_VALUE, &hkey))
@@ -187,7 +187,7 @@ bool SPLC::_FEnsureMainDict(SC_LID sclid, PFNI pfni)
 
     if (pvNil != pfni)
     {
-        STN stn = sz;
+        String stn = sz;
 
         if (!pfni->FBuildFromPath(&stn))
             goto LError;
@@ -213,7 +213,7 @@ LError:
 /***************************************************************************
     Find the main dictionary and load it
 ***************************************************************************/
-bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFNI pfniDef)
+bool SpellChecker::_FEnsureUserDict(PString pstnCustom, PFilename pfniDef)
 {
     AssertThis(0);
     AssertPo(pstnCustom, 0);
@@ -221,9 +221,9 @@ bool SPLC::_FEnsureUserDict(PSTN pstnCustom, PFNI pfniDef)
 #ifdef WIN
     HKEY hkey;
     long cb, lwType;
-    SZ sz;
-    STN stn;
-    FNI fni;
+    ZString sz;
+    String stn;
+    Filename fni;
 
     if (ERROR_SUCCESS != RegOpenKeyEx(HKEY_LOCAL_MACHINE, PszLit("SOFTWARE\\Microsoft\\Shared Tools Location"), 0,
                                       KEY_QUERY_VALUE, &hkey))
@@ -273,7 +273,7 @@ LError:
 /***************************************************************************
     Load a particular dictionary given its path.
 ***************************************************************************/
-bool SPLC::_FLoadDictionary(SC_LID sclid, PSZ psz, SC_MDRS *pmdrs)
+bool SpellChecker::_FLoadDictionary(SC_LID sclid, PZString psz, SC_MDRS *pmdrs)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -296,7 +296,7 @@ bool SPLC::_FLoadDictionary(SC_LID sclid, PSZ psz, SC_MDRS *pmdrs)
 /***************************************************************************
     Load a particular user dictionary given its path.
 ***************************************************************************/
-bool SPLC::_FLoadUserDictionary(PSZ psz, SC_UDR *pudr, bool fCreate)
+bool SpellChecker::_FLoadUserDictionary(PZString psz, SC_UDR *pudr, bool fCreate)
 {
     AssertThis(0);
     AssertSz(psz);
@@ -320,7 +320,7 @@ bool SPLC::_FLoadUserDictionary(PSZ psz, SC_UDR *pudr, bool fCreate)
 /***************************************************************************
     Set spelling options.
 ***************************************************************************/
-bool SPLC::FSetOptions(ulong grfsplc)
+bool SpellChecker::FSetOptions(ulong grfsplc)
 {
     AssertThis(0);
 
@@ -339,7 +339,7 @@ bool SPLC::FSetOptions(ulong grfsplc)
 /***************************************************************************
     Check the spelling of stuff in the given buffer.
 ***************************************************************************/
-bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PSTN pstnReplace, long *pscrs)
+bool SpellChecker::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PString pstnReplace, long *pscrs)
 {
     AssertThis(0);
     AssertIn(cch, 0, ksuMax);
@@ -352,7 +352,7 @@ bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PS
     SC_SIB sib;
     SC_SRB srb;
     SC_SEC sec;
-    SZ sz;
+    ZString sz;
     byte bRate;
 
     pstnReplace->SetNil();
@@ -405,7 +405,7 @@ bool SPLC::FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PS
 /***************************************************************************
     Get the istn'th suggestion for the given word.
 ***************************************************************************/
-bool SPLC::FSuggest(achar *prgch, long cch, bool fFirst, PSTN pstn)
+bool SpellChecker::FSuggest(achar *prgch, long cch, bool fFirst, PString pstn)
 {
     AssertThis(0);
     AssertIn(cch, 1, ksuMax);
@@ -483,7 +483,7 @@ bool SPLC::FSuggest(achar *prgch, long cch, bool fFirst, PSTN pstn)
 /***************************************************************************
     Add this word to the ignore all list.
 ***************************************************************************/
-bool SPLC::FIgnoreAll(PSTN pstn)
+bool SpellChecker::FIgnoreAll(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -500,7 +500,7 @@ bool SPLC::FIgnoreAll(PSTN pstn)
 /***************************************************************************
     Add this word pair to the change once list.
 ***************************************************************************/
-bool SPLC::FChange(PSTN pstnSrc, PSTN pstnDst, bool fAll)
+bool SpellChecker::FChange(PString pstnSrc, PString pstnDst, bool fAll)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -519,7 +519,7 @@ bool SPLC::FChange(PSTN pstnSrc, PSTN pstnDst, bool fAll)
 /***************************************************************************
     Add this word pair to the user dictionary.
 ***************************************************************************/
-bool SPLC::FAddToUser(PSTN pstn)
+bool SpellChecker::FAddToUser(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -536,7 +536,7 @@ bool SPLC::FAddToUser(PSTN pstn)
 /***************************************************************************
     Add this word to the ignore all list.
 ***************************************************************************/
-void SPLC::FlushIgnoreList(void)
+void SpellChecker::FlushIgnoreList(void)
 {
     AssertThis(0);
 
@@ -552,7 +552,7 @@ void SPLC::FlushIgnoreList(void)
 /***************************************************************************
     Add this word pair to the change once list.
 ***************************************************************************/
-void SPLC::FlushChangeList(bool fAll)
+void SpellChecker::FlushChangeList(bool fAll)
 {
     AssertThis(0);
 
@@ -572,7 +572,7 @@ void SPLC::FlushChangeList(bool fAll)
 /***************************************************************************
     Stub for SpellInit
 ***************************************************************************/
-SC_SEC SPLC::SpellInit(SC_SPLID *psplid, SC_WSC *pwsc)
+SC_SEC SpellChecker::SpellInit(SC_SPLID *psplid, SC_WSC *pwsc)
 {
     AssertThis(0);
 
@@ -588,7 +588,7 @@ SC_SEC SPLC::SpellInit(SC_SPLID *psplid, SC_WSC *pwsc)
 /***************************************************************************
     Stub for SpellOptions
 ***************************************************************************/
-SC_SEC SPLC::SpellOptions(SC_SPLID splid, long grfso)
+SC_SEC SpellChecker::SpellOptions(SC_SPLID splid, long grfso)
 {
     AssertThis(0);
 
@@ -604,7 +604,7 @@ SC_SEC SPLC::SpellOptions(SC_SPLID splid, long grfso)
 /***************************************************************************
     Stub for SpellCheck
 ***************************************************************************/
-SC_SEC SPLC::SpellCheck(SC_SPLID splid, SC_CC sccc, LPSC_SIB psib, LPSC_SRB psrb)
+SC_SEC SpellChecker::SpellCheck(SC_SPLID splid, SC_CC sccc, LPSC_SIB psib, LPSC_SRB psrb)
 {
     AssertThis(0);
 
@@ -620,7 +620,7 @@ SC_SEC SPLC::SpellCheck(SC_SPLID splid, SC_CC sccc, LPSC_SIB psib, LPSC_SRB psrb
 /***************************************************************************
     Stub for SpellTerminate
 ***************************************************************************/
-SC_SEC SPLC::SpellTerminate(SC_SPLID splid, SC_BOOL fForce)
+SC_SEC SpellChecker::SpellTerminate(SC_SPLID splid, SC_BOOL fForce)
 {
     AssertThis(0);
 
@@ -636,7 +636,7 @@ SC_SEC SPLC::SpellTerminate(SC_SPLID splid, SC_BOOL fForce)
 /***************************************************************************
     Stub for SpellOpenMdr
 ***************************************************************************/
-SC_SEC SPLC::SpellOpenMdr(SC_SPLID splid, LPSC_PATH ppath, LPSC_PATH ppathExclude, SC_BOOL fCreateExclude,
+SC_SEC SpellChecker::SpellOpenMdr(SC_SPLID splid, LPSC_PATH ppath, LPSC_PATH ppathExclude, SC_BOOL fCreateExclude,
                           SC_BOOL fCache, SC_LID sclidExpected, LPSC_MDRS pmdrs)
 {
     AssertThis(0);
@@ -653,7 +653,7 @@ SC_SEC SPLC::SpellOpenMdr(SC_SPLID splid, LPSC_PATH ppath, LPSC_PATH ppathExclud
 /***************************************************************************
     Stub for SpellOpenUdr
 ***************************************************************************/
-SC_SEC SPLC::SpellOpenUdr(SC_SPLID splid, LPSC_PATH ppath, SC_BOOL fCreate, SC_WORD udrprop, SC_UDR *pudr,
+SC_SEC SpellChecker::SpellOpenUdr(SC_SPLID splid, LPSC_PATH ppath, SC_BOOL fCreate, SC_WORD udrprop, SC_UDR *pudr,
                           SC_BOOL *pfReadOnly)
 {
     AssertThis(0);
@@ -670,7 +670,7 @@ SC_SEC SPLC::SpellOpenUdr(SC_SPLID splid, LPSC_PATH ppath, SC_BOOL fCreate, SC_W
 /***************************************************************************
     Add a word to the given user dictionary
 ***************************************************************************/
-SC_SEC SPLC::SpellAddUdr(SC_SPLID splid, SC_UDR udr, SC_CHAR *pszAdd)
+SC_SEC SpellChecker::SpellAddUdr(SC_SPLID splid, SC_UDR udr, SC_CHAR *pszAdd)
 {
     AssertThis(0);
 
@@ -686,7 +686,7 @@ SC_SEC SPLC::SpellAddUdr(SC_SPLID splid, SC_UDR udr, SC_CHAR *pszAdd)
 /***************************************************************************
     Add a word pair to the given user dictionary
 ***************************************************************************/
-SC_SEC SPLC::SpellAddChangeUdr(SC_SPLID splid, SC_UDR udr, SC_CHAR *pszAdd, SC_CHAR *pszChange)
+SC_SEC SpellChecker::SpellAddChangeUdr(SC_SPLID splid, SC_UDR udr, SC_CHAR *pszAdd, SC_CHAR *pszChange)
 {
     AssertThis(0);
 
@@ -702,7 +702,7 @@ SC_SEC SPLC::SpellAddChangeUdr(SC_SPLID splid, SC_UDR udr, SC_CHAR *pszAdd, SC_C
 /***************************************************************************
     Stub for SpellClearUdr
 ***************************************************************************/
-SC_SEC SPLC::SpellClearUdr(SC_SPLID splid, SC_UDR udr)
+SC_SEC SpellChecker::SpellClearUdr(SC_SPLID splid, SC_UDR udr)
 {
     AssertThis(0);
 
@@ -718,7 +718,7 @@ SC_SEC SPLC::SpellClearUdr(SC_SPLID splid, SC_UDR udr)
 /***************************************************************************
     Stub for SpellCloseMdr
 ***************************************************************************/
-SC_SEC SPLC::SpellCloseMdr(SC_SPLID splid, LPSC_MDRS pmdrs)
+SC_SEC SpellChecker::SpellCloseMdr(SC_SPLID splid, LPSC_MDRS pmdrs)
 {
     AssertThis(0);
 
@@ -734,7 +734,7 @@ SC_SEC SPLC::SpellCloseMdr(SC_SPLID splid, LPSC_MDRS pmdrs)
 /***************************************************************************
     Stub for SpellCloseUdr
 ***************************************************************************/
-SC_SEC SPLC::SpellCloseUdr(SC_SPLID splid, SC_UDR udr, SC_BOOL fForce)
+SC_SEC SpellChecker::SpellCloseUdr(SC_SPLID splid, SC_UDR udr, SC_BOOL fForce)
 {
     AssertThis(0);
 
@@ -750,19 +750,19 @@ SC_SEC SPLC::SpellCloseUdr(SC_SPLID splid, SC_UDR udr, SC_BOOL fForce)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SPLC.
+    Assert the validity of a SpellChecker.
 ***************************************************************************/
-void SPLC::AssertValid(ulong grf)
+void SpellChecker::AssertValid(ulong grf)
 {
-    SPLC_PAR::AssertValid(0);
+    SpellChecker_PAR::AssertValid(0);
 }
 
 /***************************************************************************
-    Mark memory for the SPLC.
+    Mark memory for the SpellChecker.
 ***************************************************************************/
-void SPLC::MarkMem(void)
+void SpellChecker::MarkMem(void)
 {
     AssertValid(0);
-    SPLC_PAR::MarkMem();
+    SpellChecker_PAR::MarkMem();
 }
 #endif // DEBUG

@@ -13,18 +13,18 @@
 #include "util.h"
 ASSERTNAME
 
-FTG FIL::vftgCreator = '____';
-PFIL FIL::_pfilFirst;
-MUTX FIL::_mutxList;
+FileType FileObject::vftgCreator = '____';
+PFileObject FileObject::_pfilFirst;
+Mutex FileObject::_mutxList;
 
-RTCLASS(FIL)
-RTCLASS(BLCK)
-RTCLASS(MSFIL)
+RTCLASS(FileObject)
+RTCLASS(DataBlock)
+RTCLASS(MessageSinkFile)
 
 /***************************************************************************
     Constructor for a file.
 ***************************************************************************/
-FIL::FIL(FNI *pfni, ulong grffil)
+FileObject::FileObject(Filename *pfni, ulong grffil)
 {
     AssertPo(pfni, ffniFile);
     _fni = *pfni;
@@ -39,7 +39,7 @@ FIL::FIL(FNI *pfni, ulong grffil)
 /***************************************************************************
     Destructor.  This is private.
 ***************************************************************************/
-FIL::~FIL(void)
+FileObject::~FileObject(void)
 {
     // make sure the file is closed.
     _Close(fTrue);
@@ -52,10 +52,10 @@ FIL::~FIL(void)
 /***************************************************************************
     Static method to open an existing file.  Increments the open count.
 ***************************************************************************/
-PFIL FIL::PfilOpen(FNI *pfni, ulong grffil)
+PFileObject FileObject::PfilOpen(Filename *pfni, ulong grffil)
 {
     AssertPo(pfni, ffniFile);
-    PFIL pfil;
+    PFileObject pfil;
 
     Assert(!(grffil & ffilTemp), "can't open a file as temp");
     if (pvNil != (pfil = PfilFromFni(pfni)))
@@ -68,7 +68,7 @@ PFIL FIL::PfilOpen(FNI *pfni, ulong grffil)
         return pfil;
     }
 
-    if ((pfil = NewObj FIL(pfni, grffil)) == pvNil)
+    if ((pfil = NewObj FileObject(pfni, grffil)) == pvNil)
         goto LFail;
 
     if (!pfil->_FOpen(fFalse, grffil))
@@ -86,19 +86,19 @@ PFIL FIL::PfilOpen(FNI *pfni, ulong grffil)
 /***************************************************************************
     Create a new file.  Increments the open count.
 ***************************************************************************/
-PFIL FIL::PfilCreate(FNI *pfni, ulong grffil)
+PFileObject FileObject::PfilCreate(Filename *pfni, ulong grffil)
 {
     AssertPo(pfni, ffniFile);
-    PFIL pfil;
+    PFileObject pfil;
 
-    if (pvNil != (pfil = FIL::PfilFromFni(pfni)))
+    if (pvNil != (pfil = FileObject::PfilFromFni(pfni)))
     {
         Bug("trying to create an open file");
         return pvNil;
     }
 
     grffil |= ffilWriteEnable;
-    if ((pfil = NewObj FIL(pfni, grffil)) == pvNil)
+    if ((pfil = NewObj FileObject(pfni, grffil)) == pvNil)
         goto LFail;
 
     if (!pfil->_FOpen(fTrue, grffil))
@@ -118,10 +118,10 @@ PFIL FIL::PfilCreate(FNI *pfni, ulong grffil)
     the same ftg, or, if pfni is nil, in the standard place with vftgTemp.
     The file is not marked.
 ***************************************************************************/
-PFIL FIL::PfilCreateTemp(FNI *pfni)
+PFileObject FileObject::PfilCreateTemp(Filename *pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
-    FNI fni;
+    Filename fni;
 
     if (pvNil != pfni)
     {
@@ -143,10 +143,10 @@ PFIL FIL::PfilCreateTemp(FNI *pfni)
     If we have the file indicated by fni open, returns the pfil, otherwise
     returns pvNil.  Doesn't affect the open count.
 ***************************************************************************/
-PFIL FIL::PfilFromFni(FNI *pfni)
+PFileObject FileObject::PfilFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    PFIL pfil;
+    PFileObject pfil;
     bool fRet;
 
     _mutxList.Enter();
@@ -168,7 +168,7 @@ PFIL FIL::PfilFromFni(FNI *pfni)
     Set the file flags according to grffil and grffilMask.  Write enabling
     is only set, never cleared.  Same with marking.
 ***************************************************************************/
-bool FIL::FSetGrffil(ulong grffil, ulong grffilMask)
+bool FileObject::FSetGrffil(ulong grffil, ulong grffilMask)
 {
     AssertThis(0);
     bool fRet = fFalse;
@@ -208,7 +208,7 @@ LRet:
     Decrement the open count.  If it is zero and the file isn't marked,
     the file is closed.
 ***************************************************************************/
-void FIL::Release(void)
+void FileObject::Release(void)
 {
     AssertThis(0);
     if (_cactRef <= 0)
@@ -224,7 +224,7 @@ void FIL::Release(void)
 /***************************************************************************
     Get a string representing the path of the file.
 ***************************************************************************/
-void FIL::GetStnPath(PSTN pstn)
+void FileObject::GetStnPath(PString pstn)
 {
     AssertThis(0);
 
@@ -236,7 +236,7 @@ void FIL::GetStnPath(PSTN pstn)
 /***************************************************************************
     Set the temporary status of a file.
 ***************************************************************************/
-void FIL::SetTemp(bool fTemp)
+void FileObject::SetTemp(bool fTemp)
 {
     AssertThis(0);
 
@@ -254,12 +254,12 @@ void FIL::SetTemp(bool fTemp)
     Otherwise, we delete any existing file with the same name.  The rules
     for *pfni are the same as for FRename.
 ***************************************************************************/
-bool FIL::FSetFni(FNI *pfni)
+bool FileObject::FSetFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    PFIL pfilOld;
+    PFileObject pfilOld;
 
-    if (pvNil != (pfilOld = FIL::PfilFromFni(pfni)))
+    if (pvNil != (pfilOld = FileObject::PfilFromFni(pfni)))
     {
         if (this == pfilOld)
             return fTrue;
@@ -281,9 +281,9 @@ bool FIL::FSetFni(FNI *pfni)
 /***************************************************************************
     Static method to clear the marks for files.
 ***************************************************************************/
-void FIL::ClearMarks(void)
+void FileObject::ClearMarks(void)
 {
-    PFIL pfil;
+    PFileObject pfil;
 
     _mutxList.Enter();
     for (pfil = _pfilFirst; pfil != pvNil; pfil = pfil->PfilNext())
@@ -297,9 +297,9 @@ void FIL::ClearMarks(void)
 /***************************************************************************
     Static method to close any files that are unmarked and have 0 open count.
 ***************************************************************************/
-void FIL::CloseUnmarked(void)
+void FileObject::CloseUnmarked(void)
 {
-    PFIL pfil, pfilNext;
+    PFileObject pfil, pfilNext;
 
     _mutxList.Enter();
     for (pfil = _pfilFirst; pfil != pvNil; pfil = pfilNext)
@@ -315,9 +315,9 @@ void FIL::CloseUnmarked(void)
 /***************************************************************************
     Static method to close all files.
 ***************************************************************************/
-void FIL::ShutDown(void)
+void FileObject::ShutDown(void)
 {
-    PFIL pfil;
+    PFileObject pfil;
 
     _mutxList.Enter();
     for (pfil = _pfilFirst; pfil != pvNil; pfil = pfil->PfilNext())
@@ -332,11 +332,11 @@ void FIL::ShutDown(void)
 /***************************************************************************
     Validate a pfil.
 ***************************************************************************/
-void FIL::AssertValid(ulong grf)
+void FileObject::AssertValid(ulong grf)
 {
-    PFIL pfil;
+    PFileObject pfil;
 
-    FIL_PAR::AssertValid(fobjAllocated);
+    FileObject_PAR::AssertValid(fobjAllocated);
 
     _mutx.Enter();
     AssertPo(&_fni, ffniFile);
@@ -365,7 +365,7 @@ priv bool _FRangeIn(long cbTot, long cb, long ib)
 /***************************************************************************
     Read a piece of a flo into pv.
 ***************************************************************************/
-bool FLO::FReadRgb(void *pv, long cbRead, FP dfp)
+bool FileLocation::FReadRgb(void *pv, long cbRead, FilePosition dfp)
 {
     AssertThis(ffloReadable);
 
@@ -383,7 +383,7 @@ bool FLO::FReadRgb(void *pv, long cbRead, FP dfp)
 /***************************************************************************
     Write a piece of a flo from pv.
 ***************************************************************************/
-bool FLO::FWriteRgb(void *pv, long cbWrite, FP dfp)
+bool FileLocation::FWriteRgb(void *pv, long cbWrite, FilePosition dfp)
 {
     AssertThis(0);
 
@@ -401,7 +401,7 @@ bool FLO::FWriteRgb(void *pv, long cbWrite, FP dfp)
 /***************************************************************************
     Copy data from this flo to another.
 ***************************************************************************/
-bool FLO::FCopy(PFLO pfloDst)
+bool FileLocation::FCopy(PFileLocation pfloDst)
 {
     AssertThis(ffloReadable);
     AssertPo(pfloDst, 0);
@@ -445,7 +445,7 @@ LFail:
 /***************************************************************************
     Allocate an hq and read the flo into it.
 ***************************************************************************/
-bool FLO::FReadHq(HQ *phq, long cbRead, FP dfp)
+bool FileLocation::FReadHq(HQ *phq, long cbRead, FilePosition dfp)
 {
     AssertThis(ffloReadable);
     AssertVarMem(phq);
@@ -469,7 +469,7 @@ bool FLO::FReadHq(HQ *phq, long cbRead, FP dfp)
 /***************************************************************************
     Write the contents of an hq to the flo.
 ***************************************************************************/
-bool FLO::FWriteHq(HQ hq, long dfp)
+bool FileLocation::FWriteHq(HQ hq, long dfp)
 {
     AssertThis(0);
     AssertHq(hq);
@@ -492,7 +492,7 @@ bool FLO::FWriteHq(HQ hq, long dfp)
     If the text changes, creates a temp file and redirects the flo to the
     temp file (and releases a ref count on the pfil).
 ***************************************************************************/
-bool FLO::FTranslate(short osk)
+bool FileLocation::FTranslate(short osk)
 {
     AssertThis(0);
     short oskSig;
@@ -502,8 +502,8 @@ bool FLO::FTranslate(short osk)
     void *pvDst;
     long cchDst, cch;
     long cbBlock, cbT;
-    PFIL pfilNew;
-    FP fpSrc, fpDst;
+    PFileObject pfilNew;
+    FilePosition fpSrc, fpDst;
     bool fRet = fFalse;
 
     // look for a unicode byte order signature
@@ -545,7 +545,7 @@ bool FLO::FTranslate(short osk)
     if (osk == koskCur)
         return fTrue;
 
-    if (pvNil == (pfilNew = FIL::PfilCreateTemp()))
+    if (pvNil == (pfilNew = FileObject::PfilCreateTemp()))
         return fFalse;
 
     if (this->cb <= size(rgbSrc) || !FAllocPv(&pvSrc, cbBlock = this->cb, fmemNil, mprForSpeed))
@@ -609,14 +609,14 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert this is a valif FLO.
+    Assert this is a valif FileLocation.
 ***************************************************************************/
-void FLO::AssertValid(ulong grfflo)
+void FileLocation::AssertValid(ulong grfflo)
 {
     AssertPo(pfil, 0);
     AssertIn(fp, 0, kcbMax);
     AssertIn(cb, 0, kcbMax);
-    FP fpMac = pfil->FpMac();
+    FilePosition fpMac = pfil->FpMac();
 
     if (pfil->ElError() < kelSeek)
     {
@@ -630,7 +630,7 @@ void FLO::AssertValid(ulong grfflo)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-BLCK::BLCK(PFLO pflo, bool fPacked)
+DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pflo, 0);
@@ -645,7 +645,7 @@ BLCK::BLCK(PFLO pflo, bool fPacked)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-BLCK::BLCK(PFIL pfil, FP fp, long cb, bool fPacked)
+DataBlock::DataBlock(PFileObject pfil, FilePosition fp, long cb, bool fPacked)
 {
     AssertBaseThis(0);
     AssertPo(pfil, 0);
@@ -663,7 +663,7 @@ BLCK::BLCK(PFIL pfil, FP fp, long cb, bool fPacked)
     Another constructor for a data block.  Assumes ownership of the hq
     (and sets *phq to hqNil).
 ***************************************************************************/
-BLCK::BLCK(HQ *phq, bool fPacked)
+DataBlock::DataBlock(HQ *phq, bool fPacked)
 {
     AssertBaseThis(0);
     AssertVarMem(phq);
@@ -681,7 +681,7 @@ BLCK::BLCK(HQ *phq, bool fPacked)
 /***************************************************************************
     Another constructor for a data block.
 ***************************************************************************/
-BLCK::BLCK(void)
+DataBlock::DataBlock(void)
 {
     AssertBaseThis(0);
     _flo.pfil = pvNil;
@@ -693,7 +693,7 @@ BLCK::BLCK(void)
 /***************************************************************************
     The destructor.
 ***************************************************************************/
-BLCK::~BLCK(void)
+DataBlock::~DataBlock(void)
 {
     AssertThis(0);
     Free();
@@ -702,7 +702,7 @@ BLCK::~BLCK(void)
 /***************************************************************************
     Set the data block to refer to the given flo.
 ***************************************************************************/
-void BLCK::Set(PFLO pflo, bool fPacked)
+void DataBlock::Set(PFileLocation pflo, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pflo, 0);
@@ -717,7 +717,7 @@ void BLCK::Set(PFLO pflo, bool fPacked)
 /***************************************************************************
     Set the data block to refer to the given range on the file.
 ***************************************************************************/
-void BLCK::Set(PFIL pfil, FP fp, long cb, bool fPacked)
+void DataBlock::Set(PFileObject pfil, FilePosition fp, long cb, bool fPacked)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
@@ -735,7 +735,7 @@ void BLCK::Set(PFIL pfil, FP fp, long cb, bool fPacked)
     Set the data block to the given hq.  Assumes ownership of the hq and
     sets *phq to hqNil.
 ***************************************************************************/
-void BLCK::SetHq(HQ *phq, bool fPacked)
+void DataBlock::SetHq(HQ *phq, bool fPacked)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -753,7 +753,7 @@ void BLCK::SetHq(HQ *phq, bool fPacked)
 /***************************************************************************
     Free the block (make it empty).
 ***************************************************************************/
-void BLCK::Free(void)
+void DataBlock::Free(void)
 {
     AssertThis(0);
     ReleasePpo(&_flo.pfil);
@@ -768,7 +768,7 @@ void BLCK::Free(void)
     or had its min or lim moved, the hq returned is the one originally
     passed to the constructor or SetHq.
 ***************************************************************************/
-HQ BLCK::HqFree(bool fPackedOk)
+HQ DataBlock::HqFree(bool fPackedOk)
 {
     AssertThis(0);
     HQ hq;
@@ -809,7 +809,7 @@ HQ BLCK::HqFree(bool fPackedOk)
 /***************************************************************************
     Return the length of the data block.
 ***************************************************************************/
-long BLCK::Cb(bool fPackedOk)
+long DataBlock::Cb(bool fPackedOk)
 {
     AssertThis(fPackedOk ? 0 : fblckUnpacked);
 
@@ -823,10 +823,10 @@ long BLCK::Cb(bool fPackedOk)
 /***************************************************************************
     Create a temporary buffer.
 ***************************************************************************/
-bool BLCK::FSetTemp(long cb, bool fForceFile)
+bool DataBlock::FSetTemp(long cb, bool fForceFile)
 {
     AssertThis(0);
-    PFIL pfil;
+    PFileObject pfil;
 
     if (!fForceFile && cb < (1L << 23) /* 8 MB */)
     {
@@ -840,7 +840,7 @@ bool BLCK::FSetTemp(long cb, bool fForceFile)
         }
     }
 
-    if (pvNil == (pfil = FIL::PfilCreateTemp()))
+    if (pvNil == (pfil = FileObject::PfilCreateTemp()))
         return fFalse;
 
     Set(pfil, 0, cb, _fPacked);
@@ -854,7 +854,7 @@ bool BLCK::FSetTemp(long cb, bool fForceFile)
     end of the block.  Fails if you try to move before the beginning of
     the physical storage or after the lim of the block.
 ***************************************************************************/
-bool BLCK::FMoveMin(long dib)
+bool DataBlock::FMoveMin(long dib)
 {
     AssertThis(0);
 
@@ -883,7 +883,7 @@ bool BLCK::FMoveMin(long dib)
     beginning of the block.  Fails if you try to move before the min of the
     block or after the end of the physical storage.
 ***************************************************************************/
-bool BLCK::FMoveLim(long dib)
+bool DataBlock::FMoveLim(long dib)
 {
     AssertThis(0);
 
@@ -909,7 +909,7 @@ bool BLCK::FMoveLim(long dib)
 /***************************************************************************
     Read a range of bytes from the data block.
 ***************************************************************************/
-bool BLCK::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
+bool DataBlock::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -942,7 +942,7 @@ bool BLCK::FReadRgb(void *pv, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Write a range of bytes to the data block.
 ***************************************************************************/
-bool BLCK::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
+bool DataBlock::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -975,7 +975,7 @@ bool BLCK::FWriteRgb(void *pv, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Read a range of bytes from the data block and put it in an hq.
 ***************************************************************************/
-bool BLCK::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
+bool DataBlock::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -1011,7 +1011,7 @@ bool BLCK::FReadHq(HQ *phq, long cb, long ib, bool fPackedOk)
 /***************************************************************************
     Write an hq to the data block.
 ***************************************************************************/
-bool BLCK::FWriteHq(HQ hq, long ib, bool fPackedOk)
+bool DataBlock::FWriteHq(HQ hq, long ib, bool fPackedOk)
 {
     AssertThis(0);
     AssertHq(hq);
@@ -1045,7 +1045,7 @@ bool BLCK::FWriteHq(HQ hq, long ib, bool fPackedOk)
 /***************************************************************************
     Write the block to a flo.
 ***************************************************************************/
-bool BLCK::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
+bool DataBlock::FWriteToFlo(PFileLocation pfloDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pfloDst, 0);
@@ -1079,7 +1079,7 @@ bool BLCK::FWriteToFlo(PFLO pfloDst, bool fPackedOk)
 /***************************************************************************
     Write this block to another block.
 ***************************************************************************/
-bool BLCK::FWriteToBlck(PBLCK pblckDst, bool fPackedOk)
+bool DataBlock::FWriteToBlck(PDataBlock pblckDst, bool fPackedOk)
 {
     AssertThis(fblckReadable);
     AssertPo(pblckDst, 0);
@@ -1114,7 +1114,7 @@ bool BLCK::FWriteToBlck(PBLCK pblckDst, bool fPackedOk)
 /***************************************************************************
     Get a flo to the data in the block.
 ***************************************************************************/
-bool BLCK::FGetFlo(PFLO pflo, bool fPackedOk)
+bool DataBlock::FGetFlo(PFileLocation pflo, bool fPackedOk)
 {
     AssertThis(0);
     AssertVarMem(pflo);
@@ -1136,7 +1136,7 @@ bool BLCK::FGetFlo(PFLO pflo, bool fPackedOk)
     {
         bool fRet;
 
-        if (pvNil == (pflo->pfil = FIL::PfilCreateTemp()))
+        if (pvNil == (pflo->pfil = FileObject::PfilCreateTemp()))
             goto LFail;
         pflo->fp = 0;
         pflo->cb = _ibLim - _ibMin;
@@ -1162,7 +1162,7 @@ bool BLCK::FGetFlo(PFLO pflo, bool fPackedOk)
     determining the compression type failed, *pcfmt is set to cfmtNil and
     true is returned.
 ***************************************************************************/
-bool BLCK::FPacked(long *pcfmt)
+bool DataBlock::FPacked(long *pcfmt)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcfmt);
@@ -1180,7 +1180,7 @@ bool BLCK::FPacked(long *pcfmt)
     packing format, otherwise use the one specified. If the block is
     already packed, this doesn't change the packing format.
 ***************************************************************************/
-bool BLCK::FPackData(long cfmt)
+bool DataBlock::FPackData(long cfmt)
 {
     AssertThis(0);
     HQ hq;
@@ -1228,7 +1228,7 @@ bool BLCK::FPackData(long cfmt)
 /***************************************************************************
     If the block is packed, unpack it.
 ***************************************************************************/
-bool BLCK::FUnpackData(void)
+bool DataBlock::FUnpackData(void)
 {
     AssertThis(0);
     HQ hq;
@@ -1276,7 +1276,7 @@ bool BLCK::FUnpackData(void)
 /***************************************************************************
     Return the amount of memory the block is using (roughly).
 ***************************************************************************/
-long BLCK::CbMem(void)
+long DataBlock::CbMem(void)
 {
     AssertThis(0);
 
@@ -1287,11 +1287,11 @@ long BLCK::CbMem(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a BLCK.
+    Assert the validity of a DataBlock.
 ***************************************************************************/
-void BLCK::AssertValid(ulong grfblck)
+void DataBlock::AssertValid(ulong grfblck)
 {
-    BLCK_PAR::AssertValid(0);
+    DataBlock_PAR::AssertValid(0);
 
     if (pvNil != _flo.pfil)
     {
@@ -1314,12 +1314,12 @@ void BLCK::AssertValid(ulong grfblck)
 }
 
 /***************************************************************************
-    Mark memory for the BLCK.
+    Mark memory for the DataBlock.
 ***************************************************************************/
-void BLCK::MarkMem(void)
+void DataBlock::MarkMem(void)
 {
     AssertValid(0);
-    BLCK_PAR::MarkMem();
+    DataBlock_PAR::MarkMem();
     MarkHq(_hq);
 }
 #endif // DEBUG
@@ -1327,7 +1327,7 @@ void BLCK::MarkMem(void)
 /***************************************************************************
     Constructor for a file based message sink.
 ***************************************************************************/
-MSFIL::MSFIL(PFIL pfil)
+MessageSinkFile::MessageSinkFile(PFileObject pfil)
 {
     AssertNilOrPo(pfil, 0);
 
@@ -1341,7 +1341,7 @@ MSFIL::MSFIL(PFIL pfil)
 /***************************************************************************
     Destructor for a file based message sink.
 ***************************************************************************/
-MSFIL::~MSFIL(void)
+MessageSinkFile::~MessageSinkFile(void)
 {
     AssertThis(0);
     ReleasePpo(&_pfil);
@@ -1349,20 +1349,20 @@ MSFIL::~MSFIL(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSFIL.
+    Assert the validity of a MessageSinkFile.
 ***************************************************************************/
-void MSFIL::AssertValid(ulong grf)
+void MessageSinkFile::AssertValid(ulong grf)
 {
-    MSFIL_PAR::AssertValid(0);
+    MessageSinkFile_PAR::AssertValid(0);
     AssertNilOrPo(_pfil, 0);
     Assert(_fError || pvNil == _pfil || _fpCur == _pfil->FpMac() || _pfil->ElError() != elNil, "bad _fpCur");
 }
 #endif // DEBUG
 
 /***************************************************************************
-    Set the current file to use for the MSFIL.
+    Set the current file to use for the MessageSinkFile.
 ***************************************************************************/
-void MSFIL::SetFile(PFIL pfil)
+void MessageSinkFile::SetFile(PFileObject pfil)
 {
     AssertThis(0);
     AssertNilOrPo(pfil, 0);
@@ -1386,10 +1386,10 @@ void MSFIL::SetFile(PFIL pfil)
 /***************************************************************************
     Return the output file and give the caller our reference count on it.
 ***************************************************************************/
-PFIL MSFIL::PfilRelease(void)
+PFileObject MessageSinkFile::PfilRelease(void)
 {
     AssertThis(0);
-    PFIL pfil = _pfil;
+    PFileObject pfil = _pfil;
     _pfil = pvNil;
     return pfil;
 }
@@ -1397,7 +1397,7 @@ PFIL MSFIL::PfilRelease(void)
 /***************************************************************************
     Dump a line to the file.
 ***************************************************************************/
-void MSFIL::ReportLine(PSZ psz)
+void MessageSinkFile::ReportLine(PZString psz)
 {
     AssertThis(0);
     AssertNilOrPo(_pfil, 0);
@@ -1413,14 +1413,14 @@ void MSFIL::ReportLine(PSZ psz)
 /***************************************************************************
     Dump some text to the file.
 ***************************************************************************/
-void MSFIL::Report(PSZ psz)
+void MessageSinkFile::Report(PZString psz)
 {
     AssertThis(0);
     AssertNilOrPo(_pfil, 0);
 
     if (pvNil == _pfil)
     {
-        SetFile(FIL::PfilCreateTemp());
+        SetFile(FileObject::PfilCreateTemp());
         if (pvNil == _pfil)
         {
             _fError = fTrue;
@@ -1434,7 +1434,7 @@ void MSFIL::Report(PSZ psz)
 /***************************************************************************
     Return whether there has been an error writing to this message sink.
 ***************************************************************************/
-bool MSFIL::FError(void)
+bool MessageSinkFile::FError(void)
 {
     AssertThis(0);
     return _fError;

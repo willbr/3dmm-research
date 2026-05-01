@@ -8,36 +8,40 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> BKGD
+    BASE ---> BaseCacheableObject ---> Background
 
 ***************************************************************************/
 #ifndef BKGD_H
 #define BKGD_H
 
+#include <cstdint>
+
 /****************************************
     Background on file
 ****************************************/
-struct BKGDF
+struct BackgroundFile
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     byte bIndexBase;
     byte bPad;
-    short swPad;
+    int16_t swPad;
 };
-const BOM kbomBkgdf = 0x50000000;
+static_assert(sizeof(BackgroundFile) == 8, "BackgroundFile on-disk layout drift");
+const ByteOrderMask kbomBkgdf = 0x50000000;
 
 /****************************************
     Specifies a light's kind, position,
     orientation, and brightness
 ****************************************/
-struct LITE
+struct LightPosition
 {
     BMAT34 bmat34;
     BRS rIntensity;
-    long lt; // light type
+    int32_t lt; // light type
 };
-const BOM kbomLite = 0xfffffff0;
+static_assert(sizeof(LightPosition) == 56, "LightPosition on-disk layout drift");
+const ByteOrderMask kbomLite = 0xfffffff0;
 
 /****************************************
     Specifies a camera for a view
@@ -52,20 +56,21 @@ typedef union _apos {
     BVEC3 bvec3Actor;
 } APOS;
 
-struct CAM
+struct CameraPosition
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     BRS zrHither; // Hither (near) plane
     BRS zrYon;    // Yon (far) plane
     BRA aFov;     // Field of view
-    short swPad;
+    int16_t swPad;
     APOS apos;
     BMAT34 bmat34Cam; // Camera view matrix
     // APOS rgapos[];
 };
-const BOM kbomCamOld = 0x5f4fc000;
-const BOM kbomCam = BomField(
+static_assert(sizeof(CameraPosition) == 76, "CameraPosition on-disk layout drift");
+const ByteOrderMask kbomCamOld = 0x5f4fc000;
+const ByteOrderMask kbomCam = BomField(
     kbomSwapShort,
     BomField(kbomSwapShort,
              BomField(kbomSwapLong,
@@ -75,29 +80,44 @@ const BOM kbomCam = BomField(
                                                  BomField(kbomSwapLong,
                                                           BomField(kbomSwapLong, BomField(kbomSwapLong, 0)))))))));
 
-// Note that CAM is too big for a complete kbomCam.  To SwapBytes one,
+// Note that CameraPosition is too big for a complete kbomCam.  To SwapBytes one,
 // SwapBytesBom the cam, then SwapBytesRgLw from bmat34Cam on.
 
 /****************************************
     Background Default Sound
 ****************************************/
-struct BDS
+// Runtime form of the background default sound. Holds a real TAG (with
+// runtime pcrf pointer); never serialized directly. See
+// BackgroundDefaultSoundOnFile below for the wire format.
+struct BackgroundDefaultSound
 {
-    short bo;
-    short osk;
-    long vlm;
+    int16_t bo;
+    int16_t osk;
+    int32_t vlm;
     bool fLoop;
     TAG tagSnd;
 };
-const BOM kbomBds = 0x5f000000 | kbomTag >> 8;
+
+// On-disk form: 28 bytes, TAGOnFile in place of TAG. Convert at the
+// blck.FReadRgb / blck.FWrite boundary in bkgd.cpp.
+struct BackgroundDefaultSoundOnFile
+{
+    int16_t bo;
+    int16_t osk;
+    int32_t vlm;
+    bool fLoop;
+    TAGOnFile tagSnd;
+};
+static_assert(sizeof(BackgroundDefaultSoundOnFile) == 28, "BackgroundDefaultSoundOnFile wire format drift -- must stay 1995-compatible");
+const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
 
 /****************************************
     The background class
 ****************************************/
-typedef class BKGD *PBKGD;
-#define BKGD_PAR BACO
-#define kclsBKGD 'BKGD'
-class BKGD : public BKGD_PAR
+typedef class Background *PBackground;
+#define Background_PAR BaseCacheableObject
+#define kclsBackground 'BKGD'
+class Background : public Background_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -113,34 +133,34 @@ class BKGD : public BKGD_PAR
     long _icam;          // current camera
     BMAT34 _bmat34Mouse; // camera matrix for mouse model
     BRA _braRotY;        // Y rotation of current camera
-    CNO _cnoSnd;         // background sound
-    STN _stn;            // name of this background
-    PGL _pglclr;         // palette for this background
+    ChunkNumber _cnoSnd;         // background sound
+    String _stn;            // name of this background
+    PDynamicArray _pglclr;         // palette for this background
     byte _bIndexBase;    // first index for palette
     long _iaposLast;     // Last placement point we used
     long _iaposNext;     // Next placement point to use
-    PGL _pglapos;        // actor placement point(s) for current view
+    PDynamicArray _pglapos;        // actor placement point(s) for current view
     BRS _xrPlace;
     BRS _yrPlace;
     BRS _zrPlace;
-    BDS _bds;   // background default sound
+    BackgroundDefaultSound _bds;   // background default sound
     BRS _xrCam; // camera position in worldspace
     BRS _yrCam;
     BRS _zrCam;
 
   protected:
-    bool _FInit(PCFL pcfl, CTG ctg, CNO cno);
-    long _Ccam(PCFL pcfl, CTG ctg, CNO cno);
-    void _SetupLights(PGL pgllite);
+    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    long _Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    void _SetupLights(PDynamicArray pgllite);
 
   public:
-    static bool FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl);
+    static bool FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl);
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    ~BKGD(void);
-    void GetName(PSTN pstn);
+    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    ~Background(void);
+    void GetName(PString pstn);
 
-    void TurnOnLights(PBWLD pbwld);
+    void TurnOnLights(PWorld pbwld);
     void TurnOffLights(void);
     bool FLeaveLitesOn(void)
     {
@@ -159,7 +179,7 @@ class BKGD : public BKGD_PAR
     {
         return _icam;
     }                                        // currently selected camera
-    bool FSetCamera(PBWLD pbwld, long icam); // change camera to icam
+    bool FSetCamera(PWorld pbwld, long icam); // change camera to icam
 
     void GetMouseMatrix(BMAT34 *pbmat34);
     BRA BraRotYCamera(void)
@@ -176,7 +196,7 @@ class BKGD : public BKGD_PAR
         *pfLoop = _bds.fLoop;
     }
 
-    bool FGetPalette(PGL *ppglclr, long *piclrMin);
+    bool FGetPalette(PDynamicArray *ppglclr, long *piclrMin);
     void GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr);
 
 #ifdef DEBUG

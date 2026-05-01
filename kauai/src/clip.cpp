@@ -13,15 +13,15 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(CLIP)
+RTCLASS(ClipboardObject)
 
-PCLIP vpclip;
-CLIP _clip;
+PClipboardObject vpclip;
+ClipboardObject _clip;
 
 /***************************************************************************
     Constructor for the clipboard.
 ***************************************************************************/
-CLIP::CLIP(void)
+ClipboardObject::ClipboardObject(void)
 {
     vpclip = this;
     AssertThis(0);
@@ -32,7 +32,7 @@ CLIP::CLIP(void)
     is nil this returns true if the clipboard is empty and false if it's
     not empty.
 ***************************************************************************/
-bool CLIP::FDocIsClip(PDOCB pdocb)
+bool ClipboardObject::FDocIsClip(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertNilOrPo(pdocb, 0);
@@ -46,7 +46,7 @@ bool CLIP::FDocIsClip(PDOCB pdocb)
 /***************************************************************************
     Show the clipboard document.
 ***************************************************************************/
-void CLIP::Show(void)
+void ClipboardObject::Show(void)
 {
     AssertThis(0);
 
@@ -64,7 +64,7 @@ void CLIP::Show(void)
 /***************************************************************************
     Make the given document the clipboard document.
 ***************************************************************************/
-void CLIP::Set(PDOCB pdocb, bool fExport)
+void ClipboardObject::Set(PDocumentBase pdocb, bool fExport)
 {
     AssertThis(0);
     AssertNilOrPo(pdocb, 0);
@@ -108,7 +108,7 @@ void CLIP::Set(PDOCB pdocb, bool fExport)
 /***************************************************************************
     See if the clipboard supports this format and if so, get it.
 ***************************************************************************/
-bool CLIP::FGetFormat(long cls, PDOCB *ppdocb)
+bool ClipboardObject::FGetFormat(long cls, PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -136,7 +136,7 @@ bool CLIP::FGetFormat(long cls, PDOCB *ppdocb)
 /***************************************************************************
     Import stuff from the external clipboard.
 ***************************************************************************/
-void CLIP::Import(void)
+void ClipboardObject::Import(void)
 {
     AssertThis(0);
 
@@ -149,7 +149,7 @@ void CLIP::Import(void)
     Make sure the _pdocb is current - import the current system clipboard
     if it isn't.
 ***************************************************************************/
-void CLIP::_EnsureDoc(void)
+void ClipboardObject::_EnsureDoc(void)
 {
     if (_fExporting || _fImporting)
     {
@@ -164,7 +164,7 @@ void CLIP::_EnsureDoc(void)
 
 #ifdef WIN
     HN hn;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     bool fDelay;
     long clfm;
 
@@ -196,7 +196,7 @@ void CLIP::_EnsureDoc(void)
 #endif // WIN
 
 #ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement CLIP::Import
+    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::Import
 #endif        // MAC
 }
 
@@ -204,7 +204,7 @@ void CLIP::_EnsureDoc(void)
     Import the actual data for the current clipboard (if importing was
     delayed).
 ***************************************************************************/
-void CLIP::_ImportCur(void)
+void ClipboardObject::_ImportCur(void)
 {
     AssertThis(0);
     Assert(_fDocCurrent, 0);
@@ -215,7 +215,7 @@ void CLIP::_ImportCur(void)
 #ifdef WIN
     HN hn;
     bool fRet;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     if (GetClipboardOwner() == vwig.hwndApp || !OpenClipboard(vwig.hwndApp))
         return;
@@ -237,14 +237,14 @@ void CLIP::_ImportCur(void)
 #endif // WIN
 
 #ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement CLIP::_ImportCur
+    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::_ImportCur
 #endif        // MAC
 }
 
 /***************************************************************************
     Import a particular format.
 ***************************************************************************/
-bool CLIP::_FImportFormat(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDelay)
+bool ClipboardObject::_FImportFormat(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool *pfDelay)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -294,7 +294,7 @@ bool CLIP::_FImportFormat(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfD
 /***************************************************************************
     Start an export session.
 ***************************************************************************/
-bool CLIP::FInitExport(void)
+bool ClipboardObject::FInitExport(void)
 {
     AssertThis(0);
 
@@ -318,7 +318,7 @@ bool CLIP::FInitExport(void)
 #endif // WIN
 
 #ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement CLIP::FInitExport
+    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::FInitExport
 #endif        // MAC
 
     return _fExporting;
@@ -327,7 +327,7 @@ bool CLIP::FInitExport(void)
 /***************************************************************************
     Allocate a buffer to export to.
 ***************************************************************************/
-void *CLIP::PvExport(long cb, long clfm)
+void *ClipboardObject::PvExport(long cb, long clfm)
 {
     AssertThis(0);
     AssertIn(cb, 1, kcbMax);
@@ -359,7 +359,7 @@ void *CLIP::PvExport(long cb, long clfm)
 #endif // WIN
 
 #ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement CLIP::PvExport
+    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::PvExport
     return pvNil;
 #endif // MAC
 }
@@ -367,7 +367,7 @@ void *CLIP::PvExport(long cb, long clfm)
 /***************************************************************************
     End an exporting session.
 ***************************************************************************/
-void CLIP::EndExport(void)
+void ClipboardObject::EndExport(void)
 {
     AssertThis(0);
 
@@ -381,7 +381,7 @@ void CLIP::EndExport(void)
 #endif // WIN
 
 #ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement CLIP::EndExport
+    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::EndExport
 #endif        // MAC
     _fExporting = fFalse;
 }
@@ -389,7 +389,7 @@ void CLIP::EndExport(void)
 /***************************************************************************
     Export the current format.
 ***************************************************************************/
-void CLIP::_ExportCur(void)
+void ClipboardObject::_ExportCur(void)
 {
     AssertThis(0);
     Assert(_fExporting, 0);
@@ -404,28 +404,28 @@ void CLIP::_ExportCur(void)
 #endif // WIN
 
 #ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement CLIP::_ExportCur
+    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::_ExportCur
 #endif        // MAC
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CLIP.
+    Assert the validity of a ClipboardObject.
 ***************************************************************************/
-void CLIP::AssertValid(ulong grf)
+void ClipboardObject::AssertValid(ulong grf)
 {
-    CLIP_PAR::AssertValid(0);
+    ClipboardObject_PAR::AssertValid(0);
     AssertNilOrPo(_pdocb, 0);
     Assert(!_fExporting || !_fImporting, "both importing and exporting!");
 }
 
 /***************************************************************************
-    Mark memory for the CLIP.
+    Mark memory for the ClipboardObject.
 ***************************************************************************/
-void CLIP::MarkMem(void)
+void ClipboardObject::MarkMem(void)
 {
     AssertValid(0);
-    CLIP_PAR::MarkMem();
+    ClipboardObject_PAR::MarkMem();
     MarkMemObj(_pdocb);
 }
 #endif // DEBUG

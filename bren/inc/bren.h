@@ -12,6 +12,8 @@
 #include "kidframe.h"
 #include "brender.h"
 
+namespace BRender {
+
 typedef br_actor BACT;
 typedef br_model BMDL;
 typedef br_light BLIT;
@@ -88,17 +90,17 @@ struct BCB // bounding cuboid...same shape as br_bounds
     BRS yrMax;
     BRS zrMax;
 };
-const BOM kbomBcb = 0xfff00000;
+const ByteOrderMask kbomBcb = 0xfff00000;
 
 inline bool FBrEmptyBcb(BCB *pbcb)
 {
     return !(pbcb->xrMin || pbcb->yrMin || pbcb->zrMin || pbcb->xrMax || pbcb->yrMax || pbcb->zrMax);
 }
 
-const BOM kbomBrs = 0xc0000000; // br_scalar
-const BOM kbomBrv = 0xffd50000; // br_vertex
-const BOM kbomBrf = 0x555c15c0; // br_face
-const BOM kbomBmat34 = 0xffffff00;
+const ByteOrderMask kbomBrs = 0xc0000000; // br_scalar
+const ByteOrderMask kbomBrv = 0xffd50000; // br_vertex
+const ByteOrderMask kbomBrf = 0x555c15c0; // br_face
+const ByteOrderMask kbomBmat34 = 0xffffff00;
 
 #if BASED_FIXED
 inline BRS BrsHalf(BRS r)
@@ -145,6 +147,8 @@ inline BRS BrsDiv(BRS r1, BRS r2) // Safety net: Prevent ovfl on division of int
 #undef BR_ACOS
 #endif // BR_ACOS
 #define BR_ACOS(a) BrRadianToAngle(BrFloatToScalar(acos(BrScalarToFloat(a))))
+
+} // end of namespace BRender
 
 #include "zbmp.h"
 #include "bwld.h"

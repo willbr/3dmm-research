@@ -9,7 +9,7 @@
     Listener Easel: *****
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    ESL is the base class for all easels.  It handles cidEaselOk and
+    Easel is the base class for all easels.  It handles cidEaselOk and
     cidEaselCancel commands, and calls the virtual _FAcceptChanges()
     function for cidEaselOk.
 
@@ -26,25 +26,25 @@ const long kdtimMeterUpdate = kdtimSecond / 10; // interval to update meter
 const long kcsampSec = 11025;                   // sampling rate for recorder easel
 long csampSec;                                  // sampling rate for recorder easel
 
-RTCLASS(ESL)
-RTCLASS(ESLT)
-RTCLASS(ESLA)
-RTCLASS(SNE)
-RTCLASS(ESLL)
-RTCLASS(LSND)
-RTCLASS(ESLR)
+RTCLASS(Easel)
+RTCLASS(EaselText)
+RTCLASS(EaselActor)
+RTCLASS(SpletterNameEditor)
+RTCLASS(EaselListen)
+RTCLASS(ListenerSound)
+RTCLASS(EaselRecord)
 
 /***************************************************************************
-    Function to build a GCB for creating a child GOB
+    Function to build a GraphicsObjectBlock for creating a child GraphicsObject
 ***************************************************************************/
-bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
+bool FBuildGcb(PGraphicsObjectBlock pgcb, long kidParent, long kidChild)
 {
     AssertVarMem(pgcb);
 
-    PGOK pgokPar;
+    PKidspaceGraphicObject pgokPar;
     RC rcRel;
 
-    pgokPar = (PGOK)vpapp->Pkwa()->PgobFromHid(kidParent);
+    pgokPar = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidParent);
     if (pvNil == pgokPar)
     {
         TrashVar(pgcb);
@@ -61,39 +61,39 @@ bool FBuildGcb(PGCB pgcb, long kidParent, long kidChild)
 ***************************************************************************/
 void SetGokState(long kid, long st)
 {
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kid);
-    if (pvNil != pgok && pgok->FIs(kclsGOK) && pgok->Sno() != st)
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kid);
+    if (pvNil != pgok && pgok->FIs(kclsKidspaceGraphicObject) && pgok->Sno() != st)
         pgok->FChangeState(st); // ignore failure
 }
 
 //
 //
 //
-//  ESL (generic easel) stuff begins here
+//  Easel (generic easel) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(ESL, GOK)
-ON_CID_GEN(cidEaselOk, &ESL::FCmdDismiss, pvNil)
-ON_CID_GEN(cidEaselCancel, &ESL::FCmdDismiss, pvNil)
+BEGIN_CMD_MAP(Easel, KidspaceGraphicObject)
+ON_CID_GEN(cidEaselOk, &Easel::FCmdDismiss, pvNil)
+ON_CID_GEN(cidEaselCancel, &Easel::FCmdDismiss, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new easel
 ***************************************************************************/
-PESL ESL::PeslNew(PRCA prca, long kidParent, long kidEasel)
+PEasel Easel::PeslNew(PResourceCache prca, long kidParent, long kidEasel)
 {
     AssertPo(prca, 0);
 
-    GCB gcb;
-    PESL pesl;
+    GraphicsObjectBlock gcb;
+    PEasel pesl;
 
     if (!FBuildGcb(&gcb, kidParent, kidEasel))
         return pvNil;
-    pesl = NewObj ESL(&gcb);
+    pesl = NewObj Easel(&gcb);
     if (pvNil == pesl)
         return pvNil;
     if (!pesl->_FInit(prca, kidEasel))
@@ -109,19 +109,19 @@ PESL ESL::PeslNew(PRCA prca, long kidParent, long kidEasel)
 /***************************************************************************
     Initialize the easel and make it visible
 ***************************************************************************/
-bool ESL::_FInit(PRCA prca, long kidEasel)
+bool Easel::_FInit(PResourceCache prca, long kidEasel)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
 
-    if (!ESL_PAR::_FInit(vpapp->Pkwa(), kidEasel, prca))
+    if (!Easel_PAR::_FInit(vpapp->Pkwa(), kidEasel, prca))
         return fFalse;
     if (!_FEnterState(ksnoInit))
         return fFalse;
 
     vpapp->DisableAccel();
 
-    STDIO::PauseActionButton();
+    Studio::PauseActionButton();
 
     return fTrue;
 }
@@ -129,18 +129,18 @@ bool ESL::_FInit(PRCA prca, long kidEasel)
 /***************************************************************************
     Clean up and delete this easel
 ***************************************************************************/
-ESL::~ESL(void)
+Easel::~Easel(void)
 {
     AssertBaseThis(0);
 
     vpapp->EnableAccel();
-    STDIO::ResumeActionButton();
+    Studio::ResumeActionButton();
 }
 
 /***************************************************************************
     Dismiss and delete this easel
 ***************************************************************************/
-bool ESL::FCmdDismiss(PCMD pcmd)
+bool Easel::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -165,47 +165,47 @@ bool ESL::FCmdDismiss(PCMD pcmd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESL.
+    Assert the validity of the Easel.
 ***************************************************************************/
-void ESL::AssertValid(ulong grf)
+void Easel::AssertValid(ulong grf)
 {
-    ESL_PAR::AssertValid(fobjAllocated);
+    Easel_PAR::AssertValid(fobjAllocated);
 }
 
 /***************************************************************************
-    Mark memory used by the ESL
+    Mark memory used by the Easel
 ***************************************************************************/
-void ESL::MarkMem(void)
+void Easel::MarkMem(void)
 {
     AssertThis(0);
-    ESL_PAR::MarkMem();
+    Easel_PAR::MarkMem();
 }
 #endif // DEBUG
 
 //
 //
 //
-//  ESLT (text easel) stuff begins here
+//  EaselText (text easel) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(ESLT, ESL)
-ON_CID_GEN(cidEaselRotate, &ESLT::FCmdRotate, pvNil)
-ON_CID_GEN(cidEaselTransmogrify, &ESLT::FCmdTransmogrify, pvNil)
-ON_CID_GEN(cidEaselFont, &ESLT::FCmdStartPopup, pvNil)
-ON_CID_GEN(cidEaselShape, &ESLT::FCmdStartPopup, pvNil)
-ON_CID_GEN(cidEaselTexture, &ESLT::FCmdStartPopup, pvNil)
-ON_CID_GEN(cidEaselSetFont, &ESLT::FCmdSetFont, pvNil)
-ON_CID_GEN(cidEaselSetShape, &ESLT::FCmdSetShape, pvNil)
-ON_CID_GEN(cidEaselSetColor, &ESLT::FCmdSetColor, pvNil)
+BEGIN_CMD_MAP(EaselText, Easel)
+ON_CID_GEN(cidEaselRotate, &EaselText::FCmdRotate, pvNil)
+ON_CID_GEN(cidEaselTransmogrify, &EaselText::FCmdTransmogrify, pvNil)
+ON_CID_GEN(cidEaselFont, &EaselText::FCmdStartPopup, pvNil)
+ON_CID_GEN(cidEaselShape, &EaselText::FCmdStartPopup, pvNil)
+ON_CID_GEN(cidEaselTexture, &EaselText::FCmdStartPopup, pvNil)
+ON_CID_GEN(cidEaselSetFont, &EaselText::FCmdSetFont, pvNil)
+ON_CID_GEN(cidEaselSetShape, &EaselText::FCmdSetShape, pvNil)
+ON_CID_GEN(cidEaselSetColor, &EaselText::FCmdSetColor, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
-    Create a new text easel.  If pactr is pvNil, this is for a new TDT
+    Create a new text easel.  If pactr is pvNil, this is for a new ThreeDText
     and pstnNew, tdtsNew, and ptagTdfNew will be used as initial values.
 ***************************************************************************/
-PESLT ESLT::PesltNew(PRCA prca, PMVIE pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
+PEaselText EaselText::PesltNew(PResourceCache prca, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
@@ -215,13 +215,13 @@ PESLT ESLT::PesltNew(PRCA prca, PMVIE pmvie, PACTR pactr, PSTN pstnNew, long tdt
         AssertIn(tdtsNew, 0, tdtsLim);
     AssertNilOrVarMem(ptagTdfNew);
 
-    PESLT peslt;
-    GCB gcb;
+    PEaselText peslt;
+    GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidSpltGlass))
         return pvNil;
 
-    peslt = NewObj ESLT(&gcb);
+    peslt = NewObj EaselText(&gcb);
     if (pvNil == peslt)
         return pvNil;
     if (!peslt->_FInit(prca, kidSpltGlass, pmvie, pactr, pstnNew, tdtsNew, ptagTdfNew))
@@ -238,42 +238,42 @@ PESLT ESLT::PesltNew(PRCA prca, PMVIE pmvie, PACTR pactr, PSTN pstnNew, long tdt
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLT::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnNew, long tdtsNew, PTAG ptagTdfNew)
+bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr, PString pstnNew, long tdtsNew, PTAG ptagTdfNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
-    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use ESLT for TDTs");
+    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use EaselText for ThreeDTexts");
     AssertNilOrPo(pstnNew, 0);
     if (tdtsNew != tdtsNil)
         AssertIn(tdtsNew, 0, tdtsLim);
     AssertNilOrVarMem(ptagTdfNew);
 
-    GCB gcb;
-    COST cost;
-    STN stn;
+    GraphicsObjectBlock gcb;
+    BodyCostume cost;
+    String stn;
     bool fNewTdt = (pactr == pvNil);
-    PTDT ptdt;
+    PThreeDText ptdt;
 
     _prca = prca;
     _pactr = pactr;
     _pmvie = pmvie;
 
-    if (!ESLT_PAR::_FInit(prca, kidEasel))
+    if (!EaselText_PAR::_FInit(prca, kidEasel))
         return fFalse;
-    if (!FBuildGcb(&gcb, kidSpltPreviewFrame, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidSpltPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
 
-    _psflTdts = NewObj SFL;
+    _psflTdts = NewObj Shuffler;
     if (pvNil == _psflTdts)
         return fFalse;
 
-    _psflTdf = NewObj SFL;
+    _psflTdf = NewObj Shuffler;
     if (pvNil == _psflTdf)
         return fFalse;
 
-    _psflMtrl = NewObj SFL;
+    _psflMtrl = NewObj Shuffler;
     if (pvNil == _psflMtrl)
         return fFalse;
 
@@ -283,10 +283,10 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnN
         AssertIn(tdtsNew, 0, tdtsLim);
         AssertVarMem(ptagTdfNew);
 
-        ptdt = TDT::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
+        ptdt = ThreeDText::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
         if (pvNil == ptdt)
             return fFalse;
-        _pape = APE::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
+        _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
         ReleasePpo(&ptdt);
         if (pvNil == _pape)
             return fFalse;
@@ -294,14 +294,14 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnN
     }
     else
     {
-        // We have to make a duplicate TDT rather than use the existing one
-        // because the user may experimentally change the TDT, then hit Cancel.
+        // We have to make a duplicate ThreeDText rather than use the existing one
+        // because the user may experimentally change the ThreeDText, then hit Cancel.
         if (!cost.FGet(pactr->Pbody()))
             return fFalse;
-        ptdt = ((PTDT)pactr->Ptmpl())->PtdtDup();
+        ptdt = ((PThreeDText)pactr->Ptmpl())->PtdtDup();
         if (pvNil == ptdt)
             return fFalse;
-        _pape = APE::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
+        _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
         ReleasePpo(&ptdt);
         if (pvNil == _pape)
             return fFalse;
@@ -309,11 +309,11 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnN
     }
 
     // Set up the edit box
-    if (!FBuildGcb(&gcb, kidSpltEditBox, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidSpltEditBox, CommandHandler::HidUnique()))
         return fFalse;
-    EDPAR edpar(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
+    EditParameter edpar(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
                 vpappb->DypTextDef(), tahLeft, tavCenter);
-    _psne = SNE::PsneNew(&edpar, this, &stn);
+    _psne = SpletterNameEditor::PsneNew(&edpar, this, &stn);
     if (pvNil == _psne)
         return fFalse;
     _psne->Activate(fTrue);
@@ -328,7 +328,7 @@ bool ESLT::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr, PSTN pstnN
     _psne or _pape because they're GOBs and are automatically destroyed
     with the gob tree.
 ***************************************************************************/
-ESLT::~ESLT(void)
+EaselText::~EaselText(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_psflTdts);
@@ -341,7 +341,7 @@ ESLT::~ESLT(void)
 /***************************************************************************
     Handle a rotate command
 ***************************************************************************/
-bool ESLT::FCmdRotate(PCMD pcmd)
+bool EaselText::FCmdRotate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -354,15 +354,15 @@ bool ESLT::FCmdRotate(PCMD pcmd)
 /***************************************************************************
     Handle a transmogrify command (pick a random shape, font, and material)
 ***************************************************************************/
-bool ESLT::FCmdTransmogrify(PCMD pcmd)
+bool EaselText::FCmdTransmogrify(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     long tdts;
-    CKI cki;
+    ChunkIdentification cki;
     long ithd;
-    THD thd;
+    ThumbnailDescriptor thd;
     TAG tagTdf;
     TAG tagMtrl;
 
@@ -376,7 +376,7 @@ bool ESLT::FCmdTransmogrify(PCMD pcmd)
     {
         cki.ctg = kctgTfth;
         cki.cno = cnoNil;
-        _pbclTdf = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclTdf = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
     }
     if (_pbclTdf != pvNil && _pbclTdf->IthdMac() != 0)
     {
@@ -395,7 +395,7 @@ bool ESLT::FCmdTransmogrify(PCMD pcmd)
     {
         cki.ctg = kctgMtth;
         cki.cno = cnoNil;
-        _pbclMtrl = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclMtrl = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
     }
     if (_pbclMtrl != pvNil && _pbclMtrl->IthdMac() != 0)
     {
@@ -417,19 +417,19 @@ bool ESLT::FCmdTransmogrify(PCMD pcmd)
 /***************************************************************************
     Start a popup
 ***************************************************************************/
-bool ESLT::FCmdStartPopup(PCMD pcmd)
+bool EaselText::FCmdStartPopup(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    CKI ckiGPar;
+    ChunkIdentification ckiGPar;
     long kid;
     long ithumSelect = ivNil;
     long sidSelect = vpapp->SidProduct();
     long cidSelect;
     TAG tagTdf;
     long tdts;
-    CNO cnoSelect;
+    ChunkNumber cnoSelect;
 
     ckiGPar.cno = cnoNil;
 
@@ -463,11 +463,11 @@ bool ESLT::FCmdStartPopup(PCMD pcmd)
         break;
 
     default:
-        Bug("Invalid cid for ESLT::FCmdStartPopup");
+        Bug("Invalid cid for EaselText::FCmdStartPopup");
         break;
     }
 
-    MP::PmpNew(kidSpltBackground, kid, _prca, pcmd, kbwsCnoRoot, ithumSelect, sidSelect, ckiGPar, ctgNil, this,
+    MenuPopup::PmpNew(kidSpltBackground, kid, _prca, pcmd, kbwsCnoRoot, ithumSelect, sidSelect, ckiGPar, ctgNil, this,
                cidSelect, fTrue);
 
     return fTrue;
@@ -476,7 +476,7 @@ bool ESLT::FCmdStartPopup(PCMD pcmd)
 /***************************************************************************
     Handle a command to change the font
 ***************************************************************************/
-bool ESLT::FCmdSetFont(PCMD pcmd)
+bool EaselText::FCmdSetFont(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -503,7 +503,7 @@ bool ESLT::FCmdSetFont(PCMD pcmd)
 /***************************************************************************
     Handle a command to change the shape
 ***************************************************************************/
-bool ESLT::FCmdSetShape(PCMD pcmd)
+bool EaselText::FCmdSetShape(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -522,7 +522,7 @@ bool ESLT::FCmdSetShape(PCMD pcmd)
 /***************************************************************************
     Handle a command to change the color
 ***************************************************************************/
-bool ESLT::FCmdSetColor(PCMD pcmd)
+bool EaselText::FCmdSetColor(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -542,11 +542,11 @@ bool ESLT::FCmdSetColor(PCMD pcmd)
 }
 
 /***************************************************************************
-    Update the APE when the text of the SNE changed
+    Update the ActorPreviewEntity when the text of the SpletterNameEditor changed
 ***************************************************************************/
-bool ESLT::FTextChanged(PSTN pstnNew)
+bool EaselText::FTextChanged(PString pstnNew)
 {
-    AssertBaseThis(0); // we may still be setting up the ESLT
+    AssertBaseThis(0); // we may still be setting up the EaselText
     AssertPo(pstnNew, 0);
 
     return _pape->FChangeTdt(pstnNew, tdtsNil, pvNil);
@@ -555,20 +555,20 @@ bool ESLT::FTextChanged(PSTN pstnNew)
 /***************************************************************************
     Make the changes to pactr
 ***************************************************************************/
-bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
 
     long ich;
     bool fNonSpaceFound = fFalse;
-    PACTR pactrDup = pvNil;
+    PActor pactrDup = pvNil;
     bool fChangesMade = fFalse;
-    PTDT ptdtOld;
-    STN stnOld;
+    PThreeDText ptdtOld;
+    String stnOld;
     long tdtsOld;
     TAG tagTdfOld;
-    STN stnNew;
+    String stnNew;
     long tdtsNew;
     TAG tagTdfNew;
     long cbset;
@@ -577,7 +577,7 @@ bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
     long cmid;
     TAG tagMtrl;
 
-    if (pvNil == _pactr) // new TDT
+    if (pvNil == _pactr) // new ThreeDText
     {
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
         for (ich = 0; ich < stnNew.Cch(); ich++)
@@ -613,15 +613,15 @@ bool ESLT::_FAcceptChanges(bool *pfDismissEasel)
     }
     else
     {
-        ptdtOld = (PTDT)_pactr->Ptmpl();
+        ptdtOld = (PThreeDText)_pactr->Ptmpl();
 
         if (!_pactr->FDup(&pactrDup))
             goto LFail;
 
-        // first apply TDT changes
+        // first apply ThreeDText changes
         ptdtOld->GetInfo(&stnOld, &tdtsOld, &tagTdfOld);
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
-        if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TAGM::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
+        if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TagManager::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
         {
             if (!_pmvie->FChangeActrTdt(_pactr, &stnNew, tdtsNew, &tagTdfNew))
                 goto LFail;
@@ -667,11 +667,11 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLT.
+    Assert the validity of the EaselText.
 ***************************************************************************/
-void ESLT::AssertValid(ulong grf)
+void EaselText::AssertValid(ulong grf)
 {
-    ESLT_PAR::AssertValid(fobjAllocated);
+    EaselText_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
     AssertNilOrPo(_pactr, 0);
     AssertPo(_pape, 0);
@@ -685,13 +685,13 @@ void ESLT::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the ESLT.  The _pape and _psne are marked
-    automatically with the GOB tree.
+    Mark memory used by the EaselText.  The _pape and _psne are marked
+    automatically with the GraphicsObject tree.
 ***************************************************************************/
-void ESLT::MarkMem(void)
+void EaselText::MarkMem(void)
 {
     AssertThis(0);
-    ESLT_PAR::MarkMem();
+    EaselText_PAR::MarkMem();
     MarkMemObj(_psflTdts);
     MarkMemObj(_psflTdf);
     MarkMemObj(_psflMtrl);
@@ -703,7 +703,7 @@ void ESLT::MarkMem(void)
 //
 //
 //
-//  SNE (spletter name editor) stuff begins here
+//  SpletterNameEditor (spletter name editor) stuff begins here
 //
 //
 //
@@ -712,15 +712,15 @@ void ESLT::MarkMem(void)
     Create a new spletter name editor with initial string pstnInit.  Text
     change notifications will be sent to peslt.
 ***************************************************************************/
-PSNE SNE::PsneNew(PEDPAR pedpar, PESLT peslt, PSTN pstnInit)
+PSpletterNameEditor SpletterNameEditor::PsneNew(PEditParameter pedpar, PEaselText peslt, PString pstnInit)
 {
     AssertVarMem(pedpar);
     AssertBasePo(peslt, 0);
     AssertPo(pstnInit, 0);
 
-    PSNE psne;
+    PSpletterNameEditor psne;
 
-    psne = NewObj SNE(pedpar);
+    psne = NewObj SpletterNameEditor(pedpar);
     if (pvNil == psne)
         return pvNil;
 
@@ -737,20 +737,20 @@ PSNE SNE::PsneNew(PEDPAR pedpar, PESLT peslt, PSTN pstnInit)
 
 /***************************************************************************
     Trap the default FReplace to prevent illegal strings and to notify the
-    ESLT that the text has changed.
+    EaselText that the text has changed.
 ***************************************************************************/
-bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
+bool SpletterNameEditor::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(0);
 
-    STN stnOld;
-    STN stnNew;
+    String stnOld;
+    String stnNew;
 
     GetStn(&stnOld);
 
     // Note that gin is forced to ginNil here so there's no flicker if
     // the resulting text is illegal
-    if (!SNE_PAR::FReplace(prgch, cchIns, ich1, ich2, ginNil))
+    if (!SpletterNameEditor_PAR::FReplace(prgch, cchIns, ich1, ich2, ginNil))
         return fFalse;
 
     // Look for illegal strings:
@@ -763,9 +763,9 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 #ifdef DEBUG
     else if (stnNew.Cch() == 5 && stnNew.Psz()[0] == ChLit(')') && stnNew.Psz()[4] == ChLit('('))
     {
-        // Hack for testing: ")xxx(" changes the TDT to
+        // Hack for testing: ")xxx(" changes the ThreeDText to
         // all ASCII values from xxx to xxx + kcchMaxTdt (or up to chNil).
-        STN stnT;
+        String stnT;
         achar rgch[kcchMaxTdt];
         long ichStart;
         long ich;
@@ -781,13 +781,13 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
                     break;
                 cch++;
             }
-            SNE_PAR::FReplace(rgch, cch, 0, IchMac(), fFalse);
+            SpletterNameEditor_PAR::FReplace(rgch, cch, 0, IchMac(), fFalse);
             GetStn(&stnNew);
         }
     }
 #endif // DEBUG
 
-    // Notify the easel so the TDT can be updated
+    // Notify the easel so the ThreeDText can be updated
     if (!_peslt->FTextChanged(&stnNew))
         SetStn(&stnOld, fFalse);
 
@@ -799,54 +799,54 @@ bool SNE::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the SNE.
+    Assert the validity of the SpletterNameEditor.
 ***************************************************************************/
-void SNE::AssertValid(ulong grf)
+void SpletterNameEditor::AssertValid(ulong grf)
 {
-    SNE_PAR::AssertValid(fobjAllocated);
+    SpletterNameEditor_PAR::AssertValid(fobjAllocated);
     AssertBasePo(_peslt, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the SNE
+    Mark memory used by the SpletterNameEditor
 ***************************************************************************/
-void SNE::MarkMem(void)
+void SpletterNameEditor::MarkMem(void)
 {
     AssertThis(0);
-    SNE_PAR::MarkMem();
+    SpletterNameEditor_PAR::MarkMem();
 }
 #endif // DEBUG
 
 //
 //
 //
-//  ESLA (actor easel) stuff begins here
+//  EaselActor (actor easel) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(ESLA, ESL)
-ON_CID_GEN(cidEaselRotate, &ESLA::FCmdRotate, pvNil)
-ON_CID_GEN(cidEaselCostumes, &ESLA::FCmdTool, pvNil)
-ON_CID_GEN(cidEaselAccessories, &ESLA::FCmdTool, pvNil)
+BEGIN_CMD_MAP(EaselActor, Easel)
+ON_CID_GEN(cidEaselRotate, &EaselActor::FCmdRotate, pvNil)
+ON_CID_GEN(cidEaselCostumes, &EaselActor::FCmdTool, pvNil)
+ON_CID_GEN(cidEaselAccessories, &EaselActor::FCmdTool, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new actor easel
 ***************************************************************************/
-PESLA ESLA::PeslaNew(PRCA prca, PMVIE pmvie, PACTR pactr)
+PEaselActor EaselActor::PeslaNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertPo(pactr, 0);
 
-    PESLA pesla;
-    GCB gcb;
+    PEaselActor pesla;
+    GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidCostGlass))
         return pvNil;
 
-    pesla = NewObj ESLA(&gcb);
+    pesla = NewObj EaselActor(&gcb);
     if (pvNil == pesla)
         return pvNil;
     if (!pesla->_FInit(prca, kidCostGlass, pmvie, pactr))
@@ -863,37 +863,37 @@ PESLA ESLA::PeslaNew(PRCA prca, PMVIE pmvie, PACTR pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLA::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr)
+bool EaselActor::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertPo(pactr, 0);
 
-    GCB gcb;
-    COST cost;
-    STN stn;
-    EDPAR edpar;
+    GraphicsObjectBlock gcb;
+    BodyCostume cost;
+    String stn;
+    EditParameter edpar;
 
-    if (!ESLA_PAR::_FInit(prca, kidEasel))
+    if (!EaselActor_PAR::_FInit(prca, kidEasel))
         return fFalse;
     if (!cost.FGet(pactr->Pbody()))
         return fFalse;
-    if (!FBuildGcb(&gcb, kidCostPreviewFrame, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidCostPreviewFrame, CommandHandler::HidUnique()))
         return fFalse;
-    _pape = APE::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fFalse, prca);
+    _pape = ActorPreviewEntity::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fFalse, prca);
     if (pvNil == _pape)
         return fFalse;
     _pape->SetToolIncCmtl();
 
-    if (!FBuildGcb(&gcb, kidCostEditBox, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidCostEditBox, CommandHandler::HidUnique()))
         return fFalse;
     edpar.Set(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
               vpappb->DypTextDef(), tahLeft, tavCenter);
     _pmvie = pmvie;
     _pactr = pactr;
     _pactr->GetName(&stn);
-    _pedsl = EDSL::PedslNew(&edpar);
+    _pedsl = EditControlSingleLine::PedslNew(&edpar);
     if (pvNil == _pedsl)
         return fFalse;
     _pedsl->SetStn(&stn);
@@ -909,7 +909,7 @@ bool ESLA::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr)
     _pedsl or _pape because they're GOBs and are automatically destroyed
     with the gob tree.
 ***************************************************************************/
-ESLA::~ESLA(void)
+EaselActor::~EaselActor(void)
 {
     AssertBaseThis(0);
 }
@@ -917,7 +917,7 @@ ESLA::~ESLA(void)
 /***************************************************************************
     Handle a rotate command
 ***************************************************************************/
-bool ESLA::FCmdRotate(PCMD pcmd)
+bool EaselActor::FCmdRotate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -930,7 +930,7 @@ bool ESLA::FCmdRotate(PCMD pcmd)
 /***************************************************************************
     Handle a tool change command
 ***************************************************************************/
-bool ESLA::FCmdTool(PCMD pcmd)
+bool EaselActor::FCmdTool(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -956,17 +956,17 @@ bool ESLA::FCmdTool(PCMD pcmd)
 /***************************************************************************
     Make the changes to _pactr
 ***************************************************************************/
-bool ESLA::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselActor::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
 
-    PACTR pactrDup;
+    PActor pactrDup;
     bool fNonSpaceFound;
     long ich;
     bool fChangesMade = fFalse;
-    STN stnOld;
-    STN stnNew;
+    String stnOld;
+    String stnNew;
     long cbset;
     long ibset;
     tribool fMtrl;
@@ -1025,11 +1025,11 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLA.
+    Assert the validity of the EaselActor.
 ***************************************************************************/
-void ESLA::AssertValid(ulong grf)
+void EaselActor::AssertValid(ulong grf)
 {
-    ESLA_PAR::AssertValid(fobjAllocated);
+    EaselActor_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
     AssertPo(_pactr, 0);
     AssertPo(_pape, 0);
@@ -1037,41 +1037,41 @@ void ESLA::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the ESLA.  The _pape and _pedsl are marked
-    automatically with the GOB tree.
+    Mark memory used by the EaselActor.  The _pape and _pedsl are marked
+    automatically with the GraphicsObject tree.
 ***************************************************************************/
-void ESLA::MarkMem(void)
+void EaselActor::MarkMem(void)
 {
     AssertThis(0);
-    ESLA_PAR::MarkMem();
+    EaselActor_PAR::MarkMem();
 }
 #endif // DEBUG
 
 //
 //
-//  ESLL (EaSeL Listener)
+//  EaselListen (EaSeL Listener)
 //	The Listener displays either all background sounds or the
 //  actor Sound Effects and the actor Speech sounds of highest precedence.
 //  Note:  A sounder speech sound takes precedence over a motion match
 //  speech sound
 //
 
-BEGIN_CMD_MAP(ESLL, ESL)
-ON_CID_GEN(cidEaselVol, &ESLL::FCmdVlm, pvNil)
-ON_CID_GEN(cidEaselPlay, &ESLL::FCmdPlay, pvNil)
+BEGIN_CMD_MAP(EaselListen, Easel)
+ON_CID_GEN(cidEaselVol, &EaselListen::FCmdVlm, pvNil)
+ON_CID_GEN(cidEaselPlay, &EaselListen::FCmdPlay, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new listener easel
 ***************************************************************************/
-PESLL ESLL::PesllNew(PRCA prca, PMVIE pmvie, PACTR pactr)
+PEaselListen EaselListen::PesllNew(PResourceCache prca, PMovie pmvie, PActor pactr)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
 
-    PESLL pesll;
-    GCB gcb;
+    PEaselListen pesll;
+    GraphicsObjectBlock gcb;
     long kidGlass;
 
     if (pvNil == pactr)
@@ -1082,7 +1082,7 @@ PESLL ESLL::PesllNew(PRCA prca, PMVIE pmvie, PACTR pactr)
     if (!FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    pesll = NewObj ESLL(&gcb);
+    pesll = NewObj EaselListen(&gcb);
     if (pvNil == pesll)
         return pvNil;
     if (!pesll->_FInit(prca, kidGlass, pmvie, pactr))
@@ -1099,18 +1099,18 @@ PESLL ESLL::PesllNew(PRCA prca, PMVIE pmvie, PACTR pactr)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLL::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr)
+bool EaselListen::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor pactr)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
 
-    PGL pgltag;
+    PDynamicArray pgltag;
     long vlm;
     bool fLoop;
 
-    if (!ESLL_PAR::_FInit(prca, kidEasel))
+    if (!EaselListen_PAR::_FInit(prca, kidEasel))
         return fFalse;
     _pmvie = pmvie;
     _pscen = pmvie->Pscen();
@@ -1203,10 +1203,10 @@ bool ESLL::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, PACTR pactr)
 /***************************************************************************
     Are there valid sounds in this Lsnd?
 ***************************************************************************/
-bool LSND::FValidSnd(void)
+bool ListenerSound::FValidSnd(void)
 {
     AssertThis(0);
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long itag;
     TAG tag;
 
@@ -1216,7 +1216,7 @@ bool LSND::FValidSnd(void)
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
         _pgltag->Get(itag, &tag);
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue;
         if (!pmsnd->FValid())
@@ -1233,7 +1233,7 @@ bool LSND::FValidSnd(void)
 /***************************************************************************
     Clean up and delete this easel
 ***************************************************************************/
-ESLL::~ESLL(void)
+EaselListen::~EaselListen(void)
 {
     AssertBaseThis(0);
 }
@@ -1241,7 +1241,7 @@ ESLL::~ESLL(void)
 /***************************************************************************
     Handle a Listener volume change command
 ***************************************************************************/
-bool ESLL::FCmdVlm(PCMD pcmd)
+bool EaselListen::FCmdVlm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1277,7 +1277,7 @@ bool ESLL::FCmdVlm(PCMD pcmd)
 /***************************************************************************
     Handle a Listener play command
 ***************************************************************************/
-bool ESLL::FCmdPlay(PCMD pcmd)
+bool EaselListen::FCmdPlay(PCommand pcmd)
 {
     AssertVarMem(pcmd);
     AssertNilOrPo(_pactr, 0);
@@ -1321,7 +1321,7 @@ bool ESLL::FCmdPlay(PCMD pcmd)
     create an undo object here, but we currently don't.  Scene sounds would
     require a new type of undo object so that's definitely not supported.
 ***************************************************************************/
-bool ESLL::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselListen::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
@@ -1422,20 +1422,20 @@ bool ESLL::_FAcceptChanges(bool *pfDismissEasel)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLL.
+    Assert the validity of the EaselListen.
 ***************************************************************************/
-void ESLL::AssertValid(ulong grf)
+void EaselListen::AssertValid(ulong grf)
 {
-    ESLL_PAR::AssertValid(fobjAllocated);
+    EaselListen_PAR::AssertValid(fobjAllocated);
 }
 
 /***************************************************************************
-    Mark memory used by the ESLL
+    Mark memory used by the EaselListen
 ***************************************************************************/
-void ESLL::MarkMem(void)
+void EaselListen::MarkMem(void)
 {
     AssertThis(0);
-    ESLL_PAR::MarkMem();
+    EaselListen_PAR::MarkMem();
     MarkMemObj(&_lsndSpeech);
     MarkMemObj(&_lsndSfx);
     MarkMemObj(&_lsndSpeechMM);
@@ -1446,15 +1446,15 @@ void ESLL::MarkMem(void)
 
 //
 //
-//  LSND (Listener Sound) stuff begins here
+//  ListenerSound (Listener Sound) stuff begins here
 //
 //
 
 /***************************************************************************
-    Initialize a LSND.  Note that the LSND takes over the reference to
+    Initialize a ListenerSound.  Note that the ListenerSound takes over the reference to
     *ppgltag.
 ***************************************************************************/
-bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgltag, long vlm, bool fLoop, long objID,
+bool ListenerSound::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PDynamicArray *ppgltag, long vlm, bool fLoop, long objID,
                  bool fMatcher)
 {
     AssertBaseThis(0);
@@ -1462,9 +1462,9 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgl
     AssertNilOrPo(*ppgltag, 0);
 
     long st;
-    PGOK pgok;
-    PTGOB ptgob;
-    PMSND pmsnd;
+    PKidspaceGraphicObject pgok;
+    PTextGraphicsObject ptgob;
+    PMovieSoundMSND pmsnd;
     long itag;
     TAG tag;
 
@@ -1495,12 +1495,12 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgl
     else
         st = kstListenSounder;
 
-    // Create the TGOB to display the sound name
+    // Create the TextGraphicsObject to display the sound name
     // Search until a valid (not deleted) msnd is found
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
         _pgltag->Get(itag, &tag);
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             return fFalse;
         if (!pmsnd->FValid())
@@ -1508,7 +1508,7 @@ bool LSND::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, PGL *ppgl
             ReleasePpo(&pmsnd);
             continue;
         }
-        ptgob = TGOB::PtgobCreate(kidEditBox, idsListenFont, tavCenter);
+        ptgob = TextGraphicsObject::PtgobCreate(kidEditBox, idsListenFont, tavCenter);
         if (pvNil == ptgob)
         {
             Warn("missing edit box");
@@ -1526,23 +1526,23 @@ LFound:
     // Update the slider volume
     vpcex->EnqueueCid(cidListenVolSet, vpapp->Pkwa()->PgobFromHid(kidVol), pvNil, _vlm);
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidIcon);
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidIcon);
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
         pgok->FChangeState(st);
 
     return fTrue;
 }
 
 /***************************************************************************
-    Play the LSND's sound
+    Play the ListenerSound's sound
 ***************************************************************************/
-void LSND::Play(void)
+void ListenerSound::Play(void)
 {
     AssertThis(0);
 
     long itag;
     TAG tag;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
 
     if (pvNil == _pgltag || _pgltag->IvMac() == 0)
         return; // nothing to play
@@ -1551,7 +1551,7 @@ void LSND::Play(void)
 
     // Stop sounds that are already playing.  This handles, among other
     // things, a problem that would otherwise occur when changing the
-    // volume of a MIDI sound.  Normally, MSND doesn't restart a MIDI
+    // volume of a MIDI sound.  Normally, MovieSoundMSND doesn't restart a MIDI
     // sound that's currently playing, but we want to force it to
     // restart here.
     StopAllMovieSounds();
@@ -1560,7 +1560,7 @@ void LSND::Play(void)
     {
         _pgltag->Get(itag, &tag);
         // Verify sound before including in the event list
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue; // ignore failure
         Assert(pmsnd->Sty() == _sty, 0);
@@ -1570,10 +1570,10 @@ void LSND::Play(void)
 }
 
 /***************************************************************************
-    Return whether the LSND has changed.  Specifies new volume and whether
+    Return whether the ListenerSound has changed.  Specifies new volume and whether
     the sound was nuked.
 ***************************************************************************/
-bool LSND::FChanged(long *pvlmNew, bool *pfNuked)
+bool ListenerSound::FChanged(long *pvlmNew, bool *pfNuked)
 {
     AssertThis(0);
     AssertVarMem(pvlmNew);
@@ -1585,9 +1585,9 @@ bool LSND::FChanged(long *pvlmNew, bool *pfNuked)
 }
 
 /***************************************************************************
-    Destroy a LSND
+    Destroy a ListenerSound
 ***************************************************************************/
-LSND::~LSND(void)
+ListenerSound::~ListenerSound(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgltag);
@@ -1595,53 +1595,53 @@ LSND::~LSND(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the LSND.
+    Assert the validity of the ListenerSound.
 ***************************************************************************/
-void LSND::AssertValid(ulong grf)
+void ListenerSound::AssertValid(ulong grf)
 {
-    LSND_PAR::AssertValid(0);
+    ListenerSound_PAR::AssertValid(0);
     AssertNilOrPo(_pgltag, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the LSND
+    Mark memory used by the ListenerSound
 ***************************************************************************/
-void LSND::MarkMem(void)
+void ListenerSound::MarkMem(void)
 {
     AssertThis(0);
-    LSND_PAR::MarkMem();
+    ListenerSound_PAR::MarkMem();
     MarkMemObj(_pgltag);
 }
 #endif // DEBUG
 
 //
 //
-//  ESLR (Sound recording easel) stuff begins here
+//  EaselRecord (Sound recording easel) stuff begins here
 //
 //
 
-BEGIN_CMD_MAP(ESLR, ESL)
-ON_CID_GEN(cidEaselRecord, &ESLR::FCmdRecord, pvNil)
-ON_CID_GEN(cidEaselPlay, &ESLR::FCmdPlay, pvNil)
-ON_CID_GEN(cidAlarm, &ESLR::FCmdUpdateMeter, pvNil)
+BEGIN_CMD_MAP(EaselRecord, Easel)
+ON_CID_GEN(cidEaselRecord, &EaselRecord::FCmdRecord, pvNil)
+ON_CID_GEN(cidEaselPlay, &EaselRecord::FCmdPlay, pvNil)
+ON_CID_GEN(cidAlarm, &EaselRecord::FCmdUpdateMeter, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new sound recording easel
 ***************************************************************************/
-PESLR ESLR::PeslrNew(PRCA prca, PMVIE pmvie, bool fSpeech, PSTN pstnNew)
+PEaselRecord EaselRecord::PeslrNew(PResourceCache prca, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertPo(pstnNew, 0);
 
-    PESLR peslr;
-    GCB gcb;
+    PEaselRecord peslr;
+    GraphicsObjectBlock gcb;
 
     if (!FBuildGcb(&gcb, kidBackground, kidRecordGlass))
         return pvNil;
 
-    peslr = NewObj ESLR(&gcb);
+    peslr = NewObj EaselRecord(&gcb);
     if (pvNil == peslr)
         return pvNil;
     if (!peslr->_FInit(prca, kidRecordGlass, pmvie, fSpeech, pstnNew))
@@ -1658,27 +1658,27 @@ PESLR ESLR::PeslrNew(PRCA prca, PMVIE pmvie, bool fSpeech, PSTN pstnNew)
 /***************************************************************************
     Set up this easel
 ***************************************************************************/
-bool ESLR::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstnNew)
+bool EaselRecord::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, bool fSpeech, PString pstnNew)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertPo(pstnNew, 0);
 
-    GCB gcb;
-    EDPAR edpar;
+    GraphicsObjectBlock gcb;
+    EditParameter edpar;
 
     _pmvie = pmvie;
     _fSpeech = fSpeech;
 
-    if (!ESLR_PAR::_FInit(prca, kidEasel))
+    if (!EaselRecord_PAR::_FInit(prca, kidEasel))
         return fFalse;
 
-    if (!FBuildGcb(&gcb, kidRecordSoundName, CMH::HidUnique()))
+    if (!FBuildGcb(&gcb, kidRecordSoundName, CommandHandler::HidUnique()))
         return fFalse;
     edpar.Set(gcb._hid, gcb._pgob, gcb._grfgob, gcb._gin, &gcb._rcAbs, &gcb._rcRel, vpappb->OnnDefVariable(), 0,
               vpappb->DypTextDef(), tahLeft, tavCenter);
-    _pedsl = EDSL::PedslNew(&edpar);
+    _pedsl = EditControlSingleLine::PedslNew(&edpar);
     if (pvNil == _pedsl)
         return fFalse;
     _pedsl->SetStn(pstnNew, fFalse);
@@ -1691,7 +1691,7 @@ bool ESLR::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstn
     csampSec = kcsampSec;
     do
     {
-        _psrec = SREC::PsrecNew(csampSec, 1, 1, kdtsMaxRecord);
+        _psrec = SoundRecorder::PsrecNew(csampSec, 1, 1, kdtsMaxRecord);
 
         // if we failed, then the pointer is nil
         if (pvNil == _psrec)
@@ -1712,7 +1712,7 @@ bool ESLR::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstn
     _clok.Start(0);
 
     // Set sound meter to 0
-    PGOK pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
+    PKidspaceGraphicObject pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
     if (pvNil != pgok)
         vpcex->EnqueueCid(cidRecordSetLength, pgok, 0, 0, 0, 0, 0);
     return fTrue;
@@ -1721,7 +1721,7 @@ bool ESLR::_FInit(PRCA prca, long kidEasel, PMVIE pmvie, bool fSpeech, PSTN pstn
 /***************************************************************************
     Clean up and delete this easel
 ***************************************************************************/
-ESLR::~ESLR(void)
+EaselRecord::~EaselRecord(void)
 {
     AssertBaseThis(0);
 
@@ -1731,11 +1731,11 @@ ESLR::~ESLR(void)
 /***************************************************************************
     Update the meter that shows how long we've been recording.
 ***************************************************************************/
-void ESLR::_UpdateMeter(void)
+void EaselRecord::_UpdateMeter(void)
 {
     AssertThis(0);
 
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
     long dtsRec;
     long percentDone; // no good hungarian for a percent
 
@@ -1746,7 +1746,7 @@ void ESLR::_UpdateMeter(void)
         percentDone = LwMulDiv(dtsRec, 100, kdtsMaxRecord);
         percentDone = LwBound(percentDone, 0, 100);
 
-        pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
+        pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidRecordSoundLength);
         if (pvNil != pgok)
             vpcex->EnqueueCid(cidRecordSetLength, pgok, 0, percentDone, 0, 0, 0);
         else
@@ -1757,7 +1757,7 @@ void ESLR::_UpdateMeter(void)
 /***************************************************************************
     Start or stop recording
 ***************************************************************************/
-bool ESLR::FCmdRecord(PCMD pcmd)
+bool EaselRecord::FCmdRecord(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1796,7 +1796,7 @@ bool ESLR::FCmdRecord(PCMD pcmd)
 /***************************************************************************
     Time to update the meter that shows how long we've been recording.
 ***************************************************************************/
-bool ESLR::FCmdUpdateMeter(PCMD pcmd)
+bool EaselRecord::FCmdUpdateMeter(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1823,7 +1823,7 @@ bool ESLR::FCmdUpdateMeter(PCMD pcmd)
 /***************************************************************************
     Play the sound that was recorded
 ***************************************************************************/
-bool ESLR::FCmdPlay(PCMD pcmd)
+bool EaselRecord::FCmdPlay(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1878,15 +1878,15 @@ bool ESLR::FCmdPlay(PCMD pcmd)
 /***************************************************************************
     Save the new sound
 ***************************************************************************/
-bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
+bool EaselRecord::_FAcceptChanges(bool *pfDismissEasel)
 {
     AssertThis(0);
     AssertVarMem(pfDismissEasel);
 
-    FNI fni;
-    STN stn;
-    PFIL pfil = pvNil;
-    CNO cno;
+    Filename fni;
+    String stn;
+    PFileObject pfil = pvNil;
+    ChunkNumber cno;
     long sty = _fSpeech ? stySpeech : stySfx;
     long kid = _fSpeech ? kidSpeechGlass : kidFXGlass;
 
@@ -1931,7 +1931,7 @@ bool ESLR::_FAcceptChanges(bool *pfDismissEasel)
     if (!_psrec->FSave(&fni))
         return fFalse;
 
-    pfil = FIL::PfilOpen(&fni, ffilNil);
+    pfil = FileObject::PfilOpen(&fni, ffilNil);
     if (pvNil == pfil)
         goto LFail;
 
@@ -1954,21 +1954,21 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the ESLR.
+    Assert the validity of the EaselRecord.
 ***************************************************************************/
-void ESLR::AssertValid(ulong grf)
+void EaselRecord::AssertValid(ulong grf)
 {
-    ESLL_PAR::AssertValid(fobjAllocated);
+    EaselListen_PAR::AssertValid(fobjAllocated);
     AssertPo(_psrec, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the ESLR
+    Mark memory used by the EaselRecord
 ***************************************************************************/
-void ESLR::MarkMem(void)
+void EaselRecord::MarkMem(void)
 {
     AssertThis(0);
-    ESLL_PAR::MarkMem();
+    EaselListen_PAR::MarkMem();
     MarkMemObj(_psrec);
 }
 #endif // DEBUG

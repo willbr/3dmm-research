@@ -6,7 +6,7 @@
     Lite, low-cholestoral, politically correct, ethinically and genderally
     mixed text gobs.
 
-        TGOB 	--->   	GOB
+        TextGraphicsObject 	--->   	GraphicsObject
 
 ***************************************************************************/
 
@@ -18,10 +18,10 @@
 //
 // Tgob class
 //
-#define TGOB_PAR GOB
-#define kclsTGOB 'tgob'
-typedef class TGOB *PTGOB;
-class TGOB : public TGOB_PAR
+#define TextGraphicsObject_PAR GraphicsObject
+#define kclsTextGraphicsObject 'tgob'
+typedef class TextGraphicsObject *PTextGraphicsObject;
+class TextGraphicsObject : public TextGraphicsObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -30,12 +30,12 @@ class TGOB : public TGOB_PAR
   protected:
     long _onn;
     long _dypFont;
-    STN _stn;
+    String _stn;
     long _tah;
     long _tav;
-    ACR _acrFore;
-    ACR _acrBack;
-    ~TGOB(void)
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
+    ~TextGraphicsObject(void)
     {
     }
 
@@ -43,8 +43,8 @@ class TGOB : public TGOB_PAR
     //
     // Create and destroy functions
     //
-    TGOB(PGCB pgcb);
-    TGOB(long hid);
+    TextGraphicsObject(PGraphicsObjectBlock pgcb);
+    TextGraphicsObject(long hid);
 
     void SetFont(long onn)
     {
@@ -56,18 +56,18 @@ class TGOB : public TGOB_PAR
         AssertThis(0);
         _dypFont = dypFont;
     }
-    void SetText(PSTN pstn)
+    void SetText(PString pstn)
     {
         AssertThis(0);
         _stn = *pstn;
         InvalRc(pvNil, kginMark);
     }
-    void SetAcrFore(ACR acrFore)
+    void SetAcrFore(AbstractColor acrFore)
     {
         AssertThis(0);
         _acrFore = acrFore;
     }
-    void SetAcrBack(ACR acrBack)
+    void SetAcrBack(AbstractColor acrBack)
     {
         AssertThis(0);
         _acrBack = acrBack;
@@ -83,20 +83,20 @@ class TGOB : public TGOB_PAR
         AssertThis(0);
         return _dypFont;
     }
-    ACR GetAcrFore(void)
+    AbstractColor GetAcrFore(void)
     {
         AssertThis(0);
         return (_acrFore);
     }
-    ACR GetAcrBack(void)
+    AbstractColor GetAcrBack(void)
     {
         AssertThis(0);
         return (_acrBack);
     }
     void GetAlign(long *ptah = pvNil, long *ptav = pvNil);
-    static PTGOB PtgobCreate(long kidFrm, long idsFont, long tav = tavTop, long hid = hidNil);
+    static PTextGraphicsObject PtgobCreate(long kidFrm, long idsFont, long tav = tavTop, long hid = hidNil);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 #endif

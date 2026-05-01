@@ -13,34 +13,36 @@
 #include "kidframe.h"
 ASSERTNAME
 
-RTCLASS(GOK)
-RTCLASS(GORP)
-RTCLASS(GORF)
-RTCLASS(GORB)
-RTCLASS(GORT)
-RTCLASS(GORV)
+namespace GraphicalObjectRepresentation {
 
-BEGIN_CMD_MAP(GOK, GOB)
-ON_CID_ME(cidClicked, &GOK::FCmdClickedCore, pvNil)
-ON_CID_ME(cidAlarm, &GOK::FCmdAlarm, pvNil)
-ON_CID_ME(cidRollOff, &GOK::FCmdMouseMoveCore, pvNil)
-ON_CID_ALL(cidKey, &GOK::FCmdAll, pvNil)
-ON_CID_ALL(cidSelIdle, &GOK::FCmdAll, pvNil)
-END_CMD_MAP(&GOK::FCmdAll, pvNil, kgrfcmmAll)
+RTCLASS(KidspaceGraphicObject)
+RTCLASS(GraphicalObjectRepresentation)
+RTCLASS(GraphicalObjectRepresentationFill)
+RTCLASS(GraphicalObjectRepresentationBitmap)
+RTCLASS(GraphicalObjectRepresentationTiled)
+RTCLASS(GraphicalObjectRepresentationVideo)
+
+BEGIN_CMD_MAP(KidspaceGraphicObject, GraphicsObject)
+ON_CID_ME(cidClicked, &KidspaceGraphicObject::FCmdClickedCore, pvNil)
+ON_CID_ME(cidAlarm, &KidspaceGraphicObject::FCmdAlarm, pvNil)
+ON_CID_ME(cidRollOff, &KidspaceGraphicObject::FCmdMouseMoveCore, pvNil)
+ON_CID_ALL(cidKey, &KidspaceGraphicObject::FCmdAll, pvNil)
+ON_CID_ALL(cidSelIdle, &KidspaceGraphicObject::FCmdAll, pvNil)
+END_CMD_MAP(&KidspaceGraphicObject::FCmdAll, pvNil, kgrfcmmAll)
 
 const long kcmhlGok = -10000;
 
 /***************************************************************************
-    Create a new kidspace gob as described in the GOKD with given cno
-    in the given RCA.
+    Create a new kidspace gob as described in the KidspaceGraphicObjectDescriptor with given cno
+    in the given ResourceCache.
 ***************************************************************************/
-PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
+PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca)
 {
     AssertPo(pgobPar, 0);
     AssertPo(pgokd, 0);
     AssertPo(prca, 0);
-    GCB gcb;
-    PGOK pgok;
+    GraphicsObjectBlock gcb;
+    PKidspaceGraphicObject pgok;
 
     if (hidNil == hid)
     {
@@ -49,7 +51,7 @@ PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
     }
 
     gcb.Set(hid, pgobPar, fgobNil, kginMark);
-    if (pvNil == (pgok = NewObj GOK(&gcb)))
+    if (pvNil == (pgok = NewObj KidspaceGraphicObject(&gcb)))
         return pvNil;
 
     if (!pgok->_FInit(pwoks, pgokd, prca))
@@ -59,7 +61,7 @@ PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
     }
     if (!pgok->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         return pvNil;
     }
 
@@ -68,20 +70,20 @@ PGOK GOK::PgokNew(PWOKS pwoks, PGOB pgobPar, long hid, PGOKD pgokd, PRCA prca)
 }
 
 /***************************************************************************
-    Static method to find the GOB that should be before a new GOK with
+    Static method to find the GraphicsObject that should be before a new KidspaceGraphicObject with
     this zp.
 ***************************************************************************/
-PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
+PGraphicsObject KidspaceGraphicObject::_PgobBefore(PGraphicsObject pgobPar, long zp)
 {
     AssertPo(pgobPar, 0);
-    PGOB pgobBefore, pgobT;
+    PGraphicsObject pgobBefore, pgobT;
 
-    // find the place in the GOB tree to put the GOK.
+    // find the place in the GraphicsObject tree to put the KidspaceGraphicObject.
     for (pgobBefore = pvNil, pgobT = pgobPar->PgobFirstChild(); pgobT != pvNil; pgobT = pgobT->PgobNextSib())
     {
-        if (pgobT->FIs(kclsGOK))
+        if (pgobT->FIs(kclsKidspaceGraphicObject))
         {
-            if (((PGOK)pgobT)->_zp <= zp)
+            if (((PKidspaceGraphicObject)pgobT)->_zp <= zp)
                 break;
             pgobBefore = pgobT;
         }
@@ -92,7 +94,7 @@ PGOB GOK::_PgobBefore(PGOB pgobPar, long zp)
 /***************************************************************************
     Constructor for the Kidspace graphic object.
 ***************************************************************************/
-GOK::GOK(GCB *pgcb) : GOB(pgcb)
+KidspaceGraphicObject::KidspaceGraphicObject(GraphicsObjectBlock *pgcb) : GraphicsObject(pgcb)
 {
     _chidAnim = chidNil;
     _siiSound = siiNil;
@@ -102,9 +104,9 @@ GOK::GOK(GCB *pgcb) : GOB(pgcb)
 }
 
 /***************************************************************************
-    Destructor for a GOK.
+    Destructor for a KidspaceGraphicObject.
 ***************************************************************************/
-GOK::~GOK(void)
+KidspaceGraphicObject::~KidspaceGraphicObject(void)
 {
     if (vpsndm != pvNil)
     {
@@ -129,14 +131,14 @@ GOK::~GOK(void)
 }
 
 /***************************************************************************
-    Initialize this GOK given the cno for the gokd.
+    Initialize this KidspaceGraphicObject given the cno for the gokd.
 ***************************************************************************/
-bool GOK::_FInit(PWOKS pwoks, CNO cno, PRCA prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);
-    PGOKD pgokd;
+    PKidspaceGraphicObjectDescriptor pgokd;
     bool fRet;
 
     if (pvNil == (pgokd = pwoks->PgokdFetch(kctgGokd, cno, prca)))
@@ -149,9 +151,9 @@ bool GOK::_FInit(PWOKS pwoks, CNO cno, PRCA prca)
 }
 
 /***************************************************************************
-    Initialize this GOK.
+    Initialize this KidspaceGraphicObject.
 ***************************************************************************/
-bool GOK::_FInit(PWOKS pwoks, PGOKD pgokd, PRCA prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -187,7 +189,7 @@ bool GOK::_FInit(PWOKS pwoks, PGOKD pgokd, PRCA prca)
     the actual chid is gotten by putting the current gob state number in
     the high word.
 ***************************************************************************/
-const CHID _mpgmschidRep[] = {
+const ChildChunkID _mpgmschidRep[] = {
     chidNil,
 
     kchidEnterState, kchidUpOff,    kchidUpOffOn, kchidUpOnOff,   kchidUpOn,      kchidDownUpOff,
@@ -198,10 +200,10 @@ const CHID _mpgmschidRep[] = {
 /***************************************************************************
     Return the chid value for the current mouse tracking state.
 ***************************************************************************/
-CHID GOK::_ChidMouse(void)
+ChildChunkID KidspaceGraphicObject::_ChidMouse(void)
 {
     AssertThisMem();
-    CHID chid;
+    ChildChunkID chid;
 
     chid = _mpgmschidRep[_gmsCur];
     if (chidNil != chid)
@@ -431,10 +433,10 @@ GMSE _mpgmsgmseUpOff[] = {
     We got some input, make sure the mouse tracking state is correct,
     according to the given transition table.
 
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool GOK::_FAdjustGms(GMSE *pmpgmsgmse)
+bool KidspaceGraphicObject::_FAdjustGms(GMSE *pmpgmsgmse)
 {
     AssertThis(0);
     GMSE gmse;
@@ -478,10 +480,10 @@ bool GOK::_FAdjustGms(GMSE *pmpgmsgmse)
     than gms. This is similar to _FAdjustGms(_mpgmsgmseEnd), except that
     the current representation is set before trying to advance.
 
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool GOK::_FSetGms(long gms, ulong grfact)
+bool KidspaceGraphicObject::_FSetGms(long gms, ulong grfact)
 {
     AssertThis(0);
     AssertIn(gms, gmsNil, kgmsLim);
@@ -517,16 +519,16 @@ bool GOK::_FSetGms(long gms, ulong grfact)
     than gms. *pfStable is set to false iff the gms is an auto-advance gms
     and the representation wasn't set (didn't exist or failed).
 
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool GOK::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
+bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
 {
     AssertThis(0);
     AssertIn(gms, gmsNil, kgmsLim);
     AssertVarMem(pfStable);
-    CHID chid;
-    CTG ctg;
+    ChildChunkID chid;
+    ChunkTagOrType ctg;
 
     // set the gms
     _gmsCur = gms;
@@ -551,7 +553,7 @@ bool GOK::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
         cmd.pcmh = this;
         cmd.grfcust = _grfcust;
         cmd.cact = _cactMouse;
-        vpcex->EnqueueCmd((PCMD)&cmd);
+        vpcex->EnqueueCmd((PCommand)&cmd);
     }
 
     // change the representation
@@ -577,22 +579,22 @@ bool GOK::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
     Make the current graphical representation that indicated by the given
     chid value (if not nil).
 
-    If ctg is not nil, only uses ctg representations. Moves the GOK by
+    If ctg is not nil, only uses ctg representations. Moves the KidspaceGraphicObject by
     (dxp, dyp). Fills *pfSet with whether the representation was
     successfully set.
 
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool GOK::_FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, bool *pfSet)
+bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOrType ctg, long dxp, long dyp, bool *pfSet)
 {
     AssertThis(0);
     long ikid;
-    KID kid;
-    PGORP pgorp;
+    ChildChunkIdentification kid;
+    PGraphicalObjectRepresentation pgorp;
     bool fSet = fFalse;
     bool fKillAnim = FPure(grfgok & fgokKillAnim);
-    PCFL pcfl = _pcrf->Pcfl();
+    PChunkyFile pcfl = _pcrf->Pcfl();
 
     if (chidNil == chid)
         goto LAdjust;
@@ -609,10 +611,10 @@ bool GOK::_FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, bool *p
 
         if (pcfl->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
         {
-            PSCPT pscpt;
-            PSCEG psceg = pvNil;
+            PScript pscpt;
+            PGraphicsObjectInterpreter psceg = pvNil;
 
-            if (pvNil != (pscpt = (PSCPT)_pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, SCPT::FReadScript)) &&
+            if (pvNil != (pscpt = (PScript)_pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Script::FReadScript)) &&
                 pvNil != (psceg = _pwoks->PscegNew(_prca, this)) && psceg->FAttachScript(pscpt))
             {
                 ReleasePpo(&pscpt);
@@ -648,7 +650,7 @@ bool GOK::_FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, bool *p
             continue;
         }
 
-        if (!(grfgok & fgokReset) && pvNil != _pgorp && FEqualRgb(&kid.cki, &_ckiGorp, size(CKI)))
+        if (!(grfgok & fgokReset) && pvNil != _pgorp && FEqualRgb(&kid.cki, &_ckiGorp, size(ChunkIdentification)))
         {
             fSet = fTrue;
             break;
@@ -666,7 +668,7 @@ bool GOK::_FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, bool *p
     }
 
 LAdjust:
-    // reposition the GOK
+    // reposition the KidspaceGraphicObject
     if (dxp != 0 || dyp != 0)
     {
         RC rc;
@@ -696,14 +698,14 @@ LAdjust:
 /***************************************************************************
     Run the next section of the animation script.
 ***************************************************************************/
-bool GOK::_FAdvanceFrame(void)
+bool KidspaceGraphicObject::_FAdvanceFrame(void)
 {
     AssertThis(0);
 
     bool fExists, fRet, fPaused;
-    PWOKS pwoks = _pwoks;
+    PWorldOfKidspace pwoks = _pwoks;
     ulong dtim = 0;
-    PSCEG psceg = _pscegAnim;
+    PGraphicsObjectInterpreter psceg = _pscegAnim;
     long grid = Grid();
 
     if (pvNil == psceg)
@@ -722,7 +724,7 @@ bool GOK::_FAdvanceFrame(void)
 
         if (!fExists)
         {
-            // this GOK went away
+            // this KidspaceGraphicObject went away
             ReleasePpo(&psceg);
             return fFalse;
         }
@@ -772,10 +774,10 @@ LSetGorp:
 /***************************************************************************
     Put the kidspace graphic object in the indicated state.
 
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool GOK::_FEnterState(long sno)
+bool KidspaceGraphicObject::_FEnterState(long sno)
 {
     AssertThis(0);
     AssertIn(sno, 0, kswMax);
@@ -864,9 +866,9 @@ bool GOK::_FEnterState(long sno)
 }
 
 /***************************************************************************
-    See if the given point is in this GOK.
+    See if the given point is in this KidspaceGraphicObject.
 ***************************************************************************/
-bool GOK::FPtIn(long xp, long yp)
+bool KidspaceGraphicObject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     RC rc;
@@ -885,10 +887,10 @@ bool GOK::FPtIn(long xp, long yp)
 }
 
 /***************************************************************************
-    See if the given point is in the rectangular bounds of this GOK (ie,
-    whether there's any chance the point is in a child of this GOK).
+    See if the given point is in the rectangular bounds of this KidspaceGraphicObject (ie,
+    whether there's any chance the point is in a child of this KidspaceGraphicObject).
 ***************************************************************************/
-bool GOK::FPtInBounds(long xp, long yp)
+bool KidspaceGraphicObject::FPtInBounds(long xp, long yp)
 {
     AssertThis(0);
     RC rc;
@@ -903,7 +905,7 @@ bool GOK::FPtInBounds(long xp, long yp)
 /***************************************************************************
     Draw the kidspace object.
 ***************************************************************************/
-void GOK::Draw(PGNV pgnv, RC *prcClip)
+void KidspaceGraphicObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -921,13 +923,13 @@ void GOK::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Respond to an alarm. If the clock is the animation clock or noslip clock
     we advance the animation. Otherwise we run an associated script.
-    CAUTION: this GOK may not exist on return.
+    CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool GOK::FCmdAlarm(PCMD pcmd)
+bool KidspaceGraphicObject::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CHID chid;
+    ChildChunkID chid;
     long hid = pcmd->rglw[0];
 
     if (_pwoks->PclokAnim()->Hid() == hid || _pwoks->PclokNoSlip()->Hid() == hid)
@@ -950,9 +952,9 @@ bool GOK::FCmdAlarm(PCMD pcmd)
 
 /***************************************************************************
     For command filtering.
-    CAUTION: this GOK may not exist on return.
+    CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool GOK::FCmdAll(PCMD pcmd)
+bool KidspaceGraphicObject::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -986,10 +988,10 @@ bool GOK::FCmdAll(PCMD pcmd)
 /***************************************************************************
     Determine if the command should be filtered out by calling the indicated
     script and checking its return value. This returns true iff the command
-    is filtered out or the GOK goes away, in which case *pfFilter is set
+    is filtered out or the KidspaceGraphicObject goes away, in which case *pfFilter is set
     to whether the command was filtered.
 ***************************************************************************/
-bool GOK::_FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilter)
+bool KidspaceGraphicObject::_FFilterCmd(PCommand pcmd, ChildChunkID chidScript, bool *pfFilter)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1017,12 +1019,12 @@ bool GOK::_FFilterCmd(PCMD pcmd, CHID chidScript, bool *pfFilter)
     If both cid and hid are nil, chidScript should be nil. If the cid, hid
     and chidScript are all nil, we turn off all filtering.
 ***************************************************************************/
-bool GOK::FFilterCidHid(long cid, long hid, CHID chidScript)
+bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidScript)
 {
     AssertThis(0);
     CMFLT cmflt;
     long icmflt;
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (chidNil == chidScript ||
         !_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
@@ -1059,7 +1061,7 @@ bool GOK::FFilterCidHid(long cid, long hid, CHID chidScript)
         return fTrue;
     }
 
-    if (pvNil == _pglcmflt && pvNil == (_pglcmflt = GL::PglNew(size(CMFLT))))
+    if (pvNil == _pglcmflt && pvNil == (_pglcmflt = DynamicArray::PglNew(size(CMFLT))))
         return fFalse;
 
     cmflt.cid = cid;
@@ -1075,7 +1077,7 @@ bool GOK::FFilterCidHid(long cid, long hid, CHID chidScript)
 /***************************************************************************
     Look for the given (cid, hid) pair in the filtering map.
 ***************************************************************************/
-bool GOK::_FFindCmflt(long cid, long hid, CMFLT *pcmflt, long *picmflt)
+bool KidspaceGraphicObject::_FFindCmflt(long cid, long hid, CMFLT *pcmflt, long *picmflt)
 {
     AssertThis(0);
     Assert(cid != cidNil || hid != hidNil, "cid and hid are both nil!");
@@ -1119,7 +1121,7 @@ bool GOK::_FFindCmflt(long cid, long hid, CMFLT *pcmflt, long *picmflt)
 /***************************************************************************
     This handles cidMouseMove and cidRollOff.
 ***************************************************************************/
-bool GOK::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool KidspaceGraphicObject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1130,7 +1132,7 @@ bool GOK::FCmdMouseMove(PCMD_MOUSE pcmd)
     else
     {
         Assert(cidMouseMove == pcmd->cid, "unknown command");
-        CUME cume;
+        CursorMapEntry cume;
         bool fCanClick = _pgokd->FGetCume(pcmd->grfcust, _sno, &cume);
 
         if (!_FAdjustGms(fCanClick ? _mpgmsgmseMove : _mpgmsgmseRollOff))
@@ -1142,14 +1144,14 @@ bool GOK::FCmdMouseMove(PCMD_MOUSE pcmd)
 }
 
 /***************************************************************************
-    Set the cursor for this GOK and the given cursor state.
+    Set the cursor for this KidspaceGraphicObject and the given cursor state.
 ***************************************************************************/
-void GOK::SetCursor(ulong grfcust)
+void KidspaceGraphicObject::SetCursor(ulong grfcust)
 {
     AssertThis(0);
-    PGOK pgok;
-    PGOB pgob;
-    CUME cume;
+    PKidspaceGraphicObject pgok;
+    PGraphicsObject pgob;
+    CursorMapEntry cume;
 
     for (pgok = this; !pgok->_pgokd->FGetCume(grfcust, _sno, &cume) || cume.cnoCurs == cnoNil; grfcust |= fcustChildGok)
     {
@@ -1161,9 +1163,9 @@ void GOK::SetCursor(ulong grfcust)
                 vpappb->SetCurs(pvNil);
                 return;
             }
-            if (pgob->FIs(kclsGOK))
+            if (pgob->FIs(kclsKidspaceGraphicObject))
             {
-                pgok = (PGOK)pgob;
+                pgok = (PKidspaceGraphicObject)pgob;
                 break;
             }
         }
@@ -1174,7 +1176,7 @@ void GOK::SetCursor(ulong grfcust)
 /***************************************************************************
     Do mouse tracking.
 ***************************************************************************/
-bool GOK::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool KidspaceGraphicObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1183,7 +1185,7 @@ bool GOK::FCmdTrackMouse(PCMD_MOUSE pcmd)
     if (pcmd->cid == cidMouseDown)
     {
         // first response to mouse down
-        CUME cume;
+        CursorMapEntry cume;
 
         if (!_pgokd->FGetCume(pcmd->grfcust, _sno, &cume))
             return fTrue;
@@ -1219,24 +1221,24 @@ bool GOK::FCmdTrackMouse(PCMD_MOUSE pcmd)
 }
 
 /***************************************************************************
-    Put up a tool tip if this GOK has one. Return true if tool tips are
+    Put up a tool tip if this KidspaceGraphicObject has one. Return true if tool tips are
     still active.
 ***************************************************************************/
-bool GOK::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
+bool KidspaceGraphicObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse)
 {
     AssertThis(0);
     AssertVarMem(ppgobCurTip);
     AssertNilOrPo(*ppgobCurTip, 0);
-    CNO cno;
-    HTOP htop;
-    PGOK pgokSrc;
+    ChunkNumber cno;
+    Topic htop;
+    PKidspaceGraphicObject pgokSrc;
 
     ReleasePpo(ppgobCurTip);
     if (_hidToolTipSrc == Hid())
         pgokSrc = this;
     else
     {
-        if (pvNil == (pgokSrc = (PGOK)_pwoks->PgobFromHid(_hidToolTipSrc)) || !pgokSrc->FIs(kclsGOK))
+        if (pvNil == (pgokSrc = (PKidspaceGraphicObject)_pwoks->PgobFromHid(_hidToolTipSrc)) || !pgokSrc->FIs(kclsKidspaceGraphicObject))
         {
             // abort tool tip mode
             return fFalse;
@@ -1273,10 +1275,10 @@ bool GOK::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
 /***************************************************************************
     Get the cno for the our tool tip (given the current modifier state).
 ***************************************************************************/
-CNO GOK::_CnoToolTip(void)
+ChunkNumber KidspaceGraphicObject::_CnoToolTip(void)
 {
     AssertThis(0);
-    CUME cume;
+    CursorMapEntry cume;
 
     if (!_pgokd->FGetCume(_pwoks->GrfcustCur(), _sno, &cume))
         return cnoNil;
@@ -1285,9 +1287,9 @@ CNO GOK::_CnoToolTip(void)
 }
 
 /***************************************************************************
-    Makes the GOK get its tool tip from the GOK having the given hid.
+    Makes the KidspaceGraphicObject get its tool tip from the KidspaceGraphicObject having the given hid.
 ***************************************************************************/
-void GOK::SetHidToolTip(long hidSrc)
+void KidspaceGraphicObject::SetHidToolTip(long hidSrc)
 {
     AssertThis(0);
 
@@ -1295,10 +1297,10 @@ void GOK::SetHidToolTip(long hidSrc)
 }
 
 /***************************************************************************
-    Get the state information for the GOK (for testing). High 16 bits are
+    Get the state information for the KidspaceGraphicObject (for testing). High 16 bits are
     the state number; next 14 bits are _gmsCur; low 2 bits are set.
 ***************************************************************************/
-long GOK::LwState(void)
+long KidspaceGraphicObject::LwState(void)
 {
     AssertThis(0);
 
@@ -1306,9 +1308,9 @@ long GOK::LwState(void)
 }
 
 /***************************************************************************
-    Get the registration point of the given GOK in its parent's coordinates.
+    Get the registration point of the given KidspaceGraphicObject in its parent's coordinates.
 ***************************************************************************/
-void GOK::GetPtReg(PT *ppt, long coo)
+void KidspaceGraphicObject::GetPtReg(PT *ppt, long coo)
 {
     AssertThis(0);
     AssertVarMem(ppt);
@@ -1323,10 +1325,10 @@ void GOK::GetPtReg(PT *ppt, long coo)
 }
 
 /***************************************************************************
-    Get the "content" rectangle of this GOK. This is primarily for GOKs
+    Get the "content" rectangle of this KidspaceGraphicObject. This is primarily for GOKs
     that have a content area, such as help balloons and easels.
 ***************************************************************************/
-void GOK::GetRcContent(RC *prc)
+void KidspaceGraphicObject::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1338,12 +1340,12 @@ void GOK::GetRcContent(RC *prc)
 }
 
 /***************************************************************************
-    Set the GOK's z plane.
+    Set the KidspaceGraphicObject's z plane.
 ***************************************************************************/
-void GOK::SetZPlane(long zp)
+void KidspaceGraphicObject::SetZPlane(long zp)
 {
     AssertThis(0);
-    PGOB pgobBefore;
+    PGraphicsObject pgobBefore;
 
     if (_zp == zp)
         return;
@@ -1360,9 +1362,9 @@ void GOK::SetZPlane(long zp)
 }
 
 /***************************************************************************
-    Set the slipping behavior of the GOK.
+    Set the slipping behavior of the KidspaceGraphicObject.
 ***************************************************************************/
-void GOK::SetNoSlip(bool fNoSlip)
+void KidspaceGraphicObject::SetNoSlip(bool fNoSlip)
 {
     AssertThis(0);
 
@@ -1371,17 +1373,17 @@ void GOK::SetNoSlip(bool fNoSlip)
 
 /***************************************************************************
     If there is an attached script with the given chid value, run it.
-    Returns false iff the GOK no longer exists on return. *ptSuccess is
+    Returns false iff the KidspaceGraphicObject no longer exists on return. *ptSuccess is
     filled with tNo if the script doesn't exist, tMaybe if the script exists
     but there was a failure, tYes if the script exists and running it
     succeeded.
-    CAUTION: this GOK may not exist on return.
+    CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool GOK::FRunScript(CHID chid, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
+bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (!_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
     {
@@ -1395,29 +1397,29 @@ bool GOK::FRunScript(CHID chid, long *prglw, long clw, long *plwReturn, tribool 
 
 /***************************************************************************
     If there is a script with the given cno, run it. Returns false iff
-    the GOK no longer exists on return. *ptSuccess is filled with tNo
+    the KidspaceGraphicObject no longer exists on return. *ptSuccess is filled with tNo
     if the script doesn't exist, tMaybe if the script exists but there
     was a failure, tYes if the script exists and running it succeeded.
-    CAUTION: this GOK may not exist on return.
+    CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool GOK::FRunScriptCno(CNO cno, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
+bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, long *prglw, long clw, long *plwReturn, tribool *ptSuccess)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
-    PSCPT pscpt;
+    PScript pscpt;
     bool fError, fExists;
     tribool tRet;
 
     fExists = fTrue;
-    pscpt = (PSCPT)_pcrf->PbacoFetch(kctgScript, cno, SCPT::FReadScript, &fError);
+    pscpt = (PScript)_pcrf->PbacoFetch(kctgScript, cno, Script::FReadScript, &fError);
     if (pvNil != pscpt)
     {
         AssertPo(pscpt, 0);
         long grid = Grid();
-        PWOKS pwoks = _pwoks;
-        PSCEG psceg = _pwoks->PscegNew(_prca, this);
+        PWorldOfKidspace pwoks = _pwoks;
+        PGraphicsObjectInterpreter psceg = _pwoks->PscegNew(_prca, this);
 
-        // be careful not to use GOK variables here in case the GOK is
+        // be careful not to use KidspaceGraphicObject variables here in case the KidspaceGraphicObject is
         // freed while the script is running.
         if (pvNil != psceg && psceg->FRunScript(pscpt, prglw, clw, plwReturn))
             tRet = tYes;
@@ -1426,7 +1428,7 @@ bool GOK::FRunScriptCno(CNO cno, long *prglw, long clw, long *plwReturn, tribool
         ReleasePpo(&psceg);
         ReleasePpo(&pscpt);
 
-        // see if this GOK still exists
+        // see if this KidspaceGraphicObject still exists
         fExists = (this == pwoks->PgobFromGrid(grid));
     }
     else
@@ -1438,10 +1440,10 @@ bool GOK::FRunScriptCno(CNO cno, long *prglw, long clw, long *plwReturn, tribool
 }
 
 /***************************************************************************
-    Change the current state of the GOK to the given state number.
-    CAUTION: this GOK may not exist on return.
+    Change the current state of the KidspaceGraphicObject to the given state number.
+    CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool GOK::FChangeState(long sno)
+bool KidspaceGraphicObject::FChangeState(long sno)
 {
     AssertThis(0);
     AssertIn(sno, 0, kswMax);
@@ -1451,12 +1453,12 @@ bool GOK::FChangeState(long sno)
 /***************************************************************************
     Set the representation to the given chid (if it's not nil).
 
-    Moves the GOK by dxp, dyp and sets its wait time for animation script
+    Moves the KidspaceGraphicObject by dxp, dyp and sets its wait time for animation script
     wake up to dtim (unless it's zero).
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-bool GOK::FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, ulong dtim)
+bool KidspaceGraphicObject::FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOrType ctg, long dxp, long dyp, ulong dtim)
 {
     AssertThis(0);
 
@@ -1471,18 +1473,18 @@ bool GOK::FSetRep(CHID chid, ulong grfgok, CTG ctg, long dxp, long dyp, ulong dt
 }
 
 /***************************************************************************
-    The GOK has been hit with the mouse, do the associated action.
-    CAUTION: this GOK may not exist on return.
+    The KidspaceGraphicObject has been hit with the mouse, do the associated action.
+    CAUTION: this KidspaceGraphicObject may not exist on return.
 ***************************************************************************/
-bool GOK::FCmdClicked(PCMD_MOUSE pcmd)
+bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
-    PGOK pgok;
-    PGOB pgob;
+    PKidspaceGraphicObject pgok;
+    PGraphicsObject pgob;
     long rglw[3];
     long lw;
     tribool tRet;
-    CUME cume;
+    CursorMapEntry cume;
     long hid = Hid();
     long grid = Grid();
 
@@ -1498,12 +1500,12 @@ bool GOK::FCmdClicked(PCMD_MOUSE pcmd)
         if (pgok->_pgokd->FGetCume(pcmd->grfcust, _sno, &cume))
             break;
         pgob = pgok->PgobPar();
-        if (pvNil == pgob || !pgob->FIs(kclsGOK))
+        if (pvNil == pgob || !pgob->FIs(kclsKidspaceGraphicObject))
         {
             _DeferSnd(fFalse);
             return fTrue;
         }
-        pgok = (PGOK)pgob;
+        pgok = (PKidspaceGraphicObject)pgob;
     }
 
     // do the action associated with a mouse click
@@ -1519,7 +1521,7 @@ bool GOK::FCmdClicked(PCMD_MOUSE pcmd)
         vpcex->EnqueueCid(cume.cidDefault, pvNil, pvNil, pgok->Hid(), hid);
     }
 
-    // undefer sound - be careful because this GOK may have gone away
+    // undefer sound - be careful because this KidspaceGraphicObject may have gone away
     if (this == pgok || (this == pgok->_pwoks->PgobFromGrid(grid)))
         _DeferSnd(fFalse);
 
@@ -1530,13 +1532,13 @@ bool GOK::FCmdClicked(PCMD_MOUSE pcmd)
     Make the current graphical representation that indicated by the given
     chid value. If we're already in that representation, don't do anything,
     ie, don't restart an animation.
-    CAUTION: this GOK may not exist on return. Returns false iff the GOK
+    CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGORP GOK::_PgorpNew(PCRF pcrf, CTG ctg, CNO cno)
+PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    typedef PGORP (*PFNGORP)(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno);
+    typedef PGraphicalObjectRepresentation (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
     PFNGORP pfngorp;
 
     switch (ctg)
@@ -1546,19 +1548,19 @@ PGORP GOK::_PgorpNew(PCRF pcrf, CTG ctg, CNO cno)
 
     case kctgMbmp:
     case kctgMask:
-        pfngorp = (PFNGORP)GORB::PgorbNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationBitmap::PgorbNew;
         break;
 
     case kctgFill:
-        pfngorp = (PFNGORP)GORF::PgorfNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationFill::PgorfNew;
         break;
 
     case kctgTile:
-        pfngorp = (PFNGORP)GORT::PgortNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationTiled::PgortNew;
         break;
 
     case kctgVideo:
-        pfngorp = (PFNGORP)GORV::PgorvNew;
+        pfngorp = (PFNGORP)GraphicalObjectRepresentationVideo::PgorvNew;
         break;
     }
 
@@ -1568,7 +1570,7 @@ PGORP GOK::_PgorpNew(PCRF pcrf, CTG ctg, CNO cno)
 /***************************************************************************
     Set the current graphical representation to this one.
 ***************************************************************************/
-void GOK::_SetGorp(PGORP pgorp, long dxp, long dyp)
+void KidspaceGraphicObject::_SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp)
 {
     AssertThis(0);
     AssertNilOrPo(pgorp, 0);
@@ -1624,7 +1626,7 @@ void GOK::_SetGorp(PGORP pgorp, long dxp, long dyp)
 /***************************************************************************
     Defer or finish defering marking and positioning the gorp.
 ***************************************************************************/
-void GOK::_DeferGorp(bool fDefer)
+void KidspaceGraphicObject::_DeferGorp(bool fDefer)
 {
     AssertThis(0);
 
@@ -1645,7 +1647,7 @@ void GOK::_DeferGorp(bool fDefer)
 /***************************************************************************
     Start playing the current representation.
 ***************************************************************************/
-bool GOK::FPlay(void)
+bool KidspaceGraphicObject::FPlay(void)
 {
     AssertThis(0);
 
@@ -1655,7 +1657,7 @@ bool GOK::FPlay(void)
 /***************************************************************************
     Return whether the current representation is being played.
 ***************************************************************************/
-bool GOK::FPlaying(void)
+bool KidspaceGraphicObject::FPlaying(void)
 {
     AssertThis(0);
 
@@ -1665,7 +1667,7 @@ bool GOK::FPlaying(void)
 /***************************************************************************
     Stop playing the current representation.
 ***************************************************************************/
-void GOK::Stop(void)
+void KidspaceGraphicObject::Stop(void)
 {
     AssertThis(0);
 
@@ -1676,7 +1678,7 @@ void GOK::Stop(void)
 /***************************************************************************
     Goto the given frame of the current representation.
 ***************************************************************************/
-void GOK::GotoNfr(long nfr)
+void KidspaceGraphicObject::GotoNfr(long nfr)
 {
     AssertThis(0);
 
@@ -1692,7 +1694,7 @@ void GOK::GotoNfr(long nfr)
 /***************************************************************************
     Return the number of frames in the current representation.
 ***************************************************************************/
-long GOK::NfrMac(void)
+long KidspaceGraphicObject::NfrMac(void)
 {
     AssertThis(0);
 
@@ -1702,7 +1704,7 @@ long GOK::NfrMac(void)
 /***************************************************************************
     Return the current frame number of the current representation.
 ***************************************************************************/
-long GOK::NfrCur(void)
+long KidspaceGraphicObject::NfrCur(void)
 {
     AssertThis(0);
 
@@ -1710,10 +1712,10 @@ long GOK::NfrCur(void)
 }
 
 /***************************************************************************
-    Play a sound and attach the sound to this GOK so that when the GOK
+    Play a sound and attach the sound to this KidspaceGraphicObject so that when the KidspaceGraphicObject
     goes away, the sound will be killed.
 ***************************************************************************/
-long GOK::SiiPlaySound(CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long KidspaceGraphicObject::SiiPlaySound(ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
 
@@ -1725,6 +1727,7 @@ long GOK::SiiPlaySound(CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulon
 
     if (cnoNil != cno)
     {
+        return siiNil; // hack to disable tooltips
         _siiSound = vpsndm->SiiPlay(_prca, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
     }
     else
@@ -1736,7 +1739,7 @@ long GOK::SiiPlaySound(CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulon
 /***************************************************************************
     Defer or stop defering mouse sounds.
 ***************************************************************************/
-void GOK::_DeferSnd(bool fDefer)
+void KidspaceGraphicObject::_DeferSnd(bool fDefer)
 {
     AssertThis(0);
 
@@ -1753,11 +1756,11 @@ void GOK::_DeferSnd(bool fDefer)
 }
 
 /***************************************************************************
-    Play a sound and attach the sound to this GOK as the mouse tracking
-    sound, so that when the GOK goes away and the mouse state changes,
+    Play a sound and attach the sound to this KidspaceGraphicObject as the mouse tracking
+    sound, so that when the KidspaceGraphicObject goes away and the mouse state changes,
     the sound will be killed.
 ***************************************************************************/
-long GOK::SiiPlayMouseSound(CTG ctg, CNO cno)
+long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
 
@@ -1768,9 +1771,10 @@ long GOK::SiiPlayMouseSound(CTG ctg, CNO cno)
     if (siiNil != _siiMouse)
         vpsndm->Stop(_siiMouse);
 
-    if (cnoNil != cno)
+    if (cnoNil != cno) {
+        return siiNil; // hack to disable mouse sounds
         _siiMouse = vpsndm->SiiPlay(_prca, ctg, cno);
-    else
+    } else
         _siiMouse = siiNil;
 
     return _siiMouse;
@@ -1779,10 +1783,10 @@ long GOK::SiiPlayMouseSound(CTG ctg, CNO cno)
 /***************************************************************************
     Play a sound with the given chid as the current mouse tracking sound.
 ***************************************************************************/
-void GOK::_PlayMouseSound(CHID chid)
+void KidspaceGraphicObject::_PlayMouseSound(ChildChunkID chid)
 {
     AssertThis(0);
-    KID kid;
+    ChildChunkIdentification kid;
 
     if (pvNil == vpsndm)
         return;
@@ -1806,7 +1810,7 @@ void GOK::_PlayMouseSound(CHID chid)
     Our kidworld is being suspended. Make sure no AVIs or other things
     are running.
 ***************************************************************************/
-void GOK::Suspend(void)
+void KidspaceGraphicObject::Suspend(void)
 {
     AssertThis(0);
 
@@ -1817,7 +1821,7 @@ void GOK::Suspend(void)
 /***************************************************************************
     Our kidworld is being resumed. Undo anything we did in Suspend.
 ***************************************************************************/
-void GOK::Resume(void)
+void KidspaceGraphicObject::Resume(void)
 {
     AssertThis(0);
 
@@ -1829,7 +1833,7 @@ void GOK::Resume(void)
     The streaming property is being set or reset. If streaming is set, the
     rep should get flushed when we're done with it.
 ***************************************************************************/
-void GOK::Stream(bool fStream)
+void KidspaceGraphicObject::Stream(bool fStream)
 {
     AssertThis(0);
     _fStream = FPure(fStream);
@@ -1840,11 +1844,11 @@ void GOK::Stream(bool fStream)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GOK.
+    Assert the validity of a KidspaceGraphicObject.
 ***************************************************************************/
-void GOK::AssertValid(ulong grf)
+void KidspaceGraphicObject::AssertValid(ulong grf)
 {
-    GOK_PAR::AssertValid(0);
+    KidspaceGraphicObject_PAR::AssertValid(0);
     AssertPo(_pwoks, 0);
     AssertNilOrPo(_pscegAnim, 0);
     AssertPo(_pcrf, 0);
@@ -1863,12 +1867,12 @@ void GOK::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the GOK.
+    Mark memory for the KidspaceGraphicObject.
 ***************************************************************************/
-void GOK::MarkMem(void)
+void KidspaceGraphicObject::MarkMem(void)
 {
     AssertValid(0);
-    GOK_PAR::MarkMem();
+    KidspaceGraphicObject_PAR::MarkMem();
     MarkMemObj(_pscegAnim);
     MarkMemObj(_prca);
     MarkMemObj(_pcrf);
@@ -1880,7 +1884,7 @@ void GOK::MarkMem(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-long GORP::NfrMac(void)
+long GraphicalObjectRepresentation::NfrMac(void)
 {
     AssertThis(0);
     return 0;
@@ -1889,7 +1893,7 @@ long GORP::NfrMac(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-long GORP::NfrCur(void)
+long GraphicalObjectRepresentation::NfrCur(void)
 {
     AssertThis(0);
     return 0;
@@ -1898,7 +1902,7 @@ long GORP::NfrCur(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::GotoNfr(long nfr)
+void GraphicalObjectRepresentation::GotoNfr(long nfr)
 {
     AssertThis(0);
 }
@@ -1906,16 +1910,7 @@ void GORP::GotoNfr(long nfr)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-bool GORP::FPlaying(void)
-{
-    AssertThis(0);
-    return fFalse;
-}
-
-/***************************************************************************
-    Stub method for non-frame based representations.
-***************************************************************************/
-bool GORP::FPlay(void)
+bool GraphicalObjectRepresentation::FPlaying(void)
 {
     AssertThis(0);
     return fFalse;
@@ -1924,7 +1919,16 @@ bool GORP::FPlay(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::Stop(void)
+bool GraphicalObjectRepresentation::FPlay(void)
+{
+    AssertThis(0);
+    return fFalse;
+}
+
+/***************************************************************************
+    Stub method for non-frame based representations.
+***************************************************************************/
+void GraphicalObjectRepresentation::Stop(void)
 {
     AssertThis(0);
 }
@@ -1932,7 +1936,7 @@ void GORP::Stop(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::Suspend(void)
+void GraphicalObjectRepresentation::Suspend(void)
 {
     AssertThis(0);
 }
@@ -1940,16 +1944,16 @@ void GORP::Suspend(void)
 /***************************************************************************
     Stub method for non-frame based representations.
 ***************************************************************************/
-void GORP::Resume(void)
+void GraphicalObjectRepresentation::Resume(void)
 {
     AssertThis(0);
 }
 
 /***************************************************************************
     The streaming property is being set or reset. If streaming is set, we
-    should flush our stuff from the RCA cache when we're done with it.
+    should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
-void GORP::Stream(bool fStream)
+void GraphicalObjectRepresentation::Stream(bool fStream)
 {
     AssertThis(0);
 }
@@ -1964,20 +1968,20 @@ struct GOKFL
     long lwAcrBack;
     byte rgbPat[8];
 };
-const BOM kbomGokfl = 0x5FFF0000;
+const ByteOrderMask kbomGokfl = 0x5FFF0000;
 
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGORF GORF::PgorfNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGraphicalObjectRepresentationFill GraphicalObjectRepresentationFill::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
 
     GOKFL gokfl;
-    PCFL pcfl;
-    BLCK blck;
-    PGORF pgorf;
+    PChunkyFile pcfl;
+    DataBlock blck;
+    PGraphicalObjectRepresentationFill pgorf;
 
     pcfl = pcrf->Pcfl();
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(GOKFL) || !blck.FRead(&gokfl))
@@ -1993,7 +1997,7 @@ PGORF GORF::PgorfNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
         return pvNil;
     }
 
-    if (pvNil == (pgorf = NewObj GORF))
+    if (pvNil == (pgorf = NewObj GraphicalObjectRepresentationFill))
         return pvNil;
 
     pgorf->_acrFore.SetFromLw(gokfl.lwAcrFore);
@@ -2010,7 +2014,7 @@ PGORF GORF::PgorfNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 /***************************************************************************
     Fill the rectangle.
 ***************************************************************************/
-void GORF::Draw(PGNV pgnv, RC *prcClip)
+void GraphicalObjectRepresentationFill::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2025,17 +2029,17 @@ void GORF::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Return whether the point is in the representation.
 ***************************************************************************/
-bool GORF::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationFill::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     return FIn(xp, 0, _dxp) && FIn(yp, 0, _dyp);
 }
 
 /***************************************************************************
-    Set the internal state of the GORF to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationFill to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORF::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationFill::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
@@ -2050,7 +2054,7 @@ void GORF::SetDxpDyp(long dxpPref, long dypPref)
 /***************************************************************************
     Get the natural rectangle.
 ***************************************************************************/
-void GORF::GetRc(RC *prc)
+void GraphicalObjectRepresentationFill::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2062,7 +2066,7 @@ void GORF::GetRc(RC *prc)
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORF::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationFill::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2074,13 +2078,13 @@ void GORF::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGORB GORB::PgorbNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGraphicalObjectRepresentationBitmap GraphicalObjectRepresentationBitmap::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
-    PGORB pgorb;
+    PGraphicalObjectRepresentationBitmap pgorb;
 
-    if (pvNil == (pgorb = NewObj GORB))
+    if (pvNil == (pgorb = NewObj GraphicalObjectRepresentationBitmap))
         return pvNil;
 
     pgorb->_pcrf = pcrf;
@@ -2092,30 +2096,30 @@ PGORB GORB::PgorbNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 }
 
 /***************************************************************************
-    Destructor for a GORB.
+    Destructor for a GraphicalObjectRepresentationBitmap.
 ***************************************************************************/
-GORB::~GORB(void)
+GraphicalObjectRepresentationBitmap::~GraphicalObjectRepresentationBitmap(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, MBMP::FReadMbmp);
+        _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
     ReleasePpo(&_pcrf);
 }
 
 /***************************************************************************
     Draw the bitmap.
 ***************************************************************************/
-void GORB::Draw(PGNV pgnv, RC *prcClip)
+void GraphicalObjectRepresentationBitmap::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rc;
 
     if (kctgMbmp != _ctg)
         return;
 
-    if (pvNil != (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil != (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         AssertPo(pmbmp, 0);
         pmbmp->GetRc(&rc);
@@ -2130,14 +2134,14 @@ void GORB::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Return whether the point is in the bitmap.
 ***************************************************************************/
-bool GORB::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationBitmap::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rc;
     bool fRet;
 
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
@@ -2151,29 +2155,29 @@ bool GORB::FPtIn(long xp, long yp)
 }
 
 /***************************************************************************
-    Set the internal state of the GORB to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationBitmap to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORB::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationBitmap::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
     AssertIn(dypPref, 0, kcbMax);
 
-    // GORB's are not resizeable, so we do nothing
+    // GraphicalObjectRepresentationBitmap's are not resizeable, so we do nothing
 }
 
 /***************************************************************************
     Get the natural rectangle.
 ***************************************************************************/
-void GORB::GetRc(RC *prc)
+void GraphicalObjectRepresentationBitmap::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
 
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
-    if (pvNil != (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil != (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         AssertPo(pmbmp, 0);
         pmbmp->GetRc(prc);
@@ -2189,7 +2193,7 @@ void GORB::GetRc(RC *prc)
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORB::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationBitmap::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2200,9 +2204,9 @@ void GORB::GetRcContent(RC *prc)
 
 /***************************************************************************
     The streaming property is being set or reset. If streaming is set, we
-    should flush our stuff from the RCA cache when we're done with it.
+    should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
-void GORB::Stream(bool fStream)
+void GraphicalObjectRepresentationBitmap::Stream(bool fStream)
 {
     AssertThis(0);
     _fStream = FPure(fStream);
@@ -2211,16 +2215,16 @@ void GORB::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGORT GORT::PgortNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
 
     GOTIL gotil;
-    PCFL pcfl;
-    BLCK blck;
-    PGORT pgort;
-    KID kid;
+    PChunkyFile pcfl;
+    DataBlock blck;
+    PGraphicalObjectRepresentationTiled pgort;
+    ChildChunkIdentification kid;
 
     pcfl = pcrf->Pcfl();
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(GOTIL) || !blck.FRead(&gotil))
@@ -2259,11 +2263,11 @@ PGORT GORT::PgortNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 #pragma warning(pop)
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgMbmp, &kid))
     {
-        Warn("no child MBMP of TILE chunk");
+        Warn("no child MaskedBitmapMBMP of TILE chunk");
         return pvNil;
     }
 
-    if (pvNil == (pgort = NewObj GORT))
+    if (pvNil == (pgort = NewObj GraphicalObjectRepresentationTiled))
         return pvNil;
 
     CopyPb(gotil.rgdxp, pgort->_rgdxp, size(gotil.rgdxp));
@@ -2280,28 +2284,28 @@ PGORT GORT::PgortNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 }
 
 /***************************************************************************
-    Destructor for a GORT.
+    Destructor for a GraphicalObjectRepresentationTiled.
 ***************************************************************************/
-GORT::~GORT(void)
+GraphicalObjectRepresentationTiled::~GraphicalObjectRepresentationTiled(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, MBMP::FReadMbmp);
+        _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
     ReleasePpo(&_pcrf);
 }
 
 /***************************************************************************
-    Draw the GORT.
+    Draw the GraphicalObjectRepresentationTiled.
 ***************************************************************************/
-void GORT::Draw(PGNV pgnv, RC *prcClip)
+void GraphicalObjectRepresentationTiled::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
     long ypLim, dyp;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rcRow;
 
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
@@ -2352,7 +2356,7 @@ void GORT::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draw a row of the tiled bitmap.
 ***************************************************************************/
-void GORT::_DrawRow(PGNV pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
+void GraphicalObjectRepresentationTiled::_DrawRow(PGraphicsEnvironment pgnv, PMaskedBitmapMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2434,17 +2438,17 @@ void GORT::_DrawRow(PGNV pgnv, PMBMP pmbmp, RC *prcRow, RC *prcClip, long dxp, l
 /***************************************************************************
     Do hit testing on a tiled bitmap.
 ***************************************************************************/
-bool GORT::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationTiled::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
     RC rc;
     bool fRet;
 
     if (!FIn(xp, 0, _dxp) || !FIn(yp, 0, _dyp))
         return fFalse;
 
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
@@ -2464,7 +2468,7 @@ bool GORT::FPtIn(long xp, long yp)
     Map the point from flexed coordinates to zero based mbmp coordinates
     for hit testing.
 ***************************************************************************/
-void GORT::_MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
+void GraphicalObjectRepresentationTiled::_MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
 {
     AssertThis(0);
     AssertVarMem(pzp);
@@ -2485,10 +2489,10 @@ void GORT::_MapZpToMbmp(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRigh
 }
 
 /***************************************************************************
-    Set the internal state of the GORT to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationTiled to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORT::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationTiled::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
@@ -2505,7 +2509,7 @@ void GORT::SetDxpDyp(long dxpPref, long dypPref)
 /***************************************************************************
     Compute the flex values in one direction.
 ***************************************************************************/
-void GORT::_ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp)
+void GraphicalObjectRepresentationTiled::_ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, short *prgdzp)
 {
     AssertThis(0);
     AssertVarMem(pdzpLeftFlex);
@@ -2530,16 +2534,16 @@ void GORT::_ComputeFlexZp(long *pdzpLeftFlex, long *pdzpRightFlex, long dzp, sho
 /***************************************************************************
     Get the bounding rectangle for the tiled bitmap.
 ***************************************************************************/
-void GORT::GetRc(RC *prc)
+void GraphicalObjectRepresentationTiled::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
     RC rc;
     PT pt;
-    PMBMP pmbmp;
+    PMaskedBitmapMBMP pmbmp;
 
     prc->Set(0, 0, _dxp, _dyp);
-    if (pvNil == (pmbmp = (PMBMP)_pcrf->PbacoFetch(_ctg, _cno, MBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
@@ -2551,8 +2555,8 @@ void GORT::GetRc(RC *prc)
     pt.xp = -rc.xpLeft;
     pt.yp = -rc.ypTop;
 
-    // map the point from the MBMP to the flexed rectangle, scaling
-    // proportionally if the point is in a flex portion of the MBMP
+    // map the point from the MaskedBitmapMBMP to the flexed rectangle, scaling
+    // proportionally if the point is in a flex portion of the MaskedBitmapMBMP
     _MapZpFlex(&pt.xp, _rgdxp, _dxpLeftFlex, _dxpRightFlex);
     _MapZpFlex(&pt.yp, _rgdyp, _dypLeftFlex, _dypRightFlex);
 
@@ -2561,10 +2565,10 @@ void GORT::GetRc(RC *prc)
 }
 
 /***************************************************************************
-    Map the point from MBMP coordinates to flexed coordinates for setting the
+    Map the point from MaskedBitmapMBMP coordinates to flexed coordinates for setting the
     registration point. WARNING: this is not the inverse of _MapZpToMbmp.
 ***************************************************************************/
-void GORT::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
+void GraphicalObjectRepresentationTiled::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex)
 {
     AssertThis(0);
     AssertVarMem(pzp);
@@ -2587,7 +2591,7 @@ void GORT::_MapZpFlex(long *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightF
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORT::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationTiled::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2600,9 +2604,9 @@ void GORT::GetRcContent(RC *prc)
 
 /***************************************************************************
     The streaming property is being set or reset. If streaming is set, we
-    should flush our stuff from the RCA cache when we're done with it.
+    should flush our stuff from the ResourceCache cache when we're done with it.
 ***************************************************************************/
-void GORT::Stream(bool fStream)
+void GraphicalObjectRepresentationTiled::Stream(bool fStream)
 {
     AssertThis(0);
     _fStream = FPure(fStream);
@@ -2611,13 +2615,13 @@ void GORT::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGORV GORV::PgorvNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
+PGraphicalObjectRepresentationVideo GraphicalObjectRepresentationVideo::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertPo(pcrf, 0);
-    PGORV pgorv;
+    PGraphicalObjectRepresentationVideo pgorv;
 
-    if (pvNil == (pgorv = NewObj GORV))
+    if (pvNil == (pgorv = NewObj GraphicalObjectRepresentationVideo))
         return pvNil;
 
     if (!pgorv->_FInit(pgok, pcrf, ctg, cno))
@@ -2631,17 +2635,17 @@ PGORV GORV::PgorvNew(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 }
 
 /***************************************************************************
-    Initialize the GORV - load the movie indicated byt (pcrf, ctg, cno).
+    Initialize the GraphicalObjectRepresentationVideo - load the movie indicated byt (pcrf, ctg, cno).
 ***************************************************************************/
-bool GORV::_FInit(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
+bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);
 
-    PCFL pcfl;
-    BLCK blck;
-    STN stn;
-    FNI fni;
+    PChunkyFile pcfl;
+    DataBlock blck;
+    String stn;
+    Filename fni;
     RC rc;
     byte bT;
 
@@ -2652,7 +2656,7 @@ bool GORV::_FInit(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
         goto LFail;
     }
 
-    if (!pgok->Pwoks()->FFindFile(&stn, &fni) || pvNil == (_pgvid = GVID::PgvidNew(&fni, pgok, bT)))
+    if (!pgok->Pwoks()->FFindFile(&stn, &fni) || pvNil == (_pgvid = Video::PgvidNew(&fni, pgok, bT)))
     {
     LFail:
         Warn("couldn't load indicated video");
@@ -2669,7 +2673,7 @@ bool GORV::_FInit(PGOK pgok, PCRF pcrf, CTG ctg, CNO cno)
 /***************************************************************************
     Destructor for a video representation.
 ***************************************************************************/
-GORV::~GORV(void)
+GraphicalObjectRepresentationVideo::~GraphicalObjectRepresentationVideo(void)
 {
     ReleasePpo(&_pgvid);
 }
@@ -2677,7 +2681,7 @@ GORV::~GORV(void)
 /***************************************************************************
     Draw the frame.
 ***************************************************************************/
-void GORV::Draw(PGNV pgnv, RC *prcClip)
+void GraphicalObjectRepresentationVideo::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -2689,17 +2693,17 @@ void GORV::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Return whether the point is in the representation.
 ***************************************************************************/
-bool GORV::FPtIn(long xp, long yp)
+bool GraphicalObjectRepresentationVideo::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     return FIn(xp, 0, _dxp) && FIn(yp, 0, _dyp);
 }
 
 /***************************************************************************
-    Set the internal state of the GORF to accomodate the given preferred
+    Set the internal state of the GraphicalObjectRepresentationFill to accomodate the given preferred
     size of the content area.
 ***************************************************************************/
-void GORV::SetDxpDyp(long dxpPref, long dypPref)
+void GraphicalObjectRepresentationVideo::SetDxpDyp(long dxpPref, long dypPref)
 {
     AssertThis(0);
     AssertIn(dxpPref, 0, kcbMax);
@@ -2716,7 +2720,7 @@ void GORV::SetDxpDyp(long dxpPref, long dypPref)
 /***************************************************************************
     Get the natural rectangle.
 ***************************************************************************/
-void GORV::GetRc(RC *prc)
+void GraphicalObjectRepresentationVideo::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2727,7 +2731,7 @@ void GORV::GetRc(RC *prc)
 /***************************************************************************
     Get the interior content rectangle.
 ***************************************************************************/
-void GORV::GetRcContent(RC *prc)
+void GraphicalObjectRepresentationVideo::GetRcContent(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -2738,7 +2742,7 @@ void GORV::GetRcContent(RC *prc)
 /***************************************************************************
     Return the length of the video.
 ***************************************************************************/
-long GORV::NfrMac(void)
+long GraphicalObjectRepresentationVideo::NfrMac(void)
 {
     AssertThis(0);
     return _pgvid->NfrMac();
@@ -2747,7 +2751,7 @@ long GORV::NfrMac(void)
 /***************************************************************************
     Return the current frame of the video.
 ***************************************************************************/
-long GORV::NfrCur(void)
+long GraphicalObjectRepresentationVideo::NfrCur(void)
 {
     AssertThis(0);
     return _pgvid->NfrCur();
@@ -2756,7 +2760,7 @@ long GORV::NfrCur(void)
 /***************************************************************************
     Goto a particular frame.
 ***************************************************************************/
-void GORV::GotoNfr(long nfr)
+void GraphicalObjectRepresentationVideo::GotoNfr(long nfr)
 {
     AssertThis(0);
     _pgvid->GotoNfr(nfr);
@@ -2765,7 +2769,7 @@ void GORV::GotoNfr(long nfr)
 /***************************************************************************
     Return whether the video is playing.
 ***************************************************************************/
-bool GORV::FPlaying(void)
+bool GraphicalObjectRepresentationVideo::FPlaying(void)
 {
     AssertThis(0);
     return (_cactSuspend > 0 && _fPlayOnResume) || _pgvid->FPlaying();
@@ -2774,7 +2778,7 @@ bool GORV::FPlaying(void)
 /***************************************************************************
     Play from the current frame to the end.
 ***************************************************************************/
-bool GORV::FPlay(void)
+bool GraphicalObjectRepresentationVideo::FPlay(void)
 {
     AssertThis(0);
     RC rc(0, 0, _dxp, _dyp);
@@ -2787,7 +2791,7 @@ bool GORV::FPlay(void)
 /***************************************************************************
     Stop playing.
 ***************************************************************************/
-void GORV::Stop(void)
+void GraphicalObjectRepresentationVideo::Stop(void)
 {
     AssertThis(0);
     _pgvid->Stop();
@@ -2796,7 +2800,7 @@ void GORV::Stop(void)
 /***************************************************************************
     Suspend the video.
 ***************************************************************************/
-void GORV::Suspend(void)
+void GraphicalObjectRepresentationVideo::Suspend(void)
 {
     AssertThis(0);
 
@@ -2815,7 +2819,7 @@ void GORV::Suspend(void)
 /***************************************************************************
     Resume the video.
 ***************************************************************************/
-void GORV::Resume(void)
+void GraphicalObjectRepresentationVideo::Resume(void)
 {
     AssertThis(0);
 
@@ -2828,21 +2832,23 @@ void GORV::Resume(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GORV.
+    Assert the validity of a GraphicalObjectRepresentationVideo.
 ***************************************************************************/
-void GORV::AssertValid(ulong grf)
+void GraphicalObjectRepresentationVideo::AssertValid(ulong grf)
 {
-    GORV_PAR::AssertValid(0);
+    GraphicalObjectRepresentationVideo_PAR::AssertValid(0);
     AssertPo(_pgvid, 0);
 }
 
 /***************************************************************************
-    Mark memory for the GORV.
+    Mark memory for the GraphicalObjectRepresentationVideo.
 ***************************************************************************/
-void GORV::MarkMem(void)
+void GraphicalObjectRepresentationVideo::MarkMem(void)
 {
     AssertValid(0);
-    GORV_PAR::MarkMem();
+    GraphicalObjectRepresentationVideo_PAR::MarkMem();
     MarkMemObj(_pgvid);
 }
 #endif // DEBUG
+
+} // end of namespace GraphicalObjectRepresentation

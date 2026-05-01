@@ -50,11 +50,15 @@
 #define IDC_PREVIEW 1023
 #define IDC_BUTTON3 1024
 #define IDC_EDIT3 1025
+#define IDC_CHECK2 1026
+#define IDC_CHECK3 1027
+#define IDC_CHECK4 1028
 #define cidInfo 40038
 #define cidWriteBmps 40039
 #define cidHelpBook 40040
 #define cidToggleXY 40041
 #define cidMap 40042
+#define cidWriteBmpHires 40043
 #define IDC_STATIC -1
 
 // Next default values for new objects
@@ -62,8 +66,8 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE 226
-#define _APS_NEXT_COMMAND_VALUE 40045
-#define _APS_NEXT_CONTROL_VALUE 1026
+#define _APS_NEXT_COMMAND_VALUE 40046
+#define _APS_NEXT_CONTROL_VALUE 1029
 #define _APS_NEXT_SYMED_VALUE 128
 #endif
 #endif

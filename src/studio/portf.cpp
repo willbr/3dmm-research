@@ -19,7 +19,7 @@ ASSERTNAME
  FPortDisplayWithIds: Display the portfolio to open or save a file. Portfolio
                     title and filters generated using supplied string ids.
 
- Arguments: fni 			- Output FNI for file selected
+ Arguments: fni 			- Output Filename for file selected
             fOpen			- fTrue if open portfolio, else save portfolio.
             lFilterLabel	- id of portfolio filter label
             lFilterExt		- id of portfolio filter extension
@@ -34,14 +34,14 @@ ASSERTNAME
             FALSE	- User canceled portfolio.
 
 ***************************************************************************/
-bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                         PSTN pstnDefFileName, FNI *pfniInitialDir, ulong grfPrevType, CNO cnoWave)
+bool FPortDisplayWithIds(Filename *pfni, bool fOpen, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
+                         PString pstnDefFileName, Filename *pfniInitialDir, ulong grfPrevType, ChunkNumber cnoWave)
 {
-    STN stnTitle;
-    STN stnFilterLabel;
-    STN stnFilterExt;
+    String stnTitle;
+    String stnFilterLabel;
+    String stnFilterExt;
     int cChLabel, cChExt;
-    SZ szFilter;
+    ZString szFilter;
     bool fRet;
 
     AssertVarMem(pfni);
@@ -59,8 +59,8 @@ bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterE
     if (!vapp.FGetStnApp(lFilterExt, &stnFilterExt))
         return fFalse;
 
-    // Kauai does not like internal null chars in an STN. So build
-    // up the final final string as an SZ.
+    // Kauai does not like internal null chars in an String. So build
+    // up the final final string as an ZString.
 
     cChLabel = stnFilterLabel.Cch();
     cChExt = stnFilterExt.Cch();
@@ -102,7 +102,7 @@ bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterE
 
  FPortGetFniOpen: Display the portfolio to open a file.
 
- Arguments: pfni 		- Output FNI for file selected
+ Arguments: pfni 		- Output Filename for file selected
             lpstrFilter	- String containing files types to filter on
             lpstrTitle	- String containing title of portfolio
             pfniInitialDir	- Ptr to initial directory fni if required.
@@ -113,16 +113,16 @@ bool FPortDisplayWithIds(FNI *pfni, bool fOpen, long lFilterLabel, long lFilterE
             FALSE	- User canceled portfolio.
 
 ***************************************************************************/
-bool FPortGetFniOpen(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, FNI *pfniInitialDir, ulong grfPrevType,
-                     CNO cnoWave)
+bool FPortGetFniOpen(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, Filename *pfniInitialDir, ulong grfPrevType,
+                     ChunkNumber cnoWave)
 {
-    SZ szFile;
+    ZString szFile;
     DLGINFO diPortfolio;
     OPENFILENAME ofn;
-    STN stn;
+    String stn;
     bool fOKed;
-    STN stnInitialDir;
-    SZ szInitialDir;
+    String stnInitialDir;
+    ZString szInitialDir;
 
     AssertPo(pfni, 0);
     AssertNilOrPo(pfniInitialDir, 0);
@@ -218,7 +218,7 @@ bool FPortGetFniOpen(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, FNI *pfni
 
  pfGetFniSave: Display the save portfolio.
 
- Arguments: pfni		- Output FNI for file selected
+ Arguments: pfni		- Output Filename for file selected
             lpstrFilter	- String containing files types to filter on
             lpstrTitle	- String containing title of portfolio
             lpstrDefExt	- String containing default extension for filenames
@@ -231,8 +231,8 @@ bool FPortGetFniOpen(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, FNI *pfni
             FALSE	- User canceled portfolio, (or other error).
 
 ***************************************************************************/
-bool FPortGetFniSave(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PSTN pstnDefFileName,
-                     ulong grfPrevType, CNO cnoWave)
+bool FPortGetFniSave(Filename *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lpstrDefExt, PString pstnDefFileName,
+                     ulong grfPrevType, ChunkNumber cnoWave)
 {
     DLGINFO diPortfolio;
     OPENFILENAME ofn;
@@ -240,12 +240,12 @@ bool FPortGetFniSave(FNI *pfni, LPTSTR lpstrFilter, LPTSTR lpstrTitle, LPTSTR lp
     bool tRet;
     bool fRedisplayPortfolio = fFalse;
     bool fExplorer = fTrue;
-    STN stnFile, stnErr;
-    FNI fniUserDir;
-    STN stnUserDir;
-    SZ szUserDir;
-    SZ szDefFileName;
-    SZ szFileTitle;
+    String stnFile, stnErr;
+    Filename fniUserDir;
+    String stnUserDir;
+    ZString szUserDir;
+    ZString szDefFileName;
+    ZString szFileTitle;
 
     AssertPo(pfni, 0);
     AssertNilOrPo(pstnDefFileName, 0);
@@ -615,13 +615,13 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 return (1);
 
             case IDC_BUTTON3: {
-                FNI fniUserDir;
-                STN stnUserDir;
-                SZ szUserDir;
-                SZ szCurFile;
+                Filename fniUserDir;
+                String stnUserDir;
+                ZString szUserDir;
+                ZString szCurFile;
                 HWND hwndDlg = GetParent(hwndCustom);
 
-                // The user has pressed the Go To User's Home Folder btn. So get a SZ
+                // The user has pressed the Go To User's Home Folder btn. So get a ZString
                 // for the user's home folder.
 
                 vapp.GetFniUser(&fniUserDir);
@@ -666,8 +666,8 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
     case WM_DRAWITEM: {
         int iDlgId = (int)wParam;
         DRAWITEMSTRUCT *pDrawItem = (DRAWITEMSTRUCT *)lParam;
-        CNO cnoDisplay = cnoNil;
-        PMBMP pmbmp;
+        ChunkNumber cnoDisplay = cnoNil;
+        PMaskedBitmapMBMP pmbmp;
 
         // Custom draw the our push btns here.
         switch (iDlgId)
@@ -720,9 +720,9 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
         {
             // Select the appropriate bitmap to display.
 
-            if ((pmbmp = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoDisplay, MBMP::FReadMbmp)))
+            if ((pmbmp = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoDisplay, MaskedBitmapMBMP::FReadMbmp)))
             {
-                PGPT pgpt;
+                PGraphicsPort pgpt;
                 HPEN hpen, hpenold;
                 HBRUSH hbr, hbrold;
                 HFONT hfnt, hfntold;
@@ -744,25 +744,25 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
                 Assert(hfnt != hNil, "Portfolio - draw items GetStockObject(SYSTEM_FONT) failed");
                 hfntold = (HFONT)SelectObject(pDrawItem->hDC, hfnt);
 
-                if ((pgpt = GPT::PgptNew(pDrawItem->hDC)) != pvNil)
+                if ((pgpt = GraphicsPort::PgptNew(pDrawItem->hDC)) != pvNil)
                 {
-                    GNV gnv(pgpt);
-                    PGNV pgnvOff;
-                    PGPT pgptOff;
+                    GraphicsEnvironment gnv(pgpt);
+                    PGraphicsEnvironment pgnvOff;
+                    PGraphicsPort pgptOff;
                     RC rcItem(pDrawItem->rcItem);
 
                     // Must create offscreen dc and blit into that. Then blit that
                     // to dlg on screen. If we blit straight from mbmp to screen,
                     // then screen flashes. (Due to white fillrect).
 
-                    if ((pgptOff = GPT::PgptNewOffscreen(&rcItem, 8)) != pvNil)
+                    if ((pgptOff = GraphicsPort::PgptNewOffscreen(&rcItem, 8)) != pvNil)
                     {
-                        if ((pgnvOff = NewObj GNV(pgptOff)) != pvNil)
+                        if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                         {
                             pgnvOff->DrawMbmp(pmbmp, rcItem.xpLeft, rcItem.ypTop);
 
                             gnv.CopyPixels(pgnvOff, &rcItem, &rcItem);
-                            GPT::Flush();
+                            GraphicsPort::Flush();
 
                             ReleasePpo(&pgnvOff);
                         }
@@ -797,16 +797,16 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             // So take any special action now to ensure the portfolio still looks good.
 
             PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
-            RCS rcsApp;
+            SystemRectangle rcsApp;
             POINT ptBtn;
             int ypBtn;
-            PMBMP pmbmpBtn;
+            PMaskedBitmapMBMP pmbmpBtn;
             RC rcBmp;
-            RCS rcsAppScreen, rcsPreview;
+            SystemRectangle rcsAppScreen, rcsPreview;
             int xOff = 0;
             int yOff = 0;
             LONG lStyle;
-            PCRF pcrf;
+            PChunkyResourceFile pcrf;
             HWND hwndDlg = GetParent(hwndCustom);
             HWND hwndApp = GetParent(hwndDlg);
             HWND hwndPreview = GetDlgItem(hwndCustom, IDC_PREVIEW);
@@ -827,7 +827,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             MapWindowPoints(hwndPreview, hwndCustom, (POINT *)&ptBtn, 1);
 
             // First the home button.
-            if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnHome, MBMP::FReadMbmp)))
+            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnHome, MaskedBitmapMBMP::FReadMbmp)))
             {
                 pmbmpBtn->GetRc(&rcBmp);
 
@@ -841,7 +841,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             }
 
             // Now the cancel button.
-            if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnCancel, MBMP::FReadMbmp)))
+            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnCancel, MaskedBitmapMBMP::FReadMbmp)))
             {
                 pmbmpBtn->GetRc(&rcBmp);
 
@@ -855,7 +855,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             }
 
             // Now the ok button.
-            if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnOk, MBMP::FReadMbmp)))
+            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnOk, MaskedBitmapMBMP::FReadMbmp)))
             {
                 pmbmpBtn->GetRc(&rcBmp);
 
@@ -904,7 +904,7 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
             if (pdiPortfolio->cnoWave != cnoNil)
             {
                 // There is a sound for the portfolio, so find it.
-                if ((pcrf = ((APP *)vpappb)->PcrmAll()->PcrfFindChunk(kctgWave, pdiPortfolio->cnoWave)) != pvNil)
+                if ((pcrf = ((Application *)vpappb)->PcrmAll()->PcrfFindChunk(kctgWave, pdiPortfolio->cnoWave)) != pvNil)
                 {
                     vpsndm->SiiPlay(pcrf, kctgWave, pdiPortfolio->cnoWave);
                 }
@@ -937,8 +937,8 @@ UINT CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, UINT wParam, LONG lParam)
 
                 if (CchSz(lpofNotify->lpOFN->lpstrFile) != 0)
                 {
-                    FNI fni;
-                    STN stnFile, stnErr;
+                    Filename fni;
+                    String stnFile, stnErr;
                     bool fHelp, tRet;
                     long lSelect;
 
@@ -1014,11 +1014,11 @@ void RepaintPortfolio(HWND hwndCustom)
 {
     PAINTSTRUCT ps;
     TEXTMETRIC tmCaption;
-    SZ szCaption;
+    ZString szCaption;
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
-    PMBMP pmbmp, pmbmpBtn;
+    PMaskedBitmapMBMP pmbmp, pmbmpBtn;
     int iBtn;
-    CNO cnoBack;
+    ChunkNumber cnoBack;
 
     // Draw the custom background for the common dlg.
     BeginPaint(hwndCustom, &ps);
@@ -1034,9 +1034,9 @@ void RepaintPortfolio(HWND hwndCustom)
     }
 
     // Get the background bitmap first.
-    if ((pmbmp = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBack, MBMP::FReadMbmp)))
+    if ((pmbmp = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBack, MaskedBitmapMBMP::FReadMbmp)))
     {
-        PGPT pgpt;
+        PGraphicsPort pgpt;
         HPEN hpen, hpenold;
         HBRUSH hbr, hbrold;
         HFONT hfnt, hfntold;
@@ -1058,15 +1058,15 @@ void RepaintPortfolio(HWND hwndCustom)
         Assert(hfnt != hNil, "Portfolio - draw background GetStockObject(SYSTEM_FONT) failed");
         hfntold = (HFONT)SelectObject(ps.hdc, hfnt);
 
-        if ((pgpt = GPT::PgptNew(ps.hdc)) != pvNil)
+        if ((pgpt = GraphicsPort::PgptNew(ps.hdc)) != pvNil)
         {
             RC rcDisplay;
-            RCS rcsPort, rcsPreview;
-            GNV gnv(pgpt);
-            PGNV pgnvOff;
-            PGPT pgptOff;
+            SystemRectangle rcsPort, rcsPreview;
+            GraphicsEnvironment gnv(pgpt);
+            PGraphicsEnvironment pgnvOff;
+            PGraphicsPort pgptOff;
             HWND hwndPreview;
-            CNO cnoBtn;
+            ChunkNumber cnoBtn;
             int iBtnId;
 
             // Get the current size of the Portfolio window.
@@ -1076,9 +1076,9 @@ void RepaintPortfolio(HWND hwndCustom)
             // Must create offscreen dc and blit into that. Then blit that to dlg on screen.
             // If we blit straight from	mbmp to screen, then screen flashes. (Due to white FILLRECT).
 
-            if ((pgptOff = GPT::PgptNewOffscreen(&rcDisplay, 8)) != pvNil)
+            if ((pgptOff = GraphicsPort::PgptNewOffscreen(&rcDisplay, 8)) != pvNil)
             {
-                if ((pgnvOff = NewObj GNV(pgptOff)) != pvNil)
+                if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                 {
                     RC rcOrgPort(pdiPortfolio->rcsDlg);
                     RC rcClip(ps.rcPaint);
@@ -1152,10 +1152,10 @@ void RepaintPortfolio(HWND hwndCustom)
                             continue;
                         }
 
-                        if ((pmbmpBtn = (PMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBtn, MBMP::FReadMbmp)))
+                        if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBtn, MaskedBitmapMBMP::FReadMbmp)))
                         {
                             HWND hwndBtn = GetDlgItem(hwndCustom, iBtnId);
-                            RCS rcsBtn;
+                            SystemRectangle rcsBtn;
                             RC rcItem;
 
                             GetClientRect(hwndBtn, &rcsBtn);
@@ -1173,7 +1173,7 @@ void RepaintPortfolio(HWND hwndCustom)
 
                     // Now finally blit our portfolio image to the screen.
                     gnv.CopyPixels(pgnvOff, &rcDisplay, &rcDisplay);
-                    GPT::Flush();
+                    GraphicsPort::Flush();
 
                     ReleasePpo(&pgnvOff);
                 }
@@ -1203,20 +1203,20 @@ void RepaintPortfolio(HWND hwndCustom)
 
  Arguments: hwndCustom	- Handle to custom dlg window
             pgnvOff		- Offscreen dc for displaying preview in.
-            prcsPreview - RCS for displaying preview.
+            prcsPreview - SystemRectangle for displaying preview.
 
  Returns: nothing.
 
 ***************************************************************************/
-void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
+void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, SystemRectangle *prcsPreview)
 {
-    STN stn;
-    PCFL pcfl;
-    PMBMP pmbmp;
-    FNI fni;
-    SZ szFile;
-    ERS ersT;
-    ERS *pers;
+    String stn;
+    PChunkyFile pcfl;
+    PMaskedBitmapMBMP pmbmp;
+    Filename fni;
+    ZString szFile;
+    ErrorStack ersT;
+    ErrorStack *pers;
     PDLGINFO pdiPortfolio = (PDLGINFO)GetWindowLong(hwndCustom, GWL_USERDATA);
     bool fPreviewed = fFalse;
     RC rcPreview(*prcsPreview);
@@ -1255,11 +1255,11 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
             if (pdiPortfolio->grfPrevType & fpfPortPrevMovie)
             {
                 // Preview it as a movie if we can.
-                if ((pcfl = CFL::PcflOpen(&fni, fcflNil)) != pvNil)
+                if ((pcfl = ChunkyFile::PcflOpen(&fni, fcflNil)) != pvNil)
                 {
-                    CKI ckiMovie;
-                    KID kidScene, kidThumb;
-                    BLCK blck;
+                    ChunkIdentification ckiMovie;
+                    ChildChunkIdentification kidScene, kidThumb;
+                    DataBlock blck;
 
                     // Get the movie chunk from the open file.
                     if (pcfl->FGetCkiCtg(kctgMvie, 0, &ckiMovie))
@@ -1271,7 +1271,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
                             if (pcfl->FGetKidChidCtg(kctgScen, kidScene.cki.cno, 0, kctgThumbMbmp, &kidThumb) &&
                                 pcfl->FFind(kidThumb.cki.ctg, kidThumb.cki.cno, &blck))
                             {
-                                if ((pmbmp = MBMP::PmbmpRead(&blck)) != pvNil)
+                                if ((pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck)) != pvNil)
                                 {
                                     // Stretch the preview into the preview window.
                                     pgnvOff->DrawMbmp(pmbmp, &rcPreview);
@@ -1291,7 +1291,7 @@ void OpenPreview(HWND hwndCustom, PGNV pgnvOff, RCS *prcsPreview)
             if (!fPreviewed && (pdiPortfolio->grfPrevType & fpfPortPrevTexture))
             {
                 // Preview the file as a .bmp file if we can.
-                if ((pmbmp = MBMP::PmbmpReadNative(&fni, 0, 0, 0, fmbmpNil)) != pvNil)
+                if ((pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fni, 0, 0, 0, fmbmpNil)) != pvNil)
                 {
                     // Stretch the bitmap in the preview window.
                     pgnvOff->DrawMbmp(pmbmp, &rcPreview);
@@ -1353,10 +1353,10 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
     {
     case WM_PAINT: {
         PAINTSTRUCT ps;
-        RCS rcsPreview;
+        SystemRectangle rcsPreview;
         RC rcPreview;
-        PGNV pgnvOff;
-        PGPT pgpt, pgptOff;
+        PGraphicsEnvironment pgnvOff;
+        PGraphicsPort pgpt, pgptOff;
         HPEN hpen, hpenold;
         HBRUSH hbr, hbrold;
         HFONT hfnt, hfntold;
@@ -1382,23 +1382,23 @@ LRESULT CALLBACK SubClassPreviewProc(HWND hwndPreview, UINT msg, WPARAM wParam, 
         Assert(hfnt != hNil, "Portfolio - draw Preview GetStockObject(SYSTEM_FONT) failed");
         hfntold = (HFONT)SelectObject(ps.hdc, hfnt);
 
-        if ((pgpt = GPT::PgptNew(ps.hdc)) != pvNil)
+        if ((pgpt = GraphicsPort::PgptNew(ps.hdc)) != pvNil)
         {
-            GNV gnv(pgpt);
+            GraphicsEnvironment gnv(pgpt);
 
             GetClientRect(hwndPreview, &rcsPreview);
             rcPreview = rcsPreview;
 
-            if ((pgptOff = GPT::PgptNewOffscreen(&rcPreview, 8)) != pvNil)
+            if ((pgptOff = GraphicsPort::PgptNewOffscreen(&rcPreview, 8)) != pvNil)
             {
-                if ((pgnvOff = NewObj GNV(pgptOff)) != pvNil)
+                if ((pgnvOff = NewObj GraphicsEnvironment(pgptOff)) != pvNil)
                 {
                     // Get the preview image into our offscreen dc.
                     OpenPreview(GetParent(hwndPreview), pgnvOff, &rcsPreview);
 
                     // Now update the screen.
                     gnv.CopyPixels(pgnvOff, &rcPreview, &rcPreview);
-                    GPT::Flush();
+                    GraphicsPort::Flush();
 
                     ReleasePpo(&pgnvOff);
                 }

@@ -13,8 +13,8 @@
 #include "util.h"
 ASSERTNAME
 
-RTCLASS(CODM)
-RTCLASS(CODC)
+RTCLASS(CodecManager)
+RTCLASS(Codec)
 
 /***************************************************************************
     The header on a compressed block consists of the cfmt (a long in big
@@ -26,7 +26,7 @@ const long kcbCodecHeader = 2 * size(long);
     Constructor for the compression manager. pcodc is an optional default
     codec. cfmt is the default compression format.
 ***************************************************************************/
-CODM::CODM(PCODC pcodc, long cfmt)
+CodecManager::CodecManager(PCodec pcodc, long cfmt)
 {
     AssertNilOrPo(pcodc, 0);
     Assert(cfmtNil != cfmt, "nil default compression format");
@@ -43,7 +43,7 @@ CODM::CODM(PCODC pcodc, long cfmt)
 /***************************************************************************
     Destructor for the compression manager.
 ***************************************************************************/
-CODM::~CODM(void)
+CodecManager::~CodecManager(void)
 {
     AssertThis(0);
 
@@ -51,7 +51,7 @@ CODM::~CODM(void)
     if (pvNil != _pglpcodc)
     {
         long ipcodc;
-        PCODC pcodc;
+        PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
         {
@@ -64,29 +64,29 @@ CODM::~CODM(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CODM.
+    Assert the validity of a CodecManager.
 ***************************************************************************/
-void CODM::AssertValid(ulong grf)
+void CodecManager::AssertValid(ulong grf)
 {
-    CODM_PAR::AssertValid(0);
+    CodecManager_PAR::AssertValid(0);
     Assert(cfmtNil != _cfmtDef, "nil default compression");
     AssertNilOrPo(_pcodcDef, 0);
     AssertNilOrPo(_pglpcodc, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CODM.
+    Mark memory for the CodecManager.
 ***************************************************************************/
-void CODM::MarkMem(void)
+void CodecManager::MarkMem(void)
 {
     AssertValid(0);
-    CODM_PAR::MarkMem();
+    CodecManager_PAR::MarkMem();
 
     MarkMemObj(_pcodcDef);
     if (pvNil != _pglpcodc)
     {
         long ipcodc;
-        PCODC pcodc;
+        PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
         {
@@ -101,7 +101,7 @@ void CODM::MarkMem(void)
 /***************************************************************************
     Set the default compression type.
 ***************************************************************************/
-void CODM::SetCfmtDefault(long cfmt)
+void CodecManager::SetCfmtDefault(long cfmt)
 {
     AssertThis(0);
 
@@ -117,12 +117,12 @@ void CODM::SetCfmtDefault(long cfmt)
 /***************************************************************************
     Add a codec to the compression manager.
 ***************************************************************************/
-bool CODM::FRegisterCodec(PCODC pcodc)
+bool CodecManager::FRegisterCodec(PCodec pcodc)
 {
     AssertThis(0);
     AssertPo(pcodc, 0);
 
-    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = GL::PglNew(size(PCODC))))
+    if (pvNil == _pglpcodc && pvNil == (_pglpcodc = DynamicArray::PglNew(size(PCodec))))
         return fFalse;
 
     if (!_pglpcodc->FAdd(&pcodc))
@@ -135,10 +135,10 @@ bool CODM::FRegisterCodec(PCODC pcodc)
 /***************************************************************************
     Return whether we can encode or decode the given format.
 ***************************************************************************/
-bool CODM::FCanDo(long cfmt, bool fEncode)
+bool CodecManager::FCanDo(long cfmt, bool fEncode)
 {
     AssertThis(0);
-    PCODC pcodc;
+    PCodec pcodc;
 
     if (cfmtNil == cfmt)
         return fFalse;
@@ -150,7 +150,7 @@ bool CODM::FCanDo(long cfmt, bool fEncode)
     Gets the type of compression used on the block (assuming it is
     compressed).
 ***************************************************************************/
-bool CODM::FGetCfmtFromBlck(PBLCK pblck, long *pcfmt)
+bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, long *pcfmt)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -172,7 +172,7 @@ bool CODM::FGetCfmtFromBlck(PBLCK pblck, long *pcfmt)
 /***************************************************************************
     Look for a codec that can handle the given format.
 ***************************************************************************/
-bool CODM::_FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc)
+bool CodecManager::_FFindCodec(bool fEncode, long cfmt, PCodec *ppcodc)
 {
     AssertThis(0);
     AssertVarMem(ppcodc);
@@ -187,7 +187,7 @@ bool CODM::_FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc)
     if (pvNil != _pglpcodc)
     {
         long ipcodc;
-        PCODC pcodc;
+        PCodec pcodc;
 
         for (ipcodc = _pglpcodc->IvMac(); ipcodc-- > 0;)
         {
@@ -207,7 +207,7 @@ bool CODM::_FFindCodec(bool fEncode, long cfmt, PCODC *ppcodc)
     Compress or decompress an hq of data. Note that the value of *phq
     may change. cfmt should be cfmtNil to decompress.
 ***************************************************************************/
-bool CODM::_FCodePhq(long cfmt, HQ *phq)
+bool CodecManager::_FCodePhq(long cfmt, HQ *phq)
 {
     AssertThis(0);
     AssertVarMem(phq);
@@ -252,7 +252,7 @@ bool CODM::_FCodePhq(long cfmt, HQ *phq)
     *pcbDst with the required destination buffer size. This is just an
     estimate in the compress case.
 ***************************************************************************/
-bool CODM::_FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
+bool CodecManager::_FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, long *pcbDst)
 {
     AssertIn(cbSrc, 1, kcbMax);
     AssertPvCb(pvSrc, cbSrc);
@@ -261,7 +261,7 @@ bool CODM::_FCode(long cfmt, void *pvSrc, long cbSrc, void *pvDst, long cbDst, l
     AssertVarMem(pcbDst);
 
     byte *prgb;
-    PCODC pcodc;
+    PCodec pcodc;
 
     if (cfmtNil != cfmt)
     {

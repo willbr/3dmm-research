@@ -22,38 +22,38 @@
 #include "util.h"
 ASSERTNAME
 
-RTCLASS(USAC)
+RTCLASS(UniversalScalableApplicationClock)
 
 // Allocate globals in utilglob before any other globals to avoid crashes on exit
 #pragma init_seg(lib)
 
 #ifdef DEBUG
 // protects our debug linked list object management
-MUTX vmutxBase;
+Mutex vmutxBase;
 #endif // DEBUG
 
-MUTX vmutxMem;
+Mutex vmutxMem;
 
 // Shuffler and random number generator for the script interpreter
-SFL vsflUtil;
-RND vrndUtil;
+Shuffler vsflUtil;
+Random vrndUtil;
 
 // Standard Kauai codec
-KCDC vkcdcUtil;
+KauaiCodec vkcdcUtil;
 
 // Standard compression manager - gets initialized with the standard
 // Kauai codec. Clients can add additional codecs or redirect vpcodmUtil
 // to a different compression manager with their own codecs
-CODM vcodmUtil(&vkcdcUtil, kcfmtKauai2);
-PCODM vpcodmUtil = &vcodmUtil;
+CodecManager vcodmUtil(&vkcdcUtil, kcfmtKauai2);
+PCodecManager vpcodmUtil = &vcodmUtil;
 
 // Standard scalable application clok.
-USAC _usac;
-PUSAC vpusac = &_usac;
+UniversalScalableApplicationClock _usac;
+PUniversalScalableApplicationClock vpusac = &_usac;
 
 #ifdef DEBUG
 
 // Debug memory globals
-DMGLOB vdmglob;
+DebugMemoryGlobals vdmglob;
 
 #endif // DEBUG

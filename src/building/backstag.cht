@@ -12,7 +12,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 	// Use the global kstEntry to decide which state to enter next.
 	// ------------------------------------------------------------- 
 	
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Backstage McZee dispatch." )
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Backstage McZee dispatch." )
 		ASSERT((GLOBAL(kstEntry) >= kst2 && GLOBAL(kstEntry) <= kst6) ||
 				GLOBAL(kstEntry) == 10);
 
@@ -40,7 +40,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 	// Exits:  Click doors to enter other rooms.
 	// -------------------------------------------------------------------
 	 
-	REP_ANIM( CHID( kst2, krepDefault ), "Backstage. Entry 2. Wait state and map" )
+	REP_ANIM( ChildChunkID( kst2, krepDefault ), "Backstage. Entry 2. Wait state and map" )
 		PLAYMIDI( kmidBackstage );
 
 		If( GLOBAL( fBackstagePS ) );
@@ -129,7 +129,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		End;
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst3, krepDefault ), "Studio welcome" )
+	REP_ANIM( ChildChunkID( kst3, krepDefault ), "Studio welcome" )
 		PLAYMIDI( kmidStudio );
 		WAIT_FOR_TRANSITION();			// Wait for a complete palette transition. 
 		CreateChildGob( kgobBackstage1, kgobBackstageMcZeeAVI3, kgobBackstageMcZeeAVI3 );	
@@ -141,7 +141,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		NEXTPLACE1(kgobStudio1, kst2 );
 	ENDCHUNK
 
-	REP_ANIM(CHID(kst4, krepDefault), "Ideas welcome")
+	REP_ANIM(ChildChunkID(kst4, krepDefault), "Ideas welcome")
 		PLAYMIDI( kmidIdeas );
 		WAIT_FOR_TRANSITION();			// Wait for a complete palette transition. 
 		CreateChildGob( kgobBackstage1, kgobBackstageMcZeeAVI2, kgobBackstageMcZeeAVI2 );	
@@ -153,7 +153,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		NEXTPLACE1(kgobInspiration1, kst2 );
 	ENDCHUNK
 		
-	REP_ANIM( CHID(kst5, krepDefault), "Projects welcome")
+	REP_ANIM( ChildChunkID(kst5, krepDefault), "Projects welcome")
 		PLAYMIDI( kmidProject );
 		WAIT_FOR_TRANSITION();			// Wait for a complete palette transition. 
 		CreateChildGob( kgobBackstage1, kgobBackstageMcZeeAVI1, kgobBackstageMcZeeAVI1 );	
@@ -165,7 +165,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		NEXTPLACE1(kgobProjects1, kst1);
 	ENDCHUNK
 
-	REP_ANIM( CHID(kst6, krepDefault), "Plunger opens studio")
+	REP_ANIM( ChildChunkID(kst6, krepDefault), "Plunger opens studio")
 		Cell( kcell21, 0,0, 1 );		// draw one cell (to place McZee)
 		If( !FGobExists( kgobBackstage1Bag ) );
 			CreateChildGob( kgobBackstage1, kgobBackstage1Bag, kgobBackstage1Bag );		
@@ -187,7 +187,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		NEXTPLACE1( kgobStudio1, .nxtPlcState );	// The next state is determined from
 	ENDCHUNK										// the entry state into this place.
 
-	REP_ANIM( CHID( kst8, krepDefault ), "Plunger opens ideas" )
+	REP_ANIM( ChildChunkID( kst8, krepDefault ), "Plunger opens ideas" )
 		// destroy the help balloon
 		SETGLOBAL( fHelpOn, fFalse );
 		DestroyGob( kgobBalloon1d );   // This destroys the balloon that holds the tip
@@ -202,7 +202,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		NEXTPLACE1( kgobInspiration1, kst2 );
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst9, krepDefault ), "Plunger opens projects" )
+	REP_ANIM( ChildChunkID( kst9, krepDefault ), "Plunger opens projects" )
 		// destroy the help balloon
 		SETGLOBAL( fHelpOn, fFalse );
 		DestroyGob( kgobBalloon1d );   // This destroys the balloon that holds the tip
@@ -217,7 +217,7 @@ OBJECT( "Backstage: mczee!", kgobBackstageMcZee, 200, kcrsHand1 )
 		NEXTPLACE1( kgobProjects1, kst1 );
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst10, krepDefault ), "Camera pull to backstage" )
+	REP_ANIM( ChildChunkID( kst10, krepDefault ), "Camera pull to backstage" )
 		Cell( kcell401, 0,0, 6 );		// This first cell is full screen so put it up and fade into it.
 		WAIT_FOR_TRANSITION();			// Wait for a complete palette transition. 
 		PLAYMIDI( kmidBackstage );
@@ -282,7 +282,7 @@ HELP_SCRIPT( ktpcBackstage )
 ENDCHUNK
 
 OBJECT( "Project room opening door", kgobProjectDoor, 150, kcrsArrow1 )
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Ideas rm door opening anim" )
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Ideas rm door opening anim" )
 		cnt=kcell1;
 		While( cnt <= kcell16 );
 			Cell( cnt++, 0,0, 6 );		
@@ -291,7 +291,7 @@ OBJECT( "Project room opening door", kgobProjectDoor, 150, kcrsArrow1 )
 	#include "PrDoor.seq"
 
 OBJECT( "Studio room opening door", kgobStudioDoor, 150, kcrsArrow1 )
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Ideas rm door opening anim" )
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Ideas rm door opening anim" )
 		cnt=kcell1;
 		While( cnt <= kcell16 );
 			Cell( cnt++, 0,0, 6 );	
@@ -300,7 +300,7 @@ OBJECT( "Studio room opening door", kgobStudioDoor, 150, kcrsArrow1 )
 	#include "StDoor.seq"
 
 OBJECT( "Ideas room opening door", kgobIdeaDoor, 150, kcrsArrow1 )
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Ideas rm door opening anim" )
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Ideas rm door opening anim" )
 		cnt=kcell1;
 		While( cnt <= kcell18 );
 			Cell( cnt++, 0,0, 6 );	
@@ -309,8 +309,8 @@ OBJECT( "Ideas room opening door", kgobIdeaDoor, 150, kcrsArrow1 )
 	#include "IdDoor.seq"
 
  OBJECT( "Mz's carpet bag", kgobBackstage1Bag, 150, kcrsArrow1 )
-	REP_PPMBMP( CHID( kst1, krepDefault ), "building\pbm\backstag\bag12.pbm" )
- 	REP_ANIM( CHID( kst2, krepDefault ), "Backstage carpet bag anim" )
+	REP_PPMBMP( ChildChunkID( kst1, krepDefault ), "building\pbm\backstag\bag12.pbm" )
+ 	REP_ANIM( ChildChunkID( kst2, krepDefault ), "Backstage carpet bag anim" )
 		cnt=kcell1;
 		While( cnt <= kcell20 );
 			Cell( cnt++, 0,0, 8 );		
@@ -320,7 +320,7 @@ OBJECT( "Ideas room opening door", kgobIdeaDoor, 150, kcrsArrow1 )
 	#include "BkstgBag.seq"
  
  OBJECT( "Mz's shadow", kgobBackstage1Shadow, 150, kcrsArrow1 )
- 	REP_ANIM( CHID( kst1, krepDefault ), "Backstage shadow anim" )
+ 	REP_ANIM( ChildChunkID( kst1, krepDefault ), "Backstage shadow anim" )
 		cnt=kcell1;
 		While( cnt <= kcell34 );
 			Cell( cnt++, 0,0, 8 );		

@@ -8,16 +8,16 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    The APE is used to preview a single actor.  The APE doesn't actually
-    contain an ACTR...more of an "ACTR Jr.": a _ptmpl, _pbody, _anid, and
+    The ActorPreviewEntity is used to preview a single actor.  The ActorPreviewEntity doesn't actually
+    contain an Actor...more of an "Actor Jr.": a _ptmpl, _pbody, _anid, and
     a _pbwld to display in.  If fCycleCels is set to fTrue in PapeNew(),
-    the APE will cycle through the cels of the current action.
+    the ActorPreviewEntity will cycle through the cels of the current action.
 
-    APE supports some simple editing operations, such as changing
-    materials and TDT properties.  The client must query these changes
-    before destroying the APE to make changes to the real actor.
+    ActorPreviewEntity supports some simple editing operations, such as changing
+    materials and ThreeDText properties.  The client must query these changes
+    before destroying the ActorPreviewEntity to make changes to the real actor.
 
-    The APE is currently used by the action browser, TDT easel, and
+    The ActorPreviewEntity is currently used by the action browser, ThreeDText easel, and
     costume changer easel.
 
 ***************************************************************************/
@@ -28,25 +28,25 @@ ASSERTNAME
 
 const BRA kaFov = BR_ANGLE_DEG(60.0); // camera field of view
 
-RTCLASS(APE)
+RTCLASS(ActorPreviewEntity)
 
-BEGIN_CMD_MAP(APE, GOB)
-ON_CID_GEN(cidAlarm, &APE::FCmdNextCel, pvNil)
+BEGIN_CMD_MAP(ActorPreviewEntity, GraphicsObject)
+ON_CID_GEN(cidAlarm, &ActorPreviewEntity::FCmdNextCel, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
-    Create a new APE
+    Create a new ActorPreviewEntity
 ***************************************************************************/
-PAPE APE::PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca)
+PActorPreviewEntity ActorPreviewEntity::PapeNew(PGraphicsObjectBlock pgcb, PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca)
 {
     AssertVarMem(pgcb);
     AssertPo(ptmpl, 0);
     AssertNilOrPo(pcost, 0);
     AssertNilOrPo(prca, 0);
 
-    PAPE pape;
+    PActorPreviewEntity pape;
 
-    pape = NewObj APE(pgcb);
+    pape = NewObj ActorPreviewEntity(pgcb);
     if (pvNil == pape)
         return pvNil;
     if (!pape->_FInit(ptmpl, pcost, anid, fCycleCels, prca))
@@ -58,9 +58,9 @@ PAPE APE::PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCel
 }
 
 /***************************************************************************
-    Set up the APE
+    Set up the ActorPreviewEntity
 ***************************************************************************/
-bool APE::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca)
+bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(ptmpl, 0);
@@ -69,7 +69,7 @@ bool APE::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca
     long cbset;
     long ibset;
     RC rc;
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     _fCycleCels = fCycleCels;
     _prca = prca;
@@ -103,7 +103,7 @@ bool APE::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca
         }
     }
 
-    _pglgms = GL::PglNew(size(GMS), cbset);
+    _pglgms = DynamicArray::PglNew(size(GeneralMaterialSpec), cbset);
     if (pvNil == _pglgms)
         return fFalse;
     AssertDo(_pglgms->FSetIvMac(cbset), "PglNew should have ensured space");
@@ -113,11 +113,11 @@ bool APE::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca
         _pglgms->Put(ibset, &gms);
 
     GetRc(&rc, cooLocal);
-    _pbwld = BWLD::PbwldNew(rc.Dxp(), rc.Dyp());
+    _pbwld = World::PbwldNew(rc.Dxp(), rc.Dyp());
     if (pvNil == _pbwld)
         return fFalse;
 
-    // Add a light source to the BWLD
+    // Add a light source to the World
     _blit.type = BR_LIGHT_DIRECT;
     _blit.colour = BR_COLOUR_RGB(0xff, 0xff, 0xff);
     _blit.attenuation_c = rOne;
@@ -145,9 +145,9 @@ bool APE::_FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca
 }
 
 /***************************************************************************
-    Destroy the APE
+    Destroy the ActorPreviewEntity
 ***************************************************************************/
-APE::~APE()
+ActorPreviewEntity::~ActorPreviewEntity()
 {
     AssertBaseThis(0);
 
@@ -169,7 +169,7 @@ APE::~APE()
 /***************************************************************************
     Load the brush with ptagMtrl (for a stock material)
 ***************************************************************************/
-void APE::SetToolMtrl(PTAG ptagMtrl)
+void ActorPreviewEntity::SetToolMtrl(PTAG ptagMtrl)
 {
     AssertThis(0);
     AssertVarMem(ptagMtrl);
@@ -184,7 +184,7 @@ void APE::SetToolMtrl(PTAG ptagMtrl)
 /***************************************************************************
     Load the brush with cmid (for a custom material)
 ***************************************************************************/
-void APE::SetToolCmtl(long cmid)
+void ActorPreviewEntity::SetToolCmtl(long cmid)
 {
     AssertThis(0);
 
@@ -198,7 +198,7 @@ void APE::SetToolCmtl(long cmid)
 /***************************************************************************
     Load the brush with the aptIncCmtl tool
 ***************************************************************************/
-void APE::SetToolIncCmtl(void)
+void ActorPreviewEntity::SetToolIncCmtl(void)
 {
     AssertThis(0);
 
@@ -210,7 +210,7 @@ void APE::SetToolIncCmtl(void)
 /***************************************************************************
     Load the brush with the aptIncAccessory tool
 ***************************************************************************/
-void APE::SetToolIncAccessory(void)
+void ActorPreviewEntity::SetToolIncAccessory(void)
 {
     AssertThis(0);
 
@@ -222,7 +222,7 @@ void APE::SetToolIncAccessory(void)
 /***************************************************************************
     Change the actor's action to anid
 ***************************************************************************/
-bool APE::FSetAction(long anid)
+bool ActorPreviewEntity::FSetAction(long anid)
 {
     AssertThis(0);
 
@@ -238,7 +238,7 @@ bool APE::FSetAction(long anid)
 /***************************************************************************
     Time to move to the next cel of the action.  Resets alarm
 ***************************************************************************/
-bool APE::FCmdNextCel(PCMD pcmd)
+bool ActorPreviewEntity::FCmdNextCel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -255,7 +255,7 @@ bool APE::FCmdNextCel(PCMD pcmd)
 /***************************************************************************
     Time to move to the next cel of the action.
 ***************************************************************************/
-bool APE::FDisplayCel(long celn)
+bool ActorPreviewEntity::FDisplayCel(long celn)
 {
     AssertThis(0);
 
@@ -272,7 +272,7 @@ bool APE::FDisplayCel(long celn)
 /***************************************************************************
     Enable or disable cel cycling.
 ***************************************************************************/
-void APE::SetCycleCels(bool fOn)
+void ActorPreviewEntity::SetCycleCels(bool fOn)
 {
     AssertThis(0);
     _fCycleCels = fOn;
@@ -281,7 +281,7 @@ void APE::SetCycleCels(bool fOn)
 /***************************************************************************
     Go to the default view
 ***************************************************************************/
-void APE::_InitView(void)
+void ActorPreviewEntity::_InitView(void)
 {
     AssertThis(0);
 
@@ -302,7 +302,7 @@ void APE::_InitView(void)
 /***************************************************************************
     Set a custom view
 ***************************************************************************/
-void APE::SetCustomView(BRA xa, BRA ya, BRA za)
+void ActorPreviewEntity::SetCustomView(BRA xa, BRA ya, BRA za)
 {
     AssertThis(0);
 
@@ -324,9 +324,9 @@ void APE::SetCustomView(BRA xa, BRA ya, BRA za)
 }
 
 /***************************************************************************
-    Rotate the BODY to see a different view
+    Rotate the Body to see a different view
 ***************************************************************************/
-void APE::ChangeView(void)
+void ActorPreviewEntity::ChangeView(void)
 {
     AssertThis(0);
 
@@ -367,12 +367,12 @@ void APE::ChangeView(void)
 /***************************************************************************
     Position the camera so the actor is centered and properly sized
 ***************************************************************************/
-void APE::_SetScale(void)
+void ActorPreviewEntity::_SetScale(void)
 {
     AssertThis(0);
 
     RC rcView;
-    BCB bcbBody; // 3-D bounds of BODY
+    BCB bcbBody; // 3-D bounds of Body
     BRS dxrBody, dyrBody, dzrBody;
     BRS rDydxBody;
     BRS xrCam, yrCam, zrCam;
@@ -434,9 +434,9 @@ void APE::_SetScale(void)
 }
 
 /***************************************************************************
-    Render and force redraw of the APE
+    Render and force redraw of the ActorPreviewEntity
 ***************************************************************************/
-void APE::_UpdateView(void)
+void ActorPreviewEntity::_UpdateView(void)
 {
     AssertThis(0);
 
@@ -445,9 +445,9 @@ void APE::_UpdateView(void)
 }
 
 /***************************************************************************
-    Draw the contents of the APE's bwld
+    Draw the contents of the ActorPreviewEntity's bwld
 ***************************************************************************/
-void APE::Draw(PGNV pgnv, RC *prcClip)
+void ActorPreviewEntity::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -459,13 +459,13 @@ void APE::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Set the cursor appropriately
 ***************************************************************************/
-bool APE::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     PBACT pbact;
-    PBODY pbody;
+    PBody pbody;
     long ibset;
     long ibsetAcc;
 
@@ -474,8 +474,8 @@ bool APE::FCmdMouseMove(PCMD_MOUSE pcmd)
         SetCursCno(_prca, kcrsDefault);
         if (_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         {
-            pbody = BODY::PbodyFromBact(pbact, &ibset);
-            Assert(pbody == _pbody, "what BODY is this?");
+            pbody = Body::PbodyFromBact(pbact, &ibset);
+            Assert(pbody == _pbody, "what Body is this?");
             if (_apet.apt == aptIncCmtl)
             {
                 if (_ptmpl->CcmidOfBset(ibset) > 1)
@@ -493,21 +493,21 @@ bool APE::FCmdMouseMove(PCMD_MOUSE pcmd)
             }
         }
     }
-    return APE_PAR::FCmdMouseMove(pcmd);
+    return ActorPreviewEntity_PAR::FCmdMouseMove(pcmd);
 }
 
 /***************************************************************************
     Handle mouse-down.  Do the right thing depending on the current tool.
 ***************************************************************************/
-bool APE::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
 
     PBACT pbact;
-    PBODY pbody;
+    PBody pbody;
     long ibset;
     long ibsetAcc;
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     if (pcmd->cid != cidMouseDown)
     {
@@ -516,8 +516,8 @@ bool APE::FCmdTrackMouse(PCMD_MOUSE pcmd)
     }
     if (!_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         return fTrue;
-    pbody = BODY::PbodyFromBact(pbact, &ibset);
-    Assert(pbody == _pbody, "what BODY is this?");
+    pbody = Body::PbodyFromBact(pbact, &ibset);
+    Assert(pbody == _pbody, "what Body is this?");
 
     switch (_apet.apt)
     {
@@ -557,21 +557,21 @@ bool APE::FCmdTrackMouse(PCMD_MOUSE pcmd)
 }
 
 /***************************************************************************
-    Apply a GMS to ibset
+    Apply a GeneralMaterialSpec to ibset
 ***************************************************************************/
-bool APE::_FApplyGms(GMS *pgms, long ibset)
+bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
 {
     AssertThis(0);
     AssertVarMem(pgms);
     Assert(pgms->fValid, "bad gms");
     AssertIn(ibset, 0, _pbody->Cbset());
 
-    PMTRL pmtrl;
-    PCMTL pcmtl;
+    PMaterial_MTRL pmtrl;
+    PCustomMaterial_CMTL pcmtl;
 
     if (pgms->fMtrl)
     {
-        pmtrl = (PMTRL)vptagm->PbacoFetch(&pgms->tagMtrl, MTRL::FReadMtrl);
+        pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&pgms->tagMtrl, Material_MTRL::FReadMtrl);
         if (pvNil == pmtrl)
             return fFalse;
         _pbody->SetPartSetMtrl(ibset, pmtrl);
@@ -589,10 +589,10 @@ bool APE::_FApplyGms(GMS *pgms, long ibset)
 }
 
 /***************************************************************************
-    Fill in pgms with the next CMTL available for ibset and applies it
+    Fill in pgms with the next CustomMaterial_CMTL available for ibset and applies it
     to _pbody.
 ***************************************************************************/
-bool APE::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
+bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool fNextAccessory)
 {
     AssertThis(0);
     AssertVarMem(pgms);
@@ -602,9 +602,9 @@ bool APE::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
     long cmidNext;
     long icmid;
     long ccmid;
-    PCMTL pcmtl;
-    PCMTL pcmtlOld;
-    PMTRL pmtrlOld;
+    PCustomMaterial_CMTL pcmtl;
+    PCustomMaterial_CMTL pcmtlOld;
+    PMaterial_MTRL pmtrlOld;
     bool fMtrl;
 
     // Default cmidNext is default cmid for this body part set
@@ -613,11 +613,11 @@ bool APE::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
     ccmid = _ptmpl->CcmidOfBset(ibset);
 
     // Need to find out what cmid (if any) is currently attached to ibset.
-    // If the GMS is valid, use it.  Otherwise, figure out which cmid
+    // If the GeneralMaterialSpec is valid, use it.  Otherwise, figure out which cmid
     // generates the same pcmtl that is currently attached to the body.
     if (!pgms->fValid || pgms->fMtrl)
     {
-        // GMS is useless...look at the body
+        // GeneralMaterialSpec is useless...look at the body
         _pbody->GetPartSetMaterial(ibset, &fMtrl, &pmtrlOld, &pcmtlOld);
         if (!fMtrl)
         {
@@ -639,7 +639,7 @@ bool APE::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
     }
     else
     {
-        // GMS has current cmid
+        // GeneralMaterialSpec has current cmid
         cmid = pgms->cmid;
         for (icmid = 0; icmid < ccmid; icmid++)
         {
@@ -667,7 +667,7 @@ bool APE::_FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory)
     Otherwise it returns the next CMID that has the same set of models as
     icmidCur.
 ***************************************************************************/
-long APE::_CmidNext(long ibset, long icmidCur, bool fNextAccessory)
+long ActorPreviewEntity::_CmidNext(long ibset, long icmidCur, bool fNextAccessory)
 {
     AssertThis(0);
 
@@ -699,19 +699,19 @@ long APE::_CmidNext(long ibset, long icmidCur, bool fNextAccessory)
 }
 
 /***************************************************************************
-    Change this APE's TDT properties
+    Change this ActorPreviewEntity's ThreeDText properties
 ***************************************************************************/
-bool APE::FChangeTdt(PSTN pstn, long tdts, PTAG ptagTdf)
+bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "FChangeTdt is only for TDTs");
+    Assert(_ptmpl->FIsTdt(), "FChangeTdt is only for ThreeDTexts");
     AssertNilOrPo(pstn, 0);
     AssertNilOrVarMem(ptagTdf);
 
-    PTDT ptdtNew = pvNil;
-    PBODY pbodyNew = pvNil;
+    PThreeDText ptdtNew = pvNil;
+    PBody pbodyNew = pvNil;
 
-    ptdtNew = ((PTDT)_ptmpl)->PtdtDup();
+    ptdtNew = ((PThreeDText)_ptmpl)->PtdtDup();
     if (pvNil == ptdtNew)
         goto LFail;
     pbodyNew = _pbody->PbodyDup();
@@ -739,19 +739,19 @@ LFail:
 }
 
 /***************************************************************************
-    Set material of this TDT to ptagMtrl
+    Set material of this ThreeDText to ptagMtrl
 ***************************************************************************/
-bool APE::FSetTdtMtrl(PTAG ptagMtrl)
+bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "FSetTdtMtrl is only for TDTs");
-    Assert(_pbody->Cbset() == 1, "TDTs should only have one body part set");
+    Assert(_ptmpl->FIsTdt(), "FSetTdtMtrl is only for ThreeDTexts");
+    Assert(_pbody->Cbset() == 1, "ThreeDTexts should only have one body part set");
     AssertVarMem(ptagMtrl);
 
-    PMTRL pmtrl;
-    GMS gms;
+    PMaterial_MTRL pmtrl;
+    GeneralMaterialSpec gms;
 
-    pmtrl = (PMTRL)vptagm->PbacoFetch(ptagMtrl, MTRL::FReadMtrl);
+    pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(ptagMtrl, Material_MTRL::FReadMtrl);
     if (pvNil == pmtrl)
         return fFalse;
     _pbody->SetPartSetMtrl(0, pmtrl);
@@ -768,17 +768,17 @@ bool APE::FSetTdtMtrl(PTAG ptagMtrl)
 }
 
 /***************************************************************************
-    Get the CNO of the MTRL attached to this TDT.  Returns fFalse if there
-    is no MTRL attached or the MTRL didn't come from a chunk.
+    Get the ChunkNumber of the Material_MTRL attached to this ThreeDText.  Returns fFalse if there
+    is no Material_MTRL attached or the Material_MTRL didn't come from a chunk.
 ***************************************************************************/
-bool APE::FGetTdtMtrlCno(CNO *pcno)
+bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "FGetTdtMtrlCno is only for TDTs");
+    Assert(_ptmpl->FIsTdt(), "FGetTdtMtrlCno is only for ThreeDTexts");
     AssertVarMem(pcno);
 
-    PMTRL pmtrl;
-    PCMTL pcmtl;
+    PMaterial_MTRL pmtrl;
+    PCustomMaterial_CMTL pcmtl;
     bool fMtrl;
 
     _pbody->GetPartSetMaterial(0, &fMtrl, &pmtrl, &pcmtl);
@@ -791,17 +791,17 @@ bool APE::FGetTdtMtrlCno(CNO *pcno)
 }
 
 /***************************************************************************
-    Return info about the TDT
+    Return info about the ThreeDText
 ***************************************************************************/
-void APE::GetTdtInfo(PSTN pstn, long *ptdts, PTAG ptagTdf)
+void ActorPreviewEntity::GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
-    Assert(_ptmpl->FIsTdt(), "GetTdtInfo is only for TDTs");
+    Assert(_ptmpl->FIsTdt(), "GetTdtInfo is only for ThreeDTexts");
     AssertNilOrVarMem(pstn);
     AssertNilOrVarMem(ptdts);
     AssertNilOrVarMem(ptagTdf);
 
-    ((PTDT)_ptmpl)->GetInfo(pstn, ptdts, ptagTdf);
+    ((PThreeDText)_ptmpl)->GetInfo(pstn, ptdts, ptagTdf);
 }
 
 /***************************************************************************
@@ -809,7 +809,7 @@ void APE::GetTdtInfo(PSTN pstn, long *ptdts, PTAG ptagTdf)
     attached to ibset, if any.  If nothing was done to ibset, returns
     fFalse.
 ***************************************************************************/
-bool APE::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, TAG *ptagMtrl)
+bool ActorPreviewEntity::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, TAG *ptagMtrl)
 {
     AssertThis(0);
     AssertIn(ibset, 0, _pbody->Cbset());
@@ -817,7 +817,7 @@ bool APE::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, TAG *ptagMtrl)
     AssertVarMem(pcmid);
     AssertVarMem(ptagMtrl);
 
-    GMS gms;
+    GeneralMaterialSpec gms;
 
     _pglgms->Get(ibset, &gms);
     if (!gms.fValid)
@@ -831,11 +831,11 @@ bool APE::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, TAG *ptagMtrl)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the APE.
+    Assert the validity of the ActorPreviewEntity.
 ***************************************************************************/
-void APE::AssertValid(ulong grf)
+void ActorPreviewEntity::AssertValid(ulong grf)
 {
-    APE_PAR::AssertValid(fobjAllocated);
+    ActorPreviewEntity_PAR::AssertValid(fobjAllocated);
     AssertPo(_pbwld, 0);
     AssertPo(_ptmpl, 0);
     AssertPo(_pbody, 0);
@@ -845,12 +845,12 @@ void APE::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the APE
+    Mark memory used by the ActorPreviewEntity
 ***************************************************************************/
-void APE::MarkMem(void)
+void ActorPreviewEntity::MarkMem(void)
 {
     AssertThis(0);
-    APE_PAR::MarkMem();
+    ActorPreviewEntity_PAR::MarkMem();
     MarkMemObj(_pbwld);
     MarkMemObj(_ptmpl);
     MarkMemObj(_pbody);

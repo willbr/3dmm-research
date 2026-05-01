@@ -13,16 +13,16 @@
 #include "frame.h"
 ASSERTNAME
 
-PGOB GOB::_pgobScreen;
+PGraphicsObject GraphicsObject::_pgobScreen;
 
 /***************************************************************************
     Create the screen gob.  If fgobEnsureHwnd is set, ensures that the
     screen gob has an OS window associated with it.
 ***************************************************************************/
-bool GOB::FInitScreen(ulong grfgob, long ginDef)
+bool GraphicsObject::FInitScreen(ulong grfgob, long ginDef)
 {
-    PGOB pgob;
-    GCB gcb(khidScreen, pvNil);
+    PGraphicsObject pgob;
+    GraphicsObjectBlock gcb(khidScreen, pvNil);
 
     switch (ginDef)
     {
@@ -33,7 +33,7 @@ bool GOB::FInitScreen(ulong grfgob, long ginDef)
         break;
     }
 
-    if (pvNil == (pgob = NewObj GOB(&gcb)))
+    if (pvNil == (pgob = NewObj GraphicsObject(&gcb)))
         return fFalse;
     Assert(pgob == _pgobScreen, 0);
 
@@ -44,9 +44,9 @@ bool GOB::FInitScreen(ulong grfgob, long ginDef)
 }
 
 /***************************************************************************
-    Make the GOB a wrapper for the given system window.
+    Make the GraphicsObject a wrapper for the given system window.
 ***************************************************************************/
-bool GOB::FAttachHwnd(HWND hwnd)
+bool GraphicsObject::FAttachHwnd(HWND hwnd)
 {
     if (_hwnd != hNil)
     {
@@ -56,7 +56,7 @@ bool GOB::FAttachHwnd(HWND hwnd)
     }
     if (hwnd != hNil)
     {
-        if (pvNil == (_pgpt = GPT::PgptNewHwnd(hwnd)))
+        if (pvNil == (_pgpt = GraphicsPort::PgptNewHwnd(hwnd)))
             return fFalse;
         _hwnd = hwnd;
         SetRcFromHwnd();
@@ -65,16 +65,16 @@ bool GOB::FAttachHwnd(HWND hwnd)
 }
 
 /***************************************************************************
-    Find the GOB associated with the given hwnd (if there is one).
+    Find the GraphicsObject associated with the given hwnd (if there is one).
 ***************************************************************************/
-PGOB GOB::PgobFromHwnd(HWND hwnd)
+PGraphicsObject GraphicsObject::PgobFromHwnd(HWND hwnd)
 {
     // NOTE: we used to use SetProp and GetProp for this, but profiling
     // indicated that GetProp is very slow.
     Assert(hwnd != hNil, "nil hwnd");
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(_pgobScreen, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -88,7 +88,7 @@ PGOB GOB::PgobFromHwnd(HWND hwnd)
 /***************************************************************************
     Return the active MDI window.
 ***************************************************************************/
-HWND GOB::HwndMdiActive(void)
+HWND GraphicsObject::HwndMdiActive(void)
 {
     if (vwig.hwndClient == hNil)
         return hNil;
@@ -100,7 +100,7 @@ HWND GOB::HwndMdiActive(void)
     Creates a new MDI window and returns it.  This is normally then
     attached to a gob.
 ***************************************************************************/
-HWND GOB::_HwndNewMdi(PSTN pstnTitle)
+HWND GraphicsObject::_HwndNewMdi(PString pstnTitle)
 {
     AssertPo(pstnTitle, 0);
     HWND hwnd, hwndT;
@@ -110,7 +110,7 @@ HWND GOB::_HwndNewMdi(PSTN pstnTitle)
     {
         // create the client first
         CLIENTCREATESTRUCT ccs;
-        RCS rcs;
+        SystemRectangle rcs;
 
         ccs.hWindowMenu = hNil;
         ccs.idFirstChild = 1;
@@ -138,7 +138,7 @@ HWND GOB::_HwndNewMdi(PSTN pstnTitle)
 /***************************************************************************
     Destroy an hwnd.
 ***************************************************************************/
-void GOB::_DestroyHwnd(HWND hwnd)
+void GraphicsObject::_DestroyHwnd(HWND hwnd)
 {
     if (hwnd == vwig.hwndApp)
     {
@@ -160,14 +160,14 @@ void GOB::_DestroyHwnd(HWND hwnd)
     not nil) and determines if the mouse button is down (if pfDown is
     not nil).
 ***************************************************************************/
-void GOB::GetPtMouse(PT *ppt, bool *pfDown)
+void GraphicsObject::GetPtMouse(PT *ppt, bool *pfDown)
 {
     AssertThis(0);
     if (ppt != pvNil)
     {
-        PTS pts;
+        SystemPoint pts;
         long xp, yp;
-        PGOB pgob;
+        PGraphicsObject pgob;
 
         xp = yp = 0;
         for (pgob = this; pgob != pvNil && pgob->_hwnd == hNil; pgob = pgob->_pgobPar)
@@ -187,14 +187,14 @@ void GOB::GetPtMouse(PT *ppt, bool *pfDown)
 }
 
 /***************************************************************************
-    Makes sure the GOB is clean (no update is pending).
+    Makes sure the GraphicsObject is clean (no update is pending).
 ***************************************************************************/
-void GOB::Clean(void)
+void GraphicsObject::Clean(void)
 {
     AssertThis(0);
     HWND hwnd;
     RC rc, rcT;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (hNil == (hwnd = _HwndGetRc(&rc)))
         return;
@@ -209,11 +209,11 @@ void GOB::Clean(void)
 /***************************************************************************
     Set the window name.
 ***************************************************************************/
-void GOB::SetHwndName(PSTN pstn)
+void GraphicsObject::SetHwndName(PString pstn)
 {
     if (hNil == _hwnd)
     {
-        Bug("GOB doesn't have an hwnd");
+        Bug("GraphicsObject doesn't have an hwnd");
         return;
     }
     if (pvNil != vpmubCur)
@@ -226,7 +226,7 @@ void GOB::SetHwndName(PSTN pstn)
 /***************************************************************************
     If this is one of our MDI windows, make it the active MDI window.
 ***************************************************************************/
-void GOB::MakeHwndActive(HWND hwnd)
+void GraphicsObject::MakeHwndActive(HWND hwnd)
 {
     if (IsWindow(hwnd) && GetParent(hwnd) == vwig.hwndClient && vwig.hwndClient != hNil)
         SendMessage(vwig.hwndClient, WM_MDIACTIVATE, (WPARAM)hwnd, 0);

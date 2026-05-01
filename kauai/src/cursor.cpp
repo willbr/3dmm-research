@@ -13,12 +13,12 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(CURS)
+RTCLASS(Cursor)
 
 /***************************************************************************
     Destructor for the cursor class.
 ***************************************************************************/
-CURS::~CURS(void)
+Cursor::~Cursor(void)
 {
 #ifdef WIN
     if (hNil != _hcrs)
@@ -27,25 +27,25 @@ CURS::~CURS(void)
 }
 
 /***************************************************************************
-    Read a cursor out of a CRF.
+    Read a cursor out of a ChunkyResourceFile.
 ***************************************************************************/
-bool CURS::FReadCurs(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
-    PGG pggcurf;
+    PGeneralGroup pggcurf;
     long icurf, icurfBest;
-    CURF curf;
+    CursorOnFile curf;
     short bo;
     long dxp, dyp, dzpT;
     long dzpBest;
     long cbRowDst, cbRowSrc, cbT;
     byte *prgb, *qrgb;
-    PCURS pcurs = pvNil;
+    PCursor pcurs = pvNil;
 
-    *pcb = size(CURS);
+    *pcb = size(Cursor);
     if (pvNil == ppbaco)
         return fTrue;
 
-    if (pvNil == (pggcurf = GG::PggRead(pblck, &bo)) || pggcurf->IvMac() == 0)
+    if (pvNil == (pggcurf = GeneralGroup::PggRead(pblck, &bo)) || pggcurf->IvMac() == 0)
     {
         ReleasePpo(&pggcurf);
         return fFalse;
@@ -91,7 +91,7 @@ bool CURS::FReadCurs(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
     if (!FAllocPv((void **)&prgb, LwMul(cbRowDst, 2 * dyp), fmemClear, mprNormal))
         goto LFail;
 
-    if (pvNil == (pcurs = NewObj CURS))
+    if (pvNil == (pcurs = NewObj Cursor))
         goto LFail;
 
     FillPb(prgb, LwMul(cbRowDst, dyp), 0xFF);
@@ -135,7 +135,7 @@ LFail:
 /***************************************************************************
     Set the cursor.
 ***************************************************************************/
-void CURS::Set(void)
+void Cursor::Set(void)
 {
 #ifdef WIN
     SetCursor(_hcrs);

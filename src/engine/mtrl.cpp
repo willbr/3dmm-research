@@ -3,7 +3,7 @@
 
 /***************************************************************************
 
-    mtrl.cpp: Material (MTRL) and custom material (CMTL) classes
+    mtrl.cpp: Material (Material_MTRL) and custom material (CustomMaterial_CMTL) classes
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
@@ -12,8 +12,8 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(MTRL)
-RTCLASS(CMTL)
+RTCLASS(Material_MTRL)
+RTCLASS(CustomMaterial_CMTL)
 
 // REVIEW *****: kiclrBaseDefault and kcclrDefault are palette-specific
 const byte kiclrBaseDefault = 15; // base index of default color
@@ -25,34 +25,34 @@ const br_ufraction kbrufKsDefault = BR_UFRACTION(0.60);
 const BRS krPowerDefault = BR_SCALAR(50);
 const byte kbOpaque = 0xff;
 
-PTMAP MTRL::_ptmapShadeTable = pvNil; // shade table for all MTRLs
+PTextureMap Material_MTRL::_ptmapShadeTable = pvNil; // shade table for all MTRLs
 
 /***************************************************************************
     Call this function to assign the global shade table.  It is read from
     the given chunk.
 ***************************************************************************/
-bool MTRL::FSetShadeTable(PCFL pcfl, CTG ctg, CNO cno)
+bool Material_MTRL::FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
     ReleasePpo(&_ptmapShadeTable);
-    _ptmapShadeTable = TMAP::PtmapRead(pcfl, ctg, cno);
+    _ptmapShadeTable = TextureMap::PtmapRead(pcfl, ctg, cno);
     return (pvNil != _ptmapShadeTable);
 }
 
 /***************************************************************************
     Create a new solid-color material
 ***************************************************************************/
-PMTRL MTRL::PmtrlNew(long iclrBase, long cclr)
+PMaterial_MTRL Material_MTRL::PmtrlNew(long iclrBase, long cclr)
 {
     if (ivNil != iclrBase)
         AssertIn(iclrBase, 0, kbMax);
     if (ivNil != cclr)
         AssertIn(cclr, 0, kbMax - iclrBase);
 
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
 
-    pmtrl = NewObj MTRL;
+    pmtrl = NewObj Material_MTRL;
     if (pvNil == pmtrl)
         return pvNil;
 
@@ -87,21 +87,21 @@ PMTRL MTRL::PmtrlNew(long iclrBase, long cclr)
 }
 
 /***************************************************************************
-    A PFNRPO to read MTRL objects.
+    A PFNRPO to read Material_MTRL objects.
 ***************************************************************************/
-bool MTRL::FReadMtrl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool Material_MTRL::FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    PMTRL pmtrl;
+    PMaterial_MTRL pmtrl;
 
-    *pcb = size(MTRL);
+    *pcb = size(Material_MTRL);
     if (pvNil == ppbaco)
         return fTrue;
-    pmtrl = NewObj MTRL;
+    pmtrl = NewObj Material_MTRL;
     if (pvNil == pmtrl || !pmtrl->_FInit(pcrf, ctg, cno))
     {
         TrashVar(ppbaco);
@@ -115,30 +115,30 @@ bool MTRL::FReadMtrl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 }
 
 /***************************************************************************
-    Read the given MTRL chunk from file
+    Read the given Material_MTRL chunk from file
 ***************************************************************************/
-bool MTRL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
+bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
 
-    PCFL pcfl = pcrf->Pcfl();
-    BLCK blck;
-    MTRLF mtrlf;
-    KID kid;
-    MTRL *pmtrlThis = this; // to get MTRL from BMTL
-    PTMAP ptmap = pvNil;
+    PChunkyFile pcfl = pcrf->Pcfl();
+    DataBlock blck;
+    MaterialOnFile mtrlf;
+    ChildChunkIdentification kid;
+    Material_MTRL *pmtrlThis = this; // to get Material_MTRL from BMTL
+    PTextureMap ptmap = pvNil;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
 
-    if (blck.Cb() < size(MTRLF))
+    if (blck.Cb() < size(MaterialOnFile))
         return fFalse;
-    if (!blck.FReadRgb(&mtrlf, size(MTRLF), 0))
+    if (!blck.FReadRgb(&mtrlf, size(MaterialOnFile), 0))
         return fFalse;
     if (kboOther == mtrlf.bo)
         SwapBytesBom(&mtrlf, kbomMtrlf);
-    Assert(kboCur == mtrlf.bo, "bad MTRLF");
+    Assert(kboCur == mtrlf.bo, "bad MaterialOnFile");
 
     // An arbitrary 4-character string is passed to BrMaterialAllocate (to
     // be stored in a string pointed to by _pbmtl->identifier).  The
@@ -164,18 +164,18 @@ bool MTRL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
     // now read texture map, if any
     if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTmap, &kid))
     {
-        ptmap = (PTMAP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, TMAP::FReadTmap);
+        ptmap = (PTextureMap)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, TextureMap::FReadTmap);
         if (pvNil == ptmap)
             return fFalse;
         _pbmtl->colour_map = ptmap->Pbpmp();
-        Assert((PTMAP)_pbmtl->colour_map->identifier == ptmap, "lost tmap!");
+        Assert((PTextureMap)_pbmtl->colour_map->identifier == ptmap, "lost tmap!");
         AssertPo(_ptmapShadeTable, 0);
         _pbmtl->index_shade = _ptmapShadeTable->Pbpmp();
         _pbmtl->flags |= BR_MATF_MAP_COLOUR;
         _pbmtl->index_base = 0;
         _pbmtl->index_range = _ptmapShadeTable->Pbpmp()->height - 1;
 
-        /* Look for a texture transform for the MTRL */
+        /* Look for a texture transform for the Material_MTRL */
         if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgTxxf, &kid))
         {
             TXXFF txxff;
@@ -198,8 +198,8 @@ bool MTRL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
 LFail:
     /* REVIEW ***** (peted): Only the code that I added uses this LFail
         case.  It's my opinion that any API which can fail should clean up
-        after itself.  It happens that in the case of this MTRL class, when
-        the caller releases this instance, the TMAP and BMTL are freed anyway,
+        after itself.  It happens that in the case of this Material_MTRL class, when
+        the caller releases this instance, the TextureMap and BMTL are freed anyway,
         but I don't think that it's good to count on that */
     ReleasePpo(&ptmap);
     _pbmtl->colour_map = pvNil;
@@ -209,18 +209,18 @@ LFail:
 }
 
 /***************************************************************************
-    Read a PIX and build a PMTRL from it
+    Read a PIX and build a PMaterial_MTRL from it
 ***************************************************************************/
-PMTRL MTRL::PmtrlNewFromPix(PFNI pfni)
+PMaterial_MTRL Material_MTRL::PmtrlNewFromPix(PFilename pfni)
 {
     AssertPo(pfni, ffniFile);
 
-    STN stn;
-    PMTRL pmtrl;
+    String stn;
+    PMaterial_MTRL pmtrl;
     PBMTL pbmtl;
-    PTMAP ptmap;
+    PTextureMap ptmap;
 
-    pmtrl = NewObj MTRL;
+    pmtrl = NewObj Material_MTRL;
     if (pvNil == pmtrl)
         goto LFail;
 
@@ -244,16 +244,16 @@ PMTRL MTRL::PmtrlNewFromPix(PFNI pfni)
     if (pvNil == pbmtl->colour_map)
         goto LFail;
 
-    // Create a TMAP for this BPMP.  We don't directly save
+    // Create a TextureMap for this BPMP.  We don't directly save
     // the ptmap...it's automagically attached to the
     // BPMP's identifier.
-    ptmap = TMAP::PtmapNewFromBpmp(pbmtl->colour_map);
+    ptmap = TextureMap::PtmapNewFromBpmp(pbmtl->colour_map);
     if (pvNil == ptmap)
     {
         BrPixelmapFree(pbmtl->colour_map);
         goto LFail;
     }
-    Assert((PTMAP)pbmtl->colour_map->identifier == ptmap, "lost our TMAP!");
+    Assert((PTextureMap)pbmtl->colour_map->identifier == ptmap, "lost our TextureMap!");
     AssertPo(_ptmapShadeTable, 0);
     pbmtl->index_shade = _ptmapShadeTable->Pbpmp();
     pbmtl->flags |= BR_MATF_MAP_COLOUR;
@@ -267,21 +267,21 @@ LFail:
 }
 
 /***************************************************************************
-    Read a BMP and build a PMTRL from it
+    Read a BMP and build a PMaterial_MTRL from it
 ***************************************************************************/
-PMTRL MTRL::PmtrlNewFromBmp(PFNI pfni, PGL pglclr)
+PMaterial_MTRL Material_MTRL::PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr)
 {
     AssertPo(pfni, ffniFile);
     AssertPo(_ptmapShadeTable, 0);
 
-    PMTRL pmtrl;
-    PTMAP ptmap;
+    PMaterial_MTRL pmtrl;
+    PTextureMap ptmap;
 
     pmtrl = PmtrlNew();
     if (pvNil == pmtrl)
         return pvNil;
 
-    ptmap = TMAP::PtmapReadNative(pfni, pglclr);
+    ptmap = TextureMap::PtmapReadNative(pfni, pglclr);
     if (pvNil == ptmap)
     {
         ReleasePpo(&pmtrl);
@@ -299,24 +299,24 @@ PMTRL MTRL::PmtrlNewFromBmp(PFNI pfni, PGL pglclr)
 }
 
 /***************************************************************************
-    Return a pointer to the MTRL that owns this BMTL
+    Return a pointer to the Material_MTRL that owns this BMTL
 ***************************************************************************/
-PMTRL MTRL::PmtrlFromBmtl(PBMTL pbmtl)
+PMaterial_MTRL Material_MTRL::PmtrlFromBmtl(PBMTL pbmtl)
 {
     AssertVarMem(pbmtl);
 
-    PMTRL pmtrl = (PMTRL) * (long *)pbmtl->identifier;
+    PMaterial_MTRL pmtrl = (PMaterial_MTRL) * (long *)pbmtl->identifier;
     AssertPo(pmtrl, 0);
     return pmtrl;
 }
 
 /***************************************************************************
-    Return this MTRL's TMAP, or pvNil if it's a solid-color MTRL.
+    Return this Material_MTRL's TextureMap, or pvNil if it's a solid-color Material_MTRL.
     Note: This function doesn't AssertThis because it gets called on
     objects which are not necessarily valid (e.g., from the destructor and
     from AssertThis())
 ***************************************************************************/
-PTMAP MTRL::Ptmap(void)
+PTextureMap Material_MTRL::Ptmap(void)
 {
     AssertBaseThis(0);
 
@@ -325,21 +325,21 @@ PTMAP MTRL::Ptmap(void)
     else if (pvNil == _pbmtl->colour_map)
         return pvNil;
     else
-        return (PTMAP)_pbmtl->colour_map->identifier;
+        return (PTextureMap)_pbmtl->colour_map->identifier;
 }
 
 /***************************************************************************
-    Write a MTRL to a chunky file
+    Write a Material_MTRL to a chunky file
 ***************************************************************************/
-bool MTRL::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
+bool Material_MTRL::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcno);
 
-    MTRLF mtrlf;
-    CNO cnoChild;
-    PTMAP ptmap;
+    MaterialOnFile mtrlf;
+    ChunkNumber cnoChild;
+    PTextureMap ptmap;
 
     mtrlf.bo = kboCur;
     mtrlf.osk = koskCur;
@@ -351,7 +351,7 @@ bool MTRL::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
     mtrlf.cIndexRange = _pbmtl->index_range;
     mtrlf.rPower = _pbmtl->power;
 
-    if (!pcfl->FAddPv(&mtrlf, size(MTRLF), ctg, pcno))
+    if (!pcfl->FAddPv(&mtrlf, size(MaterialOnFile), ctg, pcno))
         return fFalse;
     ptmap = Ptmap();
     if (pvNil != ptmap)
@@ -372,13 +372,13 @@ bool MTRL::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
 }
 
 /***************************************************************************
-    Free the MTRL
+    Free the Material_MTRL
 ***************************************************************************/
-MTRL::~MTRL(void)
+Material_MTRL::~Material_MTRL(void)
 {
     AssertBaseThis(0);
 
-    PTMAP ptmap;
+    PTextureMap ptmap;
 
     ptmap = Ptmap();
 
@@ -393,26 +393,26 @@ MTRL::~MTRL(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MTRL.
+    Assert the validity of the Material_MTRL.
 ***************************************************************************/
-void MTRL::AssertValid(ulong grf)
+void Material_MTRL::AssertValid(ulong grf)
 {
-    MTRL_PAR::AssertValid(fobjAllocated);
+    Material_MTRL_PAR::AssertValid(fobjAllocated);
 
     AssertNilOrPo(Ptmap(), 0);
     Assert(pvNil != _ptmapShadeTable, "Why do we have MTRLs but no shade table?");
 }
 
 /***************************************************************************
-    Mark memory used by the MTRL
+    Mark memory used by the Material_MTRL
 ***************************************************************************/
-void MTRL::MarkMem(void)
+void Material_MTRL::MarkMem(void)
 {
     AssertThis(0);
 
-    PTMAP ptmap;
+    PTextureMap ptmap;
 
-    MTRL_PAR::MarkMem();
+    Material_MTRL_PAR::MarkMem();
     ptmap = Ptmap();
     if (pvNil != ptmap)
         MarkMemObj(ptmap);
@@ -421,7 +421,7 @@ void MTRL::MarkMem(void)
 /***************************************************************************
     Mark memory used by the shade table
 ***************************************************************************/
-void MTRL::MarkShadeTable(void)
+void Material_MTRL::MarkShadeTable(void)
 {
     MarkMemObj(_ptmapShadeTable);
 }
@@ -431,19 +431,19 @@ void MTRL::MarkShadeTable(void)
 //
 //
 //
-//  CMTL (custom material) stuff begins here
+//  CustomMaterial_CMTL (custom material) stuff begins here
 //
 //
 //
 
 /***************************************************************************
-    Static function to see if the given chunk has MODL children
+    Static function to see if the given chunk has Model children
 ***************************************************************************/
-bool CMTL::FHasModels(PCFL pcfl, CTG ctg, CNO cno)
+bool CustomMaterial_CMTL::FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
 
     return pcfl->FGetKidChidCtg(ctg, cno, 0, kctgBmdl, &kid);
 }
@@ -452,13 +452,13 @@ bool CMTL::FHasModels(PCFL pcfl, CTG ctg, CNO cno)
     Static function to see if the two given CMTLs have the same child
     MODLs
 ***************************************************************************/
-bool CMTL::FEqualModels(PCFL pcfl, CNO cno1, CNO cno2)
+bool CustomMaterial_CMTL::FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2)
 {
     AssertPo(pcfl, 0);
 
-    CHID chid = 0;
-    KID kid1;
-    KID kid2;
+    ChildChunkID chid = 0;
+    ChildChunkIdentification kid1;
+    ChildChunkIdentification kid2;
 
     while (pcfl->FGetKidChidCtg(kctgCmtl, cno1, chid, kctgBmdl, &kid1))
     {
@@ -477,24 +477,24 @@ bool CMTL::FEqualModels(PCFL pcfl, CNO cno1, CNO cno2)
 /***************************************************************************
     Create a new custom material
 ***************************************************************************/
-PCMTL CMTL::PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl)
+PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl)
 {
-    AssertPvCb(prgpmtrl, LwMul(cbprt, size(PMTRL)));
-    PCMTL pcmtl;
+    AssertPvCb(prgpmtrl, LwMul(cbprt, size(PMaterial_MTRL)));
+    PCustomMaterial_CMTL pcmtl;
     long imtrl;
 
-    pcmtl = NewObj CMTL;
+    pcmtl = NewObj CustomMaterial_CMTL;
     if (pvNil == pcmtl)
         return pvNil;
 
     pcmtl->_ibset = ibset;
     pcmtl->_cbprt = cbprt;
-    if (!FAllocPv((void **)&pcmtl->_prgpmtrl, LwMul(pcmtl->_cbprt, size(PMTRL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&pcmtl->_prgpmtrl, LwMul(pcmtl->_cbprt, size(PMaterial_MTRL)), fmemClear, mprNormal))
     {
         ReleasePpo(&pcmtl);
         return pvNil;
     }
-    if (!FAllocPv((void **)&pcmtl->_prgpmodl, LwMul(pcmtl->_cbprt, size(PMODL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&pcmtl->_prgpmodl, LwMul(pcmtl->_cbprt, size(PModel)), fmemClear, mprNormal))
     {
         ReleasePpo(&pcmtl);
         return pvNil;
@@ -510,21 +510,21 @@ PCMTL CMTL::PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl)
 }
 
 /***************************************************************************
-    A PFNRPO to read CMTL objects.
+    A PFNRPO to read CustomMaterial_CMTL objects.
 ***************************************************************************/
-bool CMTL::FReadCmtl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    PCMTL pcmtl;
+    PCustomMaterial_CMTL pcmtl;
 
-    *pcb = size(CMTL);
+    *pcb = size(CustomMaterial_CMTL);
     if (pvNil == ppbaco)
         return fTrue;
-    pcmtl = NewObj CMTL;
+    pcmtl = NewObj CustomMaterial_CMTL;
     if (pvNil == pcmtl || !pcmtl->_FInit(pcrf, ctg, cno))
     {
         ReleasePpo(&pcmtl);
@@ -534,38 +534,38 @@ bool CMTL::FReadCmtl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
     }
     AssertPo(pcmtl, 0);
     *ppbaco = pcmtl;
-    *pcb += LwMul(size(PMTRL) + size(PMODL), pcmtl->_cbprt);
+    *pcb += LwMul(size(PMaterial_MTRL) + size(PModel), pcmtl->_cbprt);
     return fTrue;
 }
 
 /***************************************************************************
-    Read a CMTL from file
+    Read a CustomMaterial_CMTL from file
 ***************************************************************************/
-bool CMTL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
+bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcrf, 0);
 
     long ikid;
     long imtrl;
-    KID kid;
-    BLCK blck;
-    PCFL pcfl = pcrf->Pcfl();
-    CMTLF cmtlf;
+    ChildChunkIdentification kid;
+    DataBlock blck;
+    PChunkyFile pcfl = pcrf->Pcfl();
+    CustomMaterialOnFile cmtlf;
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         return fFalse;
 
-    if (blck.Cb() != size(CMTLF))
+    if (blck.Cb() != size(CustomMaterialOnFile))
     {
-        Bug("bad CMTLF...you may need to update tmpls.chk");
+        Bug("bad CustomMaterialOnFile...you may need to update tmpls.chk");
         return fFalse;
     }
-    if (!blck.FReadRgb(&cmtlf, size(CMTLF), 0))
+    if (!blck.FReadRgb(&cmtlf, size(CustomMaterialOnFile), 0))
         return fFalse;
     if (kboOther == cmtlf.bo)
         SwapBytesBom(&cmtlf, kbomCmtlf);
-    Assert(kboCur == cmtlf.bo, "bad CMTLF");
+    Assert(kboCur == cmtlf.bo, "bad CustomMaterialOnFile");
     _ibset = cmtlf.ibset;
 
     // Highest chid is number of body part sets - 1
@@ -576,11 +576,11 @@ bool CMTL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
         if ((long)kid.chid > (_cbprt - 1))
             _cbprt = kid.chid + 1;
     }
-    if (!FAllocPv((void **)&_prgpmtrl, LwMul(_cbprt, size(PMTRL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&_prgpmtrl, LwMul(_cbprt, size(PMaterial_MTRL)), fmemClear, mprNormal))
     {
         return fFalse;
     }
-    if (!FAllocPv((void **)&_prgpmodl, LwMul(_cbprt, size(PMODL)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&_prgpmodl, LwMul(_cbprt, size(PModel)), fmemClear, mprNormal))
     {
         return fFalse;
     }
@@ -588,13 +588,13 @@ bool CMTL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
     {
         if (pcfl->FGetKidChidCtg(ctg, cno, imtrl, kctgMtrl, &kid))
         {
-            _prgpmtrl[imtrl] = (MTRL *)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MTRL::FReadMtrl);
+            _prgpmtrl[imtrl] = (Material_MTRL *)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Material_MTRL::FReadMtrl);
             if (pvNil == _prgpmtrl[imtrl])
                 return fFalse;
         }
         if (pcfl->FGetKidChidCtg(ctg, cno, imtrl, kctgBmdl, &kid))
         {
-            _prgpmodl[imtrl] = (MODL *)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MODL::FReadModl);
+            _prgpmodl[imtrl] = (Model *)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Model::FReadModl);
             if (pvNil == _prgpmodl[imtrl])
                 return fFalse;
         }
@@ -604,9 +604,9 @@ bool CMTL::_FInit(PCRF pcrf, CTG ctg, CNO cno)
 }
 
 /***************************************************************************
-    Free the CMTL
+    Free the CustomMaterial_CMTL
 ***************************************************************************/
-CMTL::~CMTL(void)
+CustomMaterial_CMTL::~CustomMaterial_CMTL(void)
 {
     AssertBaseThis(0);
 
@@ -630,7 +630,7 @@ CMTL::~CMTL(void)
 /***************************************************************************
     Return ibmtl'th BMTL
 ***************************************************************************/
-BMTL *CMTL::Pbmtl(long ibmtl)
+BMTL *CustomMaterial_CMTL::Pbmtl(long ibmtl)
 {
     AssertThis(0);
     AssertIn(ibmtl, 0, _cbprt);
@@ -639,9 +639,9 @@ BMTL *CMTL::Pbmtl(long ibmtl)
 }
 
 /***************************************************************************
-    Return imodl'th MODL
+    Return imodl'th Model
 ***************************************************************************/
-PMODL CMTL::Pmodl(long imodl)
+PModel CustomMaterial_CMTL::Pmodl(long imodl)
 {
     AssertThis(0);
     AssertIn(imodl, 0, _cbprt);
@@ -651,9 +651,9 @@ PMODL CMTL::Pmodl(long imodl)
 }
 
 /***************************************************************************
-    Returns whether this CMTL has any models attached
+    Returns whether this CustomMaterial_CMTL has any models attached
 ***************************************************************************/
-bool CMTL::FHasModels(void)
+bool CustomMaterial_CMTL::FHasModels(void)
 {
     AssertThis(0);
 
@@ -669,15 +669,15 @@ bool CMTL::FHasModels(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the CMTL
+    Assert the validity of the CustomMaterial_CMTL
 ***************************************************************************/
-void CMTL::AssertValid(ulong grf)
+void CustomMaterial_CMTL::AssertValid(ulong grf)
 {
     long imtrl;
 
-    MTRL_PAR::AssertValid(fobjAllocated);
-    AssertPvCb(_prgpmtrl, LwMul(_cbprt, size(MTRL *)));
-    AssertPvCb(_prgpmodl, LwMul(_cbprt, size(MODL *)));
+    Material_MTRL_PAR::AssertValid(fobjAllocated);
+    AssertPvCb(_prgpmtrl, LwMul(_cbprt, size(Material_MTRL *)));
+    AssertPvCb(_prgpmodl, LwMul(_cbprt, size(Model *)));
 
     for (imtrl = 0; imtrl < _cbprt; imtrl++)
     {
@@ -687,15 +687,15 @@ void CMTL::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the MTRL
+    Mark memory used by the Material_MTRL
 ***************************************************************************/
-void CMTL::MarkMem(void)
+void CustomMaterial_CMTL::MarkMem(void)
 {
     AssertThis(0);
 
     long imtrl;
 
-    MTRL_PAR::MarkMem();
+    Material_MTRL_PAR::MarkMem();
     MarkPv(_prgpmtrl);
     MarkPv(_prgpmodl);
     for (imtrl = 0; imtrl < _cbprt; imtrl++)

@@ -6,11 +6,11 @@
     Actor Edit.   Cut/Copy/Paste/Undo
 
     Primary authors:
-        ACLP::(clipbd)	Seanse
-        AUND::(undo)	Seanse
-        ACTR::(undo)	Seanse
-        ACTR::(vacuum)  *****
-        ACTR::(dup/restore) *****
+        ActorClipboard::(clipbd)	Seanse
+        ActorUndo::(undo)	Seanse
+        Actor::(undo)	Seanse
+        Actor::(vacuum)  *****
+        Actor::(dup/restore) *****
     Review Status:  Reviewed
 
 ***************************************************************************/
@@ -18,7 +18,10 @@
 #include "soc.h"
 
 ASSERTNAME
-RTCLASS(AUND)
+
+using namespace ActorEvent;
+
+RTCLASS(ActorUndo)
 
 /***************************************************************************
 
@@ -26,20 +29,20 @@ RTCLASS(AUND)
     the end of subroute or (if fEntireScene) the end of the scene
 
 ***************************************************************************/
-bool ACTR::FCopy(PACTR *ppactr, bool fEntireScene)
+bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 {
     AssertThis(0);
     AssertVarMem(ppactr);
 
     long iaev;
     long iaevLast;
-    AEV aev;
-    AEVACTN aevactn;
-    AEVSND aevsnd;
-    RPT rpt;
-    RPT rptOld;
-    RPT *prptSrc;
-    RPT *prptDest;
+    Base aev;
+    Action aevactn;
+    Sound aevsnd;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptOld;
+    RouteDistancePoint *prptSrc;
+    RouteDistancePoint *prptDest;
 
     (*ppactr) = PactrNew(&_tagTmpl);
 
@@ -226,9 +229,9 @@ bool ACTR::FCopy(PACTR *ppactr, bool fEntireScene)
             goto LFail;
         }
 
-        prptSrc = (RPT *)_pglrpt->QvGet(_rtelCur.irpt + 1);
-        prptDest = (RPT *)(*ppactr)->_pglrpt->QvGet(1);
-        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_rtelCur.irpt + 1), size(RPT)));
+        prptSrc = (RouteDistancePoint *)_pglrpt->QvGet(_rtelCur.irpt + 1);
+        prptDest = (RouteDistancePoint *)(*ppactr)->_pglrpt->QvGet(1);
+        CopyPb(prptSrc, prptDest, LwMul(irptLim - (_rtelCur.irpt + 1), size(RouteDistancePoint)));
     }
     else
     {
@@ -259,17 +262,17 @@ LFail:
     If (!fReset), all state information will have been retained.
 
 ***************************************************************************/
-bool ACTR::FDup(PACTR *ppactr, bool fReset)
+bool Actor::FDup(PActor *ppactr, bool fReset)
 {
     AssertThis(0);
     AssertVarMem(ppactr);
 
     long cactRef;
-    PACTR pactrSrc = this;
-    PACTR pactrDest;
+    PActor pactrSrc = this;
+    PActor pactrDest;
 
     // Due to state var duplication, using NewObj, not PactrNew
-    pactrDest = (*ppactr) = NewObj ACTR();
+    pactrDest = (*ppactr) = NewObj Actor();
     if (*ppactr == pvNil)
     {
         return fFalse;
@@ -279,7 +282,7 @@ bool ACTR::FDup(PACTR *ppactr, bool fReset)
     if (pvNil != _pbody)
         _pbody->AddRef();
     _ptmpl->AddRef();
-    TAGM::DupTag(&_tagTmpl);
+    TagManager::DupTag(&_tagTmpl);
 
     // Copy over all members
     // Note that both copies will point to the same *_pbody & *_ptmpl
@@ -314,14 +317,14 @@ LFail:
     Restore the actor from *ppactr onto *this
 
 ***************************************************************************/
-void ACTR::Restore(PACTR pactr)
+void Actor::Restore(PActor pactr)
 {
     AssertThis(0);
     AssertVarMem(pactr);
 
     long cactRef;
-    PACTR pactrSrc = pactr;
-    PACTR pactrDest = this;
+    PActor pactrSrc = pactr;
+    PActor pactrDest = this;
 
     Assert(pactr->_ptmpl == _ptmpl, "Restore ptmpl logic error");
     Assert(pactr->_pbody == _pbody, "Restore pbody logic error");
@@ -329,9 +332,9 @@ void ACTR::Restore(PACTR pactr)
     // Copy over all members
     // Note that both copies will point to the same *_pbody & *_ptmpl
     cactRef = pactrDest->_cactRef;
-    PGG pggaev = pactrDest->_pggaev;
-    PGL pglrpt = pactrDest->_pglrpt;
-    PGL pglsmm = pactrDest->_pglsmm;
+    PGeneralGroup pggaev = pactrDest->_pggaev;
+    PDynamicArray pglrpt = pactrDest->_pglrpt;
+    PDynamicArray pglsmm = pactrDest->_pglsmm;
     *(pactrDest) = *pactrSrc;
     pactrDest->_cactRef = cactRef;
     pactrDest->_pggaev = pggaev;
@@ -353,14 +356,14 @@ void ACTR::Restore(PACTR pactr)
     Restore this actor from an undo object pactrRestore.
 
 ***************************************************************************/
-void ACTR::_RestoreFromUndo(PACTR pactrRestore)
+void Actor::_RestoreFromUndo(PActor pactrRestore)
 {
     AssertBaseThis(0);
     AssertVarMem(pactrRestore);
     Assert(pactrRestore->_pbody == pvNil, "Not restoring from undo object");
 
     long nfrmCur = _nfrmCur;
-    PSCEN pscen = pactrRestore->_pscen;
+    PScene pscen = pactrRestore->_pscen;
 
     // Modify pactrRestore for Restore()
     pactrRestore->_pbody = _pbody;
@@ -378,22 +381,22 @@ void ACTR::_RestoreFromUndo(PACTR pactrRestore)
 
 /***************************************************************************
 
-    Copy the GG and GL structures for actor duplication/restoration
+    Copy the GeneralGroup and DynamicArray structures for actor duplication/restoration
 
     NOTE:
     This is not from this frame on.  The entire actor is duplicated.
 
 ***************************************************************************/
-bool ACTR::_FDupCopy(PACTR pactrSrc, PACTR pactrDest)
+bool Actor::_FDupCopy(PActor pactrSrc, PActor pactrDest)
 {
     AssertBaseThis(0);
     AssertPo(pactrDest->_pggaev, 0);
     AssertPo(pactrDest->_pglrpt, 0);
 
-    RPT *prptSrc;
-    RPT *prptDest;
-    SMM *psmmSrc;
-    SMM *psmmDest;
+    RouteDistancePoint *prptSrc;
+    RouteDistancePoint *prptDest;
+    SoundMotionMatch *psmmSrc;
+    SoundMotionMatch *psmmDest;
 
     //
     // Copy all events.
@@ -410,7 +413,7 @@ bool ACTR::_FDupCopy(PACTR pactrSrc, PACTR pactrDest)
             PTAG ptag;
 
             if (_FIsIaevTag(_pggaev, iaev, &ptag))
-                TAGM::DupTag(ptag);
+                TagManager::DupTag(ptag);
         }
         _pggaev->Unlock();
     }
@@ -425,9 +428,9 @@ bool ACTR::_FDupCopy(PACTR pactrSrc, PACTR pactrDest)
             goto LFail;
         }
 
-        prptSrc = (RPT *)pactrSrc->_pglrpt->QvGet(0);
-        prptDest = (RPT *)pactrDest->_pglrpt->QvGet(0);
-        CopyPb(prptSrc, prptDest, LwMul(pactrSrc->_pglrpt->IvMac(), size(RPT)));
+        prptSrc = (RouteDistancePoint *)pactrSrc->_pglrpt->QvGet(0);
+        prptDest = (RouteDistancePoint *)pactrDest->_pglrpt->QvGet(0);
+        CopyPb(prptSrc, prptDest, LwMul(pactrSrc->_pglrpt->IvMac(), size(RouteDistancePoint)));
     }
 
     //
@@ -440,9 +443,9 @@ bool ACTR::_FDupCopy(PACTR pactrSrc, PACTR pactrDest)
             goto LFail;
         }
 
-        psmmSrc = (SMM *)pactrSrc->_pglsmm->QvGet(0);
-        psmmDest = (SMM *)pactrDest->_pglsmm->QvGet(0);
-        CopyPb(psmmSrc, psmmDest, LwMul(pactrSrc->_pglsmm->IvMac(), size(SMM)));
+        psmmSrc = (SoundMotionMatch *)pactrSrc->_pglsmm->QvGet(0);
+        psmmDest = (SoundMotionMatch *)pactrDest->_pglsmm->QvGet(0);
+        CopyPb(psmmSrc, psmmDest, LwMul(pactrSrc->_pglsmm->IvMac(), size(SoundMotionMatch)));
     }
 
     return fTrue;
@@ -461,7 +464,7 @@ LFail:
     nodes, insert a point to make the two route sections identical.
 
 ***************************************************************************/
-bool ACTR::FCopyRte(PACTR *ppactr, bool fEntireScene)
+bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 {
     AssertThis(0);
     AssertVarMem(ppactr);
@@ -469,9 +472,9 @@ bool ACTR::FCopyRte(PACTR *ppactr, bool fEntireScene)
     long irpt;
     long dnrpt;
     long irptLim;
-    RPT rpt;
-    RPT rpt1;
-    RPT rptNode;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rpt1;
+    RouteDistancePoint rptNode;
 
     (*ppactr) = PactrNew(&_tagTmpl);
     if (*ppactr == pvNil)
@@ -569,15 +572,15 @@ LFail:
     extend from the current point.
 
 ***************************************************************************/
-bool ACTR::FPasteRte(PACTR pactr)
+bool Actor::FPasteRte(PActor pactr)
 {
     AssertThis(0);
     AssertVarMem(pactr);
 
-    AEV aev;
-    RPT rpt;
-    RPT rptCur;
-    XYZ dxyz;
+    Base aev;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptCur;
+    RoutePoint dxyz;
     long iaev;
     long irpt;
 #ifdef STATIC
@@ -702,7 +705,7 @@ bool ACTR::FPasteRte(PACTR pactr)
     //
     // Set new end of path freeze & step events
     //
-    long faevfrz = (long)fTrue;
+    int32_t faevfrz = (int32_t)fTrue;
     BRS dwrStep = rZero;
     aev.aet = aetFreeze;
     aev.rtel.irpt = _rtelCur.irpt + crptNew;
@@ -728,14 +731,14 @@ bool ACTR::FPasteRte(PACTR pactr)
     Put an already existing actor in this scene.
 
 ***************************************************************************/
-bool ACTR::FPaste(long nfrm, SCEN *pscen)
+bool Actor::FPaste(long nfrm, Scene *pscen)
 {
     AssertThis(0);
 
-    AEV aev;
-    RPT rpt;
-    AEVADD aevadd;
-    AEVSND aevsnd;
+    Base aev;
+    RouteDistancePoint rpt;
+    Add aevadd;
+    Sound aevsnd;
     BRS xrCam = rZero;
     BRS yrCam = rZero;
     BRS zrCam = kzrDefault;
@@ -743,16 +746,16 @@ bool ACTR::FPaste(long nfrm, SCEN *pscen)
     long iaev;
     long dnfrm;
 #ifdef BUG1888
-    PTMPL ptmpl;
-    PCRF pcrf;
+    PTemplate ptmpl;
+    PChunkyResourceFile pcrf;
     TAG tag;
 
     //
-    // Ensure that the tag to the TDT being pasted is in the current movie.
+    // Ensure that the tag to the ThreeDText being pasted is in the current movie.
     //
     if (FIsTdt())
     {
-        Assert(_tagTmpl.sid == ksidUseCrf, "TDTs should be stored in a document!");
+        Assert(_tagTmpl.sid == ksidUseCrf, "ThreeDTexts should be stored in a document!");
 
         if (!pscen->Pmvie()->FEnsureAutosave(&pcrf))
         {
@@ -763,23 +766,23 @@ bool ACTR::FPaste(long nfrm, SCEN *pscen)
             // Need to save this actor's tagTmpl in this movie because it came from another movie
 
             tag = _tagTmpl;
-            TAGM::DupTag(&tag);
+            TagManager::DupTag(&tag);
             // Save the tag to the movie's _pcrfAutosave.  The tag now
             // points to the copy in this movie.
-            if (!TAGM::FSaveTag(&tag, pcrf, fTrue))
+            if (!TagManager::FSaveTag(&tag, pcrf, fTrue))
             {
-                TAGM::CloseTag(&tag);
+                TagManager::CloseTag(&tag);
                 return fFalse;
             }
             // Get a template based on the new tag
-            ptmpl = (PTMPL)vptagm->PbacoFetch(&tag, TMPL::FReadTmpl);
+            ptmpl = (PTemplate)vptagm->PbacoFetch(&tag, Template::FReadTmpl);
             if (pvNil == ptmpl)
             {
-                TAGM::CloseTag(&tag);
+                TagManager::CloseTag(&tag);
                 return fFalse;
             }
             // Change the actor to use the new tag and template
-            TAGM::CloseTag(&_tagTmpl);
+            TagManager::CloseTag(&_tagTmpl);
             _tagTmpl = tag;
             ReleasePpo(&_ptmpl);
             _ptmpl = ptmpl;
@@ -880,7 +883,7 @@ bool ACTR::FPaste(long nfrm, SCEN *pscen)
     Make an actor look like they were just read in, and never in a scene.
 
 ***************************************************************************/
-void ACTR::Reset(void)
+void Actor::Reset(void)
 {
     _pscen = pvNil;
     ReleasePpo(&_pbody); // Sets _pbody = pvNil
@@ -899,7 +902,7 @@ void ACTR::Reset(void)
 //
 //
 
-RTCLASS(ACLP)
+RTCLASS(ActorClipboard)
 
 /***************************************************************************
 
@@ -907,16 +910,16 @@ RTCLASS(ACLP)
     This is from the current frame forward
 
 ***************************************************************************/
-PACLP ACLP::PaclpNew(PACTR pactr, bool fRteOnly, bool fEntireScene)
+PActorClipboard ActorClipboard::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 {
     AssertPo(pactr, 0);
     Assert(!fRteOnly || !fEntireScene, "Expecting subroute only");
 
-    PACLP paclp;
-    PACTR pactrTmp;
-    STN stn, stnCopyOf;
+    PActorClipboard paclp;
+    PActor pactrTmp;
+    String stn, stnCopyOf;
 
-    paclp = NewObj ACLP();
+    paclp = NewObj ActorClipboard();
 
     if (paclp == pvNil)
     {
@@ -972,7 +975,7 @@ PACLP ACLP::PaclpNew(PACTR pactr, bool fRteOnly, bool fEntireScene)
     Destroys an actor clipboard object
 
 ***************************************************************************/
-ACLP::~ACLP(void)
+ActorClipboard::~ActorClipboard(void)
 {
     ReleasePpo(&_pactr);
 }
@@ -982,12 +985,12 @@ ACLP::~ACLP(void)
     Pastes an actor clipboard object
 
 ***************************************************************************/
-bool ACLP::FPaste(PMVIE pmvie)
+bool ActorClipboard::FPaste(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
 
-    PACTR pactrNew;
+    PActor pactrNew;
 
     if (_fRteOnly)
     {
@@ -1023,7 +1026,7 @@ bool ACLP::FPaste(PMVIE pmvie)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the ACLP
+ * Mark memory used by the ActorClipboard
  *
  * Parameters:
  * 	None.
@@ -1032,14 +1035,14 @@ bool ACLP::FPaste(PMVIE pmvie)
  *  None.
  *
  ****************************************************/
-void ACLP::MarkMem(void)
+void ActorClipboard::MarkMem(void)
 {
-    ACLP_PAR::MarkMem();
+    ActorClipboard_PAR::MarkMem();
     MarkMemObj(_pactr);
 }
 
 /***************************************************************************
- * Assert the validity of the ACLP
+ * Assert the validity of the ActorClipboard
  *
  * Parameters:
  *  grf - bit array of options
@@ -1048,9 +1051,9 @@ void ACLP::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void ACLP::AssertValid(ulong grf)
+void ActorClipboard::AssertValid(ulong grf)
 {
-    ACLP_PAR::AssertValid(fobjAllocated);
+    ActorClipboard_PAR::AssertValid(fobjAllocated);
     _pactr->AssertValid(grf);
 }
 
@@ -1061,14 +1064,14 @@ void ACLP::AssertValid(ulong grf)
     Create an undo object
 
 ***************************************************************************/
-bool ACTR::FCreateUndo(PACTR pactrDup, bool fSndUndo, PSTN pstn)
+bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
 {
     AssertPo(pactrDup, 0);
     AssertNilOrPo(pstn, 0);
 
-    PAUND paund;
+    PActorUndo paund;
 
-    paund = AUND::PaundNew();
+    paund = ActorUndo::PaundNew();
 
     if (paund == pvNil)
     {
@@ -1103,12 +1106,12 @@ bool ACTR::FCreateUndo(PACTR pactrDup, bool fSndUndo, PSTN pstn)
     Add (or replace) an action, and create an undo object
 
 ***************************************************************************/
-bool ACTR::FSetAction(long anid, long celn, bool fFreeze, PACTR *ppactrDup)
+bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppactrDup);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -1143,11 +1146,11 @@ bool ACTR::FSetAction(long anid, long celn, bool fFreeze, PACTR *ppactrDup)
     object.
 
 ***************************************************************************/
-bool ACTR::FAddOnStage(void)
+bool Actor::FAddOnStage(void)
 {
     AssertThis(0);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -1177,11 +1180,11 @@ bool ACTR::FAddOnStage(void)
     Normalize an actor.
 
 ***************************************************************************/
-bool ACTR::FNormalize(ulong grfnorm)
+bool Actor::FNormalize(ulong grfnorm)
 {
     AssertThis(0);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     if (!FDup(&pactrDup))
     {
@@ -1212,13 +1215,13 @@ bool ACTR::FNormalize(ulong grfnorm)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
+bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 {
     AssertThis(0);
     Assert(fCmtl || ibset >= 0, "Invalid ibset argument");
     AssertVarMem(ptag);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     FDup(&pactrDup);
 
@@ -1250,12 +1253,12 @@ bool ACTR::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
     have been deleted
 
 ***************************************************************************/
-bool ACTR::FDelete(bool *pfAlive, bool fDeleteAll)
+bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
 {
     AssertThis(0);
-    PACTR pactrDup;
+    PActor pactrDup;
     long iaevCurSav;
-    AEV *paev;
+    Base *paev;
 
     if (!FDup(&pactrDup))
     {
@@ -1273,7 +1276,7 @@ bool ACTR::FDelete(bool *pfAlive, bool fDeleteAll)
     // frame be	later than _nfrmFirst.
     if (_iaevAddCur >= 0 && !fDeleteAll)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
         if (_nfrmCur == paev->nfrm)
         {
             if (!_FDeleteEntireSubrte())
@@ -1337,11 +1340,11 @@ LFail:
     Add the event to the event list: Remove actor from the stage, and an Undo.
     NOTE: This should be called <before> the call to place the actor offstage
 ***************************************************************************/
-bool ACTR::FRemFromStage(void)
+bool Actor::FRemFromStage(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
 
     if (!FDup(&pactr))
     {
@@ -1376,10 +1379,10 @@ bool ACTR::FRemFromStage(void)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PAUND AUND::PaundNew()
+PActorUndo ActorUndo::PaundNew()
 {
-    PAUND paund;
-    paund = NewObj AUND();
+    PActorUndo paund;
+    paund = NewObj ActorUndo();
     AssertNilOrPo(paund, 0);
     return (paund);
 }
@@ -1389,7 +1392,7 @@ PAUND AUND::PaundNew()
  * Destructor for actor undo objects
  *
  ****************************************************/
-AUND::~AUND(void)
+ActorUndo::~ActorUndo(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pactr);
@@ -1406,7 +1409,7 @@ AUND::~AUND(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool AUND::FDo(PDOCB pdocb)
+bool ActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -1440,13 +1443,13 @@ bool AUND::FDo(PDOCB pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool AUND::FUndo(PDOCB pdocb)
+bool ActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
 
-    PACTR pactr;
-    PMVU pmvu;
+    PActor pactr;
+    PMovieView pmvu;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -1481,7 +1484,7 @@ bool AUND::FUndo(PDOCB pdocb)
         if (_stn.Cch() != 0)
         {
             // Undo actor name change
-            STN stn;
+            String stn;
             if (_pmvie->FGetName(_arid, &stn))
             {
                 // If FNameActr fails, the actor will not have
@@ -1505,7 +1508,7 @@ bool AUND::FUndo(PDOCB pdocb)
             return (fFalse);
         }
 
-        pmvu = (PMVU)_pmvie->PddgGet(0);
+        pmvu = (PMovieView)_pmvie->PddgGet(0);
         AssertNilOrPo(pmvu, 0);
 
         if ((pmvu != pvNil) && !pmvu->FTextMode())
@@ -1547,7 +1550,7 @@ bool AUND::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void AUND::SetPactr(PACTR pactr)
+void ActorUndo::SetPactr(PActor pactr)
 {
     AssertThis(0);
 
@@ -1557,7 +1560,7 @@ void AUND::SetPactr(PACTR pactr)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the AUND
+ * Mark memory used by the ActorUndo
  *
  * Parameters:
  * 	None.
@@ -1566,18 +1569,257 @@ void AUND::SetPactr(PACTR pactr)
  *  None.
  *
  ****************************************************/
-void AUND::MarkMem(void)
+void ActorUndo::MarkMem(void)
 {
     AssertThis(0);
-    AUND_PAR::MarkMem();
+    ActorUndo_PAR::MarkMem();
     MarkMemObj(_pactr);
 }
 
 /***************************************************************************
-    Assert the validity of the AUND.
+    Assert the validity of the ActorUndo.
 ***************************************************************************/
-void AUND::AssertValid(ulong grf)
+void ActorUndo::AssertValid(ulong grf)
 {
     AssertNilOrPo(_pactr, 0);
+}
+#endif
+
+RTCLASS(ActorMoveGroupUndo)
+
+/****************************************************
+ *
+ * Allocates a new ActorMoveGroupUndo composite undo object.
+ *
+ * Returns:
+ *  A pointer to the object, or pvNil if it could not be created.
+ *
+ ****************************************************/
+PActorMoveGroupUndo ActorMoveGroupUndo::PamguNew(void)
+{
+    PActorMoveGroupUndo pamgu;
+    pamgu = NewObj ActorMoveGroupUndo();
+    if (pamgu == pvNil)
+    {
+        return pvNil;
+    }
+    pamgu->_pglpaund = DynamicArray::PglNew(size(PActorUndo));
+    if (pamgu->_pglpaund == pvNil)
+    {
+        ReleasePpo(&pamgu);
+        return pvNil;
+    }
+    return pamgu;
+}
+
+/****************************************************
+ *
+ * Destructor.  Releases each owned child ActorUndo.
+ *
+ ****************************************************/
+ActorMoveGroupUndo::~ActorMoveGroupUndo(void)
+{
+    AssertBaseThis(0);
+    if (_pglpaund != pvNil)
+    {
+        for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+        {
+            PActorUndo paund;
+            _pglpaund->Get(iaund, &paund);
+            ReleasePpo(&paund);
+        }
+        ReleasePpo(&_pglpaund);
+    }
+}
+
+/****************************************************
+ *
+ * Adds a child ActorUndo to the composite, taking a reference.
+ *
+ * Parameters:
+ *  paund - the child undo to add.
+ *
+ * Returns:
+ *  fTrue on success, fFalse on OOM.
+ *
+ ****************************************************/
+bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
+{
+    AssertThis(0);
+    AssertPo(paund, 0);
+
+    paund->AddRef();
+    if (!_pglpaund->FAdd(&paund))
+    {
+        ReleasePpo(&paund);
+        return fFalse;
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Undoes the composite group drag by undoing each child in order.
+ *
+ ****************************************************/
+bool ActorMoveGroupUndo::FUndo(PDocumentBase pdocb)
+{
+    AssertThis(0);
+    AssertPo(pdocb, 0);
+
+    for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+    {
+        PActorUndo paund;
+        _pglpaund->Get(iaund, &paund);
+        if (paund == pvNil)
+        {
+            continue;
+        }
+        // Mirror MovieUndo's iscen/nfrm onto each child so its FUndo
+        // navigates to the correct frame.
+        paund->SetPmvie(_pmvie);
+        paund->SetIscen(_iscen);
+        paund->SetNfrm(_nfrm);
+        // Stop on the first failure: an ActorUndo failure can trigger
+        // Movie::ClearUndo, after which continuing perturbs further state.
+        if (!paund->FUndo(pdocb))
+        {
+            return fFalse;
+        }
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Redoes the composite group drag.  ActorUndo::FDo delegates to
+ * FUndo (it's a swap-based undo), so the composite redo is the same
+ * loop as the undo direction.
+ *
+ ****************************************************/
+bool ActorMoveGroupUndo::FDo(PDocumentBase pdocb)
+{
+    return FUndo(pdocb);
+}
+
+#ifdef DEBUG
+/****************************************************
+ * Mark memory used by the ActorMoveGroupUndo and its children.
+ ****************************************************/
+void ActorMoveGroupUndo::MarkMem(void)
+{
+    AssertValid(0);
+    ActorMoveGroupUndo_PAR::MarkMem();
+    MarkMemObj(_pglpaund);
+    if (_pglpaund != pvNil)
+    {
+        for (long iaund = 0; iaund < _pglpaund->IvMac(); iaund++)
+        {
+            PActorUndo paund;
+            _pglpaund->Get(iaund, &paund);
+            MarkMemObj(paund);
+        }
+    }
+}
+
+/***************************************************************************
+    Assert the validity of the ActorMoveGroupUndo.
+
+    NOTE: deliberately does NOT chain to MovieUndo_PAR::AssertValid, mirroring
+    ActorUndo::AssertValid. The inherited _pmvie/_iscen/_nfrm slots are only
+    populated by Movie::FAddUndo at commit time; before that (during mousedown
+    while we're building the composite via FAddChild) _pmvie is nil and the
+    parent chain would trip its AssertPo(_pmvie, 0).
+***************************************************************************/
+void ActorMoveGroupUndo::AssertValid(ulong grf)
+{
+    AssertPo(_pglpaund, 0);
+}
+#endif
+
+/****************************************************
+ *
+ * ActorRenameGroupUndo: composite undo for batched actor renames driven by
+ * the tag-group hotkeys (Ctrl+G / Ctrl+Shift+G). Each entry is a pair
+ * (arid, name-to-restore-on-toggle); FUndo and FDo both swap each actor's
+ * current name with the stored name, so undo and redo alternate between the
+ * pre- and post-rename states.
+ *
+ ****************************************************/
+
+RTCLASS(ActorRenameGroupUndo)
+
+PActorRenameGroupUndo ActorRenameGroupUndo::PargNew(void)
+{
+    PActorRenameGroupUndo parg;
+    parg = NewObj ActorRenameGroupUndo();
+    if (parg == pvNil)
+        return pvNil;
+    parg->_pgstNames = (PVirtualStringTable)StringTable_GST::PgstNew(size(long));
+    if (parg->_pgstNames == pvNil)
+    {
+        ReleasePpo(&parg);
+        return pvNil;
+    }
+    return parg;
+}
+
+ActorRenameGroupUndo::~ActorRenameGroupUndo(void)
+{
+    AssertBaseThis(0);
+    ReleasePpo(&_pgstNames);
+}
+
+bool ActorRenameGroupUndo::FAddChild(long arid, PString pstnPrev)
+{
+    AssertThis(0);
+    AssertPo(pstnPrev, 0);
+    return _pgstNames->FAddStn(pstnPrev, &arid);
+}
+
+bool ActorRenameGroupUndo::FUndo(PDocumentBase pdocb)
+{
+    AssertThis(0);
+    AssertPo(pdocb, 0);
+    AssertPo(_pmvie, 0);
+
+    String stnStored, stnCurrent;
+    long arid;
+    long cstn = _pgstNames->IvMac();
+
+    for (long istn = 0; istn < cstn; istn++)
+    {
+        _pgstNames->GetStn(istn, &stnStored);
+        _pgstNames->GetExtra(istn, &arid);
+        // Capture the current (post-rename) name so a subsequent FDo/FUndo
+        // can flip back to it. If the actor isn't in roll-call any more
+        // (e.g. removed since the rename), skip but keep the entry so a
+        // round-trip stays well-formed.
+        if (!_pmvie->FGetName(arid, &stnCurrent))
+            continue;
+        if (!_pmvie->FNameActr(arid, &stnStored))
+            return fFalse;
+        // Swap: store the just-replaced name so the next toggle restores it.
+        _pgstNames->FPutStn(istn, &stnCurrent);
+    }
+    return fTrue;
+}
+
+bool ActorRenameGroupUndo::FDo(PDocumentBase pdocb)
+{
+    return FUndo(pdocb);
+}
+
+#ifdef DEBUG
+void ActorRenameGroupUndo::MarkMem(void)
+{
+    AssertValid(0);
+    ActorRenameGroupUndo_PAR::MarkMem();
+    MarkMemObj(_pgstNames);
+}
+
+void ActorRenameGroupUndo::AssertValid(ulong grf)
+{
+    AssertPo(_pgstNames, 0);
 }
 #endif

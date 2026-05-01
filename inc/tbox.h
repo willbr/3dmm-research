@@ -7,25 +7,25 @@
 
     Textbox Class
 
-        Textbox (TBOX)
+        Textbox (TextBox)
 
-            TXRD ---> TBOX
+            RichTextDocument ---> TextBox
 
     Drawing stuff
 
-        Textbox border (TBXB)
+        Textbox border (TextBoxBase)
 
-            GOB  ---> TBXB
+            GraphicsObject  ---> TextBoxBase
 
-        Textbox Ddg (TBXG)
+        Textbox Ddg (TextBoxGobject)
 
-            TXRG ---> TBXG  (created as a child Gob of a TBXB)
+            RichTextDocumentGraphicsObject ---> TextBoxGobject  (created as a child Gob of a TextBoxBase)
 
     Cut/Copy/Paste Stuff
 
-        Clipboard object (TCLP)
+        Clipboard object (TextBoxClipboard)
 
-            DOCB ---> TCLP
+            DocumentBase ---> TextBoxClipboard
 
 ***************************************************************************/
 
@@ -45,7 +45,7 @@
 
 //
 //
-// The border for a single textbox (TBXB)
+// The border for a single textbox (TextBoxBase)
 //
 //
 
@@ -65,11 +65,11 @@ enum TBXT
     tbxtMove
 };
 
-#define TBXB_PAR GOB
+#define TextBoxBase_PAR GraphicsObject
 
-typedef class TBXB *PTBXB;
-#define kclsTBXB 'TBXB'
-class TBXB : public TBXB_PAR
+typedef class TextBoxBase *PTextBoxBase;
+#define kclsTextBoxBase 'TBXB'
+class TextBoxBase : public TextBoxBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -83,7 +83,7 @@ class TBXB : public TBXB_PAR
     long _ypPrev;         // Previous y coord of the mouse.
     RC _rcOrig;           // Original size of the border.
 
-    TBXB(PTBOX ptbox, PGCB pgcb) : GOB(pgcb)
+    TextBoxBase(PTBOX ptbox, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
         _ptbox = ptbox;
     }
@@ -94,12 +94,12 @@ class TBXB : public TBXB_PAR
     //
     // Creates a text box with border
     //
-    static PTBXB PtbxbNew(PTBOX ptbox, PGCB pgcb);
+    static PTextBoxBase PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
 
     //
     // Overridden routines
     //
-    void Draw(PGNV pgnv, RC *prcClip);
+    void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     void Activate(bool fActive);
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
@@ -110,44 +110,44 @@ class TBXB : public TBXB_PAR
 
 //
 //
-// The DDG for a single textbox (TBXG).
+// The DocumentDisplayGraphicsObject for a single textbox (TextBoxGobject).
 //
 //
 
-#define TBXG_PAR TXRG
+#define TextBoxGobject_PAR RichTextDocumentGraphicsObject
 
-typedef class TBXG *PTBXG;
-#define kclsTBXG 'TBXG'
-class TBXG : public TBXG_PAR
+typedef class TextBoxGobject *PTextBoxGobject;
+#define kclsTextBoxGobject 'TBXG'
+class TextBoxGobject : public TextBoxGobject_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(TBXG)
+    CMD_MAP_DEC(TextBoxGobject)
 
   private:
-    PTBXB _ptbxb; // Enclosing border.
+    PTextBoxBase _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
 
-    TBXG(PTXRD ptxrd, PGCB pgcb) : TXRG(ptxrd, pgcb)
+    TextBoxGobject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
     {
     }
-    ~TBXG(void);
+    ~TextBoxGobject(void);
 
   public:
     //
     // Creation function
     //
-    static PTBXG PtbxgNew(PTBOX ptbox, PGCB pgcb);
+    static PTextBoxGobject PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb);
 
     //
     // Accessors
     //
-    void SetTbxb(PTBXB ptbxb)
+    void SetTbxb(PTextBoxBase ptbxb)
     {
         _ptbxb = ptbxb;
     }
-    PTBXB Ptbxb(void)
+    PTextBoxBase Ptbxb(void)
     {
         return _ptbxb;
     }
@@ -164,9 +164,9 @@ class TBXG : public TBXG_PAR
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
-    virtual bool FCmdClip(PCMD pcmd);
-    virtual bool FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual bool FCmdClip(PCommand pcmd);
+    virtual bool FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual long _DxpDoc(void);
     virtual void _NewRc(void);
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
@@ -179,7 +179,7 @@ class TBXG : public TBXG_PAR
     bool FTextSelected(void);
 
     //
-    // Only for TBXB
+    // Only for TextBoxBase
     //
     bool _FDoClip(long tool); // Actually does a clipboard command.
 };
@@ -196,21 +196,21 @@ const ulong kgrfchpAll = (kfchpOnn | kfchpDypFont | kfchpBold | kfchpItalic);
 
 //
 //
-// Text box document class (TBOX).
+// Text box document class (TextBox).
 //
 //
-typedef class TBOX *PTBOX;
+typedef class TextBox *PTBOX;
 
-#define TBOX_PAR TXRD
-#define kclsTBOX 'TBOX'
-class TBOX : public TBOX_PAR
+#define TextBox_PAR RichTextDocument
+#define kclsTextBox 'TBOX'
+class TextBox : public TextBox_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   private:
-    PSCEN _pscen;    // The owning scene
+    PScene _pscen;    // The owning scene
     long _nfrmFirst; // Frame the tbox appears in.
     long _nfrmMax;   // Frame the tbox disappears in.
     long _nfrmCur;   // Current frame number.
@@ -218,7 +218,7 @@ class TBOX : public TBOX_PAR
     bool _fStory;    // Is this a story text box.
     RC _rc;          // Size of text box.
 
-    TBOX(void) : TXRD()
+    TextBox(void) : RichTextDocument()
     {
     }
 
@@ -226,19 +226,19 @@ class TBOX : public TBOX_PAR
     //
     // Creation routines
     //
-    static PTBOX PtboxNew(PSCEN pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
-    PDDG PddgNew(PGCB pgcb)
+    static PTBOX PtboxNew(PScene pscen = pvNil, RC *prcRel = pvNil, bool fStory = fTrue);
+    PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb)
     {
-        return TBXG::PtbxgNew(this, pgcb);
+        return TextBoxGobject::PtbxgNew(this, pgcb);
     }
-    static PTBOX PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen);
-    bool FWrite(PCFL pcfl, CNO cno);
+    static PTBOX PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen);
+    bool FWrite(PChunkyFile pcfl, ChunkNumber cno);
     bool FDup(PTBOX *pptbox);
 
     //
     // Movie specific functions
     //
-    void SetScen(PSCEN pscen);
+    void SetScen(PScene pscen);
     bool FIsVisible(void);
     bool FGotoFrame(long nfrm);
     void Select(bool fSel);
@@ -259,13 +259,13 @@ class TBOX : public TBOX_PAR
     bool FSetType(bool fStory);
     bool FNeedToScroll(void);
     void Scroll(void);
-    PSCEN Pscen(void)
+    PScene Pscen(void)
     {
         return _pscen;
     }
     bool FTextSelected(void);
-    bool FSetAcrBack(ACR acr);
-    bool FSetAcrText(ACR acr);
+    bool FSetAcrBack(AbstractColor acr);
+    bool FSetAcrText(AbstractColor acr);
     bool FSetOnnText(long onn);
     bool FSetDypFontText(long dypFont);
     bool FSetStyleText(ulong grfont);
@@ -285,15 +285,15 @@ class TBOX : public TBOX_PAR
     // Overridden functions
     //
     void SetDirty(bool fDirty = fTrue);
-    virtual bool FAddUndo(PUNDB pundb);
+    virtual bool FAddUndo(PUndoBase pundb);
     virtual void ClearUndo(void);
     void ParClearUndo(void)
     {
-        TBOX_PAR::ClearUndo();
+        TextBox_PAR::ClearUndo();
     }
 
     //
-    // TBXG/TBXB specific funtions
+    // TextBoxGobject/TextBoxBase specific funtions
     //
     void GetRc(RC *prc)
     {
@@ -321,11 +321,11 @@ class TBOX : public TBOX_PAR
 // Textbox document for clipping
 //
 //
-typedef class TCLP *PTCLP;
+typedef class TextBoxClipboard *PTextBoxClipboard;
 
-#define TCLP_PAR DOCB
-#define kclsTCLP 'TCLP'
-class TCLP : public TCLP_PAR
+#define TextBoxClipboard_PAR DocumentBase
+#define kclsTextBoxClipboard 'TCLP'
+class TextBoxClipboard : public TextBoxClipboard_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -333,7 +333,7 @@ class TCLP : public TCLP_PAR
 
   protected:
     PTBOX _ptbox; // Text box copy.
-    TCLP(void)
+    TextBoxClipboard(void)
     {
     }
 
@@ -341,13 +341,13 @@ class TCLP : public TCLP_PAR
     //
     // Constructors and destructors
     //
-    static PTCLP PtclpNew(PTBOX ptbox);
-    ~TCLP(void);
+    static PTextBoxClipboard PtclpNew(PTBOX ptbox);
+    ~TextBoxClipboard(void);
 
     //
     // Pasting
     //
-    bool FPaste(PSCEN pscen);
+    bool FPaste(PScene pscen);
 };
 
 #endif

@@ -17,10 +17,10 @@
 #define MENU_H
 
 // Menu Bar class
-typedef class MUB *PMUB;
-#define MUB_PAR BASE
-#define kclsMUB 'MUB'
-class MUB : public MUB_PAR
+typedef class MenuBar *PMenuBar;
+#define MenuBar_PAR BASE
+#define kclsMenuBar 'MUB'
+class MenuBar : public MenuBar_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -49,7 +49,7 @@ class MUB : public MUB_PAR
     {
         long mid;
         SMU **hnsmu;
-        PGL pglmni;
+        PDynamicArray pglmni;
     };
 
     // menu list
@@ -63,13 +63,13 @@ class MUB : public MUB_PAR
     };
 
     HN _hnmbar;
-    PGL _pglmnu;
-    PGL _pglmlst; // menu lists
+    PDynamicArray _pglmnu;
+    PDynamicArray _pglmlst; // menu lists
 
-    bool _FInsertMni(long imnu, long imni, long cid, long lw0, PSTN pstn);
+    bool _FInsertMni(long imnu, long imni, long cid, long lw0, PString pstn);
     void _DeleteMni(long imnu, long imni);
     bool _FFindMlst(long imnu, long imni, MLST *pmlst = pvNil, long *pimlst = pvNil);
-    bool _FGetCmdFromCode(long lwCode, CMD *pcmd);
+    bool _FGetCmdFromCode(long lwCode, Command *pcmd);
     void _Free(void);
     bool _FFetchRes(ulong ridMenuBar);
 #endif // MAC
@@ -83,27 +83,27 @@ class MUB : public MUB_PAR
         long wcidList;
         long cid;
         bool fSeparator;
-        PGL pgllw;
+        PDynamicArray pgllw;
     };
 
     HMENU _hmenu; // the menu bar
     long _cmnu;   // number of menus on the menu bar
-    PGL _pglmlst; // menu lists
+    PDynamicArray _pglmlst; // menu lists
 
     bool _FInitLists(void);
     bool _FFindMlst(long wcid, MLST *pmlst, long *pimlst = pvNil);
-    bool _FGetCmdForWcid(long wcid, PCMD pcmd);
+    bool _FGetCmdForWcid(long wcid, PCommand pcmd);
 #endif // WIN
 
   protected:
-    MUB(void)
+    MenuBar(void)
     {
     }
 
   public:
-    ~MUB(void);
+    ~MenuBar(void);
 
-    static PMUB PmubNew(ulong ridMenuBar);
+    static PMenuBar PmubNew(ulong ridMenuBar);
 
     virtual void Set(void);
     virtual void Clean(void);
@@ -116,12 +116,12 @@ class MUB : public MUB_PAR
     virtual void EnqueueWcid(long wcid);
 #endif // WIN
 
-    virtual bool FAddListCid(long cid, long lw0, PSTN pstn);
-    virtual bool FRemoveListCid(long cid, long lw0, PSTN pstn = pvNil);
-    virtual bool FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN pstnNew);
+    virtual bool FAddListCid(long cid, long lw0, PString pstn);
+    virtual bool FRemoveListCid(long cid, long lw0, PString pstn = pvNil);
+    virtual bool FChangeListCid(long cid, long lwOld, PString pstnOld, long lwNew, PString pstnNew);
     virtual bool FRemoveAllListCid(long cid);
 };
 
-extern PMUB vpmubCur;
+extern PMenuBar vpmubCur;
 
 #endif //! MENU_H

@@ -12,14 +12,14 @@ ASSERTNAME
 /***************************************************************************
     Constructor for a chunky text doc.
 ***************************************************************************/
-CHTXD::CHTXD(PDOCB pdocb, ulong grfdoc) : CHTXD_PAR(pdocb, grfdoc)
+CHTXD::CHTXD(PDocumentBase pdocb, ulong grfdoc) : CHTXD_PAR(pdocb, grfdoc)
 {
 }
 
 /***************************************************************************
     Create a new chunky text doc.
 ***************************************************************************/
-PCHTXD CHTXD::PchtxdNew(PFNI pfni, PBSF pbsf, short osk, PDOCB pdocb, ulong grfdoc)
+PCHTXD CHTXD::PchtxdNew(PFilename pfni, PFileByteStream pbsf, short osk, PDocumentBase pdocb, ulong grfdoc)
 {
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
@@ -38,12 +38,12 @@ PCHTXD CHTXD::PchtxdNew(PFNI pfni, PBSF pbsf, short osk, PDOCB pdocb, ulong grfd
 /***************************************************************************
     Create a new document display gob for the chunky text doc.
 ***************************************************************************/
-PDDG CHTXD::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject CHTXD::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return CHTDD::PchtddNew(this, pgcb, vpappb->OnnDefFixed(), fontNil, vpappb->DypTextDef(), 4);
 }
 
-BEGIN_CMD_MAP(CHTDD, DDG)
+BEGIN_CMD_MAP(CHTDD, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidCompileChunky, &CHTDD::FCmdCompileChunky, pvNil)
 ON_CID_GEN(cidCompileScript, &CHTDD::FCmdCompileScript, pvNil)
 ON_CID_GEN(cidAssembleScript, &CHTDD::FCmdCompileScript, pvNil)
@@ -52,7 +52,7 @@ END_CMD_MAP_NIL()
 /***************************************************************************
     Constructor.
 ***************************************************************************/
-CHTDD::CHTDD(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+CHTDD::CHTDD(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab)
     : CHTDD_PAR(ptxtb, pgcb, onn, grfont, dypFont, cchTab)
 {
     _fMark = fFalse;
@@ -61,7 +61,7 @@ CHTDD::CHTDD(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long 
 /***************************************************************************
     Create a new one.
 ***************************************************************************/
-PCHTDD CHTDD::PchtddNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab)
+PCHTDD CHTDD::PchtddNew(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab)
 {
     PCHTDD pchtdd;
 
@@ -84,13 +84,13 @@ PCHTDD CHTDD::PchtddNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dyp
 /***************************************************************************
     Compile this text file into a chunky file and open it.
 ***************************************************************************/
-bool CHTDD::FCmdCompileChunky(PCMD pcmd)
+bool CHTDD::FCmdCompileChunky(PCommand pcmd)
 {
-    FNI fni;
-    PCFL pcfl;
-    STN stnFile;
-    MSFIL msfil;
-    CHCM chcm;
+    Filename fni;
+    PChunkyFile pcfl;
+    String stnFile;
+    MessageSinkFile msfil;
+    Chunky::Compiler chcm;
     PDOC pdoc;
 
     if (!fni.FGetTemp())
@@ -125,18 +125,18 @@ bool CHTDD::FCmdCompileChunky(PCMD pcmd)
     Compile this text file into a script and put it in a chunky file and
     open it.
 ***************************************************************************/
-bool CHTDD::FCmdCompileScript(PCMD pcmd)
+bool CHTDD::FCmdCompileScript(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    SCCG sccg;
-    MSFIL msfil;
-    STN stnFile;
-    PSCPT pscpt;
+    GraphicsObjectCompiler sccg;
+    MessageSinkFile msfil;
+    String stnFile;
+    PScript pscpt;
     PDOC pdoc = pvNil;
 
     Ptxtb()->GetName(&stnFile);
-    LEXB lexb(Ptxtb()->Pbsf(), &stnFile);
+    LexerBase lexb(Ptxtb()->Pbsf(), &stnFile);
     pscpt = sccg.PscptCompileLex(&lexb, pcmd->cid == cidCompileScript, &msfil);
     if (pvNil == pscpt)
     {
@@ -171,11 +171,11 @@ bool CHTDD::FCmdCompileScript(PCMD pcmd)
 /***************************************************************************
     Open the file based message sink file as a chunky text document.
 ***************************************************************************/
-void OpenSinkDoc(PMSFIL pmsfil)
+void OpenSinkDoc(PMessageSinkFile pmsfil)
 {
-    PDOCB pdocb;
-    PFIL pfil;
-    FNI fni;
+    PDocumentBase pdocb;
+    PFileObject pfil;
+    Filename fni;
     bool fTemp;
 
     if (pvNil == (pfil = pmsfil->PfilRelease()))
@@ -187,7 +187,7 @@ void OpenSinkDoc(PMSFIL pmsfil)
     }
     pfil->GetFni(&fni);
     fTemp = pfil->FTemp();
-    pdocb = (PDOCB)CHTXD::PchtxdNew(&fni);
+    pdocb = (PDocumentBase)CHTXD::PchtxdNew(&fni);
     pfil->SetTemp(fTemp);
     ReleasePpo(&pfil);
     if (pvNil != pdocb)

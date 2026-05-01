@@ -6,6 +6,8 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 set(CMAKE_CXX_STANDARD 14)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(MSVC)
   #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
   
@@ -19,6 +21,7 @@ include(CMakeDependentOption)
 include(TargetChompSources)
 
 find_package(AudioMan)
+add_subdirectory(bren/lib)
 find_package(BRender REQUIRED)
 
 # Options
@@ -41,25 +44,36 @@ endif()
 #  get_property(CMAKE_CXX_CLANG_TIDY TARGET Clang::Tidy PROPERTY IMPORTED_LOCATION)
 #endif()
 
+# IN_80386 gates inline x86 __asm fast paths in kauai (codkauai, gfx,
+# mbmpgui, utilcopy, utilint, utilrnd). Each block has a portable C #else
+# branch, and MSVC x64 cannot compile __asm at all -- so on x64 we drop
+# the define and the C fallback takes over. Keep the define on x86 builds
+# only.
+set(SOC_X86 FALSE)
+if (CMAKE_SIZEOF_VOID_P EQUAL 4)
+  set(SOC_X86 TRUE)
+endif()
+
 # Local Tooling
 add_compile_definitions(
   $<$<PLATFORM_ID:Windows>:WIN>
-  $<$<PLATFORM_ID:Windows>:IN_80386>
+  $<$<BOOL:${SOC_X86}>:IN_80386>
   $<$<CONFIG:Debug>:DEBUG>
 )
 
-if (NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-  message(FATAL_ERROR "Cannot compile for 64-bit yet")
+# kcdc-386 / kcd2-386 are codegen tools that emit kcdc_386.h / kcd2_386.h --
+# inline-__asm tables consumed by codkauai.cpp inside #ifdef IN_80386. They
+# cannot currently cross-compile (host-as-target only) and the generated
+# headers are only needed when IN_80386 is defined, so build them on x86 only.
+if (SOC_X86)
+  add_executable(kcdc-386 EXCLUDE_FROM_ALL)
+  target_sources(kcdc-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcdc_386.c")
+  target_include_directories(kcdc-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
+
+  add_executable(kcd2-386 EXCLUDE_FROM_ALL)
+  target_sources(kcd2-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcd2_386.c")
+  target_include_directories(kcd2-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
 endif()
-
-# NOTE: kcdc-386 and kcd2-386 prevent cross compiling at this time.
-add_executable(kcdc-386 EXCLUDE_FROM_ALL)
-target_sources(kcdc-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcdc_386.c")
-target_include_directories(kcdc-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
-
-add_executable(kcd2-386 EXCLUDE_FROM_ALL)
-target_sources(kcd2-386 PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src/kcd2_386.c")
-target_include_directories(kcd2-386 PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
 
 if (NOT TARGET 3DMMForever::AudioMan)
   add_library(audioman)
@@ -97,10 +111,34 @@ target_sources(ut PRIVATE
 )
 target_link_libraries(ut PRIVATE kauai)
 
+# Geometry math tests for kauai's PT, RC, and Region. Pure unit tests
+# (no I/O, no GUI). Regression net for Project 1's sized-types audit:
+# these are the types most likely to be silently miscompiled under LP64.
+add_executable(geometry-test EXCLUDE_FROM_ALL)
+target_sources(geometry-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/tests/geometry_test.cpp"
+)
+target_link_libraries(geometry-test PRIVATE kauai)
+
 add_executable(chomp EXCLUDE_FROM_ALL)
 target_sources(chomp PRIVATE "${PROJECT_SOURCE_DIR}/kauai/tools/chomp.cpp")
 target_include_directories(chomp PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
 target_link_libraries(chomp PRIVATE $<TARGET_NAME_IF_EXISTS:kauai>)
+
+
+add_executable(movie-chomp EXCLUDE_FROM_ALL)
+target_sources(movie-chomp PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/movie_chomp.cpp")
+
+target_include_directories(movie-chomp
+  PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
+  "${PROJECT_SOURCE_DIR}/src")
+
+target_link_libraries(movie-chomp PRIVATE engine)
+
+target_link_options(movie-chomp
+  BEFORE PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+
 
 # Chunk Editor
 add_executable(ched WIN32 EXCLUDE_FROM_ALL)
@@ -150,21 +188,23 @@ target_link_libraries(chelpdmp PRIVATE kauai)
 file(GLOB building-chunk-sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/building/*.cht")
 file(GLOB studio-chunk-sources CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/src/studio/*.cht")
 
-add_custom_command(
-  OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
-  COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
-  COMMAND kcdc-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
-  COMMENT "Generating kcdc_386.h"
-  VERBATIM
-)
+if (SOC_X86)
+  add_custom_command(
+    OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
+    COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
+    COMMAND kcdc-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
+    COMMENT "Generating kcdc_386.h"
+    VERBATIM
+  )
 
-add_custom_command(
-  OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
-  COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
-  COMMAND kcd2-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
-  COMMENT "Generating kcd2_386.h"
-  VERBATIM
-)
+  add_custom_command(
+    OUTPUT "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
+    COMMAND cmake -E make_directory "${PROJECT_BINARY_DIR}/generated/kauai/src"
+    COMMAND kcd2-386 "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
+    COMMENT "Generating kcd2_386.h"
+    VERBATIM
+  )
+endif()
 
 add_compile_options($<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/wd4430>)
 add_library(kauai)
@@ -176,8 +216,8 @@ target_include_directories(
 
 target_sources(kauai
   PRIVATE
-    "${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h"
-    "${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h"
+    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h>
+    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h>
 
     "${PROJECT_SOURCE_DIR}/kauai/src/appb.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/base.cpp"
@@ -304,6 +344,17 @@ target_include_directories(engine PUBLIC
 target_link_libraries(engine PUBLIC kauai brender)
 
 # On non-windows WIN32 is a no-op
+set(STUDIO_BUILD_STAMP_SRC "${PROJECT_BINARY_DIR}/generated/studio/build_stamp.cpp")
+add_custom_target(studio_build_stamp ALL
+    BYPRODUCTS "${STUDIO_BUILD_STAMP_SRC}"
+    COMMAND ${CMAKE_COMMAND}
+        -DOUT=${STUDIO_BUILD_STAMP_SRC}
+        -P ${PROJECT_SOURCE_DIR}/cmake/WriteBuildStamp.cmake
+    COMMENT "Generating studio build stamp"
+    VERBATIM
+)
+set_source_files_properties("${STUDIO_BUILD_STAMP_SRC}" PROPERTIES GENERATED TRUE)
+
 add_executable(studio WIN32)
 target_sources(studio
     PRIVATE
@@ -323,7 +374,9 @@ target_sources(studio
     "${PROJECT_SOURCE_DIR}/src/studio/utest.cpp"
     "${PROJECT_SOURCE_DIR}/src/studio/utest.rc"
     "${PROJECT_SOURCE_DIR}/src/studio/utest.rc2"
+    "${STUDIO_BUILD_STAMP_SRC}"
 )
+add_dependencies(studio studio_build_stamp)
 target_include_directories(studio
   PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
   "${PROJECT_SOURCE_DIR}/src")
@@ -340,6 +393,16 @@ target_chomp_sources(studio
 target_link_libraries(studio PRIVATE engine)
 set_property(TARGET studio PROPERTY OUTPUT_NAME 3dmovie)
 target_link_options(studio BEFORE PRIVATE $<$<LINK_LANG_AND_ID:CXX,MSVC>:/MANIFESTUAC:NO>)
+
+# Mirror the freshly linked exe into ${CMAKE_INSTALL_PREFIX} (dist/ for the
+# default presets) so iterative dev runs of dist/3dmovie.exe pick up rebuilds
+# without needing a separate `cmake --install` step. The chunk/data files are
+# only refreshed by a real install -- this only copies the exe.
+add_custom_command(TARGET studio POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+    "$<TARGET_FILE:studio>" "${CMAKE_INSTALL_PREFIX}/$<TARGET_FILE_NAME:studio>"
+  COMMENT "Mirroring 3dmovie.exe to ${CMAKE_INSTALL_PREFIX}"
+  VERBATIM)
 target_link_options(studio
   BEFORE PRIVATE
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
@@ -376,6 +439,49 @@ install(FILES $<FILTER:$<TARGET_PROPERTY:studio,CHOMPED_CHUNKS>,EXCLUDE,.+UTEST[
 install(FILES $<FILTER:$<TARGET_PROPERTY:studio,CHOMPED_CHUNKS>,INCLUDE,.+UTEST[.]chk$>
   RENAME 3dmovie.chk
   DESTINATION "Microsoft Kids/3D Movie Maker")
+
+# Overlay non-chomped data (BLDGDATA.CHK, *.3TH, *.3CN, MSCREATE.DIR, help
+# files, fix.dat, ...) from an existing system install so dist/ becomes a
+# self-contained, runnable tree. Files we produce ourselves take precedence:
+# the overlay copy only fills in destinations that don't already exist.
+# Sequenced before the cd3 SAMPLES install below: that step hard-errors when
+# cd3/SAMPLES/ is missing locally, and we want the overlay to land regardless.
+if(WIN32)
+  set(MSKIDS_OVERLAY_DIR "C:/Program Files (x86)/Microsoft Kids"
+    CACHE PATH "Existing 3DMM install to overlay non-chomped data from. Set to empty to skip.")
+endif()
+install(CODE "
+  set(_overlay [[${MSKIDS_OVERLAY_DIR}]])
+  if(_overlay AND IS_DIRECTORY \"\${_overlay}\")
+    message(STATUS \"Overlaying non-chomped data from \${_overlay}\")
+    # Only mirror the subdirs 3DMM actually reads. Skip third-party content
+    # (DORAEMON, EXPANSIONS, ...) and skip executables -- our build owns the
+    # exe.
+    file(GLOB_RECURSE _3dmm_files
+      RELATIVE \"\${_overlay}\"
+      \"\${_overlay}/3D Movie Maker/*\")
+    file(GLOB_RECURSE _user_files
+      RELATIVE \"\${_overlay}\"
+      \"\${_overlay}/Users/*\")
+    set(_overlay_files \${_3dmm_files} \${_user_files} \"MSCREATE.DIR\")
+    foreach(_rel IN LISTS _overlay_files)
+      if(_rel MATCHES \"\\\\.(exe|EXE)$\")
+        continue()
+      endif()
+      set(_src \"\${_overlay}/\${_rel}\")
+      if(NOT EXISTS \"\${_src}\")
+        continue()
+      endif()
+      set(_dst \"\${CMAKE_INSTALL_PREFIX}/Microsoft Kids/\${_rel}\")
+      if(NOT EXISTS \"\${_dst}\")
+        get_filename_component(_dst_dir \"\${_dst}\" DIRECTORY)
+        file(MAKE_DIRECTORY \"\${_dst_dir}\")
+        file(COPY \"\${_src}\" DESTINATION \"\${_dst_dir}\")
+      endif()
+    endforeach()
+  endif()
+")
+
 install(FILES $<TARGET_PROPERTY:studio,3DMM_SAMPLES>
   DESTINATION "Microsoft Kids/Users/Melanie")
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/cd9/"

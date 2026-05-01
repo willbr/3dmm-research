@@ -16,11 +16,11 @@ ASSERTNAME
 ***************************************************************************/
 int __cdecl main(int cpszs, char *prgpszs[])
 {
-    FNI fniSrc, fniDst;
-    PCFL pcfl;
-    STN stn;
+    Filename fniSrc, fniDst;
+    PChunkyFile pcfl;
+    String stn;
     char *pszs;
-    MSSIO mssioError(stderr);
+    MessageSinkIO mssioError(stderr);
     bool fCompile = fTrue;
 
 #ifdef UNICODE
@@ -87,7 +87,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     if (fCompile)
     {
-        CHCM chcm;
+        Compiler chcm;
 
         if (fniDst.Ftg() == ftgNil)
         {
@@ -95,17 +95,17 @@ int __cdecl main(int cpszs, char *prgpszs[])
             goto LUsage;
         }
         pcfl = chcm.PcflCompile(&fniSrc, &fniDst, &mssioError);
-        FIL::ShutDown();
+        FileObject::ShutDown();
         return pvNil == pcfl;
     }
     else
     {
         bool fRet;
-        MSSIO mssioDump(stdout);
-        MSFIL msfilDump;
-        CHDC chdc;
+        MessageSinkIO mssioDump(stdout);
+        MessageSinkFile msfilDump;
+        Decompiler chdc;
 
-        if (pvNil == (pcfl = CFL::PcflOpen(&fniSrc, fcflNil)))
+        if (pvNil == (pcfl = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
         {
             fprintf(stderr, "Couldn't open source file as a chunky file\n\n");
             goto LUsage;
@@ -113,12 +113,12 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
         if (fniDst.Ftg() != ftgNil)
         {
-            PFIL pfil;
+            PFileObject pfil;
 
-            if (pvNil == (pfil = FIL::PfilCreate(&fniDst)))
+            if (pvNil == (pfil = FileObject::PfilCreate(&fniDst)))
             {
                 fprintf(stderr, "Couldn't create destination file\n\n");
-                FIL::ShutDown();
+                FileObject::ShutDown();
                 return 1;
             }
             msfilDump.SetFile(pfil);
@@ -126,7 +126,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
         fRet = chdc.FDecompile(pcfl, fniDst.Ftg() == ftgNil ? (PMSNK)&mssioDump : (PMSNK)&msfilDump, &mssioError);
         ReleasePpo(&pcfl);
-        FIL::ShutDown();
+        FileObject::ShutDown();
         return !fRet;
     }
 
@@ -137,7 +137,7 @@ LUsage:
             "   chomp [/c] <srcTextFile> <dstChunkFile>  - compile chunky file\n"
             "   chomp /d <srcChunkFile> [<dstTextFile>]  - decompile chunky file\n\n");
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 
@@ -170,7 +170,7 @@ bool FAssertProc(PSZS pszsFile, long lwLine, PSZS pszsMessage, void *pv, long cb
         fprintf(stderr, "   Message: %s\n", pszsMessage);
     if (pv != pvNil)
     {
-        fprintf(stderr, "   Address %x\n", pv);
+        fprintf(stderr, "   Address %p\n", pv);
         if (cb != 0)
         {
             fprintf(stderr, "   Value: ");

@@ -23,77 +23,77 @@ void CheckForLostMem(BASE *po);
 void TestUtil(void);
 long _LwSqrt(long lw);
 
-#define APP_PAR APPB
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+#define FrameTesterApp_PAR ApplicationBase
+#define kclsFrameTesterApp 'Application'
+class FrameTesterApp : public FrameTesterApp_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(FrameTesterApp)
 
   protected:
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
 
   public:
-    virtual void GetStnAppName(PSTN pstn);
-    bool FCmdTestSuite(PCMD pcmd);
-    bool FCmdNewTestWnd(PCMD pcmd);
-    bool FCmdTextTestWnd(PCMD pcmd);
-    bool FCmdTimeTestRc(PCMD pcmd);
-    bool FCmdMacro(PCMD pcmd);
+    virtual void GetStnAppName(PString pstn);
+    bool FCmdTestSuite(PCommand pcmd);
+    bool FCmdNewTestWnd(PCommand pcmd);
+    bool FCmdTextTestWnd(PCommand pcmd);
+    bool FCmdTimeTestRc(PCommand pcmd);
+    bool FCmdMacro(PCommand pcmd);
 
-    bool FCmdTestPerspective(PCMD pcmd);
-    bool FCmdTestPictures(PCMD pcmd);
-    bool FCmdTestMbmps(PCMD pcmd);
-    bool FCmdFastUpdate(PCMD pcmd);
-    bool FCmdTextEdit(PCMD pcmd);
+    bool FCmdTestPerspective(PCommand pcmd);
+    bool FCmdTestPictures(PCommand pcmd);
+    bool FCmdTestMbmps(PCommand pcmd);
+    bool FCmdFastUpdate(PCommand pcmd);
+    bool FCmdTextEdit(PCommand pcmd);
 #ifdef WIN
-    bool FCmdTestFni(PCMD pcmd);
+    bool FCmdTestFni(PCommand pcmd);
 #endif // WIN
 #ifdef MAC
-    bool FCmdSetScreen(PCMD pcmd);
-    bool FEnableScreen(PCMD pcmd, ulong *pgrfeds);
+    bool FCmdSetScreen(PCommand pcmd);
+    bool FEnableScreen(PCommand pcmd, ulong *pgrfeds);
 #endif // MAC
-    bool FEnableMacro(PCMD pcmd, ulong *pgrfeds);
+    bool FEnableMacro(PCommand pcmd, ulong *pgrfeds);
 };
 
-BEGIN_CMD_MAP(APP, APPB)
-ON_CID_GEN(cidTestSuite, &APP::FCmdTestSuite, pvNil)
-ON_CID_GEN(cidNewTestWnd, &APP::FCmdNewTestWnd, pvNil)
-ON_CID_GEN(cidTextTestWnd, &APP::FCmdTextTestWnd, pvNil)
-ON_CID_GEN(cidTimeFrameRc, &APP::FCmdTimeTestRc, pvNil)
-ON_CID_GEN(cidTestPerspective, &APP::FCmdTestPerspective, pvNil)
-ON_CID_GEN(cidTestPictures, &APP::FCmdTestPictures, pvNil)
-ON_CID_GEN(cidTestMbmps, &APP::FCmdTestMbmps, pvNil)
-ON_CID_GEN(cidTestFastUpdate, &APP::FCmdFastUpdate, pvNil)
-ON_CID_GEN(cidTestTextEdit, &APP::FCmdTextEdit, pvNil)
-ON_CID_GEN(cidStartRecording, &APP::FCmdMacro, &APP::FEnableMacro)
-ON_CID_GEN(cidStartPlaying, &APP::FCmdMacro, &APP::FEnableMacro)
+BEGIN_CMD_MAP(FrameTesterApp, ApplicationBase)
+ON_CID_GEN(cidTestSuite, &FrameTesterApp::FCmdTestSuite, pvNil)
+ON_CID_GEN(cidNewTestWnd, &FrameTesterApp::FCmdNewTestWnd, pvNil)
+ON_CID_GEN(cidTextTestWnd, &FrameTesterApp::FCmdTextTestWnd, pvNil)
+ON_CID_GEN(cidTimeFrameRc, &FrameTesterApp::FCmdTimeTestRc, pvNil)
+ON_CID_GEN(cidTestPerspective, &FrameTesterApp::FCmdTestPerspective, pvNil)
+ON_CID_GEN(cidTestPictures, &FrameTesterApp::FCmdTestPictures, pvNil)
+ON_CID_GEN(cidTestMbmps, &FrameTesterApp::FCmdTestMbmps, pvNil)
+ON_CID_GEN(cidTestFastUpdate, &FrameTesterApp::FCmdFastUpdate, pvNil)
+ON_CID_GEN(cidTestTextEdit, &FrameTesterApp::FCmdTextEdit, pvNil)
+ON_CID_GEN(cidStartRecording, &FrameTesterApp::FCmdMacro, &FrameTesterApp::FEnableMacro)
+ON_CID_GEN(cidStartPlaying, &FrameTesterApp::FCmdMacro, &FrameTesterApp::FEnableMacro)
 #ifdef WIN
-ON_CID_GEN(cidTestFni, &APP::FCmdTestFni, pvNil)
+ON_CID_GEN(cidTestFni, &FrameTesterApp::FCmdTestFni, pvNil)
 #endif // WIN
 #ifdef MAC
-ON_CID_GEN(cidSetColor, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetGrayScale, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth1, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth2, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth4, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth8, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth16, &APP::FCmdSetScreen, APP::FEnableScreen)
-ON_CID_GEN(cidSetDepth32, &APP::FCmdSetScreen, APP::FEnableScreen)
+ON_CID_GEN(cidSetColor, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetGrayScale, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth1, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth2, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth4, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth8, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth16, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
+ON_CID_GEN(cidSetDepth32, &FrameTesterApp::FCmdSetScreen, FrameTesterApp::FEnableScreen)
 #endif // MAC
 END_CMD_MAP_NIL()
 
-APP vapp;
-CLOK vclok(10000);
-RND vrnd;
+FrameTesterApp vapp;
+Clock vclok(10000);
+Random vrnd;
 
-ACR _rgacr[] = {kacrBlack,   kacrBlue,   kacrGreen, kacrCyan,  kacrRed,
+AbstractColor _rgacr[] = {kacrBlack,   kacrBlue,   kacrGreen, kacrCyan,  kacrRed,
                 kacrMagenta, kacrYellow, kacrWhite, kacrClear, kacrInvert};
 achar *_rgszColors[] = {PszLit("bla"), PszLit("blu"), PszLit("gre"), PszLit("cya"), PszLit("red"),
                         PszLit("mag"), PszLit("yel"), PszLit("whi"), PszLit("cle"), PszLit("inv")};
 const long _cacr = size(_rgacr) / size(_rgacr[0]);
 
-RTCLASS(APP)
+RTCLASS(FrameTesterApp)
 
 /***************************************************************************
     Main for a frame app.
@@ -106,7 +106,7 @@ void FrameMain(void)
 /***************************************************************************
     Get the name for the frame tester app.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void FrameTesterApp::GetStnAppName(PString pstn)
 {
     *pstn = PszLit("Frame Tester");
 }
@@ -114,9 +114,9 @@ void APP::GetStnAppName(PSTN pstn)
 /***************************************************************************
     Initialize the app.
 ***************************************************************************/
-bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool FrameTesterApp::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
-    if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
+    if (!FrameTesterApp_PAR::_FInit(grfapp, grfgob, ginDef))
         return fFalse;
     vclok.Start(0);
     return fTrue;
@@ -145,14 +145,14 @@ void CheckForLostMem(BASE *po)
 /***************************************************************************
     Test the util code.
 ***************************************************************************/
-bool APP::FCmdTestSuite(PCMD pcmd)
+bool FrameTesterApp::FCmdTestSuite(PCommand pcmd)
 {
     TestUtil();
     return fTrue;
 }
 
 // graphic pattern rectangle
-#define GPRC_PAR GOB
+#define GPRC_PAR GraphicsObject
 #define kclsGPRC 'GPRC'
 class GPRC : public GPRC_PAR
 {
@@ -160,23 +160,23 @@ class GPRC : public GPRC_PAR
     MARKMEM
 
   private:
-    ACR _acrFore;
-    ACR _acrBack;
-    APT _apt;
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
+    AbstractPattern _apt;
     bool _fLit;
     bool _fTrackMouse;
-    POGN _pogn;
+    PPolygon _pogn;
 
   public:
-    GPRC(PGCB pgcb, APT *papt, ACR acrFore, ACR acrBack, bool fTrackMouse);
+    GPRC(PGraphicsObjectBlock pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse);
     ~GPRC(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 };
 
 // graphic fill rectangle
-#define GFRC_PAR GOB
+#define GFRC_PAR GraphicsObject
 #define kclsGFRC 'GFRC'
 class GFRC : public GFRC_PAR
 {
@@ -185,12 +185,12 @@ class GFRC : public GFRC_PAR
   private:
     bool _fOval;
     bool _fFrame;
-    ACR _acr;
+    AbstractColor _acr;
 
   public:
-    GFRC(PGCB pgcb, ACR acr, bool fOval);
+    GFRC(PGraphicsObjectBlock pgcb, AbstractColor acr, bool fOval);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 };
 
@@ -200,7 +200,7 @@ RTCLASS(GFRC)
 /***************************************************************************
     Constructor for patterned rectangle.
 ***************************************************************************/
-GPRC::GPRC(PGCB pgcb, APT *papt, ACR acrFore, ACR acrBack, bool fTrackMouse) : GOB(pgcb)
+GPRC::GPRC(PGraphicsObjectBlock pgcb, AbstractPattern *papt, AbstractColor acrFore, AbstractColor acrBack, bool fTrackMouse) : GraphicsObject(pgcb)
 {
     _apt = *papt;
     _acrFore = acrFore;
@@ -232,7 +232,7 @@ void GPRC::MarkMem(void)
 /***************************************************************************
     Draw the patterned rectangle.
 ***************************************************************************/
-void GPRC::Draw(PGNV pgnv, RC *prcClip)
+void GPRC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
 
@@ -242,7 +242,7 @@ void GPRC::Draw(PGNV pgnv, RC *prcClip)
     {
         PT *qrgpt;
 
-        if (pvNil == (_pogn = OGN::PognNew(_fTrackMouse ? 4 : 1)))
+        if (pvNil == (_pogn = Polygon::PognNew(_fTrackMouse ? 4 : 1)))
             return;
 
         AssertDo(_pogn->FSetIvMac(_fTrackMouse ? 4 : 1), "why did this fail");
@@ -310,7 +310,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
         if (FPure(_fLit) != FPure(fLitNew))
         {
             // invert it
-            GNV gnv(this);
+            GraphicsEnvironment gnv(this);
             RC rc;
 
             gnv.GetRcSrc(&rc);
@@ -324,7 +324,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
         if (_fLit)
         {
             // turn it off and push a close command
-            GNV gnv(this);
+            GraphicsEnvironment gnv(this);
             RC rc;
 
             gnv.GetRcSrc(&rc);
@@ -333,7 +333,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
             if (!_fTrackMouse)
             {
                 PT rgpt[3];
-                POGN pogn;
+                PPolygon pogn;
 
                 rgpt[0].xp = 0;
                 rgpt[0].yp = 0;
@@ -359,7 +359,7 @@ bool GPRC::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Constructor for filled rectangle.
 ***************************************************************************/
-GFRC::GFRC(PGCB pgcb, ACR acr, bool fOval) : GOB(pgcb)
+GFRC::GFRC(PGraphicsObjectBlock pgcb, AbstractColor acr, bool fOval) : GraphicsObject(pgcb)
 {
     _acr = acr;
     _fOval = fOval;
@@ -369,7 +369,7 @@ GFRC::GFRC(PGCB pgcb, ACR acr, bool fOval) : GOB(pgcb)
 /***************************************************************************
     Draw the filled rectangle.
 ***************************************************************************/
-void GFRC::Draw(PGNV pgnv, RC *prcClip)
+void GFRC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
 
@@ -406,7 +406,7 @@ void GFRC::MouseDown(long xp, long yp, long cact, ulong grfcust)
 }
 
 // test document
-#define TDC_PAR GOB
+#define TDC_PAR GraphicsObject
 #define kclsTDC 'TDC'
 class TDC : public TDC_PAR
 {
@@ -416,23 +416,23 @@ class TDC : public TDC_PAR
     virtual void _NewRc(void);
 
   public:
-    TDC(PGCB pgcb) : GOB(pgcb)
+    TDC(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
         _NewRc();
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 RTCLASS(TDC)
 
 /***************************************************************************
-    _NewRc (from GOB) of TDC.
+    _NewRc (from GraphicsObject) of TDC.
 ***************************************************************************/
 void TDC::_NewRc(void)
 {
     // set the scroll bar ranges and values
-    PSCB pscb;
+    PScrollBar pscb;
     long dxp, dyp;
     RC rc, rcPar;
 
@@ -449,16 +449,16 @@ void TDC::_NewRc(void)
         return;
     }
 
-    if ((pscb = (PSCB)PgobFromHidScr(khidHScroll)) != pvNil)
+    if ((pscb = (PScrollBar)PgobFromHidScr(khidHScroll)) != pvNil)
         pscb->SetValMinMax(-rc.xpLeft, 0, LwMax(0, rc.Dxp() - rcPar.Dxp()));
-    if ((pscb = (PSCB)PgobFromHidScr(khidVScroll)) != pvNil)
+    if ((pscb = (PScrollBar)PgobFromHidScr(khidVScroll)) != pvNil)
         pscb->SetValMinMax(-rc.ypTop, 0, LwMax(0, rc.Dyp() - rcPar.Dyp()));
 }
 
 /***************************************************************************
     Draw routine for the TDC.
 ***************************************************************************/
-void TDC::Draw(PGNV pgnv, RC *prcClip)
+void TDC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
 
@@ -467,7 +467,7 @@ void TDC::Draw(PGNV pgnv, RC *prcClip)
 }
 
 // graphic test doc window
-#define DWN_PAR GOB
+#define DWN_PAR GraphicsObject
 #define kclsDWN 'DWN'
 class DWN : public DWN_PAR
 {
@@ -477,17 +477,17 @@ class DWN : public DWN_PAR
   protected:
     static long _cdwn;
 
-    DWN(PGCB pgcb) : GOB(pgcb)
+    DWN(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
     {
     }
 
   public:
     static DWN *PdwnNew(void);
 
-    virtual bool FCmdScroll(PCMD pcmd);
+    virtual bool FCmdScroll(PCommand pcmd);
 };
 
-BEGIN_CMD_MAP(DWN, GOB)
+BEGIN_CMD_MAP(DWN, GraphicsObject)
 ON_CID_ME(cidDoScroll, &DWN::FCmdScroll, pvNil)
 ON_CID_ME(cidEndScroll, &DWN::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
@@ -502,10 +502,10 @@ RTCLASS(DWN)
 DWN *DWN::PdwnNew(void)
 {
     DWN *pdwn;
-    PGOB pgob;
-    STN stn;
+    PGraphicsObject pgob;
+    String stn;
 
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
     if ((pdwn = NewObj DWN(&gcb)) == pvNil)
         return pvNil;
 
@@ -518,19 +518,19 @@ DWN *DWN::PdwnNew(void)
 
     RC rcRel;
     RC rcAbs;
-    APT apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
+    AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
 
     // add a size box and some scroll bar
-    WSB::PwsbNew(pdwn, fgobNil);
+    WindowSizeBox::PwsbNew(pdwn, fgobNil);
     gcb.Set(khidVScroll, pdwn);
-    SCB::PscbNew(&gcb, fscbVert | fscbStandardRc);
+    ScrollBar::PscbNew(&gcb, fscbVert | fscbStandardRc);
     gcb.Set(khidHScroll, pdwn);
-    SCB::PscbNew(&gcb, fscbHorz | fscbStandardRc);
+    ScrollBar::PscbNew(&gcb, fscbHorz | fscbStandardRc);
 
     // create a content gob
     gcb.Set(98, pdwn);
-    SCB::GetClientRc(fscbVert | fscbHorz, &gcb._rcAbs, &gcb._rcRel);
-    pgob = NewObj GOB(&gcb);
+    ScrollBar::GetClientRc(fscbVert | fscbHorz, &gcb._rcAbs, &gcb._rcRel);
+    pgob = NewObj GraphicsObject(&gcb);
 
     if (pgob == pvNil)
         return pdwn;
@@ -596,15 +596,15 @@ DWN *DWN::PdwnNew(void)
 /***************************************************************************
     Handles scrolling.
 ***************************************************************************/
-bool DWN::FCmdScroll(PCMD pcmd)
+bool DWN::FCmdScroll(PCommand pcmd)
 {
     long hid, val, dval;
-    PSCB pscb;
-    PGOB pgob;
+    PScrollBar pscb;
+    PGraphicsObject pgob;
     RC rc;
 
     hid = pcmd->rglw[0];
-    pscb = (PSCB)PgobFromHid(hid);
+    pscb = (PScrollBar)PgobFromHid(hid);
     if (pscb == pvNil)
         return fTrue;
 
@@ -666,12 +666,12 @@ class TTW : public TTW_PAR
     long _cact;
 
   public:
-    TTW(PGCB pgcb) : DWN(pgcb)
+    TTW(PGraphicsObjectBlock pgcb) : DWN(pgcb)
     {
     }
     static TTW *PttwNew(void);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    void Draw(PGNV pgnv, RC *prcClip);
+    void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 RTCLASS(TTW)
@@ -682,10 +682,10 @@ RTCLASS(TTW)
 TTW *TTW::PttwNew(void)
 {
     TTW *pttw;
-    STN stn;
+    String stn;
     RC rc;
-    PEDPL pedpl;
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    PEditControlPlain pedpl;
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if ((pttw = NewObj TTW(&gcb)) == pvNil)
         return pvNil;
@@ -702,16 +702,16 @@ TTW *TTW::PttwNew(void)
     rc.ypTop = 0;
     rc.ypBottom = 100;
     rc.Offset(5, 0);
-    EDPAR edpar(khidEdit, pttw, fgobNil, kginDefault, &rc, pvNil, vntl.OnnSystem(), fontNil, 12, tahLeft, tavTop,
+    EditParameter edpar(khidEdit, pttw, fgobNil, kginDefault, &rc, pvNil, vntl.OnnSystem(), fontNil, 12, tahLeft, tavTop,
                 kacrBlue, kacrYellow);
-    pedpl = EDMW::PedmwNew(&edpar);
+    pedpl = EditControlMultiLineWrap::PedmwNew(&edpar);
     if (pvNil != pedpl)
         pedpl->Activate(fTrue);
 
     return pttw;
 }
 
-void TTW::Draw(PGNV pgnv, RC *prcClip)
+void TTW::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rc;
     long dxp, dyp, idxp, idyp;
@@ -725,7 +725,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
     };
     static TNM _rgtnmVert[] = {{tavTop, 'T'}, {tavCenter, 'C'}, {tavBaseline, 'S'}, {tavBottom, 'B'}};
     static TNM _rgtnmHorz[] = {{tahLeft, 'L'}, {tahCenter, 'C'}, {tahRight, 'R'}};
-    static APT _apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
+    static AbstractPattern _apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
 
     pgnv->GetRcSrc(&rc);
     pgnv->FillRc(&rc, kacrWhite);
@@ -740,7 +740,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
     {
         for (idxp = 0; idxp < cdxp; idxp++)
         {
-            STN stn;
+            String stn;
             RC rc;
             long itnm;
             long tah, tav;
@@ -751,7 +751,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
             rc.xpRight = rc.xpLeft + dxp;
             rc.ypBottom = rc.ypTop + dyp;
             pgnv->ClipRc(&rc);
-            pgnv->FrameRc(&rc, ACR(byte(3 * irc)));
+            pgnv->FrameRc(&rc, AbstractColor(byte(3 * irc)));
             itnm = irc % CvFromRgv(_rgtnmHorz);
             chH = _rgtnmHorz[itnm].ch;
             tah = _rgtnmHorz[itnm].lw;
@@ -772,7 +772,7 @@ void TTW::Draw(PGNV pgnv, RC *prcClip)
 void TTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     RC rc;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     _cact++;
     GetRc(&rc, cooLocal);
@@ -790,12 +790,12 @@ class RTW : public RTW_PAR
     long _cact;
 
   public:
-    RTW(PGCB pgcb) : DWN(pgcb)
+    RTW(PGraphicsObjectBlock pgcb) : DWN(pgcb)
     {
         _cact = 0;
     }
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     static RTW *PrtwNew(void);
 };
 
@@ -807,8 +807,8 @@ RTCLASS(RTW)
 RTW *RTW::PrtwNew(void)
 {
     RTW *prtw;
-    STN stn;
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    String stn;
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (prtw = NewObj RTW(&gcb)))
         return pvNil;
@@ -823,10 +823,10 @@ RTW *RTW::PrtwNew(void)
     return prtw;
 }
 
-class DOC : public DOCB
+class DOC : public DocumentBase
 {
   public:
-    DOC(void) : DOCB(pvNil, fdocNil)
+    DOC(void) : DocumentBase(pvNil, fdocNil)
     {
     }
 };
@@ -834,7 +834,7 @@ class DOC : public DOCB
 /******************************************************************************
     Test the gob code
 ******************************************************************************/
-bool APP::FCmdNewTestWnd(PCMD pcmd)
+bool FrameTesterApp::FCmdNewTestWnd(PCommand pcmd)
 {
     long idit;
     long lw;
@@ -842,9 +842,9 @@ bool APP::FCmdNewTestWnd(PCMD pcmd)
     if (pcmd->pgg == pvNil)
     {
         // put up the dialog
-        PDLG pdlg;
+        PDialog pdlg;
 
-        pdlg = DLG::PdlgNew(200);
+        pdlg = Dialog::PdlgNew(200);
         pcmd->pgg = pdlg;
         if (pdlg == pvNil)
             goto LFail;
@@ -866,8 +866,8 @@ bool APP::FCmdNewTestWnd(PCMD pcmd)
             goto LFail;
         break;
 
-    case 2: // new DMD
-        PDOCB pdocb;
+    case 2: // new DocumentMDIWindow
+        PDocumentBase pdocb;
 
         if (pvNil == (pdocb = NewObj DOC()))
             goto LFail;
@@ -889,7 +889,7 @@ LFail:
 /******************************************************************************
     Test the gob code
 ******************************************************************************/
-bool APP::FCmdTextTestWnd(PCMD pcmd)
+bool FrameTesterApp::FCmdTextTestWnd(PCommand pcmd)
 {
     TTW::PttwNew();
     return fTrue;
@@ -898,7 +898,7 @@ bool APP::FCmdTextTestWnd(PCMD pcmd)
 /******************************************************************************
     Test rectangle framing speed.
 ******************************************************************************/
-bool APP::FCmdTimeTestRc(PCMD pcmd)
+bool FrameTesterApp::FCmdTimeTestRc(PCommand pcmd)
 {
     RTW::PrtwNew();
     return fTrue;
@@ -909,17 +909,17 @@ bool APP::FCmdTimeTestRc(PCMD pcmd)
 ******************************************************************************/
 void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     long iact;
     RC rc;
     PT *qrgpt;
-    POGN pogn;
+    PPolygon pogn;
     long xp1, xp2, xp3, yp1, yp2, yp3;
-    APT apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
+    AbstractPattern apt = {0xFF, 0x01, 0x7D, 0x45, 0x5D, 0x41, 0x7F, 0x00};
     ulong ts;
-    STN stn;
+    String stn;
 
-    if (pvNil == (pogn = OGN::PognNew(8)))
+    if (pvNil == (pogn = Polygon::PognNew(8)))
         return;
 
     gnv.GetRcSrc(&rc);
@@ -952,8 +952,8 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
     ts = TsCurrent();
     for (iact = 0; iact < 100; iact++)
     {
-        ACR acrFore = _rgacr[iact % 10];
-        ACR acrBack = _rgacr[(iact / 10) % 10];
+        AbstractColor acrFore = _rgacr[iact % 10];
+        AbstractColor acrBack = _rgacr[(iact / 10) % 10];
 
         switch (_cact % 3)
         {
@@ -984,12 +984,12 @@ void RTW::MouseDown(long xp, long yp, long cact, ulong grfcust)
 }
 
 /******************************************************************************
-    Paint the RTW GOB.
+    Paint the RTW GraphicsObject.
 ******************************************************************************/
-void RTW::Draw(PGNV pgnv, RC *prcClip)
+void RTW::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
-    STN stn;
-    STN rgstn[] = {PszLit("frame rectangle "), PszLit("frame polygon "), PszLit("line draw ")};
+    String stn;
+    String rgstn[] = {PszLit("frame rectangle "), PszLit("frame polygon "), PszLit("line draw ")};
     RC rc;
 
     stn.FFormatSz(PszLit("Click to begin the %s test"), &rgstn[_cact % 3]);
@@ -1038,10 +1038,10 @@ long _LwSqrt(long lw)
 /***************************************************************************
     Command function to handle macro recording and playback.
 ***************************************************************************/
-bool APP::FCmdMacro(PCMD pcmd)
+bool FrameTesterApp::FCmdMacro(PCommand pcmd)
 {
-    FNI fni;
-    PCFL pcfl;
+    Filename fni;
+    PChunkyFile pcfl;
 
     // make sure we're not already recording or playing a macro.
     if (vpcex->FRecording() || vpcex->FPlaying())
@@ -1053,7 +1053,7 @@ bool APP::FCmdMacro(PCMD pcmd)
         {
             return fTrue;
         }
-        if ((pcfl = CFL::PcflCreate(&fni, fcflTemp)) == pvNil)
+        if ((pcfl = ChunkyFile::PcflCreate(&fni, fcflTemp)) == pvNil)
             return fTrue;
         vpcex->Record(pcfl);
         ReleasePpo(&pcfl);
@@ -1066,7 +1066,7 @@ bool APP::FCmdMacro(PCMD pcmd)
         }
 
         AssertDo(fni.TExists() == tYes, 0);
-        if ((pcfl = CFL::PcflOpen(&fni, fcflNil)) == pvNil)
+        if ((pcfl = ChunkyFile::PcflOpen(&fni, fcflNil)) == pvNil)
             return fTrue;
         vpcex->Play(pcfl, 0);
         ReleasePpo(&pcfl);
@@ -1078,7 +1078,7 @@ bool APP::FCmdMacro(PCMD pcmd)
 /***************************************************************************
     Handles enabling of macro recording and playback commands.
 ***************************************************************************/
-bool APP::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
+bool FrameTesterApp::FEnableMacro(PCommand pcmd, ulong *pgrfeds)
 {
     if (vpcex->FRecording() || vpcex->FPlaying())
         *pgrfeds = fedsDisable;
@@ -1091,15 +1091,15 @@ bool APP::FEnableMacro(PCMD pcmd, ulong *pgrfeds)
 /******************************************************************************
     Test windows fni code to build an fni from a path
 ******************************************************************************/
-bool APP::FCmdTestFni(PCMD pcmd)
+bool FrameTesterApp::FCmdTestFni(PCommand pcmd)
 {
     long idit;
-    STN stn, stnT;
-    FNI fni;
-    PDLG pdlg;
+    String stn, stnT;
+    Filename fni;
+    PDialog pdlg;
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(201);
+    pdlg = Dialog::PdlgNew(201);
     if (pdlg == pvNil)
         goto LFail;
     idit = pdlg->IditDo();
@@ -1163,7 +1163,7 @@ PTT WOP::PttUnmap(long xp, long yp, long yt)
 #endif // FUTURE
 
 // perspective doc
-class DOCP : public DOCB
+class DOCP : public DocumentBase
 {
   public:
     WOP _wop;
@@ -1172,24 +1172,24 @@ class DOCP : public DOCB
 
     DOCP(void);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
     void GetRcPic(RC *prc);
 };
 
 // ddg for a docp
-class DDP : public DDG
+class DDP : public DocumentDisplayGraphicsObject
 {
   protected:
-    DDP(DOCP *pdocp, PGCB pgcb);
+    DDP(DOCP *pdocp, PGraphicsObjectBlock pgcb);
 
   public:
-    static DDP *PddpNew(DOCP *pdocp, PGCB pgcb);
+    static DDP *PddpNew(DOCP *pdocp, PGraphicsObjectBlock pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
 
-    void DrawRc(PGNV pgnv);
-    void DrawNumbers(PGNV pgnv);
+    void DrawRc(PGraphicsEnvironment pgnv);
+    void DrawNumbers(PGraphicsEnvironment pgnv);
 };
 
 /***************************************************************************
@@ -1213,7 +1213,7 @@ DOCP::DOCP(void)
 /***************************************************************************
     Create a new pane for a perspective doc.
 ***************************************************************************/
-PDDG DOCP::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCP::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DDP::PddpNew(this, pgcb);
 }
@@ -1236,14 +1236,14 @@ void DOCP::GetRcPic(RC *prc)
 /***************************************************************************
     Constructor for a perspective doc pane.
 ***************************************************************************/
-DDP::DDP(DOCP *pdocp, PGCB pgcb) : DDG(pdocp, pgcb)
+DDP::DDP(DOCP *pdocp, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocp, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DDP.
 ***************************************************************************/
-DDP *DDP::PddpNew(DOCP *pdocp, PGCB pgcb)
+DDP *DDP::PddpNew(DOCP *pdocp, PGraphicsObjectBlock pgcb)
 {
     DDP *pddp;
 
@@ -1264,7 +1264,7 @@ DDP *DDP::PddpNew(DOCP *pdocp, PGCB pgcb)
 /***************************************************************************
     Draws the perspective doc.
 ***************************************************************************/
-void DDP::Draw(PGNV pgnv, RC *prcClip)
+void DDP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
     RC rc, rcT;
@@ -1291,7 +1291,7 @@ void DDP::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Draw the square and it's coordinates.
 ***************************************************************************/
-void DDP::DrawRc(PGNV pgnv)
+void DDP::DrawRc(PGraphicsEnvironment pgnv)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
     RC rc;
@@ -1301,12 +1301,12 @@ void DDP::DrawRc(PGNV pgnv)
 }
 
 /***************************************************************************
-    Draw the coordinates in the GNV.
+    Draw the coordinates in the GraphicsEnvironment.
 ***************************************************************************/
-void DDP::DrawNumbers(PGNV pgnv)
+void DDP::DrawNumbers(PGraphicsEnvironment pgnv)
 {
     DOCP *pdocp = (DOCP *)_pdocb;
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("coords: (%d, %d, %d)        "), pdocp->_pttSquare.xt, pdocp->_pttSquare.yt,
                   pdocp->_pttSquare.zt);
@@ -1375,7 +1375,7 @@ void DDP::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Create a new perspective doc and window.
 ***************************************************************************/
-bool APP::FCmdTestPerspective(PCMD pcmd)
+bool FrameTesterApp::FCmdTestPerspective(PCommand pcmd)
 {
     DOCP *pdocp;
 
@@ -1388,13 +1388,13 @@ bool APP::FCmdTestPerspective(PCMD pcmd)
 }
 
 // picture document
-#define DOCPIC_PAR DOCB
+#define DOCPIC_PAR DocumentBase
 class DOCPIC : public DOCPIC_PAR
 {
     MARKMEM
 
   protected:
-    PPIC _ppic;
+    PPicture _ppic;
     DOCPIC(void);
 
   public:
@@ -1402,25 +1402,25 @@ class DOCPIC : public DOCPIC_PAR
 
     static DOCPIC *PdocpicNew(void);
 
-    virtual PDDG PddgNew(PGCB pgcb);
-    PPIC Ppic(void)
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
+    PPicture Ppic(void)
     {
         return _ppic;
     }
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
 // picture document display
-#define DDPIC_PAR DDG
+#define DDPIC_PAR DocumentDisplayGraphicsObject
 class DDPIC : public DDPIC_PAR
 {
   protected:
-    DDPIC(DOCPIC *pdocpic, PGCB pgcb);
+    DDPIC(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb);
 
   public:
-    static DDPIC *PddpicNew(DOCPIC *pdocpic, PGCB pgcb);
+    static DDPIC *PddpicNew(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -1457,16 +1457,16 @@ void DOCPIC::MarkMem(void)
 DOCPIC *DOCPIC::PdocpicNew(void)
 {
     static long _cact = 0;
-    PGPT pgpt;
-    PGNV pgnv;
-    PPIC ppic;
+    PGraphicsPort pgpt;
+    PGraphicsEnvironment pgnv;
+    PPicture ppic;
     DOCPIC *pdocpic;
     long i, j;
-    CLR clr;
-    PGL pglclr;
+    Color clr;
+    PDynamicArray pglclr;
     RC rc(0, 0, 16, 16);
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
+    if (pvNil == (pglclr = DynamicArray::PglNew(size(Color), 256)))
         return pvNil;
     for (i = 0; i < 256; i++)
     {
@@ -1486,12 +1486,12 @@ DOCPIC *DOCPIC::PdocpicNew(void)
         pglclr->FPush(&clr);
         _cact = (_cact + 1) % 3;
     }
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
-    if (pvNil == (pgpt = GPT::PgptNewPic(&rc)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNewPic(&rc)))
         return pvNil;
-    if (pvNil != (pgnv = NewObj GNV(pgpt)))
+    if (pvNil != (pgnv = NewObj GraphicsEnvironment(pgpt)))
     {
         rc.Offset(rc.Dxp() / 2, 0);
         pgnv->FillOval(&rc, kacrMagenta);
@@ -1501,9 +1501,9 @@ DOCPIC *DOCPIC::PdocpicNew(void)
             {
                 rc.Set(i, j, i + 1, j + 1);
                 if ((i + j) & 1)
-                    pgnv->FillRc(&rc, ACR(byte(i * 16 + j)));
+                    pgnv->FillRc(&rc, AbstractColor(byte(i * 16 + j)));
                 else
-                    pgnv->FillOval(&rc, ACR(byte(i * 16 + j)));
+                    pgnv->FillOval(&rc, AbstractColor(byte(i * 16 + j)));
             }
         }
         ReleasePpo(&pgnv);
@@ -1523,7 +1523,7 @@ DOCPIC *DOCPIC::PdocpicNew(void)
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDDG DOCPIC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCPIC::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DDPIC::PddpicNew(this, pgcb);
 }
@@ -1531,13 +1531,13 @@ PDDG DOCPIC::PddgNew(PGCB pgcb)
 /***************************************************************************
     Save the picture in a chunky file.
 ***************************************************************************/
-bool DOCPIC::FSaveToFni(FNI *pfni, bool fSetFni)
+bool DOCPIC::FSaveToFni(Filename *pfni, bool fSetFni)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fT;
-    CNO cno;
+    ChunkNumber cno;
 
-    if (pvNil == (pcfl = CFL::PcflCreate(pfni, fcflNil)))
+    if (pvNil == (pcfl = ChunkyFile::PcflCreate(pfni, fcflNil)))
         return fFalse;
     fT = _ppic->FAddToCfl(pcfl, kctgGraphic, &cno) && pcfl->FSave('FT  ');
     ReleasePpo(&pcfl);
@@ -1549,14 +1549,14 @@ bool DOCPIC::FSaveToFni(FNI *pfni, bool fSetFni)
 /***************************************************************************
     Constructor for a picture doc pane.
 ***************************************************************************/
-DDPIC::DDPIC(DOCPIC *pdocpic, PGCB pgcb) : DDG(pdocpic, pgcb)
+DDPIC::DDPIC(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocpic, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DDPIC.
 ***************************************************************************/
-DDPIC *DDPIC::PddpicNew(DOCPIC *pdocpic, PGCB pgcb)
+DDPIC *DDPIC::PddpicNew(DOCPIC *pdocpic, PGraphicsObjectBlock pgcb)
 {
     DDPIC *pddpic;
 
@@ -1577,7 +1577,7 @@ DDPIC *DDPIC::PddpicNew(DOCPIC *pdocpic, PGCB pgcb)
 /***************************************************************************
     Draws the picture doc.
 ***************************************************************************/
-void DDPIC::Draw(PGNV pgnv, RC *prcClip)
+void DDPIC::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     DOCPIC *pdocpic = (DOCPIC *)_pdocb;
     long i, j;
@@ -1597,9 +1597,9 @@ void DDPIC::Draw(PGNV pgnv, RC *prcClip)
         {
             rc.Set(i, j, i + 1, j + 1);
             if ((i + j) & 1)
-                pgnv->FillRc(&rc, ACR(byte(i * 16 + j)));
+                pgnv->FillRc(&rc, AbstractColor(byte(i * 16 + j)));
             else
-                pgnv->FillOval(&rc, ACR(byte(i * 16 + j)));
+                pgnv->FillOval(&rc, AbstractColor(byte(i * 16 + j)));
         }
     }
 }
@@ -1607,7 +1607,7 @@ void DDPIC::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Create a new picture doc and window.
 ***************************************************************************/
-bool APP::FCmdTestPictures(PCMD pcmd)
+bool FrameTesterApp::FCmdTestPictures(PCommand pcmd)
 {
     DOCPIC *pdocpic;
 
@@ -1619,39 +1619,39 @@ bool APP::FCmdTestPictures(PCMD pcmd)
     return fTrue;
 }
 
-// GPT Document.
-#define DOCGPT_PAR DOCB
+// GraphicsPort Document.
+#define DOCGPT_PAR DocumentBase
 class DOCGPT : public DOCGPT_PAR
 {
     MARKMEM
 
   protected:
     DOCGPT(void);
-    PGPT _pgpt;
+    PGraphicsPort _pgpt;
 
   public:
     ~DOCGPT(void);
 
     static DOCGPT *PdocgptNew(void);
 
-    virtual PDDG PddgNew(PGCB pgcb);
-    PGPT Pgpt(void)
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
+    PGraphicsPort Pgpt(void)
     {
         return _pgpt;
     }
 };
 
-// GPT display class.
-#define DDGPT_PAR DDG
+// GraphicsPort display class.
+#define DDGPT_PAR DocumentDisplayGraphicsObject
 class DDGPT : public DDGPT_PAR
 {
   protected:
-    DDGPT(DOCGPT *pdocgpt, PGCB pgcb);
+    DDGPT(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb);
 
   public:
-    static DDGPT *PddgptNew(DOCGPT *pdocgpt, PGCB pgcb);
+    static DDGPT *PddgptNew(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
@@ -1688,20 +1688,20 @@ void DOCGPT::MarkMem(void)
 DOCGPT *DOCGPT::PdocgptNew(void)
 {
     DOCGPT *pdocgpt;
-    PGPT pgpt;
-    PGNV pgnv;
-    PMBMP pmbmp;
+    PGraphicsPort pgpt;
+    PGraphicsEnvironment pgnv;
+    PMaskedBitmapMBMP pmbmp;
     long i;
     RC rc(0, 0, 256, 256);
     RC rcT;
-    ACR acr;
-    CLR clr;
-    PGL pglclr;
+    AbstractColor acr;
+    Color clr;
+    PDynamicArray pglclr;
     static long _cact = 0;
     PT pt(0, 0);
-    ACR acr63(63), acr127(127), acr191(191);
+    AbstractColor acr63(63), acr127(127), acr191(191);
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
+    if (pvNil == (pglclr = DynamicArray::PglNew(size(Color), 256)))
         return pvNil;
     for (i = 0; i < 256; i++)
     {
@@ -1727,7 +1727,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
         pglclr->FPush(&clr);
         _cact = (_cact + 1) % 3;
     }
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
     pdocgpt = pvNil;
@@ -1736,14 +1736,14 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     pgnv = pvNil;
 
     // Create the gpt
-    if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rc, 8)))
+    if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rc, 8)))
         goto LFail;
 
-    if (pvNil == (pgnv = NewObj GNV(pgpt)))
+    if (pvNil == (pgnv = NewObj GraphicsEnvironment(pgpt)))
         goto LFail;
 
     // The color mapped to 100 is the transparent pixel value for
-    // the MBMP, so start everything as transparent.
+    // the MaskedBitmapMBMP, so start everything as transparent.
     acr.SetToIndex(100);
     pgnv->FillRc(&rc, acr);
 
@@ -1773,8 +1773,8 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     rcT.Set(128, 0, 192, 64);
     pgnv->FillOval(&rcT, kacrWhite);
 
-    // Create an MBMP from the foreground.
-    pmbmp = MBMP::PmbmpNew(pgpt->PrgbLockPixels(), pgpt->CbRow(), rc.Dyp(), &rc, 0, 0, 100);
+    // Create an MaskedBitmapMBMP from the foreground.
+    pmbmp = MaskedBitmapMBMP::PmbmpNew(pgpt->PrgbLockPixels(), pgpt->CbRow(), rc.Dyp(), &rc, 0, 0, 100);
     pgpt->Unlock();
 
     if (pvNil == pmbmp)
@@ -1789,7 +1789,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
         pgpt = pvNil;
     }
 
-    if (pvNil == (pglclr = GL::PglNew(size(CLR), 256)))
+    if (pvNil == (pglclr = DynamicArray::PglNew(size(Color), 256)))
         goto LFail;
     for (i = 0; i < 128; i++)
     {
@@ -1819,7 +1819,7 @@ LFail:
 /***************************************************************************
     Create a new display gob for the document.
 ***************************************************************************/
-PDDG DOCGPT::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCGPT::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DDGPT::PddgptNew(this, pgcb);
 }
@@ -1827,14 +1827,14 @@ PDDG DOCGPT::PddgNew(PGCB pgcb)
 /***************************************************************************
     Constructor for a gpt doc pane.
 ***************************************************************************/
-DDGPT::DDGPT(DOCGPT *pdocgpt, PGCB pgcb) : DDG(pdocgpt, pgcb)
+DDGPT::DDGPT(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocgpt, pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new DDMBMP.
 ***************************************************************************/
-DDGPT *DDGPT::PddgptNew(DOCGPT *pdocgpt, PGCB pgcb)
+DDGPT *DDGPT::PddgptNew(DOCGPT *pdocgpt, PGraphicsObjectBlock pgcb)
 {
     DDGPT *pddgpt;
 
@@ -1855,14 +1855,14 @@ DDGPT *DDGPT::PddgptNew(DOCGPT *pdocgpt, PGCB pgcb)
 /***************************************************************************
     Draws the gpt doc.
 ***************************************************************************/
-void DDGPT::Draw(PGNV pgnv, RC *prcClip)
+void DDGPT::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     DOCGPT *pdocgpt = (DOCGPT *)_pdocb;
-    PGNV pgnvT;
+    PGraphicsEnvironment pgnvT;
     RC rc(0, 0, 256, 256);
     RC rcT;
 
-    if (pvNil == (pgnvT = NewObj GNV(pdocgpt->Pgpt())))
+    if (pvNil == (pgnvT = NewObj GraphicsEnvironment(pdocgpt->Pgpt())))
         return;
     GetRc(&rcT, cooLocal);
     pgnv->CopyPixels(pgnvT, &rc, &rcT);
@@ -1873,7 +1873,7 @@ void DDGPT::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Create a new mbmp and window.
 ***************************************************************************/
-bool APP::FCmdTestMbmps(PCMD pcmd)
+bool FrameTesterApp::FCmdTestMbmps(PCommand pcmd)
 {
     DOCGPT *pdocgpt;
 
@@ -1889,7 +1889,7 @@ bool APP::FCmdTestMbmps(PCMD pcmd)
 /***************************************************************************
     Set the main screen as indicated.
 ***************************************************************************/
-bool APP::FCmdSetScreen(PCMD pcmd)
+bool FrameTesterApp::FCmdSetScreen(PCommand pcmd)
 {
     bool tColor = tMaybe;
     long cbit = 0;
@@ -1924,14 +1924,14 @@ bool APP::FCmdSetScreen(PCMD pcmd)
         cbit = 32;
         break;
     }
-    GPT::FSetScreenState(cbit, tColor);
+    GraphicsPort::FSetScreenState(cbit, tColor);
     return fTrue;
 }
 
 /***************************************************************************
     Set the menu stuff for the screen resolutions.
 ***************************************************************************/
-bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
+bool FrameTesterApp::FEnableScreen(PCommand pcmd, ulong *pgrfeds)
 {
     long cbitPixel;
     bool fColor;
@@ -1939,7 +1939,7 @@ bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
     bool fEnable;
     long cbit;
 
-    GPT::GetScreenState(&cbitPixel, &fColor);
+    GraphicsPort::GetScreenState(&cbitPixel, &fColor);
     switch (pcmd->cid)
     {
     default:
@@ -1947,11 +1947,11 @@ bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
 
     case cidSetColor:
         fCheck = fColor;
-        fEnable = fCheck || GPT::FCanScreen(cbitPixel, fTrue);
+        fEnable = fCheck || GraphicsPort::FCanScreen(cbitPixel, fTrue);
         break;
     case cidSetGrayScale:
         fCheck = !fColor;
-        fEnable = fCheck || GPT::FCanScreen(cbitPixel, fFalse);
+        fEnable = fCheck || GraphicsPort::FCanScreen(cbitPixel, fFalse);
         break;
     case cidSetDepth1:
         cbit = 1;
@@ -1972,7 +1972,7 @@ bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
         cbit = 32;
     LAll:
         fCheck = cbit == cbitPixel;
-        fEnable = fCheck || GPT::FCanScreen(cbit, fColor);
+        fEnable = fCheck || GraphicsPort::FCanScreen(cbit, fColor);
         break;
     }
 
@@ -1983,26 +1983,26 @@ bool APP::FEnableScreen(PCMD pcmd, ulong *pgrfeds)
 
 // test animations
 typedef class TAN *PTAN;
-#define TAN_PAR GOB
+#define TAN_PAR GraphicsObject
 class TAN : public TAN_PAR
 {
     CMD_MAP_DEC(TAN)
 
   protected:
     static long _cact;
-    APT _apt;
+    AbstractPattern _apt;
     ulong _dtim;
 
-    TAN(PGCB pgcb);
+    TAN(PGraphicsObjectBlock pgcb);
 
   public:
     static PTAN PtanNew(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdAlarm(PCMD pcmd);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
+    virtual bool FCmdAlarm(PCommand pcmd);
 };
 
-BEGIN_CMD_MAP(TAN, GOB)
+BEGIN_CMD_MAP(TAN, GraphicsObject)
 ON_CID_ME(cidAlarm, &TAN::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
@@ -2011,7 +2011,7 @@ long TAN::_cact = 0;
 /***************************************************************************
     Create a new picture doc and window.
 ***************************************************************************/
-bool APP::FCmdFastUpdate(PCMD pcmd)
+bool FrameTesterApp::FCmdFastUpdate(PCommand pcmd)
 {
     TAN::PtanNew();
     return fTrue;
@@ -2020,7 +2020,7 @@ bool APP::FCmdFastUpdate(PCMD pcmd)
 /***************************************************************************
     Constructor for a Test animation gob.
 ***************************************************************************/
-TAN::TAN(PGCB pgcb) : GOB(pgcb)
+TAN::TAN(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
 }
 
@@ -2031,9 +2031,9 @@ PTAN TAN::PtanNew(void)
 {
     PTAN ptan;
     RC rc;
-    STN stn;
-    APT apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    String stn;
+    AbstractPattern apt = {0xF0, 0xF0, 0xF0, 0xF0, 0x0F, 0x0F, 0x0F, 0x0F};
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
 
     if (pvNil == (ptan = NewObj TAN(&gcb)))
         return pvNil;
@@ -2049,9 +2049,9 @@ PTAN TAN::PtanNew(void)
 
     rc.Set(0, 0, 100, 100);
     gcb.Set(100, ptan, fgobNil, kginMark, &rc);
-    NewObj GFRC(&gcb, ACR(0x80), fFalse);
+    NewObj GFRC(&gcb, AbstractColor(0x80), fFalse);
     gcb._hid = 101;
-    NewObj GFRC(&gcb, ACR(0x35), fFalse);
+    NewObj GFRC(&gcb, AbstractColor(0x35), fFalse);
     vclok.FSetAlarm(ptan->_dtim, ptan);
     return ptan;
 }
@@ -2059,14 +2059,14 @@ PTAN TAN::PtanNew(void)
 /***************************************************************************
     Alarm handler for a TAN.
 ***************************************************************************/
-bool TAN::FCmdAlarm(PCMD pcmd)
+bool TAN::FCmdAlarm(PCommand pcmd)
 {
     if (pcmd->rglw[0] != vclok.Hid())
         return fFalse; // wrong clock
 
     RC rcPar, rc;
     RC rcT;
-    PGOB pgob;
+    PGraphicsObject pgob;
     long cact;
 
     GetRc(&rcPar, cooLocal);
@@ -2096,32 +2096,32 @@ bool TAN::FCmdAlarm(PCMD pcmd)
 /***************************************************************************
     Draw the thing
 ***************************************************************************/
-void TAN::Draw(PGNV pgnv, RC *prcClip)
+void TAN::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     //_apt.MoveOrigin(1, 1);
     pgnv->FillRcApt(prcClip, &_apt, kacrRed, kacrBlue);
 }
 
 typedef class TED *PTED;
-#define TED_PAR GOB
+#define TED_PAR GraphicsObject
 class TED : public TED_PAR
 {
   protected:
-    TED(void) : GOB(khidMdi)
+    TED(void) : GraphicsObject(khidMdi)
     {
     }
 
   public:
     static PTED PtedNew(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdBadKey(PCMD_BADKEY pcmd);
 };
 
 /***************************************************************************
     Create a new window containing a bunch of edit controls.
 ***************************************************************************/
-bool APP::FCmdTextEdit(PCMD pcmd)
+bool FrameTesterApp::FCmdTextEdit(PCommand pcmd)
 {
     TED::PtedNew();
     return fTrue;
@@ -2133,9 +2133,9 @@ bool APP::FCmdTextEdit(PCMD pcmd)
 PTED TED::PtedNew(void)
 {
     RC rcRel, rcAbs;
-    EDPAR edpar;
+    EditParameter edpar;
     PTED pted;
-    STN stn;
+    String stn;
     long i, j;
     long hid;
     long rgtah[3] = {tahLeft, tahCenter, tahRight};
@@ -2160,7 +2160,7 @@ PTED TED::PtedNew(void)
             rcRel.Set(i * krelOne / 3, j * krelOne / 9, (i + 1) * krelOne / 3, (j + 1) * krelOne / 9);
             edpar.Set(hid++, pted, fgobNil, kginDefault, &rcAbs, &rcRel, vntl.OnnSystem(), fontNil, 12, rgtah[i],
                       rgtav[j], kacrBlue, kacrYellow);
-            EDSL::PedslNew(&edpar);
+            EditControlSingleLine::PedslNew(&edpar);
         }
     }
 
@@ -2171,7 +2171,7 @@ PTED TED::PtedNew(void)
             rcRel.Set(i * krelOne / 3, (j + 3) * krelOne / 9, (i + 1) * krelOne / 3, (j + 4) * krelOne / 9);
             edpar.Set(hid++, pted, fgobNil, kginDefault, &rcAbs, &rcRel, vntl.OnnSystem(), fontNil, 12, rgtah[i],
                       rgtav[j], kacrBlue, kacrYellow);
-            EDML::PedmlNew(&edpar);
+            EditControlMultiLine::PedmlNew(&edpar);
         }
     }
 
@@ -2182,7 +2182,7 @@ PTED TED::PtedNew(void)
             rcRel.Set(i * krelOne / 3, (j + 6) * krelOne / 9, (i + 1) * krelOne / 3, (j + 7) * krelOne / 9);
             edpar.Set(hid++, pted, fgobNil, kginDefault, &rcAbs, &rcRel, vntl.OnnSystem(), fontNil, 12, rgtah[i],
                       rgtav[j], kacrBlue, kacrYellow);
-            EDMW::PedmwNew(&edpar);
+            EditControlMultiLineWrap::PedmwNew(&edpar);
         }
     }
     return pted;
@@ -2214,7 +2214,7 @@ bool TED::FCmdBadKey(PCMD_BADKEY pcmd)
 /***************************************************************************
     Draw the background of the TED.
 ***************************************************************************/
-void TED::Draw(PGNV pgnv, RC *prcClip)
+void TED::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     pgnv->FillRc(prcClip, kacrWhite);
 }

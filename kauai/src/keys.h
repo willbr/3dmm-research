@@ -30,5 +30,6 @@
 #define kvkBack MacWin(0x08, VK_BACK)
 #define kvkDelete MacWin(0x7F, VK_DELETE)
 #define kvkReturn MacWin(0x0D, VK_RETURN)
+#define kvkEscape MacWin(0x1B, VK_ESCAPE)
 
 #endif //! KEYS_H

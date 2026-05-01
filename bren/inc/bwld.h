@@ -5,11 +5,13 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BWLD
+    BASE ---> World
 
 ***************************************************************************/
 #ifndef BWLD_H
 #define BWLD_H
+
+namespace BRender {
 
 // Callback function per BACT when it's rendered, passing the 2D bounds
 typedef void FNBACTREND(PBACT pbact, RC *prc);
@@ -26,10 +28,10 @@ typedef FNGETRECT *PFNGETRECT;
 /****************************************
     The BRender world class
 ****************************************/
-typedef class BWLD *PBWLD;
-#define BWLD_PAR BASE
-#define kclsBWLD 'BWLD'
-class BWLD : public BWLD_PAR
+typedef class World *PWorld;
+#define World_PAR BASE
+#define kclsWorld 'BWLD'
+class World : public World_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -42,15 +44,15 @@ class BWLD : public BWLD_PAR
     BACT _bactWorld;             // The world root actor
     BACT _bactCamera;            // The camera actor
     BCAM _bcam;                  // The camera data
-    PGPT _pgptBackground;        // Background RGB bitmap
-    PGPT _pgptWorking;           // RGB working buffer to render into
-    PGPT _pgptStretch;           // Stretched working buffer (if _fhalfY)
+    PGraphicsPort _pgptBackground;        // Background RGB bitmap
+    PGraphicsPort _pgptWorking;           // RGB working buffer to render into
+    PGraphicsPort _pgptStretch;           // Stretched working buffer (if _fhalfY)
     BPMP _bpmpRGB;               // BRender wrapper around _pgptWorking
     PZBMP _pzbmpBackground;      // Background Z-buffer
     PZBMP _pzbmpWorking;         // Working Z-buffer to render into
     BPMP _bpmpZ;                 // BRender wrapper around _pzbmpWorking
-    PREGN _pregnDirtyWorking;    // Rgn to copy from bkgd to working buffer
-    PREGN _pregnDirtyScreen;     // Rgn to copy from working buffer to screen
+    PRegion _pregnDirtyWorking;    // Rgn to copy from bkgd to working buffer
+    PRegion _pregnDirtyScreen;     // Rgn to copy from working buffer to screen
     bool _fHalfX;                // Render at half horizontal resolution
     bool _fHalfY;                // Render at half vertical resolution
     bool _fWorldChanged;         // Need to rerender?
@@ -60,19 +62,22 @@ class BWLD : public BWLD_PAR
     PBACT _pbactClosestClicked;  // The closest actor that has been clicked
     BRS _dzpClosestClicked;      // Distance of the closest clicked actor
     // Keep reference to last background in case we switch to/from halfmode:
-    PCRF _pcrf;
-    CTG _ctgRGB;
-    CNO _cnoRGB;
-    CTG _ctgZ;
-    CNO _cnoZ;
+    PChunkyResourceFile _pcrf;
+    ChunkTagOrType _ctgRGB;
+    ChunkNumber _cnoRGB;
+    ChunkTagOrType _ctgZ;
+    ChunkNumber _cnoZ;
 
   protected:
-    BWLD(void)
+    World(void)
     {
     }
     bool _FInit(long dxp, long dyp, bool fHalfX, bool fHalfY);
     bool _FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY);
     void _CleanWorkingBuffers(void);
+#ifdef DEBUG
+    bool _FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale);
+#endif // DEBUG
     static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
                                     BRS dzpNear, BRS dzpFar, void *pbwld);
     static void BR_CALLBACK _ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle,
@@ -80,8 +85,8 @@ class BWLD : public BWLD_PAR
 
   public:
     // Constructors and destructors
-    static PBWLD PbwldNew(long dxp, long dyp, bool fHalfX = fFalse, bool fhalfY = fFalse);
-    ~BWLD();
+    static PWorld PbwldNew(long dxp, long dyp, bool fHalfX = fFalse, bool fhalfY = fFalse);
+    ~World();
     static void CloseBRender(void);
 
     // Dirtying the BRender world and bitmap
@@ -89,10 +94,10 @@ class BWLD : public BWLD_PAR
     {
         _fWorldChanged = fTrue;
     }
-    void MarkRenderedRegn(PGOB pgob, long dxp, long dyp);
+    void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 
     // Background stuff
-    bool FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ);
+    bool FSetBackground(PChunkyResourceFile pcrf, ChunkTagOrType ctgRGB, ChunkNumber cnoRGB, ChunkTagOrType ctgZ, ChunkNumber cnoZ);
     void SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov);
     void GetCamera(BMAT34 *pbmat34, BRS *pzrHither = pvNil, BRS *pzrYon = pvNil, BRA *paFov = pvNil);
 
@@ -114,6 +119,21 @@ class BWLD : public BWLD_PAR
     }
 
     // Rendering stuff
+    static bool _fRenderWireframe;
+    static bool RenderWireframe(void)
+    {
+        return _fRenderWireframe;
+    }
+    static void SetRenderWireframe(bool fOn)
+    {
+        _fRenderWireframe = fOn;
+    }
+    static bool _fNoTexture;
+    static bool NoTexture(void)
+    {
+        return _fNoTexture;
+    }
+    static void SetNoTexture(bool fOn);
     bool FSetHalfMode(bool fHalfX, bool fHalfY);
     bool FHalfX(void)
     {
@@ -126,11 +146,14 @@ class BWLD : public BWLD_PAR
     void Render(void);
     void Prerender(void);
     void Unprerender(void);
-    void Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp);
+    void Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp);
 
 #ifdef DEBUG
-    bool FWriteBmp(PFNI pfni);
+    bool FWriteBmp(PFilename pfni);
+    bool FWriteBmpScaled(PFilename pfni, long scale);
 #endif // DEBUG
 };
+
+} // end of namespace BRender
 
 #endif BWLD_H

@@ -214,9 +214,9 @@ void TestGl(void)
     short sw;
     long isw;
     short *qsw;
-    PGL pglsw;
+    PDynamicArray pglsw;
 
-    pglsw = GL::PglNew(size(short));
+    pglsw = DynamicArray::PglNew(size(short));
     if (pvNil == pglsw)
     {
         Bug("PglNew failed");
@@ -278,8 +278,8 @@ void TestGl(void)
 ***************************************************************************/
 void TestFni(void)
 {
-    FNI fni1, fni2;
-    STN stn1, stn2, stn3;
+    Filename fni1, fni2;
+    String stn1, stn2, stn3;
 
     AssertDo(fni1.FGetTemp(), 0);
     AssertDo(fni1.Ftg() == vftgTemp, 0);
@@ -317,8 +317,8 @@ void TestFni(void)
 ***************************************************************************/
 void TestFil(void)
 {
-    PFIL pfil;
-    FNI fni;
+    PFileObject pfil;
+    Filename fni;
 
     while (FGetFniSaveMacro(&fni, 'TEXT',
                             "\x9"
@@ -328,7 +328,7 @@ void TestFil(void)
                             PszLit("All files\0*.*\0"), NULL))
     {
         AssertDo(fni.TExists() == tNo, 0);
-        pfil = FIL::PfilCreate(&fni);
+        pfil = FileObject::PfilCreate(&fni);
         AssertPo(pfil, 0);
         AssertDo(pfil->FSetFpMac(100), 0);
         AssertDo(pfil->FpMac() == 100, 0);
@@ -338,9 +338,9 @@ void TestFil(void)
         ReleasePpo(&pfil);
     }
 
-    FIL::CloseUnmarked();
-    FIL::ClearMarks();
-    FIL::CloseUnmarked();
+    FileObject::CloseUnmarked();
+    FileObject::ClearMarks();
+    FileObject::CloseUnmarked();
 }
 
 /***************************************************************************
@@ -348,14 +348,14 @@ void TestFil(void)
 ***************************************************************************/
 void TestGg(void)
 {
-    PGG pgg;
+    PGeneralGroup pgg;
     ulong grf;
     long cb, iv;
     byte *qb;
-    PSZ psz = PszLit("0123456789ABCDEFG");
+    PZString psz = PszLit("0123456789ABCDEFG");
     achar rgch[100];
 
-    AssertDo((pgg = GG::PggNew(0)) != pvNil, 0);
+    AssertDo((pgg = GeneralGroup::PggNew(0)) != pvNil, 0);
     for (iv = 0; iv < 10; iv++)
     {
         AssertDo(pgg->FInsert(iv / 2, iv + 1, psz), 0);
@@ -433,15 +433,15 @@ void TestCfl(void)
 
     struct EREL
     {
-        CTG ctg;
-        CNO cno;
-        PSZ psz;
+        ChunkTagOrType ctg;
+        ChunkNumber cno;
+        PZString psz;
         short relPar1, relPar2;
     };
 
-    const CTG kctgLan = 0x41414141;
-    const CTG kctgKatz = 0x42424242;
-    const CTG kctgSandy = 0x43434343;
+    const ChunkTagOrType kctgLan = 0x41414141;
+    const ChunkTagOrType kctgKatz = 0x42424242;
+    const ChunkTagOrType kctgSandy = 0x43434343;
     EREL dnrel[relLim] = {
         {kctgLan, 0, PszLit("Paul"), relLim, relLim},         {kctgLan, 0, PszLit("Marge"), relLim, relLim},
         {kctgLan, 0, PszLit("Tig"), relPaul, relMarge},       {kctgKatz, 0, PszLit("Carl"), relLim, relLim},
@@ -452,15 +452,15 @@ void TestCfl(void)
         {kctgSandy, 0, PszLit("Joshua"), relCathy, relLim},   {kctgSandy, 0, PszLit("Rachel"), relCathy, relLim},
     };
 
-    FNI fni, fniDst;
-    PCFL pcfl, pcflDst;
-    BLCK blck;
+    Filename fni, fniDst;
+    PChunkyFile pcfl, pcflDst;
+    DataBlock blck;
     short rel;
     long icki;
-    CNO cno;
-    CKI cki;
+    ChunkNumber cno;
+    ChunkIdentification cki;
     EREL *perel, *perelPar;
-    STN stn;
+    String stn;
     achar rgch[kcchMaxSz];
 
     while (FGetFniSaveMacro(&fni, 'TEXT',
@@ -470,9 +470,9 @@ void TestCfl(void)
                             "Junk",
                             PszLit("All files\0*.*\0"), NULL))
     {
-        AssertDo((pcfl = CFL::PcflCreate(&fni, fcflNil)) != pvNil, 0);
+        AssertDo((pcfl = ChunkyFile::PcflCreate(&fni, fcflNil)) != pvNil, 0);
         AssertDo(fniDst.FGetTemp(), 0);
-        AssertDo((pcflDst = CFL::PcflCreate(&fniDst, fcflNil)) != pvNil, 0);
+        AssertDo((pcflDst = ChunkyFile::PcflCreate(&fniDst, fcflNil)) != pvNil, 0);
 
         for (rel = 0; rel < relLim; rel++)
         {
@@ -560,7 +560,7 @@ void TestCfl(void)
     while (FGetFniOpenMacro(&fni, pvNil, 0, PszLit("All files\0*.*\0"), NULL))
     {
         AssertDo(fni.TExists() == tYes, 0);
-        pcfl = CFL::PcflOpen(&fni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
         if (pcfl == pvNil)
             continue;
         AssertPo(pcfl, 0);
@@ -576,9 +576,9 @@ void TestCfl(void)
         ReleasePpo(&pcfl);
     }
 
-    CFL::CloseUnmarked();
-    CFL::ClearMarks();
-    CFL::CloseUnmarked();
+    ChunkyFile::CloseUnmarked();
+    ChunkyFile::ClearMarks();
+    ChunkyFile::CloseUnmarked();
 }
 
 /******************************************************************************
@@ -627,17 +627,17 @@ void TestErs(void)
 ******************************************************************************/
 void TestCrf(void)
 {
-    const CNO cnoLim = 10;
-    FNI fni;
-    CTG ctg = 'JUNK';
-    CNO cno;
-    PGHQ rgpghq[cnoLim];
-    PCFL pcfl;
-    PCRF pcrf;
+    const ChunkNumber cnoLim = 10;
+    Filename fni;
+    ChunkTagOrType ctg = 'JUNK';
+    ChunkNumber cno;
+    PGenericHQ rgpghq[cnoLim];
+    PChunkyFile pcfl;
+    PChunkyResourceFile pcrf;
     HQ hq;
-    PGHQ pghq;
+    PGenericHQ pghq;
 
-    if (!fni.FGetTemp() || pvNil == (pcfl = CFL::PcflCreate(&fni, fcflWriteEnable | fcflTemp)))
+    if (!fni.FGetTemp() || pvNil == (pcfl = ChunkyFile::PcflCreate(&fni, fcflWriteEnable | fcflTemp)))
     {
         Bug("creating chunky file failed");
         return;
@@ -648,26 +648,26 @@ void TestCrf(void)
         AssertDo(pcfl->FPutPv("Test string", 11, ctg, cno), 0);
     }
 
-    if (pvNil == (pcrf = CRF::PcrfNew(pcfl, 50)))
+    if (pvNil == (pcrf = ChunkyResourceFile::PcrfNew(pcfl, 50)))
     {
-        Bug("creating CRF failed");
+        Bug("creating ChunkyResourceFile failed");
         ReleasePpo(&pcfl);
         return;
     }
     ReleasePpo(&pcfl);
 
     for (cno = 0; cno < cnoLim; cno++)
-        pcrf->TLoad(ctg, cno, GHQ::FReadGhq, rscNil, 10);
+        pcrf->TLoad(ctg, cno, GenericHQ::FReadGhq, rscNil, 10);
 
     for (cno = 0; cno < cnoLim; cno++)
-        pcrf->TLoad(ctg, cno, GHQ::FReadGhq, rscNil, 20);
+        pcrf->TLoad(ctg, cno, GenericHQ::FReadGhq, rscNil, 20);
 
     for (cno = 0; cno < cnoLim; cno++)
-        pcrf->TLoad(ctg, cno, GHQ::FReadGhq, rscNil, 20 + cno);
+        pcrf->TLoad(ctg, cno, GenericHQ::FReadGhq, rscNil, 20 + cno);
 
     for (cno = 0; cno < cnoLim; cno++)
     {
-        pghq = (PGHQ)pcrf->PbacoFetch(ctg, cno, GHQ::FReadGhq);
+        pghq = (PGenericHQ)pcrf->PbacoFetch(ctg, cno, GenericHQ::FReadGhq);
         if (pvNil == pghq)
             continue;
         hq = pghq->hq;
@@ -678,7 +678,7 @@ void TestCrf(void)
 
     for (cno = 0; cno < cnoLim; cno++)
     {
-        pghq = (PGHQ)pcrf->PbacoFetch(ctg, cno, GHQ::FReadGhq);
+        pghq = (PGenericHQ)pcrf->PbacoFetch(ctg, cno, GenericHQ::FReadGhq);
         rgpghq[cno] = pghq;
         if (pvNil == pghq)
             continue;

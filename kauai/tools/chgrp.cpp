@@ -4,7 +4,7 @@
 /***************************************************************************
 
     Handles editing a chunk consisting of a group
-    (GL, AL, GG, AG, GST, AST)
+    (DynamicArray, AllocatedArray, GeneralGroup, AllocatedGroup, StringTable_GST, AllocatedStringTable)
 
 ***************************************************************************/
 #include "ched.h"
@@ -12,9 +12,9 @@ ASSERTNAME
 
 #define kcbMaxDispGrp 16
 
-bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgGrpbNew(PDialog pdlg, long *pidit, void *pv);
 
-BEGIN_CMD_MAP(DCGB, DDG)
+BEGIN_CMD_MAP(DCGB, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidEditNatural, &DCGB::FCmdEditItem, &DCGB::FEnableDcgbCmd)
 ON_CID_GEN(cidEditHex, &DCGB::FCmdEditItem, &DCGB::FEnableDcgbCmd)
 ON_CID_GEN(cidInsertItem, &DCGB::FCmdAddItem, &DCGB::FEnableDcgbCmd)
@@ -31,17 +31,17 @@ RTCLASS(DCST)
 
 /***************************************************************************
     Constructor for a group document.  cls indicates which group class
-    the edited chunk belongs to.  cls should be one of GL, AL, GG, AG,
-    GST, AST.
+    the edited chunk belongs to.  cls should be one of DynamicArray, AllocatedArray, GeneralGroup, AllocatedGroup,
+    StringTable_GST, AllocatedStringTable.
 ***************************************************************************/
-DOCG::DOCG(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
+DOCG::DOCG(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, long cls) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pgrpb = pvNil;
     _cls = cls;
 }
 
 /***************************************************************************
-    Destructor for DOCG.  Free the GRPB.
+    Destructor for DOCG.  Free the GroupBase.
 ***************************************************************************/
 DOCG::~DOCG(void)
 {
@@ -52,7 +52,7 @@ DOCG::~DOCG(void)
     Static method to create a new document based on a group in a chunk.
     Asserts that there are no other editing docs open on this chunk.
 ***************************************************************************/
-PDOCG DOCG::PdocgNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno, long cls)
+PDOCG DOCG::PdocgNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, long cls)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);
@@ -82,7 +82,7 @@ enum
 /***************************************************************************
     Dialog proc for Adopt Chunk dialog.
 ***************************************************************************/
-bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgGrpbNew(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -120,7 +120,7 @@ bool _FDlgGrpbNew(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Read the group from the given flo.
 ***************************************************************************/
-bool DOCG::_FRead(PBLCK pblck)
+bool DOCG::_FRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
     Assert(pvNil == _pgrpb, "group not nil");
@@ -128,7 +128,7 @@ bool DOCG::_FRead(PBLCK pblck)
     if (0 == pblck->Cb(fTrue))
     {
         // create a new one - need to ask for a size from the user
-        PDLG pdlg;
+        PDialog pdlg;
         long dlid, idit;
         long cb, cbMin;
         bool fEmpty;
@@ -137,17 +137,17 @@ bool DOCG::_FRead(PBLCK pblck)
         cbMin = 0;
         switch (_cls)
         {
-        case kclsGL:
-        case kclsAL:
+        case kclsDynamicArray:
+        case kclsAllocatedArray:
             dlid = dlidGlbNew;
             cbMin = 1;
             break;
-        case kclsGG:
-        case kclsAG:
+        case kclsGeneralGroup:
+        case kclsAllocatedGroup:
             dlid = dlidGgbNew;
             break;
-        case kclsGST:
-        case kclsAST:
+        case kclsStringTable_GST:
+        case kclsAllocatedStringTable:
             dlid = dlidGstbNew;
             break;
         default:
@@ -155,7 +155,7 @@ bool DOCG::_FRead(PBLCK pblck)
             return fFalse;
         }
 
-        pdlg = DLG::PdlgNew(dlid, _FDlgGrpbNew, &cbMin);
+        pdlg = Dialog::PdlgNew(dlid, _FDlgGrpbNew, &cbMin);
         pdlg->FPutLwInEdit(kiditSizeGrpbNew, cbMin);
         if (pvNil == pdlg)
             goto LFail;
@@ -170,23 +170,23 @@ bool DOCG::_FRead(PBLCK pblck)
 
         switch (_cls)
         {
-        case kclsGL:
-            _pgrpb = GL::PglNew(cb);
+        case kclsDynamicArray:
+            _pgrpb = DynamicArray::PglNew(cb);
             break;
-        case kclsAL:
-            _pgrpb = AL::PalNew(cb);
+        case kclsAllocatedArray:
+            _pgrpb = AllocatedArray::PalNew(cb);
             break;
-        case kclsGG:
-            _pgrpb = GG::PggNew(cb);
+        case kclsGeneralGroup:
+            _pgrpb = GeneralGroup::PggNew(cb);
             break;
-        case kclsAG:
-            _pgrpb = AG::PagNew(cb);
+        case kclsAllocatedGroup:
+            _pgrpb = AllocatedGroup::PagNew(cb);
             break;
-        case kclsGST:
-            _pgrpb = GST::PgstNew(cb * size(long));
+        case kclsStringTable_GST:
+            _pgrpb = StringTable_GST::PgstNew(cb * size(long));
             break;
-        case kclsAST:
-            _pgrpb = AST::PastNew(cb * size(long));
+        case kclsAllocatedStringTable:
+            _pgrpb = AllocatedStringTable::PastNew(cb * size(long));
             break;
         default:
             BugVar("bad cls value", &_cls);
@@ -202,23 +202,23 @@ bool DOCG::_FRead(PBLCK pblck)
     {
         switch (_cls)
         {
-        case kclsGL:
-            _pgrpb = GL::PglRead(pblck, &_bo, &_osk);
+        case kclsDynamicArray:
+            _pgrpb = DynamicArray::PglRead(pblck, &_bo, &_osk);
             break;
-        case kclsAL:
-            _pgrpb = AL::PalRead(pblck, &_bo, &_osk);
+        case kclsAllocatedArray:
+            _pgrpb = AllocatedArray::PalRead(pblck, &_bo, &_osk);
             break;
-        case kclsGG:
-            _pgrpb = GG::PggRead(pblck, &_bo, &_osk);
+        case kclsGeneralGroup:
+            _pgrpb = GeneralGroup::PggRead(pblck, &_bo, &_osk);
             break;
-        case kclsAG:
-            _pgrpb = AG::PagRead(pblck, &_bo, &_osk);
+        case kclsAllocatedGroup:
+            _pgrpb = AllocatedGroup::PagRead(pblck, &_bo, &_osk);
             break;
-        case kclsGST:
-            _pgrpb = GST::PgstRead(pblck, &_bo, &_osk);
+        case kclsStringTable_GST:
+            _pgrpb = StringTable_GST::PgstRead(pblck, &_bo, &_osk);
             break;
-        case kclsAST:
-            _pgrpb = AST::PastRead(pblck, &_bo, &_osk);
+        case kclsAllocatedStringTable:
+            _pgrpb = AllocatedStringTable::PastRead(pblck, &_bo, &_osk);
             break;
         default:
             BugVar("bad cls value", &_cls);
@@ -230,27 +230,27 @@ bool DOCG::_FRead(PBLCK pblck)
 }
 
 /***************************************************************************
-    Create a new DDG onto the document.
+    Create a new DocumentDisplayGraphicsObject onto the document.
 ***************************************************************************/
-PDDG DOCG::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCG::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     pddg = pvNil;
     switch (_cls)
     {
-    case kclsGL:
-    case kclsAL:
-        pddg = DCGL::PdcglNew(this, (PGLB)_pgrpb, _cls, pgcb);
+    case kclsDynamicArray:
+    case kclsAllocatedArray:
+        pddg = DCGL::PdcglNew(this, (PVirtualArray)_pgrpb, _cls, pgcb);
         break;
-    case kclsGG:
-    case kclsAG:
-        pddg = DCGG::PdcggNew(this, (PGGB)_pgrpb, _cls, pgcb);
+    case kclsGeneralGroup:
+    case kclsAllocatedGroup:
+        pddg = DCGG::PdcggNew(this, (PVirtualGroup)_pgrpb, _cls, pgcb);
         break;
-    case kclsGST:
-    case kclsAST:
-        pddg = DCST::PdcstNew(this, (PGSTB)_pgrpb, _cls, pgcb);
+    case kclsStringTable_GST:
+    case kclsAllocatedStringTable:
+        pddg = DCST::PdcstNew(this, (PVirtualStringTable)_pgrpb, _cls, pgcb);
         break;
     default:
         BugVar("bad cls value", &_cls);
@@ -262,7 +262,7 @@ PDDG DOCG::PddgNew(PGCB pgcb)
 /***************************************************************************
     Write the group to disk.
 ***************************************************************************/
-bool DOCG::_FWrite(PBLCK pblck, bool fRedirect)
+bool DOCG::_FWrite(PDataBlock pblck, bool fRedirect)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -289,12 +289,12 @@ void DOCG::AssertValid(ulong grf)
     Assert(_pgrpb->FIs(_cls), "group doesn't match cls");
     switch (_cls)
     {
-    case kclsGL:
-    case kclsAL:
-    case kclsGG:
-    case kclsAG:
-    case kclsGST:
-    case kclsAST:
+    case kclsDynamicArray:
+    case kclsAllocatedArray:
+    case kclsGeneralGroup:
+    case kclsAllocatedGroup:
+    case kclsStringTable_GST:
+    case kclsAllocatedStringTable:
         break;
     default:
         BugVar("bad cls value", &_cls);
@@ -316,7 +316,7 @@ void DOCG::MarkMem(void)
 /***************************************************************************
     Constructor for a DCGB.
 ***************************************************************************/
-DCGB::DCGB(PDOCB pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(pdocb, pgcb)
+DCGB::DCGB(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long clnItem, PGraphicsObjectBlock pgcb) : DCLB(pdocb, pgcb)
 {
     AssertIn(clnItem, 1, 10);
     _dypBorder = 1;
@@ -331,28 +331,28 @@ DCGB::DCGB(PDOCB pdocb, PGRPB pgrpb, long cls, long clnItem, PGCB pgcb) : DCLB(p
     default:
 #ifdef DEBUG
         BugVar("bad cls value", &_cls);
-    case kclsGL:
-    case kclsGG:
-    case kclsGST:
+    case kclsDynamicArray:
+    case kclsGeneralGroup:
+    case kclsStringTable_GST:
 #endif // DEBUG
         _fAllocated = fFalse;
         break;
-    case kclsAL:
-    case kclsAG:
-    case kclsAST:
+    case kclsAllocatedArray:
+    case kclsAllocatedGroup:
+    case kclsAllocatedStringTable:
         _fAllocated = fTrue;
         break;
     }
 }
 
 /***************************************************************************
-    Static method to invalidate all DCGB's on this GRPB.  Also dirties the
+    Static method to invalidate all DCGB's on this GroupBase.  Also dirties the
     document.  Should be called by any code that edits the document.
 ***************************************************************************/
-void DCGB::InvalAllDcgb(PDOCB pdocb, PGRPB pgrpb, long iv, long cvIns, long cvDel)
+void DCGB::InvalAllDcgb(PDocumentBase pdocb, PGroupBase pgrpb, long iv, long cvIns, long cvDel)
 {
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     PDCGB pdcgb;
 
     // mark the document dirty
@@ -417,9 +417,9 @@ void DCGB::_InvalIv(long iv, long cvIns, long cvDel)
 void DCGB::_Activate(bool fActive)
 {
     AssertThis(0);
-    DDG::_Activate(fActive);
+    DocumentDisplayGraphicsObject::_Activate(fActive);
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     _DrawSel(&gnv);
 }
 
@@ -467,7 +467,7 @@ void DCGB::_SetSel(long ln)
 
     if (_fActive)
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         // erase the old sel
         if (_fActive)
@@ -514,7 +514,7 @@ void DCGB::_ShowSel(void)
 /***************************************************************************
     Hilite the selection (if there is one)
 ***************************************************************************/
-void DCGB::_DrawSel(PGNV pgnv)
+void DCGB::_DrawSel(PGraphicsEnvironment pgnv)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -649,7 +649,7 @@ void DCGB::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Handle enabling/disabling commands.
 ***************************************************************************/
-bool DCGB::FEnableDcgbCmd(PCMD pcmd, ulong *pgrfeds)
+bool DCGB::FEnableDcgbCmd(PCommand pcmd, ulong *pgrfeds)
 {
     bool fT;
 
@@ -678,7 +678,7 @@ bool DCGB::FEnableDcgbCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Handles commands to edit the current line of the group.
 ***************************************************************************/
-bool DCGB::FCmdEditItem(PCMD pcmd)
+bool DCGB::FCmdEditItem(PCommand pcmd)
 {
     if (ivNil == _ivCur)
         return fFalse;
@@ -704,7 +704,7 @@ void DCGB::_EditIvDln(long iv, long dln)
 /***************************************************************************
     Handle cidDeleteItem.
 ***************************************************************************/
-bool DCGB::FCmdDeleteItem(PCMD pcmd)
+bool DCGB::FCmdDeleteItem(PCommand pcmd)
 {
     _DeleteIv(_ivCur);
     return fTrue;
@@ -762,18 +762,18 @@ void DCGB::MarkMem(void)
 
 /***************************************************************************
     Constructor for the DCGL class.  This class displays (and allows
-    editing of) a GL or AL.
+    editing of) a DynamicArray or AllocatedArray.
 ***************************************************************************/
-DCGL::DCGL(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
+DCGL::DCGL(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGraphicsObjectBlock pgcb) : DCGB(pdocb, pglb, cls, 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCGL for the GL or AL.
+    Static method to create a new DCGL for the DynamicArray or AllocatedArray.
 ***************************************************************************/
-PDCGL DCGL::PdcglNew(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb)
+PDCGL DCGL::PdcglNew(PDocumentBase pdocb, PVirtualArray pglb, long cls, PGraphicsObjectBlock pgcb)
 {
-    AssertVar(cls == kclsGL || cls == kclsAL, "bad cls", &cls);
+    AssertVar(cls == kclsDynamicArray || cls == kclsAllocatedArray, "bad cls", &cls);
     PDCGL pdcgl;
 
     if (pvNil == (pdcgl = NewObj DCGL(pdocb, pglb, cls, pgcb)))
@@ -793,13 +793,13 @@ PDCGL DCGL::PdcglNew(PDOCB pdocb, PGLB pglb, long cls, PGCB pgcb)
 /***************************************************************************
     Draw the contents of the DCGL.
 ***************************************************************************/
-void DCGL::Draw(PGNV pgnv, RC *prcClip)
+void DCGL::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PGLB pglb;
-    STN stn;
+    PVirtualArray pglb;
+    String stn;
     byte rgb[kcbMaxDispGrp];
     long ivMac, iv;
     long cbDisp, cbEntry;
@@ -810,7 +810,7 @@ void DCGL::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->SetOnn(_onn);
 
-    pglb = (PGLB)_pgrpb;
+    pglb = (PVirtualArray)_pgrpb;
     ivMac = pglb->IvMac();
     xp = _XpFromIch(0);
     cbDisp = cbEntry = pglb->CbEntry();
@@ -876,16 +876,16 @@ void DCGL::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle cidAddItem and cidInsertItem.
 ***************************************************************************/
-bool DCGL::FCmdAddItem(PCMD pcmd)
+bool DCGL::FCmdAddItem(PCommand pcmd)
 {
     HQ hq;
     long cb;
     void *pv;
     long ivNew;
     bool fT;
-    PGLB pglb;
+    PVirtualArray pglb;
 
-    pglb = (PGLB)_pgrpb;
+    pglb = (PVirtualArray)_pgrpb;
     cb = pglb->CbEntry();
     if (!FAllocHq(&hq, cb, fmemClear, mprNormal))
         return fTrue;
@@ -900,8 +900,8 @@ bool DCGL::FCmdAddItem(PCMD pcmd)
     case cidInsertItem:
         if (_fAllocated)
             break;
-        Assert(pglb->FIs(kclsGL), "bad grpb");
-        fT = ((PGL)pglb)->FInsert(ivNew = _ivCur, pv);
+        Assert(pglb->FIs(kclsDynamicArray), "bad grpb");
+        fT = ((PDynamicArray)pglb)->FInsert(ivNew = _ivCur, pv);
     }
     UnlockHq(hq);
     FreePhq(&hq);
@@ -919,18 +919,18 @@ bool DCGL::FCmdAddItem(PCMD pcmd)
 
 /***************************************************************************
     Constructor for the DCGG class.  This class displays (and allows
-    editing of) a GG or AG.
+    editing of) a GeneralGroup or AllocatedGroup.
 ***************************************************************************/
-DCGG::DCGG(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
+DCGG::DCGG(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGraphicsObjectBlock pgcb) : DCGB(pdocb, pggb, cls, pggb->CbFixed() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCGG for the GG or AG.
+    Static method to create a new DCGG for the GeneralGroup or AllocatedGroup.
 ***************************************************************************/
-PDCGG DCGG::PdcggNew(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb)
+PDCGG DCGG::PdcggNew(PDocumentBase pdocb, PVirtualGroup pggb, long cls, PGraphicsObjectBlock pgcb)
 {
-    AssertVar(cls == kclsGG || cls == kclsAG, "bad cls", &cls);
+    AssertVar(cls == kclsGeneralGroup || cls == kclsAllocatedGroup, "bad cls", &cls);
     PDCGG pdcgg;
 
     if (pvNil == (pdcgg = NewObj DCGG(pdocb, pggb, cls, pgcb)))
@@ -950,13 +950,13 @@ PDCGG DCGG::PdcggNew(PDOCB pdocb, PGGB pggb, long cls, PGCB pgcb)
 /***************************************************************************
     Draw the contents of the DCGL.
 ***************************************************************************/
-void DCGG::Draw(PGNV pgnv, RC *prcClip)
+void DCGG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PGGB pggb;
-    STN stn;
+    PVirtualGroup pggb;
+    String stn;
     byte rgb[kcbMaxDispGrp];
     long ivMac, iv, dln;
     long cbDisp, cbEntry;
@@ -969,7 +969,7 @@ void DCGG::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->SetOnn(_onn);
 
-    pggb = (PGGB)_pgrpb;
+    pggb = (PVirtualGroup)_pgrpb;
     ivMac = pggb->IvMac();
     xp = _XpFromIch(0);
 
@@ -1060,16 +1060,16 @@ void DCGG::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle cidAddItem and cidInsertItem.
 ***************************************************************************/
-bool DCGG::FCmdAddItem(PCMD pcmd)
+bool DCGG::FCmdAddItem(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
     long cb;
     long ivNew;
     bool fT;
-    PGGB pggb;
+    PVirtualGroup pggb;
 
-    pggb = (PGGB)_pgrpb;
+    pggb = (PVirtualGroup)_pgrpb;
     cb = (pggb->CbFixed() == 0);
 
     fT = fFalse;
@@ -1081,8 +1081,8 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
     case cidInsertItem:
         if (_fAllocated)
             break;
-        Assert(pggb->FIs(kclsGG), "bad grpb");
-        fT = ((PGG)pggb)->FInsert(ivNew = _ivCur, cb);
+        Assert(pggb->FIs(kclsGeneralGroup), "bad grpb");
+        fT = ((PGeneralGroup)pggb)->FInsert(ivNew = _ivCur, cb);
     }
     if (!fT)
         return fTrue;
@@ -1103,18 +1103,18 @@ bool DCGG::FCmdAddItem(PCMD pcmd)
 
 /***************************************************************************
     Constructor for the DCST class.  This class displays (and allows
-    editing of) a GST or AST.
+    editing of) a StringTable_GST or AllocatedStringTable.
 ***************************************************************************/
-DCST::DCST(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
+DCST::DCST(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGraphicsObjectBlock pgcb) : DCGB(pdocb, pgstb, cls, pgstb->CbExtra() > 0 ? 2 : 1, pgcb)
 {
 }
 
 /***************************************************************************
-    Static method to create a new DCST for the GST or AST.
+    Static method to create a new DCST for the StringTable_GST or AllocatedStringTable.
 ***************************************************************************/
-PDCST DCST::PdcstNew(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb)
+PDCST DCST::PdcstNew(PDocumentBase pdocb, PVirtualStringTable pgstb, long cls, PGraphicsObjectBlock pgcb)
 {
-    AssertVar(cls == kclsGST || cls == kclsAST, "bad cls", &cls);
+    AssertVar(cls == kclsStringTable_GST || cls == kclsAllocatedStringTable, "bad cls", &cls);
     PDCST pdcst;
 
     if (pvNil == (pdcst = NewObj DCST(pdocb, pgstb, cls, pgcb)))
@@ -1134,14 +1134,14 @@ PDCST DCST::PdcstNew(PDOCB pdocb, PGSTB pgstb, long cls, PGCB pgcb)
 /***************************************************************************
     Draw the contents of the DCGL.
 ***************************************************************************/
-void DCST::Draw(PGNV pgnv, RC *prcClip)
+void DCST::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    PGSTB pgstb;
-    STN stn;
-    STN stnT;
+    PVirtualStringTable pgstb;
+    String stn;
+    String stnT;
     byte rgb[1024];
     long ivMac, iv;
     long cbDisp, cbExtra;
@@ -1157,7 +1157,7 @@ void DCST::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->SetOnn(_onn);
 
-    pgstb = (PGSTB)_pgrpb;
+    pgstb = (PVirtualStringTable)_pgrpb;
     if (size(rgb) < (cbExtra = pgstb->CbExtra()))
     {
         if (FAllocHq(&hqExtra, cbExtra, fmemNil, mprNormal))
@@ -1247,19 +1247,19 @@ void DCST::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle cidAddItem and cidInsertItem.
 ***************************************************************************/
-bool DCST::FCmdAddItem(PCMD pcmd)
+bool DCST::FCmdAddItem(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
     long ivNew;
     bool fT;
-    PGSTB pgstb;
+    PVirtualStringTable pgstb;
     HQ hq;
     long cb;
-    STN stn;
+    String stn;
 
     stn.SetNil();
-    pgstb = (PGSTB)_pgrpb;
+    pgstb = (PVirtualStringTable)_pgrpb;
     fT = fFalse;
     switch (pcmd->cid)
     {
@@ -1269,8 +1269,8 @@ bool DCST::FCmdAddItem(PCMD pcmd)
     case cidInsertItem:
         if (_fAllocated)
             break;
-        Assert(pgstb->FIs(kclsGST), "bad grpb");
-        fT = ((PGST)pgstb)->FInsertStn(ivNew = _ivCur, &stn, pvNil);
+        Assert(pgstb->FIs(kclsStringTable_GST), "bad grpb");
+        fT = ((PStringTable_GST)pgstb)->FInsertStn(ivNew = _ivCur, &stn, pvNil);
     }
     if (!fT)
         return fTrue;
@@ -1292,10 +1292,10 @@ bool DCST::FCmdAddItem(PCMD pcmd)
 }
 
 /***************************************************************************
-    Constructor for DOCI.  DOCI holds an item in a GRPB contained in a
-    chunky file.  Doesn't free the GRPB when the doc goes away.
+    Constructor for DOCI.  DOCI holds an item in a GroupBase contained in a
+    chunky file.  Doesn't free the GroupBase when the doc goes away.
 ***************************************************************************/
-DOCI::DOCI(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln) : DOCB(pdocb)
+DOCI::DOCI(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long iv, long dln) : DocumentBase(pdocb)
 {
     AssertPo(pgrpb, 0);
     AssertVar(pgrpb->FIs(cls), "wrong cls value", &cls);
@@ -1309,7 +1309,7 @@ DOCI::DOCI(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln) : DOCB(pdocb)
 /***************************************************************************
     Static member to create a new DOCI.
 ***************************************************************************/
-PDOCI DOCI::PdociNew(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln)
+PDOCI DOCI::PdociNew(PDocumentBase pdocb, PGroupBase pgrpb, long cls, long iv, long dln)
 {
     AssertPo(pgrpb, 0);
     AssertPo(pdocb, 0);
@@ -1328,7 +1328,7 @@ PDOCI DOCI::PdociNew(PDOCB pdocb, PGRPB pgrpb, long cls, long iv, long dln)
 }
 
 /***************************************************************************
-    Reads the data (from the GRPB) and initializes the stream.
+    Reads the data (from the GroupBase) and initializes the stream.
 ***************************************************************************/
 bool DOCI::_FInit(void)
 {
@@ -1351,9 +1351,9 @@ bool DOCI::_FInit(void)
 }
 
 /***************************************************************************
-    Create a new DDG for this doc.
+    Create a new DocumentDisplayGraphicsObject for this doc.
 ***************************************************************************/
-PDDG DOCI::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCI::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DCH::PdchNew(this, &_bsf, _fFixed, pgcb);
 }
@@ -1361,11 +1361,11 @@ PDDG DOCI::PddgNew(PGCB pgcb)
 /***************************************************************************
     Get the document's name.
 ***************************************************************************/
-void DOCI::GetName(PSTN pstn)
+void DOCI::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit(": item %d"), _iv);
     _pdocbPar->GetName(pstn);
@@ -1373,7 +1373,7 @@ void DOCI::GetName(PSTN pstn)
 }
 
 /***************************************************************************
-    Handle saving.  This is a virtual member of DOCB.
+    Handle saving.  This is a virtual member of DocumentBase.
 ***************************************************************************/
 bool DOCI::FSave(long cid)
 {
@@ -1418,7 +1418,7 @@ bool DOCI::_FSaveToItem(long iv, bool fRedirect)
 }
 
 /***************************************************************************
-    Write the data to the GRPB at the given item number.
+    Write the data to the GroupBase at the given item number.
 ***************************************************************************/
 bool DOCI::_FWrite(long iv)
 {
@@ -1434,32 +1434,32 @@ bool DOCI::_FWrite(long iv)
     fRet = fTrue;
     switch (_cls)
     {
-    case kclsGL:
-    case kclsAL:
-        Assert(cb == ((PGLB)_pgrpb)->CbEntry(), "bad cb in GL/AL");
-        ((PGLB)_pgrpb)->Put(iv, pv);
+    case kclsDynamicArray:
+    case kclsAllocatedArray:
+        Assert(cb == ((PVirtualArray)_pgrpb)->CbEntry(), "bad cb in DynamicArray/AllocatedArray");
+        ((PVirtualArray)_pgrpb)->Put(iv, pv);
         break;
-    case kclsGG:
-    case kclsAG:
+    case kclsGeneralGroup:
+    case kclsAllocatedGroup:
         if (_dln == 0)
-            fRet = ((PGGB)_pgrpb)->FPut(iv, cb, pv);
+            fRet = ((PVirtualGroup)_pgrpb)->FPut(iv, cb, pv);
         else
         {
-            Assert(cb == ((PGGB)_pgrpb)->CbFixed(), "bad cb in GG/AG");
-            ((PGGB)_pgrpb)->PutFixed(iv, pv);
+            Assert(cb == ((PVirtualGroup)_pgrpb)->CbFixed(), "bad cb in GeneralGroup/AllocatedGroup");
+            ((PVirtualGroup)_pgrpb)->PutFixed(iv, pv);
         }
         break;
-    case kclsGST:
-    case kclsAST:
+    case kclsStringTable_GST:
+    case kclsAllocatedStringTable:
         if (_dln == 0)
         {
             cb = LwMin(cb, kcchMaxStz);
-            fRet = ((PGSTB)_pgrpb)->FPutRgch(iv, (achar *)pv, cb / size(achar));
+            fRet = ((PVirtualStringTable)_pgrpb)->FPutRgch(iv, (achar *)pv, cb / size(achar));
         }
         else
         {
-            Assert(cb == ((PGSTB)_pgrpb)->CbExtra(), "bad cb in GST/AST");
-            ((PGSTB)_pgrpb)->PutExtra(iv, pv);
+            Assert(cb == ((PVirtualStringTable)_pgrpb)->CbExtra(), "bad cb in StringTable_GST/AllocatedStringTable");
+            ((PVirtualStringTable)_pgrpb)->PutExtra(iv, pv);
         }
         break;
     default:
@@ -1474,7 +1474,7 @@ bool DOCI::_FWrite(long iv)
 }
 
 /***************************************************************************
-    Read the data from the GRPB and return it in an hq.  Also set the
+    Read the data from the GroupBase and return it in an hq.  Also set the
     _fFixed flag (which indicates if the data is fixed length).
 ***************************************************************************/
 HQ DOCI::_HqRead(void)
@@ -1482,35 +1482,35 @@ HQ DOCI::_HqRead(void)
     long cb;
     HQ hq;
     void *pv;
-    STN stn;
+    String stn;
 
     _fFixed = fTrue;
     switch (_cls)
     {
-    case kclsGL:
-    case kclsAL:
-        cb = ((PGLB)_pgrpb)->CbEntry();
+    case kclsDynamicArray:
+    case kclsAllocatedArray:
+        cb = ((PVirtualArray)_pgrpb)->CbEntry();
         break;
-    case kclsGG:
-    case kclsAG:
+    case kclsGeneralGroup:
+    case kclsAllocatedGroup:
         if (_dln == 0)
         {
-            cb = ((PGGB)_pgrpb)->Cb(_iv);
+            cb = ((PVirtualGroup)_pgrpb)->Cb(_iv);
             _fFixed = fFalse;
         }
         else
-            cb = ((PGGB)_pgrpb)->CbFixed();
+            cb = ((PVirtualGroup)_pgrpb)->CbFixed();
         break;
-    case kclsGST:
-    case kclsAST:
+    case kclsStringTable_GST:
+    case kclsAllocatedStringTable:
         if (_dln == 0)
         {
-            ((PGSTB)_pgrpb)->GetStn(_iv, &stn);
+            ((PVirtualStringTable)_pgrpb)->GetStn(_iv, &stn);
             cb = stn.Cch() * size(achar);
             _fFixed = fFalse;
         }
         else
-            cb = ((PGSTB)_pgrpb)->CbExtra();
+            cb = ((PVirtualStringTable)_pgrpb)->CbExtra();
         break;
     default:
         BugVar("bad cls value", &_cls);
@@ -1523,23 +1523,23 @@ HQ DOCI::_HqRead(void)
 
     switch (_cls)
     {
-    case kclsGL:
-    case kclsAL:
-        ((PGLB)_pgrpb)->Get(_iv, pv);
+    case kclsDynamicArray:
+    case kclsAllocatedArray:
+        ((PVirtualArray)_pgrpb)->Get(_iv, pv);
         break;
-    case kclsGG:
-    case kclsAG:
+    case kclsGeneralGroup:
+    case kclsAllocatedGroup:
         if (_dln == 0)
-            ((PGGB)_pgrpb)->Get(_iv, pv);
+            ((PVirtualGroup)_pgrpb)->Get(_iv, pv);
         else
-            ((PGGB)_pgrpb)->GetFixed(_iv, pv);
+            ((PVirtualGroup)_pgrpb)->GetFixed(_iv, pv);
         break;
-    case kclsGST:
-    case kclsAST:
+    case kclsStringTable_GST:
+    case kclsAllocatedStringTable:
         if (_dln == 0)
             CopyPb(stn.Prgch(), pv, stn.Cch() * size(achar));
         else
-            ((PGSTB)_pgrpb)->GetExtra(_iv, pv);
+            ((PVirtualStringTable)_pgrpb)->GetExtra(_iv, pv);
         break;
     }
     UnlockHq(hq);

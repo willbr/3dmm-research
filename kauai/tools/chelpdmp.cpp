@@ -22,11 +22,11 @@ ASSERTNAME
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     schar chs;
-    STN stn;
-    FNI fni;
-    PFIL pfil = pvNil;
+    String stn;
+    Filename fni;
+    PFileObject pfil = pvNil;
     PMSNK pmsnk = pvNil;
-    PCFL pcflSrc = pvNil;
+    PChunkyFile pcflSrc = pvNil;
 
 #ifdef UNICODE
     fprintf(stderr,
@@ -53,7 +53,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
                 fprintf(stderr, "Error: Bad file name: %s\n\n", *prgpszs);
                 goto LUsage;
             }
-            if (pvNil == (pcflSrc = CFL::PcflOpen(&fni, fcflNil)))
+            if (pvNil == (pcflSrc = ChunkyFile::PcflOpen(&fni, fcflNil)))
             {
                 fprintf(stderr, "Error: Couldn't open %s\n\n", *prgpszs);
                 goto LUsage;
@@ -81,15 +81,15 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
 
     if (fni.Ftg() == ftgNil)
-        pmsnk = NewObj MSSIO(stdout);
+        pmsnk = NewObj MessageSinkIO(stdout);
     else
     {
-        if (pvNil == (pfil = FIL::PfilCreate(&fni)))
+        if (pvNil == (pfil = FileObject::PfilCreate(&fni)))
         {
             fprintf(stderr, "Couldn't create destination file");
             goto LFail;
         }
-        pmsnk = NewObj MSFIL(pfil);
+        pmsnk = NewObj MessageSinkFile(pfil);
     }
 
     if (pvNil == pmsnk)
@@ -105,7 +105,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LFail;
     }
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -115,7 +115,7 @@ LUsage:
 LFail:
     if (pvNil != pfil)
         pfil->SetTemp();
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 

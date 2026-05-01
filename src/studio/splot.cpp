@@ -12,46 +12,46 @@
 #include "studio.h"
 ASSERTNAME
 
-RTCLASS(SPLOT)
+RTCLASS(SplotMachine)
 
-BEGIN_CMD_MAP(SPLOT, GOK)
-ON_CID_GEN(cidSplotInit, &SPLOT::FCmdInit, pvNil)
-ON_CID_GEN(cidSplotDo, &SPLOT::FCmdSplot, pvNil)
-ON_CID_GEN(cidSplotUpdate, &SPLOT::FCmdUpdate, pvNil)
-ON_CID_GEN(cidSplotOk, &SPLOT::FCmdDismiss, pvNil)
-ON_CID_GEN(cidSplotCancel, &SPLOT::FCmdDismiss, pvNil)
+BEGIN_CMD_MAP(SplotMachine, KidspaceGraphicObject)
+ON_CID_GEN(cidSplotInit, &SplotMachine::FCmdInit, pvNil)
+ON_CID_GEN(cidSplotDo, &SplotMachine::FCmdSplot, pvNil)
+ON_CID_GEN(cidSplotUpdate, &SplotMachine::FCmdUpdate, pvNil)
+ON_CID_GEN(cidSplotOk, &SplotMachine::FCmdDismiss, pvNil)
+ON_CID_GEN(cidSplotCancel, &SplotMachine::FCmdDismiss, pvNil)
 END_CMD_MAP_NIL()
 
 /******************************************************************************
     PsplotNew
-        Creates a new SPLOT instance.
+        Creates a new SplotMachine instance.
 
-    Returns: pvNil on failure, pointer to SPLOT on success
+    Returns: pvNil on failure, pointer to SplotMachine on success
 
 ************************************************************ PETED ***********/
-PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
+PSplotMachine SplotMachine::PsplotNew(long hidPar, long hid, PResourceCache prca)
 {
-    PSPLOT psplot = pvNil;
-    PGL pglclr = pvNil;
-    PGOB pgobPar;
+    PSplotMachine psplot = pvNil;
+    PDynamicArray pglclr = pvNil;
+    PGraphicsObject pgobPar;
     RC rcRel;
-    GCB gcb;
-    CLOK clok(CMH::HidUnique());
+    GraphicsObjectBlock gcb;
+    Clock clok(CommandHandler::HidUnique());
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(hidPar)) == pvNil)
     {
-        Bug("Couldn't find background GOB");
+        Bug("Couldn't find background GraphicsObject");
         goto LFail;
     }
 
-    pglclr = GPT::PglclrGetPalette();
+    pglclr = GraphicsPort::PglclrGetPalette();
     if (pglclr == pvNil)
         goto LFail;
 
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);
 
-    if ((psplot = NewObj SPLOT(&gcb)) == pvNil)
+    if ((psplot = NewObj SplotMachine(&gcb)) == pvNil)
         goto LFail;
 
     if (!psplot->_FInit(vpapp->Pkwa(), hid, prca))
@@ -61,7 +61,7 @@ PSPLOT SPLOT::PsplotNew(long hidPar, long hid, PRCA prca)
     }
     if (!psplot->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         goto LFail;
     }
 
@@ -77,39 +77,39 @@ LFail:
 /******************************************************************************
     FCmdInit
         Initializes the splot machine; right now, just sets up the movie
-        and MVU for the splot machine, inside the given GOK parent.  In the
+        and MovieView for the splot machine, inside the given KidspaceGraphicObject parent.  In the
         future, perhaps the content data structures can be inited here, and
         only updated if we fail loading something (which would indicate that
         the user removed a CD or something during the splot machine).
 
     Arguments:
-        PCMD pcmd
+        PCommand pcmd
             rglw[0]  --  the kid of the parent frame to show the movie in
 
     Returns:  fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdInit(PCMD pcmd)
+bool SplotMachine::FCmdInit(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_pmvie == pvNil, "Already Inited the Splot Machine");
 
-    PMCC pmcc = pvNil;
-    PGOB pgobParent;
+    PMovieClientCallbacks pmcc = pvNil;
+    PGraphicsObject pgobParent;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if ((pgobParent = vpapp->Pkwa()->PgobFromHid(pcmd->rglw[0])) == pvNil)
     {
-        Bug("Parent GOB for view doesn't exist");
+        Bug("Parent GraphicsObject for view doesn't exist");
         goto LFail;
     }
 
-    pmcc = NewObj MCC(kdxpWorkspace, kdypWorkspace, kcbStudioCache);
+    pmcc = NewObj MovieClientCallbacks(kdxpWorkspace, kdypWorkspace, kcbStudioCache);
     if (pmcc == pvNil)
         goto LFail;
 
-    if ((_pmvie = MVIE::PmvieNew(vpapp->FSlowCPU(), pmcc)) == pvNil)
+    if ((_pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), pmcc)) == pvNil)
         goto LFail;
 
     _pmvie->SetFSoundsEnabled(fTrue);
@@ -134,7 +134,7 @@ LFail:
         anyway, so it's cleaner to just always do it here.
 
     Arguments:
-        PCMD pcmd
+        PCommand pcmd
             rglw[0]  --  1 if the background should be randomized
             rglw[1]  --  1 if the camera should be
             rglw[2]  --  1 if the actors/props should be
@@ -143,13 +143,13 @@ LFail:
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdSplot(PCMD pcmd)
+bool SplotMachine::FCmdSplot(PCommand pcmd)
 {
     AssertThis(0);
 
     bool fDirty = fFalse;
-    CKI cki;
-    THD thd;
+    ChunkIdentification cki;
+    ThumbnailDescriptor thd;
 
     vapp.BeginLongOp();
 
@@ -161,7 +161,7 @@ bool SPLOT::FCmdSplot(PCMD pcmd)
     {
         cki.ctg = kctgBkth;
         cki.cno = cnoNil;
-        _pbclBkgd = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclBkgd = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclBkgd == pvNil || _pbclBkgd->IthdMac() == 0)
         {
             ReleasePpo(&_pbclBkgd);
@@ -187,7 +187,7 @@ bool SPLOT::FCmdSplot(PCMD pcmd)
         _pbclBkgd->GetThd(_ithdBkgd, &thd);
         cki.ctg = kctgBkth;
         cki.cno = thd.tag.cno;
-        _pbclCam = BCL::PbclNew(pvNil, &cki, kctgCath, pvNil, fTrue);
+        _pbclCam = BrowserContentList::PbclNew(pvNil, &cki, kctgCath, pvNil, fTrue);
         if (_pbclCam == pvNil || _pbclCam->IthdMac() == 0)
         {
             ReleasePpo(&_pbclCam);
@@ -207,7 +207,7 @@ bool SPLOT::FCmdSplot(PCMD pcmd)
     {
         cki.ctg = kctgTmth;
         cki.cno = cnoNil;
-        _pbclActr = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclActr = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclActr == pvNil || _pbclActr->IthdMac() == 0)
         {
             ReleasePpo(&_pbclActr);
@@ -219,7 +219,7 @@ bool SPLOT::FCmdSplot(PCMD pcmd)
     {
         cki.ctg = kctgPrth;
         cki.cno = cnoNil;
-        _pbclProp = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclProp = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclProp == pvNil || _pbclProp->IthdMac() == 0)
         {
             ReleasePpo(&_pbclProp);
@@ -239,7 +239,7 @@ bool SPLOT::FCmdSplot(PCMD pcmd)
     {
         cki.ctg = kctgSmth;
         cki.cno = cnoNil;
-        _pbclSound = BCL::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
+        _pbclSound = BrowserContentList::PbclNew(pvNil, &cki, ctgNil, pvNil, fTrue);
         if (_pbclSound == pvNil || _pbclSound->IthdMac() == 0)
         {
             ReleasePpo(&_pbclSound);
@@ -265,18 +265,18 @@ LFail:
         Show the new movie on the screen.
 
     Arguments:
-        PCMD pcmd  --  no additional parameters
+        PCommand pcmd  --  no additional parameters
 
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdUpdate(PCMD pcmd)
+bool SplotMachine::FCmdUpdate(PCommand pcmd)
 {
     AssertThis(0);
 
     if (_fDirty)
     {
-        THD thd;
+        ThumbnailDescriptor thd;
         TAG tagCam, tagBkgd;
 
         vapp.BeginLongOp();
@@ -309,7 +309,7 @@ bool SPLOT::FCmdUpdate(PCMD pcmd)
         /* Still need to ensure on HD though */
         _pbclBkgd->GetThd(_ithdBkgd, &thd);
         Assert(thd.tag.sid != ksidUseCrf, "Need to open tag before using it");
-        if (!BKGD::FCacheToHD(&thd.tag))
+        if (!Background::FCacheToHD(&thd.tag))
             goto LFail;
         if (!_pmvie->FAddScen(&thd.tag))
             goto LFail;
@@ -364,12 +364,12 @@ LFail:
         Okays or Cancels the Splot Machine.
 
     Arguments:
-        PCMD pcmd  --  no additional parameters
+        PCommand pcmd  --  no additional parameters
 
     Returns: fTrue, always handles the cid
 
 ************************************************************ PETED ***********/
-bool SPLOT::FCmdDismiss(PCMD pcmd)
+bool SplotMachine::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -396,13 +396,13 @@ bool SPLOT::FCmdDismiss(PCMD pcmd)
     return fTrue;
 }
 
-SPLOT::~SPLOT(void)
+SplotMachine::~SplotMachine(void)
 {
     if (_pmvie != pvNil)
     {
         /* This should be freed when its parent, the Splot Machine View gob, is
             freed */
-        Assert(_pmvie->PddgGet(0) == pvNil, "MVU wasn't freed");
+        Assert(_pmvie->PddgGet(0) == pvNil, "MovieView wasn't freed");
 
         _pmvie->Pmsq()->StopAll();
         _pmvie->Pmsq()->SndOnShort();
@@ -411,7 +411,7 @@ SPLOT::~SPLOT(void)
     if (_pglclrSav != pvNil)
     {
         vapp.UpdateMarked();
-        GPT::SetActiveColors(_pglclrSav, fpalIdentity);
+        GraphicsPort::SetActiveColors(_pglclrSav, fpalIdentity);
         ReleasePpo(&_pglclrSav);
     }
 
@@ -424,9 +424,9 @@ SPLOT::~SPLOT(void)
 }
 
 #ifdef DEBUG
-void SPLOT::AssertValid(ulong grf)
+void SplotMachine::AssertValid(ulong grf)
 {
-    SPLOT_PAR::AssertValid(grf);
+    SplotMachine_PAR::AssertValid(grf);
     AssertPo(_pglclrSav, 0);
 
     AssertNilOrPo(_pmvie, 0);
@@ -437,9 +437,9 @@ void SPLOT::AssertValid(ulong grf)
     AssertNilOrPo(_pbclSound, 0);
 }
 
-void SPLOT::MarkMem(void)
+void SplotMachine::MarkMem(void)
 {
-    SPLOT_PAR::MarkMem();
+    SplotMachine_PAR::MarkMem();
     MarkMemObj(_pglclrSav);
     MarkMemObj(_pmvie);
     MarkMemObj(_pbclBkgd);

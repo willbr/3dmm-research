@@ -26,7 +26,7 @@ enum
     fgobUseVis = 8,     // for DrawTree
 };
 
-// GOB invalidation types
+// GraphicsObject invalidation types
 enum
 {
     ginNil,
@@ -40,11 +40,11 @@ const long krelOne = 0x00010000L; // denominator for relative rectangles
 const long krelZero = 0;
 
 #ifdef MAC
-inline void GetClientRect(HWND hwnd, RCS *prcs)
+inline void GetClientRect(HWND hwnd, SystemRectangle *prcs)
 {
     *prcs = hwnd->port.portRect;
 }
-inline void InvalHwndRcs(HWND hwnd, RCS *prcs)
+inline void InvalHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     PPRT pprt;
 
@@ -53,7 +53,7 @@ inline void InvalHwndRcs(HWND hwnd, RCS *prcs)
     InvalRect(prcs);
     SetPort(pprt);
 }
-inline void ValidHwndRcs(HWND hwnd, RCS *prcs)
+inline void ValidHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     PPRT pprt;
 
@@ -64,11 +64,11 @@ inline void ValidHwndRcs(HWND hwnd, RCS *prcs)
 }
 #endif // MAC
 #ifdef WIN
-inline void InvalHwndRcs(HWND hwnd, RCS *prcs)
+inline void InvalHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     InvalidateRect(hwnd, prcs, fFalse);
 }
-inline void ValidHwndRcs(HWND hwnd, RCS *prcs)
+inline void ValidHwndRcs(HWND hwnd, SystemRectangle *prcs)
 {
     ValidateRect(hwnd, prcs);
 }
@@ -86,49 +86,49 @@ enum
 };
 
 /****************************************
-    GOB creation block
+    GraphicsObject creation block
 ****************************************/
-struct GCB
+struct GraphicsObjectBlock
 {
     long _hid;
-    PGOB _pgob;
+    PGraphicsObject _pgob;
     ulong _grfgob;
     long _gin;
     RC _rcAbs;
     RC _rcRel;
 
-    GCB(void)
+    GraphicsObjectBlock(void)
     {
     }
-    GCB(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil, RC *prcRel = pvNil)
+    GraphicsObjectBlock(long hid, PGraphicsObject pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil, RC *prcRel = pvNil)
     {
         Set(hid, pgob, grfgob, gin, prcAbs, prcRel);
     }
-    void Set(long hid, PGOB pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil,
+    void Set(long hid, PGraphicsObject pgob, ulong grfgob = fgobNil, long gin = kginDefault, RC *prcAbs = pvNil,
              RC *prcRel = pvNil);
 };
-typedef GCB *PGCB;
+typedef GraphicsObjectBlock *PGraphicsObjectBlock;
 
 /****************************************
     Graphics object
 ****************************************/
-#define GOB_PAR CMH
-#define kclsGOB 'GOB'
-class GOB : public GOB_PAR
+#define GraphicsObject_PAR CommandHandler
+#define kclsGraphicsObject 'GOB'
+class GraphicsObject : public GraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(GOB)
+    CMD_MAP_DEC(GraphicsObject)
     ASSERT
     MARKMEM
 
-    friend class GTE;
+    friend class GraphicsObjectTreeEnumerator;
 
   private:
-    static PGOB _pgobScreen;
+    static PGraphicsObject _pgobScreen;
 
     HWND _hwnd;   // the OS window (may be nil)
-    PGPT _pgpt;   // the graphics port (may be shared with _pgobPar)
-    PCURS _pcurs; // the cursor to show over this gob
+    PGraphicsPort _pgpt;   // the graphics port (may be shared with _pgobPar)
+    PCursor _pcurs; // the cursor to show over this gob
 
     RC _rcCur; // current position
     RC _rcVis; // current visible rectangle (in its parent)
@@ -136,12 +136,12 @@ class GOB : public GOB_PAR
     RC _rcRel; // gob in its parent.
 
     // tree management
-    PGOB _pgobPar;
-    PGOB _pgobChd;
-    PGOB _pgobSib;
+    PGraphicsObject _pgobPar;
+    PGraphicsObject _pgobChd;
+    PGraphicsObject _pgobSib;
 
     // variables
-    PGL _pglrtvm;
+    PDynamicArray _pglrtvm;
 
     void _SetRcCur(void);
     HWND _HwndGetDptFromCoo(PT *pdpt, long coo);
@@ -155,12 +155,12 @@ class GOB : public GOB_PAR
     long _fFreeing : 1;
     long _fCreating : 1;
 
-    ~GOB(void);
+    ~GraphicsObject(void);
 
-    static HWND _HwndNewMdi(PSTN pstnTitle);
+    static HWND _HwndNewMdi(PString pstnTitle);
     static void _DestroyHwnd(HWND hwnd);
 
-    void _Init(PGCB pgcb);
+    void _Init(PGraphicsObjectBlock pgcb);
     HWND _HwndGetRc(RC *prc);
     virtual void _NewRc(void)
     {
@@ -172,37 +172,37 @@ class GOB : public GOB_PAR
   public:
     static bool FInitScreen(ulong grfgob, long ginDef);
     static void ShutDown(void);
-    static PGOB PgobScreen(void)
+    static PGraphicsObject PgobScreen(void)
     {
         return _pgobScreen;
     }
-    static PGOB PgobFromHwnd(HWND hwnd);
-    static PGOB PgobFromClsScr(long cls);
-    static PGOB PgobFromHidScr(long hid);
+    static PGraphicsObject PgobFromHwnd(HWND hwnd);
+    static PGraphicsObject PgobFromClsScr(long cls);
+    static PGraphicsObject PgobFromHidScr(long hid);
     static void MakeHwndActive(HWND hwnd);
     static void ActivateHwnd(HWND hwnd, bool fActive);
     static HWND HwndMdiActive(void);
-    static PGOB PgobMdiActive(void);
-    static PGOB PgobFromPtGlobal(long xp, long yp, PT *pptLocal = pvNil);
+    static PGraphicsObject PgobMdiActive(void);
+    static PGraphicsObject PgobFromPtGlobal(long xp, long yp, PT *pptLocal = pvNil);
     static long GinDefault(void)
     {
         return _ginDefGob;
     }
 
-    GOB(GCB *pgcb);
-    GOB(long hid);
+    GraphicsObject(GraphicsObjectBlock *pgcb);
+    GraphicsObject(long hid);
     virtual void Release(void);
 
     // hwnd stuff
     bool FAttachHwnd(HWND hwnd);
-    bool FCreateAndAttachMdi(PSTN pstnTitle);
+    bool FCreateAndAttachMdi(PString pstnTitle);
     HWND Hwnd(void)
     {
         return _hwnd;
     }
     HWND HwndContainer(void);
     virtual void GetMinMax(RC *prcMinMax);
-    void SetHwndName(PSTN pstn);
+    void SetHwndName(PString pstn);
 
     // unique gob run-time id.
     long Grid(void)
@@ -211,29 +211,29 @@ class GOB : public GOB_PAR
     }
 
     // tree management
-    PGOB PgobPar(void)
+    PGraphicsObject PgobPar(void)
     {
         return _pgobPar;
     }
-    PGOB PgobFirstChild(void)
+    PGraphicsObject PgobFirstChild(void)
     {
         return _pgobChd;
     }
-    PGOB PgobLastChild(void);
-    PGOB PgobNextSib(void)
+    PGraphicsObject PgobLastChild(void);
+    PGraphicsObject PgobNextSib(void)
     {
         return _pgobSib;
     }
-    PGOB PgobPrevSib(void);
-    PGOB PgobFromCls(long cls);
-    PGOB PgobChildFromCls(long cls);
-    PGOB PgobParFromCls(long cls);
-    PGOB PgobFromHid(long hid);
-    PGOB PgobChildFromHid(long hid);
-    PGOB PgobParFromHid(long hid);
-    PGOB PgobFromGrid(long grid);
+    PGraphicsObject PgobPrevSib(void);
+    PGraphicsObject PgobFromCls(long cls);
+    PGraphicsObject PgobChildFromCls(long cls);
+    PGraphicsObject PgobParFromCls(long cls);
+    PGraphicsObject PgobFromHid(long hid);
+    PGraphicsObject PgobChildFromHid(long hid);
+    PGraphicsObject PgobParFromHid(long hid);
+    PGraphicsObject PgobFromGrid(long grid);
     void BringToFront(void);
-    void SendBehind(PGOB pgobBefore);
+    void SendBehind(PGraphicsObject pgobBefore);
 
     // rectangle management
     void SetPos(RC *prcAbs, RC *prcRel = pvNil);
@@ -247,9 +247,9 @@ class GOB : public GOB_PAR
     void MapRc(RC *prc, long cooSrc, long cooDst);
 
     // variables
-    virtual PGL *Ppglrtvm(void);
+    virtual PDynamicArray *Ppglrtvm(void);
 
-    PGPT Pgpt(void)
+    PGraphicsPort Pgpt(void)
     {
         return _pgpt;
     }
@@ -259,53 +259,53 @@ class GOB : public GOB_PAR
     void Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1 = pvNil, RC *prcBad2 = pvNil);
 
     virtual void Clean(void);
-    virtual void DrawTree(PGPT pgpt, RC *prc, RC *prcUpdate, ulong grfgob);
-    virtual void DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void DrawTree(PGraphicsPort pgpt, RC *prc, RC *prcUpdate, ulong grfgob);
+    virtual void DrawTreeRgn(PGraphicsPort pgpt, RC *prc, Region *pregn, ulong grfgob);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 
     // mouse handling and hit testing
     void GetPtMouse(PT *ppt, bool *pfDown);
-    virtual PGOB PgobFromPt(long xp, long yp, PT *pptLocal = pvNil);
+    virtual PGraphicsObject PgobFromPt(long xp, long yp, PT *pptLocal = pvNil);
     virtual bool FPtIn(long xp, long yp);
     virtual bool FPtInBounds(long xp, long yp);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual long ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpLim, long zpMinActive, long zpLimActive);
-    void SetCurs(PCURS pcurs);
-    void SetCursCno(PRCA prca, CNO cno);
+    void SetCurs(PCursor pcurs);
+    void SetCursCno(PResourceCache prca, ChunkNumber cno);
 
 #ifdef MAC
     virtual void TrackGrow(PEVT pevt);
 #endif // MAC
 
     // command functions
-    virtual bool FCmdCloseWnd(PCMD pcmd);
+    virtual bool FCmdCloseWnd(PCommand pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
-    bool FCmdTrackMouseCore(PCMD pcmd)
+    bool FCmdTrackMouseCore(PCommand pcmd)
     {
         return FCmdTrackMouse((PCMD_MOUSE)pcmd);
     }
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
-    bool FCmdMouseMoveCore(PCMD pcmd)
+    bool FCmdMouseMoveCore(PCommand pcmd)
     {
         return FCmdMouseMove((PCMD_MOUSE)pcmd);
     }
 
     // key commands
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    bool FCmdKeyCore(PCMD pcmd)
+    bool FCmdKeyCore(PCommand pcmd)
     {
         return FCmdKey((PCMD_KEY)pcmd);
     }
     virtual bool FCmdBadKey(PCMD_BADKEY pcmd);
-    bool FCmdBadKeyCore(PCMD pcmd)
+    bool FCmdBadKeyCore(PCommand pcmd)
     {
         return FCmdBadKey((PCMD_BADKEY)pcmd);
     }
-    virtual bool FCmdSelIdle(PCMD pcmd);
-    virtual bool FCmdActivateSel(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
+    virtual bool FCmdActivateSel(PCommand pcmd);
 
     // tool tips
-    virtual bool FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse);
+    virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
 
     // gob state (for automated testing)
     virtual long LwState(void);
@@ -331,9 +331,9 @@ enum
     fgteRoot = 0x0040
 };
 
-#define GTE_PAR BASE
-#define kclsGTE 'GTE'
-class GTE : public GTE_PAR
+#define GraphicsObjectTreeEnumerator_PAR BASE
+#define kclsGraphicsObjectTreeEnumerator 'GTE'
+class GraphicsObjectTreeEnumerator : public GraphicsObjectTreeEnumerator_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -350,13 +350,13 @@ class GTE : public GTE_PAR
 
     long _es;
     bool _fBackWards; // which way to walk sibling lists
-    PGOB _pgobRoot;
-    PGOB _pgobCur;
+    PGraphicsObject _pgobRoot;
+    PGraphicsObject _pgobCur;
 
   public:
-    GTE(void);
-    void Init(PGOB pgob, ulong grfgte);
-    bool FNextGob(PGOB *ppgob, ulong *pgrfgteOut, ulong grfgteIn);
+    GraphicsObjectTreeEnumerator(void);
+    void Init(PGraphicsObject pgob, ulong grfgte);
+    bool FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgteIn);
 };
 
 #endif //! GOB_H

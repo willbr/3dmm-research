@@ -38,10 +38,10 @@ enum
 /***************************************************************************
     Audioman sound device class.
 ***************************************************************************/
-typedef class SDAM *PSDAM;
-#define SDAM_PAR SNDMQ
-#define kclsSDAM 'SDAM'
-class SDAM : public SDAM_PAR
+typedef class AudioManSoundDevice *PAudioManSoundDevice;
+#define AudioManSoundDevice_PAR SoundManagerQueue
+#define kclsAudioManSoundDevice 'SDAM'
+class AudioManSoundDevice : public AudioManSoundDevice_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -51,18 +51,18 @@ class SDAM : public SDAM_PAR
     long _vlm;
     bool _fAudioManInited : 1;
 
-    SDAM(void);
+    AudioManSoundDevice(void);
     virtual bool _FInit(long wav);
 
     // inherited methods
-    virtual PSNQUE _PsnqueNew(void);
+    virtual PSoundQueue _PsnqueNew(void);
     virtual void _Suspend(bool fSuspend);
 
   public:
     static long vcbMaxMemWave;
 
-    static PSDAM PsdamNew(long wav);
-    ~SDAM(void);
+    static PAudioManSoundDevice PsdamNew(long wav);
+    ~AudioManSoundDevice(void);
 
     virtual void SetVlm(long vlm);
     virtual long VlmCur(void);

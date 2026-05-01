@@ -16,11 +16,16 @@
 #ifndef UTIL_H
 #define UTIL_H
 #include <stddef.h>
+#ifdef DEBUG
+#include <stdio.h>
+#endif // DEBUG
 
 // define the endian-ness
-#ifdef IN_80386
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define LITTLE_ENDIAN
-#endif // IN_80386
+#elif defined(_M_IX86) || defined(_M_AMD64) || defined(_M_ARM) || defined(_M_ARM64)
+#define LITTLE_ENDIAN
+#endif
 
 #ifdef LITTLE_ENDIAN
 #define BigLittle(a, b) b
@@ -44,12 +49,12 @@
 #define _UNICODE
 #endif // UNICODE
 
-// windef.h typedef's PSZ to char *, this fools it into using PSZS instead
-#define PSZ PSZS
+// windef.h typedef's PZString to char *, this fools it into using PSZS instead
+#define PZString PSZS
 #include <windows.h>
 #include <windowsx.h>
 #include <vfw.h>
-#undef PSZ
+#undef PZString
 
 #define MIR(foo) MAKEINTRESOURCE(foo)
 typedef HBITMAP HBMP;
@@ -124,18 +129,36 @@ const achar kchMin = kschMin;
 #define ChLit(ch) ch
 #endif //! UNICODE
 
-typedef class GRPB *PGRPB;
-typedef class GLB *PGLB;
-typedef class GL *PGL;
-typedef class AL *PAL;
-typedef class GGB *PGGB;
-typedef class GG *PGG;
-typedef class AG *PAG;
-typedef class GSTB *PGSTB;
-typedef class GST *PGST;
-typedef class AST *PAST;
-typedef class SCPT *PSCPT;
-typedef class BLCK *PBLCK;
+namespace Group {
+   class GroupBase;
+   class VirtualArray;
+   class DynamicArray;
+   class AllocatedArray;
+   typedef class GroupBase *PGroupBase;
+   typedef class VirtualArray *PVirtualArray;
+   typedef class DynamicArray *PDynamicArray;
+   typedef class AllocatedArray *PAllocatedArray;
+
+   class VirtualGroup;
+   class GeneralGroup;
+   class AllocatedGroup;
+   typedef class VirtualGroup *PVirtualGroup;
+   typedef class GeneralGroup *PGeneralGroup;
+   typedef class AllocatedGroup *PAllocatedGroup;
+
+   class VirtualStringTable;
+   class StringTable_GST;
+   class AllocatedStringTable;
+   typedef class VirtualStringTable *PVirtualStringTable;
+   typedef class StringTable_GST *PStringTable_GST;
+   typedef class AllocatedStringTable *PAllocatedStringTable;
+}
+
+namespace ScriptInterpreter{
+   class Script;
+   typedef class Script *PScript;
+}
+typedef class DataBlock *PDataBlock;
 
 #include "framedef.h"
 #include "debug.h"

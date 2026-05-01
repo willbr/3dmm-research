@@ -17,39 +17,39 @@
 #define TEXT_H
 
 // edit control parameters
-typedef class EDPAR *PEDPAR;
-class EDPAR
+typedef class EditParameter *PEditParameter;
+class EditParameter
 {
   public:
-    GCB _gcb;
+    GraphicsObjectBlock _gcb;
     long _onn;
     ulong _grfont;
     long _dypFont;
     long _tah;
     long _tav;
-    ACR _acrFore;
-    ACR _acrBack;
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
     long _cmhl;
 
-    EDPAR(void)
+    EditParameter(void)
     {
     }
-    EDPAR(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
-          long tah = tahLeft, long tav = tavTop, ACR acrFore = kacrBlack, ACR acrBack = kacrWhite, long cmhl = 0);
+    EditParameter(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+          long tah = tahLeft, long tav = tavTop, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrWhite, long cmhl = 0);
 
-    void Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
-             long tah = tahLeft, long tav = tavTop, ACR acrFore = kacrBlack, ACR acrBack = kacrWhite, long cmhl = 0);
-    void SetFont(long onn, ulong grfont, long dypFont, long tah = tahLeft, long tav = tavTop, ACR acrFore = kacrBlack,
-                 ACR acrBack = kacrWhite);
+    void Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+             long tah = tahLeft, long tav = tavTop, AbstractColor acrFore = kacrBlack, AbstractColor acrBack = kacrWhite, long cmhl = 0);
+    void SetFont(long onn, ulong grfont, long dypFont, long tah = tahLeft, long tav = tavTop, AbstractColor acrFore = kacrBlack,
+                 AbstractColor acrBack = kacrWhite);
 };
 
 /***************************************************************************
     Edit control base class.
 ***************************************************************************/
-typedef class EDCB *PEDCB;
-#define EDCB_PAR GOB
-#define kclsEDCB 'EDCB'
-class EDCB : public EDCB_PAR
+typedef class EditControlBase *PEditControlBase;
+#define EditControlBase_PAR GraphicsObject
+#define kclsEditControlBase 'EDCB'
+class EditControlBase : public EditControlBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -60,7 +60,7 @@ class EDCB : public EDCB_PAR
     long _cmhl;
 
     // the selection
-    PGNV _pgnv;
+    PGraphicsEnvironment _pgnv;
     long _ichAnchor;
     long _ichOther;
     bool _fSelOn : 1;
@@ -76,7 +76,7 @@ class EDCB : public EDCB_PAR
     long _xp;
     long _yp;
 
-    EDCB(PGCB pgcb, long cmhl);
+    EditControlBase(PGraphicsObjectBlock pgcb, long cmhl);
 
     virtual bool _FInit(void);
 
@@ -89,13 +89,13 @@ class EDCB : public EDCB_PAR
     virtual long _LnFromYp(long yp) = 0;
     virtual long _IchFromLnXp(long ln, long xp, bool fClosest = fTrue) = 0;
     virtual long _LnMac(void) = 0;
-    virtual void _DrawLine(PGNV pgnv, long ln) = 0;
-    virtual void _HiliteRc(PGNV pgnv, RC *prc) = 0;
+    virtual void _DrawLine(PGraphicsEnvironment pgnv, long ln) = 0;
+    virtual void _HiliteRc(PGraphicsEnvironment pgnv, RC *prc) = 0;
     virtual bool _FFilterCh(achar ch) = 0;
 
     void _SwitchSel(bool fOn, long gin = kginDraw);
-    void _InvertSel(PGNV pgnv, long gin = kginDraw);
-    void _InvertIchRange(PGNV pgnv, long ich1, long ich2, long gin = kginDraw);
+    void _InvertSel(PGraphicsEnvironment pgnv, long gin = kginDraw);
+    void _InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long gin = kginDraw);
     void _Scroll(long dxp, long dyp, long gin = kginDraw);
     void _UpdateLn(long ln, long clnIns, long dlnDel, long dypDel, long gin = kginDraw);
     long _IchPrev(long ich, bool fWord = fFalse);
@@ -105,16 +105,16 @@ class EDCB : public EDCB_PAR
     virtual void _NewRc(void);
 
     virtual void _GetRcContent(RC *prc);
-    virtual void _InitGnv(PGNV pgnv);
+    virtual void _InitGnv(PGraphicsEnvironment pgnv);
 
   public:
-    ~EDCB(void);
+    ~EditControlBase(void);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    virtual bool FCmdSelIdle(PCMD pcmd);
-    virtual bool FCmdActivateSel(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
+    virtual bool FCmdActivateSel(PCommand pcmd);
     virtual void Activate(bool fActive);
 
     long IchAnchor(void)
@@ -137,10 +137,10 @@ class EDCB : public EDCB_PAR
     Plain edit control - virtual class supporting single line and multi
     line edit controls with a single font.
 ***************************************************************************/
-typedef class EDPL *PEDPL;
-#define EDPL_PAR EDCB
-#define kclsEDPL 'EDPL'
-class EDPL : public EDPL_PAR
+typedef class EditControlPlain *PEditControlPlain;
+#define EditControlPlain_PAR EditControlBase
+#define kclsEditControlPlain 'EDPL'
+class EditControlPlain : public EditControlPlain_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -152,20 +152,20 @@ class EDPL : public EDPL_PAR
     long _dypFont;
     long _tah;
     long _tav;
-    ACR _acrFore;
-    ACR _acrBack;
+    AbstractColor _acrFore;
+    AbstractColor _acrBack;
     long _dypLine;
 
-    EDPL(PEDPAR pedpar);
+    EditControlPlain(PEditParameter pedpar);
 
-    // methods of EDCB
+    // methods of EditControlBase
     virtual bool _FInit(void);
     virtual long _XpFromIch(long ich);
     virtual long _YpFromLn(long ln);
     virtual long _LnFromYp(long yp);
     virtual long _IchFromLnXp(long ln, long xp, bool fClosest = fTrue);
-    virtual void _DrawLine(PGNV pgnv, long ln);
-    virtual void _HiliteRc(PGNV pgnv, RC *prc);
+    virtual void _DrawLine(PGraphicsEnvironment pgnv, long ln);
+    virtual void _HiliteRc(PGraphicsEnvironment pgnv, RC *prc);
 
     long _XpOrigin(void);
     virtual bool _FLockLn(long ln, achar **pprgch, long *pcch) = 0;
@@ -177,10 +177,10 @@ class EDPL : public EDPL_PAR
 ***************************************************************************/
 const long kcchMaxEdsl = kcchMaxStn;
 
-typedef class EDSL *PEDSL;
-#define EDSL_PAR EDPL
-#define kclsEDSL 'EDSL'
-class EDSL : public EDSL_PAR
+typedef class EditControlSingleLine *PEditControlSingleLine;
+#define EditControlSingleLine_PAR EditControlPlain
+#define kclsEditControlSingleLine 'EDSL'
+class EditControlSingleLine : public EditControlSingleLine_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -190,37 +190,37 @@ class EDSL : public EDSL_PAR
     long _cch;
     achar _rgch[kcchMaxEdsl];
 
-    EDSL(PEDPAR pedpar);
+    EditControlSingleLine(PEditParameter pedpar);
 
-    // methods of EDCB
+    // methods of EditControlBase
     virtual long _LnFromIch(long ich);
     virtual long _IchMinLn(long ln);
     virtual long _LnMac(void);
     virtual bool _FFilterCh(achar ch);
 
-    // methods of EDPL
+    // methods of EditControlPlain
     virtual bool _FLockLn(long ln, achar **pprgch, long *pcch);
     virtual void _UnlockLn(long ln, achar *prgch);
 
   public:
-    static PEDSL PedslNew(PEDPAR pedpar);
+    static PEditControlSingleLine PedslNew(PEditParameter pedpar);
 
     virtual long IchMac(void);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin = kginDraw);
     virtual long CchFetch(achar *prgch, long ich, long cchWant);
 
     // additional text APIs
-    void GetStn(PSTN pstn);
-    void SetStn(PSTN pstn, long gin = kginDraw);
+    void GetStn(PString pstn);
+    void SetStn(PString pstn, long gin = kginDraw);
 };
 
 /***************************************************************************
     Multi line edit control.
 ***************************************************************************/
-typedef class EDML *PEDML;
-#define EDML_PAR EDPL
-#define kclsEDML 'EDML'
-class EDML : public EDML_PAR
+typedef class EditControlMultiLine *PEditControlMultiLine;
+#define EditControlMultiLine_PAR EditControlPlain
+#define kclsEditControlMultiLine 'EDML'
+class EditControlMultiLine : public EditControlMultiLine_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -228,19 +228,19 @@ class EDML : public EDML_PAR
 
   protected:
     // the text
-    BSM _bsm;
-    PGL _pglich;
+    MemoryByteStream _bsm;
+    PDynamicArray _pglich;
 
-    EDML(PEDPAR pedpar);
+    EditControlMultiLine(PEditParameter pedpar);
 
-    // methods of EDCB
+    // methods of EditControlBase
     virtual bool _FInit(void);
     virtual long _LnFromIch(long ich);
     virtual long _IchMinLn(long ln);
     virtual long _LnMac(void);
     virtual bool _FFilterCh(achar ch);
 
-    // methods of EDPL
+    // methods of EditControlPlain
     virtual bool _FLockLn(long ln, achar **pprgch, long *pcch);
     virtual void _UnlockLn(long ln, achar *prgch);
 
@@ -249,8 +249,8 @@ class EDML : public EDML_PAR
     virtual bool _FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel);
 
   public:
-    static PEDML PedmlNew(PEDPAR pedpar);
-    ~EDML(void);
+    static PEditControlMultiLine PedmlNew(PEditParameter pedpar);
+    ~EditControlMultiLine(void);
 
     virtual long IchMac(void);
     virtual bool FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin = kginDraw);
@@ -260,17 +260,17 @@ class EDML : public EDML_PAR
 /***************************************************************************
     Multi line wrapping edit control.
 ***************************************************************************/
-typedef class EDMW *PEDMW;
-#define EDMW_PAR EDML
-#define kclsEDMW 'EDMW'
-class EDMW : public EDMW_PAR
+typedef class EditControlMultiLineWrap *PEditControlMultiLineWrap;
+#define EditControlMultiLineWrap_PAR EditControlMultiLine
+#define kclsEditControlMultiLineWrap 'EDMW'
+class EditControlMultiLineWrap : public EditControlMultiLineWrap_PAR
 {
     RTCLASS_DEC
 
   protected:
-    EDMW(PEDPAR pedpar);
+    EditControlMultiLineWrap(PEditParameter pedpar);
 
-    // methods EDMW
+    // methods EditControlMultiLineWrap
     virtual long _ClnEstimate(achar *prgch, long cch);
     virtual long _LnReformat(long lnMin, long *pclnDel, long *pclnIns);
 
@@ -278,7 +278,7 @@ class EDMW : public EDMW_PAR
     virtual void _NewRc(void);
 
   public:
-    static PEDMW PedmwNew(PEDPAR pedpar);
+    static PEditControlMultiLineWrap PedmwNew(PEditParameter pedpar);
 };
 
 #endif //! TEXT_H

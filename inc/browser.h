@@ -9,19 +9,19 @@
     Review Status: Reviewed
 
     Studio Independent Browsers:
-    BASE --> CMH --> GOK	-->	BRWD  (Browser display class)
-    BRWD --> BRWL  (Browser list class; chunky based)
-    BRWD --> BRWT  (Browser text class)
-    BRWD --> BRWL --> BRWN  (Browser named list class)
+    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
+    BrowserDisplay --> BrowserList  (Browser list class; chunky based)
+    BrowserDisplay --> BrowserText  (Browser text class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
-    BRWD --> BRWR  (Roll call class)
-    BRWD --> BRWT --> BRWA  (Browser action class)
-    BRWD --> BRWL --> BRWP	(Browser prop/actor class)
-    BRWD --> BRWL --> BRWB	(Browser background class)
-    BRWD --> BRWL --> BRWC	(Browser camera class)
-    BRWD --> BRWL --> BRWN --> BRWM (Browser music class)
-    BRWD --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserRollCall  (Roll call class)
+    BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
+    BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
+    BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BrowserImportSound (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -48,17 +48,17 @@ const auto kBrwsScript = (kstDefault << 16) | kchidBrowserDismiss;
     of the same browser
 
 *************************************/
-#define BRCN_PAR BASE
-#define kclsBRCN 'BRCN'
-typedef class BRCN *PBRCN;
-class BRCN : public BRCN_PAR
+#define BrowserContext_PAR BASE
+#define kclsBrowserContext 'BRCN'
+typedef class BrowserContext *PBrowserContext;
+class BrowserContext : public BrowserContext_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    BRCN(void){};
+    BrowserContext(void){};
 
   public:
     long brwdid;
@@ -70,15 +70,15 @@ class BRCN : public BRCN_PAR
    Browser ThumbFile Cki Struct
 
 *************************************/
-struct TFC
+struct BrowserThumbEntry
 {
     short bo;
     short osk;
     union {
         struct
         {
-            CTG ctg;
-            CNO cno;
+            ChunkTagOrType ctg;
+            ChunkNumber cno;
         };
         struct
         {
@@ -87,28 +87,28 @@ struct TFC
         };
         struct
         {
-            CTG ctg;
-            CHID chid;
+            ChunkTagOrType ctg;
+            ChildChunkID chid;
         };
     };
 };
-const BOM kbomTfc = 0x5f000000;
+const ByteOrderMask kbomTfc = 0x5f000000;
 
 /************************************
 
    Browser Display Class
 
 *************************************/
-#define BRWD_PAR GOK
-#define kclsBRWD 'BRWD'
+#define BrowserDisplay_PAR KidspaceGraphicObject
+#define kclsBrowserDisplay 'BRWD'
 #define brwdidNil ivNil
-typedef class BRWD *PBRWD;
-class BRWD : public BRWD_PAR
+typedef class BrowserDisplay *PBrowserDisplay;
+class BrowserDisplay : public BrowserDisplay_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(BRWD)
+    CMD_MAP_DEC(BrowserDisplay)
 
   protected:
     long _kidFrmFirst;     // kid of first frame
@@ -117,12 +117,12 @@ class BRWD : public BRWD_PAR
     long _dypFrmOffset;    // y inset of thumb in frame
     long _sidDefault;      // default sid
     long _thumDefault;     // default thum
-    PBRCN _pbrcn;          // context carryover
+    PBrowserContext _pbrcn;          // context carryover
     long _idsFont;         // string id of Font
     long _kidThumOverride; // projects may override one thum gobid
     long _ithumOverride;   // projects may override one thum gobid
-    PTGOB _ptgobPage;      // for page numbers
-    PSTDIO _pstdio;
+    PTextGraphicsObject _ptgobPage;      // for page numbers
+    PStudio _pstdio;
 
     // Display State variables
     long _cthumCD;          // Non-user content
@@ -137,8 +137,8 @@ class BRWD : public BRWD_PAR
   protected:
     void _SetScrollState(void);
     long _CfrmCalc(void);
-    static bool _FBuildGcb(GCB *pgcb, long kidPar, long kidBrws);
-    bool _FInitGok(PRCA prca, long kidGlass);
+    static bool _FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidBrws);
+    bool _FInitGok(PResourceCache prca, long kidGlass);
     void _SetVarForOverride(void);
 
     virtual long _Cthum(void)
@@ -146,7 +146,7 @@ class BRWD : public BRWD_PAR
         AssertThis(0);
         return 0;
     }
-    virtual bool _FSetThumFrame(long ithum, PGOB pgobPar)
+    virtual bool _FSetThumFrame(long ithum, PGraphicsObject pgobPar)
     {
         AssertThis(0);
         return fFalse;
@@ -181,27 +181,27 @@ class BRWD : public BRWD_PAR
     {
         return FPure(ithum == _ithumOverride);
     }
-    PGOB _PgobFromIfrm(long ifrm);
+    PGraphicsObject _PgobFromIfrm(long ifrm);
     long _KidThumFromIfrm(long ifrm);
     void _UnhiliteCurFrm(void);
     bool _FHiliteFrm(long ifrmSelect);
-    void _InitStateVars(PCMD pcmd, PSTDIO pstdio, bool fWrapScroll, long cthumScroll);
-    void _InitFromData(PCMD pcmd, long ithumSelect, long ithumDisplay);
+    void _InitStateVars(PCommand pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll);
+    void _InitFromData(PCommand pcmd, long ithumSelect, long ithumDisplay);
     virtual void _CacheContext(void);
 
   public:
     //
     // Constructors and destructors
     //
-    BRWD(PGCB pgcb) : BRWD_PAR(pgcb)
+    BrowserDisplay(PGraphicsObjectBlock pgcb) : BrowserDisplay_PAR(pgcb)
     {
         _ithumOverride = -1;
         _kidThumOverride = -1;
     }
-    ~BRWD(void);
+    ~BrowserDisplay(void);
 
-    static PBRWD PbrwdNew(PRCA prca, long kidPar, long kidBrwd);
-    void Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PSTDIO pstdio, bool fWrapScroll = fTrue,
+    static PBrowserDisplay PbrwdNew(PResourceCache prca, long kidPar, long kidBrwd);
+    void Init(PCommand pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
     bool FDraw(void);
     bool FCreateAllTgob(void); // For any text based browsers
@@ -210,22 +210,22 @@ class BRWD : public BRWD_PAR
     // Command Handlers
     // Selection does not exit the browser
     //
-    bool FCmdFwd(PCMD pcmd);  // Page fwd
-    bool FCmdBack(PCMD pcmd); // Page back
-    bool FCmdSelect(PCMD pcmd);
-    bool FCmdSelectThum(PCMD pcmd); // Set viewing page
+    bool FCmdFwd(PCommand pcmd);  // Page fwd
+    bool FCmdBack(PCommand pcmd); // Page back
+    bool FCmdSelect(PCommand pcmd);
+    bool FCmdSelectThum(PCommand pcmd); // Set viewing page
     virtual void Release(void);
-    virtual bool FCmdCancel(PCMD pcmd); // See brwb
-    virtual bool FCmdDel(PCMD pcmd)
+    virtual bool FCmdCancel(PCommand pcmd); // See brwb
+    virtual bool FCmdDel(PCommand pcmd)
     {
         return fTrue;
     } // See brwm
-    virtual bool FCmdOk(PCMD pcmd);
-    virtual bool FCmdFile(PCMD pcmd)
+    virtual bool FCmdOk(PCommand pcmd);
+    virtual bool FCmdFile(PCommand pcmd)
     {
         return fTrue;
     } // See brwm
-    virtual bool FCmdChangeCel(PCMD pcmd)
+    virtual bool FCmdChangeCel(PCommand pcmd)
     {
         return fTrue;
     } // See brwa
@@ -239,24 +239,24 @@ class BRWD : public BRWD_PAR
     of the same browser
 
 *************************************/
-#define BRCNL_PAR BRCN
-#define kclsBRCNL 'brcl'
-typedef class BRCNL *PBRCNL;
-class BRCNL : public BRCNL_PAR
+#define BrowserListContext_PAR BrowserContext
+#define kclsBrowserListContext 'brcl'
+typedef class BrowserListContext *PBrowserListContext;
+class BrowserListContext : public BrowserListContext_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    ~BRCNL(void);
+    ~BrowserListContext(void);
 
   public:
     long cthumCD;
-    CKI ckiRoot;
-    PGL pglthd;
-    PGST pgst;
-    PCRM pcrm;
+    ChunkIdentification ckiRoot;
+    PDynamicArray pglthd;
+    PStringTable_GST pgst;
+    PChunkyResourceManager pcrm;
 };
 
 //
@@ -264,7 +264,7 @@ class BRCNL : public BRCNL_PAR
 //
 const long kglstnGrow = 5;
 const long kglthdGrow = 10;
-struct THD
+struct ThumbnailDescriptor
 {
     union {
         TAG tag; // TAG pointing to content
@@ -279,60 +279,60 @@ struct THD
         {
             long lwFill1;
             long lwFill2;
-            CTG ctg;
-            CHID chid; // CHID of CD content
+            ChunkTagOrType ctg;
+            ChildChunkID chid; // ChildChunkID of CD content
         };
     };
 
-    CNO cno;       // GOKD cno
-    CHID chidThum; // GOKD's parent's CHID (relative to GOKD parent's parent)
-    long ithd;     // Original index for this THD, before sorting (used to
-                   // retrieve proper STN for the BRWN-derived browsers)
+    ChunkNumber cno;       // KidspaceGraphicObjectDescriptor cno
+    ChildChunkID chidThum; // KidspaceGraphicObjectDescriptor's parent's ChildChunkID (relative to KidspaceGraphicObjectDescriptor parent's parent)
+    long ithd;     // Original index for this ThumbnailDescriptor, before sorting (used to
+                   // retrieve proper String for the BrowserNamedList-derived browsers)
 };
 
 /* Browser Content List Base --  create one of these when you want a list of a
     specific kind of content and you don't care about the names. */
-#define BCL_PAR BASE
-typedef class BCL *PBCL;
-#define kclsBCL 'BCL'
-class BCL : public BCL_PAR
+#define BrowserContentList_PAR BASE
+typedef class BrowserContentList *PBrowserContentList;
+#define kclsBrowserContentList 'BCL'
+class BrowserContentList : public BrowserContentList_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    CTG _ctgRoot;
-    CNO _cnoRoot;
-    CTG _ctgContent;
+    ChunkTagOrType _ctgRoot;
+    ChunkNumber _cnoRoot;
+    ChunkTagOrType _ctgContent;
     bool _fDescend;
-    PGL _pglthd;
+    PDynamicArray _pglthd;
 
   protected:
-    BCL(void)
+    BrowserContentList(void)
     {
         _pglthd = pvNil;
     }
-    ~BCL(void)
+    ~BrowserContentList(void)
     {
         ReleasePpo(&_pglthd);
     }
 
-    bool _FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd);
-    bool _FAddGokdToThd(PCFL pcfl, long sid, CKI *pcki);
-    bool _FAddFileToThd(PCFL pcfl, long sid);
-    bool _FBuildThd(PCRM pcrm);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd);
+    bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki);
+    bool _FAddFileToThd(PChunkyFile pcfl, long sid);
+    bool _FBuildThd(PChunkyResourceManager pcrm);
 
-    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
+    virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCL PbclNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd = pvNil, bool fOnlineOnly = fFalse);
+    static PBrowserContentList PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
 
-    PGL Pglthd(void)
+    PDynamicArray Pglthd(void)
     {
         return _pglthd;
     }
-    void GetThd(long ithd, THD *pthd)
+    void GetThd(long ithd, ThumbnailDescriptor *pthd)
     {
         _pglthd->Get(ithd, pthd);
     }
@@ -344,38 +344,38 @@ class BCL : public BCL_PAR
 
 /* Browser Content List with Strings -- create one of these when you need to
     browse content by name */
-#define BCLS_PAR BCL
-typedef class BCLS *PBCLS;
-#define kclsBCLS 'BCLS'
-class BCLS : public BCLS_PAR
+#define BrowserContentListWithStrings_PAR BrowserContentList
+typedef class BrowserContentListWithStrings *PBrowserContentListWithStrings;
+#define kclsBrowserContentListWithStrings 'BCLS'
+class BrowserContentListWithStrings : public BrowserContentListWithStrings_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PGST _pgst;
+    PStringTable_GST _pgst;
 
   protected:
-    BCLS(void)
+    BrowserContentListWithStrings(void)
     {
         _pgst = pvNil;
     }
-    ~BCLS(void)
+    ~BrowserContentListWithStrings(void)
     {
         ReleasePpo(&_pgst);
     }
 
-    bool _FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGST pgst, PGL pglthd);
-    bool _FSetNameGst(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd);
+    bool _FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
-    virtual bool _FAddGokdToThd(PCFL pcfl, long sid, KID *pkid);
+    virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
 
   public:
-    static PBCLS PbclsNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd = pvNil, PGST pgst = pvNil,
+    static PBrowserContentListWithStrings PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
                           bool fOnlineOnly = fFalse);
 
-    PGST Pgst(void)
+    PStringTable_GST Pgst(void)
     {
         return _pgst;
     }
@@ -387,13 +387,13 @@ class BCLS : public BCLS_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWL_PAR BRWD
-#define kclsBRWL 'BRWL'
-typedef class BRWL *PBRWL;
+#define BrowserList_PAR BrowserDisplay
+#define kclsBrowserList 'BRWL'
+typedef class BrowserList *PBrowserList;
 
 // Browser Selection Flags
 // This specifies what the sorting is based on
-enum BWS
+enum BrowserSelectionFlags
 {
     kbwsIndex = 1,
     kbwsChid = 2,
@@ -401,7 +401,7 @@ enum BWS
     kbwsLim
 };
 
-class BRWL : public BRWL_PAR
+class BrowserList : public BrowserList_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -411,33 +411,33 @@ class BRWL : public BRWL_PAR
     bool _fEnableAccel;
 
     // Thumnail descriptor lists
-    PCRM _pcrm;  // Chunky resource manager
-    PGL _pglthd; // Thumbnail descriptor	gl
-    PGST _pgst;  // Chunk name
+    PChunkyResourceManager _pcrm;  // Chunky resource manager
+    PDynamicArray _pglthd; // Thumbnail descriptor	gl
+    PStringTable_GST _pgst;  // Chunk name
 
     // Browser Search (List) parameters
-    BWS _bws;         // Selection type flag
+    BrowserSelectionFlags _bws;         // Selection type flag
     bool _fSinglePar; // Single parent search
-    CKI _ckiRoot;     // Grandparent cno=cnoNil => global search
-    CTG _ctgContent;  // Parent
+    ChunkIdentification _ckiRoot;     // Grandparent cno=cnoNil => global search
+    ChunkTagOrType _ctgContent;  // Parent
 
   protected:
-    // BRWL List
-    bool _FInitNew(PCMD pcmd, BWS bws, long ThumSelect, CKI ckiRoot, CTG ctgContent);
-    bool _FCreateBuildThd(CKI ckiRoot, CTG ctgContent, bool fBuildGl = fTrue);
-    virtual bool _FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl);
+    // BrowserList List
+    bool _FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent);
+    bool _FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, bool fBuildGl = fTrue);
+    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         AssertThis(0);
         return _pglthd->IvMac();
     }
-    virtual bool _FSetThumFrame(long ithd, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long ithd, PGraphicsObject pgobPar);
     virtual bool _FUpdateLists()
     {
         return fTrue;
     } // Eg, to include user sounds
 
-    // BRWL util
+    // BrowserList util
     void _SortThd(void);
     virtual void _GetThumFromIthum(long ithum, void *pThumSelect, long *psid);
     virtual void _ReleaseThumFrame(long ifrm);
@@ -449,14 +449,14 @@ class BRWL : public BRWL_PAR
     //
     // Constructors and destructors
     //
-    BRWL(PGCB pgcb) : BRWL_PAR(pgcb)
+    BrowserList(PGraphicsObjectBlock pgcb) : BrowserList_PAR(pgcb)
     {
     }
-    ~BRWL(void);
+    ~BrowserList(void);
 
-    static PBRWL PbrwlNew(PRCA prca, long kidPar, long kidBrwl);
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
-                       PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
+    static PBrowserList PbrwlNew(PResourceCache prca, long kidPar, long kidBrwl);
+    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
+                       PBrowserListContext pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 };
 
 /************************************
@@ -465,17 +465,17 @@ class BRWL : public BRWL_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWT_PAR BRWD
-#define kclsBRWT 'BRWT'
-typedef class BRWT *PBRWT;
-class BRWT : public BRWT_PAR
+#define BrowserText_PAR BrowserDisplay
+#define kclsBrowserText 'BRWT'
+typedef class BrowserText *PBrowserText;
+class BrowserText : public BrowserText_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PGST _pgst;
+    PStringTable_GST _pgst;
     bool _fEnableAccel;
 
     virtual long _Cthum(void)
@@ -483,7 +483,7 @@ class BRWT : public BRWT_PAR
         AssertThis(0);
         return _pgst->IvMac();
     }
-    virtual bool _FSetThumFrame(long istn, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
     virtual void _ReleaseThumFrame(long ifrm)
     {
     } // No gob to release
@@ -492,15 +492,15 @@ class BRWT : public BRWT_PAR
     //
     // Constructors and destructors
     //
-    BRWT(PGCB pgcb) : BRWT_PAR(pgcb)
+    BrowserText(PGraphicsObjectBlock pgcb) : BrowserText_PAR(pgcb)
     {
         _idsFont = idsNil;
     }
-    ~BRWT(void);
+    ~BrowserText(void);
 
-    static PBRWT PbrwtNew(PRCA prca, long kidPar, long kidBrwt);
-    void SetGst(PGST pgst);
-    bool FInit(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bool fWrapScroll = fTrue,
+    static PBrowserText PbrwtNew(PResourceCache prca, long kidPar, long kidBrwt);
+    void SetGst(PStringTable_GST pgst);
+    bool FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
                long cthumScroll = ivNil);
 };
 
@@ -510,34 +510,34 @@ class BRWT : public BRWT_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWN_PAR BRWL
-#define kclsBRWN 'BRWN'
-typedef class BRWN *PBRWN;
-class BRWN : public BRWN_PAR
+#define BrowserNamedList_PAR BrowserList
+#define kclsBrowserNamedList 'BRWN'
+typedef class BrowserNamedList *PBrowserNamedList;
+class BrowserNamedList : public BrowserNamedList_PAR
 {
     RTCLASS_DEC
 
   protected:
-    virtual bool _FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl);
+    virtual bool _FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl);
     virtual long _Cthum(void)
     {
         return _pglthd->IvMac();
     }
-    virtual bool _FSetThumFrame(long ithd, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long ithd, PGraphicsObject pgobPar);
     virtual void _ReleaseThumFrame(long ifrm);
 
   public:
     //
     // Constructors and destructors
     //
-    BRWN(PGCB pgcb) : BRWN_PAR(pgcb)
+    BrowserNamedList(PGraphicsObjectBlock pgcb) : BrowserNamedList_PAR(pgcb)
     {
     }
-    ~BRWN(void){};
-    virtual bool FInit(PCMD pcmd, BWS bws, long ThumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
-                       PBRCNL pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
+    ~BrowserNamedList(void){};
+    virtual bool FInit(PCommand pcmd, BrowserSelectionFlags bws, long ThumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
+                       PBrowserListContext pbrcnl = pvNil, bool fWrapScroll = fTrue, long cthumScroll = ivNil);
 
-    virtual bool FCmdOk(PCMD pcmd);
+    virtual bool FCmdOk(PCommand pcmd);
 };
 
 /************************************
@@ -553,10 +553,10 @@ class BRWN : public BRWN_PAR
    previews
 
 *************************************/
-#define BRWA_PAR BRWT
-#define kclsBRWA 'BRWA'
-typedef class BRWA *PBRWA;
-class BRWA : public BRWA_PAR
+#define BrowserAction_PAR BrowserText
+#define kclsBrowserAction 'BRWA'
+typedef class BrowserAction *PBrowserAction;
+class BrowserAction : public BrowserAction_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -564,7 +564,7 @@ class BRWA : public BRWA_PAR
 
   protected:
     long _celnStart;              // Starting cel number
-    PAPE _pape;                   // Actor Preview Entity
+    PActorPreviewEntity _pape;                   // Actor Preview Entity
     void _ProcessSelection(void); // Action Preview
     virtual void _ApplySelection(long thumSelect, long sid);
 
@@ -572,19 +572,19 @@ class BRWA : public BRWA_PAR
     //
     // Constructors and destructors
     //
-    BRWA(PGCB pgcb) : BRWA_PAR(pgcb)
+    BrowserAction(PGraphicsObjectBlock pgcb) : BrowserAction_PAR(pgcb)
     {
         _idsFont = idsActionFont;
         _celnStart = 0;
     }
-    ~BRWA(void)
+    ~BrowserAction(void)
     {
     }
 
-    static PBRWA PbrwaNew(PRCA prca);
-    bool FBuildApe(PACTR pactr);
-    bool FBuildGst(PSCEN pscen);
-    virtual bool FCmdChangeCel(PCMD pcmd);
+    static PBrowserAction PbrwaNew(PResourceCache prca);
+    bool FBuildApe(PActor pactr);
+    bool FBuildGst(PScene pscen);
+    virtual bool FCmdChangeCel(PCommand pcmd);
 };
 
 /************************************
@@ -593,10 +593,10 @@ class BRWA : public BRWA_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWP_PAR BRWL
-#define kclsBRWP 'BRWP'
-typedef class BRWP *PBRWP;
-class BRWP : public BRWP_PAR
+#define BrowserPropActor_PAR BrowserList
+#define kclsBrowserPropActor 'BRWP'
+typedef class BrowserPropActor *PBrowserPropActor;
+class BrowserPropActor : public BrowserPropActor_PAR
 {
     RTCLASS_DEC
 
@@ -607,12 +607,12 @@ class BRWP : public BRWP_PAR
     //
     // Constructors and destructors
     //
-    BRWP(PGCB pgcb) : BRWP_PAR(pgcb)
+    BrowserPropActor(PGraphicsObjectBlock pgcb) : BrowserPropActor_PAR(pgcb)
     {
     }
-    ~BRWP(void){};
+    ~BrowserPropActor(void){};
 
-    static PBRWP PbrwpNew(PRCA prca, long kidGlass);
+    static PBrowserPropActor PbrwpNew(PResourceCache prca, long kidGlass);
 };
 
 /************************************
@@ -621,10 +621,10 @@ class BRWP : public BRWP_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWB_PAR BRWL
-#define kclsBRWB 'BRWB'
-typedef class BRWB *PBRWB;
-class BRWB : public BRWB_PAR
+#define BrowserBackground_PAR BrowserList
+#define kclsBrowserBackground 'BRWB'
+typedef class BrowserBackground *PBrowserBackground;
+class BrowserBackground : public BrowserBackground_PAR
 {
     RTCLASS_DEC
 
@@ -635,13 +635,13 @@ class BRWB : public BRWB_PAR
     //
     // Constructors and destructors
     //
-    BRWB(PGCB pgcb) : BRWB_PAR(pgcb)
+    BrowserBackground(PGraphicsObjectBlock pgcb) : BrowserBackground_PAR(pgcb)
     {
     }
-    ~BRWB(void){};
+    ~BrowserBackground(void){};
 
-    static PBRWB PbrwbNew(PRCA prca);
-    virtual bool FCmdCancel(PCMD pcmd);
+    static PBrowserBackground PbrwbNew(PResourceCache prca);
+    virtual bool FCmdCancel(PCommand pcmd);
 };
 
 /************************************
@@ -650,10 +650,10 @@ class BRWB : public BRWB_PAR
    Derived from the Browser List Class
 
 *************************************/
-#define BRWC_PAR BRWL
-#define kclsBRWC 'BRWC'
-typedef class BRWC *PBRWC;
-class BRWC : public BRWC_PAR
+#define BrowserCamera_PAR BrowserList
+#define kclsBrowserCamera 'BRWC'
+typedef class BrowserCamera *PBrowserCamera;
+class BrowserCamera : public BrowserCamera_PAR
 {
     RTCLASS_DEC
 
@@ -667,14 +667,14 @@ class BRWC : public BRWC_PAR
     //
     // Constructors and destructors
     //
-    BRWC(PGCB pgcb) : BRWC_PAR(pgcb)
+    BrowserCamera(PGraphicsObjectBlock pgcb) : BrowserCamera_PAR(pgcb)
     {
     }
-    ~BRWC(void){};
+    ~BrowserCamera(void){};
 
-    static PBRWC PbrwcNew(PRCA prca);
+    static PBrowserCamera PbrwcNew(PResourceCache prca);
 
-    virtual bool FCmdCancel(PCMD pcmd);
+    virtual bool FCmdCancel(PCommand pcmd);
 };
 
 /************************************
@@ -683,36 +683,36 @@ class BRWC : public BRWC_PAR
    Derived from the Browser Named List Class
 
 *************************************/
-#define BRWM_PAR BRWN
-#define kclsBRWM 'brwm'
-typedef class BRWM *PBRWM;
-class BRWM : public BRWM_PAR
+#define BrowserMusic_PAR BrowserNamedList
+#define kclsBrowserMusic 'brwm'
+typedef class BrowserMusic *PBrowserMusic;
+class BrowserMusic : public BrowserMusic_PAR
 {
     RTCLASS_DEC
 
   protected:
     long _sty;  // Identifies type of sound
-    PCRF _pcrf; // NOT created here (autosave or BRWI file)
+    PChunkyResourceFile _pcrf; // NOT created here (autosave or BrowserImportSound file)
 
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type
     void _ProcessSelection(void); // Sound Preview
-    bool _FAddThd(STN *pstn, CKI *pcki);
-    bool _FSndListed(CNO cno, long *pithd = pvNil);
+    bool _FAddThd(String *pstn, ChunkIdentification *pcki);
+    bool _FSndListed(ChunkNumber cno, long *pithd = pvNil);
 
   public:
     //
     // Constructors and destructors
     //
-    BRWM(PGCB pgcb) : BRWM_PAR(pgcb)
+    BrowserMusic(PGraphicsObjectBlock pgcb) : BrowserMusic_PAR(pgcb)
     {
         _idsFont = idsSoundFont;
     }
-    ~BRWM(void){};
+    ~BrowserMusic(void){};
 
-    static PBRWM PbrwmNew(PRCA prca, long kidGlass, long sty, PSTDIO pstdio);
-    virtual bool FCmdFile(PCMD pcmd); // Upon portfolio completion
-    virtual bool FCmdDel(PCMD pcmd);  // Delete user sound
+    static PBrowserMusic PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio);
+    virtual bool FCmdFile(PCommand pcmd); // Upon portfolio completion
+    virtual bool FCmdDel(PCommand pcmd);  // Delete user sound
 };
 
 /************************************
@@ -722,17 +722,17 @@ class BRWM : public BRWM_PAR
    Note: Inherits pgst from the list class
 
 *************************************/
-#define BRWI_PAR BRWM
-#define kclsBRWI 'BRWI'
-typedef class BRWI *PBRWI;
-class BRWI : public BRWI_PAR
+#define BrowserImportSound_PAR BrowserMusic
+#define kclsBrowserImportSound 'BRWI'
+typedef class BrowserImportSound *PBrowserImportSound;
+class BrowserImportSound : public BrowserImportSound_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    // The following are already handled by BRWM
+    // The following are already handled by BrowserMusic
     // virtual void _ProcessSelection(void);
     virtual void _ApplySelection(long thumSelect, long sid);
 
@@ -740,14 +740,14 @@ class BRWI : public BRWI_PAR
     //
     // Constructors and destructors
     //
-    BRWI(PGCB pgcb) : BRWI_PAR(pgcb)
+    BrowserImportSound(PGraphicsObjectBlock pgcb) : BrowserImportSound_PAR(pgcb)
     {
         _idsFont = idsSoundFont;
     }
-    ~BRWI(void);
+    ~BrowserImportSound(void);
 
-    static PBRWI PbrwiNew(PRCA prca, long kidGlass, long sty);
-    bool FInit(PCMD pcmd, CKI cki, PSTDIO pstdio);
+    static PBrowserImportSound PbrwiNew(PResourceCache prca, long kidGlass, long sty);
+    bool FInit(PCommand pcmd, ChunkIdentification cki, PStudio pstdio);
 };
 
 /************************************
@@ -756,23 +756,23 @@ class BRWI : public BRWI_PAR
    Derived from the Display Class
 
 *************************************/
-#define BRWR_PAR BRWD
-#define kclsBRWR 'BRWR'
-typedef class BRWR *PBRWR;
-class BRWR : public BRWR_PAR
+#define BrowserRollCall_PAR BrowserDisplay
+#define kclsBrowserRollCall 'BRWR'
+typedef class BrowserRollCall *PBrowserRollCall;
+class BrowserRollCall : public BrowserRollCall_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    CTG _ctg;
-    PCRM _pcrm; // Chunky resource manager
+    ChunkTagOrType _ctg;
+    PChunkyResourceManager _pcrm; // Chunky resource manager
     bool _fApplyingSel;
 
   protected:
     virtual long _Cthum(void);
-    virtual bool _FSetThumFrame(long istn, PGOB pgobPar);
+    virtual bool _FSetThumFrame(long istn, PGraphicsObject pgobPar);
     virtual void _ReleaseThumFrame(long ifrm);
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual void _ProcessSelection(void);
@@ -784,18 +784,18 @@ class BRWR : public BRWR_PAR
     //
     // Constructors and destructors
     //
-    BRWR(PGCB pgcb) : BRWR_PAR(pgcb)
+    BrowserRollCall(PGraphicsObjectBlock pgcb) : BrowserRollCall_PAR(pgcb)
     {
         _fApplyingSel = fFalse;
         _idsFont = idsRollCallFont;
     }
-    ~BRWR(void);
+    ~BrowserRollCall(void);
 
-    static PBRWR PbrwrNew(PRCA prca, long kid);
-    void Init(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bool fWrapScroll = fTrue,
+    static PBrowserRollCall PbrwrNew(PResourceCache prca, long kid);
+    void Init(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll = fTrue,
               long cthumScroll = ivNil);
-    bool FInit(PCMD pcmd, CTG ctg, long ithumDisplay, PSTDIO pstdio);
-    bool FUpdate(long arid, PSTDIO pstdio);
+    bool FInit(PCommand pcmd, ChunkTagOrType ctg, long ithumDisplay, PStudio pstdio);
+    bool FUpdate(long arid, PStudio pstdio);
     bool FApplyingSel(void)
     {
         AssertBaseThis(0);
@@ -804,10 +804,10 @@ class BRWR : public BRWR_PAR
 };
 
 const long kglcmgGrow = 8;
-struct CMG // Gokd Cno Map
+struct GokdCnoMap // Gokd Cno Map
 {
-    CNO cnoTmpl; // Content cno
-    CNO cnoGokd; // Thumbnail gokd cno
+    ChunkNumber cnoTmpl; // Content cno
+    ChunkNumber cnoGokd; // Thumbnail gokd cno
 };
 
 /************************************
@@ -816,37 +816,37 @@ struct CMG // Gokd Cno Map
    Enumerates current product first
 
 *************************************/
-#define FNET_PAR BASE
-#define kclsFNET 'FNET'
-typedef class FNET *PFNET;
-class FNET : public FNET_PAR
+#define ThumbnailFileEnumerator_PAR BASE
+#define kclsThumbnailFileEnumerator 'FNET'
+typedef class ThumbnailFileEnumerator *PThumbnailFileEnumerator;
+class ThumbnailFileEnumerator : public ThumbnailFileEnumerator_PAR
 {
     RTCLASS_DEC
 
   protected:
     bool _fInitMSKDir;
-    FNE _fne;
-    FNE _fneDir;
-    FNI _fniDirMSK;
-    FNI _fniDir;
-    FNI _fniDirProduct;
+    FileNameEnumerator _fne;
+    FileNameEnumerator _fneDir;
+    Filename _fniDirMSK;
+    Filename _fniDir;
+    Filename _fniDirProduct;
     bool _fInited;
 
   protected:
-    bool _FNextFni(FNI *pfni, long *psid);
+    bool _FNextFni(Filename *pfni, long *psid);
 
   public:
     //
     // Constructors and destructors
     //
-    FNET(void) : FNET_PAR()
+    ThumbnailFileEnumerator(void) : ThumbnailFileEnumerator_PAR()
     {
         _fInited = fFalse;
     }
-    ~FNET(void){};
+    ~ThumbnailFileEnumerator(void){};
 
     bool FInit(void);
-    bool FNext(FNI *pfni, long *psid = pvNil);
+    bool FNext(Filename *pfni, long *psid = pvNil);
 };
 
 #endif

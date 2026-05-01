@@ -6,7 +6,7 @@
     popup.cpp: Popup menu classes
 
     Primary Author: ******
-             MPFNT: ******
+             MenuPopupFont: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
 
@@ -14,26 +14,26 @@
 #include "studio.h"
 ASSERTNAME
 
-RTCLASS(MP)
-RTCLASS(MPFNT)
+RTCLASS(MenuPopup)
+RTCLASS(MenuPopupFont)
 
-BEGIN_CMD_MAP(MP, BRWD)
-ON_CID_GEN(cidSelIdle, &MP::FCmdSelIdle, pvNil)
+BEGIN_CMD_MAP(MenuPopup, BrowserDisplay)
+ON_CID_GEN(cidSelIdle, &MenuPopup::FCmdSelIdle, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new popup menu
 ***************************************************************************/
-PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long ithumSelect, long sidSelect,
-               CKI ckiRoot, CTG ctg, PCMH pcmh, long cid, bool fMoveTop)
+PMenuPopup MenuPopup::PmpNew(long kidParent, long kidMenu, PResourceCache prca, PCommand pcmd, BrowserSelectionFlags bws, long ithumSelect, long sidSelect,
+               ChunkIdentification ckiRoot, ChunkTagOrType ctg, PCommandHandler pcmh, long cid, bool fMoveTop)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
     AssertPo(pcmh, 0);
 
-    PMP pmp;
-    GCB gcb;
-    PSTDIO pstdio;
+    PMenuPopup pmp;
+    GraphicsObjectBlock gcb;
+    PStudio pstdio;
     long cthum;
     long cfrm;
 
@@ -47,7 +47,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long
     if (!_FBuildGcb(&gcb, kidParent, kidMenu))
         return pvNil;
 
-    pmp = NewObj MP(&gcb);
+    pmp = NewObj MenuPopup(&gcb);
     if (pvNil == pmp)
         goto LFail;
     if (!pmp->_FInitGok(prca, kidMenu))
@@ -58,7 +58,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long
     }
 
     //
-    // Add ourselves as a CMH with a high priority so that we can
+    // Add ourselves as a CommandHandler with a high priority so that we can
     // filter out SelIdle messages
     //
     if (!vpcex->FAddCmh(pmp, -1000))
@@ -78,7 +78,7 @@ PMP MP::PmpNew(long kidParent, long kidMenu, PRCA prca, PCMD pcmd, BWS bws, long
 
     if (cthum <= cfrm)
     {
-        PGOB pgob;
+        PGraphicsObject pgob;
         long dypFrm;
         long dypTop;
         RC rc;
@@ -107,13 +107,13 @@ LFail:
 /***************************************************************************
     Enqueue a cid saying what was selected
 ***************************************************************************/
-void MP::_ApplySelection(long ithumSelect, long sid)
+void MenuPopup::_ApplySelection(long ithumSelect, long sid)
 {
     AssertThis(0);
 
     if (_ckiRoot.ctg == kctgTyth)
     {
-        THD thd;
+        ThumbnailDescriptor thd;
 
         _pglthd->Get(ithumSelect, &thd);
         vpcex->EnqueueCid(_cid, _pcmh, pvNil, thd.grfontMask, thd.grfont);
@@ -137,7 +137,7 @@ void MP::_ApplySelection(long ithumSelect, long sid)
     Keywords:
 
 ************************************************************ PETED ***********/
-long MP::_IthumFromThum(long thumSelect, long sidSelect)
+long MenuPopup::_IthumFromThum(long thumSelect, long sidSelect)
 {
     AssertBaseThis(0);
 
@@ -145,7 +145,7 @@ long MP::_IthumFromThum(long thumSelect, long sidSelect)
 
     if (_ckiRoot.ctg == kctgTyth)
     {
-        THD thd;
+        ThumbnailDescriptor thd;
 
         ithum = _pglthd->IvMac();
         while (ithum-- > 0)
@@ -157,7 +157,7 @@ long MP::_IthumFromThum(long thumSelect, long sidSelect)
         Assert(ithum >= 0 || ithum == ivNil, "Returning invalid ithum");
     }
     else
-        ithum = MP_PAR::_IthumFromThum(thumSelect, sidSelect);
+        ithum = MenuPopup_PAR::_IthumFromThum(thumSelect, sidSelect);
     return ithum;
 }
 
@@ -165,32 +165,32 @@ long MP::_IthumFromThum(long thumSelect, long sidSelect)
     Do selection idle processing.  Make sure not to change any selection
     states.
 ***************************************************************************/
-bool MP::FCmdSelIdle(PCMD pcmd)
+bool MenuPopup::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    MP_PAR::FCmdSelIdle(pcmd);
+    MenuPopup_PAR::FCmdSelIdle(pcmd);
     return fTrue;
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MP.
+    Assert the validity of the MenuPopup.
 ***************************************************************************/
-void MP::AssertValid(ulong grf)
+void MenuPopup::AssertValid(ulong grf)
 {
-    MP_PAR::AssertValid(fobjAllocated);
+    MenuPopup_PAR::AssertValid(fobjAllocated);
     AssertBasePo(_pcmh, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the MP
+    Mark memory used by the MenuPopup
 ***************************************************************************/
-void MP::MarkMem(void)
+void MenuPopup::MarkMem(void)
 {
     AssertThis(0);
-    MP_PAR::MarkMem();
+    MenuPopup_PAR::MarkMem();
     MarkMemObj(_pcmh);
 }
 #endif // DEBUG
@@ -198,27 +198,27 @@ void MP::MarkMem(void)
 //
 //
 //
-//  MPFNT (font menu) stuff begins here
+//  MenuPopupFont (font menu) stuff begins here
 //
 //
 //
 
-BEGIN_CMD_MAP(MPFNT, BRWD)
-ON_CID_GEN(cidSelIdle, &MPFNT::FCmdSelIdle, pvNil)
+BEGIN_CMD_MAP(MenuPopupFont, BrowserDisplay)
+ON_CID_GEN(cidSelIdle, &MenuPopupFont::FCmdSelIdle, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
     Create a new font menu
 ***************************************************************************/
-PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long ithumSelect, PGST pgst)
+PMenuPopupFont MenuPopupFont::PmpfntNew(PResourceCache prca, long kidParent, long kidMenu, PCommand pcmd, long ithumSelect, PStringTable_GST pgst)
 {
     AssertPo(prca, 0);
     AssertVarMem(pcmd);
     AssertPo(pgst, 0);
 
-    PMPFNT pmpfnt;
-    GCB gcb;
-    PSTDIO pstdio = vpapp->Pstdio();
+    PMenuPopupFont pmpfnt;
+    GraphicsObjectBlock gcb;
+    PStudio pstdio = vpapp->Pstdio();
 
     if (pstdio == pvNil)
     {
@@ -228,14 +228,14 @@ PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long
 
     if (pgst->CbExtra() != size(long))
     {
-        Bug("GST CbExtra isn't the right size for an onn");
+        Bug("StringTable_GST CbExtra isn't the right size for an onn");
         return pvNil;
     }
 
     if (!_FBuildGcb(&gcb, kidParent, kidMenu))
         return pvNil;
 
-    pmpfnt = NewObj MPFNT(&gcb);
+    pmpfnt = NewObj MenuPopupFont(&gcb);
     if (pmpfnt == pvNil)
         return pvNil;
 
@@ -249,7 +249,7 @@ PMPFNT MPFNT::PmpfntNew(PRCA prca, long kidParent, long kidMenu, PCMD pcmd, long
         goto LFail;
 
     //
-    // Add ourselves as a CMH with a high priority so that we can
+    // Add ourselves as a CommandHandler with a high priority so that we can
     // filter out SelIdle messages
     //
     if (!vpcex->FAddCmh(pmpfnt, -1000))
@@ -270,19 +270,19 @@ LFail:
 }
 
 /***************************************************************************
-    Set the font of the TGOB to the font listed in the menu item
+    Set the font of the TextGraphicsObject to the font listed in the menu item
 ***************************************************************************/
-bool MPFNT::_FSetThumFrame(long istn, PGOB pgobPar)
+bool MenuPopupFont::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
-    if (MPFNT_PAR::_FSetThumFrame(istn, pgobPar))
+    if (MenuPopupFont_PAR::_FSetThumFrame(istn, pgobPar))
     {
-        PTGOB ptgob = (PTGOB)pgobPar->PgobFirstChild();
+        PTextGraphicsObject ptgob = (PTextGraphicsObject)pgobPar->PgobFirstChild();
         long onn;
 
-        /* By the time we get this far, MPFNT_PAR should have already checked
+        /* By the time we get this far, MenuPopupFont_PAR should have already checked
             these */
-        Assert(ptgob != pvNil, "No TGOB for the text");
-        Assert(ptgob->FIs(kclsTGOB), "GOB isn't a TGOB");
+        Assert(ptgob != pvNil, "No TextGraphicsObject for the text");
+        Assert(ptgob->FIs(kclsTextGraphicsObject), "GraphicsObject isn't a TextGraphicsObject");
 
         _pgst->GetExtra(istn, &onn);
         ptgob->SetFont(onn);
@@ -295,7 +295,7 @@ bool MPFNT::_FSetThumFrame(long istn, PGOB pgobPar)
 /***************************************************************************
     Tell the studio that the font was selected
 ***************************************************************************/
-void MPFNT::_ApplySelection(long ithumSelect, long sid)
+void MenuPopupFont::_ApplySelection(long ithumSelect, long sid)
 {
     AssertThis(0);
 
@@ -308,9 +308,9 @@ void MPFNT::_ApplySelection(long ithumSelect, long sid)
 /***************************************************************************
     Hide the scroll arrows if necessary
 ***************************************************************************/
-void MPFNT::_AdjustRc(long cthum, long cfrm)
+void MenuPopupFont::_AdjustRc(long cthum, long cfrm)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
     long dypFrm;
     long dypTop;
     RC rc;
@@ -340,30 +340,30 @@ void MPFNT::_AdjustRc(long cthum, long cfrm)
     Do selection idle processing.  Make sure not to change any selection
     states.
 ***************************************************************************/
-bool MPFNT::FCmdSelIdle(PCMD pcmd)
+bool MenuPopupFont::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    MPFNT_PAR::FCmdSelIdle(pcmd);
+    MenuPopupFont_PAR::FCmdSelIdle(pcmd);
     return fTrue;
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MPFNT.
+    Assert the validity of the MenuPopupFont.
 ***************************************************************************/
-void MPFNT::AssertValid(ulong grf)
+void MenuPopupFont::AssertValid(ulong grf)
 {
-    MPFNT_PAR::AssertValid(0);
+    MenuPopupFont_PAR::AssertValid(0);
 }
 
 /***************************************************************************
-    Mark memory used by the MPFNT
+    Mark memory used by the MenuPopupFont
 ***************************************************************************/
-void MPFNT::MarkMem(void)
+void MenuPopupFont::MarkMem(void)
 {
     AssertThis(0);
-    MPFNT_PAR::MarkMem();
+    MenuPopupFont_PAR::MarkMem();
 }
 #endif // DEBUG

@@ -10,31 +10,31 @@
 
 ***************************************************************************/
 
-#define SPLOT_PAR GOK
-typedef class SPLOT *PSPLOT;
-#define kclsSPLOT 'splt'
-class SPLOT : public SPLOT_PAR
+#define SplotMachine_PAR KidspaceGraphicObject
+typedef class SplotMachine *PSplotMachine;
+#define kclsSplotMachine 'splt'
+class SplotMachine : public SplotMachine_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(SPLOT)
+    CMD_MAP_DEC(SplotMachine)
 
   private:
     /* The movie */
-    PMVIE _pmvie;
+    PMovie _pmvie;
 
     /* The lists of content */
-    PBCL _pbclBkgd;
-    SFL _sflBkgd;
-    PBCL _pbclCam;
-    SFL _sflCam;
-    PBCL _pbclActr;
-    SFL _sflActr;
-    PBCL _pbclProp;
-    SFL _sflProp;
-    PBCL _pbclSound;
-    SFL _sflSound;
+    PBrowserContentList _pbclBkgd;
+    Shuffler _sflBkgd;
+    PBrowserContentList _pbclCam;
+    Shuffler _sflCam;
+    PBrowserContentList _pbclActr;
+    Shuffler _sflActr;
+    PBrowserContentList _pbclProp;
+    Shuffler _sflProp;
+    PBrowserContentList _pbclSound;
+    Shuffler _sflSound;
 
     /* Current selected content */
     long _ithdBkgd;
@@ -43,28 +43,28 @@ class SPLOT : public SPLOT_PAR
     long _ithdProp;
     long _ithdSound;
 
-    /* State of the SPLOT */
+    /* State of the SplotMachine */
     bool _fDirty;
 
     /* Miscellaneous stuff */
-    PGL _pglclrSav;
+    PDynamicArray _pglclrSav;
 
-    SPLOT(PGCB pgcb) : SPLOT_PAR(pgcb)
+    SplotMachine(PGraphicsObjectBlock pgcb) : SplotMachine_PAR(pgcb)
     {
         _fDirty = fFalse;
         _pbclBkgd = _pbclCam = _pbclActr = _pbclProp = _pbclSound = pvNil;
     }
 
   public:
-    ~SPLOT(void);
-    static PSPLOT PsplotNew(long hidPar, long hid, PRCA prca);
+    ~SplotMachine(void);
+    static PSplotMachine PsplotNew(long hidPar, long hid, PResourceCache prca);
 
-    bool FCmdInit(PCMD pcmd);
-    bool FCmdSplot(PCMD pcmd);
-    bool FCmdUpdate(PCMD pcmd);
-    bool FCmdDismiss(PCMD pcmd);
+    bool FCmdInit(PCommand pcmd);
+    bool FCmdSplot(PCommand pcmd);
+    bool FCmdUpdate(PCommand pcmd);
+    bool FCmdDismiss(PCommand pcmd);
 
-    PMVIE Pmvie(void)
+    PMovie Pmvie(void)
     {
         return _pmvie;
     }

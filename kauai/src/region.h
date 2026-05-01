@@ -16,22 +16,22 @@
 #ifndef REGION_H
 #define REGION_H
 
-typedef class REGSC *PREGSC;
+typedef class RegionScanner *PRegionScanner;
 
 /***************************************************************************
     The region class.
 ***************************************************************************/
-typedef class REGN *PREGN;
-#define REGN_PAR BASE
-#define kclsREGN 'REGN'
-class REGN : public REGN_PAR
+typedef class Region *PRegion;
+#define Region_PAR BASE
+#define kclsRegion 'REGN'
+class Region : public Region_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    friend class REGSC;
+    friend class RegionScanner;
 
     // The _pglxp contains a bunch of rows.  Each row consists of:
     // dyp, xp0, xp1, ..., klwMax.
@@ -40,21 +40,21 @@ class REGN : public REGN_PAR
     // is strictly rectangular.
     RC _rc;     // bounding rectangle
     long _dxp;  // additional offset for xp values
-    PGL _pglxp; // region data - see above
+    PDynamicArray _pglxp; // region data - see above
     HRGN _hrgn; // for HrgnEnsure
     PT _dptRgn; // offset of _hrgn relative to this region
 
-    REGN(void)
+    Region(void)
     {
     }
 
-    bool _FUnionCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
-    bool _FIntersectCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
-    bool _FDiffCore(RC *prc, PREGSC pregsc1, PREGSC pregsc2);
+    bool _FUnionCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
+    bool _FIntersectCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
+    bool _FDiffCore(RC *prc, PRegionScanner pregsc1, PRegionScanner pregsc2);
 
   public:
-    static PREGN PregnNew(RC *prc = pvNil);
-    ~REGN(void);
+    static PRegion PregnNew(RC *prc = pvNil);
+    ~Region(void);
 
     void SetRc(RC *prc = pvNil);
     void Offset(long xp, long yp);
@@ -62,13 +62,13 @@ class REGN : public REGN_PAR
     bool FIsRc(RC *prc = pvNil);
     void Scale(long lwNumX, long lwDenX, long lwNumY, long lwDenY);
 
-    bool FUnion(PREGN pregn1, PREGN pregn2 = pvNil);
-    bool FUnionRc(RC *prc, PREGN pregn2 = pvNil);
-    bool FIntersect(PREGN pregn1, PREGN pregn2 = pvNil);
-    bool FIntersectRc(RC *prc, PREGN pregn = pvNil);
-    bool FDiff(PREGN pregn1, PREGN pregn2 = pvNil);
-    bool FDiffRc(RC *prc, PREGN pregn = pvNil);
-    bool FDiffFromRc(RC *prc, PREGN pregn = pvNil);
+    bool FUnion(PRegion pregn1, PRegion pregn2 = pvNil);
+    bool FUnionRc(RC *prc, PRegion pregn2 = pvNil);
+    bool FIntersect(PRegion pregn1, PRegion pregn2 = pvNil);
+    bool FIntersectRc(RC *prc, PRegion pregn = pvNil);
+    bool FDiff(PRegion pregn1, PRegion pregn2 = pvNil);
+    bool FDiffRc(RC *prc, PRegion pregn = pvNil);
+    bool FDiffFromRc(RC *prc, PRegion pregn = pvNil);
 
     HRGN HrgnCreate(void);
     HRGN HrgnEnsure(void);
@@ -77,14 +77,14 @@ class REGN : public REGN_PAR
 /***************************************************************************
     Region scanner class.
 ***************************************************************************/
-#define REGSC_PAR BASE
-#define kclsREGSC 'rgsc'
-class REGSC : public REGSC_PAR
+#define RegionScanner_PAR BASE
+#define kclsRegionScanner 'rgsc'
+class RegionScanner : public RegionScanner_PAR
 {
     RTCLASS_DEC
 
   protected:
-    PGL _pglxpSrc;    // the list of points
+    PDynamicArray _pglxpSrc;    // the list of points
     long *_pxpLimSrc; // the end of the list
     long *_pxpLimCur; // the end of the current row
 
@@ -106,15 +106,15 @@ class REGSC : public REGSC_PAR
     // point into this.
     long _rgxpRect[4];
 
-    void _InitCore(PGL pglxp, RC *prc, RC *prcRel);
+    void _InitCore(PDynamicArray pglxp, RC *prc, RC *prcRel);
     void _ScanNextCore(void);
 
   public:
-    REGSC(void);
-    ~REGSC(void);
+    RegionScanner(void);
+    ~RegionScanner(void);
     void Free(void);
 
-    void Init(PREGN pregn, RC *prcRel);
+    void Init(PRegion pregn, RC *prcRel);
     void InitRc(RC *prc, RC *prcRel);
     void ScanNext(long dyp)
     {

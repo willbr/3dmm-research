@@ -17,13 +17,13 @@ ASSERTNAME
 const achar kchList = '_';
 const achar kchFontList = '$';
 
-PMUB vpmubCur;
-RTCLASS(MUB)
+PMenuBar vpmubCur;
+RTCLASS(MenuBar)
 
 /***************************************************************************
     Destructor - make sure vpmubCur is not this mub.
 ***************************************************************************/
-MUB::~MUB(void)
+MenuBar::~MenuBar(void)
 {
     // REVIEW shonk: free mem and the _hmenu
     if (vpmubCur == this)
@@ -33,11 +33,11 @@ MUB::~MUB(void)
 /***************************************************************************
     Static method to load and set a new menu bar.
 ***************************************************************************/
-PMUB MUB::PmubNew(ulong ridMenuBar)
+PMenuBar MenuBar::PmubNew(ulong ridMenuBar)
 {
-    PMUB pmub;
+    PMenuBar pmub;
 
-    if ((pmub = NewObj MUB) == pvNil)
+    if ((pmub = NewObj MenuBar) == pvNil)
         return pvNil;
     if ((pmub->_hmenu = LoadMenu(vwig.hinst, MIR(ridMenuBar))) == hNil)
     {
@@ -58,7 +58,7 @@ PMUB MUB::PmubNew(ulong ridMenuBar)
 /***************************************************************************
     Make this the current menu bar.
 ***************************************************************************/
-void MUB::Set(void)
+void MenuBar::Set(void)
 {
     if (vwig.hwndClient != hNil)
     {
@@ -75,13 +75,13 @@ void MUB::Set(void)
     Make sure the menu's are clean - ie, items are enabled/disabled/marked
     correctly.  Called immediately before dropping the menus.
 ***************************************************************************/
-void MUB::Clean(void)
+void MenuBar::Clean(void)
 {
     long imnu, imni, cmnu;
     ulong grfeds;
     HMENU hmenu;
     long wcid;
-    CMD cmd;
+    Command cmd;
 
     // adjust for the goofy mdi window's menu
     cmnu = GetMenuItemCount(_hmenu);
@@ -133,9 +133,9 @@ void MUB::Clean(void)
     The given wcid is the value Windows handed us in a WM_COMMAND message.
     Remap it to a real command id and enqueue the result.
 ***************************************************************************/
-void MUB::EnqueueWcid(long wcid)
+void MenuBar::EnqueueWcid(long wcid)
 {
-    CMD cmd;
+    Command cmd;
 
     if (_FGetCmdForWcid(wcid, &cmd))
         vpcex->EnqueueCmd(&cmd);
@@ -145,7 +145,7 @@ void MUB::EnqueueWcid(long wcid)
     Adds an item identified by the given list cid, long parameter
     and string.
 ***************************************************************************/
-bool MUB::FAddListCid(long cid, long lw0, PSTN pstn)
+bool MenuBar::FAddListCid(long cid, long lw0, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -179,7 +179,7 @@ bool MUB::FAddListCid(long cid, long lw0, PSTN pstn)
 
         if (pvNil == mlst.pgllw)
         {
-            if (pvNil == (mlst.pgllw = GL::PglNew(size(long))))
+            if (pvNil == (mlst.pgllw = DynamicArray::PglNew(size(long))))
             {
                 fRet = fFalse;
                 goto LAdjustSeparator;
@@ -242,13 +242,13 @@ bool MUB::FAddListCid(long cid, long lw0, PSTN pstn)
     or string.  If pstn is non-nil, it is used to find the item.
     If pstn is nil, lw0 is used to identify the item.
 ***************************************************************************/
-bool MUB::FRemoveListCid(long cid, long lw0, PSTN pstn)
+bool MenuBar::FRemoveListCid(long cid, long lw0, PString pstn)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
     long imlst, ilw, cch;
     MLST mlst;
-    SZ sz;
+    ZString sz;
     HMENU hmenuPrev;
     long dimni;
     long lw;
@@ -351,7 +351,7 @@ bool MUB::FRemoveListCid(long cid, long lw0, PSTN pstn)
 /***************************************************************************
     Removes all items identified by the given list cid.
 ***************************************************************************/
-bool MUB::FRemoveAllListCid(long cid)
+bool MenuBar::FRemoveAllListCid(long cid)
 {
     AssertThis(0);
     long imlst, ilw;
@@ -435,14 +435,14 @@ bool MUB::FRemoveAllListCid(long cid)
     lwNew is set as the new long parameter and if pstnNew is non-nil,
     it is used as the new menu item text.
 ***************************************************************************/
-bool MUB::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN pstnNew)
+bool MenuBar::FChangeListCid(long cid, long lwOld, PString pstnOld, long lwNew, PString pstnNew)
 {
     AssertThis(0);
     AssertNilOrPo(pstnOld, 0);
     AssertNilOrPo(pstnNew, 0);
     long imlst, ilw, cch, lw;
     MLST mlst;
-    SZ sz;
+    ZString sz;
     bool fRet = fTrue;
 
     if (pvNil == _pglmlst)
@@ -483,9 +483,9 @@ bool MUB::FChangeListCid(long cid, long lwOld, PSTN pstnOld, long lwNew, PSTN ps
 }
 
 /***************************************************************************
-    Fill in the CMD structure for the given wcid.
+    Fill in the Command structure for the given wcid.
 ***************************************************************************/
-bool MUB::_FGetCmdForWcid(long wcid, PCMD pcmd)
+bool MenuBar::_FGetCmdForWcid(long wcid, PCommand pcmd)
 {
     AssertVarMem(pcmd);
     MLST mlst;
@@ -494,13 +494,13 @@ bool MUB::_FGetCmdForWcid(long wcid, PCMD pcmd)
     if (wcid >= wcidListBase && _FFindMlst(wcid, &mlst))
     {
         long lw, cch;
-        SZ sz;
-        STN stn;
+        ZString sz;
+        String stn;
 
         mlst.pgllw->Get(wcid - mlst.wcidList, &lw);
         cch = GetMenuString(mlst.hmenu, mlst.imniBase + wcid - mlst.wcidList, sz, kcchMaxSz, MF_BYPOSITION);
         stn = sz;
-        if (cch == 0 || (pcmd->pgg = GG::PggNew(0, 1, stn.CbData())) == pvNil)
+        if (cch == 0 || (pcmd->pgg = GeneralGroup::PggNew(0, 1, stn.CbData())) == pvNil)
             return fFalse;
         AssertDo(pcmd->pgg->FInsert(0, stn.CbData(), pvNil), 0);
         stn.GetData(pcmd->pgg->PvLock(0));
@@ -516,7 +516,7 @@ bool MUB::_FGetCmdForWcid(long wcid, PCMD pcmd)
 /***************************************************************************
     See if the given item is in a list.
 ***************************************************************************/
-bool MUB::_FFindMlst(long wcid, MLST *pmlst, long *pimlst)
+bool MenuBar::_FFindMlst(long wcid, MLST *pmlst, long *pimlst)
 {
     long imlst;
     MLST mlst;
@@ -547,14 +547,14 @@ bool MUB::_FFindMlst(long wcid, MLST *pmlst, long *pimlst)
     If the menu bar has a font list item or other list item, do the right
     thing.
 ***************************************************************************/
-bool MUB::_FInitLists(void)
+bool MenuBar::_FInitLists(void)
 {
     long imnu, imni, cmni, cmnu;
     HMENU hmenu;
     long cid;
     MLST mlst;
-    SZ sz;
-    STN stn;
+    ZString sz;
+    String stn;
     long onn;
     long wcidList = wcidListBase;
 
@@ -599,7 +599,7 @@ bool MUB::_FInitLists(void)
                 mlst.wcidList = wcidList;
                 wcidList += dwcidList;
                 mlst.cid = cid;
-                if (pvNil == (mlst.pgllw = GL::PglNew(size(long), vntl.OnnMac())))
+                if (pvNil == (mlst.pgllw = DynamicArray::PglNew(size(long), vntl.OnnMac())))
                     return fFalse;
 
                 for (onn = 0; onn < vntl.OnnMac(); onn++)
@@ -628,7 +628,7 @@ bool MUB::_FInitLists(void)
                 imni--;
                 cmni--;
             LInsertMlst:
-                if (pvNil == _pglmlst && pvNil == (_pglmlst = GL::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
+                if (pvNil == _pglmlst && pvNil == (_pglmlst = DynamicArray::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
                 {
                     ReleasePpo(&mlst.pgllw);
                     return fFalse;
@@ -645,13 +645,13 @@ bool MUB::_FInitLists(void)
 /***************************************************************************
     Mark mem used by the menu bar.
 ***************************************************************************/
-void MUB::MarkMem(void)
+void MenuBar::MarkMem(void)
 {
     AssertThis(0);
     long imlst;
     MLST mlst;
 
-    MUB_PAR::MarkMem();
+    MenuBar_PAR::MarkMem();
     if (pvNil == _pglmlst)
         return;
 

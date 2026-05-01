@@ -11,22 +11,24 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes:
-        General List (GL), Allocated List (AL),
-        General Group (GG), Allocated Group (AG),
-        General String Table (GST), Allocated String Table (AST).
+        General List (DynamicArray), Allocated List (AllocatedArray),
+        General Group (GeneralGroup), Allocated Group (AllocatedGroup),
+        General String Table (StringTable_GST), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> GLB -+-> GL
-                        |        +-> AL
+        BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
+                        |        +-> AllocatedArray
                         |
-                        +-> GGB -+-> GG
-                        |        +-> AG
+                        +-> VirtualGroup -+-> GeneralGroup
+                        |        +-> AllocatedGroup
                         |
-                        +-> GSTB-+-> GST
-                                 +-> AST
+                        +-> VirtualStringTable-+-> StringTable_GST
+                                 +-> AllocatedStringTable
 
 ***************************************************************************/
 #ifndef GROUPS_H
 #define GROUPS_H
+
+namespace Group {
 
 enum
 {
@@ -35,12 +37,12 @@ enum
 };
 
 /****************************************
-    GRPB is a virtual class supporting
+    GroupBase is a virtual class supporting
     all group classes
 ****************************************/
-#define GRPB_PAR BASE
-#define kclsGRPB 'GRPB'
-class GRPB : public GRPB_PAR
+#define GroupBase_PAR BASE
+#define kclsGroupBase 'GRPB'
+class GroupBase : public GroupBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -76,16 +78,16 @@ class GRPB : public GRPB_PAR
         return _cb2;
     }
     bool _FEnsureSizes(long cbMin1, long cbMin2, ulong grfgrp);
-    bool _FWrite(PBLCK pblck, void *pv, long cb, long cb1, long cb2);
-    bool _FReadData(PBLCK pblck, long ib, long cb1, long cb2);
-    bool _FDup(PGRPB pgrpbDst, long cb1, long cb2);
+    bool _FWrite(PDataBlock pblck, void *pv, long cb, long cb1, long cb2);
+    bool _FReadData(PDataBlock pblck, long ib, long cb1, long cb2);
+    bool _FDup(PGroupBase pgrpbDst, long cb1, long cb2);
 
-    GRPB(void)
+    GroupBase(void)
     {
     }
 
   public:
-    ~GRPB(void);
+    ~GroupBase(void);
 
     void Lock(void)
     {
@@ -105,18 +107,18 @@ class GRPB : public GRPB_PAR
     virtual void Delete(long iv) = 0;
 
     // writing
-    virtual bool FWriteFlo(PFLO pflo, short bo = kboCur, short osk = koskCur);
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur) = 0;
+    virtual bool FWriteFlo(PFileLocation pflo, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur) = 0;
     virtual long CbOnFile(void) = 0;
 };
 
 /****************************************
-    GLB is a virtual class supporting
-    GL and AL
+    VirtualArray is a virtual class supporting
+    DynamicArray and AllocatedArray
 ****************************************/
-#define GLB_PAR GRPB
-#define kclsGLB 'GLB'
-class GLB : public GLB_PAR
+#define VirtualArray_PAR GroupBase
+#define kclsVirtualArray 'GLB'
+class VirtualArray : public VirtualArray_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -124,7 +126,7 @@ class GLB : public GLB_PAR
   protected:
     long _cbEntry;
 
-    GLB(long cb);
+    VirtualArray(long cb);
 
   public:
     long CbEntry(void)
@@ -141,31 +143,31 @@ class GLB : public GLB_PAR
 };
 
 /****************************************
-    GL is the basic dynamic array
+    DynamicArray is the basic dynamic array
 ****************************************/
-#define GL_PAR GLB
-#define kclsGL 'GL'
-class GL : public GL_PAR
+#define DynamicArray_PAR VirtualArray
+#define kclsDynamicArray 'GL'
+class DynamicArray : public DynamicArray_PAR
 {
     RTCLASS_DEC
 
   protected:
-    GL(long cb);
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    DynamicArray(long cb);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
-    static PGL PglNew(long cb, long cvInit = 0);
-    static PGL PglRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGL PglRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglNew(long cb, long cvInit = 0);
+    static PDynamicArray PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PGL PglDup(void);
+    PDynamicArray PglDup(void);
 
     // methods required by parent class
     virtual bool FAdd(void *pv, long *piv = pvNil);
     virtual void Delete(long iv);
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long iv);
 
@@ -193,9 +195,9 @@ class GL : public GL_PAR
 /****************************************
     Allocated (fixed index) list class
 ****************************************/
-#define AL_PAR GLB
-#define kclsAL 'AL'
-class AL : public AL_PAR
+#define AllocatedArray_PAR VirtualArray
+#define kclsAllocatedArray 'AL'
+class AllocatedArray : public AllocatedArray_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -211,22 +213,22 @@ class AL : public AL_PAR
     }
 
   protected:
-    AL(long cb);
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    AllocatedArray(long cb);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
   public:
     // static methods
-    static PAL PalNew(long cb, long cvInit = 0);
-    static PAL PalRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAL PalRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedArray PalNew(long cb, long cvInit = 0);
+    static PAllocatedArray PalRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedArray PalRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PAL PalDup(void);
+    PAllocatedArray PalDup(void);
 
     // methods required by parent class
     virtual bool FAdd(void *pv, long *piv = pvNil);
     virtual void Delete(long iv);
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long iv);
 
@@ -236,19 +238,19 @@ class AL : public AL_PAR
 };
 
 /****************************************
-    GGB is a virtual class supporting
-    GG and AG
+    VirtualGroup is a virtual class supporting
+    GeneralGroup and AllocatedGroup
 ****************************************/
-const BOM kbomLoc = 0xF0000000;
-#define GGB_PAR GRPB
-#define kclsGGB 'GGB'
-class GGB : public GGB_PAR
+const ByteOrderMask kbomLoc = 0xF0000000;
+#define VirtualGroup_PAR GroupBase
+#define kclsVirtualGroup 'GGB'
+class VirtualGroup : public VirtualGroup_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    struct LOC
+    struct LogicalOffsetAndCount
     {
         long bv;
         long cb;
@@ -259,21 +261,21 @@ class GGB : public GGB_PAR
     long _cbFixed;
 
   protected:
-    GGB(long cbFixed, bool fAllowFree);
+    VirtualGroup(long cbFixed, bool fAllowFree);
 
     void _RemoveRgb(long bv, long cb);
     void _AdjustLocs(long bvMin, long bvLim, long dcb);
-    LOC *_Qloc(long iloc)
+    LogicalOffsetAndCount *_Qloc(long iloc)
     {
-        return (LOC *)_Qb2(LwMul(iloc, size(LOC)));
+        return (LogicalOffsetAndCount *)_Qb2(LwMul(iloc, size(LogicalOffsetAndCount)));
     }
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
-    bool _FDup(PGGB pggbDst);
+    bool _FDup(PVirtualGroup pggbDst);
 
   public:
     // methods required by parent class
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long iv);
 
@@ -308,28 +310,28 @@ class GGB : public GGB_PAR
 };
 
 /****************************************
-    General Group - based on GGB
+    General Group - based on VirtualGroup
 ****************************************/
-#define GG_PAR GGB
-#define kclsGG 'GG'
-class GG : public GG_PAR
+#define GeneralGroup_PAR VirtualGroup
+#define kclsGeneralGroup 'GG'
+class GeneralGroup : public GeneralGroup_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    GG(long cbFixed) : GGB(cbFixed, fFalse)
+    GeneralGroup(long cbFixed) : VirtualGroup(cbFixed, fFalse)
     {
     }
 
   public:
     // static methods
-    static PGG PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
-    static PGG PggRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGG PggRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
+    static PGeneralGroup PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PGG PggDup(void);
+    PGeneralGroup PggDup(void);
 
     // methods required by parent class
     virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
@@ -337,34 +339,34 @@ class GG : public GG_PAR
 
     // new methods
     bool FInsert(long iv, long cb, void *pv = pvNil, void *pvFixed = pvNil);
-    bool FCopyEntries(PGG pggSrc, long ivSrc, long ivDst, long cv);
+    bool FCopyEntries(PGeneralGroup pggSrc, long ivSrc, long ivDst, long cv);
     void Move(long ivSrc, long ivTarget);
     void Swap(long iv1, long iv2);
 };
 
 /****************************************
-    Allocated Group - based on GGB
+    Allocated Group - based on VirtualGroup
 ****************************************/
-#define AG_PAR GGB
-#define kclsAG 'AG'
-class AG : public AG_PAR
+#define AllocatedGroup_PAR VirtualGroup
+#define kclsAllocatedGroup 'AG'
+class AllocatedGroup : public AllocatedGroup_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    AG(long cbFixed) : GGB(cbFixed, fTrue)
+    AllocatedGroup(long cbFixed) : VirtualGroup(cbFixed, fTrue)
     {
     }
 
   public:
     // static methods
-    static PAG PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
-    static PAG PagRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAG PagRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagNew(long cbFixed = 0, long cvInit = 0, long cbInit = 0);
+    static PAllocatedGroup PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PAG PagDup(void);
+    PAllocatedGroup PagDup(void);
 
     // methods required by parent class
     virtual bool FAdd(long cb, long *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);
@@ -385,12 +387,12 @@ enum
 const long kcchMaxGst = kcchMaxStn;
 
 /****************************************
-    GSTB is a virtual class supporting
-    GST and AST.
+    VirtualStringTable is a virtual class supporting
+    StringTable_GST and AllocatedStringTable.
 ****************************************/
-#define GSTB_PAR GRPB
-#define kclsGSTB 'GSTB'
-class GSTB : public GSTB_PAR
+#define VirtualStringTable_PAR GroupBase
+#define kclsVirtualStringTable 'GSTB'
+class VirtualStringTable : public VirtualStringTable_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -401,7 +403,7 @@ class GSTB : public GSTB_PAR
     long _cbstFree; // this is cvNil for non-allocated GSTBs
 
   protected:
-    GSTB(long cbExtra, ulong grfgst);
+    VirtualStringTable(long cbExtra, ulong grfgst);
 
     long _Bst(long ibst)
     {
@@ -411,19 +413,19 @@ class GSTB : public GSTB_PAR
     {
         return (long *)_Qb2(LwMul(ibst, _cbEntry));
     }
-    PST _Qst(long ibst);
+    PPascalString _Qst(long ibst);
     void _RemoveSt(long bst);
     void _AppendRgch(achar *prgch, long cch);
     void _SwapBytesRgbst(void);
     void _TranslateGrst(short osk, bool fToCur);
     bool _FTranslateGrst(short osk);
-    bool _FRead(PBLCK pblck, short *pbo, short *posk);
+    bool _FRead(PDataBlock pblck, short *pbo, short *posk);
 
-    bool _FDup(PGSTB pgstbDst);
+    bool _FDup(PVirtualStringTable pgstbDst);
 
   public:
     // methods required by parent class
-    virtual bool FWrite(PBLCK pblck, short bo = kboCur, short osk = koskCur);
+    virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
     virtual long CbOnFile(void);
     virtual bool FFree(long istn);
 
@@ -442,41 +444,41 @@ class GSTB : public GSTB_PAR
         return _cbEntry - size(long);
     }
 
-    bool FAddStn(PSTN pstn, void *pvExtra = pvNil, long *pistn = pvNil);
+    bool FAddStn(PString pstn, void *pvExtra = pvNil, long *pistn = pvNil);
     bool FPutRgch(long istn, achar *prgch, long cch);
-    bool FPutStn(long istn, PSTN pstn);
+    bool FPutStn(long istn, PString pstn);
     void GetRgch(long istn, achar *prgch, long cchMax, long *pcch);
-    void GetStn(long istn, PSTN pstn);
-    bool FFindStn(PSTN pstn, long *pistn, ulong grfgst = fgstNil);
+    void GetStn(long istn, PString pstn);
+    bool FFindStn(PString pstn, long *pistn, ulong grfgst = fgstNil);
 
     void GetExtra(long istn, void *pv);
     void PutExtra(long istn, void *pv);
-    bool FFindExtra(void *prgbFind, PSTN pstn = pvNil, long *pistn = pvNil);
+    bool FFindExtra(void *prgbFind, PString pstn = pvNil, long *pistn = pvNil);
 };
 
 /****************************************
     String table
 ****************************************/
-#define GST_PAR GSTB
-#define kclsGST 'GST'
-class GST : public GST_PAR
+#define StringTable_GST_PAR VirtualStringTable
+#define kclsStringTable_GST 'GST'
+class StringTable_GST : public StringTable_GST_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    GST(long cbExtra) : GSTB(cbExtra, fgstNil)
+    StringTable_GST(long cbExtra) : VirtualStringTable(cbExtra, fgstNil)
     {
     }
 
   public:
     // static methods
-    static PGST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PGST PgstRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PGST PgstRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PStringTable_GST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PGST PgstDup(void);
+    PStringTable_GST PgstDup(void);
 
     // methods required by parent class
     virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);
@@ -485,37 +487,39 @@ class GST : public GST_PAR
 
     // new methods
     bool FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra = pvNil);
-    bool FInsertStn(long istn, PSTN pstn, void *pvExtra = pvNil);
+    bool FInsertStn(long istn, PString pstn, void *pvExtra = pvNil);
     void Move(long istnSrc, long istnDst);
 };
 
 /****************************************
     Allocated string table
 ****************************************/
-#define AST_PAR GSTB
-#define kclsAST 'AST'
-class AST : public AST_PAR
+#define AllocatedStringTable_PAR VirtualStringTable
+#define kclsAllocatedStringTable 'AST'
+class AllocatedStringTable : public AllocatedStringTable_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    AST(long cbExtra) : GSTB(cbExtra, fgstAllowFree)
+    AllocatedStringTable(long cbExtra) : VirtualStringTable(cbExtra, fgstAllowFree)
     {
     }
 
   public:
     // static methods
-    static PAST PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
-    static PAST PastRead(PBLCK pblck, short *pbo = pvNil, short *posk = pvNil);
-    static PAST PastRead(PFIL pfil, FP fp, long cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedStringTable PastNew(long cbExtra = 0, long cstnInit = 0, long cchInit = 0);
+    static PAllocatedStringTable PastRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedStringTable PastRead(PFileObject pfil, FilePosition fp, long cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication
-    PAST PastDup(void);
+    PAllocatedStringTable PastDup(void);
 
     // methods required by parent class
     virtual bool FAddRgch(achar *prgch, long cch, void *pvExtra = pvNil, long *pistn = pvNil);
     virtual void Delete(long istn);
 };
+
+} // end of namespace Group
 
 #endif //! GROUPS_H

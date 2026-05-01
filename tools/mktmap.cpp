@@ -22,13 +22,13 @@ ASSERTNAME
 ***************************************************************************/
 int __cdecl main(int cpszs, char *prgpszs[])
 {
-    FNI fniSrc, fniDst;
-    STN stn;
+    Filename fniSrc, fniDst;
+    String stn;
     char chs;
-    PTMAP ptmap = pvNil;
+    PTextureMap ptmap = pvNil;
     long cfni = 0;
     bool fCompress = fFalse;
-    MSSIO mssioErr(stderr);
+    MessageSinkIO mssioErr(stderr);
 
 #ifdef UNICODE
     fprintf(stderr, "\nMicrosoft (R) Make Tmap Utility (Unicode; " __DATE__ "; " __TIME__ ")\n");
@@ -78,7 +78,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    ptmap = TMAP::PtmapReadNative(&fniSrc);
+    ptmap = TextureMap::PtmapReadNative(&fniSrc);
     if (pvNil == ptmap)
     {
         fprintf(stderr, "reading texture map failed\n\n");
@@ -89,7 +89,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LFail;
     ReleasePpo(&ptmap);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -99,7 +99,7 @@ LUsage:
 LFail:
     ReleasePpo(&ptmap);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 

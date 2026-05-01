@@ -17,77 +17,83 @@
 #ifndef SCREXE_H
 #define SCREXE_H
 
+namespace ScriptInterpreter {
+
+using namespace Chunky;
+using namespace ScriptCompiler;
+using namespace Group;
+
 /****************************************
     Run-Time Variable Map structure
 ****************************************/
-struct RTVM
+struct RunTimeVariableMap
 {
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long lwValue;
 };
 
-bool FFindRtvm(PGL pglrtvm, RTVN *prtvn, long *plwValue, long *pirtvm);
-bool FAssignRtvm(PGL *ppglrtvm, RTVN *prtvn, long lw);
+bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, long *plwValue, long *pirtvm);
+bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw);
 
 /***************************************************************************
     A script.  This is here rather than in scrcom.* because scrcom is
     rarely included in shipping products, but screxe.* is.
 ***************************************************************************/
-typedef class SCPT *PSCPT;
-#define SCPT_PAR BACO
-#define kclsSCPT 'SCPT'
-class SCPT : public SCPT_PAR
+typedef class Script *PScript;
+#define Script_PAR BaseCacheableObject
+#define kclsScript 'SCPT'
+class Script : public Script_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    PGL _pgllw;
-    PGST _pgstLiterals;
+    PDynamicArray _pgllw;
+    PStringTable_GST _pgstLiterals;
 
-    SCPT(void)
+    Script(void)
     {
     }
 
-    friend class SCEB;
-    friend class SCCB;
+    friend class Interpreter;
+    friend class CompilerBase;
 
   public:
-    static bool FReadScript(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PSCPT PscptRead(PCFL pcfl, CTG ctg, CNO cno);
-    ~SCPT(void);
+    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PScript PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    ~Script(void);
 
-    bool FSaveToChunk(PCFL pcfl, CTG ctg, CNO cno, bool fPack = fFalse);
+    bool FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fPack = fFalse);
 };
 
 /***************************************************************************
     Runtime string registry.
 ***************************************************************************/
-typedef class STRG *PSTRG;
-#define STRG_PAR BASE
-#define kclsSTRG 'STRG'
-class STRG : public STRG_PAR
+typedef class StringRegistry *PStringRegistry;
+#define StringRegistry_PAR BASE
+#define kclsStringRegistry 'STRG'
+class StringRegistry : public StringRegistry_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(STRG)
+    NOCOPY(StringRegistry)
 
   protected:
     long _stidLast;
-    PGST _pgst;
+    PStringTable_GST _pgst;
 
     bool _FFind(long stid, long *pistn);
     bool _FEnsureGst(void);
 
   public:
-    STRG(void);
-    ~STRG(void);
+    StringRegistry(void);
+    ~StringRegistry(void);
 
-    bool FPut(long stid, PSTN pstn);
-    bool FGet(long stid, PSTN pstn);
-    bool FAdd(long *pstid, PSTN pstn);
+    bool FPut(long stid, PString pstn);
+    bool FGet(long stid, PString pstn);
+    bool FAdd(long *pstid, PString pstn);
     bool FMove(long stidSrc, long stidDst);
     void Delete(long stid);
 };
@@ -101,21 +107,21 @@ enum
     fscebRunnable = 1,
 };
 
-typedef class SCEB *PSCEB;
-#define SCEB_PAR BASE
-#define kclsSCEB 'SCEB'
-class SCEB : public SCEB_PAR
+typedef class Interpreter *PInterpreter;
+#define Interpreter_PAR BASE
+#define kclsInterpreter 'SCEB'
+class Interpreter : public Interpreter_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PRCA _prca; // the chunky resource file list (may be nil)
-    PSTRG _pstrg;
-    PGL _pgllwStack;   // the execution stack
-    PGL _pglrtvm;      // the local variables
-    PSCPT _pscpt;      // the script
+    PResourceCache _prca; // the chunky resource file list (may be nil)
+    PStringRegistry _pstrg;
+    PDynamicArray _pgllwStack;   // the execution stack
+    PDynamicArray _pglrtvm;      // the local variables
+    PScript _pscpt;      // the script
     long _ilwMac;      // the length of the script
     long _ilwCur;      // the current location in the script
     bool _fError : 1;  // an error has occured
@@ -139,41 +145,43 @@ class SCEB : public SCEB_PAR
     void _RndList(long clw);
     void _Match(long clw);
     void _CopySubStr(long stidSrc, long ichMin, long cch, long stidDst);
-    void _MergeStrings(CNO cno, RSC rsc);
+    void _MergeStrings(ChunkNumber cno, RSC rsc);
     void _NumToStr(long lw, long stid);
     void _StrToNum(long stid, long lwEmpty, long lwError);
     void _ConcatStrs(long stidSrc1, long stidSrc2, long stidDst);
     void _LenStr(long stid);
 
     virtual void _AddParameters(long *prglw, long clw);
-    virtual void _AddStrings(PGST pgst);
-    virtual bool _FExecVarOp(long op, RTVN *prtvn);
+    virtual void _AddStrings(PStringTable_GST pgst);
+    virtual bool _FExecVarOp(long op, RuntimeVariableName *prtvn);
     virtual bool _FExecOp(long op);
-    virtual void _PushVar(PGL pglrtvm, RTVN *prtvn);
-    virtual void _AssignVar(PGL *ppglrtvm, RTVN *prtvn, long lw);
-    virtual PGL _PglrtvmThis(void);
-    virtual PGL *_PpglrtvmThis(void);
-    virtual PGL _PglrtvmGlobal(void);
-    virtual PGL *_PpglrtvmGlobal(void);
-    virtual PGL _PglrtvmRemote(long lw);
-    virtual PGL *_PpglrtvmRemote(long lw);
+    virtual void _PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn);
+    virtual void _AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, long lw);
+    virtual PDynamicArray _PglrtvmThis(void);
+    virtual PDynamicArray *_PpglrtvmThis(void);
+    virtual PDynamicArray _PglrtvmGlobal(void);
+    virtual PDynamicArray *_PpglrtvmGlobal(void);
+    virtual PDynamicArray _PglrtvmRemote(long lw);
+    virtual PDynamicArray *_PpglrtvmRemote(long lw);
 
     virtual short _SwCur(void);
     virtual short _SwMin(void);
 
 #ifdef DEBUG
-    void _WarnSz(PSZ psz, ...);
+    void _WarnSz(PZString psz, ...);
 #endif // DEBUG
 
   public:
-    SCEB(PRCA prca = pvNil, PSTRG pstrg = pvNil);
-    ~SCEB(void);
+    Interpreter(PResourceCache prca = pvNil, PStringRegistry pstrg = pvNil);
+    ~Interpreter(void);
 
-    virtual bool FRunScript(PSCPT pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
+    virtual bool FRunScript(PScript pscpt, long *prglw = pvNil, long clw = 0, long *plwReturn = pvNil,
                             bool *pfPaused = pvNil);
     virtual bool FResume(long *plwReturn = pvNil, bool *pfPaused = pvNil);
-    virtual bool FAttachScript(PSCPT pscpt, long *prglw = pvNil, long clw = 0);
+    virtual bool FAttachScript(PScript pscpt, long *prglw = pvNil, long clw = 0);
     virtual void Free(void);
 };
+
+} // end of namespace ScriptInterpreter
 
 #endif //! SCREXE_H

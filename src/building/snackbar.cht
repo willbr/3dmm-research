@@ -12,7 +12,7 @@ GOBCHUNK("Snackbar McZee", kgobSnackbarMczee, kgokkNormal)
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsHand1, kchidScript0, cidNil, cnoNil)
 	ACTION(fcustNil, fcustNil, fgrfst2, kcrsArrow1,chidNil, cidNil, cnoNil)
 ENDCHUNK
-	REP_ANIM( CHID( kst1, krepDefault ), "Snackbar Idle" )
+	REP_ANIM( ChildChunkID( kst1, krepDefault ), "Snackbar Idle" )
 		While( fTrue );
 			cnt=kcell150;
 			While( cnt <= kcell164 );
@@ -21,7 +21,7 @@ ENDCHUNK
 		End;
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst2, krepDefault ), "Snackbar Mz anim" )
+	REP_ANIM( ChildChunkID( kst2, krepDefault ), "Snackbar Mz anim" )
 		PLAYMIDI( cnoNil ); 	// stop and reset lobby MIDI if it's going
 		VOICE( kwavVO60, 0 );
 		cnt=kcell1;

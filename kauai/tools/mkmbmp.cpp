@@ -21,12 +21,12 @@ bool _FGetLwFromSzs(PSZS pszs, long *plw);
 ***************************************************************************/
 int __cdecl main(int cpszs, char *prgpszs[])
 {
-    FNI fniSrc, fniDst;
-    STN stn;
+    Filename fniSrc, fniDst;
+    String stn;
     char chs;
-    FLO flo;
+    FileLocation flo;
     long lwSig;
-    PMBMP pmbmp = pvNil;
+    PMaskedBitmapMBMP pmbmp = pvNil;
     long cfni = 0;
     long xp = 0;
     long yp = 0;
@@ -143,14 +143,14 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    pmbmp = MBMP::PmbmpReadNative(&fniSrc, B0Lw(lwTrans), xp, yp);
+    pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fniSrc, B0Lw(lwTrans), xp, yp);
     if (pvNil == pmbmp)
     {
         fprintf(stderr, "reading bitmap failed\n\n");
         goto LFail;
     }
 
-    if (pvNil == (flo.pfil = FIL::PfilCreate(&fniDst)))
+    if (pvNil == (flo.pfil = FileObject::PfilCreate(&fniDst)))
     {
         fprintf(stderr, "Couldn't create destination file\n\n");
         goto LFail;
@@ -160,7 +160,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     if (cfmtNil != cfmt)
     {
-        BLCK blck;
+        DataBlock blck;
 
         if (!blck.FSetTemp(flo.cb) || !pmbmp->FWrite(&blck))
         {
@@ -193,7 +193,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     }
 
     ReleasePpo(&flo.pfil);
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -207,18 +207,18 @@ LFail:
         flo.pfil->SetTemp();
     ReleasePpo(&flo.pfil);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 
 /***************************************************************************
     Get a long value from a string. If the string isn't a number and the
     length is <= 4, assumes the characters are to be packed into a long
-    (ala CTGs and FTGs).
+    (ala ChunkTags and FileTypes).
 ***************************************************************************/
 bool _FGetLwFromSzs(PSZS pszs, long *plw)
 {
-    STN stn;
+    String stn;
     long ich;
 
     stn.SetSzs(pszs);

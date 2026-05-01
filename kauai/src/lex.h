@@ -96,23 +96,23 @@ enum
     ttLimBase
 };
 
-struct TOK
+struct Token
 {
     long tt;
     long lw;
-    STN stn;
+    String stn;
 };
-typedef TOK *PTOK;
+typedef Token *PToken;
 
 /***************************************************************************
     Base lexer.
 ***************************************************************************/
 #define kcchLexbBuf 512
 
-typedef class LEXB *PLEXB;
-#define LEXB_PAR BASE
-#define kclsLEXB 'LEXB'
-class LEXB : public LEXB_PAR
+typedef class LexerBase *PLexerBase;
+#define LexerBase_PAR BASE
+#define kclsLexerBase 'LEXB'
+class LexerBase : public LexerBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -121,14 +121,14 @@ class LEXB : public LEXB_PAR
   protected:
     static ushort _mpchgrfct[];
 
-    PFIL _pfil; // exactly one of _pfil, _pbsf should be non-nil
-    PBSF _pbsf;
-    STN _stnFile;
+    PFileObject _pfil; // exactly one of _pfil, _pbsf should be non-nil
+    PFileByteStream _pbsf;
+    String _stnFile;
     long _lwLine;  // which line
     long _ichLine; // which character on the line
 
-    FP _fpCur;
-    FP _fpMac;
+    FilePosition _fpCur;
+    FilePosition _fpMac;
     long _ichLim;
     long _ichCur;
     achar _rgch[kcchLexbBuf];
@@ -148,7 +148,7 @@ class LEXB : public LEXB_PAR
     }
     bool _FSkipWhiteSpace(void);
     virtual void _ReadNumber(long *plw, achar ch, long lwBase, long cchMax);
-    virtual void _ReadNumTok(PTOK ptok, achar ch, long lwBase, long cchMax)
+    virtual void _ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
     {
         _ReadNumber(&ptok->lw, ch, lwBase, cchMax);
     }
@@ -156,15 +156,15 @@ class LEXB : public LEXB_PAR
     bool _FReadControlCh(achar *pch);
 
   public:
-    LEXB(PFIL pfil, bool fUnionStrings = fTrue);
-    LEXB(PBSF pbsf, PSTN pstnFile, bool fUnionStrings = fTrue);
-    ~LEXB(void);
+    LexerBase(PFileObject pfil, bool fUnionStrings = fTrue);
+    LexerBase(PFileByteStream pbsf, PString pstnFile, bool fUnionStrings = fTrue);
+    ~LexerBase(void);
 
-    virtual bool FGetTok(PTOK ptok);
+    virtual bool FGetTok(PToken ptok);
     virtual long CbExtra(void);
     virtual void GetExtra(void *pv);
 
-    void GetStnFile(PSTN pstn);
+    void GetStnFile(PString pstn);
     long LwLine(void)
     {
         return _lwLine;

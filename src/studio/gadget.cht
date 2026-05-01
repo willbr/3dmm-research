@@ -187,13 +187,13 @@ GOBCHUNK("Gadget play button", kidGadgetPlay, kgokkRectHit)
 ENDCHUNK
 	REP_MBMPREG(kcell1, "studio\bmp\gdplay.bmp", kxpregGdPlay, kypregGdPlay)
 	REP_MBMPREG(kcell2, "studio\bmp\gdstop.bmp", kxpregGdPlay, kypregGdPlay)
-	REP_ANIM(CHID(kst1, krepDefault), "play button, movie stopped")
+	REP_ANIM(ChildChunkID(kst1, krepDefault), "play button, movie stopped")
 		// Got the play button showing -- make sure the movie isn't playing
 		// reset the video to the static cell
 		ChangeStateGob(kidGadgetAvi, (kst1 + ::gdCurrProj - 1));
 		Cell(kcell1, 0, 0, 1);
 	ENDCHUNK	
-	REP_ANIM(CHID(kst2, krepDefault), "play...poll movie")
+	REP_ANIM(ChildChunkID(kst2, krepDefault), "play...poll movie")
 		// tell the movie gob to play by switching state
 		ChangeStateGob(kidGadgetAvi, (kst6 + ::gdCurrProj));
 		// draw our representation
@@ -285,7 +285,7 @@ GOBCHUNK("Gadget Voice Toggle", kidGadgetVoice, kgokkRectHit)
 ENDCHUNK
 	REP_MBMPREG(CHID1(krepDefault), "studio\bmp\gdmelon.bmp", kxpregGdMelVoice, kypregGdMelVoice)
 	ADOPT_MBMP(LAST_MBMP, CHID1(krepMouseDnOn))
-	REP_MBMPREG(CHID(kst2, krepDefault), "studio\bmp\gdmeloff.bmp", kxpregGdMelVoice, kypregGdMelVoice)
+	REP_MBMPREG(ChildChunkID(kst2, krepDefault), "studio\bmp\gdmeloff.bmp", kxpregGdMelVoice, kypregGdMelVoice)
 	CREATE_ANIM("Mel Voice control")
 		// see if voice should be on or off
 		fMelAudio = GetProp( kpridMcZeeAudio ) & kflgMelAudio;
@@ -379,11 +379,11 @@ GOBCHUNK("Gadget Why button", kidGadgetWhy, kgokkRectHit)
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsHand1, CHID1(kchidClick), cidNil, ttWhyButton)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow1, chidNil, cidNil, ttWhyButton)
 ENDCHUNK
-	REP_MBMPREG(CHID(kst1, krepDefault), "studio\bmp\gdwhy.bmp", kxpregGdWhy, kypregGdWhy)
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseUpOn))
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseDnOff))
-	REP_MBMPREG(CHID(kst1, krepMouseDnOn), "studio\bmp\gdwhys.bmp", kxpregGdWhy, kypregGdWhy)
-	REP_MBMPREG(CHID(kst2, krepDefault), "studio\bmp\gdwhyd.bmp", kxpregGdWhy, kypregGdWhy)
+	REP_MBMPREG(ChildChunkID(kst1, krepDefault), "studio\bmp\gdwhy.bmp", kxpregGdWhy, kypregGdWhy)
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseUpOn))
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseDnOff))
+	REP_MBMPREG(ChildChunkID(kst1, krepMouseDnOn), "studio\bmp\gdwhys.bmp", kxpregGdWhy, kypregGdWhy)
+	REP_MBMPREG(ChildChunkID(kst2, krepDefault), "studio\bmp\gdwhyd.bmp", kxpregGdWhy, kypregGdWhy)
 	CLICK_SCRIPT("button clicked")
 //	  	ChangeStateGob( kidGadgetPlay, kst1 );
 	ENDCHUNK
@@ -396,10 +396,10 @@ GOBCHUNK("Gadget up button", kidGadgetSelectorUp, kgokkRectHit)
 	DEFAULT_POSITION(kxpGdSelUp, kypGdSelUp, 200)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand1, CHID1(kchidClick), cidNil, ttNextMovie)
 ENDCHUNK
-	REP_MBMPREG(CHID(kst1, krepDefault), "studio\bmp\gdselup.bmp", kxpregGdSelUp, kypregGdSelUp)
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseUpOn))
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseDnOff))
-	REP_MBMPREG(CHID(kst1, krepMouseDnOn), "studio\bmp\gdselups.bmp", kxpregGdSelUp, kypregGdSelUp)
+	REP_MBMPREG(ChildChunkID(kst1, krepDefault), "studio\bmp\gdselup.bmp", kxpregGdSelUp, kypregGdSelUp)
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseUpOn))
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseDnOff))
+	REP_MBMPREG(ChildChunkID(kst1, krepMouseDnOn), "studio\bmp\gdselups.bmp", kxpregGdSelUp, kypregGdSelUp)
 	ADOPT_WAVE( kcnoPageUpWav, CHID1( krepClicked ))
 
 	CLICK_SCRIPT("button up clicked")
@@ -446,12 +446,12 @@ GOBCHUNK("Gadget selector number", kidGadgetSelectorNum, gokkNoHit)
 	DEFAULT_POSITION(kxpGdMovieNum, kypGdMovieNum, 200)
 //	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow1, CHID1(kchidClick), cidNil, cnoNil)
 ENDCHUNK
-	REP_MBMPREG(CHID(kst1, krepDefault), "studio\bmp\gdmovie1.bmp", kxpregGdMovieNum, kypregGdMovieNum)
-	REP_MBMPREG(CHID(kst2, krepDefault), "studio\bmp\gdmovie2.bmp", kxpregGdMovieNum, kypregGdMovieNum)
-	REP_MBMPREG(CHID(kst3, krepDefault), "studio\bmp\gdmovie3.bmp", kxpregGdMovieNum, kypregGdMovieNum)
-	REP_MBMPREG(CHID(kst4, krepDefault), "studio\bmp\gdmovie4.bmp", kxpregGdMovieNum, kypregGdMovieNum)
-	REP_MBMPREG(CHID(kst5, krepDefault), "studio\bmp\gdmovie5.bmp", kxpregGdMovieNum, kypregGdMovieNum)
-	REP_MBMPREG(CHID(kst6, krepDefault), "studio\bmp\gdmovie6.bmp", kxpregGdMovieNum, kypregGdMovieNum)
+	REP_MBMPREG(ChildChunkID(kst1, krepDefault), "studio\bmp\gdmovie1.bmp", kxpregGdMovieNum, kypregGdMovieNum)
+	REP_MBMPREG(ChildChunkID(kst2, krepDefault), "studio\bmp\gdmovie2.bmp", kxpregGdMovieNum, kypregGdMovieNum)
+	REP_MBMPREG(ChildChunkID(kst3, krepDefault), "studio\bmp\gdmovie3.bmp", kxpregGdMovieNum, kypregGdMovieNum)
+	REP_MBMPREG(ChildChunkID(kst4, krepDefault), "studio\bmp\gdmovie4.bmp", kxpregGdMovieNum, kypregGdMovieNum)
+	REP_MBMPREG(ChildChunkID(kst5, krepDefault), "studio\bmp\gdmovie5.bmp", kxpregGdMovieNum, kypregGdMovieNum)
+	REP_MBMPREG(ChildChunkID(kst6, krepDefault), "studio\bmp\gdmovie6.bmp", kxpregGdMovieNum, kypregGdMovieNum)
 
 // -----------------------------------------------------
 // Selector down button
@@ -460,10 +460,10 @@ GOBCHUNK("Gadget down button", kidGadgetSelectorDown, kgokkRectHit)
 	DEFAULT_POSITION(kxpGdSelDn, kypGdSelDn, 200)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand1, CHID1(kchidClick), cidNil, ttPreviousMovie)
 ENDCHUNK
-	REP_MBMPREG(CHID(kst1, krepDefault), "studio\bmp\gdseldn.bmp", kxpregGdSelDn, kypregGdSelDn)
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseUpOn))
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseDnOff))
-	REP_MBMPREG(CHID(kst1, krepMouseDnOn), "studio\bmp\gdseldns.bmp", kxpregGdSelDn, kypregGdSelDn)
+	REP_MBMPREG(ChildChunkID(kst1, krepDefault), "studio\bmp\gdseldn.bmp", kxpregGdSelDn, kypregGdSelDn)
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseUpOn))
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseDnOff))
+	REP_MBMPREG(ChildChunkID(kst1, krepMouseDnOn), "studio\bmp\gdseldns.bmp", kxpregGdSelDn, kypregGdSelDn)
 	ADOPT_WAVE( kcnoPageDnWav, CHID1( krepClicked ))
 	CLICK_SCRIPT("button down clicked")
 		::gdUpSelected = fFalse;
@@ -520,18 +520,18 @@ GOBCHUNK("Gadget movie avi", kidGadgetAvi, gokkNoHit)
 	DEFAULT_POSITION( 0, 0, 100)
 //	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow1, CHID1(kchidClick), cidNil, cnoNil)
 ENDCHUNK
-	REP_MBMP(CHID(kst1, krepDefault), "studio\bmp\gdavi1.bmp")
-	REP_MBMP(CHID(kst2, krepDefault), "studio\bmp\gdavi3.bmp")
-	REP_MBMP(CHID(kst3, krepDefault), "studio\bmp\gdavi2.bmp")
-	REP_MBMP(CHID(kst4, krepDefault), "studio\bmp\gdavi6.bmp")
-	REP_MBMP(CHID(kst5, krepDefault), "studio\bmp\gdavi5.bmp")
-	REP_MBMP(CHID(kst6, krepDefault), "studio\bmp\gdavi4.bmp")
-	REP_VIDEO(CHID(kst7, krepDefault), "proj1.avi", fTrue)
-	REP_VIDEO(CHID(kst8, krepDefault), "proj2.avi", fTrue)
-	REP_VIDEO(CHID(kst9, krepDefault), "proj3.avi", fTrue)
-	REP_VIDEO(CHID(kst10, krepDefault), "proj4.avi", fTrue)
-	REP_VIDEO(CHID(kst11, krepDefault), "proj5.avi", fTrue)
-	REP_VIDEO(CHID(kst12, krepDefault), "proj6.avi", fTrue)
+	REP_MBMP(ChildChunkID(kst1, krepDefault), "studio\bmp\gdavi1.bmp")
+	REP_MBMP(ChildChunkID(kst2, krepDefault), "studio\bmp\gdavi3.bmp")
+	REP_MBMP(ChildChunkID(kst3, krepDefault), "studio\bmp\gdavi2.bmp")
+	REP_MBMP(ChildChunkID(kst4, krepDefault), "studio\bmp\gdavi6.bmp")
+	REP_MBMP(ChildChunkID(kst5, krepDefault), "studio\bmp\gdavi5.bmp")
+	REP_MBMP(ChildChunkID(kst6, krepDefault), "studio\bmp\gdavi4.bmp")
+	REP_VIDEO(ChildChunkID(kst7, krepDefault), "proj1.avi", fTrue)
+	REP_VIDEO(ChildChunkID(kst8, krepDefault), "proj2.avi", fTrue)
+	REP_VIDEO(ChildChunkID(kst9, krepDefault), "proj3.avi", fTrue)
+	REP_VIDEO(ChildChunkID(kst10, krepDefault), "proj4.avi", fTrue)
+	REP_VIDEO(ChildChunkID(kst11, krepDefault), "proj5.avi", fTrue)
+	REP_VIDEO(ChildChunkID(kst12, krepDefault), "proj6.avi", fTrue)
 	CREATE_ANIM("")
 		ChangeStateThis(kst1 + (::gdCurrProj - 1));
 	ENDCHUNK
@@ -543,7 +543,7 @@ GOBCHUNK("Gadget text area", kidGadgetWord, gokkNoHit)
 	DEFAULT_POSITION(0, 0, 200)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow1, chidNil, cidNil, cnoNil)
 ENDCHUNK
-	REP_MBMP(CHID(kst1, krepDefault), "studio\bmp\gdword.bmp")
+	REP_MBMP(ChildChunkID(kst1, krepDefault), "studio\bmp\gdword.bmp")
 	CREATE_ANIM("Text box created")
 		CreateChildThis(kidGadgetTextBox, kidGadgetTextBox);
 	ENDCHUNK
@@ -555,7 +555,7 @@ GOBCHUNK("Gadget text box fill", kidGadgetTextBox, gokkNoHit)
 	DEFAULT_POSITION(0, 0, 200)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow1, chidNil, cidNil, cnoNil)
 ENDCHUNK
-	REP_FILL(CHID(kst1, krepDefault), "Text Box Fill", kTextBoxFillLeft, kTextBoxFillTop, kTextBoxFillRight, kTextBoxFillBottom, Transparent, Transparent)
+	REP_FILL(ChildChunkID(kst1, krepDefault), "Text Box Fill", kTextBoxFillLeft, kTextBoxFillTop, kTextBoxFillRight, kTextBoxFillBottom, Transparent, Transparent)
 		PATTERN_0
 	ENDCHUNK
 
@@ -566,7 +566,7 @@ GOBCHUNK("Gadget locker fill", kidGadgetLockerFill, gokkNoHit)
 	DEFAULT_POSITION(0, 0, 200)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow1, chidNil, cidNil, cnoNil)
 ENDCHUNK
-	REP_FILL(CHID(kst1, krepDefault), "Locker Fill", kLockerFillLeft, kLockerFillTop, kLockerFillRight, kLockerFillBottom, Palette(20), Transparent)
+	REP_FILL(ChildChunkID(kst1, krepDefault), "Locker Fill", kLockerFillLeft, kLockerFillTop, kLockerFillRight, kLockerFillBottom, Palette(20), Transparent)
 		PATTERN_50X
 	ENDCHUNK
 	CREATE_ANIM("gadget created")
@@ -626,10 +626,10 @@ ENDCHUNK
 	REP_MBMP(kcell36, "studio\bmp\pnshot8d.bmp")
 
 	REP_MBMP(kcell37, "studio\bmp\pnclosed.bmp")
-	REP_ANIM(CHID(kst1, krepDefault), "Show closed locker")
+	REP_ANIM(ChildChunkID(kst1, krepDefault), "Show closed locker")
 		Cell(kcell37, 0, 0, 1);
 	ENDCHUNK	
-	REP_ANIM(CHID(kst2, krepDefault), "Show first step of current project")
+	REP_ANIM(ChildChunkID(kst2, krepDefault), "Show first step of current project")
 		Cell((kcell1 + ::gdProjEnd[::gdCurrProj - 1] + ::gdCurrStep - 1) , 0, 0, 1);
 	ENDCHUNK
 

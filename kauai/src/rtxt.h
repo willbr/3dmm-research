@@ -16,6 +16,8 @@
 #ifndef RTXT_H
 #define RTXT_H
 
+using namespace Chunky;
+
 /***************************************************************************
     Character properties - if you change this, make sure to update
     FetchChp and _TGetLwFromChp.
@@ -26,8 +28,8 @@ struct CHP
     long onn;       // which font
     long dypFont;   // size of the font
     long dypOffset; // sub/superscript (-128 to 127)
-    ACR acrFore;    // text color
-    ACR acrBack;    // background color
+    AbstractColor acrFore;    // text color
+    AbstractColor acrBack;    // background color
 
     void Clear(void)
     {
@@ -86,19 +88,19 @@ const achar kchObject = 1;
     Generic text document base class
 ***************************************************************************/
 const long kcchMaxTxtbCache = 512;
-typedef class TXTB *PTXTB;
-#define TXTB_PAR DOCB
-#define kclsTXTB 'TXTB'
-class TXTB : public TXTB_PAR
+typedef class TextDocumentBase *PTextDocumentBase;
+#define TextDocumentBase_PAR DocumentBase
+#define kclsTextDocumentBase 'TXTB'
+class TextDocumentBase : public TextDocumentBase_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PFIL _pfil;
-    PBSF _pbsf;
-    ACR _acrBack;
+    PFileObject _pfil;
+    PFileByteStream _pbsf;
+    AbstractColor _acrBack;
     long _dxpDef; // default width of the document
     long _cpMinCache;
     long _cpLimCache;
@@ -107,9 +109,9 @@ class TXTB : public TXTB_PAR
     long _cactSuspendUndo; // > 0 means don't set up undo records.
     long _cactCombineUndo; // determines whether we can combine undo records.
 
-    TXTB(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXTB(void);
-    virtual bool _FInit(PFNI pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur);
+    TextDocumentBase(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~TextDocumentBase(void);
+    virtual bool _FInit(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, short osk = koskCur);
     virtual bool _FLoad(short osk = koskCur);
     virtual achar _ChFetch(long cp);
     virtual void _CacheRange(long cpMin, long cpLim);
@@ -120,7 +122,7 @@ class TXTB : public TXTB_PAR
 
     // REVIEW shonk: this is needed for using a text document as input to a lexer.
     // The bsf returned is read-only!!!!
-    PBSF Pbsf(void)
+    PFileByteStream Pbsf(void)
     {
         AssertThis(0);
         return _pbsf;
@@ -132,11 +134,11 @@ class TXTB : public TXTB_PAR
     long CpLimPara(long cp);
     long CpPrev(long cp, bool fWord = fFalse);
     long CpNext(long cp, bool fWord = fFalse);
-    ACR AcrBack(void)
+    AbstractColor AcrBack(void)
     {
         return _acrBack;
     }
-    void SetAcrBack(ACR acr, ulong grfdoc = fdocUpdate);
+    void SetAcrBack(AbstractColor acr, ulong grfdoc = fdocUpdate);
     long DxpDef(void)
     {
         return _dxpDef;
@@ -145,15 +147,15 @@ class TXTB : public TXTB_PAR
 
     virtual void FetchRgch(long cp, long ccp, achar *prgch);
     virtual bool FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
+    virtual bool FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
                              ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
+    virtual bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
+    virtual bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
                               ulong grfdoc = fdocUpdate);
-    virtual bool FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
-    virtual bool FGetFni(FNI *pfni);
+    virtual bool FGetFni(Filename *pfni);
 
     virtual void HideSel(void);
     virtual void SetSel(long cp1, long cp2, long gin = kginDraw);
@@ -168,40 +170,40 @@ class TXTB : public TXTB_PAR
 
     virtual bool FFind(achar *prgch, long cch, long cpStart, long *pcpMin, long *pcpLim, bool fCaseSensitive = fFalse);
 
-    virtual void ExportFormats(PCLIP pclip);
+    virtual void ExportFormats(PClipboardObject pclip);
 };
 
 /***************************************************************************
     Plain text document class
 ***************************************************************************/
-typedef class TXPD *PTXPD;
-#define TXPD_PAR TXTB
-#define kclsTXPD 'TXPD'
-class TXPD : public TXPD_PAR
+typedef class PlainTextDocument *PPlainTextDocument;
+#define PlainTextDocument_PAR TextDocumentBase
+#define kclsPlainTextDocument 'TXPD'
+class PlainTextDocument : public PlainTextDocument_PAR
 {
     RTCLASS_DEC
 
   protected:
-    TXPD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    PlainTextDocument(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
   public:
-    static PTXPD PtxpdNew(PFNI pfni = pvNil, PBSF pbsf = pvNil, short osk = koskCur, PDOCB pdocb = pvNil,
+    static PPlainTextDocument PtxpdNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, short osk = koskCur, PDocumentBase pdocb = pvNil,
                           ulong grfdoc = fdocNil);
 
-    virtual PDDG PddgNew(PGCB pgcb);
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
 /***************************************************************************
     Rich text document class.
 ***************************************************************************/
 const long kcpMaxTxrd = 0x00800000; // 8MB
-typedef class RTUN *PRTUN;
+typedef class RichTextUndo *PRichTextUndo;
 
-typedef class TXRD *PTXRD;
-#define TXRD_PAR TXTB
-#define kclsTXRD 'TXRD'
-class TXRD : public TXRD_PAR
+typedef class RichTextDocument *PRichTextDocument;
+#define RichTextDocument_PAR TextDocumentBase
+#define kclsRichTextDocument 'TXRD'
+class RichTextDocument : public RichTextDocument_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -209,13 +211,13 @@ class TXRD : public TXRD_PAR
 
   protected:
     // WARNING: changing these values affects the file format
-    // NOTE: Originally, _FSprmInAg was a virtual TXRD method called to
-    // determine if a sprm stored its value in the AG. This didn't work
-    // well when a subclass had a sprm in an AG (it broke undo for that
+    // NOTE: Originally, _FSprmInAg was a virtual RichTextDocument method called to
+    // determine if a sprm stored its value in the AllocatedGroup. This didn't work
+    // well when a subclass had a sprm in an AllocatedGroup (it broke undo for that
     // sprm). To fix this I (shonk) made _FSprmInAg static and made it
-    // know exactly which sprms use the AG. For sprms in the client range
-    // or above sprmMinObj, odd ones are _not_ in the AG and even ones _are_
-    // in the AG. I couldn't just use the odd/even rule throughout the
+    // know exactly which sprms use the AllocatedGroup. For sprms in the client range
+    // or above sprmMinObj, odd ones are _not_ in the AllocatedGroup and even ones _are_
+    // in the AllocatedGroup. I couldn't just use the odd/even rule throughout the
     // range, because that would have required changing values of old
     // sprms, which would have broken existing rich text documents.
     enum
@@ -225,7 +227,7 @@ class TXRD : public TXRD_PAR
         // character properties
         sprmMinChp = 1,
         sprmStyle = 1,     // bold, italic, etc, font size, dypOffset
-        sprmFont = 2,      // font - in the AG
+        sprmFont = 2,      // font - in the AllocatedGroup
         sprmForeColor = 3, // foreground color
         sprmBackColor = 4, // background color
         sprmLimChp,
@@ -276,14 +278,14 @@ class TXRD : public TXRD_PAR
     };
 #define kbomRdop 0x5FC00000
 
-    PCFL _pcfl;
-    PGL _pglmpe;
-    PAG _pagcact; // for sprm's that have more than a long's worth of data
+    PChunkyFile _pcfl;
+    PDynamicArray _pglmpe;
+    PAllocatedGroup _pagcact; // for sprm's that have more than a long's worth of data
 
     long _onnDef; // default font and font size
     long _dypFontDef;
     short _oskFont;  // osk for the default font
-    STN _stnFontDef; // name of default font
+    String _stnFontDef; // name of default font
 
     // cached CHP and PAP (from FetchChp and FetchPap)
     CHP _chp;
@@ -292,12 +294,12 @@ class TXRD : public TXRD_PAR
     long _cpMinPap, _cpLimPap;
 
     // current undo record
-    PRTUN _prtun;
+    PRichTextUndo _prtun;
 
-    TXRD(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXRD(void);
-    bool _FInit(PFNI pfni = pvNil, CTG ctg = kctgRichText);
-    virtual bool _FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText);
+    RichTextDocument(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~RichTextDocument(void);
+    bool _FInit(PFilename pfni = pvNil, ChunkTagOrType ctg = kctgRichText);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
 
     ulong _SpcpFromSprmCp(byte sprm, long cp)
@@ -327,21 +329,21 @@ class TXRD : public TXRD_PAR
     void _ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm);
     void _GetParaBounds(long *pcpMin, long *pccp, bool fExpand);
     void _AdjustMpe(long cp, long ccpIns, long ccpDel);
-    void _CopyProps(PTXRD ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim);
+    void _CopyProps(PRichTextDocument ptxrd, long cpSrc, long cpDst, long ccpSrc, long ccpDst, byte sprmMin, byte sprmLim);
 
-    virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool _FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
-    bool _FReplaceCore(void *prgch, PFLO pflo, bool fCopy, PBSF pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
+    bool _FReplaceCore(void *prgch, PFileLocation pflo, bool fCopy, PFileByteStream pbsf, long cpSrc, long ccpIns, long cp, long ccpDel,
                        PCHP pchp, PPAP ppap, ulong grfdoc);
 
     static bool _FSprmInAg(byte sprm);
 
   public:
-    static PTXRD PtxrdNew(PFNI pfni = pvNil);
-    static PTXRD PtxrdReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText = fTrue);
+    static PRichTextDocument PtxrdNew(PFilename pfni = pvNil);
+    static PRichTextDocument PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText = fTrue);
 
-    virtual PDDG PddgNew(PGCB pgcb);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
 
     void FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
     void FetchPap(long cp, PPAP ppap, long *pcpMin = pvNil, long *pcpLim = pvNil);
@@ -351,32 +353,32 @@ class TXRD : public TXRD_PAR
                    bool fExpand = fTrue, ulong grfdoc = fdocUpdate);
 
     virtual bool FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
+    virtual bool FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, short osk = koskCur,
                              ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
-    virtual bool FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
+    virtual bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
+    virtual bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel,
                               ulong grfdoc = fdocUpdate);
     bool FReplaceRgch(void *prgch, long ccpIns, long cp, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
                       ulong grfdoc = fdocUpdate);
-    bool FReplaceFlo(PFLO pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap = pvNil, short osk = koskCur,
+    bool FReplaceFlo(PFileLocation pflo, bool fCopy, long cp, long ccpDel, PCHP pchp, PPAP ppap = pvNil, short osk = koskCur,
                      ulong grfdoc = fdocUpdate);
-    bool FReplaceBsf(PBSF pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
+    bool FReplaceBsf(PFileByteStream pbsfSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
                      ulong grfdoc = fdocUpdate);
-    bool FReplaceTxtb(PTXTB ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
+    bool FReplaceTxtb(PTextDocumentBase ptxtbSrc, long cpSrc, long ccpSrc, long cpDst, long ccpDel, PCHP pchp, PPAP ppap = pvNil,
                       ulong grfdoc = fdocUpdate);
-    bool FReplaceTxrd(PTXRD ptxrd, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
+    bool FReplaceTxrd(PRichTextDocument ptxrd, long cpSrc, long ccpSrc, long cpDst, long ccpDel, ulong grfdoc = fdocUpdate);
 
     bool FFetchObject(long cpMin, long *pcp, void **ppv = pvNil, long *pcb = pvNil);
     virtual bool FInsertObject(void *pv, long cb, long cp, long ccpDel, PCHP pchp = pvNil, ulong grfdoc = fdocUpdate);
     virtual bool FApplyObjectProps(void *pv, long cb, long cp, ulong grfdoc = fdocUpdate);
 
-    virtual bool FGetObjectRc(long cp, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool FDrawObject(long cp, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
-    virtual bool FGetFni(FNI *pfni);
-    virtual bool FGetFniSave(FNI *pfni);
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
-    virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
+    virtual bool FGetFni(Filename *pfni);
+    virtual bool FGetFniSave(Filename *pfni);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
+    virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
     virtual bool FSetUndo(long cp1, long cp2, long ccpIns);
     virtual void CancelUndo(void);
@@ -386,10 +388,10 @@ class TXRD : public TXRD_PAR
 /***************************************************************************
     Rich text undo object.
 ***************************************************************************/
-typedef class RTUN *PRTUN;
-#define RTUN_PAR UNDB
-#define kclsRTUN 'RTUN'
-class RTUN : public RTUN_PAR
+typedef class RichTextUndo *PRichTextUndo;
+#define RichTextUndo_PAR UndoBase
+#define kclsRichTextUndo 'RTUN'
+class RichTextUndo : public RichTextUndo_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -397,26 +399,26 @@ class RTUN : public RTUN_PAR
 
   protected:
     long _cactCombine; // RTUNs with different values can't be combined
-    PTXRD _ptxrd;      // copy of replaced text
+    PRichTextDocument _ptxrd;      // copy of replaced text
     long _cpMin;       // where the text came from in the original RTXD
     long _ccpIns;      // how many characters the original text was replaced with
 
   public:
-    static PRTUN PrtunNew(long cactCombine, PTXRD ptxrd, long cp1, long cp2, long ccpIns);
-    ~RTUN(void);
+    static PRichTextUndo PrtunNew(long cactCombine, PRichTextDocument ptxrd, long cp1, long cp2, long ccpIns);
+    ~RichTextUndo(void);
 
-    virtual bool FUndo(PDOCB pdocb);
-    virtual bool FDo(PDOCB pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
 
-    bool FCombine(PRTUN prtun);
+    bool FCombine(PRichTextUndo prtun);
 };
 
 /***************************************************************************
-    Text document display GOB - DDG for a TXTB.
+    Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TextDocumentBase.
 ***************************************************************************/
 const long kdxpIndentTxtg = (kdzpInch / 8);
 const long kcchMaxLineTxtg = 512;
-typedef class TRUL *PTRUL;
+typedef class TextRuler *PTextRuler;
 
 enum
 {
@@ -424,10 +426,10 @@ enum
     ftxtgNoColor = 1,
 };
 
-typedef class TXTG *PTXTG;
-#define TXTG_PAR DDG
-#define kclsTXTG 'TXTG'
-class TXTG : public TXTG_PAR
+typedef class TextDocumentGraphicsObject *PTextDocumentGraphicsObject;
+#define TextDocumentGraphicsObject_PAR DocumentDisplayGraphicsObject
+#define kclsTextDocumentGraphicsObject 'TXTG'
+class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -445,13 +447,13 @@ class TXTG : public TXTG_PAR
         short dypAscent;
     };
 
-    PTXTB _ptxtb;
-    PGL _pgllin;
+    PTextDocumentBase _ptxtb;
+    PDynamicArray _pgllin;
     long _ilinDisp;
     long _cpDisp;
     long _dypDisp;
     long _ilinInval; // LINs from here on have wrong cpMin and dypTot values
-    PGNV _pgnv;
+    PGraphicsEnvironment _pgnv;
 
     // the selection
     long _cpAnchor;
@@ -465,10 +467,10 @@ class TXTG : public TXTG_PAR
     bool _fSelByWord : 1;
 
     // the ruler
-    PTRUL _ptrul;
+    PTextRuler _ptrul;
 
-    TXTG(PTXTB ptxtb, PGCB pgcb);
-    ~TXTG(void);
+    TextDocumentGraphicsObject(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb);
+    ~TextDocumentGraphicsObject(void);
 
     virtual bool _FInit(void);
     virtual void _Activate(bool fActive);
@@ -490,24 +492,24 @@ class TXTG : public TXTG_PAR
     void _GetXpYpFromCp(long cp, long *pypMin, long *pypLim, long *pxp, long *pdypBaseLine = pvNil, bool fView = fTrue);
     long _DxpFromCp(long cpLine, long cp);
     void _SwitchSel(bool fOn, long gin = kginDraw);
-    void _InvertSel(PGNV pgnv, long gin = kginDraw);
-    void _InvertCpRange(PGNV pgnv, long cp1, long cp2, long gin = kginDraw);
+    void _InvertSel(PGraphicsEnvironment pgnv, long gin = kginDraw);
+    void _InvertCpRange(PGraphicsEnvironment pgnv, long cp1, long cp2, long gin = kginDraw);
 
     virtual long _ScvMax(bool fVert);
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
     virtual long _DypTrul(void);
-    virtual PTRUL _PtrulNew(PGCB pgcb);
-    virtual void _DrawLinExtra(PGNV pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
+    virtual PTextRuler _PtrulNew(PGraphicsObjectBlock pgcb);
+    virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
-    virtual void DrawLines(PGNV pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim = klwMax,
+    virtual void DrawLines(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim = klwMax,
                            ulong grftxtg = ftxtgNil);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    virtual bool FCmdSelIdle(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
     virtual void HideSel(void);
@@ -515,7 +517,7 @@ class TXTG : public TXTG_PAR
     virtual void SetSel(long cpAnchor, long cpOther, long gin = kginDraw);
     virtual bool FReplace(achar *prgch, long cch, long cp1, long cp2);
     void ShowSel(void);
-    PTXTB Ptxtb(void)
+    PTextDocumentBase Ptxtb(void)
     {
         return _ptxtb;
     }
@@ -529,10 +531,10 @@ class TXTG : public TXTG_PAR
 /***************************************************************************
     Line text document display gob
 ***************************************************************************/
-typedef class TXLG *PTXLG;
-#define TXLG_PAR TXTG
-#define kclsTXLG 'TXLG'
-class TXLG : public TXLG_PAR
+typedef class LineTextGraphicsDocument *PLineTextGraphicsDocument;
+#define LineTextGraphicsDocument_PAR TextDocumentGraphicsObject
+#define kclsLineTextGraphicsDocument 'TXLG'
+class LineTextGraphicsDocument : public LineTextGraphicsDocument_PAR
 {
     RTCLASS_DEC
 
@@ -544,19 +546,19 @@ class TXLG : public TXLG_PAR
     long _dxpChar;
     long _cchTab;
 
-    TXLG(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    LineTextGraphicsDocument(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual long _DxpDoc(void);
     virtual void _FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
     virtual void _FetchPap(long cp, PPAP ppap, long *pcpMin = pvNil, long *pcpLim = pvNil);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PTXLG PtxlgNew(PTXTB ptxtb, PGCB pgcb, long onn, ulong grfont, long dypFont, long cchTab);
+    static PLineTextGraphicsDocument PtxlgNew(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
     virtual void SetDxpTab(long dxp);
     virtual void SetDxpDoc(long dxp);
@@ -565,17 +567,17 @@ class TXLG : public TXLG_PAR
 /***************************************************************************
     Rich text document display gob
 ***************************************************************************/
-typedef class TXRG *PTXRG;
-#define TXRG_PAR TXTG
-#define kclsTXRG 'TXRG'
-class TXRG : public TXRG_PAR
+typedef class RichTextDocumentGraphicsObject *PRichTextDocumentGraphicsObject;
+#define RichTextDocumentGraphicsObject_PAR TextDocumentGraphicsObject
+#define kclsRichTextDocumentGraphicsObject 'TXRG'
+class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(TXRG)
+    CMD_MAP_DEC(RichTextDocumentGraphicsObject)
     ASSERT
 
   protected:
-    TXRG(PTXRD ptxrd, PGCB pgcb);
+    RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb);
 
     CHP _chpIns;
     bool _fValidChp;
@@ -587,24 +589,24 @@ class TXRG : public TXRG_PAR
     virtual bool _FGetOtherSubSuper(long *pdypOffset);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
     void _FetchChpSel(long cp1, long cp2, PCHP pchp);
     void _EnsureChpIns(void);
 
   public:
-    static PTXRG PtxrgNew(PTXRD ptxrd, PGCB pgcb);
+    static PRichTextDocumentGraphicsObject PtxrgNew(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb);
 
     virtual void SetSel(long cpAnchor, long cpOther, long gin = kginDraw);
     virtual bool FReplace(achar *prgch, long cch, long cp1, long cp2);
     virtual bool FApplyChp(PCHP pchp, PCHP pchpDiff = pvNil);
     virtual bool FApplyPap(PPAP ppap, PPAP ppapDiff = pvNil, bool fExpand = fTrue);
 
-    virtual bool FCmdApplyProperty(PCMD pcmd);
-    virtual bool FEnablePropCmd(PCMD pcmd, ulong *pgrfeds);
-    bool FSetColor(ACR *pacrFore, ACR *pacrBack);
+    virtual bool FCmdApplyProperty(PCommand pcmd);
+    virtual bool FEnablePropCmd(PCommand pcmd, ulong *pgrfeds);
+    bool FSetColor(AbstractColor *pacrFore, AbstractColor *pacrBack);
 
     virtual void SetDxpTab(long dxp);
 };
@@ -612,15 +614,15 @@ class TXRG : public TXRG_PAR
 /***************************************************************************
     The ruler for a rich text document.
 ***************************************************************************/
-typedef class TRUL *PTRUL;
-#define TRUL_PAR GOB
-#define kclsTRUL 'TRUL'
-class TRUL : public TRUL_PAR
+typedef class TextRuler *PTextRuler;
+#define TextRuler_PAR GraphicsObject
+#define kclsTextRuler 'TRUL'
+class TextRuler : public TextRuler_PAR
 {
     RTCLASS_DEC
 
   protected:
-    TRUL(GCB *pgcb) : TRUL_PAR(pgcb)
+    TextRuler(GraphicsObjectBlock *pgcb) : TextRuler_PAR(pgcb)
     {
     }
 

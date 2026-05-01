@@ -17,17 +17,17 @@ ASSERTNAME
 const long _klwMaxScroll = 20000; // should be less than 32K
 
 #ifdef WIN
-achar _szCtlProp[] = PszLit("CTL");
+achar _szCtlProp[] = PszLit("Control");
 #endif // WIN
 
-RTCLASS(CTL)
-RTCLASS(SCB)
-RTCLASS(WSB)
+RTCLASS(Control)
+RTCLASS(ScrollBar)
+RTCLASS(WindowSizeBox)
 
 /***************************************************************************
     Constructor for a control.
 ***************************************************************************/
-CTL::CTL(PGCB pgcb) : GOB(pgcb)
+Control::Control(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _hctl = hNil;
 }
@@ -35,13 +35,13 @@ CTL::CTL(PGCB pgcb) : GOB(pgcb)
 /***************************************************************************
     Destructor for controls.
 ***************************************************************************/
-CTL::~CTL(void)
+Control::~Control(void)
 {
     if (_hctl != hNil)
     {
 #ifdef MAC
         RC rc;
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         rc.Zero();
         gnv.ClipRc(&rc);
@@ -58,11 +58,11 @@ CTL::~CTL(void)
 }
 
 /***************************************************************************
-    Sets the OS control for the CTL.  If this fails, it frees the control.
+    Sets the OS control for the Control.  If this fails, it frees the control.
 ***************************************************************************/
-bool CTL::_FSetHctl(HCTL hctl)
+bool Control::_FSetHctl(HControl hctl)
 {
-    Assert(_hctl == hNil, "CTL already has an OS control");
+    Assert(_hctl == hNil, "Control already has an OS control");
     if (hctl != hNil)
     {
 #ifdef MAC
@@ -81,25 +81,25 @@ bool CTL::_FSetHctl(HCTL hctl)
 }
 
 /***************************************************************************
-    Return the CTL associated with the given HCTL.
+    Return the Control associated with the given HControl.
 ***************************************************************************/
-PCTL CTL::PctlFromHctl(HCTL hctl)
+PControl Control::PctlFromHctl(HControl hctl)
 {
 #ifdef MAC
-    return (PCTL)GetCRefCon(hctl);
+    return (PControl)GetCRefCon(hctl);
 #endif // MAC
 #ifdef WIN
-    return (PCTL)GetProp(hctl, _szCtlProp);
+    return (PControl)GetProp(hctl, _szCtlProp);
 #endif // WIN
 }
 
 /***************************************************************************
     The control may have been moved - move the OS control.
 ***************************************************************************/
-void CTL::_NewRc(void)
+void Control::_NewRc(void)
 {
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
     HWND hwnd;
 
     if (_hctl == hNil)
@@ -107,13 +107,13 @@ void CTL::_NewRc(void)
 
     hwnd = _HwndGetRc(&rc);
     Assert(hwnd != hNil, "control isn't based in an hwnd");
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
 #ifdef MAC
-    RCS rcsOld = (*_hctl)->contrlRect;
+    SystemRectangle rcsOld = (*_hctl)->contrlRect;
 
     if (!EqualRect(&rcs, &rcsOld))
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         // clip out everything - hide it, then move and size it
         // don't make it visible again - we do that in the Draw
@@ -137,7 +137,7 @@ void CTL::_NewRc(void)
 /***************************************************************************
     Draw routine for a control.
 ***************************************************************************/
-void CTL::Draw(PGNV pgnv, RC *prcClip)
+void Control::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     if (_hctl == hNil)
         return;
@@ -153,7 +153,7 @@ void CTL::Draw(PGNV pgnv, RC *prcClip)
     else
     {
         RC rc;
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         gnv.Set();
         if (!(*_hctl)->contrlVis)
@@ -170,11 +170,11 @@ void CTL::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Static method to create a scroll bar.
 ***************************************************************************/
-PSCB SCB::PscbNew(PGCB pgcb, ulong grfscb, long val, long valMin, long valMax)
+PScrollBar ScrollBar::PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val, long valMin, long valMax)
 {
     Assert(FPure(grfscb & fscbHorz) != FPure(grfscb & fscbVert), "exactly one of (fscbHorz,fscbVert) should be set");
-    PSCB pscb;
-    GCB gcb;
+    PScrollBar pscb;
+    GraphicsObjectBlock gcb;
 
     if (grfscb & fscbStandardRc)
     {
@@ -183,7 +183,7 @@ PSCB SCB::PscbNew(PGCB pgcb, ulong grfscb, long val, long valMin, long valMax)
         pgcb = &gcb;
     }
 
-    if (pvNil == (pscb = NewObj SCB(pgcb)))
+    if (pvNil == (pscb = NewObj ScrollBar(pgcb)))
         return pvNil;
 
     if (!pscb->_FCreate(val, valMin, valMax, grfscb))
@@ -195,7 +195,7 @@ PSCB SCB::PscbNew(PGCB pgcb, ulong grfscb, long val, long valMin, long valMax)
 /***************************************************************************
     Static method to return the normal width of a vertical scroll bar.
 ***************************************************************************/
-long SCB::DxpNormal(void)
+long ScrollBar::DxpNormal(void)
 {
 #ifdef WIN
     static int _dxp = 0;
@@ -212,7 +212,7 @@ long SCB::DxpNormal(void)
 /***************************************************************************
     Static method to return the normal width of a horizontal scroll bar.
 ***************************************************************************/
-long SCB::DypNormal(void)
+long ScrollBar::DypNormal(void)
 {
 #ifdef WIN
     static int _dyp = 0;
@@ -230,24 +230,24 @@ long SCB::DypNormal(void)
     Get the standard rectangles for document window scroll bars.  grfscb
     should contain fscbHorz or fscbVert.
 ***************************************************************************/
-void SCB::GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel)
+void ScrollBar::GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel)
 {
     if (FPure(grfscb & fscbVert))
     {
         prcRel->ypTop = krelZero;
         prcRel->xpLeft = prcRel->xpRight = prcRel->ypBottom = krelOne;
         prcAbs->ypTop = -!(grfscb & fscbShowTop);
-        prcAbs->xpLeft = -SCB::DxpNormal() + !(grfscb & fscbShowRight);
+        prcAbs->xpLeft = -ScrollBar::DxpNormal() + !(grfscb & fscbShowRight);
         prcAbs->xpRight = !(grfscb & fscbShowRight);
-        prcAbs->ypBottom = -SCB::DypNormal() + 1 + !(grfscb & fscbShowBottom);
+        prcAbs->ypBottom = -ScrollBar::DypNormal() + 1 + !(grfscb & fscbShowBottom);
     }
     else
     {
         prcRel->xpLeft = krelZero;
         prcRel->ypTop = prcRel->xpRight = prcRel->ypBottom = krelOne;
-        prcAbs->ypTop = -SCB::DypNormal() + !(grfscb & fscbShowBottom);
+        prcAbs->ypTop = -ScrollBar::DypNormal() + !(grfscb & fscbShowBottom);
         prcAbs->xpLeft = -!(grfscb & fscbShowLeft);
-        prcAbs->xpRight = -SCB::DxpNormal() + 1 + !(grfscb & fscbShowRight);
+        prcAbs->xpRight = -ScrollBar::DxpNormal() + 1 + !(grfscb & fscbShowRight);
         prcAbs->ypBottom = !(grfscb & fscbShowBottom);
     }
 }
@@ -256,27 +256,27 @@ void SCB::GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel)
     Get the standard client window rectangle (assuming the given set of
     scroll bars).
 ***************************************************************************/
-void SCB::GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel)
+void ScrollBar::GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel)
 {
     prcRel->ypTop = prcRel->xpLeft = krelZero;
     prcRel->ypBottom = prcRel->xpRight = krelOne;
     prcAbs->Zero();
     if (grfscb & fscbVert)
-        prcAbs->xpRight = -SCB::DxpNormal() + !(grfscb & fscbShowRight);
+        prcAbs->xpRight = -ScrollBar::DxpNormal() + !(grfscb & fscbShowRight);
     if (grfscb & fscbHorz)
-        prcAbs->ypBottom = -SCB::DypNormal() + !(grfscb & fscbShowBottom);
+        prcAbs->ypBottom = -ScrollBar::DypNormal() + !(grfscb & fscbShowBottom);
 }
 
 /***************************************************************************
     Create the actual system scroll bar.
 ***************************************************************************/
-bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
+bool ScrollBar::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 {
     Assert(_Hctl() == hNil, "scb already created");
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
     HWND hwnd;
-    HCTL hctl;
+    HControl hctl;
 
     _fVert = FPure(grfscb & fscbVert);
     if ((hwnd = _HwndGetRc(&rc)) == hNil)
@@ -284,10 +284,10 @@ bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
         Bug("can only add controls to hwnd based gobs");
         return fFalse;
     }
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
 
 #ifdef MAC
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     gnv.Set();
     hctl = NewControl(&hwnd->port, &rcs, (byte *)"\p", fTrue, 0, 0, 0, scrollBarProc, 0);
     gnv.Restore();
@@ -311,7 +311,7 @@ bool SCB::_FCreate(long val, long valMin, long valMax, ulong grfscb)
 /***************************************************************************
     Set the value of the scroll bar.
 ***************************************************************************/
-void SCB::SetVal(long val, bool fRedraw)
+void ScrollBar::SetVal(long val, bool fRedraw)
 {
     long lwCur;
 
@@ -323,7 +323,7 @@ void SCB::SetVal(long val, bool fRedraw)
 
 #ifdef MAC
     // REVIEW shonk: Mac: implement fRedraw false
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     gnv.Set();
     SetCtlValue(_Hctl(), (short)lwCur);
     gnv.Restore();
@@ -336,7 +336,7 @@ void SCB::SetVal(long val, bool fRedraw)
 /***************************************************************************
     Set the min and max of the scroll bar.
 ***************************************************************************/
-void SCB::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
+void ScrollBar::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
 {
     long lwCur;
 
@@ -352,7 +352,7 @@ void SCB::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
 
 #ifdef MAC
     // REVIEW shonk: Mac: implement fRedraw false
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     gnv.Set();
     if (_valMax == _valMin)
         SetCtlMax(_Hctl(), 0);
@@ -370,11 +370,11 @@ void SCB::SetValMinMax(long val, long valMin, long valMax, bool fRedraw)
 /***************************************************************************
     The hwnd has been activated or deactivated - redraw and validate.
 ***************************************************************************/
-void SCB::_ActivateHwnd(bool fActive)
+void ScrollBar::_ActivateHwnd(bool fActive)
 {
     if (_valMin < _valMax)
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
         long lwCur;
 
         gnv.Set();
@@ -396,15 +396,15 @@ void SCB::_ActivateHwnd(bool fActive)
 /***************************************************************************
     Handle mouse tracking for a scroll bar.
 ***************************************************************************/
-void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void ScrollBar::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
-    PTS pts;
+    SystemPoint pts;
     short in;
     PT pt;
     bool fDown, fLit;
-    CMD cmd;
+    Command cmd;
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     pts.h = (short)xp + (*_Hctl())->contrlRect.left;
     pts.v = (short)yp + (*_Hctl())->contrlRect.top;
@@ -493,10 +493,10 @@ void SCB::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Called in response to a Win WM_HSCROLL or WM_VSCROLL message.
 ***************************************************************************/
-void SCB::TrackScroll(long sb, long lwVal)
+void ScrollBar::TrackScroll(long sb, long lwVal)
 {
     AssertThis(0);
-    CMD cmd;
+    Command cmd;
     long val;
 
     ClearPb(&cmd, size(cmd));
@@ -569,18 +569,18 @@ LEndScroll:
 /***************************************************************************
     Static method to create a window size box.
 ***************************************************************************/
-PWSB WSB::PwsbNew(PGOB pgob, ulong grfgob)
+PWindowSizeBox WindowSizeBox::PwsbNew(PGraphicsObject pgob, ulong grfgob)
 {
     RC rcRel, rcAbs;
-    PWSB pwsb;
+    PWindowSizeBox pwsb;
 
     rcRel.xpLeft = rcRel.xpRight = rcRel.ypTop = rcRel.ypBottom = krelOne;
-    rcAbs.xpLeft = -SCB::DxpNormal() + 1;
-    rcAbs.ypTop = -SCB::DypNormal() + 1;
+    rcAbs.xpLeft = -ScrollBar::DxpNormal() + 1;
+    rcAbs.ypTop = -ScrollBar::DypNormal() + 1;
     rcAbs.xpRight = rcAbs.ypBottom = 1;
 
-    GCB gcb(khidSizeBox, pgob, grfgob, kginDefault, &rcAbs, &rcRel);
-    if ((pwsb = NewObj WSB(&gcb)) == pvNil)
+    GraphicsObjectBlock gcb(khidSizeBox, pgob, grfgob, kginDefault, &rcAbs, &rcRel);
+    if ((pwsb = NewObj WindowSizeBox(&gcb)) == pvNil)
         return pvNil;
 
     Assert(pwsb->PgobPar() != pvNil, "nil parent");
@@ -588,12 +588,12 @@ PWSB WSB::PwsbNew(PGOB pgob, ulong grfgob)
 
 #ifdef WIN
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
     HWND hwnd;
-    HCTL hctl;
+    HControl hctl;
 
     hwnd = pwsb->_HwndGetRc(&rc);
-    rcs = RCS(rc);
+    rcs = SystemRectangle(rc);
 
     hctl = CreateWindow(PszLit("SCROLLBAR"), PszLit(""), SBS_SIZEBOX | WS_CHILD | WS_VISIBLE, rcs.left, rcs.top,
                         rcs.right - rcs.left, rcs.bottom - rcs.top, hwnd, hNil, vwig.hinst, pvNil);
@@ -609,7 +609,7 @@ PWSB WSB::PwsbNew(PGOB pgob, ulong grfgob)
 /***************************************************************************
     Draw the size box icon.
 ***************************************************************************/
-void WSB::Draw(PGNV pgnv, RC *prcClip)
+void WindowSizeBox::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     HWND hwnd;
     RC rc;
@@ -627,7 +627,7 @@ void WSB::Draw(PGNV pgnv, RC *prcClip)
     }
     else
     {
-        GNV gnv(this);
+        GraphicsEnvironment gnv(this);
 
         gnv.ClipRc(&rc);
         gnv.Set();
@@ -640,7 +640,7 @@ void WSB::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     The hwnd has been activated or deactivated - redraw and validate.
 ***************************************************************************/
-void WSB::_ActivateHwnd(bool fActive)
+void WindowSizeBox::_ActivateHwnd(bool fActive)
 {
     ValidRc(pvNil, kginDraw);
     InvalRc(pvNil, kginDraw);

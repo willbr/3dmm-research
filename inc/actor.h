@@ -8,7 +8,7 @@
  Primary Author : *****
  Review Status: Reviewed
 
- BASE -------> ACTR
+ BASE -------> Actor
 
  Each actor has a unique route which is defined by one or more nodes,
  and which may be a concatenation of one or more subroutes.
@@ -20,39 +20,45 @@
 #ifndef ACTOR_H
 #define ACTOR_H
 
+#include <cstdint>
+
+using namespace BRender;
+
 //
-//	XYZ : A point in x,y,z along an actor's RouTE.
+//	RoutePoint : A point in x,y,z along an actor's RouTE.
 //
-struct XYZ
+struct RoutePoint
 {
     BRS dxr;
     BRS dyr;
     BRS dzr;
 
-    bool operator==(XYZ &xyz)
+    bool operator==(RoutePoint &xyz)
     {
         return ((dxr == xyz.dxr) && (dyr == xyz.dyr) && (dzr == xyz.dzr));
     }
-    bool operator!=(XYZ &xyz)
+    bool operator!=(RoutePoint &xyz)
     {
         return ((dxr != xyz.dxr) || (dyr != xyz.dyr) || (dzr != xyz.dzr));
     }
 };
+static_assert(sizeof(RoutePoint) == 12, "RoutePoint on-disk layout drift");
 
-typedef XYZ *PXYZ;
+typedef RoutePoint *PRoutePoint;
 
-const BOM kbomXyz = 0xfc000000;
+const ByteOrderMask kbomXyz = 0xfc000000;
 
 //
-// 	A RouTE is a general list (GL) of Route PoinTs(RPT)
+// 	A RouTE is a general list (DynamicArray) of Route PoinTs(RouteDistancePoint)
 //  A Subroute is a contiguous section of a route.
 //
-struct RPT
+struct RouteDistancePoint
 {
-    XYZ xyz;
+    RoutePoint xyz;
     BRS dwr; // Distance from this node to the next node on the route
 };
-const BOM kbomRpt = 0xff000000;
+static_assert(sizeof(RouteDistancePoint) == 16, "RouteDistancePoint on-disk layout drift");
+const ByteOrderMask kbomRpt = 0xff000000;
 
 const long knfrmInvalid = klwMax;                                  // invalid frame state.  Regenerate correct state
 const long kcrptGrow = 32;                                         // quantum growth for rpt
@@ -105,63 +111,67 @@ enum
     fmafEntireSubrte = 0x10 // position over entire subroute
 };
 
-struct RTEL // RouTE Location - a function of space and time
+struct RouteLocation // RouTE Location - a function of space and time
 {
-    int irpt;      // The preceding node for the given point
-    BRS dwrOffset; // Absolute linear distance beyond node irpt
-    long dnfrm;    // Delta frame number (ie, time) at this point
+    int32_t irpt;      // The preceding node for the given point
+    BRS dwrOffset;     // Absolute linear distance beyond node irpt
+    int32_t dnfrm;     // Delta frame number (ie, time) at this point
 
-    bool operator==(RTEL &rtel)
+    bool operator==(RouteLocation &rtel)
     {
         return (irpt == rtel.irpt && dwrOffset == rtel.dwrOffset && dnfrm == rtel.dnfrm);
     }
 
-    bool operator!=(RTEL &rtel)
+    bool operator!=(RouteLocation &rtel)
     {
         return (irpt != rtel.irpt || dwrOffset != rtel.dwrOffset || dnfrm != rtel.dnfrm);
     }
 
-    bool operator<=(RTEL &rtel)
+    bool operator<=(RouteLocation &rtel)
     {
         return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm <= rtel.dnfrm))));
     }
 
-    bool operator>=(RTEL &rtel)
+    bool operator>=(RouteLocation &rtel)
     {
         return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm >= rtel.dnfrm))));
     }
 
-    bool operator<(RTEL &rtel)
+    bool operator<(RouteLocation &rtel)
     {
         return (irpt < rtel.irpt || (irpt == rtel.irpt && (dwrOffset < rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm < rtel.dnfrm))));
     }
 
-    bool operator>(RTEL &rtel)
+    bool operator>(RouteLocation &rtel)
     {
         return (irpt > rtel.irpt || (irpt == rtel.irpt && (dwrOffset > rtel.dwrOffset ||
                                                            (dwrOffset == rtel.dwrOffset && dnfrm > rtel.dnfrm))));
     }
 };
+static_assert(sizeof(RouteLocation) == 12, "RouteLocation on-disk layout drift");
 
-// Actor EVents are stored in a GG (general group)
-// Fixed part of the GG:
-struct AEV
+namespace ActorEvent {
+
+// Actor EVents are stored in a GeneralGroup (general group)
+// Fixed part of the GeneralGroup:
+struct Base
 {
-    long aet;  // Actor Event Type
-    long nfrm; // Absolute frame number (* Only valid < current event)
-    RTEL rtel; // RouTE Location for this event
-};             // Additional event parameters (in the GG)
-typedef AEV *PAEV;
+    int32_t aet;        // Actor Event Type
+    int32_t nfrm;       // Absolute frame number (* Only valid < current event)
+    RouteLocation rtel; // RouTE Location for this event
+};                      // Additional event parameters (in the GeneralGroup)
+static_assert(sizeof(Base) == 20, "ActorEvent::Base on-disk layout drift");
+typedef Base *PBase;
 
 //
-//	Actor level Event Types which live in a GG.
-//	The fixed part of a GG entry is an actor event (aev)
+//	Actor level Event Types which live in a GeneralGroup.
+//	The fixed part of a GeneralGroup entry is an actor event (aev)
 //	The variable part is documented in the following comments
 //
-enum AET
+enum ActorEventType
 {
     aetAdd,    // Add Actor onstage: aevadd - internal (no api)
     aetActn,   // Animate Actor : aevactn
@@ -170,33 +180,34 @@ enum AET
     aetPull,   // Transform Actor Pull : aevpull
     aetSize,   // Transform Actor size uniformly : BRS
     aetSnd,    // Play a sound : aevsnd
-    aetMove,   // Translate the path at this point : XYZ
+    aetMove,   // Translate the path at this point : RoutePoint
     aetFreeze, // Freeze (or Un) Actor : long
-    aetTweak,  // Path tweak : XYZ
+    aetTweak,  // Path tweak : RoutePoint
     aetStep,   // Force step size (eg, float, wait) : BRS
     aetRem,    // Remove an actor from the stage : nil
     aetRotH,   // Single frame rotation : BMAT34
     aetLim
 };
 
-const BOM kbomAet = 0xc0000000;
-const BOM kbomAev = 0xff000000;
+const ByteOrderMask kbomAet = 0xc0000000;
+const ByteOrderMask kbomAev = 0xff000000;
 
 //
-//	Variable part of the Actor EVent GG:
+//	Variable part of the Actor EVent GeneralGroup:
 //
-struct AEVPULL // Squash/stretch
+struct Stretch // Squash/stretch
 {
     BRS rScaleX;
     BRS rScaleY;
     BRS rScaleZ;
 };
-const BOM kbomAevpull = 0xfc000000;
+static_assert(sizeof(Stretch) == 12, "ActorEvent::Stretch on-disk layout drift");
+const ByteOrderMask kbomAevpull = 0xfc000000;
 
 // Every subroute is normalized.  The normalization translation is
 // stored in the Add Event
 // ** nfrmPrev valid for nfrmSub <= _nfrmCur only (optimization)
-struct AEVADD
+struct Add
 {
     BRS dxr; // Translation in x for this subroute
     BRS dyr; // Translation in y for this subroute
@@ -205,55 +216,84 @@ struct AEVADD
     BRA ya;  // Single point orientation
     BRA za;  // Single point orientation
 };
-const BOM kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
+static_assert(sizeof(Add) == 20, "ActorEvent::Add on-disk layout drift");
+const ByteOrderMask kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
 
-struct AEVACTN
+struct Action
 {
-    long anid;
-    long celn; // starting cel of action
+    int32_t anid;
+    int32_t celn; // starting cel of action
 };
-const BOM kbomAevactn = 0xf0000000;
+static_assert(sizeof(Action) == 8, "ActorEvent::Action on-disk layout drift");
+const ByteOrderMask kbomAevactn = 0xf0000000;
 
-struct AEVCOST
+// Runtime form: embeds full TAG (with runtime pcrf). Allowed to grow on x64.
+// Marshalled to/from CostumeOnFile at the GG I/O boundary in actrsave.cpp.
+struct Costume
 {
-    long ibset;    // body part set
-    long cmid;     // costume ID (for custom costumes)
+    int32_t ibset; // body part set
+    int32_t cmid;  // costume ID (for custom costumes)
     tribool fCmtl; // vs fMtrl
     TAG tag;
 };
-const BOM kbomAevcost = 0xfc000000 | (kbomTag >> 6);
+const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
 
-struct AEVSND
+// Wire format for Costume. Fixed at 28 bytes on every architecture.
+struct CostumeOnFile
 {
-    tribool fLoop;    // loop count
-    tribool fQueue;   // queued sound
-    long vlm;         // volume
-    long celn;        // motion match	: ivNil if not
-    long sty;         // sound type
-    tribool fNoSound; // no sound
-    CHID chid;        // user sound requires chid
+    int32_t ibset;
+    int32_t cmid;
+    tribool fCmtl;
+    TAGOnFile tag;
+};
+static_assert(sizeof(CostumeOnFile) == 28, "ActorEvent::CostumeOnFile wire format drift");
+
+// Runtime form: embeds full TAG. Allowed to grow on x64.
+struct Sound
+{
+    tribool fLoop;     // loop count
+    tribool fQueue;    // queued sound
+    int32_t vlm;       // volume
+    int32_t celn;      // motion match	: ivNil if not
+    int32_t sty;       // sound type
+    tribool fNoSound;  // no sound
+    ChildChunkID chid; // user sound requires chid
     TAG tag;
 };
-const BOM kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
+const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
 
-const BOM kbomAevsize = 0xc0000000;
-const BOM kbomAevfreeze = 0xc0000000;
-const BOM kbomAevstep = 0xc0000000;
-const BOM kbomAevmove = kbomXyz;
-const BOM kbomAevtweak = kbomXyz;
-const BOM kbomAevrot = kbomBmat34;
+// Wire format for Sound. Fixed at 44 bytes on every architecture.
+struct SoundOnFile
+{
+    tribool fLoop;
+    tribool fQueue;
+    int32_t vlm;
+    int32_t celn;
+    int32_t sty;
+    tribool fNoSound;
+    ChildChunkID chid;
+    TAGOnFile tag;
+};
+static_assert(sizeof(SoundOnFile) == 44, "ActorEvent::SoundOnFile wire format drift");
+
+const ByteOrderMask kbomAevsize = 0xc0000000;
+const ByteOrderMask kbomAevfreeze = 0xc0000000;
+const ByteOrderMask kbomAevstep = 0xc0000000;
+const ByteOrderMask kbomAevmove = kbomXyz;
+const ByteOrderMask kbomAevtweak = kbomXyz;
+const ByteOrderMask kbomAevrot = kbomBmat34;
 
 // Separate ggaev variable portion sizes
-#define kcbVarAdd (size(AEVADD))
-#define kcbVarActn (size(AEVACTN))
-#define kcbVarCost (size(AEVCOST))
+#define kcbVarAdd (size(Add))
+#define kcbVarActn (size(Action))
+#define kcbVarCost (size(Costume))
 #define kcbVarRot (size(BMAT34))
 #define kcbVarSize (size(BRS))
-#define kcbVarPull (size(AEVPULL))
-#define kcbVarSnd (size(AEVSND))
-#define kcbVarFreeze (size(long))
-#define kcbVarMove (size(XYZ))
-#define kcbVarTweak (size(XYZ))
+#define kcbVarPull (size(Stretch))
+#define kcbVarSnd (size(Sound))
+#define kcbVarFreeze (size(int32_t))
+#define kcbVarMove (size(RoutePoint))
+#define kcbVarTweak (size(RoutePoint))
 #define kcbVarStep (size(BRS))
 #define kcbVarZero (0)
 
@@ -288,10 +328,10 @@ enum
 // frame and frame forward orientations in the same frame and must not see the
 // actor jump in angle when choosing between the two methods of editing.
 //
-struct XFRM
+struct FramePosition
 {
     BMAT34 bmat34Fwd; // Rotation	fwd	: path rotation post applied to this
-    AEVPULL aevpull;  // Stretching (pulling) constants
+    Stretch aevpull;  // Stretching (pulling) constants
     BRS rScaleStep;   // Uniform scaling to be applied to step size
     BMAT34 bmat34Cur; // <<Path independent>> Single frame & static segment rotation
     BRA xaPath;       // Path portion of the current frame's rotation
@@ -304,11 +344,13 @@ struct XFRM
 // Aev & Aevsnd grouped together form a gl
 // Not to be saved with a movie
 //
-struct SMM
+struct SoundMotionMatch
 {
-    AEV aev; // event for the sound
-    AEVSND aevsnd;
+    Base aev; // event for the sound
+    Sound aevsnd;
 };
+
+} // end of namespace ActorEvent
 
 //
 // Default hilite colors
@@ -319,10 +361,10 @@ struct SMM
 /***********************************************
    Actor Class
 ***********************************************/
-typedef class ACTR *PACTR;
-#define ACTR_PAR BASE
-#define kclsACTR 'ACTR'
-class ACTR : public ACTR_PAR
+typedef class Actor *PActor;
+#define Actor_PAR BASE
+#define kclsActor 'ACTR'
+class Actor : public Actor_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -333,21 +375,21 @@ class ACTR : public ACTR_PAR
     // Note: In addition to these components, any complete actor must
     // have either fLifeDirty set or _nfrmLast current.
     // Note: _tagTmpl cannot be derived from _ptmpl
-    PGG _pggaev;      // GG pointer to Actor EVent list
-    PGL _pglrpt;      // GL pointer to actor's route
-    TMPL *_ptmpl;     // Actor body & action list template
-    BODY *_pbody;     // Actor's body
+    PGeneralGroup _pggaev;      // GeneralGroup pointer to Actor EVent list
+    PDynamicArray _pglrpt;      // DynamicArray pointer to actor's route
+    Template *_ptmpl;     // Actor body & action list template
+    Body *_pbody;     // Actor's body
     TAG _tagTmpl;     // Note: The sid cannot be queried at save time
     TAG _tagSnd;      // Sound (played on entrance)
-    SCEN *_pscen;     // Underlying scene
-    XYZ _dxyzFullRte; // Origin of the route
+    Scene *_pscen;     // Underlying scene
+    RoutePoint _dxyzFullRte; // Origin of the route
     long _nfrmFirst;  // klwMax -or- First frame : Set	when event created
     long _arid;       // Unique id assigned to this actor.
     ulong _grfactn;   // Cached current grfactn
 
     // Frame Dependent State Information
-    XYZ _dxyzRte;            //_dxyzFullRte + _dxyzSubRte : Set when Add processed
-    XYZ _dxyzSubRte;         // Subpath translation : Set when Add processed
+    RoutePoint _dxyzRte;            //_dxyzFullRte + _dxyzSubRte : Set when Add processed
+    RoutePoint _dxyzSubRte;         // Subpath translation : Set when Add processed
     bool _fOnStage : 1;      // Versus Brender hidden.  Set by Add, Rem only
     bool _fFrozen : 1;       // Path offset > 0 but not moving
     bool _fLifeDirty : 1;    // Set if _nfrmLast requires recomputation
@@ -363,25 +405,25 @@ class ACTR : public ACTR_PAR
     long _iaevFrmMin;        // First event in current frame
     long _iaevActnCur;       // Event defining current action
     long _iaevAddCur;        // Most recent add (useful for Compose)
-    RTEL _rtelCur;           // Current location on route	(excludes tweak info)
-    XYZ _xyzCur;             // Last point displayed (may be tweak modified)
-    XFRM _xfrm;              // Current transformation
-    PGL _pglsmm;             // Current action motion match sounds
+    RouteLocation _rtelCur;           // Current location on route	(excludes tweak info)
+    RoutePoint _xyzCur;             // Last point displayed (may be tweak modified)
+    ActorEvent::FramePosition _xfrm;              // Current transformation
+    PDynamicArray _pglsmm;             // Current action motion match sounds
 
     // Path Recording State Information
-    RTEL _rtelInsert;        // Joining information
+    RouteLocation _rtelInsert;        // Joining information
     ulong _tsInsert;         // Starting time of route recording
     bool _fModeRecord : 1;   // Record a route mode
     bool _fRejoin : 1;       // Rerecord is extending a subpath from the end
     bool _fPathInserted : 1; // More path inserted
     bool _fTimeFrozen : 1;   // Is the actor frozen wrt time?
     long _dnfrmGap;          // Frames between subroutes
-    XYZ _dxyzRaw;            // Raw mouse movement from previous frame
+    RoutePoint _dxyzRaw;            // Raw mouse movement from previous frame
 
     //
     //	Protected functions
     //
-    ACTR(void);
+    Actor(void);
     bool _FInit(TAG *ptmplTag);         // Constructor allocation & file I/O
     void _InitXfrmRot(BMAT34 *pbmat34); // Initialize rotation only
     void _InitXfrm(void);               // Initialize rotation & scaling
@@ -391,10 +433,10 @@ class ACTR : public ACTR_PAR
     void _SetStateRewound(void);
 
     bool _FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid);
-    bool _FGetRtelBack(RTEL *prtel, bool fUpdateStateVar);
+    bool _FGetRtelBack(RouteLocation *prtel, bool fUpdateStateVar);
     bool _FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame = pvNil);
     bool _FGetStatic(long anid, bool *pfStatic);
-    bool _FIsDoneAevSub(long iaev, RTEL rtel);
+    bool _FIsDoneAevSub(long iaev, RouteLocation rtel);
     bool _FIsAddNow(long iaev);
     bool _FGetDwrPlay(BRS *pdwr);   // Step size if playing
     bool _FGetDwrRecord(BRS *pdwr); // Step size if recording
@@ -413,7 +455,7 @@ class ACTR : public ACTR_PAR
     bool _FFreeze(void);   // insert freeze event
     bool _FUnfreeze(void); // insert unfreeze event
     void _Hide(void);
-    bool _FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior = rZero);
+    bool _FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior = rZero);
     bool _FAddAevFromPrev(long iaevLim, ulong grfaet);
     bool _FAddAevFromLater(void);
     bool _FFindNextAevAet(long aet, long iaevCur, long *piaevAdd);
@@ -426,45 +468,45 @@ class ACTR : public ACTR_PAR
     void _UpdateXyzRte(void);
     bool _FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState = fTrue);
     void _RemoveAev(long iaev, bool fUpdateState = fTrue);
-    void _PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp = ivNil, ulong grfaet = faetNil);
+    void _PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp = ivNil, ulong grfaet = ActorEvent::faetNil);
     void _PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet);
-    void _PrepCostFill(long iaevMin, AEVCOST *paevcost);
+    void _PrepCostFill(long iaevMin, ActorEvent::Costume *paevcost);
     void _AdjustAevForRteIns(long irptAdjust, long iaevMin);
     void _AdjustAevForRteDel(long irptAdjust, long iaevMin);
     bool _FInsertStop(void);
     void _CalcRteOrient(BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil, ulong *pgrfbra = pvNil);
-    void _ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
+    void _ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
                           ulong *grfbra = pvNil);
     void _SaveCurPathOrien(void);
-    void _LoadAddOrien(AEVADD *paevadd, bool fNoReset = fFalse);
+    void _LoadAddOrien(ActorEvent::Add *paevadd, bool fNoReset = fFalse);
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
-    void _UpdateXyzTan(XYZ *pxyz, long irptTan, long rw);
+    void _UpdateXyzTan(RoutePoint *pxyz, long irptTan, long rw);
 
-    void _AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
-    void _GetXyzFromRtel(RTEL *prtel, PXYZ pxyz);
-    void _GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS dwrOffset, PXYZ pxyz);
-    void _PositionBody(PXYZ pxyz);
-    void _MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34);
+    void _AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
+    void _GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz);
+    void _GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS dwrOffset, PRoutePoint pxyz);
+    void _PositionBody(PRoutePoint pxyz);
+    void _MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34);
     void _TruncateSubRte(long irptDelLim);
     bool _FComputeLifetime(long *pnfrmLast = pvNil);
-    bool _FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast = pvNil);
+    bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
-    void _RestoreFromUndo(PACTR pactrRestore);
-    bool _FDupCopy(PACTR pactrSrc, PACTR pactrDest);
+    void _RestoreFromUndo(PActor pactrRestore);
+    bool _FDupCopy(PActor pactrSrc, PActor pactrDest);
 
-    bool _FWriteTmpl(PCFL pcfl, CNO cno);
-    bool _FReadActor(PCFL pcfl, CNO cno);
-    bool _FReadRoute(PCFL pcfl, CNO cno);
-    bool _FReadEvents(PCFL pcfl, CNO cno);
-    static void _SwapBytesPggaev(PGG pggaev);
-    bool _FOpenTags(PCRF pcrf);
-    static bool _FIsIaevTag(PGG pggaev, long iaev, PTAG *pptag, PAEV *pqaev = pvNil);
+    bool _FWriteTmpl(PChunkyFile pcfl, ChunkNumber cno);
+    bool _FReadActor(PChunkyFile pcfl, ChunkNumber cno);
+    bool _FReadRoute(PChunkyFile pcfl, ChunkNumber cno);
+    bool _FReadEvents(PChunkyFile pcfl, ChunkNumber cno);
+    static void _SwapBytesPggaev(PGeneralGroup pggaev);
+    bool _FOpenTags(PChunkyResourceFile pcrf);
+    static bool _FIsIaevTag(PGeneralGroup pggaev, long iaev, PTAG *pptag, ActorEvent::PBase *pqaev = pvNil);
     void _CloseTags(void);
 
   public:
-    ~ACTR(void);
-    static PACTR PactrNew(TAG *ptagTmpl);
-    void SetPscen(SCEN *pscen);
+    ~Actor(void);
+    static PActor PactrNew(TAG *ptagTmpl);
+    void SetPscen(Scene *pscen);
     void SetArid(long arid)
     {
         AssertBaseThis(0);
@@ -475,17 +517,17 @@ class ACTR : public ACTR_PAR
         AssertBaseThis(0);
         _fLifeDirty = fTrue;
     }
-    PSCEN Pscen(void)
+    PScene Pscen(void)
     {
         AssertThis(0);
         return _pscen;
     }
 
     // ActrSave Routines
-    static PACTR PactrRead(PCRF pcrf, CNO cno);    // Construct from a document
-    bool FWrite(PCFL pcfl, CNO cno, CNO cnoScene); // Write to a document
-    static PGL PgltagFetch(PCFL pcfl, CNO cno, bool *pfError);
-    static bool FAdjustAridOnFile(PCFL pcfl, CNO cno, long darid);
+    static PActor PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
+    bool FWrite(PChunkyFile pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
+    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkNumber cno, bool *pfError);
+    static bool FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid);
 
     // Visibility
     void Hilite(void);
@@ -541,12 +583,12 @@ class ACTR : public ACTR_PAR
         AssertBaseThis(0);
         return (_fOnStage);
     }
-    bool FIsMyBody(BODY *pbody)
+    bool FIsMyBody(Body *pbody)
     {
         AssertBaseThis(0);
         return pbody == _pbody;
     }
-    bool FIsMyTmpl(TMPL *ptmpl)
+    bool FIsMyTmpl(Template *ptmpl)
     {
         AssertBaseThis(0);
         return _ptmpl == ptmpl;
@@ -557,12 +599,12 @@ class ACTR : public ACTR_PAR
         return FPure(_fModeRecord);
     }
     bool FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent);
-    PTMPL Ptmpl(void)
+    PTemplate Ptmpl(void)
     {
         AssertBaseThis(0);
         return _ptmpl;
     }
-    PBODY Pbody(void)
+    PBody Pbody(void)
     {
         AssertBaseThis(0);
         return _pbody;
@@ -589,7 +631,7 @@ class ACTR : public ACTR_PAR
         AssertBaseThis(0);
         *ptag = _tagTmpl;
     }
-    void GetName(PSTN pstn);
+    void GetName(PString pstn);
     bool FChangeTagTmpl(PTAG ptagTmplNew);
     bool FTimeFrozen(void)
     {
@@ -625,8 +667,14 @@ class ACTR : public ACTR_PAR
     bool FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCustom);
     bool FSetStep(BRS dwrStep);
     bool FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd);
+    // Like FRotate but treats (xa,ya,za) as a WORLD-axis rotation rather than
+    // the actor's local-frame axis. Used for multi-actor rigid group rotation
+    // so each selected actor tilts coherently around the same world axis
+    // regardless of its rest orientation. Conjugates through the template's
+    // rest orientation (TS): bmat34 := (TS^-1 * R * TS) * bmat34.
+    bool FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd);
     bool FNormalizeCore(ulong grfnorm);
-    void SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz = pvNil);
+    void SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz = pvNil);
     bool FScale(BRS rScaleStep);
     bool FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ);
     void DeleteFwdCore(bool fDeleteAll, bool *pfAlive = pvNil, long iaevCur = ivNil);
@@ -634,30 +682,30 @@ class ACTR : public ACTR_PAR
     bool FSoonerLater(long dnfrm);
 
     // ActrEdit Routines
-    bool FDup(PACTR *ppactr, bool fReset = fFalse); // Duplicate everything
-    void Restore(PACTR pactr);
+    bool FDup(PActor *ppactr, bool fReset = fFalse); // Duplicate everything
+    void Restore(PActor pactr);
 
-    bool FCreateUndo(PACTR pactr, bool fSndUndo = fFalse, PSTN pstn = pvNil); // Create undo object
+    bool FCreateUndo(PActor pactr, bool fSndUndo = fFalse, PString pstn = pvNil); // Create undo object
     void Reset(void);
     bool FAddOnStage(void); // add actor to the stage, w/Undo
-    bool FSetAction(long anid, long celn, bool fFreeze, PACTR *ppactrDup = pvNil);
+    bool FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup = pvNil);
     bool FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCustom);
     bool FRemFromStage(void);                                 // add event: rem actor from stage, w/Undo
-    bool FCopy(PACTR *ppactr, bool fEntireScene = fFalse);    // Duplicate actor from this frame on
-    bool FCopyRte(PACTR *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
-    bool FPasteRte(PACTR pactr);                              // Paste from clipboard from this frame on
+    bool FCopy(PActor *ppactr, bool fEntireScene = fFalse);    // Duplicate actor from this frame on
+    bool FCopyRte(PActor *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
+    bool FPasteRte(PActor pactr);                              // Paste from clipboard from this frame on
     bool FNormalize(ulong grfnorm);
-    bool FPaste(long nfrm, SCEN *pscen);
+    bool FPaste(long nfrm, Scene *pscen);
     bool FDelete(bool *pfAlive, bool fDeleteAll);
 
     // ActrSnd Routines
     bool FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty);
     bool FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty);
     bool FSetVlmSnd(long sty, bool fMotionMatch, long vlm); // Set the volume of a sound
-    bool FQuerySnd(long sty, bool fMotionMatch, PGL *pglTagSnd, long *pvlm, bool *pfLoop);
+    bool FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, long *pvlm, bool *pfLoop);
     bool FDeleteSndCore(long sty, bool fMotionMatch);
     bool FSoundInFrm(void);
-    bool FResolveAllSndTags(CNO cnoScen);
+    bool FResolveAllSndTags(ChunkNumber cnoScen);
 
     // Route Definition
     void SetTsInsert(ulong tsCurrent)
@@ -665,10 +713,10 @@ class ACTR : public ACTR_PAR
         AssertBaseThis(0);
         _tsInsert = tsCurrent;
     }
-    bool FBeginRecord(ulong tsCurrent, bool fReplace, PACTR pactrRestore);
+    bool FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore);
     bool FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfLonger, bool *pfStep,
-                     PACTR pactrRestore);
-    bool FEndRecord(bool fReplace, PACTR pactrRestore);
+                     PActor pactrRestore);
+    bool FEndRecord(bool fReplace, PActor pactrRestore);
     bool FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf = fmafNil);
     bool FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved = pvNil, ulong grfmaf = fmafNil);
 };
@@ -676,21 +724,21 @@ class ACTR : public ACTR_PAR
 //
 // Actor document for clipping
 //
-typedef class ACLP *PACLP;
-#define ACLP_PAR DOCB
-#define kclsACLP 'ACLP'
-class ACLP : public ACLP_PAR
+typedef class ActorClipboard *PActorClipboard;
+#define ActorClipboard_PAR DocumentBase
+#define kclsActorClipboard 'ACLP'
+class ActorClipboard : public ActorClipboard_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    PACTR _pactr;
+    PActor _pactr;
     bool _fRteOnly;
-    STN _stnName;
+    String _stnName;
 
-    ACLP(void)
+    ActorClipboard(void)
     {
     }
 
@@ -698,13 +746,13 @@ class ACLP : public ACLP_PAR
     //
     // Constructors and destructors
     //
-    static PACLP PaclpNew(PACTR pactr, bool fRteOnly, bool fEndScene = fFalse);
-    ~ACLP(void);
+    static PActorClipboard PaclpNew(PActor pactr, bool fRteOnly, bool fEndScene = fFalse);
+    ~ActorClipboard(void);
 
     //
     // Pasting function
     //
-    bool FPaste(PMVIE pmvie);
+    bool FPaste(PMovie pmvie);
 
     bool FRouteOnly(void)
     {

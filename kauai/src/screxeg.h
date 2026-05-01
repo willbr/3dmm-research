@@ -16,13 +16,15 @@
 #ifndef SCREXEG_H
 #define SCREXEG_H
 
+namespace ScriptInterpreter {
+
 /****************************************
     Gob based script interpreter
 ****************************************/
-typedef class SCEG *PSCEG;
-#define SCEG_PAR SCEB
-#define kclsSCEG 'SCEG'
-class SCEG : public SCEG_PAR
+typedef class GraphicsObjectInterpreter *PGraphicsObjectInterpreter;
+#define GraphicsObjectInterpreter_PAR Interpreter
+#define kclsGraphicsObjectInterpreter 'SCEG'
+class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -31,30 +33,30 @@ class SCEG : public SCEG_PAR
     // CAUTION: _pgob may be nil (even if the gob still exists)! Always access
     // thru _PgobThis.  When something is done that may cause the gob to be
     // freed (such as calling another script), set this to nil.
-    PGOB _pgob;
+    PGraphicsObject _pgob;
     long _hid;    // the handler id of the initialization gob
     long _grid;   // the unique gob run-time id of the initialization gob
-    PWOKS _pwoks; // the kidspace world this script belongs to
+    PWorldOfKidspace _pwoks; // the kidspace world this script belongs to
 
-    virtual PGOB _PgobThis(void);
-    virtual PGOB _PgobFromHid(long hid);
+    virtual PGraphicsObject _PgobThis(void);
+    virtual PGraphicsObject _PgobFromHid(long hid);
 
     virtual bool _FExecOp(long op);
-    virtual PGL *_PpglrtvmThis(void);
-    virtual PGL *_PpglrtvmGlobal(void);
-    virtual PGL *_PpglrtvmRemote(long lw);
+    virtual PDynamicArray *_PpglrtvmThis(void);
+    virtual PDynamicArray *_PpglrtvmGlobal(void);
+    virtual PDynamicArray *_PpglrtvmRemote(long lw);
 
     virtual short _SwCur(void);
     virtual short _SwMin(void);
 
     void _DoAlert(long op);
-    void _SetColorTable(CHID chid);
+    void _SetColorTable(ChildChunkID chid);
     void _DoEditControl(long hid, long stid, bool fGet);
-    PGL _PglclrGet(CNO cno);
+    PDynamicArray _PglclrGet(ChunkNumber cno);
     bool _FLaunch(long stid);
 
   public:
-    SCEG(PWOKS pwoks, PRCA prca, PGOB pgob);
+    GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PResourceCache prca, PGraphicsObject pgob);
 
     void GobMayDie(void)
     {
@@ -64,6 +66,8 @@ class SCEG : public SCEG_PAR
 };
 
 // a Chunky resource reader for a color table
-bool FReadColorTable(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+
+} // end of namespace ScriptInterpreter
 
 #endif //! SCREXEG_H

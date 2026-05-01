@@ -98,7 +98,7 @@ void UnlockHq(HQ hq);
 
 // debug memory allocator globals
 // enter vmutxMem before modifying these...
-struct DMAGL
+struct DebugMemoryAllocatorGlobals
 {
     long cv;    // number of allocations
     long cvTot; // total number of allocations over all time
@@ -116,13 +116,13 @@ struct DMAGL
 };
 
 // debug memory globals
-struct DMGLOB
+struct DebugMemoryGlobals
 {
-    DMAGL dmaglBase; // for NewObj
-    DMAGL dmaglHq;   // for HQs
-    DMAGL dmaglPv;   // for FAllocPv, etc
+    DebugMemoryAllocatorGlobals dmaglBase; // for NewObj
+    DebugMemoryAllocatorGlobals dmaglHq;   // for HQs
+    DebugMemoryAllocatorGlobals dmaglPv;   // for FAllocPv, etc
 };
-extern DMGLOB vdmglob;
+extern DebugMemoryGlobals vdmglob;
 
 extern long vcactSuspendCheckPointers;
 #define SuspendCheckPointers() vcactSuspendCheckPointers++;
@@ -166,16 +166,16 @@ inline void *QvFromHq(HQ hq)
 #ifdef DEBUG
 
 // allocation routine
-bool FAllocPvDebug(void **ppv, long cb, ulong grfmem, long mpr, schar *pszsFile, long lwLine, DMAGL *pdmagl);
+bool FAllocPvDebug(void **ppv, long cb, ulong grfmem, long mpr, schar *pszsFile, long lwLine, DebugMemoryAllocatorGlobals *pdmagl);
 #define FAllocPv(ppv, cb, grfmem, mpr) FAllocPvDebug(ppv, cb, grfmem, mpr, __szsFile, __LINE__, &vdmglob.dmaglPv)
 
 // resizing routine - WIN only
 #ifdef WIN
-bool _FResizePpvDebug(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr, DMAGL *pdmagl);
+bool _FResizePpvDebug(void **ppv, long cbNew, long cbOld, ulong grfmem, long mpr, DebugMemoryAllocatorGlobals *pdmagl);
 #endif // WIN
 
 // freeing routine
-void FreePpvDebug(void **ppv, DMAGL *pdmagl);
+void FreePpvDebug(void **ppv, DebugMemoryAllocatorGlobals *pdmagl);
 #define FreePpv(ppv) FreePpvDebug(ppv, &vdmglob.dmaglPv)
 
 void AssertPvAlloced(void *pv, long cb);
@@ -262,8 +262,8 @@ inline long BvSubPvs(void *pv1, void *pv2)
 /****************************************
     Mutex (critical section) object
 ****************************************/
-typedef class MUTX *PMUTX;
-class MUTX
+typedef class Mutex *PMutex;
+class Mutex
 {
   protected:
 #ifdef WIN
@@ -271,11 +271,11 @@ class MUTX
 #endif // WIN
 
   public:
-    MUTX(void)
+    Mutex(void)
     {
         Win(InitializeCriticalSection(&_crit);)
     }
-    ~MUTX(void)
+    ~Mutex(void)
     {
         Win(DeleteCriticalSection(&_crit);)
     }
@@ -290,7 +290,7 @@ class MUTX
     }
 };
 
-extern MUTX vmutxMem;
+extern Mutex vmutxMem;
 
 /****************************************
     Current thread id

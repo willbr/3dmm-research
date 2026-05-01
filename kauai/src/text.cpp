@@ -13,11 +13,11 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(EDCB)
-RTCLASS(EDSL)
-RTCLASS(EDPL)
-RTCLASS(EDML)
-RTCLASS(EDMW)
+RTCLASS(EditControlBase)
+RTCLASS(EditControlSingleLine)
+RTCLASS(EditControlPlain)
+RTCLASS(EditControlMultiLine)
+RTCLASS(EditControlMultiLineWrap)
 
 const long kdxpInsetEdcb = 2;
 const long kdxpInsetSled = 2;
@@ -25,8 +25,8 @@ const long kdxpInsetSled = 2;
 /***************************************************************************
     Constructor for edit control parameter block.
 ***************************************************************************/
-EDPAR::EDPAR(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
-             long tah, long tav, ACR acrFore, ACR acrBack, long cmhl)
+EditParameter::EditParameter(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont, long dypFont,
+             long tah, long tav, AbstractColor acrFore, AbstractColor acrBack, long cmhl)
     : _gcb(hid, pgob, grfgob, gin, prcAbs, prcRel)
 {
     _onn = onn;
@@ -40,10 +40,10 @@ EDPAR::EDPAR(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel
 }
 
 /***************************************************************************
-    Set the data in the EDPAR.
+    Set the data in the EditParameter.
 ***************************************************************************/
-void EDPAR::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
-                long dypFont, long tah, long tav, ACR acrFore, ACR acrBack, long cmhl)
+void EditParameter::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel, long onn, ulong grfont,
+                long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack, long cmhl)
 {
     _gcb.Set(hid, pgob, grfgob, gin, prcAbs, prcRel);
     _onn = onn;
@@ -57,9 +57,9 @@ void EDPAR::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prc
 }
 
 /***************************************************************************
-    Set the font portion of the EDPAR.
+    Set the font portion of the EditParameter.
 ***************************************************************************/
-void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, ACR acrFore, ACR acrBack)
+void EditParameter::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, AbstractColor acrFore, AbstractColor acrBack)
 {
     _onn = onn;
     _grfont = grfont;
@@ -73,18 +73,18 @@ void EDPAR::SetFont(long onn, ulong grfont, long dypFont, long tah, long tav, AC
 /***************************************************************************
     Constructor for edit control.
 ***************************************************************************/
-EDCB::EDCB(PGCB pgcb, long cmhl) : GOB(pgcb)
+EditControlBase::EditControlBase(PGraphicsObjectBlock pgcb, long cmhl) : GraphicsObject(pgcb)
 {
     AssertBaseThis(0);
     _cmhl = cmhl;
-    _fMark = (kginMark == pgcb->_gin || kginDefault == pgcb->_gin && kginMark == GOB::GinDefault());
+    _fMark = (kginMark == pgcb->_gin || kginDefault == pgcb->_gin && kginMark == GraphicsObject::GinDefault());
     _pgnv = pvNil;
 }
 
 /***************************************************************************
     Constructor for edit control.
 ***************************************************************************/
-EDCB::~EDCB(void)
+EditControlBase::~EditControlBase(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgnv);
@@ -93,16 +93,16 @@ EDCB::~EDCB(void)
 /***************************************************************************
     Initialize the edit control.
 ***************************************************************************/
-bool EDCB::_FInit(void)
+bool EditControlBase::_FInit(void)
 {
     AssertBaseThis(0);
-    PGPT pgpt;
+    PGraphicsPort pgpt;
 
     if (_fMark)
     {
         RC rc(0, 0, 1, 1);
 
-        if (pvNil == (pgpt = GPT::PgptNewOffscreen(&rc, 8)))
+        if (pvNil == (pgpt = GraphicsPort::PgptNewOffscreen(&rc, 8)))
             return fFalse;
     }
     else
@@ -111,7 +111,7 @@ bool EDCB::_FInit(void)
         pgpt->AddRef();
     }
 
-    _pgnv = NewObj GNV(this, pgpt);
+    _pgnv = NewObj GraphicsEnvironment(this, pgpt);
     ReleasePpo(&pgpt);
 
     return pvNil != _pgnv;
@@ -120,7 +120,7 @@ bool EDCB::_FInit(void)
 /***************************************************************************
     Draw the contents of the gob.
 ***************************************************************************/
-void EDCB::Draw(PGNV pgnv, RC *prcClip)
+void EditControlBase::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -145,7 +145,7 @@ void EDCB::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Handle a mousedown in the edit control.
 ***************************************************************************/
-bool EDCB::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool EditControlBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -193,7 +193,7 @@ bool EDCB::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Handle a key down.
 ***************************************************************************/
-bool EDCB::FCmdKey(PCMD_KEY pcmd)
+bool EditControlBase::FCmdKey(PCMD_KEY pcmd)
 {
     const long kcchInsBuf = 64;
     AssertThis(0);
@@ -203,7 +203,7 @@ bool EDCB::FCmdKey(PCMD_KEY pcmd)
     long dich, ichLim;
     long dlnSel, ln, lnMac;
     long cact;
-    CMD cmd;
+    Command cmd;
     achar rgch[kcchInsBuf + 1];
     bool fPage;
 
@@ -235,7 +235,7 @@ bool EDCB::FCmdKey(PCMD_KEY pcmd)
                 break;
             if (!_FFilterCh((achar)pcmd->ch))
             {
-                cmd = *(CMD *)pcmd;
+                cmd = *(Command *)pcmd;
                 cmd.cid = cidBadKey;
                 cmd.pcmh = PgobPar();
                 ((PCMD_BADKEY)&cmd)->hid = Hid();
@@ -390,7 +390,7 @@ LInsert:
     the selection is on or off according to rglw[0] (non-zero means on)
     and set rglw[0] to false.  Always return false.
 ***************************************************************************/
-bool EDCB::FCmdSelIdle(PCMD pcmd)
+bool EditControlBase::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -411,16 +411,16 @@ bool EDCB::FCmdSelIdle(PCMD pcmd)
 /***************************************************************************
     Handle an activate sel command.
 ***************************************************************************/
-bool EDCB::FCmdActivateSel(PCMD pcmd)
+bool EditControlBase::FCmdActivateSel(PCommand pcmd)
 {
     Activate(fTrue);
     return fTrue;
 }
 
 /***************************************************************************
-    Either make the selection for the EDCB active or inactive.
+    Either make the selection for the EditControlBase active or inactive.
 ***************************************************************************/
-void EDCB::Activate(bool fActive)
+void EditControlBase::Activate(bool fActive)
 {
     AssertThis(0);
     vpcex->RemoveCmh(this, _cmhl);
@@ -434,16 +434,16 @@ void EDCB::Activate(bool fActive)
     Get the rectangle that is to contain the text.  This allows derived
     classes to have borders, etc.
 ***************************************************************************/
-void EDCB::_GetRcContent(RC *prc)
+void EditControlBase::_GetRcContent(RC *prc)
 {
     GetRc(prc, cooLocal);
 }
 
 /***************************************************************************
-    Set the vis for the GNV to be the intersection of the GOB's vis and
+    Set the vis for the GraphicsEnvironment to be the intersection of the GraphicsObject's vis and
     the content rc.
 ***************************************************************************/
-void EDCB::_InitGnv(PGNV pgnv)
+void EditControlBase::_InitGnv(PGraphicsEnvironment pgnv)
 {
     RC rc;
 
@@ -454,7 +454,7 @@ void EDCB::_InitGnv(PGNV pgnv)
 /***************************************************************************
     The rectangle has changed - show the selection.
 ***************************************************************************/
-void EDCB::_NewRc(void)
+void EditControlBase::_NewRc(void)
 {
     ShowSel(fTrue, ginNil);
 }
@@ -462,7 +462,7 @@ void EDCB::_NewRc(void)
 /***************************************************************************
     Set the selection.
 ***************************************************************************/
-void EDCB::SetSel(long ichAnchor, long ichOther, long gin)
+void EditControlBase::SetSel(long ichAnchor, long ichOther, long gin)
 {
     AssertThis(0);
     long ichMac = IchMac();
@@ -504,7 +504,7 @@ void EDCB::SetSel(long ichAnchor, long ichOther, long gin)
 /***************************************************************************
     Turn the sel on or off according to fOn.
 ***************************************************************************/
-void EDCB::_SwitchSel(bool fOn, long gin)
+void EditControlBase::_SwitchSel(bool fOn, long gin)
 {
     AssertThis(0);
 
@@ -522,7 +522,7 @@ void EDCB::_SwitchSel(bool fOn, long gin)
 /***************************************************************************
     Make sure the selection is visible (or at least _ichOther is).
 ***************************************************************************/
-void EDCB::ShowSel(bool fForceJustification, long gin)
+void EditControlBase::ShowSel(bool fForceJustification, long gin)
 {
     AssertThis(0);
     long ln, lnHope;
@@ -588,7 +588,7 @@ void EDCB::ShowSel(bool fForceJustification, long gin)
 /***************************************************************************
     Invert the current selection.
 ***************************************************************************/
-void EDCB::_InvertSel(PGNV pgnv, long gin)
+void EditControlBase::_InvertSel(PGraphicsEnvironment pgnv, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -619,7 +619,7 @@ void EDCB::_InvertSel(PGNV pgnv, long gin)
 /***************************************************************************
     Invert a range.
 ***************************************************************************/
-void EDCB::_InvertIchRange(PGNV pgnv, long ich1, long ich2, long gin)
+void EditControlBase::_InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, long gin)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -692,7 +692,7 @@ void EDCB::_InvertIchRange(PGNV pgnv, long ich1, long ich2, long gin)
 /***************************************************************************
     Update the correct lines on screen.
 ***************************************************************************/
-void EDCB::_UpdateLn(long ln, long clnIns, long clnDel, long dypDel, long gin)
+void EditControlBase::_UpdateLn(long ln, long clnIns, long clnDel, long dypDel, long gin)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac());
@@ -746,7 +746,7 @@ void EDCB::_UpdateLn(long ln, long clnIns, long clnDel, long dypDel, long gin)
 /***************************************************************************
     Scroll the text in the edit control.
 ***************************************************************************/
-void EDCB::_Scroll(long dxp, long dyp, long gin)
+void EditControlBase::_Scroll(long dxp, long dyp, long gin)
 {
     AssertThis(0);
     RC rc;
@@ -760,7 +760,7 @@ void EDCB::_Scroll(long dxp, long dyp, long gin)
 /***************************************************************************
     Return the yp for the given character.
 ***************************************************************************/
-long EDCB::_YpFromIch(long ich)
+long EditControlBase::_YpFromIch(long ich)
 {
     return _YpFromLn(_LnFromIch(ich));
 }
@@ -768,7 +768,7 @@ long EDCB::_YpFromIch(long ich)
 /***************************************************************************
     Return the single character at ich.
 ***************************************************************************/
-achar EDCB::_ChFetch(long ich)
+achar EditControlBase::_ChFetch(long ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac());
@@ -782,7 +782,7 @@ achar EDCB::_ChFetch(long ich)
     Return ich of the previous character, skipping line feed characters. If
     fWord is true, skip to the beginning of a word.
 ***************************************************************************/
-long EDCB::_IchPrev(long ich, bool fWord)
+long EditControlBase::_IchPrev(long ich, bool fWord)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac() + 2);
@@ -814,7 +814,7 @@ long EDCB::_IchPrev(long ich, bool fWord)
     Return ich of the next character, skipping line feed characters. If
     fWord is true, skip to the beginning of the next word.
 ***************************************************************************/
-long EDCB::_IchNext(long ich, bool fWord)
+long EditControlBase::_IchNext(long ich, bool fWord)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac() + 1);
@@ -844,24 +844,24 @@ long EDCB::_IchNext(long ich, bool fWord)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the EDCB
+    Assert the validity of the EditControlBase
 ***************************************************************************/
-void EDCB::AssertValid(ulong grf)
+void EditControlBase::AssertValid(ulong grf)
 {
-    EDCB_PAR::AssertValid(0);
+    EditControlBase_PAR::AssertValid(0);
     AssertIn(_ichAnchor, 0, kcbMax);
     AssertIn(_ichOther, 0, kcbMax);
     AssertPo(_pgnv, 0);
-    // REVIEW shonk: fill in EDCB::AssertValid
+    // REVIEW shonk: fill in EditControlBase::AssertValid
 }
 
 /***************************************************************************
-    Mark memory for the EDML.
+    Mark memory for the EditControlMultiLine.
 ***************************************************************************/
-void EDCB::MarkMem(void)
+void EditControlBase::MarkMem(void)
 {
     AssertValid(0);
-    EDCB_PAR::MarkMem();
+    EditControlBase_PAR::MarkMem();
     MarkMemObj(_pgnv);
 }
 #endif
@@ -869,7 +869,7 @@ void EDCB::MarkMem(void)
 /***************************************************************************
     Constructor for plain edit control.
 ***************************************************************************/
-EDPL::EDPL(PEDPAR pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
+EditControlPlain::EditControlPlain(PEditParameter pedpar) : EditControlBase(&pedpar->_gcb, pedpar->_cmhl)
 {
     // inputs are all asserted in AssertThis
     _onn = pedpar->_onn;
@@ -885,14 +885,14 @@ EDPL::EDPL(PEDPAR pedpar) : EDCB(&pedpar->_gcb, pedpar->_cmhl)
 }
 
 /***************************************************************************
-    Initialize the EDPL.
+    Initialize the EditControlPlain.
 ***************************************************************************/
-bool EDPL::_FInit(void)
+bool EditControlPlain::_FInit(void)
 {
     AssertBaseThis(0);
     RC rc;
 
-    if (!EDPL_PAR::_FInit())
+    if (!EditControlPlain_PAR::_FInit())
         return fFalse;
 
     // get the _dypLine value
@@ -906,7 +906,7 @@ bool EDPL::_FInit(void)
 /***************************************************************************
     Return the yp for the given line.
 ***************************************************************************/
-long EDPL::_YpFromLn(long ln)
+long EditControlPlain::_YpFromLn(long ln)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac() + 1);
@@ -927,7 +927,7 @@ long EDPL::_YpFromLn(long ln)
 /***************************************************************************
     Return which line the yp belongs in.
 ***************************************************************************/
-long EDPL::_LnFromYp(long yp)
+long EditControlPlain::_LnFromYp(long yp)
 {
     AssertThis(0);
     long yp0 = _YpFromLn(0);
@@ -937,7 +937,7 @@ long EDPL::_LnFromYp(long yp)
 /***************************************************************************
     Hilite the rectangle.
 ***************************************************************************/
-void EDPL::_HiliteRc(PGNV pgnv, RC *prc)
+void EditControlPlain::_HiliteRc(PGraphicsEnvironment pgnv, RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -947,7 +947,7 @@ void EDPL::_HiliteRc(PGNV pgnv, RC *prc)
 /***************************************************************************
     Return the xp for the given character.
 ***************************************************************************/
-long EDPL::_XpFromIch(long ich)
+long EditControlPlain::_XpFromIch(long ich)
 {
     AssertThis(0);
     AssertIn(ich, 0, IchMac() + 1);
@@ -984,7 +984,7 @@ long EDPL::_XpFromIch(long ich)
     (for traditional selection). If fClosest is false, it finds the character
     that the xp value is over.
 ***************************************************************************/
-long EDPL::_IchFromLnXp(long ln, long xp, bool fClosest)
+long EditControlPlain::_IchFromLnXp(long ln, long xp, bool fClosest)
 {
     AssertThis(0);
     long xpT;
@@ -1016,9 +1016,9 @@ long EDPL::_IchFromLnXp(long ln, long xp, bool fClosest)
 }
 
 /***************************************************************************
-    Draw the given line in the given GNV.
+    Draw the given line in the given GraphicsEnvironment.
 ***************************************************************************/
-void EDPL::_DrawLine(PGNV pgnv, long ln)
+void EditControlPlain::_DrawLine(PGraphicsEnvironment pgnv, long ln)
 {
     AssertThis(0);
     AssertIn(ln, 0, _LnMac() + 1);
@@ -1053,7 +1053,7 @@ void EDPL::_DrawLine(PGNV pgnv, long ln)
 /***************************************************************************
     Return the origin for drawing text.
 ***************************************************************************/
-long EDPL::_XpOrigin(void)
+long EditControlPlain::_XpOrigin(void)
 {
     AssertThis(0);
     RC rc;
@@ -1074,9 +1074,9 @@ long EDPL::_XpOrigin(void)
 /***************************************************************************
     Assert the validity of a single-line edit control.
 ***************************************************************************/
-void EDPL::AssertValid(ulong grf)
+void EditControlPlain::AssertValid(ulong grf)
 {
-    EDPL_PAR::AssertValid(0);
+    EditControlPlain_PAR::AssertValid(0);
     Assert(vntl.FValidOnn(_onn), 0);
     AssertIn(_dypFont, 1, kswMax);
     AssertIn(_tah, 0, tahLim);
@@ -1091,19 +1091,19 @@ void EDPL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for single line edit control.
 ***************************************************************************/
-EDSL::EDSL(PEDPAR pedpar) : EDPL(pedpar)
+EditControlSingleLine::EditControlSingleLine(PEditParameter pedpar) : EditControlPlain(pedpar)
 {
     AssertBaseThis(0);
 }
 
 /***************************************************************************
-    Create a new EDSL (single line edit control).
+    Create a new EditControlSingleLine (single line edit control).
 ***************************************************************************/
-PEDSL EDSL::PedslNew(PEDPAR pedpar)
+PEditControlSingleLine EditControlSingleLine::PedslNew(PEditParameter pedpar)
 {
-    PEDSL pedsl;
+    PEditControlSingleLine pedsl;
 
-    if (pvNil == (pedsl = NewObj EDSL(pedpar)))
+    if (pvNil == (pedsl = NewObj EditControlSingleLine(pedpar)))
         return pvNil;
 
     if (!pedsl->_FInit())
@@ -1116,7 +1116,7 @@ PEDSL EDSL::PedslNew(PEDPAR pedpar)
 /***************************************************************************
     Get a pointer to the characters for the given line.
 ***************************************************************************/
-bool EDSL::_FLockLn(long ln, achar **pprgch, long *pcch)
+bool EditControlSingleLine::_FLockLn(long ln, achar **pprgch, long *pcch)
 {
     AssertBaseThis(0);
     AssertVarMem(pprgch);
@@ -1136,7 +1136,7 @@ bool EDSL::_FLockLn(long ln, achar **pprgch, long *pcch)
 /***************************************************************************
     Unlock a line.
 ***************************************************************************/
-void EDSL::_UnlockLn(long ln, achar *prgch)
+void EditControlSingleLine::_UnlockLn(long ln, achar *prgch)
 {
     AssertBaseThis(0);
     Assert(prgch == _rgch, "bad call to _UnlockLn");
@@ -1145,7 +1145,7 @@ void EDSL::_UnlockLn(long ln, achar *prgch)
 /***************************************************************************
     Return the line that ich is on.
 ***************************************************************************/
-long EDSL::_LnFromIch(long ich)
+long EditControlSingleLine::_LnFromIch(long ich)
 {
     AssertBaseThis(0);
     AssertIn(ich, 0, kcbMax);
@@ -1155,7 +1155,7 @@ long EDSL::_LnFromIch(long ich)
 /***************************************************************************
     Return the first ich for the given line.
 ***************************************************************************/
-long EDSL::_IchMinLn(long ln)
+long EditControlSingleLine::_IchMinLn(long ln)
 {
     AssertBaseThis(0);
     return ln == 0 ? 0 : IchMac() + 1;
@@ -1164,7 +1164,7 @@ long EDSL::_IchMinLn(long ln)
 /***************************************************************************
     Return the number of characters.
 ***************************************************************************/
-long EDSL::IchMac(void)
+long EditControlSingleLine::IchMac(void)
 {
     AssertBaseThis(0);
     return _cch;
@@ -1173,7 +1173,7 @@ long EDSL::IchMac(void)
 /***************************************************************************
     Return the number of lines.
 ***************************************************************************/
-long EDSL::_LnMac(void)
+long EditControlSingleLine::_LnMac(void)
 {
     AssertBaseThis(0);
     return 1;
@@ -1183,7 +1183,7 @@ long EDSL::_LnMac(void)
     Replace the characters between ich1 and ich2 with those in (prgch, cchIns).
     Calls _UpdateLn() to clean up the display.
 ***************************************************************************/
-bool EDSL::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
+bool EditControlSingleLine::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(0);
     AssertIn(cchIns, 0, kcbMax);
@@ -1227,7 +1227,7 @@ bool EDSL::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 /***************************************************************************
     If this is a character we can't accept, return false.
 ***************************************************************************/
-bool EDSL::_FFilterCh(achar ch)
+bool EditControlSingleLine::_FFilterCh(achar ch)
 {
     return !(fchControl & GrfchFromCh(ch));
 }
@@ -1235,7 +1235,7 @@ bool EDSL::_FFilterCh(achar ch)
 /***************************************************************************
     Get the text in the edit control.
 ***************************************************************************/
-void EDSL::GetStn(PSTN pstn)
+void EditControlSingleLine::GetStn(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1247,7 +1247,7 @@ void EDSL::GetStn(PSTN pstn)
     Set the text in the edit control.  Sets the selection to an insertion
     point at the end of the text.
 ***************************************************************************/
-void EDSL::SetStn(PSTN pstn, long gin)
+void EditControlSingleLine::SetStn(PString pstn, long gin)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -1258,7 +1258,7 @@ void EDSL::SetStn(PSTN pstn, long gin)
 /***************************************************************************
     Get some text.
 ***************************************************************************/
-long EDSL::CchFetch(achar *prgch, long ich, long cchWant)
+long EditControlSingleLine::CchFetch(achar *prgch, long ich, long cchWant)
 {
     AssertThis(0);
     AssertIn(cchWant, 0, kcbMax);
@@ -1274,15 +1274,15 @@ long EDSL::CchFetch(achar *prgch, long ich, long cchWant)
 /***************************************************************************
     Assert the validity of a single-line edit control.
 ***************************************************************************/
-void EDSL::AssertValid(ulong grf)
+void EditControlSingleLine::AssertValid(ulong grf)
 {
     long ich;
 
-    EDSL_PAR::AssertValid(0);
+    EditControlSingleLine_PAR::AssertValid(0);
     AssertIn(_cch, 0, kcchMaxEdsl + 1);
     for (ich = _cch; ich-- > 0;)
     {
-        Assert(_rgch[ich] != 0, "null character in EDSL");
+        Assert(_rgch[ich] != 0, "null character in EditControlSingleLine");
     }
     AssertIn(_ichAnchor, 0, _cch + 1);
     AssertIn(_ichOther, 0, _cch + 1);
@@ -1292,24 +1292,24 @@ void EDSL::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EDML::EDML(PEDPAR pedpar) : EDPL(pedpar)
+EditControlMultiLine::EditControlMultiLine(PEditParameter pedpar) : EditControlPlain(pedpar)
 {
     _bsm.SetMinGrow(256);
 }
 
-EDML::~EDML(void)
+EditControlMultiLine::~EditControlMultiLine(void)
 {
     ReleasePpo(&_pglich);
 }
 
 /***************************************************************************
-    Create a new EDML (multi line edit control).
+    Create a new EditControlMultiLine (multi line edit control).
 ***************************************************************************/
-PEDML EDML::PedmlNew(PEDPAR pedpar)
+PEditControlMultiLine EditControlMultiLine::PedmlNew(PEditParameter pedpar)
 {
-    PEDML pedml;
+    PEditControlMultiLine pedml;
 
-    if (pvNil == (pedml = NewObj EDML(pedpar)))
+    if (pvNil == (pedml = NewObj EditControlMultiLine(pedpar)))
         return pvNil;
     if (!pedml->_FInit())
     {
@@ -1323,11 +1323,11 @@ PEDML EDML::PedmlNew(PEDPAR pedpar)
 /***************************************************************************
     Initialize the multi line edit control.
 ***************************************************************************/
-bool EDML::_FInit(void)
+bool EditControlMultiLine::_FInit(void)
 {
     long ich;
 
-    if (pvNil == (_pglich = GL::PglNew(size(long))))
+    if (pvNil == (_pglich = DynamicArray::PglNew(size(long))))
         return fFalse;
     _pglich->SetMinGrow(20);
     ich = 0;
@@ -1337,7 +1337,7 @@ bool EDML::_FInit(void)
 /***************************************************************************
     Get a pointer to the characters for the given line.
 ***************************************************************************/
-bool EDML::_FLockLn(long ln, achar **pprgch, long *pcch)
+bool EditControlMultiLine::_FLockLn(long ln, achar **pprgch, long *pcch)
 {
     AssertThis(0);
     AssertIn(ln, 0, _pglich->IvMac() + 1);
@@ -1375,7 +1375,7 @@ bool EDML::_FLockLn(long ln, achar **pprgch, long *pcch)
 /***************************************************************************
     Unlock a line.
 ***************************************************************************/
-void EDML::_UnlockLn(long ln, achar *prgch)
+void EditControlMultiLine::_UnlockLn(long ln, achar *prgch)
 {
     AssertThis(0);
     _bsm.Unlock();
@@ -1384,7 +1384,7 @@ void EDML::_UnlockLn(long ln, achar *prgch)
 /***************************************************************************
     Return the line that ich is on.
 ***************************************************************************/
-long EDML::_LnFromIch(long ich)
+long EditControlMultiLine::_LnFromIch(long ich)
 {
     AssertThis(fobjAssertFull);
     AssertIn(ich, 0, IchMac() + 1);
@@ -1415,7 +1415,7 @@ long EDML::_LnFromIch(long ich)
 /***************************************************************************
     Return the first ich for the given line.
 ***************************************************************************/
-long EDML::_IchMinLn(long ln)
+long EditControlMultiLine::_IchMinLn(long ln)
 {
     AssertThis(0);
     long ich;
@@ -1429,7 +1429,7 @@ long EDML::_IchMinLn(long ln)
 /***************************************************************************
     Return the number of characters.
 ***************************************************************************/
-long EDML::IchMac(void)
+long EditControlMultiLine::IchMac(void)
 {
     AssertBaseThis(0);
     Assert(_bsm.IbMac() % size(achar) == 0, "ibMac not divisible by size(achar)");
@@ -1439,7 +1439,7 @@ long EDML::IchMac(void)
 /***************************************************************************
     Return the number of lines.
 ***************************************************************************/
-long EDML::_LnMac(void)
+long EditControlMultiLine::_LnMac(void)
 {
     AssertThis(0);
     return _pglich->IvMac();
@@ -1449,7 +1449,7 @@ long EDML::_LnMac(void)
     Replace the characters between ich1 and ich2 with those in (prgch, cchIns).
     Calls _UpdateLn() to clean up the display.
 ***************************************************************************/
-bool EDML::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
+bool EditControlMultiLine::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cchIns, 0, kcbMax);
@@ -1514,15 +1514,15 @@ bool EDML::FReplace(achar *prgch, long cchIns, long ich1, long ich2, long gin)
 /***************************************************************************
     Do a replace operation just on the text.
 ***************************************************************************/
-bool EDML::_FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel)
+bool EditControlMultiLine::_FReplaceCore(achar *prgch, long cchIns, long ich, long cchDel)
 {
     return _bsm.FReplace(prgch, cchIns, ich, cchDel);
 }
 
 /***************************************************************************
-    Estimate the number of new lines (exact for a simple EDML).
+    Estimate the number of new lines (exact for a simple EditControlMultiLine).
 ***************************************************************************/
-long EDML::_ClnEstimate(achar *prgch, long cch)
+long EditControlMultiLine::_ClnEstimate(achar *prgch, long cch)
 {
     long cln;
     long ich;
@@ -1539,7 +1539,7 @@ long EDML::_ClnEstimate(achar *prgch, long cch)
 /***************************************************************************
     Find new line starts starting at lnMin.
 ***************************************************************************/
-long EDML::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
+long EditControlMultiLine::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 {
     long ln;
     long ichPrev;
@@ -1567,7 +1567,7 @@ long EDML::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 /***************************************************************************
     If this is a character we can't accept, return false.
 ***************************************************************************/
-bool EDML::_FFilterCh(achar ch)
+bool EditControlMultiLine::_FFilterCh(achar ch)
 {
     ulong grfch = GrfchFromCh(ch);
 
@@ -1577,7 +1577,7 @@ bool EDML::_FFilterCh(achar ch)
 /***************************************************************************
     Get some text.
 ***************************************************************************/
-long EDML::CchFetch(achar *prgch, long ich, long cchWant)
+long EditControlMultiLine::CchFetch(achar *prgch, long ich, long cchWant)
 {
     AssertThis(0);
     AssertIn(cchWant, 0, kcbMax);
@@ -1593,9 +1593,9 @@ long EDML::CchFetch(achar *prgch, long ich, long cchWant)
 /***************************************************************************
     Assert the validity of a multi-line edit control.
 ***************************************************************************/
-void EDML::AssertValid(ulong grf)
+void EditControlMultiLine::AssertValid(ulong grf)
 {
-    EDML_PAR::AssertValid(0);
+    EditControlMultiLine_PAR::AssertValid(0);
     AssertPo(_pglich, 0);
     AssertPo(&_bsm, 0);
     AssertIn(_pglich->IvMac(), 1, kcbMax);
@@ -1623,12 +1623,12 @@ void EDML::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the EDML.
+    Mark memory for the EditControlMultiLine.
 ***************************************************************************/
-void EDML::MarkMem(void)
+void EditControlMultiLine::MarkMem(void)
 {
     AssertValid(0);
-    EDML_PAR::MarkMem();
+    EditControlMultiLine_PAR::MarkMem();
     MarkMemObj(&_bsm);
     MarkMemObj(_pglich);
 }
@@ -1637,18 +1637,18 @@ void EDML::MarkMem(void)
 /***************************************************************************
     Constructor for multi line edit control.
 ***************************************************************************/
-EDMW::EDMW(PEDPAR pedpar) : EDML(pedpar)
+EditControlMultiLineWrap::EditControlMultiLineWrap(PEditParameter pedpar) : EditControlMultiLine(pedpar)
 {
 }
 
 /***************************************************************************
     Create a new multi-line wrapping edit control.
 ***************************************************************************/
-PEDMW EDMW::PedmwNew(PEDPAR pedpar)
+PEditControlMultiLineWrap EditControlMultiLineWrap::PedmwNew(PEditParameter pedpar)
 {
-    PEDMW pedmw;
+    PEditControlMultiLineWrap pedmw;
 
-    if (pvNil == (pedmw = NewObj EDMW(pedpar)))
+    if (pvNil == (pedmw = NewObj EditControlMultiLineWrap(pedpar)))
         return pvNil;
     if (!pedmw->_FInit())
     {
@@ -1662,7 +1662,7 @@ PEDMW EDMW::PedmwNew(PEDPAR pedpar)
 /***************************************************************************
     Return an estimate of how many new lines there are in the text to insert.
 ***************************************************************************/
-long EDMW::_ClnEstimate(achar *prgch, long cch)
+long EditControlMultiLineWrap::_ClnEstimate(achar *prgch, long cch)
 {
     // the common case
     if (cch <= 1)
@@ -1678,7 +1678,7 @@ long EDMW::_ClnEstimate(achar *prgch, long cch)
     _pgnv->GetRcFromRgch(&rc, prgch, cch);
     cln = LwMin(cch, 2 * rc.Dxp() / dxp);
 
-    return cln + EDML::_ClnEstimate(prgch, cch);
+    return cln + EditControlMultiLine::_ClnEstimate(prgch, cch);
 }
 
 /***************************************************************************
@@ -1686,7 +1686,7 @@ long EDMW::_ClnEstimate(achar *prgch, long cch)
     lnMin's line start.  Returns the first line that changed (1 less than
     the first line start that changed).
 ***************************************************************************/
-long EDMW::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
+long EditControlMultiLineWrap::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 {
     const long kcichMax = 128;
     long rgich[kcichMax];
@@ -1808,7 +1808,7 @@ long EDMW::_LnReformat(long lnMin, long *pclnDel, long *pclnIns)
 
         if (!_pglich->FInsert(lnCur, &ich))
         {
-            Warn("memory failure in EDMW::_LnReformat");
+            Warn("memory failure in EditControlMultiLineWrap::_LnReformat");
             break;
         }
         clnIns++;
@@ -1827,7 +1827,7 @@ LDone:
     Doesn't continue past a return character.  Return the number of locations
     found.
 ***************************************************************************/
-long EDMW::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax)
+long EditControlMultiLineWrap::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax)
 {
     AssertIn(ich, 0, IchMac() + 1);
     AssertPvCb(prgch, IchMac() * size(achar));
@@ -1858,9 +1858,9 @@ long EDMW::_CichGetBreakables(achar *prgch, long ich, long *prgich, long cichMax
 }
 
 /***************************************************************************
-    The size of the GOB changed - relayout.
+    The size of the GraphicsObject changed - relayout.
 ***************************************************************************/
-void EDMW::_NewRc(void)
+void EditControlMultiLineWrap::_NewRc(void)
 {
     AssertThis(0);
     long clnDel, clnIns;

@@ -13,42 +13,42 @@
     Standard controls (scroll bars, etc).
 
 ***************************************************************************/
-#ifndef CTL_H
-#define CTL_H
+#ifndef Control_H
+#define Control_H
 
 #ifdef WIN
-typedef HWND HCTL;
+typedef HWND HControl;
 #elif defined(MAC)
-typedef ControlHandle HCTL;
+typedef ControlHandle HControl;
 #endif // MAC
 
 // general control
-typedef class CTL *PCTL;
-#define CTL_PAR GOB
-#define kclsCTL 'CTL'
-class CTL : public CTL_PAR
+typedef class Control *PControl;
+#define Control_PAR GraphicsObject
+#define kclsControl 'CTL'
+class Control : public Control_PAR
 {
     RTCLASS_DEC
 
   private:
-    HCTL _hctl;
+    HControl _hctl;
 
   protected:
-    CTL(PGCB pgcb);
-    ~CTL(void);
+    Control(PGraphicsObjectBlock pgcb);
+    ~Control(void);
 
     virtual void _NewRc(void);
-    HCTL _Hctl(void)
+    HControl _Hctl(void)
     {
         return _hctl;
     }
-    bool _FSetHctl(HCTL hctl);
+    bool _FSetHctl(HControl hctl);
 
   public:
-    static PCTL PctlFromHctl(HCTL hctl);
+    static PControl PctlFromHctl(HControl hctl);
 
 #ifdef MAC
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 #endif // MAC
 };
 
@@ -83,10 +83,10 @@ enum
     scaToVal,
 };
 
-typedef class SCB *PSCB;
-#define SCB_PAR CTL
-#define kclsSCB 'SCB'
-class SCB : public SCB_PAR
+typedef class ScrollBar *PScrollBar;
+#define ScrollBar_PAR Control
+#define kclsScrollBar 'SCB'
+class ScrollBar : public ScrollBar_PAR
 {
     RTCLASS_DEC
 
@@ -100,7 +100,7 @@ class SCB : public SCB_PAR
 #endif // WIN
 
   protected:
-    SCB(PGCB pgcb) : CTL(pgcb)
+    ScrollBar(PGraphicsObjectBlock pgcb) : Control(pgcb)
     {
     }
     bool _FCreate(long val, long valMin, long valMax, ulong grfscb);
@@ -114,7 +114,7 @@ class SCB : public SCB_PAR
     static long DypNormal(void);
     static void GetStandardRc(ulong grfscb, RC *prcAbs, RC *prcRel);
     static void GetClientRc(ulong grfscb, RC *prcAbs, RC *prcRel);
-    static PSCB PscbNew(PGCB pgcb, ulong grfscb, long val = 0, long valMin = 0, long valMax = 0);
+    static PScrollBar PscbNew(PGraphicsObjectBlock pgcb, ulong grfscb, long val = 0, long valMin = 0, long valMax = 0);
 
     void SetVal(long val, bool fRedraw = fTrue);
     void SetValMinMax(long val, long valMin, long valMax, bool fRedraw = fTrue);
@@ -141,15 +141,15 @@ class SCB : public SCB_PAR
 };
 
 // size box
-typedef class WSB *PWSB;
-#define WSB_PAR CTL
-#define kclsWSB 'WSB'
-class WSB : public WSB_PAR
+typedef class WindowSizeBox *PWindowSizeBox;
+#define WindowSizeBox_PAR Control
+#define kclsWindowSizeBox 'WSB'
+class WindowSizeBox : public WindowSizeBox_PAR
 {
     RTCLASS_DEC
 
   protected:
-    WSB(PGCB pgcb) : CTL(pgcb)
+    WindowSizeBox(PGraphicsObjectBlock pgcb) : Control(pgcb)
     {
     }
 
@@ -158,11 +158,11 @@ class WSB : public WSB_PAR
 #endif // MAC
 
   public:
-    static PWSB PwsbNew(PGOB pgob, ulong grfgob);
+    static PWindowSizeBox PwsbNew(PGraphicsObject pgob, ulong grfgob);
 
 #ifdef MAC
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 #endif // MAC
 };
 
-#endif //! CTL_H
+#endif //! Control_H

@@ -8,11 +8,11 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    The APP class handles initialization of the product, and global
+    The Application class handles initialization of the product, and global
     actions such as resolution-switching, switching between the building
     and the studio, and quitting.
 
-    The KWA (App KidWorld) is the parent of the gob tree in the product.
+    The KidWorld (App KidWorld) is the parent of the gob tree in the product.
     It also is used to display a splash screen, and to find AVIs on the CD.
 
 ***************************************************************************/
@@ -46,34 +46,34 @@ const ulong kdtsSplashScreen = 4 * kdtsSecond;
 // Duration before res-switch dialog cancels itself
 const ulong kdtsMaxResSwitchDlg = 15 * kdtsSecond;
 
-// 2MB cache per source for TAGM
+// 2MB cache per source for TagManager
 const ulong kcbCacheTagm = 2048 * 1024;
 
-static PSZ kpszAppWndCls = PszLit("3DMOVIE");
-const PSZ kpszOpenFile = PszLit("3DMMOpen.tmp");
+static PZString kpszAppWndCls = PszLit("3DMOVIE");
+const PZString kpszOpenFile = PszLit("3DMMOpen.tmp");
 
 const long klwOpenDoc = 0x12123434; // arbitrary wParam for WM_USER
 
-BEGIN_CMD_MAP(APP, APPB)
-ON_CID_GEN(cidInfo, &APP::FCmdInfo, pvNil)
-ON_CID_GEN(cidLoadStudio, &APP::FCmdLoadStudio, pvNil)
-ON_CID_GEN(cidLoadBuilding, &APP::FCmdLoadBuilding, pvNil)
-ON_CID_GEN(cidTheaterOpen, &APP::FCmdTheaterOpen, pvNil)
-ON_CID_GEN(cidTheaterClose, &APP::FCmdTheaterClose, pvNil)
-ON_CID_GEN(cidPortfolioOpen, &APP::FCmdPortfolioOpen, pvNil)
-ON_CID_GEN(cidPortfolioClear, &APP::FCmdPortfolioClear, pvNil)
-ON_CID_GEN(cidDisableAccel, &APP::FCmdDisableAccel, pvNil)
-ON_CID_GEN(cidEnableAccel, &APP::FCmdEnableAccel, pvNil)
-ON_CID_GEN(cidInvokeSplot, &APP::FCmdInvokeSplot, pvNil)
-ON_CID_GEN(cidExitStudio, &APP::FCmdExitStudio, pvNil)
-ON_CID_GEN(cidDeactivate, &APP::FCmdDeactivate, pvNil)
+BEGIN_CMD_MAP(Application, ApplicationBase)
+ON_CID_GEN(cidInfo, &Application::FCmdInfo, pvNil)
+ON_CID_GEN(cidLoadStudio, &Application::FCmdLoadStudio, pvNil)
+ON_CID_GEN(cidLoadBuilding, &Application::FCmdLoadBuilding, pvNil)
+ON_CID_GEN(cidTheaterOpen, &Application::FCmdTheaterOpen, pvNil)
+ON_CID_GEN(cidTheaterClose, &Application::FCmdTheaterClose, pvNil)
+ON_CID_GEN(cidPortfolioOpen, &Application::FCmdPortfolioOpen, pvNil)
+ON_CID_GEN(cidPortfolioClear, &Application::FCmdPortfolioClear, pvNil)
+ON_CID_GEN(cidDisableAccel, &Application::FCmdDisableAccel, pvNil)
+ON_CID_GEN(cidEnableAccel, &Application::FCmdEnableAccel, pvNil)
+ON_CID_GEN(cidInvokeSplot, &Application::FCmdInvokeSplot, pvNil)
+ON_CID_GEN(cidExitStudio, &Application::FCmdExitStudio, pvNil)
+ON_CID_GEN(cidDeactivate, &Application::FCmdDeactivate, pvNil)
 END_CMD_MAP_NIL()
 
-APP vapp;
-PTAGM vptagm;
+Application vapp;
+PTagManager vptagm;
 
-RTCLASS(APP)
-RTCLASS(KWA)
+RTCLASS(Application)
+RTCLASS(KidWorld)
 
 /***************************************************************************
     Entry point for a Kauai-based app.
@@ -86,16 +86,16 @@ void FrameMain(void)
 
 /******************************************************************************
     Run
-        Overridden APPB::Run method, so that we can attempt to recover
+        Overridden ApplicationBase::Run method, so that we can attempt to recover
         gracefully from a crash.
 
     Arguments:
         ulong grfapp -- app flags
-        ulong grfgob -- GOB flags
-        long ginDef  -- default GOB invalidation
+        ulong grfgob -- GraphicsObject flags
+        long ginDef  -- default GraphicsObject invalidation
 
 ************************************************************ PETED ***********/
-void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
+void Application::Run(ulong grfapp, ulong grfgob, long ginDef)
 {
     /* Don't bother w/ AssertThis; we'd have to use AssertBaseThis, or
         possibly the parent's AssertValid, which gets done almost right
@@ -105,13 +105,13 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
 
     __try
     {
-        APP_PAR::Run(grfapp, grfgob, ginDef);
+        Application_PAR::Run(grfapp, grfgob, ginDef);
     }
     __except (UnhandledExceptionFilter(GetExceptionInformation()))
     {
-        PDLG pdlg;
+        PDialog pdlg;
 
-        pdlg = DLG::PdlgNew(dlidAbnormalExit, pvNil, pvNil);
+        pdlg = Dialog::PdlgNew(dlidAbnormalExit, pvNil, pvNil);
         if (pdlg != pvNil)
         {
             pdlg->IditDo();
@@ -119,7 +119,7 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
         }
 
         _fQuit = fTrue;
-        MVU::RestoreKeyboardRepeat();
+        MovieView::RestoreKeyboardRepeat();
 #ifdef WIN
         ClipCursor(NULL);
 #endif // WIN
@@ -134,7 +134,7 @@ void APP::Run(ulong grfapp, ulong grfgob, long ginDef)
     even for different products, i.e., Socrates and Playdo will have
     different _stnProduct, but the same _stnAppName.
 ***************************************************************************/
-void APP::GetStnAppName(PSTN pstn)
+void Application::GetStnAppName(PString pstn)
 {
     AssertBaseThis(0);
     AssertPo(pstn, 0);
@@ -142,7 +142,7 @@ void APP::GetStnAppName(PSTN pstn)
     if (_stnAppName.Cch() == 0)
     {
 #ifdef WIN
-        SZ sz;
+        ZString sz;
 
         if (0 != LoadString(vwig.hinst, stidAppName, sz, kcchMaxSz))
             _stnAppName = sz;
@@ -163,16 +163,20 @@ struct DBINFO
 #endif // DEBUG
 
 /***************************************************************************
-    Init the APP
+    Init the Application
 ***************************************************************************/
-bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
     AssertBaseThis(0);
 
     ulong tsHomeLogo;
     ulong tsSplashScreen;
-    FNI fniUserDoc;
+    Filename fniUserDoc;
     long fFirstTimeUser;
+    long fSkipSplashScreen = fFalse;
+
+
+    FGetSetRegKey(kszSkipSplashScreenValue, &fSkipSplashScreen, size(fSkipSplashScreen), fregSetDefault);
 
     // Only allow one copy of 3DMM to run at a time:
     if (_FAppAlreadyRunning())
@@ -268,9 +272,9 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!APP_PAR::_FInit(grfapp, grfgob, ginDef))
+    if (!Application_PAR::_FInit(grfapp, grfgob, ginDef))
     { // calls _FInitOS
-        _FGenericError(PszLit("APP_PAR::_FInit"));
+        _FGenericError(PszLit("Application_PAR::_FInit"));
         _fDontReportInitFailure = fTrue;
         goto LFail;
     }
@@ -286,12 +290,14 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!_FDisplayHomeLogo())
+
+    if (!_FDisplayHomeLogo(fSkipSplashScreen))
     {
         _FGenericError(PszLit("_FDisplayHomeLogo"));
         _fDontReportInitFailure = fTrue;
         goto LFail;
     }
+
     tsHomeLogo = TsCurrent();
 
     if (!_FDetermineIfSlowCPU())
@@ -301,6 +307,18 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
+    {
+        bool fWireframe = fFalse;
+        bool fNoTexture = fFalse;
+        bool fShowPoseReadout = fFalse;
+        if (FGetSetRegKey(kszWireframeValue, &fWireframe, size(bool), fregBinary))
+            World::SetRenderWireframe(fWireframe);
+        if (FGetSetRegKey(kszNoTextureValue, &fNoTexture, size(bool), fregBinary))
+            World::SetNoTexture(fNoTexture);
+        if (FGetSetRegKey(kszShowPoseReadoutValue, &fShowPoseReadout, size(bool), fregBinary))
+            MovieView::SetShowPoseReadout(fShowPoseReadout);
+    }
+
     if (!_FInitTdt())
     {
         _FGenericError(PszLit("_FInitTdt"));
@@ -308,29 +326,38 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!MTRL::FSetShadeTable(_pcfl, kctgTmap, 0))
+    if (!Material_MTRL::FSetShadeTable(_pcfl, kctgTmap, 0))
     {
         _FGenericError(PszLit("FSetShadeTable"));
         _fDontReportInitFailure = fTrue;
         goto LFail;
     }
 
-    while (TsCurrent() - tsHomeLogo < kdtsHomeLogo)
-        ; // spin until home logo has been up long enough
-
-    if (!_FShowSplashScreen())
+    if (!fSkipSplashScreen)
     {
-        _FGenericError(PszLit("_FShowSplashScreen"));
-        _fDontReportInitFailure = fTrue;
-        goto LFail;
+        while (TsCurrent() - tsHomeLogo < kdtsHomeLogo)
+            ; // spin until home logo has been up long enough
+    }
+
+    if (!fSkipSplashScreen)
+    {
+        if (!_FShowSplashScreen())
+        {
+            _FGenericError(PszLit("_FShowSplashScreen"));
+            _fDontReportInitFailure = fTrue;
+            goto LFail;
+        }
     }
     tsSplashScreen = TsCurrent();
 
-    if (!_FPlaySplashSound())
+    if (!fSkipSplashScreen)
     {
-        _FGenericError(PszLit("_FPlaySplashSound"));
-        _fDontReportInitFailure = fTrue;
-        goto LFail;
+        if (!_FPlaySplashSound())
+        {
+            _FGenericError(PszLit("_FPlaySplashSound"));
+            _fDontReportInitFailure = fTrue;
+            goto LFail;
+        }
     }
 
     if (!_FGetUserName())
@@ -361,39 +388,42 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    while (TsCurrent() - tsSplashScreen < kdtsSplashScreen)
-        ;                   // spin until splash screen has been up long enough
-    Pkwa()->SetMbmp(pvNil); // bring down splash screen
+    if (!fSkipSplashScreen)
+    {
+        while (TsCurrent() - tsSplashScreen < kdtsSplashScreen)
+            ;                   // spin until splash screen has been up long enough
+        Pkwa()->SetMbmp(pvNil); // bring down splash screen
+    }
 
     // If the user specified a doc on the command line, go straight
     // to the studio.  Otherwise, start the building.
     GetPortfolioDoc(&fniUserDoc);
 
-    if (fniUserDoc.Ftg() == ftgNil)
-    {
-        // Startup place depends on whether this is the user's first time in.
-        if (!FGetProp(kpridFirstTimeUser, &fFirstTimeUser))
-        {
-            _FGenericError(PszLit("FGetProp: kpridFirstTimeUser"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
+    // if (fniUserDoc.Ftg() == ftgNil)
+    // {
+    //     // Startup place depends on whether this is the user's first time in.
+    //     if (!FGetProp(kpridFirstTimeUser, &fFirstTimeUser))
+    //     {
+    //         _FGenericError(PszLit("FGetProp: kpridFirstTimeUser"));
+    //         _fDontReportInitFailure = fTrue;
+    //         goto LFail;
+    //     }
 
-        if (!FSetProp(kpridBuildingGob, (fFirstTimeUser ? kgobCloset : kgobLogin)))
-        {
-            _FGenericError(PszLit("FSetProp: kpridBuildingGob"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
-        if (!_FInitBuilding())
-        {
-            _FGenericError(PszLit("_FInitBuilding"));
-            _fDontReportInitFailure = fTrue;
-            goto LFail;
-        }
-    }
-    else
-    {
+    //     if (!FSetProp(kpridBuildingGob, (fFirstTimeUser ? kgobCloset : kgobLogin)))
+    //     {
+    //         _FGenericError(PszLit("FSetProp: kpridBuildingGob"));
+    //         _fDontReportInitFailure = fTrue;
+    //         goto LFail;
+    //     }
+    //     if (!_FInitBuilding())
+    //     {
+    //         _FGenericError(PszLit("_FInitBuilding"));
+    //         _fDontReportInitFailure = fTrue;
+    //         goto LFail;
+    //     }
+    // }
+    // else
+    // {
         if (!FSetProp(kpridBuildingGob, kgobStudio1))
         {
             _FGenericError(PszLit("FSetProp: kpridBuildingGob"));
@@ -406,7 +436,7 @@ bool APP::_FInit(ulong grfapp, ulong grfgob, long ginDef)
             _fDontReportInitFailure = fTrue;
             goto LFail;
         }
-    }
+    // }
 
     EnsureInteractive();
 
@@ -425,12 +455,12 @@ LFail:
     // If it's false, we put up a OOM or generic error dialog.
     if (!_fDontReportInitFailure)
     {
-        PDLG pdlg;
+        PDialog pdlg;
 
         if (vpers->FIn(ercOomHq) || vpers->FIn(ercOomPv) || vpers->FIn(ercOomNew))
-            pdlg = DLG::PdlgNew(dlidInitFailedOOM, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidInitFailedOOM, pvNil, pvNil);
         else
-            pdlg = DLG::PdlgNew(dlidInitFailed, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidInitFailed, pvNil, pvNil);
         if (pvNil != pdlg)
             pdlg->IditDo();
         ReleasePpo(&pdlg);
@@ -443,16 +473,16 @@ LFail:
         Removes any temp files leftover from a previous execution.
 
 ************************************************************ PETED ***********/
-void APP::_CleanupTemp(void)
+void Application::_CleanupTemp(void)
 {
-    FNI fni;
+    Filename fni;
 
     /* Attempt to cleanup any leftovers from a previous bad exit */
     vftgTemp = kftgSocTemp;
     if (fni.FGetTemp())
     {
-        FTG ftgTmp = vftgTemp;
-        FNE fne;
+        FileType ftgTmp = vftgTemp;
+        FileNameEnumerator fne;
 
         if (fne.FInit(&fni, &ftgTmp, 1))
         {
@@ -474,13 +504,13 @@ void APP::_CleanupTemp(void)
     Determine if another copy of 3DMM is already running by trying to
     create a named semaphore.
 ***************************************************************************/
-bool APP::_FAppAlreadyRunning(void)
+bool Application::_FAppAlreadyRunning(void)
 {
     AssertBaseThis(0);
 
 #ifdef WIN
     HANDLE hsem;
-    STN stn;
+    String stn;
 
     GetStnAppName(&stn);
 
@@ -501,14 +531,14 @@ bool APP::_FAppAlreadyRunning(void)
     Try to find another instance of 3DMM and bring its window to front
     Also, if a document was on the command line, notify the other instance
 ***************************************************************************/
-void APP::_TryToActivateWindow(void)
+void Application::_TryToActivateWindow(void)
 {
     AssertBaseThis(0);
 
 #ifdef WIN
     HWND hwnd;
-    STN stn;
-    FNI fniUserDoc;
+    String stn;
+    Filename fniUserDoc;
 
     GetStnAppName(&stn);
     hwnd = FindWindow(kpszAppWndCls, stn.Psz());
@@ -531,14 +561,14 @@ void APP::_TryToActivateWindow(void)
     If we're not running on at least Win95 or NT 3.51, complain and return
     fFalse.
 ***************************************************************************/
-bool APP::_FEnsureOS(void)
+bool Application::_FEnsureOS(void)
 {
     AssertBaseThis(0);
 #ifdef WIN
     DWORD dwVersion;
     byte bVersionMajor;
     byte bVersionMinor;
-    PDLG pdlg;
+    PDialog pdlg;
 
     dwVersion = GetVersion();
     bVersionMinor = (byte)((dwVersion & 0x0000ff00) >> 8);
@@ -548,7 +578,7 @@ bool APP::_FEnsureOS(void)
         return fTrue;
 
     // Put up an alert: OS too old
-    pdlg = DLG::PdlgNew(dlidBadOS, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidBadOS, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
     pdlg->IditDo();
@@ -565,7 +595,7 @@ bool APP::_FEnsureOS(void)
     Notifies the user if there is no suitable wave-out and/or midi-out
     hardware.
 ***************************************************************************/
-bool APP::_FEnsureAudio(void)
+bool Application::_FEnsureAudio(void)
 {
     AssertBaseThis(0);
 
@@ -573,7 +603,7 @@ bool APP::_FEnsureAudio(void)
     long cwod; // count of wave-out devices
     long cmod; // count of midi-out devices
     bool fShowMessage;
-    PDLG pdlg;
+    PDialog pdlg;
 
     cwod = waveOutGetNumDevs();
     if (cwod <= 0)
@@ -586,7 +616,7 @@ bool APP::_FEnsureAudio(void)
         if (fShowMessage)
         {
             // Put up an alert: no waveout
-            pdlg = DLG::PdlgNew(dlidNoWaveOut, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidNoWaveOut, pvNil, pvNil);
             if (pvNil == pdlg)
                 return fFalse;
             pdlg->IditDo();
@@ -629,7 +659,7 @@ bool APP::_FEnsureAudio(void)
         if (fShowMessage)
         {
             // Put up an alert: no midiout
-            pdlg = DLG::PdlgNew(dlidNoMidiOut, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidNoMidiOut, pvNil, pvNil);
             if (pvNil == pdlg)
                 return fFalse;
             pdlg->IditDo();
@@ -652,7 +682,7 @@ bool APP::_FEnsureAudio(void)
 /***************************************************************************
     Notifies the user if there is no suitable video playback devices
 ***************************************************************************/
-bool APP::_FEnsureVideo(void)
+bool Application::_FEnsureVideo(void)
 {
     if (wHaveMCI("AVIVIDEO"))
     {
@@ -679,14 +709,14 @@ bool APP::_FEnsureVideo(void)
     is greater than 8, unless he has clicked the "don't show this messsage
     again" in the dialog before.
 ***************************************************************************/
-bool APP::_FEnsureColorDepth(void)
+bool Application::_FEnsureColorDepth(void)
 {
     AssertBaseThis(0);
 
 #ifdef WIN
     HDC hdc;
     long cbitPixel;
-    PDLG pdlg;
+    PDialog pdlg;
     bool fShowMessage;
     bool fDontShowAgain = fFalse;
 
@@ -699,7 +729,7 @@ bool APP::_FEnsureColorDepth(void)
     if (cbitPixel < 8)
     {
         // Put up an alert: Not enough colors
-        pdlg = DLG::PdlgNew(dlidNotEnoughColors, pvNil, pvNil);
+        pdlg = Dialog::PdlgNew(dlidNotEnoughColors, pvNil, pvNil);
         if (pvNil == pdlg)
             return fFalse;
         pdlg->IditDo();
@@ -719,7 +749,7 @@ bool APP::_FEnsureColorDepth(void)
             }
         if (fShowMessage)
             {
-            pdlg = DLG::PdlgNew(dlidTooManyColors, pvNil, pvNil);
+            pdlg = Dialog::PdlgNew(dlidTooManyColors, pvNil, pvNil);
             if (pvNil != pdlg)
                 {
                 pdlg->IditDo();
@@ -747,7 +777,7 @@ bool APP::_FEnsureColorDepth(void)
     the dialog) if kdtsMaxResSwitchDlg has passed since the dialog was
     created.
 ***************************************************************************/
-bool _FDlgResSwitch(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgResSwitch(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -779,11 +809,11 @@ bool _FDlgResSwitch(PDLG pdlg, long *pidit, void *pv)
     When this function returns, _fRunInWindow is set correctly and the
     main app window *might* be created.
 ***************************************************************************/
-bool APP::_FEnsureDisplayResolution(void)
+bool Application::_FEnsureDisplayResolution(void)
 {
     AssertBaseThis(0);
 
-    PDLG pdlg;
+    PDialog pdlg;
     long idit;
     bool fSwitchRes;
     bool fNoValue;
@@ -804,7 +834,7 @@ bool APP::_FEnsureDisplayResolution(void)
     }
 
     // See if there's a res switch preference in the registry
-    if (!FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregNil, &fNoValue))
+    if (!FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregBinary, &fNoValue))
     {
         // Registry error...just run in a window
         _fRunInWindow = fTrue;
@@ -839,7 +869,7 @@ bool APP::_FEnsureDisplayResolution(void)
 
     // User doesn't have a preference yet.  Do the interactive thing.
 #ifdef RES_SWITCH_DIALOGS
-    pdlg = DLG::PdlgNew(dlidDesktopResizing, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidDesktopResizing, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
     idit = pdlg->IditDo();
@@ -866,7 +896,7 @@ bool APP::_FEnsureDisplayResolution(void)
 
     tsResize = TsCurrent();
 #ifdef RES_SWITCH_DIALOGS
-    pdlg = DLG::PdlgNew(dlidDesktopResized, _FDlgResSwitch, &tsResize);
+    pdlg = Dialog::PdlgNew(dlidDesktopResized, _FDlgResSwitch, &tsResize);
     idit = ivNil; // if dialog fails to come up, treat like a cancel
     if (pvNil != pdlg)
         idit = pdlg->IditDo();
@@ -888,21 +918,21 @@ bool APP::_FEnsureDisplayResolution(void)
     goto LWriteReg;
 
 LSwitchFailed:
-    pdlg = DLG::PdlgNew(dlidDesktopWontResize, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidDesktopWontResize, pvNil, pvNil);
     if (pvNil != pdlg)
         pdlg->IditDo();
     ReleasePpo(&pdlg);
     // try to set pref to fFalse
     fSwitchRes = fFalse;
 LWriteReg:
-    FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey);
+    FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
     return fTrue;
 }
 
 /***************************************************************************
     Return whether display is currently 640x480
 ***************************************************************************/
-bool APP::_FDisplayIs640480(void)
+bool Application::_FDisplayIs640480(void)
 {
 #ifdef WIN
     return (GetSystemMetrics(SM_CXSCREEN) == 640 && GetSystemMetrics(SM_CYSCREEN) == 480);
@@ -916,7 +946,7 @@ bool APP::_FDisplayIs640480(void)
 /***************************************************************************
     Do OS specific initialization.
 ***************************************************************************/
-bool APP::_FInitOS(void)
+bool Application::_FInitOS(void)
 {
     AssertBaseThis(0);
 
@@ -926,7 +956,7 @@ bool APP::_FInitOS(void)
     long xpWindow;
     long ypWindow;
     DWORD dwStyle = 0;
-    STN stnWindowTitle;
+    String stnWindowTitle;
 
     if (_fMainWindowCreated) // If someone else called _FInitOS already,
         return fTrue;        // we can leave
@@ -991,7 +1021,7 @@ bool APP::_FInitOS(void)
     should pass in the current dwStyle if the window already exists.  If
     the window does not already exist, pass in 0.
 ***************************************************************************/
-void APP::_GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle)
+void Application::_GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle)
 {
     AssertBaseThis(0);
     AssertVarMem(pxp);
@@ -1011,7 +1041,7 @@ void APP::_GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *p
     }
     else
     {
-        RCS rcs;
+        SystemRectangle rcs;
         *pdwStyle |= (WS_OVERLAPPED | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX);
         *pdwStyle &= ~WS_POPUP;
         rcs.left = 0;
@@ -1032,7 +1062,7 @@ void APP::_GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *p
     Change main window properties based on whether we're running in a
     window or fullscreen.
 ***************************************************************************/
-void APP::_RebuildMainWindow(void)
+void Application::_RebuildMainWindow(void)
 {
     AssertBaseThis(0);
     Assert(_fMainWindowCreated, 0);
@@ -1057,13 +1087,13 @@ void APP::_RebuildMainWindow(void)
 /***************************************************************************
     Open "3D Movie Maker.chk" or "3DMovie.chk"
 ***************************************************************************/
-bool APP::_FOpenResourceFile(void)
+bool Application::_FOpenResourceFile(void)
 {
     AssertBaseThis(0);
     AssertPo(&_fniProductDir, ffniDir);
 
-    FNI fni;
-    STN stn;
+    Filename fni;
+    String stn;
 
     fni = _fniProductDir;
     if (!fni.FSetLeaf(&_stnProductLong, kftgChunky) || tYes != fni.TExists())
@@ -1076,7 +1106,7 @@ bool APP::_FOpenResourceFile(void)
             return fFalse;
         }
     }
-    _pcfl = CFL::PcflOpen(&fni, fcflNil);
+    _pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
     if (pvNil == _pcfl)
         return fFalse;
     return fTrue;
@@ -1085,14 +1115,14 @@ bool APP::_FOpenResourceFile(void)
 /***************************************************************************
     Report that 3DMM can't find a file named pstnFile
 ***************************************************************************/
-bool APP::_FCantFindFileDialog(PSTN pstnFile)
+bool Application::_FCantFindFileDialog(PString pstnFile)
 {
     AssertBaseThis(0);
     AssertPo(pstnFile, 0);
 
-    PDLG pdlg;
+    PDialog pdlg;
 
-    pdlg = DLG::PdlgNew(dlidCantFindFile, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidCantFindFile, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -1110,9 +1140,9 @@ bool APP::_FCantFindFileDialog(PSTN pstnFile)
 /***************************************************************************
     Report that 3DMM ran into a generic error
 ***************************************************************************/
-bool APP::_FGenericError(FNI *path)
+bool Application::_FGenericError(Filename *path)
 {
-    STN stn;
+    String stn;
     path->GetStnPath(&stn);
     return _FGenericError(&stn);
 }
@@ -1120,21 +1150,21 @@ bool APP::_FGenericError(FNI *path)
 /***************************************************************************
     Report that 3DMM ran into a generic error
 ***************************************************************************/
-bool APP::_FGenericError(PSTZ message)
+bool Application::_FGenericError(PSTZ message)
 {
-    STN stn = message;
+    String stn = message;
     return _FGenericError(&stn);
 }
 /***************************************************************************
     Report that 3DMM ran into a generic error
 ***************************************************************************/
-bool APP::_FGenericError(PSTN message)
+bool Application::_FGenericError(PString message)
 {
     AssertBaseThis(0);
 
-    PDLG pdlg;
+    PDialog pdlg;
 
-    pdlg = DLG::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -1154,16 +1184,16 @@ bool APP::_FGenericError(PSTN message)
     set from the registry.  This function also determines if this is a first
     time user.
 ************************************************************ PETED ***********/
-bool APP::_FGetUserDirectories(void)
+bool Application::_FGetUserDirectories(void)
 {
     AssertBaseThis(0);
     AssertPo(&_fniMsKidsDir, ffniDir);
     Assert(_stnUser.Cch() > 0, "need valid stnUser!");
 
-    SZ szDir;
-    STN stn;
-    STN stnT;
-    STN stnUsers;
+    ZString szDir;
+    String stn;
+    String stnT;
+    String stnUsers;
     bool fFirstTimeUser;
 
     // First, find the Users directory
@@ -1244,25 +1274,25 @@ bool APP::_FGetUserDirectories(void)
     Returns:  fTrue if _stnUser has something usable in it on return
 
 ************************************************************ PETED ***********/
-bool APP::_FGetUserName(void)
+bool Application::_FGetUserName(void)
 {
     AssertBaseThis(0);
 
 #ifdef WIN
     bool fRet = fTrue;
-    DWORD dwCbUser = size(SZ);
-    SZ szT;
+    DWORD dwCbUser = size(ZString);
+    ZString szT;
 
     switch (WNetGetUser(NULL, szT, &dwCbUser))
     {
     case ERROR_EXTENDED_ERROR: {
         DWORD dwError;
-        SZ szProvider;
-        STN stnMessage;
+        ZString szProvider;
+        String stnMessage;
 
-        if (WNetGetLastError(&dwError, szT, size(SZ), szProvider, size(SZ)) == NO_ERROR)
+        if (WNetGetLastError(&dwError, szT, size(ZString), szProvider, size(ZString)) == NO_ERROR)
         {
-            STN stnFormat;
+            String stnFormat;
 
             if (FGetStnApp(idsWNetError, &stnFormat))
             {
@@ -1302,7 +1332,7 @@ bool APP::_FGetUserName(void)
 /******************************
     The user-data structure
 *******************************/
-struct UDAT
+struct UserData
 {
     long rglw[kcpridUserData];
 };
@@ -1311,22 +1341,22 @@ struct UDAT
     Reads the "user data" from the registry and SetProp's the data onto
     the app
 ***************************************************************************/
-bool APP::_FReadUserData(void)
+bool Application::_FReadUserData(void)
 {
     AssertBaseThis(0);
 
-    UDAT udat;
+    UserData UserData;
     long iprid;
 
-    ClearPb(&udat, size(UDAT));
+    ClearPb(&UserData, size(UserData));
 
-    if (!FGetSetRegKey(kszUserDataValue, &udat, size(UDAT), fregSetDefault | fregBinary))
+    if (!FGetSetRegKey(kszUserDataValue, &UserData, size(UserData), fregSetDefault | fregBinary))
     {
         return fFalse;
     }
     for (iprid = 0; iprid < kcpridUserData; iprid++)
     {
-        if (!FSetProp(kpridUserDataBase + iprid, udat.rglw[iprid]))
+        if (!FSetProp(kpridUserDataBase + iprid, UserData.rglw[iprid]))
             return fFalse;
     }
 
@@ -1336,19 +1366,19 @@ bool APP::_FReadUserData(void)
 /***************************************************************************
     Writes the "user data" from the app props to the registry
 ***************************************************************************/
-bool APP::_FWriteUserData(void)
+bool Application::_FWriteUserData(void)
 {
     AssertBaseThis(0);
 
-    UDAT udat;
+    UserData UserData;
     long iprid;
 
     for (iprid = 0; iprid < kcpridUserData; iprid++)
     {
-        if (!FGetProp(kpridUserDataBase + iprid, &udat.rglw[iprid]))
+        if (!FGetProp(kpridUserDataBase + iprid, &UserData.rglw[iprid]))
             return fFalse;
     }
-    if (!FGetSetRegKey(kszUserDataValue, &udat, size(UDAT), fregSetKey | fregBinary))
+    if (!FGetSetRegKey(kszUserDataValue, &UserData, size(UserData), fregSetKey | fregBinary))
     {
         return fFalse;
     }
@@ -1365,7 +1395,7 @@ bool APP::_FWriteUserData(void)
 
 
     Arguments:
-        PSZ pszValueName  --  The value name
+        PZString pszValueName  --  The value name
         void *pvData      --  pointer to buffer to read or write key into or from
         long cbData       --  size of the buffer
         ulong grfreg      --  flags describing what we should do
@@ -1375,7 +1405,7 @@ bool APP::_FWriteUserData(void)
     Returns:  fTrue if all actions necessary could be performed
 
 ************************************************************ PETED ***********/
-bool APP::FGetSetRegKey(PSZ pszValueName, void *pvData, long cbData, ulong grfreg, bool *pfNoValue)
+bool Application::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData, ulong grfreg, bool *pfNoValue)
 {
     AssertBaseThis(0);
     AssertSz(pszValueName);
@@ -1412,9 +1442,9 @@ bool APP::FGetSetRegKey(PSZ pszValueName, void *pvData, long cbData, ulong grfre
         else if (fString)
         {
             if (!fSetKey)
-                dwCbData = CchSz((PSZ)pvData) + kcchExtraSz;
+                dwCbData = CchSz((PZString)pvData) + kcchExtraSz;
             else
-                Assert(CchSz((PSZ)pvData) < cbData, "Invalid string for reg key");
+                Assert(CchSz((PZString)pvData) < cbData, "Invalid string for reg key");
             dwType = REG_SZ;
         }
         else
@@ -1459,52 +1489,55 @@ LFail:
 /***************************************************************************
     Set the palette and bring up the Microsoft Home Logo
 ***************************************************************************/
-bool APP::_FDisplayHomeLogo(void)
+bool Application::_FDisplayHomeLogo(bool fSkipSplashScreen)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    BLCK blck;
-    PGL pglclr;
-    PMBMP pmbmp;
+    DataBlock blck;
+    PDynamicArray pglclr;
+    PMaskedBitmapMBMP pmbmp;
     short bo;
     short osk;
 
     if (!_pcfl->FFind(kctgColorTable, kcnoGlcrInit, &blck))
         return fFalse;
-    pglclr = GL::PglRead(&blck, &bo, &osk);
+    pglclr = DynamicArray::PglRead(&blck, &bo, &osk);
     if (pvNil == pglclr)
         return fFalse;
-    GPT::SetActiveColors(pglclr, fpalIdentity);
+    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
-    if (!_pcfl->FFind(kctgMbmp, kcnoMbmpHomeLogo, &blck))
-        return fFalse;
-    pmbmp = MBMP::PmbmpRead(&blck);
-    if (pvNil == pmbmp)
-        return fFalse;
-    _pkwa->SetMbmp(pmbmp);
-    ReleasePpo(&pmbmp);
-    UpdateMarked();
+    if (!fSkipSplashScreen) {
+        if (!_pcfl->FFind(kctgMbmp, kcnoMbmpHomeLogo, &blck))
+            return fFalse;
+        pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
+        if (pvNil == pmbmp)
+            return fFalse;
+        _pkwa->SetMbmp(pmbmp);
+        ReleasePpo(&pmbmp);
+        UpdateMarked();
+    }
+
     return fTrue;
 }
 
 /***************************************************************************
     Initialize tag manager
 ***************************************************************************/
-bool APP::_FInitProductNames(void)
+bool Application::_FInitProductNames(void)
 {
     AssertBaseThis(0);
 
-    PGST pgst;
-    BLCK blck;
+    PStringTable_GST pgst;
+    DataBlock blck;
 
     // Use kcbCacheTagm of cache per source, don't cache on CD
 
-    vptagm = TAGM::PtagmNew(&_fniMsKidsDir, APP::FInsertCD, kcbCacheTagm);
+    vptagm = TagManager::PtagmNew(&_fniMsKidsDir, Application::FInsertCD, kcbCacheTagm);
     if (vptagm == pvNil)
     {
-        _FGenericError(PszLit("_FInitProductNames: TAGM::PtagmNew"));
+        _FGenericError(PszLit("_FInitProductNames: TagManager::PtagmNew"));
         return fFalse;
     }
 
@@ -1543,7 +1576,7 @@ LFail:
 /***************************************************************************
     Read the sids and titles of installed 3DMovie products from the registry
 ***************************************************************************/
-bool APP::_FReadTitlesFromReg(PGST *ppgst)
+bool Application::_FReadTitlesFromReg(PStringTable_GST *ppgst)
 {
     AssertBaseThis(0);
     AssertVarMem(ppgst);
@@ -1552,16 +1585,16 @@ bool APP::_FReadTitlesFromReg(PGST *ppgst)
     HKEY hkey = 0;
     DWORD dwDisposition;
     DWORD iValue;
-    SZ szSid;
-    STN stnSid;
+    ZString szSid;
+    String stnSid;
     DWORD cchSid = kcchMaxSz;
-    SZ szTitle;
-    STN stnTitle;
+    ZString szTitle;
+    String stnTitle;
     DWORD cchTitle = kcchMaxSz;
-    PGST pgst;
+    PStringTable_GST pgst;
     long sid;
 
-    if ((pgst = GST::PgstNew(size(long))) == pvNil)
+    if ((pgst = StringTable_GST::PgstNew(size(long))) == pvNil)
         goto LFail;
     if (RegCreateKeyEx(HKEY_LOCAL_MACHINE, kszProductsKey, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL,
                        &hkey, &dwDisposition) != ERROR_SUCCESS)
@@ -1613,19 +1646,19 @@ LFail:
 /***************************************************************************
     Initialize 3-D Text
 ***************************************************************************/
-bool APP::_FInitTdt(void)
+bool Application::_FInitTdt(void)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    PGST pgst;
+    PStringTable_GST pgst;
 
-    // set TDT action names
+    // set ThreeDText action names
     pgst = _PgstRead(kcnoGstAction);
     if (pvNil == pgst)
         return fFalse;
     Assert(pgst->CbExtra() == size(long), "bad Action string table");
-    if (!TDT::FSetActionNames(pgst))
+    if (!ThreeDText::FSetActionNames(pgst))
     {
         ReleasePpo(&pgst);
         return fFalse;
@@ -1635,16 +1668,16 @@ bool APP::_FInitTdt(void)
 }
 
 /***************************************************************************
-    Read and byte-swap a GST from _pcfl.  Assumes that extra data, if any,
+    Read and byte-swap a StringTable_GST from _pcfl.  Assumes that extra data, if any,
     is a long.
 ***************************************************************************/
-PGST APP::_PgstRead(CNO cno)
+PStringTable_GST Application::_PgstRead(ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
 
-    PGST pgst;
-    BLCK blck;
+    PStringTable_GST pgst;
+    DataBlock blck;
     short bo;
     short osk;
     long istn;
@@ -1652,7 +1685,7 @@ PGST APP::_PgstRead(CNO cno)
 
     if (!_pcfl->FFind(kctgGst, cno, &blck))
         return pvNil;
-    pgst = GST::PgstRead(&blck, &bo, &osk);
+    pgst = StringTable_GST::PgstRead(&blck, &bo, &osk);
     if (pvNil == pgst)
         return pvNil;
     Assert(pgst->CbExtra() == 0 || pgst->CbExtra() == size(long), "unexpected extra size");
@@ -1671,7 +1704,7 @@ PGST APP::_PgstRead(CNO cno)
 /***************************************************************************
     Read various string tables from _pcfl
 ***************************************************************************/
-bool APP::_FReadStringTables(void)
+bool Application::_FReadStringTables(void)
 {
     AssertBaseThis(0);
     AssertPo(_pcfl, 0);
@@ -1700,16 +1733,16 @@ bool APP::_FReadStringTables(void)
 }
 
 /***************************************************************************
-    Initialize KWA (app kidworld)
+    Initialize KidWorld (app kidworld)
 ***************************************************************************/
-bool APP::_FInitKidworld(void)
+bool Application::_FInitKidworld(void)
 {
     AssertBaseThis(0);
 
     RC rcRel(0, 0, krelOne, krelOne);
-    GCB gcb(CMH::HidUnique(), GOB::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
+    GraphicsObjectBlock gcb(CommandHandler::HidUnique(), GraphicsObject::PgobScreen(), fgobNil, kginMark, pvNil, &rcRel);
 
-    _pkwa = NewObj KWA(&gcb);
+    _pkwa = NewObj KidWorld(&gcb);
     if (pvNil == _pkwa)
         return fFalse;
 
@@ -1719,16 +1752,16 @@ bool APP::_FInitKidworld(void)
 /***************************************************************************
     Show the app splash screen
 ***************************************************************************/
-bool APP::_FShowSplashScreen(void)
+bool Application::_FShowSplashScreen(void)
 {
     AssertBaseThis(0);
 
-    BLCK blck;
-    PMBMP pmbmp;
+    DataBlock blck;
+    PMaskedBitmapMBMP pmbmp;
 
     if (!_pcfl->FFind(kctgMbmp, kcnoMbmpSplash, &blck))
         return fFalse;
-    pmbmp = MBMP::PmbmpRead(&blck);
+    pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
     if (pvNil == pmbmp)
         return fFalse;
     _pkwa->SetMbmp(pmbmp);
@@ -1740,13 +1773,13 @@ bool APP::_FShowSplashScreen(void)
 /***************************************************************************
     Play the app splash sound
 ***************************************************************************/
-bool APP::_FPlaySplashSound(void)
+bool Application::_FPlaySplashSound(void)
 {
     AssertBaseThis(0);
 
-    PCRF pcrf;
+    PChunkyResourceFile pcrf;
 
-    pcrf = CRF::PcrfNew(_pcfl, 0);
+    pcrf = ChunkyResourceFile::PcrfNew(_pcfl, 0);
     if (pvNil == pcrf)
         return fFalse;
     vpsndm->SiiPlay(pcrf, kctgMidi, kcnoMidiSplash);
@@ -1757,10 +1790,10 @@ bool APP::_FPlaySplashSound(void)
 
 /***************************************************************************
     Read the chunky files specified by _pgstSharedFiles, _pgstBuildingFiles
-    and _pgstStudioFiles and create the global CRM; indices to the Building
+    and _pgstStudioFiles and create the global ChunkyResourceManager; indices to the Building
     and Studio CRFs are stored in _pglicrfBuilding and _pglicrfStudio.
 ***************************************************************************/
-bool APP::_FInitCrm(void)
+bool Application::_FInitCrm(void)
 {
     AssertBaseThis(0);
     AssertPo(_pkwa, 0);
@@ -1768,18 +1801,18 @@ bool APP::_FInitCrm(void)
     AssertPo(_pgstBuildingFiles, 0);
     AssertPo(_pgstStudioFiles, 0);
 
-    PSCEG psceg = pvNil;
-    PSCPT pscpt = pvNil;
+    PGraphicsObjectInterpreter psceg = pvNil;
+    PScript pscpt = pvNil;
 
-    _pcrmAll = CRM::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
+    _pcrmAll = ChunkyResourceManager::PcrmNew(_pgstSharedFiles->IvMac() + _pgstBuildingFiles->IvMac() + _pgstStudioFiles->IvMac());
     if (pvNil == _pcrmAll)
         goto LFail;
 
-    _pglicrfBuilding = GL::PglNew(size(long), _pgstBuildingFiles->IvMac());
+    _pglicrfBuilding = DynamicArray::PglNew(size(long), _pgstBuildingFiles->IvMac());
     if (pvNil == _pglicrfBuilding)
         goto LFail;
 
-    _pglicrfStudio = GL::PglNew(size(long), _pgstStudioFiles->IvMac());
+    _pglicrfStudio = DynamicArray::PglNew(size(long), _pgstStudioFiles->IvMac());
     if (pvNil == _pglicrfStudio)
         goto LFail;
 
@@ -1797,7 +1830,7 @@ bool APP::_FInitCrm(void)
     if (pvNil == psceg)
         goto LFail;
 
-    pscpt = (PSCPT)_pcrmAll->PbacoFetch(kctgScript, kcnoInitShared, SCPT::FReadScript);
+    pscpt = (PScript)_pcrmAll->PbacoFetch(kctgScript, kcnoInitShared, Script::FReadScript);
     if (pvNil == pscpt)
         goto LFail;
 
@@ -1815,11 +1848,11 @@ LFail:
 
 /***************************************************************************
     Helper function for _FInitCrm.  Adds the list of chunky files specified
-    in pgstFiles to the CRM pointed to by pcrm.  If pglFiles is not pvNil,
-    it is filled in with the positions in the CRM of each of the loaded
+    in pgstFiles to the ChunkyResourceManager pointed to by pcrm.  If pglFiles is not pvNil,
+    it is filled in with the positions in the ChunkyResourceManager of each of the loaded
     crfs.
 ***************************************************************************/
-bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
+bool Application::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles)
 {
     AssertBaseThis(0);
     AssertPo(&_fniProductDir, ffniDir);
@@ -1828,11 +1861,11 @@ bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
     AssertNilOrPo(pglFiles, 0);
 
     bool fRet = fFalse;
-    FNI fni;
-    STN stn;
+    Filename fni;
+    String stn;
     long istn;
     long cbCache;
-    PCFL pcfl = pvNil;
+    PChunkyFile pcfl = pvNil;
     long icfl;
 
     for (istn = 0; istn < pgstFiles->IvMac(); istn++)
@@ -1847,7 +1880,7 @@ bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
             // In debug, we look for "buildingd.chk", "sharedd.chk", etc. and
             // use them instead of the normal files if they exist.  If they
             // don't exist, just use the normal files.
-            STN stnT = stn;
+            String stnT = stn;
             stnT.FAppendCh(ChLit('d'));
             stnT.FAppendSz(PszLit(".chk")); // REVIEW *****
             Pkwa()->SetCDPrompt(fFalse);
@@ -1855,14 +1888,14 @@ bool APP::_FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles)
             Pkwa()->SetCDPrompt(fAskForCDSav);
             if (fFoundFile)
             {
-                pcfl = CFL::PcflOpen(&fni, fcflNil);
+                pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
             }
             else
             {
 #endif                                         // DEBUG
                 stn.FAppendSz(PszLit(".chk")); // REVIEW *****
                 if (Pkwa()->FFindFile(&stn, &fni))
-                    pcfl = CFL::PcflOpen(&fni, fcflNil);
+                    pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
 #ifdef DEBUG
             }
         }
@@ -1892,7 +1925,7 @@ LFail:
 /***************************************************************************
     Initialize and start the building script
 ***************************************************************************/
-bool APP::_FInitBuilding(void)
+bool Application::_FInitBuilding(void)
 {
     AssertBaseThis(0);
 
@@ -1900,9 +1933,9 @@ bool APP::_FInitBuilding(void)
     long i;
     long cbCache;
     long iv;
-    PCRF pcrfT;
-    PSCEG psceg = pvNil;
-    PSCPT pscpt = pvNil;
+    PChunkyResourceFile pcrfT;
+    PGraphicsObjectInterpreter psceg = pvNil;
+    PScript pscpt = pvNil;
 
     BeginLongOp();
 
@@ -1910,7 +1943,7 @@ bool APP::_FInitBuilding(void)
     if (pvNil == psceg)
         goto LFail;
 
-    pscpt = (PSCPT)_pcrmAll->PbacoFetch(kctgScript, kcnoStartApp, SCPT::FReadScript);
+    pscpt = (PScript)_pcrmAll->PbacoFetch(kctgScript, kcnoStartApp, Script::FReadScript);
     if (pvNil == pscpt)
         goto LFail;
 
@@ -1925,7 +1958,7 @@ bool APP::_FInitBuilding(void)
         _pgstBuildingFiles->GetExtra(i, &cbCache);
         _pglicrfBuilding->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(cbCache);
     }
 
@@ -1934,7 +1967,7 @@ bool APP::_FInitBuilding(void)
     {
         _pglicrfStudio->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(0);
     }
 
@@ -1950,17 +1983,17 @@ LFail:
 /***************************************************************************
     Initialize and start the studio script
 ***************************************************************************/
-bool APP::_FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
+bool Application::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
 {
     AssertBaseThis(0);
 
     long i;
     long cbCache;
     long iv;
-    PCRF pcrfT;
+    PChunkyResourceFile pcrfT;
     bool fRet = fFalse;
 
-    _pstdio = STDIO::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),
+    _pstdio = Studio::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),
                                fFailIfDocOpenFailed);
     if (_pstdio == pvNil)
     {
@@ -1973,7 +2006,7 @@ bool APP::_FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
         _pgstStudioFiles->GetExtra(i, &cbCache);
         _pglicrfStudio->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(cbCache);
     }
 
@@ -1982,7 +2015,7 @@ bool APP::_FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed)
     {
         _pglicrfBuilding->Get(i, &iv);
         pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main CRM is corrupt.");
+        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
         pcrfT->SetCbMax(0);
     }
 
@@ -1999,14 +2032,14 @@ LFail:
     fixed-point math, and memory copying speed, and if any of them are
     slower than a threshold, _fSlowCPU is set.
 ***************************************************************************/
-bool APP::_FDetermineIfSlowCPU(void)
+bool Application::_FDetermineIfSlowCPU(void)
 {
     AssertBaseThis(0);
 
     bool fSlowCPU;
 
     // If user has a saved preference, read and use that
-    if (FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregNil))
+    if (FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregBinary))
     {
         _fSlowCPU = fSlowCPU;
         return fTrue;
@@ -2020,8 +2053,8 @@ bool APP::_FDetermineIfSlowCPU(void)
 
 #else // PERF_TEST
 
-    PGPT pgptWnd = pvNil;
-    PGPT pgptOff = pvNil;
+    PGraphicsPort pgptWnd = pvNil;
+    PGraphicsPort pgptOff = pvNil;
     RC rc1;
     RC rc2;
     ulong ts;
@@ -2039,18 +2072,18 @@ bool APP::_FDetermineIfSlowCPU(void)
     // then blit it back to the window 100 times.
     rc1.Set(0, 0, 300, 300);
     rc2.Set(0, 0, 300, 300);
-    pgptWnd = GPT::PgptNewHwnd(vwig.hwndApp);
+    pgptWnd = GraphicsPort::PgptNewHwnd(vwig.hwndApp);
     if (pvNil == pgptWnd)
         goto LFail;
-    pgptOff = GPT::PgptNewOffscreen(&rc1, 8); // BWLD RGB buffer is 8-bit
+    pgptOff = GraphicsPort::PgptNewOffscreen(&rc1, 8); // World RGB buffer is 8-bit
     if (pvNil == pgptOff)
     {
         goto LFail;
     }
     // BLOCK
     {
-        GNV gnvWnd(pgptWnd);
-        GNV gnvOff(pgptOff);
+        GraphicsEnvironment gnvWnd(pgptWnd);
+        GraphicsEnvironment gnvOff(pgptOff);
         gnvOff.CopyPixels(&gnvWnd, &rc1, &rc1);
         ts = TsCurrent();
         for (i = 0; i < 100; i++)
@@ -2110,16 +2143,16 @@ LFail:
     -m: don't minimize window on deactivate
 
 ***************************************************************************/
-void APP::_ParseCommandLine(void)
+void Application::_ParseCommandLine(void)
 {
     AssertBaseThis(0);
 
 #ifdef WIN
-    SZ sz;
-    STN stn;
+    ZString sz;
+    String stn;
     achar *pch;
     achar *pchT;
-    FNI fniT;
+    Filename fniT;
 
     // Get path to current directory
     GetCurrentDirectory(kcchMaxSz, sz);
@@ -2199,7 +2232,7 @@ void APP::_ParseCommandLine(void)
             if (*pchT == '\\')
                 pchT++;
 
-            // set STN to the path, which is the string up to the last '\'
+            // set String to the path, which is the string up to the last '\'
             stn.SetRgch(pch, pchT - pch);
 
             // try to map to long file name if we can
@@ -2241,14 +2274,14 @@ void APP::_ParseCommandLine(void)
     file.  If _stnProductLong is valid and _stnProductShort is not,
     _stnProductShort is just set to _stnProductLong.
 ***************************************************************************/
-bool APP::_FEnsureProductNames(void)
+bool Application::_FEnsureProductNames(void)
 {
     AssertBaseThis(0);
 
     if (_stnProductLong.Cch() == 0)
     {
 #ifdef WIN
-        SZ sz;
+        ZString sz;
 
         if (0 == LoadString(vwig.hinst, stid3DMovieNameLong, sz, kcchMaxSz))
             return fFalse;
@@ -2271,60 +2304,80 @@ bool APP::_FEnsureProductNames(void)
 /***************************************************************************
     Find _fniMsKidsDir
 ***************************************************************************/
-bool APP::_FFindMsKidsDir(void)
+bool Application::_FFindMsKidsDir(void)
 {
     AssertBaseThis(0);
     Assert(_stnProductLong.Cch() > 0 && _stnProductShort.Cch() > 0, "_stnProductLong and _stnProductShort must exist");
 
-    FNI fni;
-    SZ szMsKidsDir;
-    STN stn;
-    STN stnUsers;
+    String stn;
 
-    szMsKidsDir[0] = chNil;
-    if (!FGetSetRegKey(kszInstallDirValue, szMsKidsDir, size(SZ), fregMachine | fregString))
-    {
-        Warn("Missing InstallDirectory registry entry or registry error");
-    }
-    stn = szMsKidsDir;
-    if (stn.Cch() == 0 || !_fniMsKidsDir.FBuildFromPath(&stn, kftgDir) || tYes != _fniMsKidsDir.TExists())
-    {
-        // REVIEW *****: this artificial search is temp until we have a
-        // real setup program and users have a InstallDirectory registry entry
-        _fniMsKidsDir = _fniExe;
-        if (!_fniMsKidsDir.FSetLeaf(pvNil, kftgDir))
-            return fFalse;
-        /* FOONE: hack out search to top of DIR
-        while (_fniMsKidsDir.FUpDir(pvNil, ffniMoveToDir))
-            ;
-        */
+    // Candidate kids-dir roots, in priority order. We descend each through
+    // _FFindMsKidsDirAt (Microsoft Kids/MSKIDS) and prefer the first one whose
+    // 3D Movie Maker subdir contains BLDGDATA.CHK -- that file ships only with
+    // a real install, so it cleanly distinguishes a complete tree from a dev
+    // dist/ that only has chomped artifacts. If no candidate is complete, we
+    // still fall back to the first candidate that at least had a Microsoft Kids
+    // subdir, so the original error-reporting path is preserved.
+    Filename rgfniCand[4];
+    long cfniCand = 0;
 
-        if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
+    rgfniCand[cfniCand] = _fniExe;
+    if (rgfniCand[cfniCand].FSetLeaf(pvNil, kftgDir))
+        cfniCand++;
+
+    rgfniCand[cfniCand] = _fniCurrentDir;
+    if (rgfniCand[cfniCand].FSetLeaf(pvNil, kftgDir))
+        cfniCand++;
+
+    stn = PszLit("C:\\Program Files (x86)");
+    if (rgfniCand[cfniCand].FBuildFromPath(&stn, kftgDir) && tYes == rgfniCand[cfniCand].TExists())
+        cfniCand++;
+
+    stn = PszLit("C:\\Program Files");
+    if (rgfniCand[cfniCand].FBuildFromPath(&stn, kftgDir) && tYes == rgfniCand[cfniCand].TExists())
+        cfniCand++;
+
+    Filename fniFirstHit;
+    bool fHaveFirstHit = fFalse;
+
+    for (long i = 0; i < cfniCand; i++)
+    {
+        Filename fni = rgfniCand[i];
+        if (!_FFindMsKidsDirAt(&fni))
+            continue;
+        if (!fHaveFirstHit)
         {
-            _fniMsKidsDir = _fniCurrentDir;
-            if (!_fniMsKidsDir.FSetLeaf(pvNil, kftgDir))
-                return fFalse;
-            if (!_FFindMsKidsDirAt(&_fniMsKidsDir))
-            {
-                Warn("Can't find Microsoft Kids or MSKIDS.");
-                stn = PszLit("Microsoft Kids");
-                _FCantFindFileDialog(&stn); // ignore failure
-                return fFalse;
-            }
+            fniFirstHit = fni;
+            fHaveFirstHit = fTrue;
+        }
+        if (_FMsKidsDirIsComplete(&fni))
+        {
+            _fniMsKidsDir = fni;
+            AssertPo(&_fniMsKidsDir, ffniDir);
+            return fTrue;
         }
     }
 
-    AssertPo(&_fniMsKidsDir, ffniDir);
-    return fTrue;
+    if (fHaveFirstHit)
+    {
+        _fniMsKidsDir = fniFirstHit;
+        AssertPo(&_fniMsKidsDir, ffniDir);
+        return fTrue;
+    }
+
+    Warn("Can't find Microsoft Kids or MSKIDS.");
+    stn = PszLit("Microsoft Kids");
+    _FCantFindFileDialog(&stn); // ignore failure
+    return fFalse;
 }
 
 /***************************************************************************
     Finds Microsoft Kids directory at a given path. Modifies the path to
     descend into the directory. Returns true if successful.
 ***************************************************************************/
-bool APP::_FFindMsKidsDirAt(FNI *path)
+bool Application::_FFindMsKidsDirAt(Filename *path)
 {
-    STN stn;
+    String stn;
 
     /* REVIEW ***** (peted): if you check for the MSKIDS dir first, then
         you don't have to reset the dir string before presenting the error
@@ -2344,6 +2397,31 @@ bool APP::_FFindMsKidsDirAt(FNI *path)
 }
 
 /***************************************************************************
+    Returns true if the given Microsoft Kids dir contains a complete 3DMM
+    install. We probe for "3D Movie Maker/BLDGDATA.CHK" because BLDGDATA.CHK
+    is original-release content that is never produced by our build, so its
+    presence reliably distinguishes a full install from a freshly-installed
+    dist/ tree containing only chomped artifacts.
+***************************************************************************/
+bool Application::_FMsKidsDirIsComplete(Filename *path)
+{
+    Filename fni = *path;
+    String stn;
+
+    stn = _stnProductLong;
+    if (!fni.FDownDir(&stn, ffniMoveToDir))
+    {
+        stn = _stnProductShort;
+        if (!fni.FDownDir(&stn, ffniMoveToDir))
+            return fFalse;
+    }
+    stn = PszLit("BLDGDATA.CHK");
+    if (!fni.FSetLeaf(&stn))
+        return fFalse;
+    return tYes == fni.TExists();
+}
+
+/***************************************************************************
     Find _fniProductDir
     At this point, _stnProduct* is either the command line parameter or
     3D Movie Maker (in the absence of a command line parameter)
@@ -2352,15 +2430,15 @@ bool APP::_FFindMsKidsDirAt(FNI *path)
         second, the registry of installed products.
     This routine updates _stnProductLong and _stnProductShort on return.
 ***************************************************************************/
-bool APP::_FFindProductDir(PGST pgst)
+bool Application::_FFindProductDir(PStringTable_GST pgst)
 {
     AssertBaseThis(0);
     AssertVarMem(pgst);
 
-    STN stnLong;
-    STN stnShort;
-    STN stn;
-    FNI fni;
+    String stnLong;
+    String stnShort;
+    String stn;
+    Filename fni;
     long istn;
 
     if (_FQueryProductExists(&_stnProductLong, &_stnProductShort, &_fniProductDir))
@@ -2385,15 +2463,15 @@ bool APP::_FFindProductDir(PGST pgst)
     See if the product exists.
     Method:  See if the directory and chunk file exist.
 ***************************************************************************/
-bool APP::_FQueryProductExists(STN *pstnLong, STN *pstnShort, FNI *pfni)
+bool Application::_FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni)
 {
     AssertBaseThis(0);
     AssertVarMem(pfni);
     AssertPo(pstnLong, 0);
     AssertPo(pstnShort, 0);
 
-    FNI fni;
-    STN stn;
+    Filename fni;
+    String stn;
 
     *pfni = _fniMsKidsDir;
     if (!pfni->FDownDir(pstnLong, ffniMoveToDir) && !pfni->FDownDir(pstnShort, ffniMoveToDir))
@@ -2421,7 +2499,7 @@ LFail:
     the end of the string.  Exception: if the space character is surrounded
     by double quotes, this function skips by it.
 ***************************************************************************/
-void APP::_SkipToSpace(char **ppch)
+void Application::_SkipToSpace(char **ppch)
 {
     AssertBaseThis(0);
     AssertVarMem(ppch);
@@ -2439,7 +2517,7 @@ void APP::_SkipToSpace(char **ppch)
 /***************************************************************************
     Advances *ppch to the next non-space character.
 ***************************************************************************/
-void APP::_SkipSpace(char **ppch)
+void Application::_SkipSpace(char **ppch)
 {
     AssertBaseThis(0);
     AssertVarMem(ppch);
@@ -2451,14 +2529,14 @@ void APP::_SkipSpace(char **ppch)
 /***************************************************************************
     Socrates window was activated or deactivated.
 ***************************************************************************/
-void APP::_Activate(bool fActive)
+void Application::_Activate(bool fActive)
 {
     AssertBaseThis(0);
 
 #ifdef WIN
     bool fIsIconic;
 
-    APP_PAR::_Activate(fActive);
+    Application_PAR::_Activate(fActive);
 
     fIsIconic = IsIconic(vwig.hwndApp);
 
@@ -2506,7 +2584,7 @@ void APP::_Activate(bool fActive)
     RawRtn();
 #endif // MAC
 
-    /* Don't do this stuff unless we've got the CEX set up */
+    /* Don't do this stuff unless we've got the CommandExecutionManager set up */
     if (vpcex != pvNil)
     {
 
@@ -2544,15 +2622,15 @@ void APP::_Activate(bool fActive)
 /***************************************************************************
     Deactivate the app
 ***************************************************************************/
-bool APP::FCmdDeactivate(PCMD pcmd)
+bool Application::FCmdDeactivate(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    GCB gcb;
-    PWOKS pwoksModal;
-    GTE gte;
-    PGOB pgob;
+    GraphicsObjectBlock gcb;
+    PWorldOfKidspace pwoksModal;
+    GraphicsObjectTreeEnumerator gte;
+    PGraphicsObject pgob;
     ulong grfgte;
     long lwRet;
     CMD_MOUSE cmd;
@@ -2588,7 +2666,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
         {
             cmd.grfcust &= ~fcustMouse;
         }
-        vpcex->EnqueueCmd((PCMD)&cmd);
+        vpcex->EnqueueCmd((PCommand)&cmd);
         vpcex->EnqueueCid(cidDeactivate);
         _fDown = !_fDown;
         _cactToggle++;
@@ -2598,20 +2676,20 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     gte.Init(Pkwa(), fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Suspend();
+        ((PKidspaceGraphicObject)pgob)->Suspend();
     }
 
     if (FPushModal())
     {
-        gcb.Set(CMH::HidUnique(), Pkwa(), fgobNil, kginMark);
+        gcb.Set(CommandHandler::HidUnique(), Pkwa(), fgobNil, kginMark);
         gcb._rcRel.Set(0, 0, krelOne, krelOne);
 
         _pcex = vpcex;
 
-        if (pvNil != (pwoksModal = NewObj WOKS(&gcb, Pkwa()->Pstrg())))
+        if (pvNil != (pwoksModal = NewObj WorldOfKidspace(&gcb, Pkwa()->Pstrg())))
         {
             vpcex->SetModalGob(pwoksModal);
             FModalLoop(&lwRet); // If we cannot enter modal mode, then we just won't suspend.
@@ -2641,10 +2719,10 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     gte.Init(Pkwa(), fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Resume();
+        ((PKidspaceGraphicObject)pgob)->Resume();
     }
 
     return (fTrue);
@@ -2656,7 +2734,7 @@ bool APP::FCmdDeactivate(PCMD pcmd)
     buffer to the screen during a _FastUpdate cycle.  This gives us
     a chance to do a transition.
 ***************************************************************************/
-void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
+void Application::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst)
 {
     AssertBaseThis(0);
     AssertPo(pgnvSrc, 0);
@@ -2664,13 +2742,13 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
     AssertPo(pgnvDst, 0);
     AssertVarMem(prcDst);
 
-    PMVIE pmvie = _Pmvie(); // Get the current movie, if any
-    PGOB pgob;
+    PMovie pmvie = _Pmvie(); // Get the current movie, if any
+    PGraphicsObject pgob;
     RC rcDst, rcSrc, rcWorkspace;
 
     if (pmvie == pvNil || pmvie->Trans() == transNil)
     {
-        APP_PAR::_CopyPixels(pgnvSrc, prcSrc, pgnvDst, prcDst);
+        Application_PAR::_CopyPixels(pgnvSrc, prcSrc, pgnvDst, prcDst);
         return;
     }
 
@@ -2700,7 +2778,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
         rcSrc.ypBottom = rcWorkspace.ypTop + (rcSrc.ypTop - prcDst->ypTop);
         rcDst = *prcDst;
         rcDst.ypBottom = rcWorkspace.ypTop;
-        APP_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
+        Application_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
     }
 
     if (prcDst->ypBottom > rcWorkspace.ypBottom)
@@ -2709,7 +2787,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
         rcSrc.ypTop = rcWorkspace.ypBottom + (rcSrc.ypTop - prcDst->ypTop);
         rcDst = *prcDst;
         rcDst.ypTop = rcWorkspace.ypBottom;
-        APP_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
+        Application_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
     }
     if (prcDst->xpLeft < rcWorkspace.xpLeft)
     {
@@ -2721,7 +2799,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
         rcDst.xpRight = rcWorkspace.xpLeft;
         rcDst.ypTop = rcWorkspace.ypTop;
         rcDst.ypBottom = rcWorkspace.ypBottom;
-        APP_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
+        Application_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
     }
 
     if (prcDst->xpRight > rcWorkspace.xpRight)
@@ -2734,7 +2812,7 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
         rcDst.xpLeft = rcWorkspace.xpRight;
         rcDst.ypTop = rcWorkspace.ypTop;
         rcDst.ypBottom = rcWorkspace.ypBottom;
-        APP_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
+        Application_PAR::_CopyPixels(pgnvSrc, &rcSrc, pgnvDst, &rcDst);
     }
 
     //
@@ -2751,16 +2829,16 @@ void APP::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
 /***************************************************************************
     Load the Studio
 ***************************************************************************/
-bool APP::FCmdLoadStudio(PCMD pcmd)
+bool Application::FCmdLoadStudio(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    FNI fniUserDoc;
-    CHID chidProject;
+    Filename fniUserDoc;
+    ChildChunkID chidProject;
     long kidBuilding;
-    PGOB pgob;
-    PGOK pgokBackground;
+    PGraphicsObject pgob;
+    PKidspaceGraphicObject pgokBackground;
 
     kidBuilding = pcmd->rglw[0];
     chidProject = pcmd->rglw[1];
@@ -2777,8 +2855,8 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
         // Start a project, if requested
         if (chidProject != chidNil)
         {
-            pgokBackground = (PGOK)Pkwa()->PgobFromHid(kidBackground);
-            if ((pgokBackground != pvNil) && pgokBackground->FIs(kclsGOK))
+            pgokBackground = (PKidspaceGraphicObject)Pkwa()->PgobFromHid(kidBackground);
+            if ((pgokBackground != pvNil) && pgokBackground->FIs(kclsKidspaceGraphicObject))
             {
                 AssertPo(pgokBackground, 0);
                 // REVIEW *****: if this fails, what happens?
@@ -2798,7 +2876,7 @@ bool APP::FCmdLoadStudio(PCMD pcmd)
 /***************************************************************************
     Load the Building
 ***************************************************************************/
-bool APP::FCmdLoadBuilding(PCMD pcmd)
+bool Application::FCmdLoadBuilding(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2825,13 +2903,13 @@ bool APP::FCmdLoadBuilding(PCMD pcmd)
 /***************************************************************************
     Exit the studio
 ***************************************************************************/
-bool APP::FCmdExitStudio(PCMD pcmd)
+bool Application::FCmdExitStudio(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     tribool tRet;
-    STN stnBackup;
+    String stnBackup;
 
     // Now query the user to find whether they want to go to the
     // building or to exit the app completely.
@@ -2858,7 +2936,7 @@ bool APP::FCmdExitStudio(PCMD pcmd)
         else if (tRet == tNo)
         {
             // User wants to quit. We have have any dirty doc already by now.
-            // Note that APP::Quit() doesn't release _pstdio when we quit so
+            // Note that Application::Quit() doesn't release _pstdio when we quit so
             // we don't need to do it here either.
             _fQuit = fTrue;
         }
@@ -2870,7 +2948,7 @@ bool APP::FCmdExitStudio(PCMD pcmd)
 /***************************************************************************
     Load the Theater
 ***************************************************************************/
-bool APP::FCmdTheaterOpen(PCMD pcmd)
+bool Application::FCmdTheaterOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2881,11 +2959,11 @@ bool APP::FCmdTheaterOpen(PCMD pcmd)
 
     if (pvNil != _ptatr)
     {
-        Bug("You forgot to close the last TATR!");
+        Bug("You forgot to close the last Theater!");
         AssertPo(_ptatr, 0);
         return fTrue;
     }
-    _ptatr = TATR::PtatrNew(kidParent);
+    _ptatr = Theater::PtatrNew(kidParent);
     // Let the script know whether the open succeeded or failed
     vpcex->EnqueueCid(cidTheaterOpenCompleted, pvNil, pvNil, (pvNil != _ptatr));
 
@@ -2895,7 +2973,7 @@ bool APP::FCmdTheaterOpen(PCMD pcmd)
 /***************************************************************************
     Close the Theater
 ***************************************************************************/
-bool APP::FCmdTheaterClose(PCMD pcmd)
+bool Application::FCmdTheaterClose(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2909,7 +2987,7 @@ bool APP::FCmdTheaterClose(PCMD pcmd)
 /***************************************************************************
     Clear the portfolio doc
 ***************************************************************************/
-bool APP::FCmdPortfolioClear(PCMD pcmd)
+bool Application::FCmdPortfolioClear(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2922,18 +3000,18 @@ bool APP::FCmdPortfolioClear(PCMD pcmd)
 /***************************************************************************
     Display the customized open file common dlg.
 ***************************************************************************/
-bool APP::FCmdPortfolioOpen(PCMD pcmd)
+bool Application::FCmdPortfolioOpen(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    FNI fni;
+    Filename fni;
     bool fOKed;
     long idsTitle, idsFilterLabel, idsFilterExt;
-    FNI fniUsersDir;
-    PFNI pfni;
+    Filename fniUsersDir;
+    PFilename pfni;
     ulong grfPrevType;
-    CNO cnoWave = cnoNil;
+    ChunkNumber cnoWave = cnoNil;
 
     // Set up strings specific to this use of the portfolio.
 
@@ -3018,17 +3096,17 @@ bool APP::FCmdPortfolioOpen(PCMD pcmd)
         Retrieves the default onn for this app.  Gets the name from the app's
         string table.
 ************************************************************ PETED ***********/
-long APP::OnnDefVariable(void)
+long Application::OnnDefVariable(void)
 {
     AssertBaseThis(0);
 
     if (_onnDefVariable == onnNil)
     {
-        STN stn;
+        String stn;
 
         if (!FGetStnApp(idsDefaultFont, &stn) || !FGetOnn(&stn, &_onnDefVariable))
         {
-            _onnDefVariable = APP_PAR::OnnDefVariable();
+            _onnDefVariable = Application_PAR::OnnDefVariable();
         }
     }
     return _onnDefVariable;
@@ -3036,7 +3114,7 @@ long APP::OnnDefVariable(void)
 
 /******************************************************************************
     FGetOnn
-        APP version of FGetOnn.  Mainly used so that we can easily report
+        Application version of FGetOnn.  Mainly used so that we can easily report
         failure to the user if the font isn't around.  And no, I don't care
         that we'll call FGetOnn twice on failure...it's a failure case, and
         can stand to be slow.  :)  Maps the font on failure so that there's
@@ -3044,13 +3122,13 @@ long APP::OnnDefVariable(void)
         solutions.
 
     Arguments:
-        PSTN pstn   --  The font name
+        PString pstn   --  The font name
         long *ponn  --  takes the result
 
     Returns:  fTrue if the original font could be found.
 
 ************************************************************ PETED ***********/
-bool APP::FGetOnn(PSTN pstn, long *ponn)
+bool Application::FGetOnn(PString pstn, long *ponn)
 {
     AssertBaseThis(0);
 
@@ -3070,7 +3148,7 @@ bool APP::FGetOnn(PSTN pstn, long *ponn)
 /***************************************************************************
     Return the size of memory
 ***************************************************************************/
-void APP::MemStat(long *pdwTotalPhys, long *pdwAvailPhys)
+void Application::MemStat(long *pdwTotalPhys, long *pdwAvailPhys)
 {
 #ifdef WIN
     MEMORYSTATUS ms;
@@ -3091,18 +3169,18 @@ void APP::MemStat(long *pdwTotalPhys, long *pdwAvailPhys)
         a string from the app's string table, then converts it to the number
         value.
 ************************************************************ PETED ***********/
-long APP::DypTextDef(void)
+long Application::DypTextDef(void)
 {
     AssertBaseThis(0);
 
     if (_dypTextDef == 0)
     {
-        STN stn;
+        String stn;
 
         if (pvNil == _pgstApp || !FGetStnApp(idsDefaultDypFont, &stn) || !stn.FGetLw(&_dypTextDef) || _dypTextDef <= 0)
         {
             Warn("DypTextDef failed");
-            _dypTextDef = APP_PAR::DypTextDef();
+            _dypTextDef = Application_PAR::DypTextDef();
         }
     }
     return _dypTextDef;
@@ -3111,14 +3189,14 @@ long APP::DypTextDef(void)
 /***************************************************************************
     Ask the user if they want to save changes to the given doc.
 ***************************************************************************/
-tribool APP::TQuerySaveDoc(PDOCB pdocb, bool fForce)
+tribool Application::TQuerySaveDoc(PDocumentBase pdocb, bool fForce)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
 
-    STN stnName;
+    String stnName;
     long tpc;
-    STN stnBackup;
+    String stnBackup;
     long bk;
     tribool tResult;
 
@@ -3138,12 +3216,12 @@ tribool APP::TQuerySaveDoc(PDOCB pdocb, bool fForce)
     Quit routine.  May or may not initiate the quit sequence (depending
     on user input).
 ***************************************************************************/
-void APP::Quit(bool fForce)
+void Application::Quit(bool fForce)
 {
     AssertThis(0);
 
     bool tRet;
-    STN stnBackup;
+    String stnBackup;
 
     // If we already know we have to quit, or a modal topic is already
     // being  displayed, then do not query the user to quit here.
@@ -3161,7 +3239,7 @@ void APP::Quit(bool fForce)
     {
         // Force quit, don't ask the user if they want to quit.  But
         // do ask if they want to save their documents.
-        DOCB::FQueryCloseAll(fdocForceClose);
+        DocumentBase::FQueryCloseAll(fdocForceClose);
         _fQuit = fTrue;
 
         return;
@@ -3170,35 +3248,35 @@ void APP::Quit(bool fForce)
     // If we're minimized, user is closing app from the taskbar.  Quit
     // without confirmation (we'll still confirm movie save if user has
     // a dirty doc)
-    if (_fMinimized)
-    {
-        tRet = tYes;
-    }
-    else
-    {
-        if (!FGetStnApp(idsConfirmExitBkp, &stnBackup))
-            stnBackup.SetNil();
-        tRet = TModal(vpapp->PcrmAll(), ktpcQueryQuit, &stnBackup, bkYesNo);
-    }
+    // if (_fMinimized)
+    // {
+    //     tRet = tYes;
+    // }
+    // else
+    // {
+    //     if (!FGetStnApp(idsConfirmExitBkp, &stnBackup))
+    //         stnBackup.SetNil();
+    //     tRet = TModal(vpapp->PcrmAll(), ktpcQueryQuit, &stnBackup, bkYesNo);
+    // }
 
-    if (tRet == tYes)
-    {
+    // if (tRet == tYes)
+    // {
         // User wants to quit, so shut down studio if necessary
         if (_pstdio == pvNil || _pstdio->FShutdown(fFalse))
             _fQuit = fTrue;
-    }
+    // }
 }
 
 /***************************************************************************
     Return a pointer to the current movie, if any.  The movie could be in
     the studio, theater, or splot machine.
 ***************************************************************************/
-PMVIE APP::_Pmvie(void)
+PMovie Application::_Pmvie(void)
 {
     AssertBaseThis(0);
 
-    PMVIE pmvie = pvNil;
-    PSPLOT psplot;
+    PMovie pmvie = pvNil;
+    PSplotMachine psplot;
 
     if (_pstdio != pvNil && _pstdio->Pmvie() != pvNil)
         pmvie = _pstdio->Pmvie();
@@ -3206,7 +3284,7 @@ PMVIE APP::_Pmvie(void)
         pmvie = _ptatr->Pmvie();
     else if (Pkwa() != pvNil)
     {
-        psplot = (PSPLOT)Pkwa()->PgobFromCls(kclsSPLOT);
+        psplot = (PSplotMachine)Pkwa()->PgobFromCls(kclsSplotMachine);
         if (psplot != pvNil)
             pmvie = psplot->Pmvie();
     }
@@ -3225,6 +3303,9 @@ enum
     iditCactAV,
 #endif // DEBUG
     iditProductNameInfo,
+    iditWireframeInfo,
+    iditNoTextureInfo,
+    iditPoseReadoutInfo,
     iditSaveChanges,
     iditRenderModeInfo,
     iditLimInfo
@@ -3255,20 +3336,20 @@ char *LoadGenResource(HINSTANCE hInst, LPCSTR lpResource, LPCSTR lpType)
 /***************************************************************************
     Put up info dialog
 ***************************************************************************/
-bool APP::FCmdInfo(PCMD pcmd)
+bool Application::FCmdInfo(PCommand pcmd)
 {
     AssertThis(0);
-    PMVIE pmvie = pvNil;
-    PDLG pdlg;
+    PMovie pmvie = pvNil;
+    PDialog pdlg;
     long idit;
     bool fRunInWindowNew;
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     bool fSaveChanges;
 
     pmvie = _Pmvie();
 
-    pdlg = DLG::PdlgNew(dlidInfo, pvNil, pvNil);
+    pdlg = Dialog::PdlgNew(dlidInfo, pvNil, pvNil);
     if (pvNil == pdlg)
         return fTrue;
     pdlg->PutRadio(iditRenderModeInfo, _fSlowCPU ? 1 : 0);
@@ -3277,7 +3358,8 @@ bool APP::FCmdInfo(PCMD pcmd)
 #ifdef DEBUG
     stn.FAppendSz(PszLit(" (Debug)"));
 #endif // DEBUG
-    stnT.FFormatSz(PszLit(" %d.%d.%04d"), rmj, rmm, rup);
+    extern const char kszBuildStamp[]; // generated each build (cmake/WriteBuildStamp.cmake)
+    stnT.FFormatSz(PszLit(" %d.%d.%04d  built %z"), rmj, rmm, rup, kszBuildStamp);
     stn.FAppendStn(&stnT);
     pdlg->FPutStn(iditProductNameInfo, &stn);
 
@@ -3307,13 +3389,16 @@ bool APP::FCmdInfo(PCMD pcmd)
     pdlg->FPutLwInEdit(iditCactAV, vcactAV);
 #endif // DEBUG
     pdlg->PutRadio(iditWindowModeInfo, _fRunInWindow ? 1 : 0);
+    pdlg->PutCheck(iditWireframeInfo, World::RenderWireframe());
+    pdlg->PutCheck(iditNoTextureInfo, World::NoTexture());
+    pdlg->PutCheck(iditPoseReadoutInfo, MovieView::FShowPoseReadout());
 
     idit = pdlg->IditDo();
 
     fSaveChanges = pdlg->FGetCheck(iditSaveChanges);
     if (FPure(_fSlowCPU) != FPure(pdlg->LwGetRadio(iditRenderModeInfo)))
     {
-        PMVIE pmvie;
+        PMovie pmvie;
 
         _fSlowCPU = !_fSlowCPU;
         pmvie = _Pmvie();
@@ -3326,7 +3411,43 @@ bool APP::FCmdInfo(PCMD pcmd)
     if (fSaveChanges)
     {
         bool fSlowCPU = _fSlowCPU;
-        FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey);
+        FGetSetRegKey(kszBetterSpeedValue, &fSlowCPU, size(bool), fregSetKey | fregBinary);
+    }
+
+    {
+        bool fWireframeNew = FPure(pdlg->FGetCheck(iditWireframeInfo));
+        bool fNoTextureNew = FPure(pdlg->FGetCheck(iditNoTextureInfo));
+        bool fPoseReadoutNew = FPure(pdlg->FGetCheck(iditPoseReadoutInfo));
+        bool fRenderChanged = fFalse;
+        PMovie pmvieT = _Pmvie();
+
+        if (fWireframeNew != FPure(World::RenderWireframe()))
+        {
+            World::SetRenderWireframe(fWireframeNew);
+            fRenderChanged = fTrue;
+        }
+        if (fNoTextureNew != FPure(World::NoTexture()))
+        {
+            World::SetNoTexture(fNoTextureNew);
+            fRenderChanged = fTrue;
+        }
+        if (fPoseReadoutNew != FPure(MovieView::FShowPoseReadout()))
+        {
+            MovieView::SetShowPoseReadout(fPoseReadoutNew);
+            if (pvNil != pmvieT)
+                pmvieT->InvalViews();
+        }
+        if (fRenderChanged && pvNil != pmvieT)
+        {
+            pmvieT->Pbwld()->MarkDirty();
+            pmvieT->InvalViews();
+        }
+        if (fSaveChanges)
+        {
+            FGetSetRegKey(kszWireframeValue, &fWireframeNew, size(bool), fregSetKey | fregBinary);
+            FGetSetRegKey(kszNoTextureValue, &fNoTextureNew, size(bool), fregSetKey | fregBinary);
+            FGetSetRegKey(kszShowPoseReadoutValue, &fPoseReadoutNew, size(bool), fregSetKey | fregBinary);
+        }
     }
 
     fRunInWindowNew = pdlg->LwGetRadio(iditWindowModeInfo);
@@ -3371,7 +3492,7 @@ bool APP::FCmdInfo(PCMD pcmd)
     {
         bool fSwitchRes = !_fRunInWindow;
 
-        FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey);
+        FGetSetRegKey(kszSwitchResolutionValue, &fSwitchRes, size(fSwitchRes), fregSetKey | fregBinary);
     }
 
 #ifdef DEBUG
@@ -3409,19 +3530,19 @@ bool APP::FCmdInfo(PCMD pcmd)
 #ifdef WIN
 #ifdef UNICODE
 typedef LONG(WINAPI *PFNCHDS)(LPDEVMODEW lpDevMode, DWORD dwFlags);
-const PSZ kpszChds = PszLit("ChangeDisplaySettingsW");
+const PZString kpszChds = PszLit("ChangeDisplaySettingsW");
 #else
 typedef LONG(WINAPI *PFNCHDS)(LPDEVMODEA lpDevMode, DWORD dwFlags);
-const PSZ kpszChds = PszLit("ChangeDisplaySettingsA");
+const PZString kpszChds = PszLit("ChangeDisplaySettingsA");
 #endif // !UNICODE
 
 #ifdef BUG1920
 #ifdef UNICODE
 typedef BOOL(WINAPI *PFNENUM)(LPCWSTR lpszDeviceName, DWORD iModeNum, LPDEVMODEW lpDevMode);
-const PSZ kpszEnum = PszLit("EnumDisplaySettingsW");
+const PZString kpszEnum = PszLit("EnumDisplaySettingsW");
 #else
 typedef BOOL(WINAPI *PFNENUM)(LPCSTR lpszDeviceName, DWORD iModeNum, LPDEVMODEA lpDevMode);
-const PSZ kpszEnum = PszLit("EnumDisplaySettingsA");
+const PZString kpszEnum = PszLit("EnumDisplaySettingsA");
 #endif // !UNICODE
 #endif // BUG1920
 #endif // WIN
@@ -3443,7 +3564,7 @@ const PSZ kpszEnum = PszLit("EnumDisplaySettingsA");
 /***************************************************************************
     Determine if display resolution switching is supported
 ***************************************************************************/
-bool APP::_FDisplaySwitchSupported(void)
+bool Application::_FDisplaySwitchSupported(void)
 {
     AssertBaseThis(0);
 
@@ -3468,7 +3589,7 @@ bool APP::_FDisplaySwitchSupported(void)
     can fail gracefully on systems that don't support
     ChangeDisplaySettings().
 ***************************************************************************/
-bool APP::_FSwitch640480(bool fTo640480)
+bool Application::_FSwitch640480(bool fTo640480)
 {
     AssertBaseThis(0);
 
@@ -3570,7 +3691,7 @@ LFail:
 /***************************************************************************
     Clean up routine - app is shutting down
 ***************************************************************************/
-void APP::_CleanUp(void)
+void Application::_CleanUp(void)
 {
     _FWriteUserData();
     ReleasePpo(&_pstdio);
@@ -3585,8 +3706,8 @@ void APP::_CleanUp(void)
     ReleasePpo(&_pgstSharedFiles);
     ReleasePpo(&_pgstApp);
     ReleasePpo(&_pkwa);
-    BWLD::CloseBRender();
-    APP_PAR::_CleanUp();
+    World::CloseBRender();
+    Application_PAR::_CleanUp();
     if (_fSwitchedResolution)
         _FSwitch640480(fFalse); // try to restore desktop
 }
@@ -3594,14 +3715,14 @@ void APP::_CleanUp(void)
 /***************************************************************************
     Put up a modal help balloon
 ***************************************************************************/
-tribool APP::TModal(PRCA prca, long tpc, PSTN pstnBackup, long bkBackup, long stidSubst, PSTN pstnSubst)
+tribool Application::TModal(PResourceCache prca, long tpc, PString pstnBackup, long bkBackup, long stidSubst, PString pstnSubst)
 {
     AssertThis(0);
     AssertNilOrPo(prca, 0);
 
     long lwSelect;
     tribool tRet;
-    STN stn;
+    String stn;
 
     // If app is minimized, restore it so user can see the dialog
     EnsureInteractive();
@@ -3653,11 +3774,11 @@ tribool APP::TModal(PRCA prca, long tpc, PSTN pstnBackup, long bkBackup, long st
 /***************************************************************************
     Static function to prompt the user to insert the CD named pstnTitle
 ***************************************************************************/
-bool APP::FInsertCD(PSTN pstnTitle)
+bool Application::FInsertCD(PString pstnTitle)
 {
     AssertPo(pstnTitle, 0);
 
-    STN stnBackup;
+    String stnBackup;
     bool tRet;
 
     stnBackup = PszLit("I can't find the CD '%s'  Please insert it.  Should I look again?");
@@ -3676,16 +3797,16 @@ bool APP::FInsertCD(PSTN pstnTitle)
         Displays any errors that happen to be on the error stack.  Call this
         when you don't want to wait until idle time to show errors.
 ************************************************************ PETED ***********/
-void APP::DisplayErrors(void)
+void Application::DisplayErrors(void)
 {
     AssertThis(0);
 
     long erc;
-    STN stnMessage;
+    String stnMessage;
 
     if (vpers->FPop(&erc))
     {
-        STN stnErr;
+        String stnErr;
 
         vpers->Clear();
 
@@ -3969,20 +4090,20 @@ void APP::DisplayErrors(void)
 }
 
 /***************************************************************************
-    Idle routine.  Do APPB idle stuff, then report any runtime errors.
+    Idle routine.  Do ApplicationBase idle stuff, then report any runtime errors.
 ***************************************************************************/
-bool APP::FCmdIdle(PCMD pcmd)
+bool Application::FCmdIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     bool fFileError = fFalse;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
-    APP_PAR::FCmdIdle(pcmd);
+    Application_PAR::FCmdIdle(pcmd);
 
     /* Check all open chunky files for errors */
-    for (pcfl = CFL::PcflFirst(); pcfl != pvNil; pcfl = (PCFL)pcfl->PbllNext())
+    for (pcfl = ChunkyFile::PcflFirst(); pcfl != pvNil; pcfl = (PChunkyFile)pcfl->PbllNext())
     {
         if (pcfl->ElError() != elNil)
         {
@@ -4003,17 +4124,17 @@ bool APP::FCmdIdle(PCMD pcmd)
 /***************************************************************************
     Tell another instance of the app to open a document.
 ***************************************************************************/
-bool APP::_FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc)
+bool Application::_FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc)
 {
     AssertBaseThis(0);
     Assert(pvNil != hwnd, "bad hwnd");
     AssertPo(pfniUserDoc, ffniFile);
 
-    STN stnUserDoc;
-    STN stn;
-    FNI fniTemp;
-    PFIL pfil = pvNil;
-    BLCK blck;
+    String stnUserDoc;
+    String stn;
+    Filename fniTemp;
+    PFileObject pfil = pvNil;
+    DataBlock blck;
     DWORD dwProcId;
 
     // Write filename to 3DMMOpen.tmp in the temp dir
@@ -4029,7 +4150,7 @@ bool APP::_FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc)
         if (!fniTemp.FDelete())
             goto LFail;
     }
-    pfil = FIL::PfilCreate(&fniTemp);
+    pfil = FileObject::PfilCreate(&fniTemp);
     if (pvNil == pfil)
         goto LFail;
     if (!pfil->FSetFpMac(stnUserDoc.CbData()))
@@ -4057,16 +4178,16 @@ LFail:
 /***************************************************************************
     Process a request (from another instance of the app) to open a document
 ***************************************************************************/
-bool APP::_FProcessOpenDocCmd(void)
+bool Application::_FProcessOpenDocCmd(void)
 {
     AssertBaseThis(0);
 
-    STN stnUserDoc;
-    STN stn;
-    FNI fniTemp;
-    PFIL pfil = pvNil;
-    FNI fniUserDoc;
-    BLCK blck;
+    String stnUserDoc;
+    String stn;
+    Filename fniTemp;
+    PFileObject pfil = pvNil;
+    Filename fniUserDoc;
+    DataBlock blck;
 
     // Find the temp file
     if (!fniTemp.FGetTemp())
@@ -4087,7 +4208,7 @@ bool APP::_FProcessOpenDocCmd(void)
         goto LFail;
 
     // Read the document filename from temp file
-    pfil = FIL::PfilOpen(&fniTemp);
+    pfil = FileObject::PfilOpen(&fniTemp);
     if (pvNil == pfil)
         goto LFail;
     blck.Set(pfil, 0, pfil->FpMac());
@@ -4124,12 +4245,12 @@ LFail:
     Override standard _FGetNextEvt to catch WM_USER event.  Otherwise
     the event will get thrown away, because the event's hwnd is nil.
 ***************************************************************************/
-bool APP::_FGetNextEvt(PEVT pevt)
+bool Application::_FGetNextEvt(PEVT pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
 
-    if (!APP_PAR::_FGetNextEvt(pevt))
+    if (!Application_PAR::_FGetNextEvt(pevt))
         return fFalse;
     if (pevt->message != WM_USER || pevt->wParam != klwOpenDoc)
         return fTrue;
@@ -4141,22 +4262,22 @@ bool APP::_FGetNextEvt(PEVT pevt)
 /***************************************************************************
     Override default _FastUpdate to optionally skip offscreen buffer
 ***************************************************************************/
-void APP::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void Application::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertBaseThis(0);
 
-    PMVIE pmvie;
+    PMovie pmvie;
 
     pmvie = _Pmvie();
 
     if (_fOnscreenDrawing && pvNil != pmvie && pmvie->FPlaying() &&
         pmvie->Pscen()->Nfrm() != pmvie->Pscen()->NfrmFirst())
     {
-        APP_PAR::_FastUpdate(pgob, pregnClip, grfapp | fappOnscreen, pgpt);
+        Application_PAR::_FastUpdate(pgob, pregnClip, grfapp | fappOnscreen, pgpt);
     }
     else
     {
-        APP_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
+        Application_PAR::_FastUpdate(pgob, pregnClip, grfapp, pgpt);
     }
 }
 
@@ -4164,22 +4285,22 @@ void APP::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
 /***************************************************************************
     Override default UpdateHwnd to optionally skip offscreen buffer
 ***************************************************************************/
-void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void Application::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
-    AssertBaseThis(0); // APP may not be completely valid
+    AssertBaseThis(0); // Application may not be completely valid
 
-    PMVIE pmvie;
+    PMovie pmvie;
 
     pmvie = _Pmvie();
 
     if (_fOnscreenDrawing && pvNil != pmvie && pmvie->FPlaying() &&
         pmvie->Pscen()->Nfrm() != pmvie->Pscen()->NfrmFirst())
     {
-        APP_PAR::UpdateHwnd(hwnd, prc, grfapp | fappOnscreen);
+        Application_PAR::UpdateHwnd(hwnd, prc, grfapp | fappOnscreen);
     }
     else
     {
-        APP_PAR::UpdateHwnd(hwnd, prc, grfapp);
+        Application_PAR::UpdateHwnd(hwnd, prc, grfapp);
     }
 }
 #endif // WIN
@@ -4194,7 +4315,7 @@ void APP::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     Handle Windows messages for the main app window. Return true iff the
     default window proc should _NOT_ be called.
 ***************************************************************************/
-bool APP::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool Application::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
 {
     AssertBaseThis(0);
     AssertVarMem(plwRet);
@@ -4212,7 +4333,7 @@ bool APP::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plw
         bool fRet;
         long lwStyle;
 
-        fRet = APP_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
+        fRet = Application_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
         lwStyle = GetWindowLong(hwnd, GWL_STYLE);
         lwStyle &= ~WS_MAXIMIZEBOX;
         if (wParam == SIZE_MINIMIZED)
@@ -4297,7 +4418,7 @@ bool APP::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plw
 
     if ((_pstdio == pvNil) || (_pstdio->Pmvie() == pvNil))
     {
-        return APP_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
+        return Application_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
     }
 
     switch (wm)
@@ -4315,7 +4436,7 @@ bool APP::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plw
         return (fTrue);
 
     default:
-        return APP_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
+        return Application_PAR::_FFrameWndProc(hwnd, wm, wParam, lw, plwRet);
     }
 }
 #endif // WIN
@@ -4332,7 +4453,7 @@ bool APP::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plw
  *  fFalse - Screen savers should be blocked
  *
  **************************************************************************/
-bool APP::FAllowScreenSaver(void)
+bool Application::FAllowScreenSaver(void)
 {
     AssertBaseThis(0);
 
@@ -4348,7 +4469,7 @@ bool APP::FAllowScreenSaver(void)
 /***************************************************************************
     Disable the application accelerators
 ***************************************************************************/
-void APP::DisableAccel(void)
+void Application::DisableAccel(void)
 {
     AssertBaseThis(0); // Gets called from destructors
 
@@ -4368,7 +4489,7 @@ void APP::DisableAccel(void)
 /***************************************************************************
     Enable the application accelerators
 ***************************************************************************/
-void APP::EnableAccel(void)
+void Application::EnableAccel(void)
 {
     AssertBaseThis(0); // Gets called from destructors
     Assert(_cactDisable > 0, "Enable called w/o a disable");
@@ -4396,7 +4517,7 @@ void APP::EnableAccel(void)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool APP::FCmdDisableAccel(PCMD pcmd)
+bool Application::FCmdDisableAccel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -4415,7 +4536,7 @@ bool APP::FCmdDisableAccel(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool APP::FCmdEnableAccel(PCMD pcmd)
+bool Application::FCmdEnableAccel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -4428,21 +4549,21 @@ bool APP::FCmdEnableAccel(PCMD pcmd)
         Invokes the splot machine.
 
     Arguments:
-        PCMD pcmd
-            rglw[0]  --  contains the GOB id of the parent of the Splot machine
-            rglw[1]  --  contains the GOB id of the Splot machine itself
+        PCommand pcmd
+            rglw[0]  --  contains the GraphicsObject id of the parent of the Splot machine
+            rglw[1]  --  contains the GraphicsObject id of the Splot machine itself
 
     Returns: fTrue always
 
 ************************************************************ PETED ***********/
-bool APP::FCmdInvokeSplot(PCMD pcmd)
+bool Application::FCmdInvokeSplot(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PSPLOT psplot;
+    PSplotMachine psplot;
 
-    psplot = SPLOT::PsplotNew(pcmd->rglw[0], pcmd->rglw[1], _pcrmAll);
+    psplot = SplotMachine::PsplotNew(pcmd->rglw[0], pcmd->rglw[1], _pcrmAll);
     if (psplot == pvNil)
         PushErc(ercSocCantInitSplot);
 
@@ -4452,7 +4573,7 @@ bool APP::FCmdInvokeSplot(PCMD pcmd)
 /***************************************************************************
     Handoff a movie to the app so it can pass it on to the studio
 ***************************************************************************/
-void APP::HandoffMovie(PMVIE pmvie)
+void Application::HandoffMovie(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
@@ -4463,13 +4584,13 @@ void APP::HandoffMovie(PMVIE pmvie)
 }
 
 /***************************************************************************
-    Grab the APP movie
+    Grab the Application movie
 ***************************************************************************/
-PMVIE APP::PmvieRetrieve(void)
+PMovie Application::PmvieRetrieve(void)
 {
     AssertThis(0);
 
-    PMVIE pmvie = _pmvieHandoff;
+    PMovie pmvie = _pmvieHandoff;
 
     _pmvieHandoff = pvNil; //  Caller now owns this pointer
     return pmvie;
@@ -4489,25 +4610,25 @@ PMVIE APP::PmvieRetrieve(void)
         state pushed.
 
 ************************************************************ PETED ***********/
-void APP::HideCurs(void)
+void Application::HideCurs(void)
 {
     AssertThis(0);
 
     Assert(_cactCursHide != ivNil, "Can't hide cursor in Push/PopCurs pair");
     _cactCursHide++;
-    APP_PAR::HideCurs();
+    Application_PAR::HideCurs();
 }
 
-void APP::ShowCurs(void)
+void Application::ShowCurs(void)
 {
     AssertThis(0);
 
     Assert(_cactCursHide > 0, "Unbalanced ShowCurs call");
     _cactCursHide--;
-    APP_PAR::ShowCurs();
+    Application_PAR::ShowCurs();
 }
 
-void APP::PushCurs(void)
+void Application::PushCurs(void)
 {
     AssertThis(0);
 
@@ -4518,7 +4639,7 @@ void APP::PushCurs(void)
     _cactCursHide = ivNil;
 }
 
-void APP::PopCurs(void)
+void Application::PopCurs(void)
 {
     AssertThis(0);
 
@@ -4531,11 +4652,11 @@ void APP::PopCurs(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the APP
+    Assert the validity of the Application
 ***************************************************************************/
-void APP::AssertValid(ulong grf)
+void Application::AssertValid(ulong grf)
 {
-    APP_PAR::AssertValid(0);
+    Application_PAR::AssertValid(0);
     AssertNilOrPo(_pstdio, 0);
     AssertNilOrPo(_ptatr, 0);
     AssertNilOrPo(_pmvieHandoff, 0);
@@ -4553,15 +4674,15 @@ void APP::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the APP
+    Mark memory used by the Application
 ***************************************************************************/
-void APP::MarkMem(void)
+void Application::MarkMem(void)
 {
     AssertThis(0);
-    APP_PAR::MarkMem();
+    Application_PAR::MarkMem();
     MarkMemObj(vptagm);
-    MTRL::MarkShadeTable();
-    TDT::MarkActionNames();
+    Material_MTRL::MarkShadeTable();
+    ThreeDText::MarkActionNames();
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);
     MarkMemObj(_pmvieHandoff);
@@ -4582,23 +4703,23 @@ void APP::MarkMem(void)
 //
 //
 //
-//  KWA (KidWorld for App) stuff begins here
+//  KidWorld (KidWorld for App) stuff begins here
 //
 //
 //
 
 /***************************************************************************
-    KWA destructor
+    KidWorld destructor
 ***************************************************************************/
-KWA::~KWA(void)
+KidWorld::~KidWorld(void)
 {
     ReleasePpo(&_pmbmp);
 }
 
 /***************************************************************************
-    Set the KWA's MBMP (for splash screen)
+    Set the KidWorld's MaskedBitmapMBMP (for splash screen)
 ***************************************************************************/
-void KWA::SetMbmp(PMBMP pmbmp)
+void KidWorld::SetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertThis(0);
     AssertNilOrPo(pmbmp, 0);
@@ -4614,9 +4735,9 @@ void KWA::SetMbmp(PMBMP pmbmp)
 }
 
 /***************************************************************************
-    Draw the KWA's MBMP, if any (for splash screen)
+    Draw the KidWorld's MaskedBitmapMBMP, if any (for splash screen)
 ***************************************************************************/
-void KWA::Draw(PGNV pgnv, RC *prcClip)
+void KidWorld::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -4629,7 +4750,7 @@ void KWA::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool KWA::FFindFile(PSTN pstnSrc, PFNI pfni)
+bool KidWorld::FFindFile(PString pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -4641,7 +4762,7 @@ bool KWA::FFindFile(PSTN pstnSrc, PFNI pfni)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool KWA::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
+bool KidWorld::FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -4655,10 +4776,10 @@ bool KWA::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
     // Now take the default action.
 #ifdef BUG1085
     vapp.PushCurs();
-    fRet = KWA_PAR::FModalTopic(prca, cnoTopic, plwRet);
+    fRet = KidWorld_PAR::FModalTopic(prca, cnoTopic, plwRet);
     vapp.PopCurs();
 #else
-    fRet = KWA_PAR::FModalTopic(prca, cnoTopic, plwRet);
+    fRet = KidWorld_PAR::FModalTopic(prca, cnoTopic, plwRet);
 #endif // !BUG1085
 
     // Let script know that the modal topic has been dismissed.
@@ -4670,21 +4791,21 @@ bool KWA::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the KWA
+    Assert the validity of the KidWorld
 ***************************************************************************/
-void KWA::AssertValid(ulong grf)
+void KidWorld::AssertValid(ulong grf)
 {
-    KWA_PAR::AssertValid(0);
+    KidWorld_PAR::AssertValid(0);
     AssertNilOrPo(_pmbmp, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the KWA
+    Mark memory used by the KidWorld
 ***************************************************************************/
-void KWA::MarkMem(void)
+void KidWorld::MarkMem(void)
 {
     AssertThis(0);
-    KWA_PAR::MarkMem();
+    KidWorld_PAR::MarkMem();
     MarkMemObj(_pmbmp);
 }
 #endif // DEBUG

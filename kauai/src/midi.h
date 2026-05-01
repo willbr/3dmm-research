@@ -15,7 +15,9 @@
 #ifndef MIDI_H
 #define MIDI_H
 
-typedef class MIDS *PMIDS;
+using namespace Chunky;
+
+typedef class MidiStream *PMidiStream;
 
 // midi event
 struct MIDEV
@@ -33,13 +35,13 @@ typedef MIDEV *PMIDEV;
 /***************************************************************************
     Midi stream parser. Knows how to parse standard MIDI streams.
 ***************************************************************************/
-typedef class MSTP *PMSTP;
-#define MSTP_PAR BASE
-#define kclsMSTP 'MSTP'
-class MSTP : public MSTP_PAR
+typedef class MidiStreamParser *PMidiStreamParser;
+#define MidiStreamParser_PAR BASE
+#define kclsMidiStreamParser 'MSTP'
+class MidiStreamParser : public MidiStreamParser_PAR
 {
     RTCLASS_DEC
-    NOCOPY(MSTP)
+    NOCOPY(MidiStreamParser)
     ASSERT
     MARKMEM
 
@@ -51,15 +53,15 @@ class MSTP : public MSTP_PAR
     byte *_pbCur;
     byte _bStatus;
 
-    Debug(long _cactLongLock;) PMIDS _pmids;
+    Debug(long _cactLongLock;) PMidiStream _pmids;
 
     bool _FReadVar(byte **ppbCur, long *plw);
 
   public:
-    MSTP(void);
-    ~MSTP(void);
+    MidiStreamParser(void);
+    ~MidiStreamParser(void);
 
-    void Init(PMIDS pmids, ulong tsStart = 0, long lwTempo = 500000);
+    void Init(PMidiStream pmids, ulong tsStart = 0, long lwTempo = 500000);
     bool FGetEvent(PMIDEV pmidev, bool fAdvance = fTrue);
 };
 
@@ -67,9 +69,9 @@ class MSTP : public MSTP_PAR
     Midi Stream object - this is like a MTrk chunk in a standard MIDI file,
     with timing in milliseconds.
 ***************************************************************************/
-#define MIDS_PAR BACO
-#define kclsMIDS 'MIDS'
-class MIDS : public MIDS_PAR
+#define MidiStream_PAR BaseCacheableObject
+#define kclsMidiStream 'MIDS'
+class MidiStream : public MidiStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -78,19 +80,19 @@ class MIDS : public MIDS_PAR
   protected:
     HQ _hqrgb;
 
-    friend MSTP;
+    friend MidiStreamParser;
 
-    MIDS(void);
+    MidiStream(void);
 
     static long _CbEncodeLu(ulong lu, byte *prgb);
 
   public:
-    static bool FReadMids(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PMIDS PmidsRead(PBLCK pblck);
-    static PMIDS PmidsReadNative(FNI *pfni);
-    ~MIDS(void);
+    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PMidiStream PmidsRead(PDataBlock pblck);
+    static PMidiStream PmidsReadNative(Filename *pfni);
+    ~MidiStream(void);
 
-    virtual bool FWrite(PBLCK pblck);
+    virtual bool FWrite(PDataBlock pblck);
     virtual long CbOnFile(void);
 };
 

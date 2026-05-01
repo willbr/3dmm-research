@@ -13,22 +13,24 @@
 #include "kidframe.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(TXHG, TXRG)
+namespace Help {
+
+BEGIN_CMD_MAP(TopicGraphicsObject, RichTextDocumentGraphicsObject)
 ON_CID_GEN(cidSelIdle, pvNil, pvNil)
 ON_CID_ME(cidActivateSel, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(TXHD)
-RTCLASS(TXHG)
-RTCLASS(HBAL)
-RTCLASS(HBTN)
+RTCLASS(TextDocument)
+RTCLASS(TopicGraphicsObject)
+RTCLASS(Balloon)
+RTCLASS(BalloonButton)
 
 const achar kchHelpString = '~';
 
 /***************************************************************************
     Constructor for a help text document.
 ***************************************************************************/
-TXHD::TXHD(PRCA prca, PDOCB pdocb, ulong grfdoc) : TXHD_PAR(pdocb, grfdoc)
+TextDocument::TextDocument(PResourceCache prca, PDocumentBase pdocb, ulong grfdoc) : TextDocument_PAR(pdocb, grfdoc)
 {
     AssertPo(prca, 0);
     _prca = prca;
@@ -42,28 +44,28 @@ TXHD::TXHD(PRCA prca, PDOCB pdocb, ulong grfdoc) : TXHD_PAR(pdocb, grfdoc)
 /***************************************************************************
     Destructor for a help text document.
 ***************************************************************************/
-TXHD::~TXHD(void)
+TextDocument::~TextDocument(void)
 {
     ReleasePpo(&_prca);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a TXHD.
+    Assert the validity of a TextDocument.
 ***************************************************************************/
-void TXHD::AssertValid(ulong grf)
+void TextDocument::AssertValid(ulong grf)
 {
-    TXHD_PAR::AssertValid(0);
+    TextDocument_PAR::AssertValid(0);
     AssertPo(_prca, 0);
 }
 
 /***************************************************************************
-    Mark memory for the TXHD.
+    Mark memory for the TextDocument.
 ***************************************************************************/
-void TXHD::MarkMem(void)
+void TextDocument::MarkMem(void)
 {
     AssertValid(0);
-    TXHD_PAR::MarkMem();
+    TextDocument_PAR::MarkMem();
     MarkMemObj(_prca);
 }
 #endif // DEBUG
@@ -72,13 +74,13 @@ void TXHD::MarkMem(void)
     Static method to read a help text document from the given (pcfl, ctg, cno)
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
+PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
     AssertPo(pcfl, 0);
-    PTXHD ptxhd;
+    PTextDocument ptxhd;
 
-    if (pvNil == (ptxhd = NewObj TXHD(prca)) || !ptxhd->_FReadChunk(pcfl, ctg, cno, pstrg, grftxhd))
+    if (pvNil == (ptxhd = NewObj TextDocument(prca)) || !ptxhd->_FReadChunk(pcfl, ctg, cno, pstrg, grftxhd))
     {
         PushErc(ercHelpReadFailed);
         ReleasePpo(&ptxhd);
@@ -89,23 +91,23 @@ PTXHD TXHD::PtxhdReadChunk(PRCA prca, PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, 
 }
 
 /***************************************************************************
-    Read the given chunk into this TXRD.
+    Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TXHD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
+bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(pcfl, 0);
     AssertNilOrPo(pstrg, 0);
-    BLCK blck;
-    KID kid;
-    HTOPF htopf;
+    DataBlock blck;
+    ChildChunkIdentification kid;
+    TopicFile htopf;
     long stid, lw;
     long cp, cpMac, cpMin;
-    STN stn;
+    String stn;
     bool fRet = fFalse;
 
     if (pcfl->FForest(ctg, cno))
     {
-        CKI cki;
+        ChunkIdentification cki;
 
         if (pvNil == (pcfl = pcfl->PcflReadForest(ctg, cno, fFalse)))
             goto LFail;
@@ -116,12 +118,12 @@ bool TXHD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
     else
         pcfl->AddRef();
 
-    // The old version of HTOP didn't have the ckiSnd - accept both old and new
+    // The old version of Topic didn't have the ckiSnd - accept both old and new
     // versions.
     htopf.htop.ckiSnd.ctg = ctgNil;
     htopf.htop.ckiSnd.cno = cnoNil;
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() ||
-        size(HTOPF) != blck.Cb() && offset(HTOPF, htop.ckiSnd) != blck.Cb() || !blck.FRead(&htopf))
+        size(TopicFile) != blck.Cb() && offset(TopicFile, htop.ckiSnd) != blck.Cb() || !blck.FRead(&htopf))
     {
         goto LFail;
     }
@@ -134,7 +136,7 @@ bool TXHD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
     if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgRichText, &kid))
         goto LFail;
 
-    if (!TXHD_PAR::_FReadChunk(pcfl, kid.cki.ctg, kid.cki.cno, FPure(grftxhd & ftxhdCopyText)))
+    if (!TextDocument_PAR::_FReadChunk(pcfl, kid.cki.ctg, kid.cki.cno, FPure(grftxhd & ftxhdCopyText)))
     {
         goto LFail;
     }
@@ -170,51 +172,51 @@ bool TXHD::_FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg, ulong grftxhd)
     AssertThis(0);
 
 LFail:
-    // Release our hold on the CFL
+    // Release our hold on the ChunkyFile
     ReleasePpo(&pcfl);
 
     return fRet;
 }
 
 /***************************************************************************
-    Do any necessary munging of the AG entry on open.  Return false if
+    Do any necessary munging of the AllocatedGroup entry on open.  Return false if
     we don't recognize this argument type.
 ***************************************************************************/
-bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
+bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
-    CTG ctg;
-    CNO cno;
+    ChunkTagOrType ctg;
+    ChunkNumber cno;
     long cb;
     long rglw[2];
     long clw;
 
-    if (TXHD_PAR::_FOpenArg(icact, sprm, bo, osk))
+    if (TextDocument_PAR::_FOpenArg(icact, sprm, bo, osk))
         return fTrue;
 
     cb = _pagcact->Cb(icact);
     switch (sprm)
     {
     case sprmGroup:
-        if (cb < size(byte) + size(CNO))
+        if (cb < size(byte) + size(ChunkNumber))
             return fFalse;
         if (bo == kboOther)
         {
-            _pagcact->GetRgb(icact, size(byte), size(CNO), &cno);
+            _pagcact->GetRgb(icact, size(byte), size(ChunkNumber), &cno);
             SwapBytesRglw(&cno, 1);
-            _pagcact->PutRgb(icact, size(byte), size(CNO), &cno);
+            _pagcact->PutRgb(icact, size(byte), size(ChunkNumber), &cno);
         }
         break;
 
     case sprmObject:
-        if (cb < size(CTG))
+        if (cb < size(ChunkTagOrType))
             return fFalse;
-        _pagcact->GetRgb(icact, 0, size(CTG), &ctg);
+        _pagcact->GetRgb(icact, 0, size(ChunkTagOrType), &ctg);
         if (bo == kboOther)
         {
             SwapBytesRglw(&ctg, 1);
-            _pagcact->PutRgb(icact, 0, size(CTG), &ctg);
+            _pagcact->PutRgb(icact, 0, size(ChunkTagOrType), &ctg);
         }
-        cb -= size(CTG);
+        cb -= size(ChunkTagOrType);
 
         switch (ctg)
         {
@@ -232,9 +234,9 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
 
             if (bo == kboOther)
             {
-                _pagcact->GetRgb(icact, size(CTG), clw * size(long), rglw);
+                _pagcact->GetRgb(icact, size(ChunkTagOrType), clw * size(long), rglw);
                 SwapBytesRglw(rglw, clw);
-                _pagcact->PutRgb(icact, size(CTG), clw * size(long), rglw);
+                _pagcact->PutRgb(icact, size(ChunkTagOrType), clw * size(long), rglw);
             }
             break;
 
@@ -254,20 +256,20 @@ bool TXHD::_FOpenArg(long icact, byte sprm, short bo, short osk)
     Save a help topic to the given chunky file.  Fill in *pcki with where
     we put the root chunk.
 ***************************************************************************/
-bool TXHD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
+bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
-    BLCK blck;
-    CKI cki;
-    HTOPF htopf;
+    DataBlock blck;
+    ChunkIdentification cki;
+    TopicFile htopf;
 
     pcki->ctg = kctgHelpTopic;
     htopf.bo = kboCur;
     htopf.osk = koskCur;
     htopf.htop = _htop;
-    if (!pcfl->FAdd(size(HTOPF), pcki->ctg, &pcki->cno, &blck))
+    if (!pcfl->FAdd(size(TopicFile), pcki->ctg, &pcki->cno, &blck))
     {
         PushErc(ercHelpSaveFailed);
         return fFalse;
@@ -275,7 +277,7 @@ bool TXHD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
     if (!blck.FWrite(&htopf))
         goto LFail;
 
-    if (!TXHD_PAR::FSaveToChunk(pcfl, &cki, fRedirectText))
+    if (!TextDocument_PAR::FSaveToChunk(pcfl, &cki, fRedirectText))
         goto LFail;
 
     // add the text chunk and write it
@@ -294,7 +296,7 @@ bool TXHD::FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText)
 /***************************************************************************
     Get the bounding rectangle for the given object.
 ***************************************************************************/
-bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
+bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
     AssertIn(icact, 0, _pagcact->IvMac());
@@ -303,23 +305,23 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
     AssertVarMem(pchp);
     AssertVarMem(prc);
     long cb;
-    PMBMP pmbmp;
-    PCRF pcrf;
-    KID kid;
+    PMaskedBitmapMBMP pmbmp;
+    PChunkyResourceFile pcrf;
+    ChildChunkIdentification kid;
     long rglw[2];
 
     if (sprmObject != sprm)
         return fFalse;
 
-    Assert(size(CTG) == size(long), 0);
+    Assert(size(ChunkTagOrType) == size(long), 0);
     cb = _pagcact->Cb(icact);
     if (cb < size(rglw))
         return fFalse;
     _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((CTG)rglw[0])
+    switch ((ChunkTagOrType)rglw[0])
     {
     case kctgMbmp:
-        pmbmp = (PMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
         goto LHaveMbmp;
 
     case kctgGokd:
@@ -330,7 +332,7 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
         {
             return fFalse;
         }
-        pmbmp = (PMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MaskedBitmapMBMP::FReadMbmp);
     LHaveMbmp:
         if (pvNil == pmbmp)
             return fFalse;
@@ -356,7 +358,7 @@ bool TXHD::_FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc)
 /***************************************************************************
     Draw the given object.
 ***************************************************************************/
-bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
+bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
     AssertIn(icact, 0, _pagcact->IvMac());
     Assert(sprm >= sprmObject, 0);
@@ -366,9 +368,9 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
     AssertVarMem(prcClip);
     long cb;
     RC rc;
-    PMBMP pmbmp;
-    PCRF pcrf;
-    KID kid;
+    PMaskedBitmapMBMP pmbmp;
+    PChunkyResourceFile pcrf;
+    ChildChunkIdentification kid;
     long rglw[2];
     bool fDrawMbmp = fTrue;
 
@@ -379,10 +381,10 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
     if (cb < size(rglw))
         return fFalse;
     _pagcact->GetRgb(icact, 0, size(rglw), rglw);
-    switch ((CTG)rglw[0])
+    switch ((ChunkTagOrType)rglw[0])
     {
     case kctgMbmp:
-        pmbmp = (PMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)_prca->PbacoFetch(rglw[0], rglw[1], MaskedBitmapMBMP::FReadMbmp);
         goto LHaveMbmp;
 
     case kctgGokd:
@@ -394,7 +396,7 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
         {
             return fFalse;
         }
-        pmbmp = (PMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MBMP::FReadMbmp);
+        pmbmp = (PMaskedBitmapMBMP)pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, MaskedBitmapMBMP::FReadMbmp);
     LHaveMbmp:
         if (pvNil == pmbmp)
             return fFalse;
@@ -435,14 +437,14 @@ bool TXHD::_FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PC
 /***************************************************************************
     Insert a picture into the help text document.
 ***************************************************************************/
-bool TXHD::FInsertPicture(CNO cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp, ulong grfdoc)
+bool TextDocument::FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp, ulong grfdoc)
 {
     AssertThis(0);
     AssertPvCb(pvExtra, cbExtra);
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    CKI cki;
+    ChunkIdentification cki;
     void *pv = &cki;
     bool fRet = fFalse;
 
@@ -450,13 +452,13 @@ bool TXHD::FInsertPicture(CNO cno, void *pvExtra, long cbExtra, long cp, long cc
     cki.cno = cno;
     if (cbExtra > 0)
     {
-        if (!FAllocPv(&pv, size(CKI) + cbExtra, fmemNil, mprNormal))
+        if (!FAllocPv(&pv, size(ChunkIdentification) + cbExtra, fmemNil, mprNormal))
             return fFalse;
-        CopyPb(&cki, pv, size(CKI));
-        CopyPb(pvExtra, PvAddBv(pv, size(CKI)), cbExtra);
+        CopyPb(&cki, pv, size(ChunkIdentification));
+        CopyPb(pvExtra, PvAddBv(pv, size(ChunkIdentification)), cbExtra);
     }
 
-    fRet = FInsertObject(pv, size(CKI) + cbExtra, cp, ccpDel, pchp, grfdoc);
+    fRet = FInsertObject(pv, size(ChunkIdentification) + cbExtra, cp, ccpDel, pchp, grfdoc);
 
     if (pv != &cki)
         FreePpv(&pv);
@@ -466,7 +468,7 @@ bool TXHD::FInsertPicture(CNO cno, void *pvExtra, long cbExtra, long cp, long cc
 /***************************************************************************
     Insert a new button
 ***************************************************************************/
-bool TXHD::FInsertButton(CNO cno, CNO cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp,
+bool TextDocument::FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp,
                          ulong grfdoc)
 {
     AssertThis(0);
@@ -474,9 +476,9 @@ bool TXHD::FInsertButton(CNO cno, CNO cnoTopic, void *pvExtra, long cbExtra, lon
     AssertIn(cp, 0, CpMac());
     AssertIn(ccpDel, 0, CpMac() - cp);
     AssertNilOrVarMem(pchp);
-    byte rgb[size(CKI) + size(long)];
-    CKI *pcki = (CKI *)rgb;
-    CNO *pcnoTopic = (CNO *)(pcki + 1);
+    byte rgb[size(ChunkIdentification) + size(long)];
+    ChunkIdentification *pcki = (ChunkIdentification *)rgb;
+    ChunkNumber *pcnoTopic = (ChunkNumber *)(pcki + 1);
     ;
     void *pv = rgb;
     bool fRet = fFalse;
@@ -504,7 +506,7 @@ bool TXHD::FInsertButton(CNO cno, CNO cnoTopic, void *pvExtra, long cbExtra, lon
     Group the given text into the given group.  lw == 0 indicates no group.
     Any non-zero number is a group.
 ***************************************************************************/
-bool TXHD::FGroupText(long cp1, long cp2, byte bGroup, CNO cnoTopic, PSTN pstnTopic)
+bool TextDocument::FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic, PString pstnTopic)
 {
     AssertThis(0);
     AssertNilOrPo(pstnTopic, 0);
@@ -528,11 +530,11 @@ bool TXHD::FGroupText(long cp1, long cp2, byte bGroup, CNO cnoTopic, PSTN pstnTo
     }
     else
     {
-        byte rgb[size(byte) + size(CNO) + kcbMaxDataStn];
-        long cb = size(byte) + size(CNO);
+        byte rgb[size(byte) + size(ChunkNumber) + kcbMaxDataStn];
+        long cb = size(byte) + size(ChunkNumber);
 
         rgb[0] = bGroup;
-        CopyPb(&cnoTopic, rgb + size(byte), size(CNO));
+        CopyPb(&cnoTopic, rgb + size(byte), size(ChunkNumber));
         if (pvNil != pstnTopic && pstnTopic->Cch() > 0)
         {
             pstnTopic->GetData(rgb + cb);
@@ -564,7 +566,7 @@ bool TXHD::FGroupText(long cp1, long cp2, byte bGroup, CNO cnoTopic, PSTN pstnTo
 /***************************************************************************
     Determine if the given cp is in a grouped text range.
 ***************************************************************************/
-bool TXHD::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, CNO *pcnoTopic, PSTN pstnTopic)
+bool TextDocument::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, ChunkNumber *pcnoTopic, PString pstnTopic)
 {
     AssertThis(0);
     AssertIn(cp, 0, CpMac());
@@ -588,7 +590,7 @@ bool TXHD::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, CNO *pcn
         long cb;
 
         prgb = (byte *)_pagcact->PvLock(mpe.lw - 1, &cb);
-        cb -= size(byte) + size(CNO); // group number, cnoTopic
+        cb -= size(byte) + size(ChunkNumber); // group number, cnoTopic
         if (cb < 0)
             goto LFail;
 
@@ -602,11 +604,11 @@ bool TXHD::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, CNO *pcn
         }
 
         if (pvNil != pcnoTopic)
-            CopyPb(prgb + size(byte), pcnoTopic, size(CNO));
+            CopyPb(prgb + size(byte), pcnoTopic, size(ChunkNumber));
         if (pvNil != pstnTopic)
         {
             if (cb > 0)
-                pstnTopic->FSetData(prgb + size(byte) + size(CNO), cb);
+                pstnTopic->FSetData(prgb + size(byte) + size(ChunkNumber), cb);
             else
                 pstnTopic->SetNil();
         }
@@ -632,7 +634,7 @@ bool TXHD::FGrouped(long cp, long *pcpMin, long *pcpLim, byte *pbGroup, CNO *pcn
 /***************************************************************************
     Get the help topic information.
 ***************************************************************************/
-void TXHD::GetHtop(PHTOP phtop)
+void TextDocument::GetHtop(PTopic phtop)
 {
     AssertThis(0);
     AssertVarMem(phtop);
@@ -643,7 +645,7 @@ void TXHD::GetHtop(PHTOP phtop)
 /***************************************************************************
     Set the topic info.
 ***************************************************************************/
-void TXHD::SetHtop(PHTOP phtop)
+void TextDocument::SetHtop(PTopic phtop)
 {
     AssertThis(0);
     AssertVarMem(phtop);
@@ -653,9 +655,9 @@ void TXHD::SetHtop(PHTOP phtop)
 }
 
 /***************************************************************************
-    Constructor for a TXHG.
+    Constructor for a TopicGraphicsObject.
 ***************************************************************************/
-TXHG::TXHG(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb) : TXRG(ptxhd, pgcb)
+TopicGraphicsObject::TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxhd, pgcb)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
@@ -666,11 +668,11 @@ TXHG::TXHG(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb) : TXRG(ptxhd, pgcb)
 /***************************************************************************
     Create a new help topic display gob.
 ***************************************************************************/
-PTXHG TXHG::PtxhgNew(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb)
+PTopicGraphicsObject TopicGraphicsObject::PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb)
 {
-    PTXHG ptxhg;
+    PTopicGraphicsObject ptxhg;
 
-    if (pvNil == (ptxhg = NewObj TXHG(pwoks, ptxhd, pgcb)))
+    if (pvNil == (ptxhg = NewObj TopicGraphicsObject(pwoks, ptxhd, pgcb)))
         return pvNil;
     if (!ptxhg->_FInit())
     {
@@ -683,28 +685,28 @@ PTXHG TXHG::PtxhgNew(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb)
 /***************************************************************************
     Inititalize the display gob for a help balloon topic.
 ***************************************************************************/
-bool TXHG::_FInit(void)
+bool TopicGraphicsObject::_FInit(void)
 {
     AssertBaseThis(0);
-    PRCA prca;
+    PResourceCache prca;
     long cp, cb;
     void *pv;
-    CKI *pcki;
+    ChunkIdentification *pcki;
     long dxp;
-    CNO cno;
+    ChunkNumber cno;
     long xp, ypBase;
-    CNO cnoTopic;
+    ChunkNumber cnoTopic;
     byte bGroup;
     long lwMax;
-    RTVN rtvn;
+    RuntimeVariableName rtvn;
     long hid;
     CHP chp;
     RC rc;
-    EDPAR edpar;
-    STN stn;
-    PTXHD ptxhd = Ptxhd();
+    EditParameter edpar;
+    String stn;
+    PTextDocument ptxhd = Ptxhd();
 
-    if (!TXHG_PAR::_FInit())
+    if (!TopicGraphicsObject_PAR::_FInit())
         return fFalse;
 
     // find the max of the group numbers
@@ -719,7 +721,7 @@ bool TXHG::_FInit(void)
     _hidBase = 0;
     if (lwMax > 0)
     {
-        _hidBase = CMH::HidUnique(lwMax) - 1;
+        _hidBase = CommandHandler::HidUnique(lwMax) - 1;
         stn = PszLit("_gidBase");
         rtvn.SetFromStn(&stn);
         if (!FAssignRtvm(PgobPar()->Ppglrtvm(), &rtvn, _hidBase))
@@ -732,15 +734,15 @@ bool TXHG::_FInit(void)
         if (pvNil == pv)
             continue;
 
-        if (cb < size(CTG))
+        if (cb < size(ChunkTagOrType))
             goto LContinue;
 
-        switch (*(CTG *)pv)
+        switch (*(ChunkTagOrType *)pv)
         {
         case kctgEditControl:
-            if (cb < size(ECOS))
+            if (cb < size(EditControl))
                 goto LContinue;
-            dxp = ((ECOS *)pv)->dxp;
+            dxp = ((EditControl *)pv)->dxp;
             FreePpv(&pv);
 
             // get the bounding rectangle
@@ -755,22 +757,22 @@ bool TXHG::_FInit(void)
             Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup);
             if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _hidBase + bGroup) != pvNil)
             {
-                hid = CMH::HidUnique();
+                hid = CommandHandler::HidUnique();
             }
             if (chp.acrBack == kacrClear)
                 chp.acrBack = kacrWhite;
             edpar.Set(hid, this, fgobNil, kginMark, &rc, pvNil, chp.onn, chp.grfont, chp.dypFont, tahLeft, tavTop,
                       chp.acrFore, chp.acrBack);
-            if (pvNil == EDSL::PedslNew(&edpar))
+            if (pvNil == EditControlSingleLine::PedslNew(&edpar))
                 return fFalse;
             break;
 
         case kctgGokd:
-            if (cb < size(CKI) + size(CNO))
+            if (cb < size(ChunkIdentification) + size(ChunkNumber))
                 goto LContinue;
-            pcki = (CKI *)pv;
+            pcki = (ChunkIdentification *)pv;
             cno = pcki->cno;
-            cnoTopic = *(CNO *)(pcki + 1);
+            cnoTopic = *(ChunkNumber *)(pcki + 1);
             FreePpv(&pv);
 
             _GetXpYpFromCp(cp, pvNil, pvNil, &xp, &ypBase, fFalse);
@@ -778,9 +780,9 @@ bool TXHG::_FInit(void)
             Ptxhd()->FGrouped(cp, pvNil, pvNil, &bGroup, cnoTopic == cnoNil ? &cnoTopic : pvNil);
             if (bGroup == 0 || _pwoks->PcmhFromHid(hid = _hidBase + bGroup) != pvNil)
             {
-                hid = CMH::HidUnique();
+                hid = CommandHandler::HidUnique();
             }
-            if (pvNil == HBTN::PhbtnNew(_pwoks, this, hid, cno, prca, bGroup, cnoTopic, xp, ypBase + chp.dypOffset))
+            if (pvNil == BalloonButton::PhbtnNew(_pwoks, this, hid, cno, prca, bGroup, cnoTopic, xp, ypBase + chp.dypOffset))
             {
                 return fFalse;
             }
@@ -800,11 +802,11 @@ bool TXHG::_FInit(void)
 /***************************************************************************
     Return whether the point is over hot (marked text).
 ***************************************************************************/
-bool TXHG::FPtIn(long xp, long yp)
+bool TopicGraphicsObject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
-    if (!TXHG_PAR::FPtIn(xp, yp))
+    if (!TopicGraphicsObject_PAR::FPtIn(xp, yp))
         return fFalse;
     return FGroupFromPt(xp, yp);
 }
@@ -812,7 +814,7 @@ bool TXHG::FPtIn(long xp, long yp)
 /***************************************************************************
     Track the mouse.
 ***************************************************************************/
-bool TXHG::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TopicGraphicsObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -837,7 +839,7 @@ bool TXHG::FCmdTrackMouse(PCMD_MOUSE pcmd)
         if (!(pcmd->grfcust & fcustMouse))
         {
             byte bGroup;
-            CNO cnoTopic;
+            ChunkNumber cnoTopic;
             vpcex->EndMouseTracking();
 
             if (FGroupFromPt(pcmd->xp, pcmd->yp, &bGroup, &cnoTopic) && bGroup == _bTrack && cnoTopic == _cnoTrack)
@@ -853,7 +855,7 @@ bool TXHG::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     An edit control got a bad key.
 ***************************************************************************/
-bool TXHG::FCmdBadKey(PCMD_BADKEY pcmd)
+bool TopicGraphicsObject::FCmdBadKey(PCMD_BADKEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -869,7 +871,7 @@ bool TXHG::FCmdBadKey(PCMD_BADKEY pcmd)
 /***************************************************************************
     Return the number of the group text that the given point is in.
 ***************************************************************************/
-bool TXHG::FGroupFromPt(long xp, long yp, byte *pbGroup, CNO *pcnoTopic)
+bool TopicGraphicsObject::FGroupFromPt(long xp, long yp, byte *pbGroup, ChunkNumber *pcnoTopic)
 {
     AssertThis(0);
     AssertNilOrVarMem(pbGroup);
@@ -884,7 +886,7 @@ bool TXHG::FGroupFromPt(long xp, long yp, byte *pbGroup, CNO *pcnoTopic)
 /***************************************************************************
     A child button was hit, take action.
 ***************************************************************************/
-void TXHG::DoHit(byte bGroup, CNO cnoTopic, ulong grfcust, long hidHit)
+void TopicGraphicsObject::DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit)
 {
     AssertThis(0);
     long lwRet = 0;
@@ -898,20 +900,20 @@ void TXHG::DoHit(byte bGroup, CNO cnoTopic, ulong grfcust, long hidHit)
 }
 
 /***************************************************************************
-    Run the script. Returns false iff the TXHG doesn't exist after
+    Run the script. Returns false iff the TopicGraphicsObject doesn't exist after
     running the script.
 ***************************************************************************/
-bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cnoTopic, long *plwRet)
+bool TopicGraphicsObject::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertNilOrVarMem(plwRet);
 
-    PSCPT pscpt;
-    PSCEG psceg;
-    HTOP htop;
+    PScript pscpt;
+    PGraphicsObjectInterpreter psceg;
+    Topic htop;
     bool fRet = fTrue;
-    PTXHD ptxhd = Ptxhd();
-    PRCA prca = ptxhd->Prca();
+    PTextDocument ptxhd = Ptxhd();
+    PResourceCache prca = ptxhd->Prca();
 
     if (pvNil != plwRet)
         *plwRet = 0;
@@ -920,13 +922,13 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cn
     if (cnoNil == htop.cnoScript)
         return fTrue;
 
-    pscpt = (PSCPT)prca->PbacoFetch(kctgScript, htop.cnoScript, SCPT::FReadScript);
+    pscpt = (PScript)prca->PbacoFetch(kctgScript, htop.cnoScript, Script::FReadScript);
     if (pvNil != pscpt && pvNil != (psceg = _pwoks->PscegNew(prca, this)))
     {
         AssertPo(pscpt, 0);
         AssertPo(psceg, 0);
 
-        PWOKS pwoks = _pwoks;
+        PWorldOfKidspace pwoks = _pwoks;
         long grid = Grid();
         long rglw[5];
 
@@ -936,7 +938,7 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cn
         rglw[3] = (long)(byte)ch;
         rglw[4] = cnoTopic;
 
-        // be careful not to use TXHG variables here in case the TXHG is
+        // be careful not to use TopicGraphicsObject variables here in case the TopicGraphicsObject is
         // freed while the script is running.
         if (!psceg->FRunScript(pscpt, rglw, 5, plwRet) && pvNil != plwRet)
             *plwRet = 0;
@@ -952,7 +954,7 @@ bool TXHG::_FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cn
 /***************************************************************************
     This handles cidMouseMove.
 ***************************************************************************/
-bool TXHG::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool TopicGraphicsObject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -966,12 +968,12 @@ bool TXHG::FCmdMouseMove(PCMD_MOUSE pcmd)
 }
 
 /***************************************************************************
-    Set the cursor for this TXHG and the given cursor state.
+    Set the cursor for this TopicGraphicsObject and the given cursor state.
 ***************************************************************************/
-void TXHG::SetCursor(ulong grfcust)
+void TopicGraphicsObject::SetCursor(ulong grfcust)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = this;;)
     {
@@ -981,9 +983,9 @@ void TXHG::SetCursor(ulong grfcust)
             vpappb->SetCurs(pvNil);
             break;
         }
-        if (pgob->FIs(kclsGOK))
+        if (pgob->FIs(kclsKidspaceGraphicObject))
         {
-            ((PGOK)pgob)->SetCursor(grfcust | fcustChildGok);
+            ((PKidspaceGraphicObject)pgob)->SetCursor(grfcust | fcustChildGok);
             break;
         }
     }
@@ -992,21 +994,21 @@ void TXHG::SetCursor(ulong grfcust)
 /***************************************************************************
     Create a new help topic balloon based on the given topic number.
 ***************************************************************************/
-PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PBalloon Balloon::PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, PTopic phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
-    PCRF pcrf;
-    PTXHD ptxhd;
-    PHBAL phbal;
+    PChunkyResourceFile pcrf;
+    PTextDocument ptxhd;
+    PBalloon phbal;
 
     pcrf = prca->PcrfFindChunk(kctgHelpTopic, cnoTopic);
     if (pvNil == pcrf)
         return pvNil;
 
-    ptxhd = TXHD::PtxhdReadChunk(prca, pcrf->Pcfl(), kctgHelpTopic, cnoTopic, pwoks->Pstrg());
+    ptxhd = TextDocument::PtxhdReadChunk(prca, pcrf->Pcfl(), kctgHelpTopic, cnoTopic, pwoks->Pstrg());
     if (pvNil == ptxhd)
         return pvNil;
 
@@ -1021,16 +1023,16 @@ PHBAL HBAL::PhbalCreate(PWOKS pwoks, PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTO
     Static method to create a new help balloon based on the given help
     topic document and htop.
 ***************************************************************************/
-PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop)
+PBalloon Balloon::PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PResourceCache prca, PTextDocument ptxhd, PTopic phtop)
 {
     AssertPo(pwoks, 0);
     AssertPo(pgobPar, 0);
     AssertPo(ptxhd, 0);
     AssertPo(prca, 0);
     AssertNilOrVarMem(phtop);
-    HTOP htop;
-    GCB gcb;
-    PHBAL phbal;
+    Topic htop;
+    GraphicsObjectBlock gcb;
+    PBalloon phbal;
     long grid;
 
     ptxhd->GetHtop(&htop);
@@ -1052,10 +1054,10 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
     }
 
     if (htop.hidThis == hidNil)
-        htop.hidThis = CMH::HidUnique();
-    else if (pvNil != (phbal = (PHBAL)pwoks->PcmhFromHid(htop.hidThis)))
+        htop.hidThis = CommandHandler::HidUnique();
+    else if (pvNil != (phbal = (PBalloon)pwoks->PcmhFromHid(htop.hidThis)))
     {
-        if (!phbal->FIs(kclsHBAL))
+        if (!phbal->FIs(kclsBalloon))
         {
             Bug("command handler with this ID already exists");
             return pvNil;
@@ -1066,7 +1068,7 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
 #ifdef REVIEW // shonk: this makes little sense and is bug-prone
         if (htop.cnoBalloon == phbal->_pgokd->Cno() && prca == phbal->_prca)
         {
-            // same hid, same GOKD, same prca, so just change the topic
+            // same hid, same KidspaceGraphicObjectDescriptor, same prca, so just change the topic
             if (!phbal->FSetTopic(ptxhd, &htop, prca))
                 return pvNil;
             return phbal;
@@ -1078,7 +1080,7 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
     }
 
     gcb.Set(htop.hidThis, pgobPar, fgobNil, kginMark);
-    if (pvNil == (phbal = NewObj HBAL(&gcb)))
+    if (pvNil == (phbal = NewObj Balloon(&gcb)))
         return pvNil;
     grid = phbal->Grid();
 
@@ -1090,7 +1092,7 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
 
     if (!phbal->_FEnterState(ksnoInit))
     {
-        Warn("HBAL immediately destroyed!");
+        Warn("Balloon immediately destroyed!");
         return pvNil;
     }
 
@@ -1098,7 +1100,7 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
     phbal->_ptxhg->DoHit(0, cnoNil, fcustNil, hidNil);
     if (phbal != pwoks->PgobFromGrid(grid))
     {
-        Warn("HBAL immediately destroyed 2!");
+        Warn("Balloon immediately destroyed 2!");
         return pvNil;
     }
 
@@ -1109,21 +1111,21 @@ PHBAL HBAL::PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP ph
 /***************************************************************************
     Constructor for a help balloon.
 ***************************************************************************/
-HBAL::HBAL(GCB *pgcb) : HBAL_PAR(pgcb)
+Balloon::Balloon(GraphicsObjectBlock *pgcb) : Balloon_PAR(pgcb)
 {
 }
 
 /***************************************************************************
     Initialize the help balloon.
 ***************************************************************************/
-bool HBAL::_FInit(PWOKS pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca)
+bool Balloon::_FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
     AssertVarMem(phtop);
     AssertPo(prca, 0);
 
-    if (!HBAL_PAR::_FInit(pwoks, phtop->cnoBalloon, prca))
+    if (!Balloon_PAR::_FInit(pwoks, phtop->cnoBalloon, prca))
         return fFalse;
 
     return _FSetTopic(ptxhd, phtop, prca);
@@ -1133,7 +1135,7 @@ bool HBAL::_FInit(PWOKS pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca)
     Set the topic for this balloon.  Returns false if setting the topic
     fails or if the balloon is instantly killed by a script.
 ***************************************************************************/
-bool HBAL::FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
+bool Balloon::FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca)
 {
     AssertThis(0);
     AssertPo(ptxhd, 0);
@@ -1149,23 +1151,23 @@ bool HBAL::FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
 /***************************************************************************
     Set the topic in the help balloon.  Don't enter the initial state.
 ***************************************************************************/
-bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
+bool Balloon::_FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(ptxhd, 0);
     AssertVarMem(phtop);
     AssertPo(prca, 0);
 
-    PGOB pgob;
-    GCB gcb;
+    PGraphicsObject pgob;
+    GraphicsObjectBlock gcb;
     PT pt, ptReg;
-    STN stn;
-    RTVN rtvn;
-    PTXHG ptxhgSave = _ptxhg;
+    String stn;
+    RuntimeVariableName rtvn;
+    PTopicGraphicsObject ptxhgSave = _ptxhg;
 
-    // create the topic DDG.
-    gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
-    if (pvNil == (_ptxhg = TXHG::PtxhgNew(_pwoks, ptxhd, &gcb)))
+    // create the topic DocumentDisplayGraphicsObject.
+    gcb.Set(CommandHandler::HidUnique(), this, fgobNil, kginMark);
+    if (pvNil == (_ptxhg = TopicGraphicsObject::PtxhgNew(_pwoks, ptxhd, &gcb)))
         goto LFail;
 
     // set the sound variables
@@ -1180,7 +1182,7 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
     LFail:
         ReleasePpo(&_ptxhg);
 
-        // restore the previous topic DDG
+        // restore the previous topic DocumentDisplayGraphicsObject
         _ptxhg = ptxhgSave;
         return fFalse;
     }
@@ -1192,8 +1194,8 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
         pgob = PgobPar();
     }
 
-    if (pgob->FIs(kclsGOK))
-        ((PGOK)pgob)->GetPtReg(&pt);
+    if (pgob->FIs(kclsKidspaceGraphicObject))
+        ((PKidspaceGraphicObject)pgob)->GetPtReg(&pt);
     else
     {
         RC rc;
@@ -1214,13 +1216,13 @@ bool HBAL::_FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca)
 
 /***************************************************************************
     Our representation is changing, so make sure we stay inside our parent
-    and reposition the TXHG.
+    and reposition the TopicGraphicsObject.
 ***************************************************************************/
-void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
+void Balloon::_SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp)
 {
     RC rc1, rc2, rc3;
 
-    HBAL_PAR::_SetGorp(pgorp, dxp, dyp);
+    Balloon_PAR::_SetGorp(pgorp, dxp, dyp);
 
     // make sure we stay inside our parent
     GetRc(&rc1, cooParent);
@@ -1232,7 +1234,7 @@ void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
         SetPos(&rc1);
     }
 
-    // position the TXHG.
+    // position the TopicGraphicsObject.
     GetRcContent(&rc1);
     rc2.Set(0, 0, _dxpPref, _dypPref);
     rc2.CenterOnRc(&rc1);
@@ -1242,22 +1244,22 @@ void HBAL::_SetGorp(PGORP pgorp, long dxp, long dyp)
 /***************************************************************************
     Constructor for a help balloon button.
 ***************************************************************************/
-HBTN::HBTN(GCB *pgcb) : HBTN_PAR(pgcb)
+BalloonButton::BalloonButton(GraphicsObjectBlock *pgcb) : BalloonButton_PAR(pgcb)
 {
 }
 
 /***************************************************************************
     Create a new help balloon button
 ***************************************************************************/
-PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic, long xpLeft,
+PBalloonButton BalloonButton::PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca, byte bGroup, ChunkNumber cnoTopic, long xpLeft,
                      long ypBottom)
 {
     AssertPo(pwoks, 0);
     AssertNilOrPo(pgobPar, 0);
     Assert(hid != hidNil, "nil ID");
     AssertPo(prca, 0);
-    GCB gcb;
-    PHBTN phbtn;
+    GraphicsObjectBlock gcb;
+    PBalloonButton phbtn;
     RC rcAbs;
 
     if (pvNil != pwoks->PcmhFromHid(hid))
@@ -1267,7 +1269,7 @@ PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, by
     }
 
     gcb.Set(hid, pgobPar, fgobNil, kginMark);
-    if (pvNil == (phbtn = NewObj HBTN(&gcb)))
+    if (pvNil == (phbtn = NewObj BalloonButton(&gcb)))
         return pvNil;
 
     phbtn->_bGroup = bGroup;
@@ -1280,7 +1282,7 @@ PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, by
 
     if (!phbtn->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         return pvNil;
     }
     phbtn->GetRc(&rcAbs, cooParent);
@@ -1294,21 +1296,21 @@ PHBTN HBTN::PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, by
 /***************************************************************************
     Test whether the given point is in this button or its related text.
 ***************************************************************************/
-bool HBTN::FPtIn(long xp, long yp)
+bool BalloonButton::FPtIn(long xp, long yp)
 {
     AssertThis(0);
-    PTXHG ptxhg;
+    PTopicGraphicsObject ptxhg;
     PT pt(xp, yp);
     byte bGroup;
-    CNO cnoTopic;
+    ChunkNumber cnoTopic;
 
-    if (HBTN_PAR::FPtIn(xp, yp))
+    if (BalloonButton_PAR::FPtIn(xp, yp))
         return fTrue;
 
-    if (_bGroup == 0 || !PgobPar()->FIs(kclsTXHG))
+    if (_bGroup == 0 || !PgobPar()->FIs(kclsTopicGraphicsObject))
         return fFalse;
 
-    ptxhg = (PTXHG)PgobPar();
+    ptxhg = (PTopicGraphicsObject)PgobPar();
     MapPt(&pt, cooLocal, cooParent);
 
     if (!ptxhg->FGroupFromPt(pt.xp, pt.yp, &bGroup, &cnoTopic))
@@ -1317,24 +1319,26 @@ bool HBTN::FPtIn(long xp, long yp)
 }
 
 /***************************************************************************
-    The button has been clicked on.  Tell the TXHG to do its thing.
+    The button has been clicked on.  Tell the TopicGraphicsObject to do its thing.
 ***************************************************************************/
-bool HBTN::FCmdClicked(PCMD_MOUSE pcmd)
+bool BalloonButton::FCmdClicked(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PTXHG ptxhg;
+    PTopicGraphicsObject ptxhg;
     long hid = Hid();
 
-    if (!PgobPar()->FIs(kclsTXHG))
+    if (!PgobPar()->FIs(kclsTopicGraphicsObject))
     {
-        Bug("why isn't my parent a TXHG?");
+        Bug("why isn't my parent a TopicGraphicsObject?");
         return fTrue;
     }
 
-    ptxhg = (PTXHG)PgobPar();
+    ptxhg = (PTopicGraphicsObject)PgobPar();
     ptxhg->DoHit(_bGroup, _cnoTopic, pcmd->grfcust, hid);
 
     return fTrue;
 }
+
+} // end of namespace Help

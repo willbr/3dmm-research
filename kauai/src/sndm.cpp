@@ -12,12 +12,12 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(SNDV)
-RTCLASS(SNDM)
-RTCLASS(SNDMQ)
-RTCLASS(SNQUE)
+RTCLASS(SoundDevice)
+RTCLASS(SoundManager)
+RTCLASS(SoundManagerQueue)
+RTCLASS(SoundQueue)
 
-long SNDV::_siiLast;
+long SoundDevice::_siiLast;
 
 /***************************************************************************
     This is the volume to use as the system volume if it is determined
@@ -33,28 +33,28 @@ ulong vluSysVolFake = (ulong)-1;
 /***************************************************************************
     Start a synchronized group.
 ***************************************************************************/
-void SNDV::BeginSynch(void)
+void SoundDevice::BeginSynch(void)
 {
 }
 
 /***************************************************************************
     End a synchronized group.
 ***************************************************************************/
-void SNDV::EndSynch(void)
+void SoundDevice::EndSynch(void)
 {
 }
 
 /***************************************************************************
     Constructor for the sound manager.
 ***************************************************************************/
-SNDM::SNDM(void)
+SoundManager::SoundManager(void)
 {
 }
 
 /***************************************************************************
     Destructor for the sound manager.
 ***************************************************************************/
-SNDM::~SNDM(void)
+SoundManager::~SoundManager(void)
 {
     AssertBaseThis(0);
     SNDMPE sndmpe;
@@ -73,24 +73,24 @@ SNDM::~SNDM(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SNDM.
+    Assert the validity of a SoundManager.
 ***************************************************************************/
-void SNDM::AssertValid(ulong grf)
+void SoundManager::AssertValid(ulong grf)
 {
-    SNDM_PAR::AssertValid(0);
+    SoundManager_PAR::AssertValid(0);
     AssertPo(_pglsndmpe, 0);
 }
 
 /***************************************************************************
-    Mark memory for the SNDM.
+    Mark memory for the SoundManager.
 ***************************************************************************/
-void SNDM::MarkMem(void)
+void SoundManager::MarkMem(void)
 {
     AssertValid(0);
     long isndmpe;
     SNDMPE sndmpe;
 
-    SNDM_PAR::MarkMem();
+    SoundManager_PAR::MarkMem();
     MarkMemObj(_pglsndmpe);
     for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
     {
@@ -103,11 +103,11 @@ void SNDM::MarkMem(void)
 /***************************************************************************
     Create the sound manager.
 ***************************************************************************/
-PSNDM SNDM::PsndmNew(void)
+PSoundManager SoundManager::PsndmNew(void)
 {
-    PSNDM psndm;
+    PSoundManager psndm;
 
-    if (pvNil == (psndm = NewObj SNDM))
+    if (pvNil == (psndm = NewObj SoundManager))
         return pvNil;
 
     if (!psndm->_FInit())
@@ -120,11 +120,11 @@ PSNDM SNDM::PsndmNew(void)
 /***************************************************************************
     Initialize the sound manager.
 ***************************************************************************/
-bool SNDM::_FInit(void)
+bool SoundManager::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsndmpe = GL::PglNew(size(SNDMPE))))
+    if (pvNil == (_pglsndmpe = DynamicArray::PglNew(size(SNDMPE))))
         return fFalse;
 
     _pglsndmpe->SetMinGrow(1);
@@ -137,7 +137,7 @@ bool SNDM::_FInit(void)
 /***************************************************************************
     Find the device that sounds of the given ctg are to be played on.
 ***************************************************************************/
-bool SNDM::_FFindCtg(CTG ctg, SNDMPE *psndmpe, long *pisndmpe)
+bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, long *pisndmpe)
 {
     AssertThis(0);
     AssertNilOrVarMem(psndmpe);
@@ -167,7 +167,7 @@ bool SNDM::_FFindCtg(CTG ctg, SNDMPE *psndmpe, long *pisndmpe)
 /***************************************************************************
     Add a device to the device map to handle the particular ctg.
 ***************************************************************************/
-bool SNDM::FAddDevice(CTG ctg, PSNDV psndv)
+bool SoundManager::FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv)
 {
     AssertThis(0);
     AssertPo(psndv, 0);
@@ -202,7 +202,7 @@ bool SNDM::FAddDevice(CTG ctg, PSNDV psndv)
 /***************************************************************************
     Return the sound device that is registered for the given ctg.
 ***************************************************************************/
-PSNDV SNDM::PsndvFromCtg(CTG ctg)
+PSoundDevice SoundManager::PsndvFromCtg(ChunkTagOrType ctg)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -216,7 +216,7 @@ PSNDV SNDM::PsndvFromCtg(CTG ctg)
 /***************************************************************************
     Remove the sound device for the given ctg.
 ***************************************************************************/
-void SNDM::RemoveSndv(CTG ctg)
+void SoundManager::RemoveSndv(ChunkTagOrType ctg)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -232,7 +232,7 @@ void SNDM::RemoveSndv(CTG ctg)
 /***************************************************************************
     Return whether the sound manager is active.
 ***************************************************************************/
-bool SNDM::FActive(void)
+bool SoundManager::FActive(void)
 {
     AssertThis(0);
 
@@ -242,7 +242,7 @@ bool SNDM::FActive(void)
 /***************************************************************************
     Activate or deactivate the sound manager.
 ***************************************************************************/
-void SNDM::Activate(bool fActive)
+void SoundManager::Activate(bool fActive)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -262,7 +262,7 @@ void SNDM::Activate(bool fActive)
 /***************************************************************************
     Suspend or resume the sound manager.
 ***************************************************************************/
-void SNDM::Suspend(bool fSuspend)
+void SoundManager::Suspend(bool fSuspend)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -284,7 +284,7 @@ void SNDM::Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume of all the devices.
 ***************************************************************************/
-void SNDM::SetVlm(long vlm)
+void SoundManager::SetVlm(long vlm)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -300,7 +300,7 @@ void SNDM::SetVlm(long vlm)
 /***************************************************************************
     Get the max of the volumes of all the devices.
 ***************************************************************************/
-long SNDM::VlmCur(void)
+long SoundManager::VlmCur(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -320,7 +320,7 @@ long SNDM::VlmCur(void)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-long SNDM::SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long SoundManager::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -335,7 +335,7 @@ long SNDM::SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn, long vlm, long cactPla
 /***************************************************************************
     Stop the given sound instance.
 ***************************************************************************/
-void SNDM::Stop(long sii)
+void SoundManager::Stop(long sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -351,7 +351,7 @@ void SNDM::Stop(long sii)
 /***************************************************************************
     Stop all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SNDM::StopAll(long sqn, long scl)
+void SoundManager::StopAll(long sqn, long scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -367,7 +367,7 @@ void SNDM::StopAll(long sqn, long scl)
 /***************************************************************************
     Pause the given sound.
 ***************************************************************************/
-void SNDM::Pause(long sii)
+void SoundManager::Pause(long sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -383,7 +383,7 @@ void SNDM::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SNDM::PauseAll(long sqn, long scl)
+void SoundManager::PauseAll(long sqn, long scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -399,7 +399,7 @@ void SNDM::PauseAll(long sqn, long scl)
 /***************************************************************************
     Resume the given sound.
 ***************************************************************************/
-void SNDM::Resume(long sii)
+void SoundManager::Resume(long sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -415,7 +415,7 @@ void SNDM::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SNDM::ResumeAll(long sqn, long scl)
+void SoundManager::ResumeAll(long sqn, long scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -431,7 +431,7 @@ void SNDM::ResumeAll(long sqn, long scl)
 /***************************************************************************
     Return whether the given sound is playing.
 ***************************************************************************/
-bool SNDM::FPlaying(long sii)
+bool SoundManager::FPlaying(long sii)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -451,7 +451,7 @@ bool SNDM::FPlaying(long sii)
     Return whether any sounds of the given queue and class are playing
     (one or both of (sqn, scl) may be nil).
 ***************************************************************************/
-bool SNDM::FPlayingAll(long sqn, long scl)
+bool SoundManager::FPlayingAll(long sqn, long scl)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -470,7 +470,7 @@ bool SNDM::FPlayingAll(long sqn, long scl)
 /***************************************************************************
     Free anything that's no longer in use.
 ***************************************************************************/
-void SNDM::Flush(void)
+void SoundManager::Flush(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -486,7 +486,7 @@ void SNDM::Flush(void)
 /***************************************************************************
     Start a synchronized group.
 ***************************************************************************/
-void SNDM::BeginSynch(void)
+void SoundManager::BeginSynch(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -502,7 +502,7 @@ void SNDM::BeginSynch(void)
 /***************************************************************************
     End a synchronized group.
 ***************************************************************************/
-void SNDM::EndSynch(void)
+void SoundManager::EndSynch(void)
 {
     AssertThis(0);
     SNDMPE sndmpe;
@@ -522,7 +522,7 @@ void SNDM::EndSynch(void)
 /***************************************************************************
     Destructor for a multiple queue sound device.
 ***************************************************************************/
-SNDMQ::~SNDMQ(void)
+SoundManagerQueue::~SoundManagerQueue(void)
 {
     AssertBaseThis(0);
     long isnqd;
@@ -541,24 +541,24 @@ SNDMQ::~SNDMQ(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SNDMQ.
+    Assert the validity of a SoundManagerQueue.
 ***************************************************************************/
-void SNDMQ::AssertValid(ulong grf)
+void SoundManagerQueue::AssertValid(ulong grf)
 {
-    SNDMQ_PAR::AssertValid(0);
+    SoundManagerQueue_PAR::AssertValid(0);
     AssertPo(_pglsnqd, 0);
 }
 
 /***************************************************************************
-    Mark memory for the SNDMQ.
+    Mark memory for the SoundManagerQueue.
 ***************************************************************************/
-void SNDMQ::MarkMem(void)
+void SoundManagerQueue::MarkMem(void)
 {
     AssertValid(0);
     long isnqd;
     SNQD snqd;
 
-    SNDMQ_PAR::MarkMem();
+    SoundManagerQueue_PAR::MarkMem();
     MarkMemObj(_pglsnqd);
     for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
     {
@@ -571,11 +571,11 @@ void SNDMQ::MarkMem(void)
 /***************************************************************************
     Initialize the multiple queue device.
 ***************************************************************************/
-bool SNDMQ::_FInit(void)
+bool SoundManagerQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsnqd = GL::PglNew(size(SNQD))))
+    if (pvNil == (_pglsnqd = DynamicArray::PglNew(size(SNQD))))
         return fFalse;
 
     _fActive = fTrue;
@@ -587,7 +587,7 @@ bool SNDMQ::_FInit(void)
 /***************************************************************************
     Ensure a queue exists for the given sqn and return it.
 ***************************************************************************/
-bool SNDMQ::_FEnsureQueue(long sqn, SNQD *psnqd, long *pisnqd)
+bool SoundManagerQueue::_FEnsureQueue(long sqn, SNQD *psnqd, long *pisnqd)
 {
     AssertThis(0);
     AssertNilOrVarMem(psnqd);
@@ -643,7 +643,7 @@ LFound:
 /***************************************************************************
     Return whether the device is active.
 ***************************************************************************/
-bool SNDMQ::FActive(void)
+bool SoundManagerQueue::FActive(void)
 {
     AssertThis(0);
 
@@ -653,7 +653,7 @@ bool SNDMQ::FActive(void)
 /***************************************************************************
     Activate or deactivate the device.
 ***************************************************************************/
-void SNDMQ::Activate(bool fActive)
+void SoundManagerQueue::Activate(bool fActive)
 {
     AssertThis(0);
 
@@ -667,7 +667,7 @@ void SNDMQ::Activate(bool fActive)
 /***************************************************************************
     Suspend or resume the device.
 ***************************************************************************/
-void SNDMQ::Suspend(bool fSuspend)
+void SoundManagerQueue::Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -683,7 +683,7 @@ void SNDMQ::Suspend(bool fSuspend)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-long SNDMQ::SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+long SoundManagerQueue::SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -707,7 +707,7 @@ long SNDMQ::SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn, long vlm, long cactPl
 /***************************************************************************
     Stop the given sound instance.
 ***************************************************************************/
-void SNDMQ::Stop(long sii)
+void SoundManagerQueue::Stop(long sii)
 {
     AssertThis(0);
     long isnqd;
@@ -723,7 +723,7 @@ void SNDMQ::Stop(long sii)
 /***************************************************************************
     Stop all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SNDMQ::StopAll(long sqn, long scl)
+void SoundManagerQueue::StopAll(long sqn, long scl)
 {
     AssertThis(0);
     long isnqd;
@@ -740,7 +740,7 @@ void SNDMQ::StopAll(long sqn, long scl)
 /***************************************************************************
     Pause the given sound.
 ***************************************************************************/
-void SNDMQ::Pause(long sii)
+void SoundManagerQueue::Pause(long sii)
 {
     AssertThis(0);
     long isnqd;
@@ -756,7 +756,7 @@ void SNDMQ::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SNDMQ::PauseAll(long sqn, long scl)
+void SoundManagerQueue::PauseAll(long sqn, long scl)
 {
     AssertThis(0);
     long isnqd;
@@ -773,7 +773,7 @@ void SNDMQ::PauseAll(long sqn, long scl)
 /***************************************************************************
     Resume the given sound.
 ***************************************************************************/
-void SNDMQ::Resume(long sii)
+void SoundManagerQueue::Resume(long sii)
 {
     AssertThis(0);
     long isnqd;
@@ -789,7 +789,7 @@ void SNDMQ::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given queue and class (one or both may be nil).
 ***************************************************************************/
-void SNDMQ::ResumeAll(long sqn, long scl)
+void SoundManagerQueue::ResumeAll(long sqn, long scl)
 {
     AssertThis(0);
     long isnqd;
@@ -806,7 +806,7 @@ void SNDMQ::ResumeAll(long sqn, long scl)
 /***************************************************************************
     Return whether the given sound is playing.
 ***************************************************************************/
-bool SNDMQ::FPlaying(long sii)
+bool SoundManagerQueue::FPlaying(long sii)
 {
     AssertThis(0);
     long isnqd;
@@ -826,7 +826,7 @@ bool SNDMQ::FPlaying(long sii)
     Return whether any sounds of the given queue and class are playing
     (one or both of (sqn, scl) may be nil).
 ***************************************************************************/
-bool SNDMQ::FPlayingAll(long sqn, long scl)
+bool SoundManagerQueue::FPlayingAll(long sqn, long scl)
 {
     AssertThis(0);
     long isnqd;
@@ -847,7 +847,7 @@ bool SNDMQ::FPlayingAll(long sqn, long scl)
 /***************************************************************************
     Free anything that's no longer being used.
 ***************************************************************************/
-void SNDMQ::Flush()
+void SoundManagerQueue::Flush()
 {
     AssertThis(0);
     long isnqd;
@@ -869,14 +869,14 @@ void SNDMQ::Flush()
 /***************************************************************************
     Constructor for an sound queue.
 ***************************************************************************/
-SNQUE::SNQUE(void)
+SoundQueue::SoundQueue(void)
 {
 }
 
 /***************************************************************************
     Destructor for an sound queue.
 ***************************************************************************/
-SNQUE::~SNQUE(void)
+SoundQueue::~SoundQueue(void)
 {
     AssertBaseThis(0);
 
@@ -898,11 +898,11 @@ SNQUE::~SNQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SNQUE.
+    Assert the validity of a SoundQueue.
 ***************************************************************************/
-void SNQUE::AssertValid(ulong grf)
+void SoundQueue::AssertValid(ulong grf)
 {
-    SNQUE_PAR::AssertValid(0);
+    SoundQueue_PAR::AssertValid(0);
 
     _Enter();
     AssertPo(_pglsndin, 0);
@@ -911,15 +911,15 @@ void SNQUE::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the SNQUE.
+    Mark memory for the SoundQueue.
 ***************************************************************************/
-void SNQUE::MarkMem(void)
+void SoundQueue::MarkMem(void)
 {
     AssertValid(0);
     long isndin;
     SNDIN sndin;
 
-    SNQUE_PAR::MarkMem();
+    SoundQueue_PAR::MarkMem();
 
     _Enter();
     MarkMemObj(_pglsndin);
@@ -935,11 +935,11 @@ void SNQUE::MarkMem(void)
 /***************************************************************************
     Initialize the sound queue. Allocate the _pglsndin.
 ***************************************************************************/
-bool SNQUE::_FInit(void)
+bool SoundQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsndin = GL::PglNew(size(SNDIN))))
+    if (pvNil == (_pglsndin = DynamicArray::PglNew(size(SNDIN))))
         return fFalse;
 
     AssertThis(0);
@@ -950,7 +950,7 @@ bool SNQUE::_FInit(void)
     Enter any critical section that's necessary to ensure access to
     member variables.
 ***************************************************************************/
-void SNQUE::_Enter(void)
+void SoundQueue::_Enter(void)
 {
     AssertBaseThis(0);
 }
@@ -959,7 +959,7 @@ void SNQUE::_Enter(void)
     Leave any critical section that's necessary to ensure access to
     member variables.
 ***************************************************************************/
-void SNQUE::_Leave(void)
+void SoundQueue::_Leave(void)
 {
     AssertBaseThis(0);
 }
@@ -967,7 +967,7 @@ void SNQUE::_Leave(void)
 /***************************************************************************
     Free any sounds below _isndinCur.
 ***************************************************************************/
-void SNQUE::_Flush(void)
+void SoundQueue::_Flush(void)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -988,7 +988,7 @@ void SNQUE::_Flush(void)
 /***************************************************************************
     Put the given sound on the queue.
 ***************************************************************************/
-void SNQUE::Enqueue(long sii, PRCA prca, CTG ctg, CNO cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
+void SoundQueue::Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl)
 {
     AssertThis(0);
     AssertPo(prca, 0);
@@ -1023,7 +1023,7 @@ void SNQUE::Enqueue(long sii, PRCA prca, CTG ctg, CNO cno, long vlm, long cactPl
 /***************************************************************************
     Return the priority of the frontmost sound in the queue.
 ***************************************************************************/
-long SNQUE::SprCur(void)
+long SoundQueue::SprCur(void)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -1047,7 +1047,7 @@ long SNQUE::SprCur(void)
 /***************************************************************************
     If the given sound is in our queue, nuke it.
 ***************************************************************************/
-void SNQUE::Stop(long sii)
+void SoundQueue::Stop(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1079,7 +1079,7 @@ void SNQUE::Stop(long sii)
 /***************************************************************************
     Nuke all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SNQUE::StopAll(long scl)
+void SoundQueue::StopAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1109,7 +1109,7 @@ void SNQUE::StopAll(long scl)
 /***************************************************************************
     If the given sound is in our queue, pause it.
 ***************************************************************************/
-void SNQUE::Pause(long sii)
+void SoundQueue::Pause(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1142,7 +1142,7 @@ void SNQUE::Pause(long sii)
 /***************************************************************************
     Pause all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SNQUE::PauseAll(long scl)
+void SoundQueue::PauseAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1172,7 +1172,7 @@ void SNQUE::PauseAll(long scl)
 /***************************************************************************
     If the given sound is in our queue, make sure it's not paused.
 ***************************************************************************/
-void SNQUE::Resume(long sii)
+void SoundQueue::Resume(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1205,7 +1205,7 @@ void SNQUE::Resume(long sii)
 /***************************************************************************
     Resume all sounds of the given sound class. sclNil means nuke all.
 ***************************************************************************/
-void SNQUE::ResumeAll(long scl)
+void SoundQueue::ResumeAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1235,7 +1235,7 @@ void SNQUE::ResumeAll(long scl)
 /***************************************************************************
     Return whether the given sound is in our queue.
 ***************************************************************************/
-bool SNQUE::FPlaying(long sii)
+bool SoundQueue::FPlaying(long sii)
 {
     AssertThis(0);
     long isndin;
@@ -1263,7 +1263,7 @@ bool SNQUE::FPlaying(long sii)
     Return whether any sounds of the given sound class are in our queue.
     sclNil means any sounds at all.
 ***************************************************************************/
-bool SNQUE::FPlayingAll(long scl)
+bool SoundQueue::FPlayingAll(long scl)
 {
     AssertThis(0);
     long isndin;
@@ -1291,7 +1291,7 @@ bool SNQUE::FPlayingAll(long scl)
     Free anything that's not being used. This should only be called from
     the main thread.
 ***************************************************************************/
-void SNQUE::Flush(void)
+void SoundQueue::Flush(void)
 {
     AssertThis(0);
 

@@ -13,15 +13,15 @@ RTCLASS(DOCMBMP)
 RTCLASS(DCMBMP)
 
 /****************************************************************************
-    Constructor for a MBMP document.
+    Constructor for a MaskedBitmapMBMP document.
 ****************************************************************************/
-DOCMBMP::DOCMBMP(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno) : DOCE(pdocb, pcfl, ctg, cno)
+DOCMBMP::DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno) : DOCE(pdocb, pcfl, ctg, cno)
 {
     _pmbmp = pvNil;
 }
 
 /****************************************************************************
-    Destructor for a MBMP document.
+    Destructor for a MaskedBitmapMBMP document.
 ****************************************************************************/
 DOCMBMP::~DOCMBMP(void)
 {
@@ -29,9 +29,9 @@ DOCMBMP::~DOCMBMP(void)
 }
 
 /****************************************************************************
-    Static method to create a new MBMP document.
+    Static method to create a new MaskedBitmapMBMP document.
 ****************************************************************************/
-PDOCMBMP DOCMBMP::PdocmbmpNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno)
+PDOCMBMP DOCMBMP::PdocmbmpNew(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     PDOCMBMP pdocmbmp;
 
@@ -47,9 +47,9 @@ PDOCMBMP DOCMBMP::PdocmbmpNew(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno)
 }
 
 /****************************************************************************
-    Create a new display gob for the MBMP document.
+    Create a new display gob for the MaskedBitmapMBMP document.
 ****************************************************************************/
-PDDG DOCMBMP::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOCMBMP::PddgNew(PGraphicsObjectBlock pgcb)
 {
     return DCMBMP::PdcmbmpNew(this, _pmbmp, pgcb);
 }
@@ -65,7 +65,7 @@ long DOCMBMP::_CbOnFile(void)
 /****************************************************************************
     Write the data out.
 ****************************************************************************/
-bool DOCMBMP::_FWrite(PBLCK pblck, bool fRedirect)
+bool DOCMBMP::_FWrite(PDataBlock pblck, bool fRedirect)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -74,14 +74,14 @@ bool DOCMBMP::_FWrite(PBLCK pblck, bool fRedirect)
 }
 
 /*****************************************************************************
-    Read the MBMP.
+    Read the MaskedBitmapMBMP.
 *****************************************************************************/
-bool DOCMBMP::_FRead(PBLCK pblck)
+bool DOCMBMP::_FRead(PDataBlock pblck)
 {
-    Assert(pvNil == _pmbmp, "losing existing MBMP");
+    Assert(pvNil == _pmbmp, "losing existing MaskedBitmapMBMP");
     AssertPo(pblck, 0);
 
-    _pmbmp = MBMP::PmbmpRead(pblck);
+    _pmbmp = MaskedBitmapMBMP::PmbmpRead(pblck);
     return pvNil != _pmbmp;
 }
 
@@ -109,7 +109,7 @@ void DOCMBMP::MarkMem(void)
 /*****************************************************************************
     Constructor for a pic display gob.
 *****************************************************************************/
-DCMBMP::DCMBMP(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb) : DDG(pdocb, pgcb)
+DCMBMP::DCMBMP(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     _pmbmp = pmbmp;
 }
@@ -125,7 +125,7 @@ void DCMBMP::GetMinMax(RC *prcMinMax)
 /*****************************************************************************
     Static method to create a new DCMBMP.
 *****************************************************************************/
-PDCMBMP DCMBMP::PdcmbmpNew(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb)
+PDCMBMP DCMBMP::PdcmbmpNew(PDocumentBase pdocb, PMaskedBitmapMBMP pmbmp, PGraphicsObjectBlock pgcb)
 {
     PDCMBMP pdcmbmp;
 
@@ -144,9 +144,9 @@ PDCMBMP DCMBMP::PdcmbmpNew(PDOCB pdocb, PMBMP pmbmp, PGCB pgcb)
 }
 
 /***************************************************************************
-    Draw the MBMP.
+    Draw the MaskedBitmapMBMP.
 ***************************************************************************/
-void DCMBMP::Draw(PGNV pgnv, RC *prcClip)
+void DCMBMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     RC rcMbmp, rcDdg;
 
@@ -159,7 +159,7 @@ void DCMBMP::Draw(PGNV pgnv, RC *prcClip)
     pgnv->FillRc(prcClip, kacrWhite);
     pgnv->FillRcApt(&rcMbmp, &vaptLtGray, kacrLtGray, kacrWhite);
 
-    // draw mbmp in GPT
+    // draw mbmp in GraphicsPort
     pgnv->DrawMbmp(_pmbmp, &rcMbmp);
 }
 

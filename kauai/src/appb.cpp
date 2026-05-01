@@ -13,30 +13,30 @@
 #include "frame.h"
 ASSERTNAME
 
-PAPPB vpappb;
-PCEX vpcex;
-PSNDM vpsndm;
+PApplicationBase vpappb;
+PCommandExecutionManager vpcex;
+PSoundManager vpsndm;
 
 // basic commands common to most apps
-BEGIN_CMD_MAP(APPB, CMH)
-ON_CID_GEN(cidQuit, &APPB::FCmdQuit, pvNil)
-ON_CID_GEN(cidShowClipboard, &APPB::FCmdShowClipboard, &APPB::FEnableAppCmd)
-ON_CID_GEN(cidChooseWnd, &APPB::FCmdChooseWnd, &APPB::FEnableAppCmd)
+BEGIN_CMD_MAP(ApplicationBase, CommandHandler)
+ON_CID_GEN(cidQuit, &ApplicationBase::FCmdQuit, pvNil)
+ON_CID_GEN(cidShowClipboard, &ApplicationBase::FCmdShowClipboard, &ApplicationBase::FEnableAppCmd)
+ON_CID_GEN(cidChooseWnd, &ApplicationBase::FCmdChooseWnd, &ApplicationBase::FEnableAppCmd)
 #ifdef MAC
-ON_CID_GEN(cidOpenDA, &APPB::FCmdOpenDA, pvNil)
+ON_CID_GEN(cidOpenDA, &ApplicationBase::FCmdOpenDA, pvNil)
 #endif // MAC
-ON_CID_GEN(cidIdle, &APPB::FCmdIdle, pvNil)
-ON_CID_GEN(cidEndModal, &APPB::FCmdEndModal, pvNil)
+ON_CID_GEN(cidIdle, &ApplicationBase::FCmdIdle, pvNil)
+ON_CID_GEN(cidEndModal, &ApplicationBase::FCmdEndModal, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(APPB)
+RTCLASS(ApplicationBase)
 
 /***************************************************************************
     Constructor for the app class.  Assumes that the block is initially
     zeroed.  This implies that the block has to either be allocated
     (using NewObj) or a global.
 ***************************************************************************/
-APPB::APPB(void) : CMH(khidApp)
+ApplicationBase::ApplicationBase(void) : CommandHandler(khidApp)
 {
     AssertBaseThis(0);
 
@@ -49,7 +49,7 @@ APPB::APPB(void) : CMH(khidApp)
 /***************************************************************************
     Destructor for the app.  Assumes we don't have to free anything.
 ***************************************************************************/
-APPB::~APPB(void)
+ApplicationBase::~ApplicationBase(void)
 {
     vpappb = pvNil;
 }
@@ -57,7 +57,7 @@ APPB::~APPB(void)
 /***************************************************************************
     Calls _FInit and if successful, calls _Loop then _CleanUp.
 ***************************************************************************/
-void APPB::Run(ulong grfapp, ulong grfgob, long ginDef)
+void ApplicationBase::Run(ulong grfapp, ulong grfgob, long ginDef)
 {
     AssertThis(0);
 
@@ -71,11 +71,11 @@ void APPB::Run(ulong grfapp, ulong grfgob, long ginDef)
     Quit routine.  May or may not initiate the quit sequence (depending
     on user input).
 ***************************************************************************/
-void APPB::Quit(bool fForce)
+void ApplicationBase::Quit(bool fForce)
 {
     AssertThis(0);
 
-    if (_fQuit || DOCB::FQueryCloseAll(fForce ? fdocForceClose : fdocNil) || fForce)
+    if (_fQuit || DocumentBase::FQueryCloseAll(fForce ? fdocForceClose : fdocNil) || fForce)
     {
         _fQuit = fTrue;
     }
@@ -84,7 +84,7 @@ void APPB::Quit(bool fForce)
 /***************************************************************************
     Return a default app name.
 ***************************************************************************/
-void APPB::GetStnAppName(PSTN pstn)
+void ApplicationBase::GetStnAppName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -97,12 +97,12 @@ void APPB::GetStnAppName(PSTN pstn)
     fLongOp is true, the cursor will get used as the wait cursor, but
     won't necessarily be displayed immediately.
 ***************************************************************************/
-void APPB::SetCurs(PCURS pcurs, bool fLongOp)
+void ApplicationBase::SetCurs(PCursor pcurs, bool fLongOp)
 {
     AssertThis(0);
     AssertNilOrPo(pcurs, 0);
 
-    PCURS *ppcurs = fLongOp ? &_pcursWait : &_pcurs;
+    PCursor *ppcurs = fLongOp ? &_pcursWait : &_pcurs;
 
     if (*ppcurs == pcurs)
         return;
@@ -119,14 +119,14 @@ void APPB::SetCurs(PCURS pcurs, bool fLongOp)
 /***************************************************************************
     Set the indicated cursor as the current one.
 ***************************************************************************/
-void APPB::SetCursCno(PRCA prca, CNO cno, bool fLongOp)
+void ApplicationBase::SetCursCno(PResourceCache prca, ChunkNumber cno, bool fLongOp)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    PCURS pcurs;
+    PCursor pcurs;
 
-    if (pvNil == (pcurs = (PCURS)prca->PbacoFetch(kctgCursor, cno, CURS::FReadCurs)))
+    if (pvNil == (pcurs = (PCursor)prca->PbacoFetch(kctgCursor, cno, Cursor::FReadCurs)))
     {
         Warn("cursor not found");
         return;
@@ -138,11 +138,11 @@ void APPB::SetCursCno(PRCA prca, CNO cno, bool fLongOp)
 /***************************************************************************
     Make sure the current cursor is being used by the system.
 ***************************************************************************/
-void APPB::RefreshCurs(void)
+void ApplicationBase::RefreshCurs(void)
 {
     AssertThis(0);
 
-    PCURS *ppcurs = _cactLongOp > 0 ? &_pcursWait : &_pcurs;
+    PCursor *ppcurs = _cactLongOp > 0 ? &_pcursWait : &_pcurs;
 
     if (pvNil != *ppcurs)
         (*ppcurs)->Set();
@@ -165,7 +165,7 @@ void APPB::RefreshCurs(void)
 /***************************************************************************
     Starting a long operation, put up the wait cursor.
 ***************************************************************************/
-void APPB::BeginLongOp(void)
+void ApplicationBase::BeginLongOp(void)
 {
     AssertThis(0);
 
@@ -178,7 +178,7 @@ void APPB::BeginLongOp(void)
     becomes zero, use the normal cursor. If fAll is true, set the
     long op count to 0.
 ***************************************************************************/
-void APPB::EndLongOp(bool fAll)
+void ApplicationBase::EndLongOp(bool fAll)
 {
     AssertThis(0);
 
@@ -199,7 +199,7 @@ void APPB::EndLongOp(bool fAll)
     returned is the actual current values at the hardware level, ie, not
     synchronized with the command stream.
 ***************************************************************************/
-ulong APPB::GrfcustCur(bool fAsync)
+ulong ApplicationBase::GrfcustCur(bool fAsync)
 {
     AssertThis(0);
 
@@ -227,7 +227,7 @@ ulong APPB::GrfcustCur(bool fAsync)
     Modify the current cursor/modifier state.  Doesn't affect the key
     states or mouse state.
 ***************************************************************************/
-void APPB::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
+void ApplicationBase::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
 {
     AssertThis(0);
 
@@ -241,7 +241,7 @@ void APPB::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
 /***************************************************************************
     Hide the cursor
 ***************************************************************************/
-void APPB::HideCurs(void)
+void ApplicationBase::HideCurs(void)
 {
     AssertThis(0);
 
@@ -251,7 +251,7 @@ void APPB::HideCurs(void)
 /***************************************************************************
     Show the cursor
 ***************************************************************************/
-void APPB::ShowCurs(void)
+void ApplicationBase::ShowCurs(void)
 {
     AssertThis(0);
 
@@ -261,7 +261,7 @@ void APPB::ShowCurs(void)
 /***************************************************************************
     Warp the cursor to (xpScreen, ypScreen)
 ***************************************************************************/
-void APPB::PositionCurs(long xpScreen, long ypScreen)
+void ApplicationBase::PositionCurs(long xpScreen, long ypScreen)
 {
     AssertThis(0);
 
@@ -272,13 +272,13 @@ void APPB::PositionCurs(long xpScreen, long ypScreen)
 /***************************************************************************
     Return the default variable pitch font.
 ***************************************************************************/
-long APPB::OnnDefVariable(void)
+long ApplicationBase::OnnDefVariable(void)
 {
     AssertThis(0);
 
     if (_onnDefVariable == onnNil)
     {
-        STN stn;
+        String stn;
 
         stn = MacWin(PszLit("New York"), PszLit("Times New Roman"));
         if (!vntl.FGetOnn(&stn, &_onnDefVariable))
@@ -290,13 +290,13 @@ long APPB::OnnDefVariable(void)
 /***************************************************************************
     Return the default fixed pitch font.
 ***************************************************************************/
-long APPB::OnnDefFixed(void)
+long ApplicationBase::OnnDefFixed(void)
 {
     AssertThis(0);
 
     if (_onnDefFixed == onnNil)
     {
-        STN stn;
+        String stn;
 
         stn = MacWin(PszLit("Courier"), PszLit("Courier New"));
         if (!vntl.FGetOnn(&stn, &_onnDefFixed))
@@ -322,7 +322,7 @@ long APPB::OnnDefFixed(void)
     Static method to return the default text size.
     REVIEW shonk: DypTextDef: what's the right way to do this?
 ***************************************************************************/
-long APPB::DypTextDef(void)
+long ApplicationBase::DypTextDef(void)
 {
     AssertThis(0);
 
@@ -332,7 +332,7 @@ long APPB::DypTextDef(void)
 /***************************************************************************
     Quit the app (don't force it).
 ***************************************************************************/
-bool APPB::FCmdQuit(PCMD pcmd)
+bool ApplicationBase::FCmdQuit(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -344,7 +344,7 @@ bool APPB::FCmdQuit(PCMD pcmd)
 /***************************************************************************
     Open a window onto the clipboard, if it exists.
 ***************************************************************************/
-bool APPB::FCmdShowClipboard(PCMD pcmd)
+bool ApplicationBase::FCmdShowClipboard(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -356,13 +356,13 @@ bool APPB::FCmdShowClipboard(PCMD pcmd)
 /***************************************************************************
     Handles an idle command.
 ***************************************************************************/
-bool APPB::FCmdIdle(PCMD pcmd)
+bool ApplicationBase::FCmdIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     static long _cactIdle = 0;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (_fQuit)
         return fFalse;
@@ -381,7 +381,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
     }
 #endif // DEBUG
 
-    if ((_cactIdle & 0x0F) == 1 && pvNil != (pgob = GOB::PgobScreen()))
+    if ((_cactIdle & 0x0F) == 1 && pvNil != (pgob = GraphicsObject::PgobScreen()))
     {
         // check to see if the mouse moved
         PT pt;
@@ -394,7 +394,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
             return fTrue;
 
         pgob->MapPt(&pt, cooLocal, cooGlobal);
-        pgob = GOB::PgobFromPtGlobal(pt.xp, pt.yp, &pt);
+        pgob = GraphicsObject::PgobFromPtGlobal(pt.xp, pt.yp, &pt);
         grfcust = GrfcustCur();
         if (pgob != _pgobMouse || pt.xp != _xpMouse || pt.yp != _ypMouse || _grfcustMouse != grfcust)
         {
@@ -420,7 +420,7 @@ bool APPB::FCmdIdle(PCMD pcmd)
             cmd.xp = pt.xp;
             cmd.yp = pt.yp;
             cmd.grfcust = grfcust;
-            vpcex->EnqueueCmd((PCMD)&cmd);
+            vpcex->EnqueueCmd((PCommand)&cmd);
         }
 
         // adjust tool tips
@@ -440,12 +440,12 @@ bool APPB::FCmdIdle(PCMD pcmd)
 /***************************************************************************
     Make sure no tool tip is up.
 ***************************************************************************/
-void APPB::_TakeDownToolTip(void)
+void ApplicationBase::_TakeDownToolTip(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
-    if (pvNil != (pgob = GOB::PgobFromHidScr(khidToolTip)))
+    if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(khidToolTip)))
     {
         if (pgob == _pgobMouse)
         {
@@ -460,10 +460,10 @@ void APPB::_TakeDownToolTip(void)
 /***************************************************************************
     Make sure a tool tip is up, if the current gob wants one.
 ***************************************************************************/
-void APPB::_EnsureToolTip(void)
+void ApplicationBase::_EnsureToolTip(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == _pgobMouse)
         return;
@@ -471,7 +471,7 @@ void APPB::_EnsureToolTip(void)
     if (_pgobToolTipTarget == _pgobMouse)
         return;
 
-    pgob = GOB::PgobFromHidScr(khidToolTip);
+    pgob = GraphicsObject::PgobFromHidScr(khidToolTip);
     _fToolTip = FPure(_pgobMouse->FEnsureToolTip(&pgob, _xpMouse, _ypMouse));
     if (!_fToolTip)
     {
@@ -485,7 +485,7 @@ void APPB::_EnsureToolTip(void)
 /***************************************************************************
     Take down any existing tool tip and resest tool tip timing.
 ***************************************************************************/
-void APPB::ResetToolTip(void)
+void ApplicationBase::ResetToolTip(void)
 {
     AssertThis(0);
 
@@ -497,7 +497,7 @@ void APPB::ResetToolTip(void)
 /***************************************************************************
     Enable app level commands
 ***************************************************************************/
-bool APPB::FEnableAppCmd(PCMD pcmd, ulong *pgrfeds)
+bool ApplicationBase::FEnableAppCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -512,7 +512,7 @@ bool APPB::FEnableAppCmd(PCMD pcmd, ulong *pgrfeds)
         break;
 
     case cidChooseWnd:
-        if ((HWND)pcmd->rglw[0] == GOB::HwndMdiActive())
+        if ((HWND)pcmd->rglw[0] == GraphicsObject::HwndMdiActive())
             *pgrfeds |= fedsCheck;
         else
             *pgrfeds |= fedsUncheck;
@@ -531,19 +531,19 @@ bool APPB::FEnableAppCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Respond to a cidChooseWnd command.
 ***************************************************************************/
-bool APPB::FCmdChooseWnd(PCMD pcmd)
+bool ApplicationBase::FCmdChooseWnd(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    GOB::MakeHwndActive((HWND)pcmd->rglw[0]);
+    GraphicsObject::MakeHwndActive((HWND)pcmd->rglw[0]);
     return fTrue;
 }
 
 /***************************************************************************
     Application initialization.
 ***************************************************************************/
-bool APPB::_FInit(ulong grfapp, ulong grfgob, long ginDef)
+bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
     AssertThis(0);
 
@@ -555,7 +555,7 @@ bool APPB::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 #endif
 
     // initialize the command dispatcher
-    if (pvNil == (vpcex = CEX::PcexNew(20, 20)))
+    if (pvNil == (vpcex = CommandExecutionManager::PcexNew(20, 20)))
         return fFalse;
 
     // add the app as a handler (so it can catch menu commands)
@@ -575,7 +575,7 @@ bool APPB::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         return fFalse;
 
     // initialize the screen gob
-    if (!GOB::FInitScreen(grfgob, ginDef))
+    if (!GraphicsObject::FInitScreen(grfgob, ginDef))
         return fFalse;
 
     // initialize sound functionality
@@ -592,26 +592,26 @@ bool APPB::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     Initialize the sound manager.  Default is to return true whether or not
     we could create the sound manager.
 ***************************************************************************/
-bool APPB::_FInitSound(long wav)
+bool ApplicationBase::_FInitSound(long wav)
 {
     AssertBaseThis(0);
-    PSNDV psndv;
+    PSoundDevice psndv;
 
     if (pvNil != vpsndm)
         return fTrue;
 
     // create the Sound manager
-    if (pvNil == (vpsndm = SNDM::PsndmNew()))
+    if (pvNil == (vpsndm = SoundManager::PsndmNew()))
         return fTrue;
 
-    if (pvNil != (psndv = SDAM::PsdamNew(wav)))
+    if (pvNil != (psndv = AudioManSoundDevice::PsdamNew(wav)))
     {
         vpsndm->FAddDevice(kctgWave, psndv);
         ReleasePpo(&psndv);
     }
 
     // create the midi playback device - use the stream one
-    if (pvNil != (psndv = MDPS::PmdpsNew()))
+    if (pvNil != (psndv = MidiStreamPlayer::PmdpsNew()))
     {
         vpsndm->FAddDevice(kctgMidi, psndv);
         ReleasePpo(&psndv);
@@ -623,17 +623,17 @@ bool APPB::_FInitSound(long wav)
 /***************************************************************************
     Standard menu initialization.  Just loads menu number 128.
 ***************************************************************************/
-bool APPB::_FInitMenu(void)
+bool ApplicationBase::_FInitMenu(void)
 {
     AssertThis(0);
 
-    return MUB::PmubNew(128) != pvNil;
+    return MenuBar::PmubNew(128) != pvNil;
 }
 
 /***************************************************************************
     Main program loop.
 ***************************************************************************/
-void APPB::_Loop(void)
+void ApplicationBase::_Loop(void)
 {
     AssertThis(0);
 
@@ -668,11 +668,11 @@ STDAPI_(int) DetectLeaks(BOOL fDebugOut, BOOL fMessageBox);
 /***************************************************************************
     Clean up routine for the app base class.
 ***************************************************************************/
-void APPB::_CleanUp(void)
+void ApplicationBase::_CleanUp(void)
 {
     AssertThis(0);
 
-    PSNDM psndm;
+    PSoundManager psndm;
 
     if (pvNil != vpsndm)
     {
@@ -692,8 +692,8 @@ void APPB::_CleanUp(void)
 #endif // DEBUG
 #endif // WIN
 
-    GOB::ShutDown();
-    FIL::ShutDown();
+    GraphicsObject::ShutDown();
+    FileObject::ShutDown();
 #ifdef WIN
     _ShutDownViewer();
 #endif // WIN
@@ -702,7 +702,7 @@ void APPB::_CleanUp(void)
 /***************************************************************************
     Activate or deactivate the application.
 ***************************************************************************/
-void APPB::_Activate(bool fActive)
+void ApplicationBase::_Activate(bool fActive)
 {
     AssertThis(0);
 
@@ -714,7 +714,7 @@ void APPB::_Activate(bool fActive)
 /***************************************************************************
     This gets called every time through the main app loop.
 ***************************************************************************/
-void APPB::TopOfLoop(void)
+void ApplicationBase::TopOfLoop(void)
 {
     AssertThis(0);
 
@@ -724,11 +724,11 @@ void APPB::TopOfLoop(void)
         // need to redraw all our windows - we ignored some paint
         // events while in an assert
         _fRefresh = fFalse;
-        GTE gte;
-        PGOB pgob;
+        GraphicsObjectTreeEnumerator gte;
+        PGraphicsObject pgob;
         ulong grfgte;
 
-        gte.Init(GOB::PgobScreen(), fgteNil);
+        gte.Init(GraphicsObject::PgobScreen(), fgteNil);
         while (gte.FNextGob(&pgob, &grfgte, fgteNil))
         {
             if ((grfgte & fgtePre) && pgob->Hwnd() != hNil)
@@ -748,16 +748,16 @@ void APPB::TopOfLoop(void)
     Update the given window.  *prc is the bounding rectangle of the update
     region.
 ***************************************************************************/
-void APPB::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
+void ApplicationBase::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 {
     AssertThis(0);
     Assert(hNil != hwnd, "nil hwnd in UpdateHwnd");
     AssertVarMem(prc);
 
-    PGOB pgob;
-    PGPT pgpt = pvNil;
+    PGraphicsObject pgob;
+    PGraphicsPort pgpt = pvNil;
 
-    if (pvNil == (pgob = GOB::PgobFromHwnd(hwnd)))
+    if (pvNil == (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         return;
 
 #ifdef DEBUG
@@ -783,8 +783,8 @@ void APPB::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
     if (pvNil != pgpt)
     {
         // put the image on the screen
-        GNV gnv(pgob);
-        GNV gnvSrc(pgpt);
+        GraphicsEnvironment gnv(pgob);
+        GraphicsEnvironment gnvSrc(pgpt);
 
         gnv.CopyPixels(&gnvSrc, prc, prc);
     }
@@ -793,10 +793,10 @@ void APPB::UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp)
 /***************************************************************************
     Map a handler id to a handler.
 ***************************************************************************/
-PCMH APPB::PcmhFromHid(long hid)
+PCommandHandler ApplicationBase::PcmhFromHid(long hid)
 {
     AssertThis(0);
-    PCMH pcmh;
+    PCommandHandler pcmh;
 
     switch (hid)
     {
@@ -807,15 +807,15 @@ PCMH APPB::PcmhFromHid(long hid)
         return this;
     }
 
-    if (pvNil != (pcmh = CLOK::PclokFromHid(hid)))
+    if (pvNil != (pcmh = Clock::PclokFromHid(hid)))
         return pcmh;
-    return GOB::PgobFromHidScr(hid);
+    return GraphicsObject::PgobFromHidScr(hid);
 }
 
 /***************************************************************************
     The command handler is dying - take it out of any lists it's in.
 ***************************************************************************/
-void APPB::BuryCmh(PCMH pcmh)
+void ApplicationBase::BuryCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     long imodcx;
@@ -837,7 +837,7 @@ void APPB::BuryCmh(PCMH pcmh)
         }
     }
 
-    CLOK::BuryCmh(pcmh);
+    Clock::BuryCmh(pcmh);
     if (pcmh == _pgobMouse)
     {
         _pgobMouse = pvNil;
@@ -850,7 +850,7 @@ void APPB::BuryCmh(PCMH pcmh)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::MarkRc(RC *prc, PGOB pgobCoo)
+void ApplicationBase::MarkRc(RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -862,7 +862,7 @@ void APPB::MarkRc(RC *prc, PGOB pgobCoo)
 /***************************************************************************
     Mark a region dirty.
 ***************************************************************************/
-void APPB::MarkRegn(PREGN pregn, PGOB pgobCoo)
+void ApplicationBase::MarkRegn(PRegion pregn, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -876,7 +876,7 @@ void APPB::MarkRegn(PREGN pregn, PGOB pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
+void ApplicationBase::_MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -897,7 +897,7 @@ void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
     {
         if (pvNil == pregn)
         {
-            // use the full rectangle for the GOB
+            // use the full rectangle for the GraphicsObject
             if (rc.FEmpty())
                 return;
             prc = &rc;
@@ -921,7 +921,7 @@ void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
 
     if (pvNil == _pglmkrgn)
     {
-        if (pvNil == (_pglmkrgn = GL::PglNew(size(MKRGN))))
+        if (pvNil == (_pglmkrgn = DynamicArray::PglNew(size(MKRGN))))
             goto LFail;
     }
     else
@@ -943,7 +943,7 @@ void APPB::_MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
 
     // create a new entry
     mkrgn.hwnd = hwnd;
-    if (pvNil == (mkrgn.pregn = REGN::PregnNew(prc)) || pvNil != pregn && !mkrgn.pregn->FUnion(pregn) ||
+    if (pvNil == (mkrgn.pregn = Region::PregnNew(prc)) || pvNil != pregn && !mkrgn.pregn->FUnion(pregn) ||
         !_pglmkrgn->FPush(&mkrgn))
     {
         ReleasePpo(&mkrgn.pregn);
@@ -963,7 +963,7 @@ LDone:
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::UnmarkRc(RC *prc, PGOB pgobCoo)
+void ApplicationBase::UnmarkRc(RC *prc, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -975,7 +975,7 @@ void APPB::UnmarkRc(RC *prc, PGOB pgobCoo)
 /***************************************************************************
     Mark a region clean.
 ***************************************************************************/
-void APPB::UnmarkRegn(PREGN pregn, PGOB pgobCoo)
+void ApplicationBase::UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo)
 {
     AssertThis(0);
     AssertNilOrPo(pregn, 0);
@@ -989,7 +989,7 @@ void APPB::UnmarkRegn(PREGN pregn, PGOB pgobCoo)
     pgobCoo coordinates.  If prc is nil, the entire rectangle for pgobCoo
     is used.
 ***************************************************************************/
-void APPB::_UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
+void ApplicationBase::_UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo)
 {
     AssertNilOrPo(pregn, 0);
     AssertNilOrVarMem(prc);
@@ -1023,7 +1023,7 @@ void APPB::_UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
     {
         if (pvNil == pregn)
         {
-            // use the full rectangle for the GOB
+            // use the full rectangle for the GraphicsObject
             if (rc.FEmpty())
                 return;
             prc = &rc;
@@ -1059,7 +1059,7 @@ void APPB::_UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo)
 /***************************************************************************
     Get the bounding rectangle of any marked portion of the given hwnd.
 ***************************************************************************/
-bool APPB::FGetMarkedRc(HWND hwnd, RC *prc)
+bool ApplicationBase::FGetMarkedRc(HWND hwnd, RC *prc)
 {
     AssertThis(0);
     Assert(hNil != hwnd, "bad hwnd");
@@ -1088,7 +1088,7 @@ bool APPB::FGetMarkedRc(HWND hwnd, RC *prc)
     and invalidate it.  This is called when we get a system paint/update
     event.
 ***************************************************************************/
-void APPB::InvalMarked(HWND hwnd)
+void ApplicationBase::InvalMarked(HWND hwnd)
 {
     AssertThis(0);
     Assert(hNil != hwnd, "bad hwnd");
@@ -1096,7 +1096,7 @@ void APPB::InvalMarked(HWND hwnd)
     long imkrgn;
     MKRGN mkrgn;
     RC rc;
-    RCS rcs;
+    SystemRectangle rcs;
 
     if (pvNil == _pglmkrgn)
         return;
@@ -1108,7 +1108,7 @@ void APPB::InvalMarked(HWND hwnd)
         {
             if (!mkrgn.pregn->FEmpty(&rc))
             {
-                rcs = RCS(rc);
+                rcs = SystemRectangle(rc);
                 InvalHwndRcs(hwnd, &rcs);
             }
             ReleasePpo(&mkrgn.pregn);
@@ -1120,19 +1120,19 @@ void APPB::InvalMarked(HWND hwnd)
 /***************************************************************************
     Update all marked regions.
 ***************************************************************************/
-void APPB::UpdateMarked(void)
+void ApplicationBase::UpdateMarked(void)
 {
     AssertThis(0);
 
     MKRGN mkrgn;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == _pglmkrgn)
         return;
 
     while (_pglmkrgn->FPop(&mkrgn))
     {
-        if (pvNil != (pgob = GOB::PgobFromHwnd(mkrgn.hwnd)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(mkrgn.hwnd)))
             _FastUpdate(pgob, mkrgn.pregn);
         ReleasePpo(&mkrgn.pregn);
     }
@@ -1141,7 +1141,7 @@ void APPB::UpdateMarked(void)
 /***************************************************************************
     Do a fast update of the gob and its descendents into the given gpt.
 ***************************************************************************/
-void APPB::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
+void ApplicationBase::_FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp, PGraphicsPort pgpt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -1166,14 +1166,14 @@ void APPB::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
     if (fOffscreen)
     {
         // copy the stuff to the screen
-        GNV gnvOff(pgpt);
-        GNV gnv(pgob);
-        PGPT pgptDst = pgob->Pgpt();
+        GraphicsEnvironment gnvOff(pgpt);
+        GraphicsEnvironment gnv(pgob);
+        PGraphicsPort pgptDst = pgob->Pgpt();
 
         pgptDst->ClipToRegn(&pregnClip);
         _CopyPixels(&gnvOff, &rc, &gnv, &rc);
         pgptDst->ClipToRegn(&pregnClip);
-        GPT::Flush();
+        GraphicsPort::Flush();
     }
 }
 
@@ -1187,12 +1187,14 @@ void APPB::_FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp, PGPT pgpt)
     If pglclr is not nil, this AddRef's it and holds onto it until after
     the transition is done.
 ***************************************************************************/
-void APPB::SetGft(long gft, long lwGft, ulong dts, PGL pglclr, ACR acr)
+void ApplicationBase::SetGft(long gft, long lwGft, ulong dts, PDynamicArray pglclr, AbstractColor acr)
 {
     AssertThis(0);
     AssertNilOrPo(pglclr, 0);
     AssertPo(&acr, 0);
 
+    return;
+    
     _gft = gft;
     _lwGft = lwGft;
     _dtsGft = dts;
@@ -1210,7 +1212,7 @@ void APPB::SetGft(long gft, long lwGft, ulong dts, PGL pglclr, ACR acr)
     (pgnvDst, prcDst).  This gives the app a chance to do any transition
     affects they want.
 ***************************************************************************/
-void APPB::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
+void ApplicationBase::_CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst)
 {
     AssertThis(0);
     AssertPo(pgnvSrc, 0);
@@ -1256,11 +1258,11 @@ void APPB::_CopyPixels(PGNV pgnvSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst)
 }
 
 /***************************************************************************
-    Get an offscreen GPT big enough to enclose the given rectangle.
+    Get an offscreen GraphicsPort big enough to enclose the given rectangle.
     Should minimize reallocations.  Doesn't increment a ref count.
-    APPB maintains ownership of the GPT.
+    ApplicationBase maintains ownership of the GraphicsPort.
 ***************************************************************************/
-PGPT APPB::_PgptEnsure(RC *prc)
+PGraphicsPort ApplicationBase::_PgptEnsure(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1271,7 +1273,7 @@ PGPT APPB::_PgptEnsure(RC *prc)
     {
         ReleasePpo(&_pgptOff);
         rc.Set(0, 0, LwMax(prc->Dxp(), _dxpOff), LwMax(prc->Dyp(), _dypOff));
-        _pgptOff = GPT::PgptNewOffscreen(&rc, 8);
+        _pgptOff = GraphicsPort::PgptNewOffscreen(&rc, 8);
         if (pvNil != _pgptOff)
         {
             _dxpOff = rc.Dxp();
@@ -1291,7 +1293,7 @@ PGPT APPB::_PgptEnsure(RC *prc)
 /***************************************************************************
     See if the given property is in the property list.
 ***************************************************************************/
-bool APPB::_FFindProp(long prid, PROP *pprop, long *piprop)
+bool ApplicationBase::_FFindProp(long prid, PROP *pprop, long *piprop)
 {
     AssertThis(0);
     AssertNilOrVarMem(pprop);
@@ -1334,7 +1336,7 @@ bool APPB::_FFindProp(long prid, PROP *pprop, long *piprop)
 /***************************************************************************
     Set the given property in the property list.
 ***************************************************************************/
-bool APPB::_FSetProp(long prid, long lw)
+bool ApplicationBase::_FSetProp(long prid, long lw)
 {
     AssertThis(0);
     PROP prop;
@@ -1351,7 +1353,7 @@ bool APPB::_FSetProp(long prid, long lw)
     if (pvNil == _pglprop)
     {
         Assert(iprop == 0, 0);
-        if (pvNil == (_pglprop = GL::PglNew(size(PROP))))
+        if (pvNil == (_pglprop = DynamicArray::PglNew(size(PROP))))
             return fFalse;
     }
 
@@ -1363,7 +1365,7 @@ bool APPB::_FSetProp(long prid, long lw)
 /***************************************************************************
     Set the indicated property, using the given parameter.
 ***************************************************************************/
-bool APPB::FSetProp(long prid, long lw)
+bool ApplicationBase::FSetProp(long prid, long lw)
 {
     AssertThis(0);
 
@@ -1423,7 +1425,7 @@ bool APPB::FSetProp(long prid, long lw)
 /***************************************************************************
     Return the current value of the given property.
 ***************************************************************************/
-bool APPB::FGetProp(long prid, long *plw)
+bool ApplicationBase::FGetProp(long prid, long *plw)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -1467,7 +1469,7 @@ bool APPB::FGetProp(long prid, long *plw)
     pfDelay is nil, importing cannot be delayed.  If *ppdocb is not nil,
     import into *ppdocb if we can.
 ***************************************************************************/
-bool APPB::FImportClip(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDelay)
+bool ApplicationBase::FImportClip(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool *pfDelay)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -1497,10 +1499,10 @@ bool APPB::FImportClip(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDela
     case kclfmText:
         AssertNilOrPo(*ppdocb, 0);
 
-        if (pvNil == *ppdocb || !(*ppdocb)->FIs(kclsTXTB))
+        if (pvNil == *ppdocb || !(*ppdocb)->FIs(kclsTextDocumentBase))
         {
             ReleasePpo(ppdocb);
-            if (pvNil == (*ppdocb = TXRD::PtxrdNew()))
+            if (pvNil == (*ppdocb = RichTextDocument::PtxrdNew()))
                 return fFalse;
         }
 
@@ -1515,10 +1517,10 @@ bool APPB::FImportClip(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDela
             *pfDelay = fFalse;
         }
 
-        ((PTXTB)(*ppdocb))->SuspendUndo();
-        cpMac = ((PTXTB)(*ppdocb))->CpMac();
-        ((PTXTB)(*ppdocb))->FReplaceRgch(pv, cb / size(achar), 0, cpMac - 1);
-        ((PTXTB)(*ppdocb))->ResumeUndo();
+        ((PTextDocumentBase)(*ppdocb))->SuspendUndo();
+        cpMac = ((PTextDocumentBase)(*ppdocb))->CpMac();
+        ((PTextDocumentBase)(*ppdocb))->FReplaceRgch(pv, cb / size(achar), 0, cpMac - 1);
+        ((PTextDocumentBase)(*ppdocb))->ResumeUndo();
         return fTrue;
     }
 }
@@ -1527,13 +1529,13 @@ bool APPB::FImportClip(long clfm, void *pv, long cb, PDOCB *ppdocb, bool *pfDela
     Push the current modal context and create a new one. This should be
     balanced with a call to PopModal (if successful).
 ***************************************************************************/
-bool APPB::FPushModal(PCEX pcex)
+bool ApplicationBase::FPushModal(PCommandExecutionManager pcex)
 {
     AssertThis(0);
     MODCX modcx;
-    PUSAC pusacNew = pvNil;
+    PUniversalScalableApplicationClock pusacNew = pvNil;
 
-    if (pvNil == _pglmodcx && pvNil == (_pglmodcx = GL::PglNew(size(MODCX))))
+    if (pvNil == _pglmodcx && pvNil == (_pglmodcx = DynamicArray::PglNew(size(MODCX))))
     {
         return fFalse;
     }
@@ -1549,8 +1551,8 @@ bool APPB::FPushModal(PCEX pcex)
     if (pcex != pvNil)
         pcex->AddRef();
 
-    if (pvNil == pcex && pvNil == (pcex = CEX::PcexNew(20, 20)) || !pcex->FAddCmh(vpappb, kcmhlAppb) ||
-        pvNil == (pusacNew = NewObj USAC))
+    if (pvNil == pcex && pvNil == (pcex = CommandExecutionManager::PcexNew(20, 20)) || !pcex->FAddCmh(vpappb, kcmhlAppb) ||
+        pvNil == (pusacNew = NewObj UniversalScalableApplicationClock))
     {
         ReleasePpo(&pcex);
         AssertDo(_pglmodcx->FPop(), 0);
@@ -1573,7 +1575,7 @@ bool APPB::FPushModal(PCEX pcex)
     FPushModal/PopModal pair. Returns false iff the modal terminated
     abnormally (eg, we're quitting).
 ***************************************************************************/
-bool APPB::FModalLoop(long *plwRet)
+bool ApplicationBase::FModalLoop(long *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
@@ -1595,7 +1597,7 @@ bool APPB::FModalLoop(long *plwRet)
     Cause the topmost modal loop to terminate (next time through) with the
     given return value.
 ***************************************************************************/
-void APPB::EndModal(long lwRet)
+void ApplicationBase::EndModal(long lwRet)
 {
     AssertThis(0);
 
@@ -1606,7 +1608,7 @@ void APPB::EndModal(long lwRet)
 /***************************************************************************
     Pop the topmost modal context.
 ***************************************************************************/
-void APPB::PopModal(void)
+void ApplicationBase::PopModal(void)
 {
     AssertThis(0);
     MODCX modcx;
@@ -1631,7 +1633,7 @@ void APPB::PopModal(void)
 /***************************************************************************
     End the topmost modal loop.
 ***************************************************************************/
-bool APPB::FCmdEndModal(PCMD pcmd)
+bool ApplicationBase::FCmdEndModal(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1645,9 +1647,9 @@ bool APPB::FCmdEndModal(PCMD pcmd)
 
 /***************************************************************************
     Handle any bad modal commands. Default is to put the command in the
-    next modal context's CEX.
+    next modal context's CommandExecutionManager.
 ***************************************************************************/
-void APPB::BadModalCmd(PCMD pcmd)
+void ApplicationBase::BadModalCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
@@ -1669,11 +1671,11 @@ void APPB::BadModalCmd(PCMD pcmd)
 /***************************************************************************
     Ask the user if they want to save changes to the given doc.
 ***************************************************************************/
-tribool APPB::TQuerySaveDoc(PDOCB pdocb, bool fForce)
+tribool ApplicationBase::TQuerySaveDoc(PDocumentBase pdocb, bool fForce)
 {
     AssertThis(0);
-    STN stn;
-    STN stnName;
+    String stn;
+    String stnName;
 
     pdocb->GetName(&stnName);
     stn.FFormatSz(PszLit("Save changes to \"%s\" before closing?"), &stnName);
@@ -1684,7 +1686,7 @@ tribool APPB::TQuerySaveDoc(PDOCB pdocb, bool fForce)
     Return whether we should allow a screen saver to come up. Defaults
     to returning true.
 ***************************************************************************/
-bool APPB::FAllowScreenSaver(void)
+bool ApplicationBase::FAllowScreenSaver(void)
 {
     AssertThis(0);
 
@@ -1693,11 +1695,11 @@ bool APPB::FAllowScreenSaver(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a APPB.
+    Assert the validity of a ApplicationBase.
 ***************************************************************************/
-void APPB::AssertValid(ulong grf)
+void ApplicationBase::AssertValid(ulong grf)
 {
-    APPB_PAR::AssertValid(0);
+    ApplicationBase_PAR::AssertValid(0);
 
     AssertNilOrPo(_pgptOff, 0);
     AssertNilOrPo(_pcurs, 0);
@@ -1712,12 +1714,12 @@ void APPB::AssertValid(ulong grf)
     Registers memory for frame specific memory (command dispatcher, menu
     bar, screen gobs, etc).
 ***************************************************************************/
-void APPB::MarkMem(void)
+void ApplicationBase::MarkMem(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
-    APPB_PAR::MarkMem();
+    ApplicationBase_PAR::MarkMem();
     MarkMemObj(vpcex);
     MarkMemObj(vpmubCur);
     MarkMemObj(&vntl);
@@ -1757,9 +1759,9 @@ void APPB::MarkMem(void)
         }
     }
 
-    GPT::MarkStaticMem();
-    CLOK::MarkAllCloks();
-    if ((pgob = GOB::PgobScreen()) != pvNil)
+    GraphicsPort::MarkStaticMem();
+    Clock::MarkAllCloks();
+    if ((pgob = GraphicsObject::PgobScreen()) != pvNil)
         pgob->MarkGobTree();
 }
 
@@ -1784,19 +1786,19 @@ void WarnProc(PSZS pszsFile, long lwLine, PSZS pszsMsg)
         vpappb->WarnProcApp(pszsFile, lwLine, pszsMsg);
 }
 
-static MUTX _mutxWarn;
+static Mutex _mutxWarn;
 
 /***************************************************************************
     Default framework warning proc.
 ***************************************************************************/
-void APPB::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
+void ApplicationBase::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
 {
-    static PFIL _pfilWarn;
+    static PFileObject _pfilWarn;
     static bool _fInWarn;
-    static FP _fpCur;
-    STN stn;
-    STN stnFile;
-    STN stnMsg;
+    static FilePosition _fpCur;
+    String stn;
+    String stnFile;
+    String stnMsg;
 
     if (_fInWarn)
         return;
@@ -1806,8 +1808,8 @@ void APPB::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
     _fInWarn = fTrue;
     if (pvNil == _pfilWarn)
     {
-        FNI fni;
-        FTG ftg;
+        Filename fni;
+        FileType ftg;
 
         // put the warning file at the root of the drive that temp files go on
         if (!fni.FGetTemp() || !fni.FSetLeaf(pvNil, kftgDir))
@@ -1819,10 +1821,10 @@ void APPB::WarnProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg)
         if (!fni.FSetLeaf(&stn, kftgText))
             goto LDone;
 
-        ftg = FIL::vftgCreator;
-        FIL::vftgCreator = 'ttxt';
-        _pfilWarn = FIL::PfilCreate(&fni);
-        FIL::vftgCreator = ftg;
+        ftg = FileObject::vftgCreator;
+        FileObject::vftgCreator = 'ttxt';
+        _pfilWarn = FileObject::PfilCreate(&fni);
+        FileObject::vftgCreator = ftg;
         if (pvNil == _pfilWarn)
             goto LDone;
     }

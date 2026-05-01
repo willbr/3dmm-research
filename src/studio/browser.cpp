@@ -15,19 +15,19 @@
   Browsers (abbrev Brws) include display, list and text classes.
 
     Studio Independent Browsers:
-    BASE --> CMH --> GOK	-->	BRWD  (Browser display class)
-    BRWD --> BRWL  (Browser list class; chunky based)
-    BRWD --> BRWT  (Browser text class)
-    BRWD --> BRWL --> BRWN  (Browser named list class)
+    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
+    BrowserDisplay --> BrowserList  (Browser list class; chunky based)
+    BrowserDisplay --> BrowserText  (Browser text class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
-    BRWD --> BRWR  (Roll call class)
-    BRWD --> BRWT --> BRWA  (Browser action class)
-    BRWD --> BRWL --> BRWP	(Browser prop/actor class)
-    BRWD --> BRWL --> BRWB	(Browser background class)
-    BRWD --> BRWL --> BRWC	(Browser camera class)
-    BRWD --> BRWL --> BRWN --> BRWM (Browser music class)
-    BRWD --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserRollCall  (Roll call class)
+    BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
+    BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
+    BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BrowserImportSound (Browser import sound class)
 
     Note: An "frm" refers to the displayed frames on any page.
     A "thum" is a generic Browser Thumbnail, which may be a
@@ -38,20 +38,20 @@
     This file contains the browser display code.
 
     To add additional browsers, create a derived class of
-    the BRWD, BRWL or BRWT classes.
+    the BrowserDisplay, BrowserList or BrowserText classes.
 
-    If a browser is to be chunky file based, the BRWL class can be used.
-    It includes GOKD chunks which are grandchildren of _ckiRoot (cnoNil
+    If a browser is to be chunky file based, the BrowserList class can be used.
+    It includes KidspaceGraphicObjectDescriptor chunks which are grandchildren of _ckiRoot (cnoNil
     implies wildcarding) and children of _ctgContent  - from .thd files
     entered in the registry of this product.
-    The BRWL class allows the option of displaying either all the thumbnails
+    The BrowserList class allows the option of displaying either all the thumbnails
     of a particular ctg across registry specified directories (eg, scenes,
     actors)
         -or-
-    of filling frames from GOKD thumbnails which are children of a single
+    of filling frames from KidspaceGraphicObjectDescriptor thumbnails which are children of a single
     given chunk.
 
-    Text class browsers (BRWT) create child TGOBs for each frame.
+    Text class browsers (BrowserText) create child TGOBs for each frame.
 
     Only cidBrowserCancel and cidBrowserOk exit the browser.
     cidBrowserSelect is selection only, not application of the selection.
@@ -62,7 +62,7 @@
      pcmd->rglw[2] = kid of first control
      pcmd->rglw[3] = x,y offsets
 
-    Upon exiting, some browser classes retain BRCN (or derived from BRCN)
+    Upon exiting, some browser classes retain BrowserContext (or derived from BrowserContext)
     context information for optimization.
 
     The kid of a single frame may be overridden (eg, for project help) using
@@ -75,33 +75,33 @@
 
 ASSERTNAME
 
-RTCLASS(BRCN)
-RTCLASS(BRCNL)
-RTCLASS(BRWD)
-RTCLASS(BRWL)
-RTCLASS(BRWT)
-RTCLASS(BRWA)
-RTCLASS(BRWP)
-RTCLASS(BRWB)
-RTCLASS(BRWC)
-RTCLASS(BRWN)
-RTCLASS(BRWM)
-RTCLASS(BRWR)
-RTCLASS(BRWI)
-RTCLASS(BCL)
-RTCLASS(BCLS)
-RTCLASS(FNET)
+RTCLASS(BrowserContext)
+RTCLASS(BrowserListContext)
+RTCLASS(BrowserDisplay)
+RTCLASS(BrowserList)
+RTCLASS(BrowserText)
+RTCLASS(BrowserAction)
+RTCLASS(BrowserPropActor)
+RTCLASS(BrowserBackground)
+RTCLASS(BrowserCamera)
+RTCLASS(BrowserNamedList)
+RTCLASS(BrowserMusic)
+RTCLASS(BrowserRollCall)
+RTCLASS(BrowserImportSound)
+RTCLASS(BrowserContentList)
+RTCLASS(BrowserContentListWithStrings)
+RTCLASS(ThumbnailFileEnumerator)
 
-BEGIN_CMD_MAP(BRWD, GOK)
-ON_CID_GEN(cidBrowserFwd, &BRWD::FCmdFwd, pvNil)
-ON_CID_GEN(cidBrowserBack, &BRWD::FCmdBack, pvNil)
-ON_CID_GEN(cidBrowserCancel, &BRWD::FCmdCancel, pvNil)
-ON_CID_GEN(cidBrowserOk, &BRWD::FCmdOk, pvNil)
-ON_CID_GEN(cidBrowserSelect, &BRWD::FCmdSelect, pvNil)
-ON_CID_GEN(cidBrowserSelectThum, &BRWD::FCmdSelectThum, pvNil)
-ON_CID_GEN(cidPortfolioFile, &BRWD::FCmdFile, pvNil)
-ON_CID_GEN(cidBrowserChangeCel, &BRWD::FCmdChangeCel, pvNil)
-ON_CID_GEN(cidBrowserDel, &BRWD::FCmdDel, pvNil)
+BEGIN_CMD_MAP(BrowserDisplay, KidspaceGraphicObject)
+ON_CID_GEN(cidBrowserFwd, &BrowserDisplay::FCmdFwd, pvNil)
+ON_CID_GEN(cidBrowserBack, &BrowserDisplay::FCmdBack, pvNil)
+ON_CID_GEN(cidBrowserCancel, &BrowserDisplay::FCmdCancel, pvNil)
+ON_CID_GEN(cidBrowserOk, &BrowserDisplay::FCmdOk, pvNil)
+ON_CID_GEN(cidBrowserSelect, &BrowserDisplay::FCmdSelect, pvNil)
+ON_CID_GEN(cidBrowserSelectThum, &BrowserDisplay::FCmdSelectThum, pvNil)
+ON_CID_GEN(cidPortfolioFile, &BrowserDisplay::FCmdFile, pvNil)
+ON_CID_GEN(cidBrowserChangeCel, &BrowserDisplay::FCmdChangeCel, pvNil)
+ON_CID_GEN(cidBrowserDel, &BrowserDisplay::FCmdDel, pvNil)
 END_CMD_MAP_NIL()
 
 /****************************************************
@@ -112,17 +112,17 @@ END_CMD_MAP_NIL()
  *	A pointer to the object, else pvNil.
  *
  ****************************************************/
-PBRWD BRWD::PbrwdNew(PRCA prca, long kidPar, long kidGlass)
+PBrowserDisplay BrowserDisplay::PbrwdNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWD pbrwd;
-    GCB gcb;
+    PBrowserDisplay pbrwd;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
 
-    if ((pbrwd = NewObj BRWD(&gcb)) == pvNil)
+    if ((pbrwd = NewObj BrowserDisplay(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -137,14 +137,14 @@ PBRWD BRWD::PbrwdNew(PRCA prca, long kidPar, long kidGlass)
 
 /****************************************************
  *
- * Build the GOB creation block
+ * Build the GraphicsObject creation block
  *
  ****************************************************/
-bool BRWD::_FBuildGcb(GCB *pgcb, long kidPar, long kidGlass)
+bool BrowserDisplay::_FBuildGcb(GraphicsObjectBlock *pgcb, long kidPar, long kidGlass)
 {
     AssertVarMem(pgcb);
 
-    PGOB pgobPar;
+    PGraphicsObject pgobPar;
     RC rcRel;
 
     pgobPar = vapp.Pkwa()->PgobFromHid(kidPar);
@@ -155,11 +155,11 @@ bool BRWD::_FBuildGcb(GCB *pgcb, long kidPar, long kidGlass)
     }
 
 #ifdef DEBUG
-    Assert(pgobPar->FIs(kclsGOK), "Parent isn't a GOK");
+    Assert(pgobPar->FIs(kclsKidspaceGraphicObject), "Parent isn't a KidspaceGraphicObject");
     {
-        PGOB pgob = vapp.Pkwa()->PgobFromHid(kidGlass);
+        PGraphicsObject pgob = vapp.Pkwa()->PgobFromHid(kidGlass);
 
-        Assert(pgob == pvNil, "GOK already exists with given ID");
+        Assert(pgob == pvNil, "KidspaceGraphicObject already exists with given ID");
     }
 #endif // DEBUG
 
@@ -174,12 +174,12 @@ bool BRWD::_FBuildGcb(GCB *pgcb, long kidPar, long kidGlass)
  * Do everything PgokNew would have done but didn't
  *
  ****************************************************/
-bool BRWD::_FInitGok(PRCA prca, long kid)
+bool BrowserDisplay::_FInitGok(PResourceCache prca, long kid)
 {
     AssertBaseThis(0);
     AssertPo(prca, 0);
 
-    if (!BRWD_PAR::_FInit(vapp.Pkwa(), kid, prca))
+    if (!BrowserDisplay_PAR::_FInit(vapp.Pkwa(), kid, prca))
         return fFalse;
     if (!_FEnterState(ksnoInit))
         return fFalse;
@@ -205,7 +205,7 @@ bool BRWD::_FInitGok(PRCA prca, long kid)
  * pcmd->rglw[3] = x,y offsets
  *
  ****************************************************/
-void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PSTDIO pstdio, bool fWrapScroll, long cthumScroll)
+void BrowserDisplay::Init(PCommand pcmd, long ithumSelect, long ithumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -234,7 +234,7 @@ void BRWD::Init(PCMD pcmd, long ithumSelect, long ithumDisplay, PSTDIO pstdio, b
  * pcmd->rglw[3] = x,y offsets
  *
  ****************************************************/
-void BRWD::_InitStateVars(PCMD pcmd, PSTDIO pstdio, bool fWrapScroll, long cthumScroll)
+void BrowserDisplay::_InitStateVars(PCommand pcmd, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -263,7 +263,7 @@ void BRWD::_InitStateVars(PCMD pcmd, PSTDIO pstdio, bool fWrapScroll, long cthum
  *		page displayed
  *
  ****************************************************/
-void BRWD::_InitFromData(PCMD pcmd, long ithumSelect, long ithumDisplay)
+void BrowserDisplay::_InitFromData(PCommand pcmd, long ithumSelect, long ithumDisplay)
 {
     AssertThis(0);
     long cthum;
@@ -295,7 +295,7 @@ void BRWD::_InitFromData(PCMD pcmd, long ithumSelect, long ithumDisplay)
  * _SetVarForOverride : Projects may override kids
  *
  ****************************************************/
-void BRWD::_SetVarForOverride(void)
+void BrowserDisplay::_SetVarForOverride(void)
 {
     AssertThis(0);
     long thumOverride = -1;
@@ -327,7 +327,7 @@ void BRWD::_SetVarForOverride(void)
  *
  ****************************************************/
 
-void BRWD::_GetThumFromIthum(long ithum, void *pThumSelect, long *psid)
+void BrowserDisplay::_GetThumFromIthum(long ithum, void *pThumSelect, long *psid)
 {
     AssertThis(0);
     AssertVarMem((long *)pThumSelect);
@@ -342,17 +342,17 @@ void BRWD::_GetThumFromIthum(long ithum, void *pThumSelect, long *psid)
  * Count the number of frames possible per page
  *
  ****************************************************/
-long BRWD::_CfrmCalc(void)
+long BrowserDisplay::_CfrmCalc(void)
 {
     AssertThis(0);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     long ifrm;
 
     for (ifrm = 0;; ifrm++)
     {
         //
-        // If there is no GOKD parent, there are no more thumbnail
+        // If there is no KidspaceGraphicObjectDescriptor parent, there are no more thumbnail
         // slots on this page
         //
         pgob = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrm);
@@ -370,7 +370,7 @@ long BRWD::_CfrmCalc(void)
  * Determine the first thumbnail to display on the page
  *
  ****************************************************/
-void BRWD::_CalcIthumPageFirst(void)
+void BrowserDisplay::_CalcIthumPageFirst(void)
 {
     AssertThis(0);
     long cthum = _Cthum();
@@ -410,12 +410,12 @@ void BRWD::_CalcIthumPageFirst(void)
  * Browser Display
  *
  ****************************************************/
-bool BRWD::FDraw(void)
+bool BrowserDisplay::FDraw(void)
 {
     AssertThis(0);
 
-    PGOB pgobPar;
-    GCB gcb;
+    PGraphicsObject pgobPar;
+    GraphicsObjectBlock gcb;
     long ithum;
     long ifrm;
     long cthum = _Cthum();
@@ -434,12 +434,12 @@ bool BRWD::FDraw(void)
         pgobPar = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrm);
         if (pvNil == pgobPar)
             goto LContinue;
-        Assert(pgobPar->FIs(kclsGOK), "Invalid class");
+        Assert(pgobPar->FIs(kclsKidspaceGraphicObject), "Invalid class");
 
         if (ithum >= cthum)
         {
             // Render invisible
-            ((PGOK)pgobPar)->FChangeState(kstBrowserInvisible); // Ignore error
+            ((PKidspaceGraphicObject)pgobPar)->FChangeState(kstBrowserInvisible); // Ignore error
             _FClearHelp(ifrm);                                  // Clear rollover help
             continue;
         }
@@ -450,11 +450,11 @@ bool BRWD::FDraw(void)
 
         if (ithum == _ithumSelect)
         {
-            ((PGOK)pgobPar)->FChangeState(kstBrowserSelected);
+            ((PKidspaceGraphicObject)pgobPar)->FChangeState(kstBrowserSelected);
         }
         else
         {
-            ((PGOK)pgobPar)->FChangeState(kstBrowserEnabled);
+            ((PKidspaceGraphicObject)pgobPar)->FChangeState(kstBrowserEnabled);
         }
     LContinue:
         if (ithum < cthum)
@@ -466,8 +466,8 @@ bool BRWD::FDraw(void)
     {
         long pagen;
         long cpage;
-        STN stn;
-        STN stnT;
+        String stn;
+        String stnT;
         pagen = (_cfrm == 0) ? 0 : (_ithumPageFirst / _cfrm);
         cpage = ((cthum - 1) / _cfrm) + 1;
         _pstdio->GetStnMisc(idsBrowserPage, &stnT);
@@ -483,7 +483,7 @@ bool BRWD::FDraw(void)
  * Find a unique hid for the current frame
  *
  ****************************************************/
-long BRWD::_KidThumFromIfrm(long ifrm)
+long BrowserDisplay::_KidThumFromIfrm(long ifrm)
 {
     AssertBaseThis(0);
     long kidThum;
@@ -491,7 +491,7 @@ long BRWD::_KidThumFromIfrm(long ifrm)
     if (_ithumPageFirst + ifrm == _ithumOverride)
         kidThum = _kidThumOverride;
     else
-        kidThum = GOB::HidUnique();
+        kidThum = GraphicsObject::HidUnique();
 
     return kidThum;
 }
@@ -501,10 +501,10 @@ long BRWD::_KidThumFromIfrm(long ifrm)
  * Compute the pgob of the parent for frame ifrm
  *
  ****************************************************/
-PGOB BRWD::_PgobFromIfrm(long ifrm)
+PGraphicsObject BrowserDisplay::_PgobFromIfrm(long ifrm)
 {
     AssertBaseThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
     pgob = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrm);
     if (pvNil == pgob)
         return pvNil;
@@ -516,26 +516,26 @@ PGOB BRWD::_PgobFromIfrm(long ifrm)
  * Set the state of the scroll arrows for the Display
  *
  ****************************************************/
-void BRWD::_SetScrollState(void)
+void BrowserDisplay::_SetScrollState(void)
 {
     AssertThis(0);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     long st = (_Cthum() <= _cfrm) ? kstBrowserInvisible : kstBrowserEnabled;
 
     pgob = vapp.Pkwa()->PgobFromHid(_kidControlFirst);
     if (pvNil != pgob)
     {
-        Assert(pgob->FIs(kclsGOK), "Invalid class");
-        if (!((PGOK)pgob)->FChangeState(st))
+        Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+        if (!((PKidspaceGraphicObject)pgob)->FChangeState(st))
             Warn("Failed to change state Page Fwd button");
     }
 
     pgob = vapp.Pkwa()->PgobFromHid(_kidControlFirst + 1);
     if (pvNil != pgob)
     {
-        Assert(pgob->FIs(kclsGOK), "Invalid class");
-        if (!((PGOK)pgob)->FChangeState(st))
+        Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+        if (!((PKidspaceGraphicObject)pgob)->FChangeState(st))
             Warn("Failed to change state Page Back button");
     }
 }
@@ -545,7 +545,7 @@ void BRWD::_SetScrollState(void)
  * Browser Command Handler : Browser Forward
  *
  ****************************************************/
-bool BRWD::FCmdFwd(PCMD pcmd)
+bool BrowserDisplay::FCmdFwd(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -580,7 +580,7 @@ bool BRWD::FCmdFwd(PCMD pcmd)
  * rglw[3] -> Update Lists
  *
  ****************************************************/
-bool BRWD::FCmdSelectThum(PCMD pcmd)
+bool BrowserDisplay::FCmdSelectThum(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -608,7 +608,7 @@ bool BRWD::FCmdSelectThum(PCMD pcmd)
  * Scroll back one page in the browser
  *
  ****************************************************/
-bool BRWD::FCmdBack(PCMD pcmd)
+bool BrowserDisplay::FCmdBack(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -646,7 +646,7 @@ bool BRWD::FCmdBack(PCMD pcmd)
  * pcmd->rglw[0] is browser id of thumb
  *
  ****************************************************/
-bool BRWD::FCmdSelect(PCMD pcmd)
+bool BrowserDisplay::FCmdSelect(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -667,16 +667,16 @@ bool BRWD::FCmdSelect(PCMD pcmd)
  * Create Tgob's for any of the text based browsers
  * These will be destroyed when the browser exits
  * NOTE:: FCreateAllTgob() requires previous initialization
- * of the override parameters from BRWD::Init()
+ * of the override parameters from BrowserDisplay::Init()
  *
  ****************************************************/
-bool BRWD::FCreateAllTgob(void)
+bool BrowserDisplay::FCreateAllTgob(void)
 {
     AssertThis(0);
 
     long ifrm;
     long hid;
-    PTGOB ptgob;
+    PTextGraphicsObject ptgob;
     RC rcAbs;
     RC rcRel;
 
@@ -687,7 +687,7 @@ bool BRWD::FCreateAllTgob(void)
         else
             hid = hidNil;
 
-        ptgob = TGOB::PtgobCreate(_kidFrmFirst + ifrm, _idsFont, tavTop, hid);
+        ptgob = TextGraphicsObject::PtgobCreate(_kidFrmFirst + ifrm, _idsFont, tavTop, hid);
         if (pvNil == ptgob)
             return fFalse;
         ptgob->SetAlign(tahLeft);
@@ -705,11 +705,11 @@ bool BRWD::FCreateAllTgob(void)
  * Hilite frame
  *
  ****************************************************/
-bool BRWD::_FHiliteFrm(long ifrmSelect)
+bool BrowserDisplay::_FHiliteFrm(long ifrmSelect)
 {
     AssertThis(0);
     AssertIn(ifrmSelect, 0, _cfrm);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     // Hilite currently selected frame
     AssertIn(ifrmSelect, 0, _cfrmPageCur);
@@ -717,8 +717,8 @@ bool BRWD::_FHiliteFrm(long ifrmSelect)
     if (pvNil == pgob)
         return fFalse;
 
-    Assert(pgob->FIs(kclsGOK), "Invalid class");
-    if (!((PGOK)pgob)->FChangeState(kstBrowserSelected))
+    Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+    if (!((PKidspaceGraphicObject)pgob)->FChangeState(kstBrowserSelected))
     {
         _ithumSelect = ivNil;
         return fFalse;
@@ -731,10 +731,10 @@ bool BRWD::_FHiliteFrm(long ifrmSelect)
  * Unhilite currently selected Frame
  *
  ****************************************************/
-void BRWD::_UnhiliteCurFrm(void)
+void BrowserDisplay::_UnhiliteCurFrm(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
     long ifrmSelectOld = _ithumSelect - _ithumPageFirst;
 
     // Unhilite currently selected frame
@@ -743,8 +743,8 @@ void BRWD::_UnhiliteCurFrm(void)
         pgob = vapp.Pkwa()->PgobFromHid(_kidFrmFirst + ifrmSelectOld);
         if (pvNil == pgob)
             return;
-        Assert(pgob->FIs(kclsGOK), "Invalid class");
-        ((PGOK)pgob)->FChangeState(kstBrowserEnabled); // Ignore failure
+        Assert(pgob->FIs(kclsKidspaceGraphicObject), "Invalid class");
+        ((PKidspaceGraphicObject)pgob)->FChangeState(kstBrowserEnabled); // Ignore failure
     }
 }
 
@@ -754,7 +754,7 @@ void BRWD::_UnhiliteCurFrm(void)
  * Exit without applying selection
  *
  ****************************************************/
-bool BRWD::FCmdCancel(PCMD pcmd)
+bool BrowserDisplay::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -770,13 +770,13 @@ bool BRWD::FCmdCancel(PCMD pcmd)
  * Browser cleanup for OK & Cancel
  *
  ****************************************************/
-void BRWD::Release(void)
+void BrowserDisplay::Release(void)
 {
     _CacheContext();
 
     // Minimize the cache size on low mem machines
     _SetCbPcrmMin();
-    BRWD_PAR::Release();
+    BrowserDisplay_PAR::Release();
 }
 
 /****************************************************
@@ -785,7 +785,7 @@ void BRWD::Release(void)
  * Apply selection & exit
  *
  ****************************************************/
-bool BRWD::FCmdOk(PCMD pcmd)
+bool BrowserDisplay::FCmdOk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -814,10 +814,10 @@ bool BRWD::FCmdOk(PCMD pcmd)
 
 /****************************************************
  *
- * BRWD _CacheContext
+ * BrowserDisplay _CacheContext
  *
  ****************************************************/
-void BRWD::_CacheContext(void)
+void BrowserDisplay::_CacheContext(void)
 {
     if (_pbrcn != pvNil)
         _pbrcn->ithumPageFirst = _ithumPageFirst;
@@ -826,7 +826,7 @@ void BRWD::_CacheContext(void)
 /****************************************************
 
    Browser Lists
-   Derived from the BRWD display class
+   Derived from the BrowserDisplay display class
 
  ****************************************************/
 
@@ -838,18 +838,18 @@ void BRWD::_CacheContext(void)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
+PBrowserList BrowserList::PbrwlNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWL pbrwl;
-    PGOK pgok;
-    GCB gcb;
+    PBrowserList pbrwl;
+    PKidspaceGraphicObject pgok;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
 
-    if ((pbrwl = NewObj BRWL(&gcb)) == pvNil)
+    if ((pbrwl = NewObj BrowserList(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -863,11 +863,11 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
     // Stop the studio action button animation while
     // any browser is up.
     //
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
-        Assert(pgok->FIs(kclsGOK), "Invalid class");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Invalid class");
         pgok->FChangeState(kstFreeze);
     }
 
@@ -886,8 +886,8 @@ PBRWL BRWL::PbrwlNew(PRCA prca, long kidPar, long kidGlass)
  *	thumSelect is the thumbnail to be hilited
  *
  ****************************************************/
-bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
-                 PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
+bool BrowserList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
+                 PBrowserListContext pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -904,17 +904,17 @@ bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoo
 
     // Initialize the state variables for the browser. This is required for
     // the creation of the tgobs beneath the call to _FCreateBuildThd below.
-    // The call must be later followed by a call to BRWD::InitFromData().
+    // The call must be later followed by a call to BrowserDisplay::InitFromData().
     _InitStateVars(pcmd, pstdio, fWrapScroll, cthumScroll);
 
     if (pvNil == pbrcnl || pbrcnl->brwdid == 0 || pbrcnl->ckiRoot.cno != ckiRoot.cno)
     {
         fBuildGl = fTrue;
 
-        // Cache the GOKD's by first creating a
+        // Cache the KidspaceGraphicObjectDescriptor's by first creating a
         // chunky resource manager
         Assert(pvNil == _pcrm, "Logic error releasing pcrm");
-        _pcrm = CRM::PcrmNew(ccrf);
+        _pcrm = ChunkyResourceManager::PcrmNew(ccrf);
         if (pvNil == _pcrm)
             goto LDismiss;
 
@@ -952,7 +952,7 @@ bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoo
     }
 
     // Context carryover
-    Assert(_pbrcn == pvNil, "Lost BRCN");
+    Assert(_pbrcn == pvNil, "Lost BrowserContext");
     _pbrcn = pbrcnl;
     if (pvNil != pbrcnl)
     {
@@ -960,7 +960,7 @@ bool BRWL::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoo
         pbrcnl->ckiRoot = ckiRoot;
         if (fBuildGl)
         {
-            // Rebuilding the GL ->
+            // Rebuilding the DynamicArray ->
             // Remove old context
             // Save new context later
 
@@ -1007,7 +1007,7 @@ LDismiss:
  * browser is invoked
  *
  ****************************************************/
-bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, CTG ctgContent)
+bool BrowserList::_FInitNew(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent)
 {
     AssertThis(0);
 
@@ -1015,7 +1015,7 @@ bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, CTG ctgCo
     _bws = bws;
 
     // Set the display default
-    _sidDefault = ((APP *)vpappb)->SidProduct();
+    _sidDefault = ((Application *)vpappb)->SidProduct();
     if (!vpappb->FGetProp(kpridBrwsDefaultThum, &_thumDefault))
     {
         Warn("couldn't get property kpridBrwsDefaultThum");
@@ -1042,7 +1042,7 @@ bool BRWL::_FInitNew(PCMD pcmd, BWS bws, long thumSelect, CKI ckiRoot, CTG ctgCo
  * away.
  *
  ****************************************************/
-bool BRWL::_FCreateBuildThd(CKI ckiRoot, CTG ctgContent, bool fBuildGl)
+bool BrowserList::_FCreateBuildThd(ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, bool fBuildGl)
 {
     AssertThis(0);
 
@@ -1055,7 +1055,7 @@ bool BRWL::_FCreateBuildThd(CKI ckiRoot, CTG ctgContent, bool fBuildGl)
         //
         // Create the gl's
         //
-        if (pvNil == (_pglthd = GL::PglNew(size(THD), kglthdGrow)))
+        if (pvNil == (_pglthd = DynamicArray::PglNew(size(ThumbnailDescriptor), kglthdGrow)))
             return fFalse;
         _pglthd->SetMinGrow(kglthdGrow);
     }
@@ -1079,31 +1079,31 @@ LFail:
 
 /****************************************************
  *
- * BRWL _FGetContent : Enum files & build the THD
+ * BrowserList _FGetContent : Enum files & build the ThumbnailDescriptor
  *
  ****************************************************/
-bool BRWL::_FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl)
+bool BrowserList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl)
 {
     AssertThis(0);
 
     bool fRet = fFalse;
-    PBCL pbcl = pvNil;
+    PBrowserContentList pbcl = pvNil;
 
     if (!fBuildGl)
         return fTrue;
 
     //
-    // Enumerate the files & build the THD
+    // Enumerate the files & build the ThumbnailDescriptor
     //
     Assert(ctg != cnoNil || pcki->ctg == ctgNil, "Invalid browser call");
 
-    pbcl = BCL::PbclNew(pcrm, pcki, ctg, _pglthd);
+    pbcl = BrowserContentList::PbclNew(pcrm, pcki, ctg, _pglthd);
     if (pbcl == pvNil)
         goto LFail;
 
     /* We passed the pglthd and pgst in, so no need to get them back before
-        releasing the BCLS */
-    Assert(_pglthd->CactRef() > 1, "GL of THDs will be lost!");
+        releasing the BrowserContentListWithStrings */
+    Assert(_pglthd->CactRef() > 1, "DynamicArray of THDs will be lost!");
 
     fRet = fTrue;
 LFail:
@@ -1117,13 +1117,13 @@ LFail:
  * Virtual function
  *
  ****************************************************/
-void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
+void BrowserList::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
 {
     AssertThis(0);
     AssertIn(ithum, 0, _Cthum());
     AssertVarMem(psid);
 
-    THD thd{};
+    ThumbnailDescriptor thd{};
 
     if (_bws == kbwsIndex)
     {
@@ -1138,11 +1138,11 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
     switch (_bws)
     {
     case kbwsChid:
-        Assert(thd.chid != chidNil, "Bogus sort order for THD list");
-        *((CHID *)pvthumSelect) = thd.chid;
+        Assert(thd.chid != chidNil, "Bogus sort order for ThumbnailDescriptor list");
+        *((ChildChunkID *)pvthumSelect) = thd.chid;
         break;
     case kbwsCnoRoot:
-        *((CNO *)pvthumSelect) = thd.tag.cno;
+        *((ChunkNumber *)pvthumSelect) = thd.tag.cno;
         break;
     default:
         Bug("Unhandled bws case");
@@ -1153,18 +1153,18 @@ void BRWL::_GetThumFromIthum(long ithum, void *pvthumSelect, long *psid)
 
 /****************************************************
  *
- * BRWL _CacheContext for reentry into the browser
+ * BrowserList _CacheContext for reentry into the browser
  *
  ****************************************************/
-void BRWL::_CacheContext(void)
+void BrowserList::_CacheContext(void)
 {
     if (_pbrcn != pvNil)
     {
-        PBRCNL pbrcnl = (PBRCNL)_pbrcn;
+        PBrowserListContext pbrcnl = (PBrowserListContext)_pbrcn;
 
-        Assert(pbrcnl->FIs(kclsBRCNL), "Bad context buffer");
+        Assert(pbrcnl->FIs(kclsBrowserListContext), "Bad context buffer");
 
-        BRWL_PAR::_CacheContext();
+        BrowserList_PAR::_CacheContext();
 
         if (pbrcnl->pglthd == pvNil)
         {
@@ -1213,15 +1213,15 @@ void BRWL::_CacheContext(void)
  * Uses bubble sort
  *
  ****************************************************/
-void BRWL::_SortThd(void)
+void BrowserList::_SortThd(void)
 {
     AssertThis(0);
 
     long ithd;
     long jthd;
     long *plwJ, *plwI;
-    THD thdi;
-    THD thdj;
+    ThumbnailDescriptor thdi;
+    ThumbnailDescriptor thdj;
     long sid;
     long jthdMin = 0;
     bool fSortBySid;
@@ -1272,7 +1272,7 @@ void BRWL::_SortThd(void)
             if (*plwJ == *plwI)
             {
                 long ithdT;
-                THD thdT;
+                ThumbnailDescriptor thdT;
                 if (pvNil != _pgst && thdi.ithd < _pgst->IvMac())
                 {
                     Assert(thdi.ithd == ithd, "Logic error cleaning pgst");
@@ -1310,12 +1310,12 @@ void BRWL::_SortThd(void)
  * not an index into either pgl.
  *
  ****************************************************/
-long BRWL::_IthumFromThum(long thumSelect, long sidSelect)
+long BrowserList::_IthumFromThum(long thumSelect, long sidSelect)
 {
     AssertThis(0);
 
     long *plw;
-    THD thd;
+    ThumbnailDescriptor thd;
 
     if (thumSelect == ivNil)
         return ivNil;
@@ -1358,13 +1358,13 @@ long BRWL::_IthumFromThum(long thumSelect, long sidSelect)
  * Advance the gob (thumbnail) index
  *
  ****************************************************/
-bool BRWL::_FSetThumFrame(long ithd, PGOB pgobPar)
+bool BrowserList::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertPo(pgobPar, 0);
 
-    THD thd;
-    PGOK pgok;
+    ThumbnailDescriptor thd;
+    PKidspaceGraphicObject pgok;
     RC rcAbs;
     RC rcRel;
     long kidThum;
@@ -1377,9 +1377,9 @@ bool BRWL::_FSetThumFrame(long ithd, PGOB pgobPar)
     if (pvNil == pgok)
         return fFalse;
 
-    ((PGOB)pgok)->GetPos(&rcAbs, &rcRel);
+    ((PGraphicsObject)pgok)->GetPos(&rcAbs, &rcRel);
     rcAbs.Offset(_dxpFrmOffset, _dypFrmOffset);
-    ((PGOB)pgok)->SetPos(&rcAbs, &rcRel);
+    ((PGraphicsObject)pgok)->SetPos(&rcAbs, &rcRel);
 
     return fTrue;
 }
@@ -1390,10 +1390,10 @@ bool BRWL::_FSetThumFrame(long ithd, PGOB pgobPar)
  * Assumes gob based.
  *
  ****************************************************/
-void BRWL::_ReleaseThumFrame(long ifrm)
+void BrowserList::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     // Release previous gob associated with the current frame
     pgob = _PgobFromIfrm(ifrm);
@@ -1405,14 +1405,14 @@ void BRWL::_ReleaseThumFrame(long ifrm)
 
 /****************************************************
  *
- * BCL class routines
+ * BrowserContentList class routines
  *
  ****************************************************/
-PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd, bool fOnlineOnly)
+PBrowserContentList BrowserContentList::PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd, bool fOnlineOnly)
 {
-    PBCL pbcl;
+    PBrowserContentList pbcl;
 
-    pbcl = NewObj BCL;
+    pbcl = NewObj BrowserContentList;
     if (pbcl == pvNil)
         return pvNil;
 
@@ -1422,20 +1422,20 @@ PBCL BCL::PbclNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd, bool fOn
     return pbcl;
 }
 
-bool BCLS::_FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGST pgst, PGL pglthd)
+bool BrowserContentListWithStrings::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd)
 {
     AssertNilOrPo(pgst, 0);
 
     if (pgst == pvNil)
     {
-        if ((pgst = GST::PgstNew()) == pvNil)
+        if ((pgst = StringTable_GST::PgstNew()) == pvNil)
             goto LFail;
     }
     else
         pgst->AddRef();
     _pgst = pgst;
 
-    if (!BCLS_PAR::_FInit(pcrm, pckiRoot, ctgContent, pglthd))
+    if (!BrowserContentListWithStrings_PAR::_FInit(pcrm, pckiRoot, ctgContent, pglthd))
         goto LFail;
 
     return fTrue;
@@ -1443,15 +1443,15 @@ LFail:
     return fFalse;
 }
 
-bool BCL::_FInit(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd)
+bool BrowserContentList::_FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd)
 {
     AssertNilOrPo(pcrm, 0);
-    Assert(pckiRoot->ctg != ctgNil, "Bad CKI");
+    Assert(pckiRoot->ctg != ctgNil, "Bad ChunkIdentification");
     AssertNilOrPo(pglthd, 0);
 
     if (pglthd == pvNil)
     {
-        if ((pglthd = GL::PglNew(size(THD))) == pvNil)
+        if ((pglthd = DynamicArray::PglNew(size(ThumbnailDescriptor))) == pvNil)
             goto LFail;
     }
     else
@@ -1472,11 +1472,11 @@ LFail:
     return fFalse;
 }
 
-PBCLS BCLS::PbclsNew(PCRM pcrm, CKI *pckiRoot, CTG ctgContent, PGL pglthd, PGST pgst, bool fOnlineOnly)
+PBrowserContentListWithStrings BrowserContentListWithStrings::PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd, PStringTable_GST pgst, bool fOnlineOnly)
 {
-    PBCLS pbcls;
+    PBrowserContentListWithStrings pbcls;
 
-    pbcls = NewObj BCLS;
+    pbcls = NewObj BrowserContentListWithStrings;
     if (pbcls == pvNil)
         goto LFail;
 
@@ -1489,7 +1489,7 @@ LFail:
 
 /****************************************************
  *
- * Enumerate thumbnail files & create the THD
+ * Enumerate thumbnail files & create the ThumbnailDescriptor
  * (Thumbnail descriptor gl)
  *
  * Note: In the case of actions & views, this is one
@@ -1500,16 +1500,16 @@ LFail:
  * Sort based on _bws (browser selection flag)
  *
  ****************************************************/
-bool BCL::_FBuildThd(PCRM pcrm)
+bool BrowserContentList::_FBuildThd(PChunkyResourceManager pcrm)
 {
     AssertThis(0);
     AssertNilOrPo(pcrm, 0);
 
     bool fRet = fTrue;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     long sid;
-    FNET fnet;
-    FNI fniThd;
+    ThumbnailFileEnumerator fnet;
+    Filename fniThd;
 
     if (!fnet.FInit())
         return fFalse;
@@ -1517,7 +1517,7 @@ bool BCL::_FBuildThd(PCRM pcrm)
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        pcfl = CFL::PcflOpen(&fniThd, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fniThd, fcflNil);
         if (pvNil == pcfl)
         {
             // Error reported elsewhere
@@ -1554,7 +1554,7 @@ bool BCL::_FBuildThd(PCRM pcrm)
 
 /****************************************************
  *
- *  Add the chunks of file pcfl to the THD
+ *  Add the chunks of file pcfl to the ThumbnailDescriptor
  *
  *	Requires pre-definition of _ckiRoot, _ctgContent
  *
@@ -1562,15 +1562,15 @@ bool BCL::_FBuildThd(PCRM pcrm)
  *	A value of cnoNil => wild card search
  *
  ****************************************************/
-bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
+bool BrowserContentList::_FAddFileToThd(PChunkyFile pcfl, long sid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
 
     long ickiRoot;
     long cckiRoot;
-    CKI ckiRoot;
-    KID kidPar;
+    ChunkIdentification ckiRoot;
+    ChildChunkIdentification kidPar;
     long ikidPar;
     long ckidPar;
 
@@ -1628,9 +1628,9 @@ bool BCL::_FAddFileToThd(PCFL pcfl, long sid)
     return fTrue;
 }
 
-bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, CKI *pcki)
+bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
 {
-    KID kid;
+    ChildChunkIdentification kid;
 
     kid.cki = *pcki;
     kid.chid = chidNil;
@@ -1639,35 +1639,35 @@ bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, CKI *pcki)
 
 /****************************************************
  *
- *  Add a single GOKD to the THD
- *	The GOKD is a child of ckiPar.
+ *  Add a single KidspaceGraphicObjectDescriptor to the ThumbnailDescriptor
+ *	The KidspaceGraphicObjectDescriptor is a child of ckiPar.
  *  cnoPar is read from the ckiPar chunk
  *
  ****************************************************/
-bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
+bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pkid);
 
-    CKI cki = pkid->cki;
-    KID kid;
-    THD thd;
-    BLCK blck;
-    TFC tfc;
+    ChunkIdentification cki = pkid->cki;
+    ChildChunkIdentification kid;
+    ThumbnailDescriptor thd;
+    DataBlock blck;
+    BrowserThumbEntry tfc;
 
     // Read the Par chunk to find the cno of the CD content
     if (!pcfl->FFind(cki.ctg, cki.cno, &blck) || !blck.FUnpackData())
     {
         goto LFail;
     }
-    if (blck.Cb() != size(TFC))
+    if (blck.Cb() != size(BrowserThumbEntry))
         goto LFail;
-    if (!blck.FReadRgb(&tfc, size(TFC), 0))
+    if (!blck.FReadRgb(&tfc, size(BrowserThumbEntry), 0))
         goto LFail;
     if (kboCur != tfc.bo)
         SwapBytesBom(&tfc, kbomTfc);
-    Assert(kboCur == tfc.bo, "bad TFC");
+    Assert(kboCur == tfc.bo, "bad BrowserThumbEntry");
     if (!_fDescend)
     {
         thd.tag.cno = tfc.cno;
@@ -1688,7 +1688,7 @@ bool BCL::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
         thd.cno = kid.cki.cno;
     else
     {
-        // If there are no GOKD children, enter the reference to the named
+        // If there are no KidspaceGraphicObjectDescriptor children, enter the reference to the named
         // parent chunk
         thd.cno = tfc.cno;
     }
@@ -1702,7 +1702,7 @@ LFail:
     return fFalse;
 }
 
-bool BCLS::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
+bool BrowserContentListWithStrings::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -1711,7 +1711,7 @@ bool BCLS::_FAddGokdToThd(PCFL pcfl, long sid, KID *pkid)
     if (!_FSetNameGst(pcfl, pkid->cki.ctg, pkid->cki.cno))
         goto LFail;
 
-    if (!BCLS_PAR::_FAddGokdToThd(pcfl, sid, pkid))
+    if (!BrowserContentListWithStrings_PAR::_FAddGokdToThd(pcfl, sid, pkid))
         goto LFail;
 
     return fTrue;
@@ -1724,11 +1724,11 @@ LFail:
  * Save the name of the Par chunk in the Gst
  *
  ****************************************************/
-bool BCLS::_FSetNameGst(PCFL pcfl, CTG ctg, CNO cno)
+bool BrowserContentListWithStrings::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-    STN stn;
+    String stn;
 
     if (!pcfl->FGetName(ctg, cno, &stn))
         return fFalse;
@@ -1744,13 +1744,13 @@ bool BCLS::_FSetNameGst(PCFL pcfl, CTG ctg, CNO cno)
  * Initialization
  *
  ****************************************************/
-bool FNET::FInit(void)
+bool ThumbnailFileEnumerator::FInit(void)
 {
     AssertThis(0);
 
-    FTG ftgThd = kftgThumbDesc;
+    FileType ftgThd = kftgThumbDesc;
 
-    vapp.GetFniProduct(&_fniDirProduct); // look for THD files in the product FIRST
+    vapp.GetFniProduct(&_fniDirProduct); // look for ThumbnailDescriptor files in the product FIRST
     _fniDir = _fniDirProduct;
     _fniDirMSK = _fniDirProduct;
     _fInitMSKDir = fTrue;
@@ -1771,15 +1771,15 @@ bool FNET::FInit(void)
  * Note: _idir == 0 -> current product
  *
  ****************************************************/
-bool FNET::FNext(FNI *pfni, long *psid)
+bool ThumbnailFileEnumerator::FNext(Filename *pfni, long *psid)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
     AssertNilOrVarMem(psid);
 
-    FTG ftgThd = kftgThumbDesc;
-    FTG ftgDir = kftgDir;
-    STN stnProduct;
+    FileType ftgThd = kftgThumbDesc;
+    FileType ftgDir = kftgDir;
+    String stnProduct;
 
     if (!_fInited)
         return fFalse;
@@ -1813,14 +1813,14 @@ bool FNET::FNext(FNI *pfni, long *psid)
 
 /****************************************************
  *
- * Gets the file from the current FNET enumeration
+ * Gets the file from the current ThumbnailFileEnumerator enumeration
  * This uses the current fne.
  *
  ****************************************************/
-bool FNET::_FNextFni(FNI *pfni, long *psid)
+bool ThumbnailFileEnumerator::_FNextFni(Filename *pfni, long *psid)
 {
     AssertThis(0);
-    STN stnProduct;
+    String stnProduct;
 
     Assert(_fniDir.Ftg() == kftgDir, "Logic error");
     if (pvNil != psid)
@@ -1836,17 +1836,17 @@ bool FNET::_FNextFni(FNI *pfni, long *psid)
 
 /****************************************************
  *
- * BRWN Initialization
- * -> BRWL Initialization plus tgob creation
+ * BrowserNamedList Initialization
+ * -> BrowserList Initialization plus tgob creation
  *
  ****************************************************/
-bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoot, CTG ctgContent, PSTDIO pstdio,
-                 PBRCNL pbrcnl, bool fWrapScroll, long cthumScroll)
+bool BrowserNamedList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelect, long sidSelect, ChunkIdentification ckiRoot, ChunkTagOrType ctgContent, PStudio pstdio,
+                 PBrowserListContext pbrcnl, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    if (!BRWN_PAR::FInit(pcmd, bws, thumSelect, sidSelect, ckiRoot, ctgContent, pstdio, pbrcnl, fWrapScroll,
+    if (!BrowserNamedList_PAR::FInit(pcmd, bws, thumSelect, sidSelect, ckiRoot, ctgContent, pstdio, pbrcnl, fWrapScroll,
                          cthumScroll))
     {
         return fFalse;
@@ -1862,34 +1862,34 @@ bool BRWN::FInit(PCMD pcmd, BWS bws, long thumSelect, long sidSelect, CKI ckiRoo
  * Build the thd
  *
  ****************************************************/
-bool BRWN::_FGetContent(PCRM pcrm, CKI *pcki, CTG ctg, bool fBuildGl)
+bool BrowserNamedList::_FGetContent(PChunkyResourceManager pcrm, ChunkIdentification *pcki, ChunkTagOrType ctg, bool fBuildGl)
 {
     AssertThis(0);
 
     bool fRet = fFalse;
-    PBCLS pbcls = pvNil;
+    PBrowserContentListWithStrings pbcls = pvNil;
 
     if (!fBuildGl)
     {
         return fTrue;
     }
 
-    if (pvNil == (_pgst = GST::PgstNew(0)))
+    if (pvNil == (_pgst = StringTable_GST::PgstNew(0)))
         goto LFail;
 
     //
-    // Enumerate the files & build the THD
+    // Enumerate the files & build the ThumbnailDescriptor
     //
     Assert(ctg != cnoNil || pcki->ctg == ctgNil, "Invalid browser call");
 
-    pbcls = BCLS::PbclsNew(pcrm, pcki, ctg, _pglthd, _pgst);
+    pbcls = BrowserContentListWithStrings::PbclsNew(pcrm, pcki, ctg, _pglthd, _pgst);
     if (pbcls == pvNil)
         goto LFail;
 
     /* We passed the pglthd and pgst in, so no need to get them back before
-        releasing the BCLS */
-    Assert(_pglthd->CactRef() > 1, "GL of THDs will be lost!");
-    Assert(_pgst->CactRef() > 1, "GST will be lost!");
+        releasing the BrowserContentListWithStrings */
+    Assert(_pglthd->CactRef() > 1, "DynamicArray of THDs will be lost!");
+    Assert(_pgst->CactRef() > 1, "StringTable_GST will be lost!");
 
     fRet = fTrue;
 LFail:
@@ -1902,22 +1902,22 @@ LFail:
  * Removes the text from the unused tgob
  *
  ****************************************************/
-void BRWN::_ReleaseThumFrame(long ifrm)
+void BrowserNamedList::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
 
-    STN stn;
-    PGOB pgob;
+    String stn;
+    PGraphicsObject pgob;
 
     pgob = _PgobFromIfrm(ifrm);
     if (pvNil != pgob)
     {
         stn.SetNil();
-        ((PTGOB)pgob)->SetText(&stn);
+        ((PTextGraphicsObject)pgob)->SetText(&stn);
     }
 
-    // The BRWN class retains the tgob while the browser is up
+    // The BrowserNamedList class retains the tgob while the browser is up
 }
 
 /****************************************************
@@ -1926,21 +1926,21 @@ void BRWN::_ReleaseThumFrame(long ifrm)
  * current frame
  *
  ****************************************************/
-bool BRWN::_FSetThumFrame(long ithd, PGOB pgobPar)
+bool BrowserNamedList::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(ithd, 0, _pglthd->IvMac());
     AssertPo(pgobPar, 0);
 
-    PTGOB ptgob;
-    STN stnLabel;
-    THD thd;
+    PTextGraphicsObject ptgob;
+    String stnLabel;
+    ThumbnailDescriptor thd;
 
     _pglthd->Get(ithd, &thd);
     _pgst->GetStn(thd.ithd, &stnLabel);
-    ptgob = (PTGOB)(pgobPar->PgobFirstChild());
+    ptgob = (PTextGraphicsObject)(pgobPar->PgobFirstChild());
 
-    Assert(pvNil != ptgob, "No TGOB for the text");
+    Assert(pvNil != ptgob, "No TextGraphicsObject for the text");
     if (pvNil != ptgob)
         ptgob->SetText(&stnLabel);
 
@@ -1953,7 +1953,7 @@ bool BRWN::_FSetThumFrame(long ithd, PGOB pgobPar)
  * Apply selection & exit
  *
  ****************************************************/
-bool BRWN::FCmdOk(PCMD pcmd)
+bool BrowserNamedList::FCmdOk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1961,14 +1961,14 @@ bool BRWN::FCmdOk(PCMD pcmd)
     if (ivNil == _ithumSelect)
     {
         TAG tag;
-        PMVU pmvu;
-        pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+        PMovieView pmvu;
+        pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
         tag.sid = ksidInvalid;
         tag.pcrf = pvNil;
         pmvu->SetTagTool(&tag); // No need to close tag with ksidInvalid
     }
 
-    if (BRWD::FCmdOk(pcmd))
+    if (BrowserDisplay::FCmdOk(pcmd))
     {
         //
         // Stop any playing sounds in a sound browser.  We do
@@ -1987,18 +1987,18 @@ bool BRWN::FCmdOk(PCMD pcmd)
  * Create a BRoWser Music Sound object
  *
  ****************************************************/
-PBRWM BRWM::PbrwmNew(PRCA prca, long kidGlass, long sty, PSTDIO pstdio)
+PBrowserMusic BrowserMusic::PbrwmNew(PResourceCache prca, long kidGlass, long sty, PStudio pstdio)
 {
     AssertPo(prca, 0);
     AssertPo(pstdio, 0);
 
-    PBRWM pbrwm;
-    GCB gcb;
+    PBrowserMusic pbrwm;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    if ((pbrwm = NewObj BRWM(&gcb)) == pvNil)
+    if ((pbrwm = NewObj BrowserMusic(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2016,37 +2016,37 @@ PBRWM BRWM::PbrwmNew(PRCA prca, long kidGlass, long sty, PSTDIO pstdio)
         return pvNil;
     }
 
-    pbrwm->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwm->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwm;
 }
 
 /****************************************************
  *
  * Add all of the sounds of the movie from _pcrf
- * to the current BRWL lists:
+ * to the current BrowserList lists:
  *	pglthd, pgst
  *
- * Used at initialization time by both the BRWI and
- * the BRWM classes.
+ * Used at initialization time by both the BrowserImportSound and
+ * the BrowserMusic classes.
  *
  * It is assumed that initialization has created
  * (if empty) lists at this point.
  *
  ****************************************************/
-bool BRWM::_FUpdateLists(void)
+bool BrowserMusic::_FUpdateLists(void)
 {
     AssertThis(0);
 
-    STN stn;
-    THD thd;
+    String stn;
+    ThumbnailDescriptor thd;
     long ithd;
     long ithdOld;
     long ccki;
     long icki;
-    CKI cki;
+    ChunkIdentification cki;
     TAG tag;
-    PMSND pmsnd = pvNil;
-    PCFL pcfl = _pcrf->Pcfl();
+    PMovieSoundMSND pmsnd = pvNil;
+    PChunkyFile pcfl = _pcrf->Pcfl();
 
     // Enum through current movie for user sounds
     // For each	one, extend the lists to include the new sound
@@ -2062,7 +2062,7 @@ bool BRWM::_FUpdateLists(void)
         tag.cno = cki.cno;
 
         // Read the msnd chunk and continue if sty's do not match
-        pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             goto LNext;
 
@@ -2106,16 +2106,16 @@ bool BRWM::_FUpdateLists(void)
  * Test to see if a sound is already in the lists
  *
  ****************************************************/
-bool BRWM::_FSndListed(CNO cno, long *pithd)
+bool BrowserMusic::_FSndListed(ChunkNumber cno, long *pithd)
 {
     AssertBaseThis(0);
 
     long ithd;
-    THD *pthd;
+    ThumbnailDescriptor *pthd;
 
     for (ithd = _cthumCD; ithd < _pglthd->IvMac(); ithd++)
     {
-        pthd = (THD *)_pglthd->QvGet(ithd);
+        pthd = (ThumbnailDescriptor *)_pglthd->QvGet(ithd);
         if (pthd->tag.cno == cno)
         {
             if (pvNil != pithd)
@@ -2128,13 +2128,13 @@ bool BRWM::_FSndListed(CNO cno, long *pithd)
 
 /****************************************************
  *
- * Extend the BRWL lists
+ * Extend the BrowserList lists
  *
  ****************************************************/
-bool BRWM::_FAddThd(STN *pstn, CKI *pcki)
+bool BrowserMusic::_FAddThd(String *pstn, ChunkIdentification *pcki)
 {
     AssertBaseThis(0);
-    THD thd;
+    ThumbnailDescriptor thd;
 
     if (!_pgst->FAddStn(pstn))
         return fFalse;
@@ -2163,10 +2163,10 @@ LFail1:
  * Import sound browser
  *
  ****************************************************/
-void BRWM::_ProcessSelection(void)
+void BrowserMusic::_ProcessSelection(void)
 {
     AssertThis(0);
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     TAG tag;
     long thumSelect;
     long sid;
@@ -2177,7 +2177,7 @@ void BRWM::_ProcessSelection(void)
     tag.sid = sid;
     tag.pcrf = (ksidUseCrf == sid) ? _pcrf : pvNil;
     tag.ctg = kctgMsnd;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
 
     if (!vptagm->FCacheTagToHD(&tag))
     {
@@ -2185,7 +2185,7 @@ void BRWM::_ProcessSelection(void)
         return;
     }
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
 
     if (pvNil == pmsnd)
         return;
@@ -2202,20 +2202,20 @@ void BRWM::_ProcessSelection(void)
  * execution
  *
  ****************************************************/
-bool BRWM::FCmdFile(PCMD pcmd)
+bool BrowserMusic::FCmdFile(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    FNI fni;
+    Filename fni;
     long kidBrws;
-    PFIL pfil = pvNil; // Wave or midi file
-    PCFL pcfl = pvNil; // Movie file
+    PFileObject pfil = pvNil; // Wave or midi file
+    PChunkyFile pcfl = pvNil; // Movie file
     long icki;
     long ccki;
-    STN stn;
-    CKI cki;
-    CMD cmd;
+    String stn;
+    ChunkIdentification cki;
+    Command cmd;
 
     vapp.GetPortfolioDoc(&fni);
     vpappb->BeginLongOp();
@@ -2242,7 +2242,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     default:
         // Import <user> sounds from a movie
         // Verify version numbers before accepting this file
-        pcfl = CFL::PcflOpen(&fni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
 
         if (pvNil == pcfl)
             goto LEnd;
@@ -2266,7 +2266,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
             long sty;
             if (!pcfl->FGetCkiCtg(kctgMsnd, icki, &cki))
                 goto LEnd;
-            if (!MSND::FGetMsndInfo(pcfl, kctgMsnd, cki.cno, &fInvalid, &sty))
+            if (!MovieSoundMSND::FGetMsndInfo(pcfl, kctgMsnd, cki.cno, &fInvalid, &sty))
                 goto LEnd;
 
             if (!fInvalid && sty == _sty)
@@ -2302,7 +2302,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
     }
 
     // Import sound from a wave or midi file
-    pfil = FIL::PfilOpen(&fni);
+    pfil = FileObject::PfilOpen(&fni);
     if (pvNil == pfil)
         goto LEnd; // Error will have been reported
 
@@ -2311,7 +2311,7 @@ bool BRWM::FCmdFile(PCMD pcmd)
         goto LEnd; // Error will have been reported
 
     // Add (eg) the movie sounds from &fni to the current
-    // browser lists, which are BRWL derived.
+    // browser lists, which are BrowserList derived.
     cki.ctg = kctgMsnd;
     fni.GetLeaf(&stn); // name of sound
     if (!_FAddThd(&stn, &cki))
@@ -2337,7 +2337,7 @@ LEnd:
  * Browser Command Handler : (For deleting user snds)
  *
  ****************************************************/
-bool BRWM::FCmdDel(PCMD pcmd)
+bool BrowserMusic::FCmdDel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2345,15 +2345,15 @@ bool BRWM::FCmdDel(PCMD pcmd)
     long sid;
     TAG tag;
     PTAG ptag;
-    PMSND pmsnd;
-    STN stnErr;
-    STN stnSnd;
-    PMVU pmvu;
+    PMovieSoundMSND pmsnd;
+    String stnErr;
+    String stnSnd;
+    PMovieView pmvu;
 
     if (_ithumSelect < _cthumCD)
         return fTrue; // CD Sounds cannot be deleted
 
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     AssertPo(pmvu, 0);
     _pgst->GetStn(_ithumSelect, &stnSnd);
 
@@ -2371,7 +2371,7 @@ bool BRWM::FCmdDel(PCMD pcmd)
     tag.ctg = kctgMsnd;
     _GetThumFromIthum(_ithumSelect, &tag.cno, &sid);
 
-    pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
+    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     if (pvNil == pmsnd)
         return fTrue;
 
@@ -2419,17 +2419,17 @@ bool BRWM::FCmdDel(PCMD pcmd)
  *	A pointer to the object, else pvNil.
  *
  ****************************************************/
-PBRWT BRWT::PbrwtNew(PRCA prca, long kidPar, long kidGlass)
+PBrowserText BrowserText::PbrwtNew(PResourceCache prca, long kidPar, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWT pbrwt;
-    GCB gcb;
+    PBrowserText pbrwt;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidPar, kidGlass))
         return pvNil;
 
-    if ((pbrwt = NewObj BRWT(&gcb)) == pvNil)
+    if ((pbrwt = NewObj BrowserText(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2446,10 +2446,10 @@ PBRWT BRWT::PbrwtNew(PRCA prca, long kidPar, long kidGlass)
 
 /****************************************************
  *
- * Set the Gst for BRWT text
+ * Set the Gst for BrowserText text
  *
  ****************************************************/
-void BRWT::SetGst(PGST pgst)
+void BrowserText::SetGst(PStringTable_GST pgst)
 {
     AssertThis(0);
     AssertPo(pgst, 0);
@@ -2462,15 +2462,15 @@ void BRWT::SetGst(PGST pgst)
 
 /****************************************************
  *
- * Initialize BRWT TGOB & text
+ * Initialize BrowserText TextGraphicsObject & text
  *
  ****************************************************/
-bool BRWT::FInit(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bool fWrapScroll, long cthumScroll)
+bool BrowserText::FInit(PCommand pcmd, long thumSelect, long thumDisplay, PStudio pstdio, bool fWrapScroll, long cthumScroll)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    BRWD::Init(pcmd, thumSelect, thumDisplay, pstdio, fWrapScroll, cthumScroll);
+    BrowserDisplay::Init(pcmd, thumSelect, thumDisplay, pstdio, fWrapScroll, cthumScroll);
 
     //
     // Create the tgob's for each frame on the page
@@ -2490,23 +2490,23 @@ bool BRWT::FInit(PCMD pcmd, long thumSelect, long thumDisplay, PSTDIO pstdio, bo
  * current frame
  *
  ****************************************************/
-bool BRWT::_FSetThumFrame(long istn, PGOB pgobPar)
+bool BrowserText::_FSetThumFrame(long istn, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(istn, 0, _pgst->IvMac());
     AssertPo(pgobPar, 0);
 
-    PTGOB ptgob;
-    STN stnLabel;
+    PTextGraphicsObject ptgob;
+    String stnLabel;
 
     _pgst->GetStn(istn, &stnLabel);
-    ptgob = (PTGOB)(pgobPar->PgobFirstChild());
+    ptgob = (PTextGraphicsObject)(pgobPar->PgobFirstChild());
 
-    Assert(pvNil != ptgob, "No TGOB for the text");
+    Assert(pvNil != ptgob, "No TextGraphicsObject for the text");
     if (pvNil != ptgob)
     {
-        Assert(ptgob->FIs(kclsTGOB), "GOB isn't a TGOB");
-        if (ptgob->FIs(kclsTGOB))
+        Assert(ptgob->FIs(kclsTextGraphicsObject), "GraphicsObject isn't a TextGraphicsObject");
+        if (ptgob->FIs(kclsTextGraphicsObject))
         {
             ptgob->SetText(&stnLabel);
             return fTrue;
@@ -2524,18 +2524,18 @@ bool BRWT::_FSetThumFrame(long istn, PGOB pgobPar)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWA BRWA::PbrwaNew(PRCA prca)
+PBrowserAction BrowserAction::PbrwaNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
-    PBRWA pbrwa;
-    PGOK pgok;
-    GCB gcb;
+    PBrowserAction pbrwa;
+    PKidspaceGraphicObject pgok;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidActionGlass))
         return pvNil;
 
-    if ((pbrwa = NewObj BRWA(&gcb)) == pvNil)
+    if ((pbrwa = NewObj BrowserAction(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2548,15 +2548,15 @@ PBRWA BRWA::PbrwaNew(PRCA prca)
     //
     // Stop the action browser animation while the browser is up.
     //
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
-        Assert(pgok->FIs(kclsGOK), "Invalid class");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Invalid class");
         pgok->FChangeState(kstSelected);
     }
 
-    pbrwa->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwa->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwa;
 }
 
@@ -2565,23 +2565,23 @@ PBRWA BRWA::PbrwaNew(PRCA prca)
  * Build the ape
  *
  ****************************************************/
-bool BRWA::FBuildApe(PACTR pactr)
+bool BrowserAction::FBuildApe(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
 
-    COST cost;
-    PGOK pgokFrame;
+    BodyCostume cost;
+    PKidspaceGraphicObject pgokFrame;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if (!cost.FGet(pactr->Pbody()))
         return fFalse;
-    pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidBrwsActionPrev);
-    Assert(pgokFrame->FIs(kclsGOK), "Invalid class");
+    pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidBrwsActionPrev);
+    Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Invalid class");
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(kidBrwsActionPrev, pgokFrame, fgobNil, kginDefault, pvNil, &rcRel);
-    _pape = APE::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fTrue);
+    _pape = ActorPreviewEntity::PapeNew(&gcb, pactr->Ptmpl(), &cost, pactr->AnidCur(), fTrue);
     if (pvNil == _pape)
         return fFalse;
     return fTrue;
@@ -2590,29 +2590,29 @@ bool BRWA::FBuildApe(PACTR pactr)
 /***************************************************************************
  *
  * Build the string table for actions prior to action initialization
- * Transfer the string table to BRWA
+ * Transfer the string table to BrowserAction
  *
  * NOTE:  The string table is built from the template as the code already
  * has action names cached on the hard drive for selected actors. The
  * string table is built for fast scrolling.
  *
  **************************************************************************/
-bool BRWA::FBuildGst(PSCEN pscen)
+bool BrowserAction::FBuildGst(PScene pscen)
 {
     AssertThis(0);
 
-    STN stn;
-    PTMPL ptmpl;
+    String stn;
+    PTemplate ptmpl;
     long cactn;
     long iactn;
-    PGST pgst;
+    PStringTable_GST pgst;
 
     Assert(pvNil != pscen && pvNil != pscen->PactrSelected(), "kidBrwsAction: Invalid actor");
 
     ptmpl = pscen->PactrSelected()->Ptmpl();
     Assert(pvNil != ptmpl, "Actor has no template");
 
-    if (pvNil == (pgst = GST::PgstNew(0)))
+    if (pvNil == (pgst = StringTable_GST::PgstNew(0)))
         return fFalse;
 
     cactn = ptmpl->Cactn();
@@ -2645,7 +2645,7 @@ LFail:
  * Process Browser Action Selection
  *
  ****************************************************/
-void BRWA::_ProcessSelection(void)
+void BrowserAction::_ProcessSelection(void)
 {
     AssertThis(0);
     _pape->FSetAction(_ithumSelect);
@@ -2663,14 +2663,14 @@ void BRWA::_ProcessSelection(void)
  * Make button(s) invisible on single cel actions
  *
  ****************************************************/
-bool BRWA::FCmdChangeCel(PCMD pcmd)
+bool BrowserAction::FCmdChangeCel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     long st;
     long ccel;
-    PACTR pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
+    PActor pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
 
     if (!pactr->Ptmpl()->FGetCcelActn(_pape->Anid(), &ccel))
         return fTrue;
@@ -2714,17 +2714,17 @@ bool BRWA::FCmdChangeCel(PCMD pcmd)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
+PBrowserImportSound BrowserImportSound::PbrwiNew(PResourceCache prca, long kidGlass, long sty)
 {
     AssertPo(prca, 0);
 
-    PBRWI pbrwi;
-    GCB gcb;
+    PBrowserImportSound pbrwi;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    if ((pbrwi = NewObj BRWI(&gcb)) == pvNil)
+    if ((pbrwi = NewObj BrowserImportSound(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2735,32 +2735,32 @@ PBRWI BRWI::PbrwiNew(PRCA prca, long kidGlass, long sty)
     }
 
     pbrwi->_sty = sty;
-    pbrwi->_ptgobPage = TGOB::PtgobCreate(kidImportPageNum, idsBrwsPageFont, tavCenter);
+    pbrwi->_ptgobPage = TextGraphicsObject::PtgobCreate(kidImportPageNum, idsBrwsPageFont, tavCenter);
     return pbrwi;
 }
 
 /***************************************************************************
  *
- * Initialize the BRWI	 (Import Browser)
+ * Initialize the BrowserImportSound	 (Import Browser)
  *
  **************************************************************************/
-bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PSTDIO pstdio)
+bool BrowserImportSound::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStudio pstdio)
 {
     AssertBaseThis(0);
 
-    PCFL pcfl;
-    FNI fni;
-    STN stn;
+    PChunkyFile pcfl;
+    Filename fni;
+    String stn;
 
     _pstdio = pstdio;
     //
     // Create the gl's
     //
-    if (pvNil == (_pglthd = GL::PglNew(size(THD), kglthdGrow)))
+    if (pvNil == (_pglthd = DynamicArray::PglNew(size(ThumbnailDescriptor), kglthdGrow)))
         return fFalse;
     _pglthd->SetMinGrow(kglthdGrow);
 
-    if (pvNil == (_pgst = GST::PgstNew(0)))
+    if (pvNil == (_pgst = StringTable_GST::PgstNew(0)))
         return fFalse;
 
     _ckiRoot = ckiRoot;
@@ -2768,10 +2768,10 @@ bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PSTDIO pstdio)
 
     // Fill the lists with sounds from the portfolio movie
     vapp.GetPortfolioDoc(&fni);
-    pcfl = CFL::PcflOpen(&fni, fcflNil);
+    pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
     if (pvNil == pcfl)
         goto LFail; // Error already reported
-    _pcrf = CRF::PcrfNew(pcfl, 0);
+    _pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
     ReleasePpo(&pcfl);
 
     if (pvNil == _pcrf)
@@ -2779,7 +2779,7 @@ bool BRWI::FInit(PCMD pcmd, CKI ckiRoot, PSTDIO pstdio)
     if (!_FUpdateLists()) // to include sounds from the selected movie
         goto LFail;
 
-    BRWD::Init(pcmd, ivNil, ivNil, pstdio, fTrue);
+    BrowserDisplay::Init(pcmd, ivNil, ivNil, pstdio, fTrue);
     if (!FCreateAllTgob())
         goto LFail;
 
@@ -2797,17 +2797,17 @@ LFail:
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWP BRWP::PbrwpNew(PRCA prca, long kidGlass)
+PBrowserPropActor BrowserPropActor::PbrwpNew(PResourceCache prca, long kidGlass)
 {
     AssertPo(prca, 0);
 
-    PBRWP pbrwp;
-    GCB gcb;
+    PBrowserPropActor pbrwp;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidGlass))
         return pvNil;
 
-    if ((pbrwp = NewObj BRWP(&gcb)) == pvNil)
+    if ((pbrwp = NewObj BrowserPropActor(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2817,7 +2817,7 @@ PBRWP BRWP::PbrwpNew(PRCA prca, long kidGlass)
         return pvNil;
     }
 
-    pbrwp->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwp->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwp;
 }
 
@@ -2829,17 +2829,17 @@ PBRWP BRWP::PbrwpNew(PRCA prca, long kidGlass)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWB BRWB::PbrwbNew(PRCA prca)
+PBrowserBackground BrowserBackground::PbrwbNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
-    PBRWB pbrwb;
-    GCB gcb;
+    PBrowserBackground pbrwb;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidSettingsGlass))
         return pvNil;
 
-    if ((pbrwb = NewObj BRWB(&gcb)) == pvNil)
+    if ((pbrwb = NewObj BrowserBackground(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2849,7 +2849,7 @@ PBRWB BRWB::PbrwbNew(PRCA prca)
         return pvNil;
     }
 
-    pbrwb->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwb->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwb;
 }
 
@@ -2858,16 +2858,16 @@ PBRWB BRWB::PbrwbNew(PRCA prca)
  * Background's virtual FCmdCancel
  *
  ****************************************************/
-bool BRWB::FCmdCancel(PCMD pcmd)
+bool BrowserBackground::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(_pstdio);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
@@ -2878,7 +2878,7 @@ bool BRWB::FCmdCancel(PCMD pcmd)
         _pstdio->SetDisplayCast(fTrue);
     else
         _pstdio->SetDisplayCast(fFalse);
-    return BRWB_PAR::FCmdCancel(pcmd);
+    return BrowserBackground_PAR::FCmdCancel(pcmd);
 }
 
 /****************************************************
@@ -2886,14 +2886,14 @@ bool BRWB::FCmdCancel(PCMD pcmd)
  * Set the size of the pcrm
  *
  ****************************************************/
-void BRWL::_SetCbPcrmMin(void)
+void BrowserList::_SetCbPcrmMin(void)
 {
     AssertThis(0);
     long dwTotalPhys;
     long dwAvailPhys;
 
     // If short on memory, pull in the cache
-    ((APP *)vpappb)->MemStat(&dwTotalPhys, &dwAvailPhys);
+    ((Application *)vpappb)->MemStat(&dwTotalPhys, &dwAvailPhys);
     if (dwTotalPhys > kdwTotalPhysLim && dwAvailPhys > kdwAvailPhysLim)
         return;
 
@@ -2914,17 +2914,17 @@ void BRWL::_SetCbPcrmMin(void)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PBRWC BRWC::PbrwcNew(PRCA prca)
+PBrowserCamera BrowserCamera::PbrwcNew(PResourceCache prca)
 {
     AssertPo(prca, 0);
 
-    PBRWC pbrwc;
-    GCB gcb;
+    PBrowserCamera pbrwc;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kidCameraGlass))
         return pvNil;
 
-    if ((pbrwc = NewObj BRWC(&gcb)) == pvNil)
+    if ((pbrwc = NewObj BrowserCamera(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2934,7 +2934,7 @@ PBRWC BRWC::PbrwcNew(PRCA prca)
         return pvNil;
     }
 
-    pbrwc->_ptgobPage = TGOB::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
+    pbrwc->_ptgobPage = TextGraphicsObject::PtgobCreate(kidBrowserPageNum, idsBrwsPageFont, tavCenter);
     return pbrwc;
 }
 
@@ -2943,23 +2943,23 @@ PBRWC BRWC::PbrwcNew(PRCA prca)
  * Camera's virtual FCmdCancel
  *
  ****************************************************/
-bool BRWC::FCmdCancel(PCMD pcmd)
+bool BrowserCamera::FCmdCancel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(_pstdio);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
     // Update the UI
     _pstdio->Pmvie()->Pmcc()->ChangeTool(toolDefault);
 
-    return BRWC_PAR::FCmdCancel(pcmd);
+    return BrowserCamera_PAR::FCmdCancel(pcmd);
 }
 
 /****************************************************
@@ -2967,17 +2967,17 @@ bool BRWC::FCmdCancel(PCMD pcmd)
  * Create a BRoWser Roll Call object
  *
  ****************************************************/
-PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
+PBrowserRollCall BrowserRollCall::PbrwrNew(PResourceCache prca, long kid)
 {
     AssertPo(prca, 0);
 
-    PBRWR pbrwr;
-    GCB gcb;
+    PBrowserRollCall pbrwr;
+    GraphicsObjectBlock gcb;
 
     if (!_FBuildGcb(&gcb, kidBackground, kid))
         return pvNil;
 
-    if ((pbrwr = NewObj BRWR(&gcb)) == pvNil)
+    if ((pbrwr = NewObj BrowserRollCall(&gcb)) == pvNil)
         return pvNil;
 
     // Initialize the gok
@@ -2995,28 +2995,28 @@ PBRWR BRWR::PbrwrNew(PRCA prca, long kid)
  * Initialize a BRoWser Roll Call object
  *
  ****************************************************/
-bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PSTDIO pstdio)
+bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithumDisplay, PStudio pstdio)
 {
     AssertThis(0);
 
     long ccrf = 1;
-    PCFL pcfl;
-    BLCK blck;
+    PChunkyFile pcfl;
+    DataBlock blck;
     long ccki;
     long icki;
-    CKI cki;
-    TFC tfc;
-    KID kid;
-    FNET fnet;
-    FNI fniThd;
+    ChunkIdentification cki;
+    BrowserThumbEntry tfc;
+    ChildChunkIdentification kid;
+    ThumbnailFileEnumerator fnet;
+    Filename fniThd;
 
     if (!fnet.FInit())
         return fFalse;
 
     _ctg = ctgTmplThum;
-    BRWD::Init(pcmd, ivNil, ithumDisplay, pstdio, fFalse, 1);
+    BrowserDisplay::Init(pcmd, ivNil, ithumDisplay, pstdio, fFalse, 1);
 
-    _pcrm = CRM::PcrmNew(ccrf);
+    _pcrm = ChunkyResourceManager::PcrmNew(ccrf);
     if (pvNil == _pcrm)
         goto LFail; // Error already reported
 
@@ -3024,7 +3024,7 @@ bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PSTDIO pstdio)
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        pcfl = CFL::PcflOpen(&fniThd, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(&fniThd, fcflNil);
         if (pvNil == pcfl)
         {
             goto LFail; // Error already reported
@@ -3049,13 +3049,13 @@ bool BRWR::FInit(PCMD pcmd, CTG ctgTmplThum, long ithumDisplay, PSTDIO pstdio)
             {
                 goto LFail;
             }
-            if (blck.Cb() != size(TFC))
+            if (blck.Cb() != size(BrowserThumbEntry))
                 goto LFail;
-            if (!blck.FReadRgb(&tfc, size(TFC), 0))
+            if (!blck.FReadRgb(&tfc, size(BrowserThumbEntry), 0))
                 goto LFail;
             if (kboCur != tfc.bo)
                 SwapBytesBom(&tfc, kbomTfc);
-            Assert(kboCur == tfc.bo, "bad TFC");
+            Assert(kboCur == tfc.bo, "bad BrowserThumbEntry");
 
             if (!pcfl->FGetKidChidCtg(ctgTmplThum, cki.cno, 0, kctgGokd, &kid))
             {
@@ -3080,7 +3080,7 @@ LFail:
  * Update the RollCall : Select actor arid
  *
  ****************************************************/
-bool BRWR::FUpdate(long arid, PSTDIO pstdio)
+bool BrowserRollCall::FUpdate(long arid, PStudio pstdio)
 {
     AssertThis(0);
     long ithumDisplay;
@@ -3115,7 +3115,7 @@ bool BRWR::FUpdate(long arid, PSTDIO pstdio)
  * underneath the code.
  *
  ****************************************************/
-void BRWR::_ProcessSelection(void)
+void BrowserRollCall::_ProcessSelection(void)
 {
     AssertThis(0);
 
@@ -3134,17 +3134,17 @@ void BRWR::_ProcessSelection(void)
  * Browser Roll Call Cthum
  *
  ****************************************************/
-long BRWR::_Cthum(void)
+long BrowserRollCall::_Cthum(void)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
     long iarid;
     long arid;
     long cactRef;
     long cthum = 0;
     bool fProp;
 
-    Assert(_ctg == kctgPrth || _ctg == kctgTmth, "Invalid BRWR initialization");
+    Assert(_ctg == kctgPrth || _ctg == kctgTmth, "Invalid BrowserRollCall initialization");
 
     if (_pstdio->Pmvie() == pvNil)
         return 0;
@@ -3170,10 +3170,10 @@ long BRWR::_Cthum(void)
  * Iarid from Ithum
  *
  ****************************************************/
-long BRWR::_IaridFromIthum(long ithum, long iaridFirst)
+long BrowserRollCall::_IaridFromIthum(long ithum, long iaridFirst)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
     long iarid;
     long arid;
     long cactRef;
@@ -3208,11 +3208,11 @@ long BRWR::_IaridFromIthum(long ithum, long iaridFirst)
  * copy of Billy)
  *
  ****************************************************/
-long BRWR::_IthumFromArid(long aridSelect)
+long BrowserRollCall::_IthumFromArid(long aridSelect)
 {
     AssertThis(0);
 
-    STN stn;
+    String stn;
     long iarid;
     long arid;
     long cactRef;
@@ -3253,7 +3253,7 @@ long BRWR::_IthumFromArid(long aridSelect)
  * Advance the gob (thumbnail) index
  *
  ****************************************************/
-bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
+bool BrowserRollCall::_FSetThumFrame(long ithum, PGraphicsObject pgobPar)
 {
     AssertThis(0);
     AssertIn(ithum, 0, _pstdio->Pmvie()->CmactrMac());
@@ -3262,13 +3262,13 @@ bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
     RC rcAbsPar;
     RC rcAbs;
     RC rcRel;
-    STN stnLabel;
+    String stnLabel;
     long stid;
     long cactRef;
     long arid;
     long iarid;
     TAG tag;
-    STN stn;
+    String stn;
     long dxp;
     long dyp;
 
@@ -3281,15 +3281,15 @@ bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
 
     if (!_pstdio->Pmvie()->FIsIaridTdt(iarid))
     {
-        PGOK pgok;
-        CNO cno = _pstdio->CnoGokdFromCnoTmpl(tag.cno);
+        PKidspaceGraphicObject pgok;
+        ChunkNumber cno = _pstdio->CnoGokdFromCnoTmpl(tag.cno);
         long kidThum = _KidThumFromIfrm(_cfrmPageCur);
         pgok = vapp.Pkwa()->PgokNew(pgobPar, kidThum, cno, _pcrm);
         if (pvNil == pgok)
             return fFalse;
 
         // Note: The graphic is not the correct size
-        ((PGOB)pgok)->GetPos(&rcAbs, &rcRel);
+        ((PGraphicsObject)pgok)->GetPos(&rcAbs, &rcRel);
         pgobPar->GetPos(&rcAbsPar, pvNil);
         dxp = (rcAbs.Dxp() - rcAbsPar.Dxp()) / 2;
         dyp = (rcAbs.Dyp() - rcAbsPar.Dyp()) / 2;
@@ -3297,18 +3297,18 @@ bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
         rcAbs.ypTop += (_dypFrmOffset - dyp);
         rcAbs.xpRight += (dxp - _dxpFrmOffset);
         rcAbs.ypBottom += (dyp - _dypFrmOffset);
-        ((PGOB)pgok)->SetPos(&rcAbs, &rcRel);
+        ((PGraphicsObject)pgok)->SetPos(&rcAbs, &rcRel);
     }
     else
     {
-        PTGOB ptgob;
-        STN stn = stnLabel;
+        PTextGraphicsObject ptgob;
+        String stn = stnLabel;
         long cch = stn.Cch();
         long hidThum;
 
         // Display the text as the thumbnail
         hidThum = _KidThumFromIfrm(_cfrmPageCur);
-        ptgob = TGOB::PtgobCreate(_kidFrmFirst + _cfrmPageCur, _idsFont, tavCenter, hidThum);
+        ptgob = TextGraphicsObject::PtgobCreate(_kidFrmFirst + _cfrmPageCur, _idsFont, tavCenter, hidThum);
 
         if (pvNil != ptgob)
         {
@@ -3327,12 +3327,12 @@ bool BRWR::_FSetThumFrame(long ithum, PGOB pgobPar)
  * Clear rollover help
  *
  ****************************************************/
-bool BRWR::_FClearHelp(long ifrm)
+bool BrowserRollCall::_FClearHelp(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
 
-    STN stn;
+    String stn;
     stn.SetNil();
     long stid = (_ctg == kctgPrth) ? kstidProp : kstidActor;
     stid += ifrm;
@@ -3345,11 +3345,11 @@ bool BRWR::_FClearHelp(long ifrm)
  * Assumes gob based.
  *
  ****************************************************/
-void BRWR::_ReleaseThumFrame(long ifrm)
+void BrowserRollCall::_ReleaseThumFrame(long ifrm)
 {
     AssertThis(0);
     AssertIn(ifrm, 0, _cfrm);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     // Release previous gob associated with the current frame
     pgob = _PgobFromIfrm(ifrm);
@@ -3364,7 +3364,7 @@ void BRWR::_ReleaseThumFrame(long ifrm)
  * Browser Destructor
  *
  ****************************************************/
-BRWD::~BRWD(void)
+BrowserDisplay::~BrowserDisplay(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pbrcn);
@@ -3377,7 +3377,7 @@ BRWD::~BRWD(void)
  * Browser List Destructor
  *
  ****************************************************/
-BRWL::~BRWL(void)
+BrowserList::~BrowserList(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pglthd);
@@ -3393,7 +3393,7 @@ BRWL::~BRWL(void)
  * Browser Text Destructor
  *
  ****************************************************/
-BRWT::~BRWT(void)
+BrowserText::~BrowserText(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pgst);
@@ -3407,7 +3407,7 @@ BRWT::~BRWT(void)
  * Browser RollCall Destructor
  *
  ****************************************************/
-BRWR::~BRWR(void)
+BrowserRollCall::~BrowserRollCall(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pcrm);
@@ -3418,7 +3418,7 @@ BRWR::~BRWR(void)
  * Browser Music Import Destructor
  *
  ****************************************************/
-BRWI::~BRWI(void)
+BrowserImportSound::~BrowserImportSound(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pcrf);
@@ -3429,7 +3429,7 @@ BRWI::~BRWI(void)
  * Browser Context Destructor
  *
  ****************************************************/
-BRCNL::~BRCNL(void)
+BrowserListContext::~BrowserListContext(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&pglthd);
@@ -3440,75 +3440,75 @@ BRCNL::~BRCNL(void)
 #ifdef DEBUG
 /****************************************************
 
-    Mark memory used by the BRCN
+    Mark memory used by the BrowserContext
 
  ****************************************************/
-void BRCN::MarkMem(void)
+void BrowserContext::MarkMem(void)
 {
     AssertThis(0);
-    BRCN_PAR::MarkMem();
+    BrowserContext_PAR::MarkMem();
 }
 
 /****************************************************
 
-    Mark memory used by the BRCNL
+    Mark memory used by the BrowserListContext
 
  ****************************************************/
-void BRCNL::MarkMem(void)
+void BrowserListContext::MarkMem(void)
 {
     AssertThis(0);
     MarkMemObj(pglthd);
     MarkMemObj(pgst);
     MarkMemObj(pcrm);
-    BRCNL_PAR::MarkMem();
+    BrowserListContext_PAR::MarkMem();
 }
 
 /****************************************************
 
-    Mark memory used by the BRWR
+    Mark memory used by the BrowserRollCall
 
  ****************************************************/
-void BRWR::MarkMem(void)
+void BrowserRollCall::MarkMem(void)
 {
     AssertThis(0);
     MarkMemObj(_pcrm);
-    BRWR_PAR::MarkMem();
+    BrowserRollCall_PAR::MarkMem();
 }
 
 /****************************************************
 
-    Mark memory used by the BRWI
+    Mark memory used by the BrowserImportSound
 
  ****************************************************/
-void BRWI::MarkMem(void)
+void BrowserImportSound::MarkMem(void)
 {
     AssertThis(0);
     MarkMemObj(_pcrf);
-    BRWI_PAR::MarkMem();
+    BrowserImportSound_PAR::MarkMem();
 }
 
 /****************************************************
 
-    Mark memory used by the BRWD
+    Mark memory used by the BrowserDisplay
 
  ****************************************************/
-void BRWD::MarkMem(void)
+void BrowserDisplay::MarkMem(void)
 {
     AssertThis(0);
-    BRWD_PAR::MarkMem();
+    BrowserDisplay_PAR::MarkMem();
     MarkMemObj(_pbrcn);
 }
 
 /****************************************************
 
-    Mark memory used by the BRWL
+    Mark memory used by the BrowserList
 
  ****************************************************/
-void BRWL::MarkMem(void)
+void BrowserList::MarkMem(void)
 {
     AssertThis(0);
 
-    BRWL_PAR::MarkMem();
+    BrowserList_PAR::MarkMem();
     MarkMemObj(_pglthd);
     MarkMemObj(_pcrm);
     MarkMemObj(_pgst);
@@ -3516,103 +3516,103 @@ void BRWL::MarkMem(void)
 
 /****************************************************
 
-    Mark memory used by the BRWT
+    Mark memory used by the BrowserText
 
  ****************************************************/
-void BRWT::MarkMem(void)
+void BrowserText::MarkMem(void)
 {
     AssertThis(0);
 
     MarkMemObj(_pgst);
-    BRWT_PAR::MarkMem();
+    BrowserText_PAR::MarkMem();
 }
 
 /****************************************************
 
-    Mark memory used by the BRWA
+    Mark memory used by the BrowserAction
 
  ****************************************************/
-void BRWA::MarkMem(void)
+void BrowserAction::MarkMem(void)
 {
     AssertThis(0);
 
     MarkMemObj(_pape);
-    BRWA_PAR::MarkMem();
+    BrowserAction_PAR::MarkMem();
 }
 
 /****************************************************
 
-    BCL Markmem
+    BrowserContentList Markmem
 
  ****************************************************/
-void BCL::MarkMem(void)
+void BrowserContentList::MarkMem(void)
 {
-    BCL_PAR::MarkMem();
+    BrowserContentList_PAR::MarkMem();
     MarkMemObj(_pglthd);
 }
 
-void BCLS::MarkMem(void)
+void BrowserContentListWithStrings::MarkMem(void)
 {
-    BCLS_PAR::MarkMem();
+    BrowserContentListWithStrings_PAR::MarkMem();
     MarkMemObj(_pgst);
 }
 
 /****************************************************
 
-    Assert the validity of the BRCN
+    Assert the validity of the BrowserContext
 
  ****************************************************/
-void BRCN::AssertValid(ulong grfobj)
+void BrowserContext::AssertValid(ulong grfobj)
 {
-    BRCN_PAR::AssertValid(fobjAllocated);
+    BrowserContext_PAR::AssertValid(fobjAllocated);
 }
 
 /****************************************************
 
-    Assert the validity of the BRCNL
+    Assert the validity of the BrowserListContext
 
  ****************************************************/
-void BRCNL::AssertValid(ulong grfobj)
+void BrowserListContext::AssertValid(ulong grfobj)
 {
-    BRCNL_PAR::AssertValid(fobjAllocated);
+    BrowserListContext_PAR::AssertValid(fobjAllocated);
 }
 
 /****************************************************
 
-    BCL AssertValid
+    BrowserContentList AssertValid
 
  ****************************************************/
-void BCLS::AssertValid(ulong grf)
+void BrowserContentListWithStrings::AssertValid(ulong grf)
 {
-    BCLS_PAR::AssertValid(grf);
+    BrowserContentListWithStrings_PAR::AssertValid(grf);
     AssertPo(_pgst, 0);
 }
-void BCL::AssertValid(ulong grf)
+void BrowserContentList::AssertValid(ulong grf)
 {
-    BCL_PAR::AssertValid(grf);
+    BrowserContentList_PAR::AssertValid(grf);
     AssertPo(_pglthd, 0);
 }
 
 /****************************************************
 
-    Assert the validity of the BRWD
+    Assert the validity of the BrowserDisplay
 
  ****************************************************/
-void BRWD::AssertValid(ulong grfobj)
+void BrowserDisplay::AssertValid(ulong grfobj)
 {
-    BRWD_PAR::AssertValid(fobjAllocated);
+    BrowserDisplay_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pbrcn, 0);
 }
 
 /****************************************************
 
-    Assert the validity of the BRWL
+    Assert the validity of the BrowserList
 
  ****************************************************/
-void BRWL::AssertValid(ulong grfobj)
+void BrowserList::AssertValid(ulong grfobj)
 {
 
-    BRWL_PAR::AssertValid(fobjAllocated);
+    BrowserList_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pgst, 0);
     AssertNilOrPo(_pglthd, 0);
     AssertNilOrPo(_pcrm, 0);
@@ -3620,47 +3620,47 @@ void BRWL::AssertValid(ulong grfobj)
 
 /****************************************************
 
-    Assert the validity of the BRWR
+    Assert the validity of the BrowserRollCall
 
  ****************************************************/
-void BRWR::AssertValid(ulong grfobj)
+void BrowserRollCall::AssertValid(ulong grfobj)
 {
 
-    BRWR_PAR::AssertValid(fobjAllocated);
+    BrowserRollCall_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pcrm, 0);
 }
 
 /****************************************************
 
-    Assert the validity of the BRWI
+    Assert the validity of the BrowserImportSound
 
  ****************************************************/
-void BRWI::AssertValid(ulong grfobj)
+void BrowserImportSound::AssertValid(ulong grfobj)
 {
 
-    BRWI_PAR::AssertValid(fobjAllocated);
+    BrowserImportSound_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pcrf, 0);
 }
 
 /****************************************************
 
-    Assert the validity of the BRWT
+    Assert the validity of the BrowserText
 
  ****************************************************/
-void BRWT::AssertValid(ulong grfobj)
+void BrowserText::AssertValid(ulong grfobj)
 {
-    BRWT_PAR::AssertValid(fobjAllocated);
+    BrowserText_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pgst, 0);
 }
 
 /****************************************************
 
-    Assert the validity of the BRWA
+    Assert the validity of the BrowserAction
 
  ****************************************************/
-void BRWA::AssertValid(ulong grfobj)
+void BrowserAction::AssertValid(ulong grfobj)
 {
-    BRWA_PAR::AssertValid(fobjAllocated);
+    BrowserAction_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pape, 0);
 }
 #endif // DEBUG

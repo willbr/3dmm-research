@@ -225,9 +225,9 @@ ENDCHUNK
 // Theatre
 
 OBJECT( "theatre1",  kgobTheatre1, 0, kcrsArrow1 )
-	REP_RECT(CHID(kst1, krepDefault), "Theatre1 State1 Rep", 0, 0, 640, 480)
- 	REP_PPMBMP(CHID(kst2, krepDefault),  "building\pbm\theatre\theatre1.pbm")
-	REP_PPMBMP(CHID(kst3, krepDefault),  "building\pbm\theatre\the1dark.pbm")
+	REP_RECT(ChildChunkID(kst1, krepDefault), "Theatre1 State1 Rep", 0, 0, 640, 480)
+ 	REP_PPMBMP(ChildChunkID(kst2, krepDefault),  "building\pbm\theatre\theatre1.pbm")
+	REP_PPMBMP(ChildChunkID(kst3, krepDefault),  "building\pbm\theatre\the1dark.pbm")
 	CREATE_SCRIPT( "theatre1: create" )
 		DEBUGCMD(PrintStr("Creating Theatre1"));
 		SETPALETTE( kpalSocTheatre);
@@ -508,7 +508,7 @@ OBJECT( "inspiration view 4",  kgobInspiration4, 0, kcrsArrow1 )
 
 OBJECT( "studio view 1",  kgobStudio1, 0, kcrsArrow1 )
 REP_PPMBMP( CHID1( krepDefault),"building\pbm\studio\studio1.pbm" )
-REP_PPMBMP( CHID( kst2, krepDefault),"building\pbm\studio\studio1b.pbm" )	// state 2=tools background
+REP_PPMBMP( ChildChunkID( kst2, krepDefault),"building\pbm\studio\studio1b.pbm" )	// state 2=tools background
 CREATE_SCRIPT( "studio1: startup" )
 	ASSERT(GLOBAL(kstEntry) == kst1 || GLOBAL(kstEntry) == kst2);
 
@@ -746,8 +746,8 @@ OBJECT( "imaginopolis",  kgobImagin, 0, kcrsArrow1 )
 		PLAYMIDI( cnoNil );			// roller coaster music
 		CreateChildThis( kgobMcZeeRoller, kgobMcZeeRoller );
 	ENDCHUNK
-	REP_PPMBMP( CHID( kst1, krepDefault ),  "building\pbm\imagin\back1.pbm" )
-	REP_PPMBMP( CHID( kst2, krepDefault ),  "building\pbm\imagin\back2.pbm" )
-	REP_PPMBMP( CHID( kst3, krepDefault ),  "building\pbm\imagin\back3.pbm" )
-	REP_PPMBMP( CHID( kst4, krepDefault ),  "building\pbm\imagin\back4.pbm" )
-	REP_PPMBMP( CHID( kst5, krepDefault ),  "building\pbm\imagin\back5.pbm" )
+	REP_PPMBMP( ChildChunkID( kst1, krepDefault ),  "building\pbm\imagin\back1.pbm" )
+	REP_PPMBMP( ChildChunkID( kst2, krepDefault ),  "building\pbm\imagin\back2.pbm" )
+	REP_PPMBMP( ChildChunkID( kst3, krepDefault ),  "building\pbm\imagin\back3.pbm" )
+	REP_PPMBMP( ChildChunkID( kst4, krepDefault ),  "building\pbm\imagin\back4.pbm" )
+	REP_PPMBMP( ChildChunkID( kst5, krepDefault ),  "building\pbm\imagin\back5.pbm" )

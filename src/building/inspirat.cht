@@ -54,7 +54,7 @@ OBJECTREG("ticketbooth - dance", kgobIdeaMcZeeAVI3, 0, 0, 999, kcrsHand1)
 OBJECT( "inspir1: mczee",  kgobInsp1McZee, 100, kcrsHand1 )
 	#include "mzinsp.seq" 
 	REP_RECT( kcell90, "No representation.", 0, 0, 1, 1 )
-	REP_ANIM( CHID( kst1, krepDefault ), "inspir1: mczee talking animation" )
+	REP_ANIM( ChildChunkID( kst1, krepDefault ), "inspir1: mczee talking animation" )
 		ASSERT(GLOBAL(kstEntry) == kst2 || GLOBAL(kstEntry) == kst6 || GLOBAL( kstEntry) == kst7 || GLOBAL( kstEntry) == kst8 );
 
 		If (GLOBAL(kstEntry) == kst6);	// If entering via kst6 leave the
@@ -73,7 +73,7 @@ OBJECT( "inspir1: mczee",  kgobInsp1McZee, 100, kcrsHand1 )
 		ChangeStateThis(GLOBAL(kstEntry));
 	ENDCHUNK
 
-   	REP_ANIM( CHID( kst2, krepDefault ), "Ideas room: Wait state" )
+   	REP_ANIM( ChildChunkID( kst2, krepDefault ), "Ideas room: Wait state" )
 		cnt=kcell41;
 		Cell( cnt, 0,0, 0 );
 
@@ -120,7 +120,7 @@ OBJECT( "inspir1: mczee",  kgobInsp1McZee, 100, kcrsHand1 )
 
 	ENDCHUNK
 
- 	REP_ANIM(CHID(kst3, krepDefault), "Ideas room intro.")
+ 	REP_ANIM(ChildChunkID(kst3, krepDefault), "Ideas room intro.")
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		Cell( kcell101, 0,0, 1 );
 		WAIT_FOR_TRANSITION();	// If a transition is occuring wait 
@@ -136,7 +136,7 @@ OBJECT( "inspir1: mczee",  kgobInsp1McZee, 100, kcrsHand1 )
 		ChangeStateThis( kst2 );		// go to idle
 	ENDCHUNK
 
-   	REP_ANIM( CHID( kst5, krepDefault ), "Ideas room Null representation." )
+   	REP_ANIM( ChildChunkID( kst5, krepDefault ), "Ideas room Null representation." )
 
 		// COMMENT: Wait for the splot machine or talent book to disappear
 		// COMMENT: Polling!  Yuck!
@@ -169,13 +169,13 @@ OBJECT( "inspir1: mczee",  kgobInsp1McZee, 100, kcrsHand1 )
 		ChangeStateThis( kst2 );
 	ENDCHUNK;
 
-//  REP_ANIM( CHID( kst6, krepDefault ), "Map and navbar entry" )
+//  REP_ANIM( ChildChunkID( kst6, krepDefault ), "Map and navbar entry" )
 		// There is no need for an actual state 6, the Flag kstEntry being
 		// set to kst6 is used to direct entry to kst2 with the global help
 		// flag unmodified. This is needed because entry into the Ideas room
 		// from another room sets the global help off if it is on.
 
-   	REP_ANIM( CHID( kst7, krepDefault ), "Start the splot machine" )
+   	REP_ANIM( ChildChunkID( kst7, krepDefault ), "Start the splot machine" )
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		Cell( kcell351, 0,0, 1 );
 		WAIT_FOR_TRANSITION();	// If a transition is occuring wait 
@@ -196,7 +196,7 @@ OBJECT( "inspir1: mczee",  kgobInsp1McZee, 100, kcrsHand1 )
 		ChangeStateThis( kst5 );
 	ENDCHUNK;
 
-   	REP_ANIM( CHID( kst8, krepDefault ), "Start the talent book" )
+   	REP_ANIM( ChildChunkID( kst8, krepDefault ), "Start the talent book" )
 		DISABLEHOTSPOTS(kflgBuildingMin);
 		Cell( kcell401, 0,0, 1 );
 		WAIT_FOR_TRANSITION();	// If a transition is occuring wait 
@@ -326,45 +326,45 @@ ENDCHUNK
 // -----------------------------------------------------
 GOBCHUNK("BSplot1 button", kgobBSplot1, kgokkRectHit )
 	DEFAULT_POSITION( 600, 194, 0 )
-	ACTION(fcustNil, fcustNil, fgrfst1, kcrsHand1, CHID(kst1, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfst1, kcrsHand1, ChildChunkID(kst1, kchidClick), cidNil, cnoNil)
 ENDCHUNK
 
 	REP_PPMBMP( kcell2, "building\pbm\inspirat\bigarm2.pbm" )
 	REP_PPMBMP( kcell3, "building\pbm\inspirat\bigarm3.pbm" )
 	REP_PPMBMP( kcell4, "building\pbm\inspirat\bigarm4.pbm" )
 
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\bigarm1.pbm")	 // Disabled button
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\bigarm1.pbm")	 // Disabled button
 
-	REP_PPMBMP( CHID(kst1, kchidDownOn), "building\pbm\inspirat\bigarm5.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst1, kchidDownOn), "building\pbm\inspirat\bigarm5.pbm")	// Clicked button
 
-	REP_ANIM( CHID(kst1, kchidUpDownOn), "On button, mouse Up to Down transition")
+	REP_ANIM( ChildChunkID(kst1, kchidUpDownOn), "On button, mouse Up to Down transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst1, kchidDownOffOn), "Mouse down, Off to On button transition")
+	REP_ANIM( ChildChunkID(kst1, kchidDownOffOn), "Mouse down, Off to On button transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 
-	REP_ANIM( CHID(kst1, kchidDownUpOn), "On button, mouse Down to Up transition")
+	REP_ANIM( ChildChunkID(kst1, kchidDownUpOn), "On button, mouse Down to Up transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst1, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst1, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst1, kchidDownOnOff), "Mouse down, On to Off button transition")
+	REP_ANIM( ChildChunkID(kst1, kchidDownOnOff), "Mouse down, On to Off button transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst1, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst1, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
-	REP_WAVE( CHID( kst1, krepClicked ), "building\sound\inspirat\splthndl.wav" );
+	REP_WAVE( ChildChunkID( kst1, krepClicked ), "building\sound\inspirat\splthndl.wav" );
 	
-	CHILD_SCRIPT("BSplot1 script", CHID(kst1, kchidClick))
+	CHILD_SCRIPT("BSplot1 script", ChildChunkID(kst1, kchidClick))
 		ChangeStateGob( kgobBSplot2, kst2 );			   // These activate the
 		ChangeStateGob( kgobBSplot3, kst2 );			   // the fine tuning buttons.
 		ChangeStateGob( kgobBSplot4, kst2 );
@@ -386,45 +386,45 @@ ENDCHUNK
 GOBCHUNK("BSplot2 button", kgobBSplot2, kgokkRectHit)
 	DEFAULT_POSITION( 427, 2, 0 )
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsArrow1, chidNil, cidNil, cnoNil)
-	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, CHID(kst2, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, ChildChunkID(kst2, kchidClick), cidNil, cnoNil)
 ENDCHUNK
 	REP_PPMBMP( kcell2, "building\pbm\inspirat\actarm2.pbm" );
 	REP_PPMBMP( kcell3, "building\pbm\inspirat\actarm3.pbm" );
 	REP_PPMBMP( kcell4, "building\pbm\inspirat\actarm4.pbm" );
 
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\actarm1.pbm")	 	// Disabled button
-	ADOPT_MBMP(LAST_MBMP, CHID(kst2, krepDefault))
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\actarm1.pbm")	 	// Disabled button
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst2, krepDefault))
 
-	REP_PPMBMP( CHID(kst2, kchidDownOn), "building\pbm\inspirat\actarm5.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst2, kchidDownOn), "building\pbm\inspirat\actarm5.pbm")	// Clicked button
 
-	REP_ANIM( CHID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
+	REP_ANIM( ChildChunkID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 
-	REP_ANIM( CHID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
-	REP_WAVE( CHID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
+	REP_WAVE( ChildChunkID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
 		
-	CHILD_SCRIPT("BSplot2 script", CHID(kst2, kchidClick))
+	CHILD_SCRIPT("BSplot2 script", ChildChunkID(kst2, kchidClick))
 		If( FGobExists( kgobCalloutBalloon4 ) );		// takedown callouts
 			DestroyGob(	kgobCalloutBalloon4 );	
 		End;	
@@ -439,44 +439,44 @@ ENDCHUNK
 GOBCHUNK("BSplot3 button", kgobBSplot3, kgokkRectHit)
 	DEFAULT_POSITION( 289, 2, 0 )
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsArrow1, chidNil, cidNil, cnoNil)
-	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, CHID(kst2, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, ChildChunkID(kst2, kchidClick), cidNil, cnoNil)
 ENDCHUNK
-	REP_WAVE( CHID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
+	REP_WAVE( ChildChunkID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
 	REP_PPMBMP( kcell2, "building\pbm\inspirat\cmrarm2.pbm" );
 	REP_PPMBMP( kcell3, "building\pbm\inspirat\cmrarm3.pbm" );
 	REP_PPMBMP( kcell4, "building\pbm\inspirat\cmrarm4.pbm" );
 
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\cmrarm1.pbm")	 // Disabled button
-	ADOPT_MBMP(LAST_MBMP, CHID(kst2, krepDefault))
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\cmrarm1.pbm")	 // Disabled button
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst2, krepDefault))
 
-	REP_PPMBMP( CHID(kst2, kchidDownOn), "building\pbm\inspirat\cmrarm5.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst2, kchidDownOn), "building\pbm\inspirat\cmrarm5.pbm")	// Clicked button
 
-	REP_ANIM( CHID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
+	REP_ANIM( ChildChunkID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 
-	REP_ANIM( CHID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 		
-	CHILD_SCRIPT("BSplot3 script", CHID(kst2, kchidClick))
+	CHILD_SCRIPT("BSplot3 script", ChildChunkID(kst2, kchidClick))
 		If( FGobExists( kgobCalloutBalloon4 ) );		// takedown callouts
 			DestroyGob(	kgobCalloutBalloon4 );	
 		End;	
@@ -492,45 +492,45 @@ ENDCHUNK
 GOBCHUNK("BSplot4 button", kgobBSplot4, kgokkRectHit)
 	DEFAULT_POSITION( 566, 2, 0 )
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsArrow1, chidNil, cidNil, cnoNil)
-	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, CHID(kst2, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, ChildChunkID(kst2, kchidClick), cidNil, cnoNil)
 ENDCHUNK
-	REP_WAVE( CHID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
+	REP_WAVE( ChildChunkID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
 	REP_PPMBMP( kcell2, "building\pbm\inspirat\muscarm2.pbm" );
 	REP_PPMBMP( kcell3, "building\pbm\inspirat\muscarm3.pbm" );
 	REP_PPMBMP( kcell4, "building\pbm\inspirat\muscarm4.pbm" );
 
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\muscarm1.pbm")	 	// Disabled button
-	ADOPT_MBMP(LAST_MBMP, CHID(kst2, krepDefault))
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\muscarm1.pbm")	 	// Disabled button
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst2, krepDefault))
 
-	REP_PPMBMP( CHID(kst2, kchidDownOn), "building\pbm\inspirat\muscarm5.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst2, kchidDownOn), "building\pbm\inspirat\muscarm5.pbm")	// Clicked button
 
-	REP_ANIM( CHID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
+	REP_ANIM( ChildChunkID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 
-	REP_ANIM( CHID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 		
-	CHILD_SCRIPT("BSplot4 script", CHID(kst2, kchidClick))
+	CHILD_SCRIPT("BSplot4 script", ChildChunkID(kst2, kchidClick))
 		If( FGobExists( kgobCalloutBalloon4 ) );		// takedown callouts
 			DestroyGob(	kgobCalloutBalloon4 );	
 		End;	
@@ -546,45 +546,45 @@ ENDCHUNK
 GOBCHUNK("BSplot5 button", kgobBSplot5, kgokkRectHit)
 	DEFAULT_POSITION( 146, 1, 0 )
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsArrow1, chidNil, cidNil, cnoNil)
-	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, CHID(kst2, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfst2, kcrsHand1, ChildChunkID(kst2, kchidClick), cidNil, cnoNil)
 ENDCHUNK
-	REP_WAVE( CHID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
+	REP_WAVE( ChildChunkID( kst2, krepClicked ), "building\sound\inspirat\splthndl.wav" );
 	REP_PPMBMP( kcell2, "building\pbm\inspirat\scnarm2.pbm" );
 	REP_PPMBMP( kcell3, "building\pbm\inspirat\scnarm3.pbm" );
 	REP_PPMBMP( kcell4, "building\pbm\inspirat\scnarm4.pbm" );
 
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\scnarm1.pbm")	 	// Disabled button
-	ADOPT_MBMP(LAST_MBMP, CHID(kst2, krepDefault))
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\scnarm1.pbm")	 	// Disabled button
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst2, krepDefault))
 
-	REP_PPMBMP( CHID(kst2, kchidDownOn), "building\pbm\inspirat\scnarm5.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst2, kchidDownOn), "building\pbm\inspirat\scnarm5.pbm")	// Clicked button
 
-	REP_ANIM( CHID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
+	REP_ANIM( ChildChunkID(kst2, kchidUpDownOn), "On button, mouse Up to Down transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOffOn), "Mouse down, Off to On button transition")
 		Cell( kcell2, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell4, 0, 0, 9 );
 	ENDCHUNK	
 
-	REP_ANIM( CHID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownUpOn), "On button, mouse Down to Up transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 	
-	REP_ANIM( CHID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
+	REP_ANIM( ChildChunkID(kst2, kchidDownOnOff), "Mouse down, On to Off button transition")
 		Cell( kcell4, 0, 0, 9 );	
 		Cell( kcell3, 0, 0, 9 );	
 		Cell( kcell2, 0, 0, 9 );
-		Cell( CHID(kst2, krepDefault), 0, 0, 9 ); 
+		Cell( ChildChunkID(kst2, krepDefault), 0, 0, 9 ); 
 	ENDCHUNK	
 		
-	CHILD_SCRIPT("BSplot5 script", CHID(kst2, kchidClick))
+	CHILD_SCRIPT("BSplot5 script", ChildChunkID(kst2, kchidClick))
 		If( FGobExists( kgobCalloutBalloon4 ) );		// takedown callouts
 			DestroyGob(	kgobCalloutBalloon4 );	
 		End;	
@@ -601,16 +601,16 @@ ENDCHUNK
 GOBCHUNK("BSplot6 button", kgobBSplot6, kgokkRectHit)
 	DEFAULT_POSITION( 471, 426, 0 )
 	ACTION(fcustNil, fcustNil, fgrfst1, kcrsArrow1, chidNil, cidNil, cnoNil)
-	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand1, CHID(kst2, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand1, ChildChunkID(kst2, kchidClick), cidNil, cnoNil)
 ENDCHUNK
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\toolboxd.pbm")	 	// Enabled button up
-	REP_PPMBMP( CHID(kst2, krepDefault), "building\pbm\inspirat\toolbox1.pbm")	 	// Enabled button up
-	ADOPT_MBMP(LAST_MBMP, CHID(kst2, krepMouseDnOff))
-	ADOPT_MBMP(LAST_MBMP, CHID(kst2, krepMouseUpOn))
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\toolboxd.pbm")	 	// Enabled button up
+	REP_PPMBMP( ChildChunkID(kst2, krepDefault), "building\pbm\inspirat\toolbox1.pbm")	 	// Enabled button up
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst2, krepMouseDnOff))
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst2, krepMouseUpOn))
 
-	REP_PPMBMP( CHID(kst2, krepMouseDnOn), "building\pbm\inspirat\toolbox2.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst2, krepMouseDnOn), "building\pbm\inspirat\toolbox2.pbm")	// Clicked button
 
-	CHILD_SCRIPT("BSplot6 script", CHID(kst2, kchidClick))
+	CHILD_SCRIPT("BSplot6 script", ChildChunkID(kst2, kchidClick))
 		// set up a transition
 		If( FGobExists( kgobCalloutBalloon4 ) );		// takedown callouts
 			DestroyGob(	kgobCalloutBalloon4 );	
@@ -628,16 +628,16 @@ ENDCHUNK
 // -----------------------------------------------------
 GOBCHUNK("BSplot7 button", kgobBSplot7, kgokkRectHit)
 	DEFAULT_POSITION( 521, 426, 0 )
-	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand1, CHID(kst1, kchidClick), cidNil, cnoNil)
+	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand1, ChildChunkID(kst1, kchidClick), cidNil, cnoNil)
 ENDCHUNK
 
-	REP_PPMBMP( CHID(kst1, krepDefault), "building\pbm\inspirat\cancel1.pbm")	 	// Enabled button up
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseDnOff))
-	ADOPT_MBMP(LAST_MBMP, CHID(kst1, krepMouseUpOn))
+	REP_PPMBMP( ChildChunkID(kst1, krepDefault), "building\pbm\inspirat\cancel1.pbm")	 	// Enabled button up
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseDnOff))
+	ADOPT_MBMP(LAST_MBMP, ChildChunkID(kst1, krepMouseUpOn))
 
-	REP_PPMBMP( CHID(kst1, krepMouseDnOn), "building\pbm\inspirat\cancel2.pbm")	// Clicked button
+	REP_PPMBMP( ChildChunkID(kst1, krepMouseDnOn), "building\pbm\inspirat\cancel2.pbm")	// Clicked button
 
-	CHILD_SCRIPT("BSplot7 script", CHID(kst1, kchidClick))
+	CHILD_SCRIPT("BSplot7 script", ChildChunkID(kst1, kchidClick))
 		If( FGobExists( kgobCalloutBalloon4 ) );		// takedown callouts
 			DestroyGob(	kgobCalloutBalloon4 );	
 		End;	

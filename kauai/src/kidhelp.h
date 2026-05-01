@@ -16,34 +16,38 @@
 #ifndef KIDHELP_H
 #define KIDHELP_H
 
+namespace Help {
+
+using ScriptCompiler::PStringRegistry;
+
 /***************************************************************************
     Help topic construction information.
 ***************************************************************************/
-struct HTOP
+struct Topic
 {
-    CNO cnoBalloon;
+    ChunkNumber cnoBalloon;
     long hidThis;
     long hidTarget;
-    CNO cnoScript;
+    ChunkNumber cnoScript;
     long dxp;
     long dyp;
-    CKI ckiSnd;
+    ChunkIdentification ckiSnd;
 };
-typedef HTOP *PHTOP;
-const BOM kbomHtop = 0xFFF00000;
+typedef Topic *PTopic;
+const ByteOrderMask kbomHtop = 0xFFF00000;
 
 // help topic on file
-struct HTOPF
+struct TopicFile
 {
     short bo;
     short osk;
-    HTOP htop;
+    Topic htop;
 };
 
 // edit control object
-struct ECOS
+struct EditControl
 {
-    CTG ctg;  // kctgEditControl
+    ChunkTagOrType ctg;  // kctgEditControl
     long dxp; // width
 };
 
@@ -57,10 +61,10 @@ enum
     ftxhdExpandStrings = 2,
 };
 
-typedef class TXHD *PTXHD;
-#define TXHD_PAR TXRD
-#define kclsTXHD 'TXHD'
-class TXHD : public TXHD_PAR
+typedef class TextDocument *PTextDocument;
+#define TextDocument_PAR RichTextDocument
+#define kclsTextDocument 'TXHD'
+class TextDocument : public TextDocument_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -69,41 +73,41 @@ class TXHD : public TXHD_PAR
   protected:
     enum
     {
-        sprmGroup = 64, // grouped (hot) text - uses the AG
+        sprmGroup = 64, // grouped (hot) text - uses the AllocatedGroup
     };
 
-    PRCA _prca;         // source of pictures and buttons
-    HTOP _htop;         // our gob creation information
+    PResourceCache _prca;         // source of pictures and buttons
+    Topic _htop;         // our gob creation information
     bool _fHideButtons; // whether to draw buttons
 
-    TXHD(PRCA prca, PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXHD(void);
+    TextDocument(PResourceCache prca, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~TextDocument(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg = pvNil, ulong grftxhd = ftxhdNil);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil, ulong grftxhd = ftxhdNil);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
-    virtual bool _FGetObjectRc(long icact, byte sprm, PGNV pgnv, PCHP pchp, RC *prc);
-    virtual bool _FDrawObject(long icact, byte sprm, PGNV pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
+    virtual bool _FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc);
+    virtual bool _FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip);
 
   public:
-    static PTXHD PtxhdReadChunk(PRCA prca, PCFL pcfl, CTG ctg, CNO cno, PSTRG pstrg = pvNil,
+    static PTextDocument PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg = pvNil,
                                 ulong grftxhd = ftxhdExpandStrings);
 
-    virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
-    bool FInsertPicture(CNO cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
+    bool FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                         ulong grfdoc = fdocUpdate);
-    bool FInsertButton(CNO cno, CNO cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
+    bool FInsertButton(ChunkNumber cno, ChunkNumber cnoTopic, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                        ulong grfdoc = fdocUpdate);
-    PRCA Prca(void)
+    PResourceCache Prca(void)
     {
         return _prca;
     }
-    bool FGroupText(long cp1, long cp2, byte bGroup, CNO cnoTopic = cnoNil, PSTN pstnTopic = pvNil);
-    bool FGrouped(long cp, long *pcpMin = pvNil, long *pcpLim = pvNil, byte *pbGroup = pvNil, CNO *pcnoTopic = pvNil,
-                  PSTN pstnTopic = pvNil);
+    bool FGroupText(long cp1, long cp2, byte bGroup, ChunkNumber cnoTopic = cnoNil, PString pstnTopic = pvNil);
+    bool FGrouped(long cp, long *pcpMin = pvNil, long *pcpLim = pvNil, byte *pbGroup = pvNil, ChunkNumber *pcnoTopic = pvNil,
+                  PString pstnTopic = pvNil);
 
-    void GetHtop(PHTOP phtop);
-    void SetHtop(PHTOP phtop);
+    void GetHtop(PTopic phtop);
+    void SetHtop(PTopic phtop);
     void HideButtons(bool fHide = fTrue)
     {
         _fHideButtons = FPure(fHide);
@@ -111,91 +115,93 @@ class TXHD : public TXHD_PAR
 };
 
 /***************************************************************************
-    A runtime DDG for a help topic.
+    A runtime DocumentDisplayGraphicsObject for a help topic.
 ***************************************************************************/
-typedef class TXHG *PTXHG;
-#define TXHG_PAR TXRG
-#define kclsTXHG 'TXHG'
-class TXHG : public TXHG_PAR
+typedef class TopicGraphicsObject *PTopicGraphicsObject;
+#define TopicGraphicsObject_PAR RichTextDocumentGraphicsObject
+#define kclsTopicGraphicsObject 'TXHG'
+class TopicGraphicsObject : public TopicGraphicsObject_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(TXHG)
+    CMD_MAP_DEC(TopicGraphicsObject)
 
   protected:
     byte _bTrack;
-    CNO _cnoTrack;
+    ChunkNumber _cnoTrack;
     long _hidBase;
     ulong _grfcust;
-    PWOKS _pwoks;
+    PWorldOfKidspace _pwoks;
 
-    TXHG(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb);
+    TopicGraphicsObject(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);
     virtual bool _FInit(void);
-    virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, CNO cnoTopic = cnoNil,
+    virtual bool _FRunScript(byte bGroup, ulong grfcust, long hidHit, achar ch, ChunkNumber cnoTopic = cnoNil,
                              long *plwRet = pvNil);
 
   public:
-    static PTXHG PtxhgNew(PWOKS pwoks, PTXHD ptxhd, PGCB pgcb);
+    static PTopicGraphicsObject PtxhgNew(PWorldOfKidspace pwoks, PTextDocument ptxhd, PGraphicsObjectBlock pgcb);
 
-    PTXHD Ptxhd(void)
+    PTextDocument Ptxhd(void)
     {
-        return (PTXHD)_ptxtb;
+        return (PTextDocument)_ptxtb;
     }
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdBadKey(PCMD_BADKEY pcmd);
-    virtual bool FGroupFromPt(long xp, long yp, byte *pbGroup = pvNil, CNO *pcnoTopic = pvNil);
-    virtual void DoHit(byte bGroup, CNO cnoTopic, ulong grfcust, long hidHit);
+    virtual bool FGroupFromPt(long xp, long yp, byte *pbGroup = pvNil, ChunkNumber *pcnoTopic = pvNil);
+    virtual void DoHit(byte bGroup, ChunkNumber cnoTopic, ulong grfcust, long hidHit);
     virtual void SetCursor(ulong grfcust);
 };
 
 /***************************************************************************
     Help balloon.
 ***************************************************************************/
-typedef class HBAL *PHBAL;
-#define HBAL_PAR GOK
-#define kclsHBAL 'HBAL'
-class HBAL : public HBAL_PAR
+typedef class Balloon *PBalloon;
+#define Balloon_PAR KidspaceGraphicObject
+#define kclsBalloon 'HBAL'
+class Balloon : public Balloon_PAR
 {
     RTCLASS_DEC
 
   protected:
-    PTXHG _ptxhg;
+    PTopicGraphicsObject _ptxhg;
 
-    HBAL(GCB *pgcb);
-    virtual void _SetGorp(PGORP pgorp, long dxp, long dyp);
-    virtual bool _FInit(PWOKS pwoks, PTXHD ptxhd, HTOP *phtop, PRCA prca);
-    virtual bool _FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
+    Balloon(GraphicsObjectBlock *pgcb);
+    virtual void _SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp);
+    virtual bool _FInit(PWorldOfKidspace pwoks, PTextDocument ptxhd, Topic *phtop, PResourceCache prca);
+    virtual bool _FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca);
 
   public:
-    static PHBAL PhbalCreate(PWOKS pwoks, PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop = pvNil);
-    static PHBAL PhbalNew(PWOKS pwoks, PGOB pgobPar, PRCA prca, PTXHD ptxhd, PHTOP phtop = pvNil);
+    static PBalloon PhbalCreate(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, PTopic phtop = pvNil);
+    static PBalloon PhbalNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, PResourceCache prca, PTextDocument ptxhd, PTopic phtop = pvNil);
 
-    virtual bool FSetTopic(PTXHD ptxhd, PHTOP phtop, PRCA prca);
+    virtual bool FSetTopic(PTextDocument ptxhd, PTopic phtop, PResourceCache prca);
 };
 
 /***************************************************************************
     Help balloon button.
 ***************************************************************************/
-typedef class HBTN *PHBTN;
-#define HBTN_PAR GOK
-#define kclsHBTN 'HBTN'
-class HBTN : public HBTN_PAR
+typedef class BalloonButton *PBalloonButton;
+#define BalloonButton_PAR KidspaceGraphicObject
+#define kclsBalloonButton 'HBTN'
+class BalloonButton : public BalloonButton_PAR
 {
     RTCLASS_DEC
 
   protected:
-    HBTN(GCB *pgcb);
+    BalloonButton(GraphicsObjectBlock *pgcb);
 
     byte _bGroup;
-    CNO _cnoTopic;
+    ChunkNumber _cnoTopic;
 
   public:
-    static PHBTN PhbtnNew(PWOKS pwoks, PGOB pgobPar, long hid, CNO cno, PRCA prca, byte bGroup, CNO cnoTopic,
+    static PBalloonButton PhbtnNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca, byte bGroup, ChunkNumber cnoTopic,
                           long xpLeft, long ypBottom);
 
     virtual bool FPtIn(long xp, long yp);
     virtual bool FCmdClicked(PCMD_MOUSE pcmd);
 };
+
+} // end of namespace Help
 
 #endif //! KIDHELP_H

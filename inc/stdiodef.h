@@ -274,8 +274,8 @@
 #define kidBrowserObj 0x2006A
 #define kidActorsRotateNorm 0x2006B
 #define kidActorsTransformNorm 0x2006C
-#define kidBrwsSceneFrame 0x2006D // CNO for Scene browser frame
-#define kidBrwsActorFrame 0x2006E // CNO for Actor browser frame
+#define kidBrwsSceneFrame 0x2006D // ChunkNumber for Scene browser frame
+#define kidBrwsActorFrame 0x2006E // ChunkNumber for Actor browser frame
 #define kidBrwsMaterial 0x2006F
 #define kidBrwsCMaterial 0x20070
 #define kidBrwsFonts 0x20071
@@ -290,9 +290,9 @@
 #define kidSoundsMusicBrowser 0x2007A  // the button itself
 #define kidActorsActionBrowser 0x2007B // the button itself
 #define kidBrwsCamera 0x2007C
-#define kidBrwsCameraFrame 0x2007D // CNO for Camera browser frame
-#define kidBrwsPropFrame 0x2007E   // CNO for Camera browser frame
-#define kidBrwsActionFrame 0x2007F // CNO for Camera browser frame
+#define kidBrwsCameraFrame 0x2007D // ChunkNumber for Camera browser frame
+#define kidBrwsPropFrame 0x2007E   // ChunkNumber for Camera browser frame
+#define kidBrwsActionFrame 0x2007F // ChunkNumber for Camera browser frame
 #define kidBrwsActionPrev 0x20080  // The action preview frame.
 #define kidGenericGlass 0x20081    // Covers all the tools to protect them from clicks
 #define kidFrameBackground 0x20082

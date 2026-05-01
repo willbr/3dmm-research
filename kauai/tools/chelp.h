@@ -16,9 +16,9 @@
 #include "chelpexp.h"
 #include "chelpres.h"
 
-extern PSTRG vpstrg;
+extern PStringRegistry vpstrg;
 extern SC_LID vsclid;
-extern PSPLC vpsplc;
+extern PSpellChecker vpsplc;
 
 enum
 {
@@ -36,42 +36,42 @@ typedef class HETD *PHETD;
 /***************************************************************************
     App class
 ***************************************************************************/
-#define APP_PAR APPB
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+#define Application_PAR ApplicationBase
+#define kclsApplication 'APP'
+class Application : public Application_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(Application)
 
   protected:
-    PCRM _pcrm;
+    PChunkyResourceManager _pcrm;
     PLID _plidPicture;
     PLID _plidButton;
 
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
 
   public:
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
 
-    virtual bool FCmdOpen(PCMD pcmd);
-    virtual bool FCmdLoadResFile(PCMD pcmd);
-    virtual bool FCmdChooseLanguage(PCMD pcmd);
-    virtual bool FEnableChooseLanguage(PCMD pcmd, ulong *pgrfeds);
+    virtual bool FCmdOpen(PCommand pcmd);
+    virtual bool FCmdLoadResFile(PCommand pcmd);
+    virtual bool FCmdChooseLanguage(PCommand pcmd);
+    virtual bool FEnableChooseLanguage(PCommand pcmd, ulong *pgrfeds);
 
-    PLIG PligNew(bool fButton, PGCB pgcb, PTXHD ptxhd);
-    bool FLoadResFile(PFNI pfni);
-    bool FOpenDocFile(PFNI pfni, long cid = cidOpen);
+    PLIG PligNew(bool fButton, PGraphicsObjectBlock pgcb, PTextDocument ptxhd);
+    bool FLoadResFile(PFilename pfni);
+    bool FOpenDocFile(PFilename pfni, long cid = cidOpen);
 };
-extern APP vapp;
+extern Application vapp;
 
 /***************************************************************************
     List document
 ***************************************************************************/
-#define LID_PAR DOCB
+#define LID_PAR DocumentBase
 #define kclsLID 'LID'
 class LID : public LID_PAR
 {
@@ -82,28 +82,28 @@ class LID : public LID_PAR
   protected:
     struct CACH
     {
-        PCRF pcrf;
-        CNO cno;
-        CNO cnoMbmp;
+        PChunkyResourceFile pcrf;
+        ChunkNumber cno;
+        ChunkNumber cnoMbmp;
     };
 
-    PCRM _pcrm;   // where to look for the chunks
-    CTG _ctg;     // what ctg to look for
-    CHID _chid;   // what chid value the MBMP should be at (if _ctg is not MBMP)
-    PGL _pglcach; // list of the chunks that we found
+    PChunkyResourceManager _pcrm;   // where to look for the chunks
+    ChunkTagOrType _ctg;     // what ctg to look for
+    ChildChunkID _chid;   // what chid value the MaskedBitmapMBMP should be at (if _ctg is not MaskedBitmapMBMP)
+    PDynamicArray _pglcach; // list of the chunks that we found
 
     LID(void);
     ~LID(void);
 
-    bool _FInit(PCRM pcrm, CTG ctg, CHID chid);
+    bool _FInit(PChunkyResourceManager pcrm, ChunkTagOrType ctg, ChildChunkID chid);
 
   public:
-    static PLID PlidNew(PCRM pcrm, CTG ctg, CHID chid = 0);
+    static PLID PlidNew(PChunkyResourceManager pcrm, ChunkTagOrType ctg, ChildChunkID chid = 0);
 
     bool FRefresh(void);
     long Ccki(void);
-    void GetCki(long icki, CKI *pcki, PCRF *ppcrf = pvNil);
-    PMBMP PmbmpGet(long icki);
+    void GetCki(long icki, ChunkIdentification *pcki, PChunkyResourceFile *ppcrf = pvNil);
+    PMaskedBitmapMBMP PmbmpGet(long icki);
 };
 
 /***************************************************************************
@@ -113,7 +113,7 @@ const long kdxpCellLig = kdzpInch * 2;
 const long kdypCellLig = kdzpInch;
 
 typedef class LIG *PLIG;
-#define LIG_PAR DDG
+#define LIG_PAR DocumentDisplayGraphicsObject
 #define kclsLIG 'LIG'
 class LIG : public LIG_PAR
 {
@@ -123,32 +123,32 @@ class LIG : public LIG_PAR
     CMD_MAP_DEC(LIG)
 
   protected:
-    PTXHD _ptxhd;  // the document to put the chunk in
-    PSCB _pscb;    // our scroll bar
+    PTextDocument _ptxhd;  // the document to put the chunk in
+    PScrollBar _pscb;    // our scroll bar
     long _dypCell; // how tall are our cells
 
-    LIG(PLID plid, GCB *pgcb);
-    bool _FInit(PTXHD ptxhd, long dypCell);
+    LIG(PLID plid, GraphicsObjectBlock *pgcb);
+    bool _FInit(PTextDocument ptxhd, long dypCell);
 
   public:
-    static PLIG PligNew(PLID plid, GCB *pgcb, PTXHD ptxhd, long dypCell = kdypCellLig);
+    static PLIG PligNew(PLID plid, GraphicsObjectBlock *pgcb, PTextDocument ptxhd, long dypCell = kdypCellLig);
 
     PLID Plid(void);
     void Refresh(void);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FCmdScroll(PCMD pcmd);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
+    virtual bool FCmdScroll(PCommand pcmd);
 };
 
 /***************************************************************************
-    Color chooser GOB.
+    Color chooser GraphicsObject.
 ***************************************************************************/
 const long kcacrCcg = 8;
 const long kdxpCcg = 78;
 const long kdxpFrameCcg = 2;
 
 typedef class CCG *PCCG;
-#define CCG_PAR GOB
+#define CCG_PAR GraphicsObject
 #define kclsCCG 'CCG'
 class CCG : public CCG_PAR
 {
@@ -156,54 +156,54 @@ class CCG : public CCG_PAR
     ASSERT
 
   protected:
-    PTXHD _ptxhd;     // the document to put the color in
+    PTextDocument _ptxhd;     // the document to put the color in
     long _cacrRow;    // how many colors to put on a row
     bool _fForeColor; // whether this sets the foreground or background color
 
-    bool _FGetAcrFromPt(long xp, long yp, ACR *pacr, RC *prc = pvNil, long *piscr = pvNil);
+    bool _FGetAcrFromPt(long xp, long yp, AbstractColor *pacr, RC *prc = pvNil, long *piscr = pvNil);
 
   public:
-    CCG(GCB *pgcb, PTXHD ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
+    CCG(GraphicsObjectBlock *pgcb, PTextDocument ptxhd, bool fForeColor, long cacrRow = kcacrCcg);
 
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
 
-    virtual bool FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse);
+    virtual bool FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse);
 };
 
 /***************************************************************************
     Color chooser tool tip.
 ***************************************************************************/
 typedef class CCGT *PCCGT;
-#define CCGT_PAR GOB
+#define CCGT_PAR GraphicsObject
 #define kclsCCGT 'CCGT'
 class CCGT : public CCGT_PAR
 {
     RTCLASS_DEC
 
   protected:
-    ACR _acr;
-    STN _stn;
+    AbstractColor _acr;
+    String _stn;
 
   public:
-    CCGT(PGCB pgcb, ACR acr = kacrBlack, PSTN pstn = pvNil);
+    CCGT(PGraphicsObjectBlock pgcb, AbstractColor acr = kacrBlack, PString pstn = pvNil);
 
-    void SetAcr(ACR acr, PSTN pstn = pvNil);
-    ACR AcrCur(void)
+    void SetAcr(AbstractColor acr, PString pstn = pvNil);
+    AbstractColor AcrCur(void)
     {
         return _acr;
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 /***************************************************************************
-    Help editor doc - consists of a CFL containing (possibly) multiple
+    Help editor doc - consists of a ChunkyFile containing (possibly) multiple
     topics.
 ***************************************************************************/
 typedef class HEDO *PHEDO;
-#define HEDO_PAR DOCB
+#define HEDO_PAR DocumentBase
 #define kclsHEDO 'HEDO'
 class HEDO : public HEDO_PAR
 {
@@ -211,31 +211,31 @@ class HEDO : public HEDO_PAR
     ASSERT
 
   protected:
-    PCFL _pcfl; // the chunky file
-    PRCA _prca; // the resources
+    PChunkyFile _pcfl; // the chunky file
+    PResourceCache _prca; // the resources
 
     HEDO(void);
     ~HEDO(void);
 
   public:
-    static PHEDO PhedoNew(FNI *pfni, PRCA prca);
+    static PHEDO PhedoNew(Filename *pfni, PResourceCache prca);
 
-    PCFL Pcfl(void)
+    PChunkyFile Pcfl(void)
     {
         return _pcfl;
     }
-    PRCA Prca(void)
+    PResourceCache Prca(void)
     {
         return _prca;
     }
-    virtual PDDG PddgNew(PGCB pgcb);
-    virtual bool FGetFni(FNI *pfni);
-    virtual bool FGetFniSave(FNI *pfni);
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
+    virtual bool FGetFni(Filename *pfni);
+    virtual bool FGetFniSave(Filename *pfni);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 
-    virtual void InvalAllDdg(CNO cno);
+    virtual void InvalAllDdg(ChunkNumber cno);
     virtual bool FExportText(void);
-    virtual void DoFindNext(PHETD phetd, CNO cno, bool fAdvance = fTrue);
+    virtual void DoFindNext(PHETD phetd, ChunkNumber cno, bool fAdvance = fTrue);
 
     virtual PHETD PhetdOpenNext(PHETD phetd);
     virtual PHETD PhetdOpenPrev(PHETD phetd);
@@ -252,14 +252,14 @@ class TSEL : public TSEL_PAR
     ASSERT
 
   protected:
-    PCFL _pcfl;
+    PChunkyFile _pcfl;
     long _icki;
-    CNO _cno;
+    ChunkNumber _cno;
 
     void _SetNil(void);
 
   public:
-    TSEL(PCFL pcfl);
+    TSEL(PChunkyFile pcfl);
 
     void Adjust(void);
 
@@ -267,20 +267,20 @@ class TSEL : public TSEL_PAR
     {
         return _icki;
     }
-    CNO Cno(void)
+    ChunkNumber Cno(void)
     {
         return _cno;
     }
 
     bool FSetIcki(long icki);
-    bool FSetCno(CNO cno);
+    bool FSetCno(ChunkNumber cno);
 };
 
 /***************************************************************************
-    Help editor document display GOB - displays a HEDO.
+    Help editor document display GraphicsObject - displays a HEDO.
 ***************************************************************************/
 typedef class HEDG *PHEDG;
-#define HEDG_PAR DDG
+#define HEDG_PAR DocumentDisplayGraphicsObject
 #define kclsHEDG 'HEDG'
 class HEDG : public HEDG_PAR
 {
@@ -294,10 +294,10 @@ class HEDG : public HEDG_PAR
     long _dypLine;   // height of one line
     long _dxpChar;   // width of a character
     long _dypBorder; // height of border (included in _dypLine)
-    PCFL _pcfl;      // the chunky file
+    PChunkyFile _pcfl;      // the chunky file
     TSEL _tsel;      // the selection
 
-    HEDG(PHEDO phedo, PCFL pcfl, PGCB pgcb);
+    HEDG(PHEDO phedo, PChunkyFile pcfl, PGraphicsObjectBlock pgcb);
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
     virtual void _ScrollDxpDyp(long dxp, long dyp);
 
@@ -312,40 +312,40 @@ class HEDG : public HEDG_PAR
     long _IckiFromYp(long yp);
     void _GetContent(RC *prc);
 
-    void _DrawSel(PGNV pgnv);
-    void _SetSel(long icki, CNO cno = cnoNil);
+    void _DrawSel(PGraphicsEnvironment pgnv);
+    void _SetSel(long icki, ChunkNumber cno = cnoNil);
     void _ShowSel(void);
-    void _EditTopic(CNO cno);
+    void _EditTopic(ChunkNumber cno);
 
     virtual void _Activate(bool fActive);
     virtual long _ScvMax(bool fVert);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
 #ifdef WIN
-    void _StartPage(PGNV pgnv, PSTN pstnDoc, long lwPage, RC *prcPage, long onn);
+    void _StartPage(PGraphicsEnvironment pgnv, PString pstnDoc, long lwPage, RC *prcPage, long onn);
 #endif // WIN
 
   public:
-    static PHEDG PhedgNew(PHEDO phedo, PCFL pcfl, PGCB pgcb);
+    static PHEDG PhedgNew(PHEDO phedo, PChunkyFile pcfl, PGraphicsObjectBlock pgcb);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual void MouseDown(long xp, long yp, long cact, ulong grfcust);
     virtual bool FCmdKey(PCMD_KEY pcmd);
 
-    virtual void InvalCno(CNO cno);
-    virtual bool FEnableHedgCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdNewTopic(PCMD pcmd);
-    virtual bool FCmdEditTopic(PCMD pcmd);
-    virtual bool FCmdDeleteTopic(PCMD pcmd);
-    virtual bool FCmdExport(PCMD pcmd);
-    virtual bool FCmdFind(PCMD pcmd);
-    virtual bool FCmdPrint(PCMD pcmd);
-    virtual bool FCmdCheckSpelling(PCMD pcmd);
-    virtual bool FCmdDump(PCMD pcmd);
+    virtual void InvalCno(ChunkNumber cno);
+    virtual bool FEnableHedgCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdNewTopic(PCommand pcmd);
+    virtual bool FCmdEditTopic(PCommand pcmd);
+    virtual bool FCmdDeleteTopic(PCommand pcmd);
+    virtual bool FCmdExport(PCommand pcmd);
+    virtual bool FCmdFind(PCommand pcmd);
+    virtual bool FCmdPrint(PCommand pcmd);
+    virtual bool FCmdCheckSpelling(PCommand pcmd);
+    virtual bool FCmdDump(PCommand pcmd);
 
     PHEDO Phedo(void)
     {
@@ -357,7 +357,7 @@ class HEDG : public HEDG_PAR
     Help editor topic doc - for editing a single topic in a HEDO.
     An instance of this class is a child doc of a HEDO.
 ***************************************************************************/
-#define HETD_PAR TXHD
+#define HETD_PAR TextDocument
 #define kclsHETD 'HETD'
 class HETD : public HETD_PAR
 {
@@ -366,27 +366,27 @@ class HETD : public HETD_PAR
     MARKMEM
 
   protected:
-    PCFL _pcfl; // which chunk is being edited
-    CNO _cno;
-    PGST _pgst;   // string versions of stuff in HTOP
-    STN _stnDesc; // description
+    PChunkyFile _pcfl; // which chunk is being edited
+    ChunkNumber _cno;
+    PStringTable_GST _pgst;   // string versions of stuff in Topic
+    String _stnDesc; // description
 
-    HETD(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno);
+    HETD(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno);
     ~HETD(void);
 
-    virtual bool _FReadChunk(PCFL pcfl, CTG ctg, CNO cno, bool fCopyText);
+    virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText);
 
   public:
-    static PHETD PhetdNew(PDOCB pdocb, PRCA prca, PCFL pcfl, CNO cno);
-    static PHETD PhetdFromChunk(PDOCB pdocb, CNO cno);
-    static void CloseDeletedHetd(PDOCB pdocb);
+    static PHETD PhetdNew(PDocumentBase pdocb, PResourceCache prca, PChunkyFile pcfl, ChunkNumber cno);
+    static PHETD PhetdFromChunk(PDocumentBase pdocb, ChunkNumber cno);
+    static void CloseDeletedHetd(PDocumentBase pdocb);
 
-    virtual PDMD PdmdNew(void);
-    virtual PDDG PddgNew(PGCB pgcb);
-    virtual void GetName(PSTN pstn);
+    virtual PDocumentMDIWindow PdmdNew(void);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
+    virtual void GetName(PString pstn);
     virtual bool FSave(long cid);
 
-    virtual bool FSaveToChunk(PCFL pcfl, CKI *pcki, bool fRedirectText = fFalse);
+    virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
 
     void EditHtop(void);
     bool FDoFind(long cpMin, long *pcpMin, long *pcpLim);
@@ -396,19 +396,19 @@ class HETD : public HETD_PAR
     {
         return (PHEDO)PdocbPar();
     }
-    CNO Cno(void)
+    ChunkNumber Cno(void)
     {
         return _cno;
     }
 
-    void GetHtopStn(long istn, PSTN pstn);
+    void GetHtopStn(long istn, PString pstn);
 };
 
 /***************************************************************************
-    DDG for an HETD.  Help text document editing gob.
+    DocumentDisplayGraphicsObject for an HETD.  Help text document editing gob.
 ***************************************************************************/
 typedef class HETG *PHETG;
-#define HETG_PAR TXRG
+#define HETG_PAR RichTextDocumentGraphicsObject
 #define kclsHETG 'HETG'
 class HETG : public HETG_PAR
 {
@@ -416,10 +416,10 @@ class HETG : public HETG_PAR
     CMD_MAP_DEC(HETG)
 
   protected:
-    HETG(PHETD phetd, PGCB pgcb);
+    HETG(PHETD phetd, PGraphicsObjectBlock pgcb);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
 
     // override these so we can put up our dialogs
     virtual bool _FGetOtherSize(long *pdypFont);
@@ -427,33 +427,33 @@ class HETG : public HETG_PAR
 
     // we have our own ruler
     virtual long _DypTrul(void);
-    virtual PTRUL _PtrulNew(PGCB pgcb);
+    virtual PTextRuler _PtrulNew(PGraphicsObjectBlock pgcb);
 
     // override _DrawLinExtra so we can put boxes around grouped text.
-    virtual void _DrawLinExtra(PGNV pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
+    virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, PRC prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
   public:
-    static PHETG PhetgNew(PHETD phetd, PGCB pgcb);
+    static PHETG PhetgNew(PHETD phetd, PGraphicsObjectBlock pgcb);
 
     virtual void InvalCp(long cp, long ccpIns, long ccpDel);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FInsertPicture(PCRF pcrf, CTG ctg, CNO cno);
-    virtual bool FInsertButton(PCRF pcrf, CTG ctg, CNO cno);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
+    virtual bool FInsertPicture(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual bool FInsertButton(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
-    virtual bool FCmdGroupText(PCMD pcmd);
-    virtual bool FCmdFormatPicture(PCMD pcmd);
-    virtual bool FCmdFormatButton(PCMD pcmd);
-    virtual bool FEnableHetgCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdEditHtop(PCMD pcmd);
-    virtual bool FCmdInsertEdit(PCMD pcmd);
-    virtual bool FCmdFormatEdit(PCMD pcmd);
-    virtual bool FCmdFind(PCMD pcmd);
-    virtual bool FCmdPrint(PCMD pcmd);
-    virtual bool FCmdLineSpacing(PCMD pcmd);
-    virtual bool FCmdNextTopic(PCMD pcmd);
-    virtual bool FCmdCheckSpelling(PCMD pcmd);
-    virtual bool FCmdFontDialog(PCMD pcmd);
+    virtual bool FCmdGroupText(PCommand pcmd);
+    virtual bool FCmdFormatPicture(PCommand pcmd);
+    virtual bool FCmdFormatButton(PCommand pcmd);
+    virtual bool FEnableHetgCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdEditHtop(PCommand pcmd);
+    virtual bool FCmdInsertEdit(PCommand pcmd);
+    virtual bool FCmdFormatEdit(PCommand pcmd);
+    virtual bool FCmdFind(PCommand pcmd);
+    virtual bool FCmdPrint(PCommand pcmd);
+    virtual bool FCmdLineSpacing(PCommand pcmd);
+    virtual bool FCmdNextTopic(PCommand pcmd);
+    virtual bool FCmdCheckSpelling(PCommand pcmd);
+    virtual bool FCmdFontDialog(PCommand pcmd);
 
     virtual bool FCheckSpelling(long *pcactChanges);
 
@@ -472,7 +472,7 @@ const long kstidReplace = 2;
     The ruler for a help text document.
 ***************************************************************************/
 typedef class HTRU *PHTRU;
-#define HTRU_PAR TRUL
+#define HTRU_PAR TextRuler
 #define kclsHTRU 'HTRU'
 class HTRU : public HTRU_PAR
 {
@@ -488,7 +488,7 @@ class HTRU : public HTRU_PAR
         krttDoc
     };
 
-    PTXTG _ptxtg;
+    PTextDocumentGraphicsObject _ptxtg;
     long _dxpTab;
     long _dxpDoc;
     long _dyp;
@@ -499,13 +499,13 @@ class HTRU : public HTRU_PAR
     long _dypFont;
     ulong _grfont;
 
-    HTRU(GCB *pgcb, PTXTG ptxtg);
+    HTRU(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg);
 
   public:
-    static PHTRU PhtruNew(GCB *pgcb, PTXTG ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
+    static PHTRU PhtruNew(GraphicsObjectBlock *pgcb, PTextDocumentGraphicsObject ptxtg, long dxpTab, long dxpDoc, long dypDoc, long xpLeft, long onn,
                           long dypFont, ulong grfont);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 
     virtual void SetDxpTab(long dxpTab);
