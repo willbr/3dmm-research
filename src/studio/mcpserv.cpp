@@ -776,11 +776,64 @@ static JVal Tool_SendCommand(const JVal &args)
     if (!vpcex) return ContentError("command execution manager not available");
     long lw0 = (long)(args.Get("lw0") ? args.Get("lw0")->AsInt(0) : 0);
     long lw1 = (long)(args.Get("lw1") ? args.Get("lw1")->AsInt(0) : 0);
-    vpcex->EnqueueCid(cid, pvNil, pvNil, lw0, lw1);
-    char msg[96];
-    std::snprintf(msg, sizeof(msg), "enqueued cid=0x%lx lw0=0x%lx lw1=0x%lx",
-                  (unsigned long)cid, (unsigned long)lw0, (unsigned long)lw1);
+    long lw2 = (long)(args.Get("lw2") ? args.Get("lw2")->AsInt(0) : 0);
+    long lw3 = (long)(args.Get("lw3") ? args.Get("lw3")->AsInt(0) : 0);
+    // Optional target gob hid: kidspace commands route by gob hid, and many
+    // cids (cidBrowserReady, cidSceneSortInit, ...) route to khidStudio etc.
+    PCommandHandler pcmh = pvNil;
+    long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
+    if (hid != 0)
+    {
+        PGraphicsObject pgob = GraphicsObject::PgobFromHidScr(hid);
+        if (pgob != pvNil) pcmh = pgob;
+    }
+    vpcex->EnqueueCid(cid, pcmh, pvNil, lw0, lw1, lw2, lw3);
+    char msg[160];
+    std::snprintf(msg, sizeof(msg),
+                  "enqueued cid=0x%lx hid=0x%lx (handler=%s) lw0=0x%lx lw1=0x%lx lw2=0x%lx lw3=0x%lx",
+                  (unsigned long)cid, (unsigned long)hid,
+                  pcmh ? "found" : "nil",
+                  (unsigned long)lw0, (unsigned long)lw1,
+                  (unsigned long)lw2, (unsigned long)lw3);
     return ContentText(msg);
+}
+
+// --- find_gob ------------------------------------------------------------
+// Given a kidspace gob hid, report its on-screen rect (client coords of the
+// containing HWND) so the agent can target a click at its center without
+// guessing pixel positions from a screenshot.
+
+static JVal Tool_FindGob(const JVal &args)
+{
+    long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
+    if (hid == 0) return ContentError("missing hid");
+    PGraphicsObject pgob = GraphicsObject::PgobFromHidScr(hid);
+    if (!pgob) return ContentError("no gob with that hid");
+    RC rc;
+    pgob->GetRc(&rc, cooLocal);
+    PT pt = {rc.xpLeft, rc.ypTop};
+    pgob->MapPt(&pt, cooLocal, cooHwnd);
+    long w = rc.xpRight - rc.xpLeft;
+    long h = rc.ypBottom - rc.ypTop;
+    JVal o = JVal::MkObj();
+    o.Set("found", JVal::MkBool(true));
+    o.Set("hid", JVal::MkInt(hid));
+    o.Set("x", JVal::MkInt(pt.xp));
+    o.Set("y", JVal::MkInt(pt.yp));
+    o.Set("w", JVal::MkInt(w));
+    o.Set("h", JVal::MkInt(h));
+    o.Set("center_x", JVal::MkInt(pt.xp + w / 2));
+    o.Set("center_y", JVal::MkInt(pt.yp + h / 2));
+    JVal arr = JVal::MkArr();
+    JVal item = JVal::MkObj();
+    item.Set("type", JVal::MkStr("text"));
+    std::string s;
+    JWrite(s, o);
+    item.Set("text", JVal::MkStr(s));
+    arr.a->push_back(std::move(item));
+    JVal res = JVal::MkObj();
+    res.Set("content", std::move(arr));
+    return res;
 }
 
 // --- get_state -----------------------------------------------------------
@@ -931,14 +984,25 @@ static const ToolDef kTools[] = {
     },
     {
         "send_command",
-        "Enqueue a kauai command (cid + optional lw0/lw1) into vpcex.",
+        "Enqueue a kauai command (cid, optional target hid, lw0..lw3) into vpcex.",
         "{\"type\":\"object\","
         "\"properties\":{"
         "\"cid\":{\"type\":\"integer\"},"
+        "\"hid\":{\"type\":\"integer\"},"
         "\"lw0\":{\"type\":\"integer\"},"
-        "\"lw1\":{\"type\":\"integer\"}"
+        "\"lw1\":{\"type\":\"integer\"},"
+        "\"lw2\":{\"type\":\"integer\"},"
+        "\"lw3\":{\"type\":\"integer\"}"
         "},\"required\":[\"cid\"]}",
         &Tool_SendCommand,
+    },
+    {
+        "find_gob",
+        "Look up a kidspace gob by hid; return its hwnd-client-coord rect.",
+        "{\"type\":\"object\","
+        "\"properties\":{\"hid\":{\"type\":\"integer\"}},"
+        "\"required\":[\"hid\"]}",
+        &Tool_FindGob,
     },
     {
         "get_state",
