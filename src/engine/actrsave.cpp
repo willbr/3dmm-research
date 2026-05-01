@@ -36,6 +36,7 @@ struct ActorChunkOnFile // Actor chunk on file
     long nfrmLast;   // Last frame in this actor's stage life
     TAG tagTmpl;     // Tag to actor's template
 };
+static_assert(sizeof(ActorChunkOnFile) == 44, "ActorChunkOnFile on-disk layout drift");
 const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
 
 /***************************************************************************

@@ -40,6 +40,7 @@ struct RoutePoint
         return ((dxr != xyz.dxr) || (dyr != xyz.dyr) || (dzr != xyz.dzr));
     }
 };
+static_assert(sizeof(RoutePoint) == 12, "RoutePoint on-disk layout drift");
 
 typedef RoutePoint *PRoutePoint;
 
@@ -54,6 +55,7 @@ struct RouteDistancePoint
     RoutePoint xyz;
     BRS dwr; // Distance from this node to the next node on the route
 };
+static_assert(sizeof(RouteDistancePoint) == 16, "RouteDistancePoint on-disk layout drift");
 const ByteOrderMask kbomRpt = 0xff000000;
 
 const long knfrmInvalid = klwMax;                                  // invalid frame state.  Regenerate correct state
@@ -147,6 +149,7 @@ struct RouteLocation // RouTE Location - a function of space and time
                                                            (dwrOffset == rtel.dwrOffset && dnfrm > rtel.dnfrm))));
     }
 };
+static_assert(sizeof(RouteLocation) == 12, "RouteLocation on-disk layout drift");
 
 namespace ActorEvent {
 
@@ -158,6 +161,7 @@ struct Base
     long nfrm; // Absolute frame number (* Only valid < current event)
     RouteLocation rtel; // RouTE Location for this event
 };             // Additional event parameters (in the GeneralGroup)
+static_assert(sizeof(Base) == 20, "ActorEvent::Base on-disk layout drift");
 typedef Base *PBase;
 
 //
@@ -195,6 +199,7 @@ struct Stretch // Squash/stretch
     BRS rScaleY;
     BRS rScaleZ;
 };
+static_assert(sizeof(Stretch) == 12, "ActorEvent::Stretch on-disk layout drift");
 const ByteOrderMask kbomAevpull = 0xfc000000;
 
 // Every subroute is normalized.  The normalization translation is
@@ -209,6 +214,7 @@ struct Add
     BRA ya;  // Single point orientation
     BRA za;  // Single point orientation
 };
+static_assert(sizeof(Add) == 20, "ActorEvent::Add on-disk layout drift");
 const ByteOrderMask kbomAevadd = 0xffc00000 | kbomBmat34 >> 10;
 
 struct Action
@@ -216,6 +222,7 @@ struct Action
     long anid;
     long celn; // starting cel of action
 };
+static_assert(sizeof(Action) == 8, "ActorEvent::Action on-disk layout drift");
 const ByteOrderMask kbomAevactn = 0xf0000000;
 
 struct Costume
@@ -225,6 +232,7 @@ struct Costume
     tribool fCmtl; // vs fMtrl
     TAG tag;
 };
+static_assert(sizeof(Costume) == 28, "ActorEvent::Costume on-disk layout drift");
 const ByteOrderMask kbomAevcost = 0xfc000000 | (kbomTag >> 6);
 
 struct Sound
@@ -238,6 +246,7 @@ struct Sound
     ChildChunkID chid;        // user sound requires chid
     TAG tag;
 };
+static_assert(sizeof(Sound) == 44, "ActorEvent::Sound on-disk layout drift");
 const ByteOrderMask kbomAevsnd = 0xfff00000 | (kbomTag >> 12);
 
 const ByteOrderMask kbomAevsize = 0xc0000000;

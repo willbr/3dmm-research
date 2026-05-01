@@ -59,6 +59,12 @@ struct TAG
     ChunkNumber cno;   // ChunkNumber of chunk
 };
 const ByteOrderMask kbomTag = 0xFF000000;
+// Layout pinned: kbomTag (0xFF000000) byteswaps 4 longs of 4 bytes each = 16
+// bytes, including the 4-byte slot for pcrf which holds garbage on disk.
+// On x64 the pcrf pointer becomes 8 bytes -- TAG must be reshaped before
+// any 64-bit build will round-trip a .3MM correctly. See
+// docs/superpowers/specs/2026-05-01-sized-types-audit.md.
+static_assert(sizeof(TAG) == 16, "TAG on-disk layout drift");
 
 // FNINSCD is a client-supplied callback function to alert the user to
 // insert the given CD.  The name of the source is passed to the callback.

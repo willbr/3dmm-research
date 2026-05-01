@@ -828,5 +828,6 @@ struct DataVersion
     void Set(short swCur, short swBack);
     bool FReadable(short swCur, short swMin);
 };
+static_assert(sizeof(DataVersion) == 4, "DataVersion on-disk layout drift");
 
 #endif // UTILINT_H

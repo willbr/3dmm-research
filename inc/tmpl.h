@@ -33,6 +33,7 @@ struct CPS
     short chidModl; // ChildChunkID (under Template chunk) of model for this body part
     short imat34;   // index into ActionDefinition's DynamicArray of transforms
 };
+static_assert(sizeof(CPS) == 4, "CPS on-disk layout drift");
 const ByteOrderMask kbomCps = 0x50000000;
 
 /****************************************
@@ -48,6 +49,7 @@ struct CEL
     BRS dwr;      // distance from previous cel
                   //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
 };
+static_assert(sizeof(CEL) == 8, "CEL on-disk layout drift");
 const ByteOrderMask kbomCel = 0xf0000000;
 
 // template on file
@@ -61,6 +63,7 @@ struct TemplateOnFile
     short swPad; // so grftmpl (and the whole TemplateOnFile) is long-aligned
     ulong grftmpl;
 };
+static_assert(sizeof(TemplateOnFile) == 16, "TemplateOnFile on-disk layout drift");
 #define kbomTmplf 0x554c0000
 
 // action chunk on file
@@ -70,6 +73,7 @@ struct ActionChunkOnFile
     short osk;
     long grfactn;
 };
+static_assert(sizeof(ActionChunkOnFile) == 8, "ActionChunkOnFile on-disk layout drift");
 const ulong kbomActnf = 0x5c000000;
 
 // grfactn flags

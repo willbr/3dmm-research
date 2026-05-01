@@ -25,6 +25,7 @@ struct BackgroundFile
     byte bPad;
     short swPad;
 };
+static_assert(sizeof(BackgroundFile) == 8, "BackgroundFile on-disk layout drift");
 const ByteOrderMask kbomBkgdf = 0x50000000;
 
 /****************************************
@@ -37,6 +38,7 @@ struct LightPosition
     BRS rIntensity;
     long lt; // light type
 };
+static_assert(sizeof(LightPosition) == 56, "LightPosition on-disk layout drift");
 const ByteOrderMask kbomLite = 0xfffffff0;
 
 /****************************************
@@ -64,6 +66,7 @@ struct CameraPosition
     BMAT34 bmat34Cam; // Camera view matrix
     // APOS rgapos[];
 };
+static_assert(sizeof(CameraPosition) == 76, "CameraPosition on-disk layout drift");
 const ByteOrderMask kbomCamOld = 0x5f4fc000;
 const ByteOrderMask kbomCam = BomField(
     kbomSwapShort,
@@ -89,6 +92,7 @@ struct BackgroundDefaultSound
     bool fLoop;
     TAG tagSnd;
 };
+static_assert(sizeof(BackgroundDefaultSound) == 28, "BackgroundDefaultSound on-disk layout drift");
 const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
 
 /****************************************

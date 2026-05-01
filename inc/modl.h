@@ -29,6 +29,7 @@ struct ModelOnFile
     //	br_vertex rgbrv[]; // vertices
     //	br_face rgbrf[]; // faces
 };
+static_assert(sizeof(ModelOnFile) == 48, "ModelOnFile on-disk layout drift");
 typedef ModelOnFile *PModelOnFile;
 const ByteOrderMask kbomModlf = 0x55fffff0;
 

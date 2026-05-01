@@ -166,6 +166,7 @@ struct MovieFilePrefix
     short osk; // which system wrote this
     DataVersion dver; // chunky file version
 };
+static_assert(sizeof(MovieFilePrefix) == 8, "MovieFilePrefix on-disk layout drift");
 const ByteOrderMask kbomMfp = 0x55000000;
 
 //
@@ -178,6 +179,7 @@ struct MACTR
     ulong grfbrws; // browser properties
     TAG tagTmpl;
 };
+static_assert(sizeof(MACTR) == 28, "MACTR on-disk layout drift");
 
 typedef MACTR *PMACTR;
 
