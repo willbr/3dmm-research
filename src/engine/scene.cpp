@@ -3834,7 +3834,7 @@ bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
     sev.sevt = sevtPause;
     sevp.wit = *pwit;
     sevp.dts = *pdts;
-    if (!_FAddSev(&sev, size(long) * 2, &sevp))
+    if (!_FAddSev(&sev, size(SceneEventPause), &sevp))
     {
         return (fFalse);
     }
@@ -4151,6 +4151,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
     PSEV qsev, qsevOld;
     SceneEvent sev;
     long isev, isevCam;
+    int32_t icam32 = (int32_t)icam; // on-disk slot is 4 bytes
 
     //
     // Check for a current camera change.
@@ -4177,7 +4178,9 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                     qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isevCam);
                     if (qsevOld->sevt == sevtChngCamera)
                     {
-                        _pggsevFrm->Get(isevCam, picamOld);
+                        int32_t icamScratch;
+                        _pggsevFrm->Get(isevCam, &icamScratch);
+                        *picamOld = icamScratch;
                         break;
                     }
                 }
@@ -4188,8 +4191,10 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                 //
                 if (*picamOld == icam)
                 {
+                    int32_t icamScratch;
                     qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isev);
-                    _pggsevFrm->Get(isev, picamOld);
+                    _pggsevFrm->Get(isev, &icamScratch);
+                    *picamOld = icamScratch;
                     if (_FPlaySev(qsevOld, &icam, _grfscen))
                     {
                         _pggsevFrm->Delete(isev);
@@ -4203,8 +4208,12 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
                 //
                 // Change it
                 //
-                _pggsevFrm->Get(isev, picamOld);
-                _pggsevFrm->Put(isev, &icam);
+                {
+                    int32_t icamScratch;
+                    _pggsevFrm->Get(isev, &icamScratch);
+                    *picamOld = icamScratch;
+                    _pggsevFrm->Put(isev, &icam32);
+                }
                 _MarkMovieDirty();
                 if (_FPlaySev(qsev, &icam, _grfscen))
                 {
@@ -4214,7 +4223,9 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
             }
             else
             {
-                _pggsevFrm->Get(isev, picamOld);
+                int32_t icamScratch;
+                _pggsevFrm->Get(isev, &icamScratch);
+                *picamOld = icamScratch;
                 break;
             }
         }
@@ -4231,7 +4242,7 @@ bool Scene::FChangeCamCore(long icam, long *picamOld)
     sev.nfrm = _nfrmCur;
     sev.sevt = sevtChngCamera;
 
-    if (_FAddSev(&sev, size(long), &icam))
+    if (_FAddSev(&sev, size(int32_t), &icam32))
     {
         if (_FPlaySev(&sev, &icam, _grfscen))
         {
@@ -4252,7 +4263,7 @@ LSuccess:
     //
     for (isev = _isevFrmLim; isev < _pggsevFrm->IvMac(); isev++)
     {
-        long icamNext;
+        int32_t icamNext;
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
         if (qsev->sevt == sevtChngCamera)
         {
@@ -4905,7 +4916,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         }
 
         case sevtChngCamera:
-            if (!pggFrmTemp->FInsert(isevFrm, size(long), _pggsevFrm->QvGet(isevFrm), &sev))
+            if (!pggFrmTemp->FInsert(isevFrm, size(int32_t), _pggsevFrm->QvGet(isevFrm), &sev))
             {
                 goto LFail;
             }
@@ -4982,7 +4993,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         }
 
         case sevtChngCamera:
-            if (!pggStartTemp->FInsert(isevStart, size(long), _pggsevStart->QvGet(isevStart), &sev))
+            if (!pggStartTemp->FInsert(isevStart, size(int32_t), _pggsevStart->QvGet(isevStart), &sev))
             {
                 goto LFail;
             }
