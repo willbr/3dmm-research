@@ -37,7 +37,7 @@ typedef void BR_CALLBACK br_renderbounds_cbfn(
 	br_actor *actor,
 	br_model *model,
 	br_material *material,
-	void *render_data,
+	/* render_data slot dropped to match wrapper bren/inc/zbproto.h. */
 	br_uint_8 style,
 	br_matrix4 *model_to_screen,
 	br_int_32 bounds[4]);
