@@ -14,13 +14,13 @@
 ASSERTNAME
 
 const ulong kfpError = 0xFFFFFFFF;
-priv HANDLE _HfileOpen(PSZ pszFile, bool fCreate, ulong grffil);
+priv HANDLE _HfileOpen(PZString pszFile, bool fCreate, ulong grffil);
 
 /***************************************************************************
     Open or create the file by calling CreateFile.  Returns hBadWin on
     failure.
 ***************************************************************************/
-priv HANDLE _HfileOpen(PSZ psz, bool fCreate, ulong grffil)
+priv HANDLE _HfileOpen(PZString psz, bool fCreate, ulong grffil)
 {
     ulong luAccess = GENERIC_READ;
     ulong luShare = 0;
@@ -40,7 +40,7 @@ priv HANDLE _HfileOpen(PSZ psz, bool fCreate, ulong grffil)
     Open or create the file.  If the file is already open, sets the
     permissions according to grffil.
 ***************************************************************************/
-bool FIL::_FOpen(bool fCreate, ulong grffil)
+bool FileObject::_FOpen(bool fCreate, ulong grffil)
 {
     AssertBaseThis(0);
     bool fRet = fFalse;
@@ -97,7 +97,7 @@ LRet:
 /***************************************************************************
     Close the file.
 ***************************************************************************/
-void FIL::_Close(bool fFinal)
+void FileObject::_Close(bool fFinal)
 {
     AssertBaseThis(0);
 
@@ -123,7 +123,7 @@ void FIL::_Close(bool fFinal)
 /***************************************************************************
     Flush the file (and its volume?).
 ***************************************************************************/
-void FIL::Flush(void)
+void FileObject::Flush(void)
 {
     AssertThis(0);
 
@@ -138,7 +138,7 @@ void FIL::Flush(void)
 /***************************************************************************
     Seek to the given fp - assumes the mutx is already entered.
 ***************************************************************************/
-void FIL::_SetFpPos(FP fp)
+void FileObject::_SetFpPos(FilePosition fp)
 {
     AssertThis(0);
 
@@ -155,7 +155,7 @@ void FIL::_SetFpPos(FP fp)
 /***************************************************************************
     Set the length of the file.  This doesn't zero the appended portion.
 ***************************************************************************/
-bool FIL::FSetFpMac(FP fp)
+bool FileObject::FSetFpMac(FilePosition fp)
 {
     AssertThis(0);
     AssertIn(fp, 0, kcbMax);
@@ -185,10 +185,10 @@ bool FIL::FSetFpMac(FP fp)
 /***************************************************************************
     Return the length of the file.
 ***************************************************************************/
-FP FIL::FpMac(void)
+FilePosition FileObject::FpMac(void)
 {
     AssertThis(0);
-    FP fp;
+    FilePosition fp;
 
     _mutx.Enter();
 
@@ -212,7 +212,7 @@ FP FIL::FpMac(void)
 /***************************************************************************
     Read a block from the file.
 ***************************************************************************/
-bool FIL::FReadRgb(void *pv, long cb, FP fp)
+bool FileObject::FReadRgb(void *pv, long cb, FilePosition fp)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -230,7 +230,7 @@ bool FIL::FReadRgb(void *pv, long cb, FP fp)
     if (!_fOpen)
         _FOpen(fFalse, _grffil);
 
-    Debug(FP dfp = FpMac() - fp;)
+    Debug(FilePosition dfp = FpMac() - fp;)
 
         _SetFpPos(fp);
     if (_el >= kelRead)
@@ -254,7 +254,7 @@ LRet:
 /***************************************************************************
     Write a block to the file.
 ***************************************************************************/
-bool FIL::FWriteRgb(void *pv, long cb, FP fp)
+bool FileObject::FWriteRgb(void *pv, long cb, FilePosition fp)
 {
     AssertThis(0);
     AssertIn(cb, 0, kcbMax);
@@ -296,12 +296,12 @@ LRet:
 /***************************************************************************
     Swap the names of the two files.  They should be in the same directory.
 ***************************************************************************/
-bool FIL::FSwapNames(PFIL pfil)
+bool FileObject::FSwapNames(PFileObject pfil)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
-    FNI fni;
-    FNI fniT;
+    Filename fni;
+    Filename fniT;
     bool fRet = fFalse;
 
     if (this == pfil)
@@ -372,11 +372,11 @@ LRet:
     Rename a file.  The new fni should be on the same volume.
     This may fail without an error code being set.
 ***************************************************************************/
-bool FIL::FRename(FNI *pfni)
+bool FileObject::FRename(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);
-    FNI fni;
+    Filename fni;
     bool fRet = fFalse;
 
     _mutx.Enter();

@@ -8,31 +8,33 @@
     Copyright (c) Microsoft Corporation
 
     Basic collection classes (continued from groups.cpp):
-        General List (GL), Allocated List (AL),
-        General Group (GG), Allocated Group (AG),
-        General String Table (GST), Allocated String Table (AST).
+        General List (DynamicArray), Allocated List (AllocatedArray),
+        General Group (GeneralGroup), Allocated Group (AllocatedGroup),
+        General String Table (StringTable_GST), Allocated String Table (AllocatedStringTable).
 
-        BASE ---> GRPB -+-> GLB -+-> GL
-                        |        +-> AL
+        BASE ---> GroupBase -+-> VirtualArray -+-> DynamicArray
+                        |        +-> AllocatedArray
                         |
-                        +-> GGB -+-> GG
-                        |        +-> AG
+                        +-> VirtualGroup -+-> GeneralGroup
+                        |        +-> AllocatedGroup
                         |
-                        +-> GSTB-+-> GST
-                                 +-> AST
+                        +-> VirtualStringTable-+-> StringTable_GST
+                                 +-> AllocatedStringTable
 
 ***************************************************************************/
 #include "util.h"
 ASSERTNAME
 
-RTCLASS(GSTB)
-RTCLASS(GST)
-RTCLASS(AST)
+namespace Group {
+
+RTCLASS(VirtualStringTable)
+RTCLASS(StringTable_GST)
+RTCLASS(AllocatedStringTable)
 
 /***************************************************************************
     Constructor for a base string table.
 ***************************************************************************/
-GSTB::GSTB(long cbExtra, ulong grfgst)
+VirtualStringTable::VirtualStringTable(long cbExtra, ulong grfgst)
 {
     AssertIn(cbExtra, 0, kcbMax);
     Assert(cbExtra % size(long) == 0, "cbExtra not multiple of size(long)");
@@ -50,13 +52,13 @@ GSTB::GSTB(long cbExtra, ulong grfgst)
 /***************************************************************************
     Duplicate the string table.
 ***************************************************************************/
-bool GSTB::_FDup(PGSTB pgstbDst)
+bool VirtualStringTable::_FDup(PVirtualStringTable pgstbDst)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pgstbDst, fobjAssertFull);
     Assert(_cbEntry == pgstbDst->_cbEntry, "why do these have different sized entries?");
 
-    if (!GSTB_PAR::_FDup(pgstbDst, _bstMac, LwMul(_cbEntry, _ivMac)))
+    if (!VirtualStringTable_PAR::_FDup(pgstbDst, _bstMac, LwMul(_cbEntry, _ivMac)))
         return fFalse;
 
     pgstbDst->_cbEntry = _cbEntry;
@@ -68,7 +70,7 @@ bool GSTB::_FDup(PGSTB pgstbDst)
 }
 
 // string table on file
-struct GSTF
+struct StringTableOnFile
 {
     short bo;
     short osk;
@@ -77,15 +79,15 @@ struct GSTF
     long bstMac;
     long cbstFree;
 };
-const BOM kbomGstf = 0x5FF00000L;
+const ByteOrderMask kbomGstf = 0x5FF00000L;
 
 /***************************************************************************
     Return the amount of space on file needed for the string table.
 ***************************************************************************/
-long GSTB::CbOnFile(void)
+long VirtualStringTable::CbOnFile(void)
 {
     AssertThis(0);
-    return size(GSTF) + LwMul(_ivMac, _cbEntry) + _bstMac;
+    return size(StringTableOnFile) + LwMul(_ivMac, _cbEntry) + _bstMac;
 }
 
 /***************************************************************************
@@ -95,14 +97,14 @@ long GSTB::CbOnFile(void)
     strings are actually saved in the corresponding osk with the same sized
     characters.
 ***************************************************************************/
-bool GSTB::FWrite(PBLCK pblck, short bo, short osk)
+bool VirtualStringTable::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pblck, 0);
     Assert(kboCur == bo || kboOther == bo, "bad bo");
     AssertOsk(osk);
 
-    GSTF gstf;
+    StringTableOnFile gstf;
     bool fRet;
 
     if (osk != koskCur)
@@ -150,14 +152,14 @@ bool GSTB::FWrite(PBLCK pblck, short bo, short osk)
 /***************************************************************************
     Read string table data from a block.
 ***************************************************************************/
-bool GSTB::_FRead(PBLCK pblck, short *pbo, short *posk)
+bool VirtualStringTable::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    GSTF gstf;
+    StringTableOnFile gstf;
     long cbT;
     short bo;
     long cb;
@@ -191,7 +193,7 @@ bool GSTB::_FRead(PBLCK pblck, short *pbo, short *posk)
         gstf.cbstFree != cvNil && !FIn(gstf.cbstFree, 0, LwMax(1, gstf.ibstMac)))
     {
     LBug:
-        Warn("file corrupt or not a GSTB");
+        Warn("file corrupt or not a VirtualStringTable");
         goto LFail;
     }
 
@@ -217,9 +219,9 @@ LFail:
 /***************************************************************************
     Ensures that there is room to add at least cstnAdd new strings with
     a total of cchAdd characters.  If there is more than enough room and
-    fgrpShrink is passed, the GSTB may shrink.
+    fgrpShrink is passed, the VirtualStringTable may shrink.
 ***************************************************************************/
-bool GSTB::FEnsureSpace(long cstnAdd, long cchAdd, ulong grfgrp)
+bool VirtualStringTable::FEnsureSpace(long cstnAdd, long cchAdd, ulong grfgrp)
 {
     AssertThis(0);
     AssertIn(cstnAdd, 0, kcbMax);
@@ -241,9 +243,9 @@ bool GSTB::FEnsureSpace(long cstnAdd, long cchAdd, ulong grfgrp)
 }
 
 /***************************************************************************
-    Set the minimum that a GSTB should grow by.
+    Set the minimum that a VirtualStringTable should grow by.
 ***************************************************************************/
-void GSTB::SetMinGrow(long cstnAdd, long cchAdd)
+void VirtualStringTable::SetMinGrow(long cstnAdd, long cchAdd)
 {
     AssertThis(0);
     AssertIn(cstnAdd, 0, kcbMax);
@@ -256,7 +258,7 @@ void GSTB::SetMinGrow(long cstnAdd, long cchAdd)
 /***************************************************************************
     Append an stn to string table.
 ***************************************************************************/
-bool GSTB::FAddStn(PSTN pstn, void *pvExtra, long *pistn)
+bool VirtualStringTable::FAddStn(PString pstn, void *pvExtra, long *pistn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -267,7 +269,7 @@ bool GSTB::FAddStn(PSTN pstn, void *pvExtra, long *pistn)
 /***************************************************************************
     Replace the ith string.
 ***************************************************************************/
-bool GSTB::FPutRgch(long istn, achar *prgch, long cch)
+bool VirtualStringTable::FPutRgch(long istn, achar *prgch, long cch)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac);
@@ -306,7 +308,7 @@ LDone:
 /***************************************************************************
     Replace the ith string with stn.
 ***************************************************************************/
-bool GSTB::FPutStn(long istn, PSTN pstn)
+bool VirtualStringTable::FPutStn(long istn, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -317,7 +319,7 @@ bool GSTB::FPutStn(long istn, PSTN pstn)
 /***************************************************************************
     Get up to cchMax characters for the istn'th string.
 ***************************************************************************/
-void GSTB::GetRgch(long istn, achar *prgch, long cchMax, long *pcch)
+void VirtualStringTable::GetRgch(long istn, achar *prgch, long cchMax, long *pcch)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac);
@@ -325,7 +327,7 @@ void GSTB::GetRgch(long istn, achar *prgch, long cchMax, long *pcch)
     AssertIn(cchMax, 0, kcbMax);
     AssertPvCb(prgch, cchMax * size(achar));
     AssertVarMem(pcch);
-    PST qst = _Qst(istn);
+    PPascalString qst = _Qst(istn);
 
     *pcch = LwMin(cchMax, CchSt(qst));
     CopyPb(PrgchSt(qst), prgch, *pcch * size(achar));
@@ -334,7 +336,7 @@ void GSTB::GetRgch(long istn, achar *prgch, long cchMax, long *pcch)
 /***************************************************************************
     Get the ith string.
 ***************************************************************************/
-void GSTB::GetStn(long istn, PSTN pstn)
+void VirtualStringTable::GetStn(long istn, PString pstn)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac);
@@ -347,7 +349,7 @@ void GSTB::GetStn(long istn, PSTN pstn)
 /***************************************************************************
     Find the given stn in the string table.
 ***************************************************************************/
-bool GSTB::FFindStn(PSTN pstn, long *pistn, ulong grfgst)
+bool VirtualStringTable::FFindStn(PString pstn, long *pistn, ulong grfgst)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -357,17 +359,17 @@ bool GSTB::FFindStn(PSTN pstn, long *pistn, ulong grfgst)
 
 /***************************************************************************
     Search for the string in the string table.  This version does a linear
-    search.  GST overrides this to do a binary search if fgstSorted is
+    search.  StringTable_GST overrides this to do a binary search if fgstSorted is
     passed in grfgst.
 ***************************************************************************/
-bool GSTB::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
+bool VirtualStringTable::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcchMaxGst + 1);
     AssertPvCb(prgch, cch * size(achar));
     AssertVarMem(pistn);
     long istn, bst;
-    PST qst;
+    PPascalString qst;
 
     for (istn = 0; istn < _ivMac; istn++)
     {
@@ -393,7 +395,7 @@ bool GSTB::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
 /***************************************************************************
     Find the string with the given extra data in the string table.
 ***************************************************************************/
-bool GSTB::FFindExtra(void *prgbFind, PSTN pstn, long *pistn)
+bool VirtualStringTable::FFindExtra(void *prgbFind, PString pstn, long *pistn)
 {
     AssertThis(0);
     AssertPvCb(prgbFind, CbExtra());
@@ -434,7 +436,7 @@ bool GSTB::FFindExtra(void *prgbFind, PSTN pstn, long *pistn)
 /***************************************************************************
     Fetch the extra data for element istn.
 ***************************************************************************/
-void GSTB::GetExtra(long istn, void *pv)
+void VirtualStringTable::GetExtra(long istn, void *pv)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac);
@@ -451,7 +453,7 @@ void GSTB::GetExtra(long istn, void *pv)
 /***************************************************************************
     Put the extra data for element istn.
 ***************************************************************************/
-void GSTB::PutExtra(long istn, void *pv)
+void VirtualStringTable::PutExtra(long istn, void *pv)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac);
@@ -469,7 +471,7 @@ void GSTB::PutExtra(long istn, void *pv)
 /***************************************************************************
     Return a volatile pointer to the string given the ibst (not the bst).
 ***************************************************************************/
-achar *GSTB::_Qst(long ibst)
+achar *VirtualStringTable::_Qst(long ibst)
 {
     AssertIn(ibst, 0, _ivMac);
     long bst = _Bst(ibst);
@@ -481,7 +483,7 @@ achar *GSTB::_Qst(long ibst)
     Private api to append the string.  It's assumed that the first block
     is already big enough to accomodate the string.
 ***************************************************************************/
-void GSTB::_AppendRgch(achar *prgch, long cch)
+void VirtualStringTable::_AppendRgch(achar *prgch, long cch)
 {
     AssertIn(cch, 0, kcchMaxGst + 1);
     AssertPvCb(prgch, cch * size(achar));
@@ -498,7 +500,7 @@ void GSTB::_AppendRgch(achar *prgch, long cch)
 /***************************************************************************
     Private api to remove the string.
 ***************************************************************************/
-void GSTB::_RemoveSt(long bst)
+void VirtualStringTable::_RemoveSt(long bst)
 {
     AssertIn(bst, 0, _bstMac);
 
@@ -506,7 +508,7 @@ void GSTB::_RemoveSt(long bst)
     byte *qb;
 
     qb = _Qb1(bst);
-    cb = CchTotSt((PST)qb) * size(achar);
+    cb = CchTotSt((PPascalString)qb) * size(achar);
     AssertIn(bst + cb, 0, _bstMac + 1);
     if (bst + cb < _bstMac)
     {
@@ -517,7 +519,7 @@ void GSTB::_RemoveSt(long bst)
         {
             if (*(long *)qb > bst)
             {
-                Assert(*(long *)qb >= bst + cb, "overlapping strings in GSTB");
+                Assert(*(long *)qb >= bst + cb, "overlapping strings in VirtualStringTable");
                 *(long *)qb -= cb;
             }
         }
@@ -529,7 +531,7 @@ void GSTB::_RemoveSt(long bst)
     Swap the bytes in the BST values.  Note that each bst is followed
     by the extra data, so we can't just use SwapBytesRglw.
 ***************************************************************************/
-void GSTB::_SwapBytesRgbst(void)
+void VirtualStringTable::_SwapBytesRgbst(void)
 {
     if (size(long) == _cbEntry)
         SwapBytesRglw(_Qb2(0), _ivMac);
@@ -547,7 +549,7 @@ void GSTB::_SwapBytesRgbst(void)
     Translate the strings to/from the platform osk.  This only works if
     CbCharOsk(osk) == CbCharOsk(koskCur) (it asserts otherwise).
 ***************************************************************************/
-void GSTB::_TranslateGrst(short osk, bool fToCur)
+void VirtualStringTable::_TranslateGrst(short osk, bool fToCur)
 {
     AssertOsk(osk);
     long bst;
@@ -563,14 +565,14 @@ void GSTB::_TranslateGrst(short osk, bool fToCur)
     for (bst = 0; bst < _bstMac;)
     {
         TranslateSt((achar *)(qb + bst), osk, fToCur);
-        bst += CchTotSt((PST)(qb + bst)) * size(achar);
+        bst += CchTotSt((PPascalString)(qb + bst)) * size(achar);
     }
 }
 
 /***************************************************************************
     Translate the strings to the current osk.
 ***************************************************************************/
-bool GSTB::_FTranslateGrst(short osk)
+bool VirtualStringTable::_FTranslateGrst(short osk)
 {
     AssertOsk(osk);
     void *pvSrc;
@@ -649,7 +651,7 @@ LFail:
     Returns true iff ibst is out of range or the corresponding bst is
     bvNil.
 ***************************************************************************/
-bool GSTB::FFree(long istn)
+bool VirtualStringTable::FFree(long istn)
 {
     AssertIn(istn, 0, kcbMax);
     long bst;
@@ -665,13 +667,13 @@ bool GSTB::FFree(long istn)
 /***************************************************************************
     Validate a string table.
 ***************************************************************************/
-void GSTB::AssertValid(ulong grfobj)
+void VirtualStringTable::AssertValid(ulong grfobj)
 {
     long ibst;
     long cchTot, cbstFree;
     long bst;
 
-    GSTB_PAR::AssertValid(grfobj);
+    VirtualStringTable_PAR::AssertValid(grfobj);
     AssertIn(_cbEntry, size(long), kcbMax);
     Assert(_cbEntry % size(long) == 0, "_cbEntry bad");
     AssertIn(_ivMac, 0, kcbMax);
@@ -695,7 +697,7 @@ void GSTB::AssertValid(ulong grfobj)
             }
             AssertIn(bst, 0, _bstMac);
             AssertSt((achar *)_Qb1(bst));
-            cchTot += CchTotSt((PST)_Qb1(bst));
+            cchTot += CchTotSt((PPascalString)_Qb1(bst));
         }
         Assert(cchTot * size(achar) == _bstMac, "grst wrong size");
         Assert(cbstFree == _cbstFree || _cbstFree == cvNil && cbstFree == 0, "bad _cbstFree");
@@ -707,15 +709,15 @@ void GSTB::AssertValid(ulong grfobj)
     Allocate a new string table and ensure that it has space for cstnInit
     strings, totalling cchInit characters.
 ***************************************************************************/
-PGST GST::PgstNew(long cbExtra, long cstnInit, long cchInit)
+PStringTable_GST StringTable_GST::PgstNew(long cbExtra, long cstnInit, long cchInit)
 {
     AssertIn(cbExtra, 0, kcbMax);
     Assert(cbExtra % size(long) == 0, "cbExtra not multiple of size(long)");
     AssertIn(cstnInit, 0, kcbMax);
     AssertIn(cchInit, 0, kcbMax);
-    PGST pgst;
+    PStringTable_GST pgst;
 
-    if ((pgst = NewObj GST(cbExtra)) == pvNil)
+    if ((pgst = NewObj StringTable_GST(cbExtra)) == pvNil)
         return pvNil;
     if ((cstnInit > 0 || cchInit > 0) && !pgst->FEnsureSpace(cstnInit, cchInit, fgrpNil))
     {
@@ -729,15 +731,15 @@ PGST GST::PgstNew(long cbExtra, long cstnInit, long cchInit)
 /***************************************************************************
     Read a string table from a block and return it.
 ***************************************************************************/
-PGST GST::PgstRead(PBLCK pblck, short *pbo, short *posk)
+PStringTable_GST StringTable_GST::PgstRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PGST pgst;
+    PStringTable_GST pgst;
 
-    if ((pgst = NewObj GST(0)) == pvNil)
+    if ((pgst = NewObj StringTable_GST(0)) == pvNil)
         goto LFail;
     if (!pgst->_FRead(pblck, pbo, posk))
     {
@@ -754,19 +756,19 @@ PGST GST::PgstRead(PBLCK pblck, short *pbo, short *posk)
 /***************************************************************************
     Read a string table from file and return it.
 ***************************************************************************/
-PGST GST::PgstRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PStringTable_GST StringTable_GST::PgstRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck(pfil, fp, cb);
+    DataBlock blck(pfil, fp, cb);
     return PgstRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Duplicate this GST.
+    Duplicate this StringTable_GST.
 ***************************************************************************/
-PGST GST::PgstDup(void)
+PStringTable_GST StringTable_GST::PgstDup(void)
 {
     AssertThis(0);
-    PGST pgst;
+    PStringTable_GST pgst;
 
     if (pvNil == (pgst = PgstNew(_cbEntry - size(long))))
         return pvNil;
@@ -781,7 +783,7 @@ PGST GST::PgstDup(void)
 /***************************************************************************
     Append a string to the string table.
 ***************************************************************************/
-bool GST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
+bool StringTable_GST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcchMaxGst + 1);
@@ -805,7 +807,7 @@ bool GST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
     is passed in, this does a binary search for the string; otherwise it
     does a linear search.
 ***************************************************************************/
-bool GST::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
+bool StringTable_GST::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcchMaxGst);
@@ -813,7 +815,7 @@ bool GST::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
     AssertVarMem(pistn);
 
     if (!(grfgst & (fgstSorted | fgstUserSorted)))
-        return GSTB::FFindRgch(prgch, cch, pistn, grfgst);
+        return VirtualStringTable::FFindRgch(prgch, cch, pistn, grfgst);
 
     // the table should be sorted, so do a binary search
     long ivMin, ivLim, iv;
@@ -848,7 +850,7 @@ bool GST::FFindRgch(achar *prgch, long cch, long *pistn, ulong grfgst)
 /***************************************************************************
     Insert a new entry into the string text.
 ***************************************************************************/
-bool GST::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
+bool StringTable_GST::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac + 1);
@@ -890,7 +892,7 @@ bool GST::FInsertRgch(long istn, achar *prgch, long cch, void *pvExtra)
 /***************************************************************************
     Insert an stn into the string table
 ***************************************************************************/
-bool GST::FInsertStn(long istn, PSTN pstn, void *pvExtra)
+bool StringTable_GST::FInsertStn(long istn, PString pstn, void *pvExtra)
 {
     AssertThis(0);
     AssertIn(istn, 0, _ivMac + 1);
@@ -903,7 +905,7 @@ bool GST::FInsertStn(long istn, PSTN pstn, void *pvExtra)
 /***************************************************************************
     Delete the string at location istn.
 ***************************************************************************/
-void GST::Delete(long istn)
+void StringTable_GST::Delete(long istn)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac);
@@ -928,7 +930,7 @@ void GST::Delete(long istn)
     ivTarget moves to (ivTarget + 1).  Everything in between is shifted
     appropriately.  ivTarget is allowed to be equal to IvMac().
 ***************************************************************************/
-void GST::Move(long ivSrc, long ivTarget)
+void StringTable_GST::Move(long ivSrc, long ivTarget)
 {
     AssertThis(0);
     AssertIn(ivSrc, 0, _ivMac);
@@ -942,10 +944,10 @@ void GST::Move(long ivSrc, long ivTarget)
 /***************************************************************************
     Validate a string table.
 ***************************************************************************/
-void GST::AssertValid(ulong grfobj)
+void StringTable_GST::AssertValid(ulong grfobj)
 {
-    GST_PAR::AssertValid(grfobj);
-    AssertVar(_cbstFree == cvNil, "bad _cbstFree in GST", &_cbstFree);
+    StringTable_GST_PAR::AssertValid(grfobj);
+    AssertVar(_cbstFree == cvNil, "bad _cbstFree in StringTable_GST", &_cbstFree);
 }
 #endif // DEBUG
 
@@ -953,15 +955,15 @@ void GST::AssertValid(ulong grfobj)
     Allocate a new allocated string table and ensure that it has space for
     cstnInit strings, totalling cchInit characters.
 ***************************************************************************/
-PAST AST::PastNew(long cbExtra, long cstnInit, long cchInit)
+PAllocatedStringTable AllocatedStringTable::PastNew(long cbExtra, long cstnInit, long cchInit)
 {
     AssertIn(cbExtra, 0, kcbMax);
     Assert(cbExtra % size(long) == 0, "cbExtra not multiple of size(long)");
     AssertIn(cstnInit, 0, kcbMax);
     AssertIn(cchInit, 0, kcbMax);
-    PAST past;
+    PAllocatedStringTable past;
 
-    if ((past = NewObj AST(cbExtra)) == pvNil)
+    if ((past = NewObj AllocatedStringTable(cbExtra)) == pvNil)
         return pvNil;
     if ((cstnInit > 0 || cchInit > 0) && !past->FEnsureSpace(cstnInit, cchInit, fgrpNil))
     {
@@ -975,15 +977,15 @@ PAST AST::PastNew(long cbExtra, long cstnInit, long cchInit)
 /***************************************************************************
     Read an allocated string table from a block and return it.
 ***************************************************************************/
-PAST AST::PastRead(PBLCK pblck, short *pbo, short *posk)
+PAllocatedStringTable AllocatedStringTable::PastRead(PDataBlock pblck, short *pbo, short *posk)
 {
     AssertPo(pblck, 0);
     AssertNilOrVarMem(pbo);
     AssertNilOrVarMem(posk);
 
-    PAST past;
+    PAllocatedStringTable past;
 
-    if ((past = NewObj AST(0)) == pvNil)
+    if ((past = NewObj AllocatedStringTable(0)) == pvNil)
         goto LFail;
     if (!past->_FRead(pblck, pbo, posk))
     {
@@ -1000,19 +1002,19 @@ PAST AST::PastRead(PBLCK pblck, short *pbo, short *posk)
 /***************************************************************************
     Read an allocated string table from file and return it.
 ***************************************************************************/
-PAST AST::PastRead(PFIL pfil, FP fp, long cb, short *pbo, short *posk)
+PAllocatedStringTable AllocatedStringTable::PastRead(PFileObject pfil, FilePosition fp, long cb, short *pbo, short *posk)
 {
-    BLCK blck;
+    DataBlock blck;
     return PastRead(&blck, pbo, posk);
 }
 
 /***************************************************************************
-    Duplicate this AST.
+    Duplicate this AllocatedStringTable.
 ***************************************************************************/
-PAST AST::PastDup(void)
+PAllocatedStringTable AllocatedStringTable::PastDup(void)
 {
     AssertThis(0);
-    PAST past;
+    PAllocatedStringTable past;
 
     if (pvNil == (past = PastNew(_cbEntry - size(long))))
         return pvNil;
@@ -1027,7 +1029,7 @@ PAST AST::PastDup(void)
 /***************************************************************************
     Append a string to the allocated string table.
 ***************************************************************************/
-bool AST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
+bool AllocatedStringTable::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cch, 0, kcchMaxGst + 1);
@@ -1089,7 +1091,7 @@ bool AST::FAddRgch(achar *prgch, long cch, void *pvExtra, long *pistn)
 /***************************************************************************
     Delete the string at location istn.
 ***************************************************************************/
-void AST::Delete(long istn)
+void AllocatedStringTable::Delete(long istn)
 {
     AssertThis(fobjAssertFull);
     AssertIn(istn, 0, _ivMac);
@@ -1122,9 +1124,11 @@ void AST::Delete(long istn)
 /***************************************************************************
     Validate a string table.
 ***************************************************************************/
-void AST::AssertValid(ulong grfobj)
+void AllocatedStringTable::AssertValid(ulong grfobj)
 {
-    AST_PAR::AssertValid(grfobj);
+    AllocatedStringTable_PAR::AssertValid(grfobj);
     AssertIn(_cbstFree, 0, LwMax(1, _ivMac));
 }
 #endif // DEBUG
+
+} // end of namespace Group

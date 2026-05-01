@@ -18,46 +18,45 @@ extern "C"
 #include "brender.h"
 };
 
-typedef class ACTR *PACTR;
-typedef class SCEN *PSCEN;
-typedef class MVIE *PMVIE;
-typedef class BKGD *PBKGD;
-typedef class TBOX *PTBOX;
-typedef class MVIEW *PMVIEW;
-typedef class STDIO *PSTDIO;
+typedef class Actor *PActor;
+typedef class Scene *PScene;
+typedef class Movie *PMovie;
+typedef class Background *PBackground;
+typedef class TextBox *PTBOX;
+typedef class Studio *PStudio;
 
 //
 //
 // Class for undo items in a movie
 //
 // NOTE: All the "Set" functions are done automagically
-// in MVIE::FAddUndo().
+// in Movie::FAddUndo().
 //
 //
-typedef class MUNB *PMUNB;
+typedef class MovieUndo *PMovieUndo;
 
-#define MUNB_PAR UNDB
-#define kclsMUNB 'MUNB'
-class MUNB : public MUNB_PAR
+#define MovieUndo_PAR UndoBase
+#define kclsMovieUndo 'MUNB'
+class MovieUndo : public MovieUndo_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    PMVIE _pmvie;
+    PMovie _pmvie;
     long _iscen;
     long _nfrm;
 
-    MUNB(void)
+    MovieUndo(void)
     {
     }
 
   public:
-    void SetPmvie(PMVIE pmvie)
+    void SetPmvie(PMovie pmvie)
     {
         _pmvie = pmvie;
     }
-    PMVIE Pmvie(void)
+    PMovie Pmvie(void)
     {
         return _pmvie;
     }
@@ -84,32 +83,32 @@ class MUNB : public MUNB_PAR
 //
 // Undo object for actor operations
 //
-typedef class AUND *PAUND;
+typedef class ActorUndo *PActorUndo;
 
-#define AUND_PAR MUNB
-#define kclsAUND 'AUND'
-class AUND : public AUND_PAR
+#define ActorUndo_PAR MovieUndo
+#define kclsActorUndo 'AUND'
+class ActorUndo : public ActorUndo_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    PACTR _pactr;
+    PActor _pactr;
     long _arid;
     bool _fSoonerLater;
     bool _fSndUndo;
     long _nfrmLast;
-    STN _stn; // actor's name
-    AUND(void)
+    String _stn; // actor's name
+    ActorUndo(void)
     {
     }
 
   public:
-    static PAUND PaundNew(void);
-    ~AUND(void);
+    static PActorUndo PaundNew(void);
+    ~ActorUndo(void);
 
-    void SetPactr(PACTR pactr);
+    void SetPactr(PActor pactr);
     void SetArid(long arid)
     {
         _arid = arid;
@@ -126,7 +125,7 @@ class AUND : public AUND_PAR
     {
         _nfrmLast = nfrmLast;
     }
-    void SetStn(PSTN pstn)
+    void SetStn(PString pstn)
     {
         _stn = *pstn;
     }
@@ -140,8 +139,91 @@ class AUND : public AUND_PAR
         return _fSndUndo;
     };
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
+};
+
+//
+// Undo object for a single drag of the move tool that affects N selected actors.
+// Owns N child ActorUndo snapshots and undoes/redoes them as a unit.
+//
+// Invariant: all children must come from the same scene and frame as the
+// composite. FUndo propagates the composite's iscen/nfrm onto each child
+// before invoking it; children's pre-existing scene/frame settings are
+// overwritten. The move-tool drag pipeline guarantees this because a single
+// drag is single-scene and single-frame.
+//
+typedef class ActorMoveGroupUndo *PActorMoveGroupUndo;
+
+#define ActorMoveGroupUndo_PAR MovieUndo
+#define kclsActorMoveGroupUndo 'AMGU'
+class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
+{
+    RTCLASS_DEC
+    MARKMEM
+    ASSERT
+
+  protected:
+    PDynamicArray _pglpaund; // List of PActorUndo. Owned (each child is AddRef'd).
+    ActorMoveGroupUndo(void)
+    {
+    }
+
+  public:
+    static PActorMoveGroupUndo PamguNew(void);
+    ~ActorMoveGroupUndo(void);
+
+    bool FAddChild(PActorUndo paund); // Adds and AddRefs the child undo.
+    long Cchild(void)
+    {
+        return _pglpaund == pvNil ? 0 : _pglpaund->IvMac();
+    }
+
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
+};
+
+//
+// Composite undo for a batch of actor renames -- used by Ctrl+G / Ctrl+Shift+G
+// to apply or strip a #tag across every selected actor as a single undo step.
+//
+// Each entry stores (arid, name-to-restore-on-toggle). FUndo and FDo both
+// swap each actor's current name with the stored name, so undo/redo
+// alternates between the pre- and post-rename states.
+//
+typedef class ActorRenameGroupUndo *PActorRenameGroupUndo;
+
+#define ActorRenameGroupUndo_PAR MovieUndo
+#define kclsActorRenameGroupUndo 'ARGU'
+class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
+{
+    RTCLASS_DEC
+    MARKMEM
+    ASSERT
+
+  protected:
+    // Each entry: GST string = "name to restore on the next FUndo/FDo",
+    //             extra      = long arid.
+    PVirtualStringTable _pgstNames;
+    ActorRenameGroupUndo(void)
+    {
+    }
+
+  public:
+    static PActorRenameGroupUndo PargNew(void);
+    ~ActorRenameGroupUndo(void);
+
+    // Records a rename: pstnPrev is the actor's pre-rename name, which is
+    // what the first FUndo will restore. Mid-loop OOM returns fFalse.
+    bool FAddChild(long arid, PString pstnPrev);
+
+    long Cchild(void)
+    {
+        return _pgstNames == pvNil ? 0 : _pgstNames->IvMac();
+    }
+
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //

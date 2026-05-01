@@ -40,7 +40,7 @@ OBJECT( "lobby1: mczee!", kgobLobby1McZee, 111, kcrsHand1 )
 	// Use the global kstEntry to decide which state to enter next.
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "lobby1: McZee!")
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "lobby1: McZee!")
 		ASSERT(GLOBAL(kstEntry) == 2 || GLOBAL(kstEntry) == 3 ||
 				GLOBAL(kstEntry) == 5);
 
@@ -66,7 +66,7 @@ OBJECT( "lobby1: mczee!", kgobLobby1McZee, 111, kcrsHand1 )
 	// Exits:  If theatre door clicked : kgobLobby1->fExitLobby set if so
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	 
-	REP_ANIM( CHID( kst2, krepDefault ), "lobby1:Wait state. Entry 2 (from map).")
+	REP_ANIM( ChildChunkID( kst2, krepDefault ), "lobby1:Wait state. Entry 2 (from map).")
 		DEBUGCMD( PrintStr("Lobby Mz: State 2") );
 
 		Cell( kcell184, 0,0, 6);	 // This is needed for proper placement of the help balloon.
@@ -155,7 +155,7 @@ OBJECT( "lobby1: mczee!", kgobLobby1McZee, 111, kcrsHand1 )
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 3: Uniride to loop position decision point
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_ANIM( CHID( kst3, krepDefault  ), "lobby1. UniRide to loop position, entry point." )
+	REP_ANIM( ChildChunkID( kst3, krepDefault  ), "lobby1. UniRide to loop position, entry point." )
 		DEBUGCMD( PrintStr("Lobby Mz: State 3") );
 		// fLobby1PS --- PS = Per Session.  See flowchart for gory details.
 		If( !GLOBAL( fLobby1PS ) );	 // Not the 1st time here this session.
@@ -210,7 +210,7 @@ OBJECT( "lobby1: mczee!", kgobLobby1McZee, 111, kcrsHand1 )
 		End;
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst4, krepDefault ), "lobby1: Lobby welcome.")
+	REP_ANIM( ChildChunkID( kst4, krepDefault ), "lobby1: Lobby welcome.")
 		DEBUGCMD( PrintStr("Lobby Mz: State 4") );
 		cnt = kcell117;
 		Cell( kcell117, 0,0, 1);
@@ -226,7 +226,7 @@ OBJECT( "lobby1: mczee!", kgobLobby1McZee, 111, kcrsHand1 )
 		ChangeStateThis( kst2 );
 	ENDCHUNK
  	
-	REP_ANIM( CHID( kst5, krepDefault ), "lobby1: Pass thru")
+	REP_ANIM( ChildChunkID( kst5, krepDefault ), "lobby1: Pass thru")
 		DEBUGCMD( PrintStr("Lobby Mz: State 5") );
 		// ***** 9.4.95 - this is now an AVI sequence
 		DISABLEHOTSPOTS(kflgBuildingMin);
@@ -244,7 +244,7 @@ OBJECT( "lobby1: mczee!", kgobLobby1McZee, 111, kcrsHand1 )
 		NEXTPLACE1( kgobTheatre1, kst7 );
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst6, krepDefault ), "lobby1: Exit state.")
+	REP_ANIM( ChildChunkID( kst6, krepDefault ), "lobby1: Exit state.")
 		DEBUGCMD( PrintStr("Lobby Mz: State 6") );
 		cnt = kcell219;
 		DISABLEHOTSPOTS(kflgBuildingMin);

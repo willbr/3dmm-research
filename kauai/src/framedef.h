@@ -81,7 +81,7 @@
 #define kgrfcustApp 0xFFFF0000
 
 /***************************************************************************
-    Property id's.  For APPB::FSetProp and APPB::FGetProp.
+    Property id's.  For ApplicationBase::FSetProp and ApplicationBase::FGetProp.
 ***************************************************************************/
 #define kpridMaximized 1
 #define kpridFullScreen 2
@@ -134,7 +134,7 @@
 #define khidDsspHorz 11 // standard horizontal document window split box
 #define khidDsspVert 12 // standard vertical document window split box
 #define khidDssm 13     // standard split mover
-#define khidDmw 14      // convenient for single DMW window
+#define khidDmw 14      // convenient for single DocumentMainWindow window
 #define khidDmd 15      // standard dmd
 #define khidEdit 16     // edit control
 #define khidToolTip 17  // tool tip
@@ -288,7 +288,7 @@
 #define cidIdle 400000
 #define cidSelIdle 400001   // idle for settting/clearing selection.
 #define cidMouseMove 400002 // mouse moved
-#define cidRollOff 400003   // mouse rolled off the GOB
+#define cidRollOff 400003   // mouse rolled off the GraphicsObject
 
 #define cidLimNoRecord 600000
 

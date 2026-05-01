@@ -15,13 +15,13 @@
 
     Basic movie private classes:
 
-        Movie Scene actions Undo Object (MUNS)
+        Movie Scene actions Undo Object (MovieSceneUndo)
 
-            BASE ---> UNDB ---> MUNB ---> MUNS
+            BASE ---> UndoBase ---> MovieUndo ---> MovieSceneUndo
 
 
 Note: The client of the movie engine should always do all actions through
-MVIE level APIs, it should never use accessor functions to maniplate Scenes,
+Movie level APIs, it should never use accessor functions to maniplate Scenes,
 Actors, Text boxes, etc.
 
 ***************************************************************************/
@@ -40,12 +40,12 @@ ASSERTNAME
 #define kdtimVlmFade (kdtimSecond / 4)  // number of clock ticks necessary to split 1 sec into 4 events
 #define kzrMouseScalingFactor BR_SCALAR(100.0)
 
-const CHID kchidGstSource = 1;
+const ChildChunkID kchidGstSource = 1;
 
 //
 // How many pixels from edge to warp cursor back to center
 //
-const long kdpInset = 50;
+const long kdpInset = 200;
 
 //
 // Mouse scaling factor when rotating
@@ -67,9 +67,9 @@ const long krSoonerScaleFactor = BR_SCALAR(0.05);
 // UNDO object for scene related actions:  Ins, New, and Rem
 //
 //
-typedef class MUNS *PMUNS;
+typedef class MovieSceneUndo *PMovieSceneUndo;
 
-#define MUNS_PAR MUNB
+#define MovieSceneUndo_PAR MovieUndo
 
 enum MUNST
 {
@@ -78,8 +78,8 @@ enum MUNST
     munstSetBkgd
 };
 
-#define kclsMUNS 'MUNS'
-class MUNS : public MUNS_PAR
+#define kclsMovieSceneUndo 'MUNS'
+class MovieSceneUndo : public MovieSceneUndo_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -88,21 +88,21 @@ class MUNS : public MUNS_PAR
   protected:
     long _iscen;
     TAG _tag;
-    PSCEN _pscen;
+    PScene _pscen;
     MUNST _munst;
-    MUNS(void)
+    MovieSceneUndo(void)
     {
     }
 
   public:
-    static PMUNS PmunsNew(void);
-    ~MUNS(void);
+    static PMovieSceneUndo PmunsNew(void);
+    ~MovieSceneUndo(void);
 
     void SetIscen(long iscen)
     {
         _iscen = iscen;
     }
-    void SetPscen(PSCEN pscen)
+    void SetPscen(PScene pscen)
     {
         _pscen = pscen;
         _pscen->AddRef();
@@ -116,8 +116,8 @@ class MUNS : public MUNS_PAR
         _tag = *ptag;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
@@ -128,13 +128,13 @@ class MUNS : public MUNS_PAR
 //
 //
 
-RTCLASS(MVIE)
-RTCLASS(MUNB)
-RTCLASS(MUNS)
+RTCLASS(Movie)
+RTCLASS(MovieUndo)
+RTCLASS(MovieSceneUndo)
 
-BEGIN_CMD_MAP(MVIE, CMH)
-ON_CID_ME(cidAlarm, &MVIE::FCmdAlarm, pvNil)
-ON_CID_ME(cidRender, &MVIE::FCmdRender, pvNil)
+BEGIN_CMD_MAP(Movie, CommandHandler)
+ON_CID_ME(cidAlarm, &Movie::FCmdAlarm, pvNil)
+ON_CID_ME(cidRender, &Movie::FCmdRender, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
@@ -160,28 +160,44 @@ const short kcvnMin = 1;
 //
 // Movie file prefix
 //
-struct MFP
+struct MovieFilePrefix
 {
-    short bo;  // byte order
-    short osk; // which system wrote this
-    DVER dver; // chunky file version
+    int16_t bo;       // byte order
+    int16_t osk;      // which system wrote this
+    DataVersion dver; // chunky file version
 };
-const BOM kbomMfp = 0x55000000;
+static_assert(sizeof(MovieFilePrefix) == 8, "MovieFilePrefix on-disk layout drift");
+const ByteOrderMask kbomMfp = 0x55000000;
 
 //
-// Used to keep track of the roll call list of the movie
+// Used to keep track of the roll call list of the movie.
+// Runtime form: embeds a full TAG (with runtime pcrf). Size is allowed to
+// grow on x64 — this struct never reaches disk; the GST is marshalled to/from
+// RollCallActorEntryOnFile at the I/O boundary (see _ReadRollCallExtra and
+// the save path).
 //
-struct MACTR
+struct RollCallActorEntry
 {
-    long arid;
-    long cactRef;
-    ulong grfbrws; // browser properties
+    int32_t arid;
+    int32_t cactRef;
+    uint32_t grfbrws; // browser properties
     TAG tagTmpl;
 };
 
-typedef MACTR *PMACTR;
+typedef RollCallActorEntry *PRollCallActorEntry;
 
-const BOM kbomMactr = (0xFC000000 | (kbomTag >> 4));
+// Wire format for RollCallActorEntry. Fixed at 28 bytes on every architecture
+// because TAGOnFile is fixed-width. This is what lands in the GST on disk.
+struct RollCallActorEntryOnFile
+{
+    int32_t arid;
+    int32_t cactRef;
+    uint32_t grfbrws;
+    TAGOnFile tagTmpl;
+};
+static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile wire format drift");
+
+const ByteOrderMask kbomMactr = (0xFC000000 | (kbomTag >> 4));
 
 /****************************************************
  *
@@ -189,7 +205,7 @@ const BOM kbomMactr = (0xFC000000 | (kbomTag >> 4));
  * for public construction.
  *
  ****************************************************/
-MVIE::MVIE(void) : _clok(khidMvieClock)
+Movie::Movie(void) : _clok(khidMvieClock)
 {
     _aridLim = 0;
     _cno = cnoNil;
@@ -203,31 +219,31 @@ MVIE::MVIE(void) : _clok(khidMvieClock)
 
 /******************************************************************************
     _FSetPfilSave
-        Given an FNI, looks for and remembers if found the FIL associated with
-        it.  If the FIL was found, will also check to see if it's read-only.
+        Given an Filename, looks for and remembers if found the FileObject associated with
+        it.  If the FileObject was found, will also check to see if it's read-only.
 
     Returns:
-        fFalse if the FIL wasn't found.
+        fFalse if the FileObject wasn't found.
 
 ************************************************************ PETED ***********/
-bool MVIE::_FSetPfilSave(PFNI pfni)
+bool Movie::_FSetPfilSave(PFilename pfni)
 {
     AssertBaseThis(0);
     AssertPo(pfni, 0);
 
     long lAttrib;
-    STN stnFile;
+    String stnFile;
 
-    /* Look for the file and remember FIL if found */
+    /* Look for the file and remember FileObject if found */
     ReleasePpo(&_pfilSave);
-    _pfilSave = FIL::PfilFromFni(pfni);
+    _pfilSave = FileObject::PfilFromFni(pfni);
     if (_pfilSave == pvNil)
         return fFalse;
     _pfilSave->AddRef();
     _fFniSaveValid = fTrue;
 
-    /* Remember whether FIL is read-only; only relevant if we actually found
-        the FIL, since if we didn't, we'll prompt for a new filename later
+    /* Remember whether FileObject is read-only; only relevant if we actually found
+        the FileObject, since if we didn't, we'll prompt for a new filename later
         anyway */
     pfni->GetStnPath(&stnFile);
 #ifdef WIN
@@ -245,53 +261,53 @@ bool MVIE::_FSetPfilSave(PFNI pfni)
  * Parameters:
  *  pmcc - Pointer to the movie client class block to use.
  *	pfni - File to read from.
- *	cno - CNO of the movie chunk, cnoNil if using the
+ *	cno - ChunkNumber of the movie chunk, cnoNil if using the
  *		the first one in the file.
  *
  * Returns:
  *  pvNil if failure, else a pointer to the movie object.
  *
  ****************************************************/
-PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
+PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfni, ChunkNumber cno)
 {
     AssertNilOrPo(pfni, 0);
     AssertPo(pmcc, 0);
 
     bool fSuccess = fFalse, fBeganLongOp = fFalse;
-    PMVIE pmvie;
-    KID kid;
-    CHID chid;
-    TAGL *ptagl;
-    PCFL pcfl = pvNil;
-    BLCK blck;
+    PMovie pmvie;
+    ChildChunkIdentification kid;
+    ChildChunkID chid;
+    TagList *ptagl;
+    PChunkyFile pcfl = pvNil;
+    DataBlock blck;
     short bo;
     short osk;
-    PGST pgstSource;
+    PStringTable_GST pgstSource;
 
     //
     // Create the movie object
     //
-    pmvie = NewObj MVIE;
+    pmvie = NewObj Movie;
     if (pmvie == pvNil)
     {
         goto LFail;
     }
 
     //
-    // Create the GL for holding undo events
+    // Create the DynamicArray for holding undo events
     //
-    pmvie->_pglpundb = GL::PglNew(size(PUNDB), 1);
+    pmvie->_pglpundb = DynamicArray::PglNew(size(PUndoBase), 1);
     if (pmvie->_pglpundb == pvNil)
     {
         goto LFail;
     }
 
     //
-    // Create GL of actors in the movie
+    // Create DynamicArray of actors in the movie
     //
     if (pvNil == pfni)
     {
-        pmvie->_pgstmactr = GST::PgstNew(size(MACTR));
+        pmvie->_pgstmactr = StringTable_GST::PgstNew(size(RollCallActorEntry));
         if (pmvie->_pgstmactr == pvNil)
         {
             goto LFail;
@@ -301,7 +317,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
     //
     // Create the brender world
     //
-    pmvie->_pbwld = BWLD::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fFalse, fHalfMode);
+    pmvie->_pbwld = World::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fHalfMode, fHalfMode);
     if (pvNil == pmvie->_pbwld)
     {
         goto LFail;
@@ -310,7 +326,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
     //
     // Create the movie sound queue
     //
-    pmvie->_pmsq = MSQ::PmsqNew();
+    pmvie->_pmsq = MovieSoundQueue::PmsqNew();
     if (pvNil == pmvie->_pmsq)
     {
         goto LFail;
@@ -337,7 +353,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
     //
     // Get file to read from
     //
-    pcfl = CFL::PcflOpen(pfni, fcflNil);
+    pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     if (pcfl == pvNil)
     {
         goto LFail;
@@ -357,11 +373,11 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
     }
 
     //
-    // Note (by *****): CRF *must* have 0 cache size, because of
-    // serious cache-coherency problems otherwise.  TMPL data is not
+    // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
+    // serious cache-coherency problems otherwise.  Template data is not
     // read-only, and chunk numbers change over time.
     //
-    pmvie->_pcrfAutoSave = CRF::PcrfNew(pcfl, 0); // cache size must be 0
+    pmvie->_pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
     if (pvNil == pmvie->_pcrfAutoSave)
     {
         goto LFail;
@@ -373,7 +389,7 @@ PMVIE MVIE::PmvieNew(bool fHalfMode, PMCC pmcc, FNI *pfni, CNO cno)
     if (pcfl->FGetKidChidCtg(kctgMvie, cno, kchidGstSource, kctgGst, &kid) &&
         pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
-        pgstSource = GST::PgstRead(&blck, &bo, &osk);
+        pgstSource = StringTable_GST::PgstRead(&blck, &bo, &osk);
         if (pvNil != pgstSource)
         {
             // Ignore result...we can survive failure
@@ -439,32 +455,36 @@ LFail:
 /******************************************************************************
     FReadRollCall
         Reads the roll call off file for a given movie.  Will swapbytes the
-        extra data in the GST if necessary, and will report back on the
+        extra data in the StringTable_GST if necessary, and will report back on the
         highest arid found.
 
     Arguments:
-        PCFL pcfl       -- the file the movie is on
-        PCRF pcrf       -- the autosave CRF for the movie's ACTR tags
-        CNO cno         -- the cno of the movie
-        PGST *ppgst     -- the PGST to fill in
+        PChunkyFile pcfl       -- the file the movie is on
+        PChunkyResourceFile pcrf       -- the autosave ChunkyResourceFile for the movie's Actor tags
+        ChunkNumber cno         -- the cno of the movie
+        PStringTable_GST *ppgst     -- the PStringTable_GST to fill in
         long *paridLim  -- the max arid to update
 
     Returns: fTrue if there were no failures, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FReadRollCall(PCRF pcrf, CNO cno, PGST *ppgst, long *paridLim)
+bool Movie::FReadRollCall(PChunkyResourceFile pcrf, ChunkNumber cno, PStringTable_GST *ppgst, long *paridLim)
 {
     AssertPo(pcrf, 0);
     AssertVarMem(ppgst);
-    Assert(*ppgst == pvNil, "Overwriting existing GST");
+    Assert(*ppgst == pvNil, "Overwriting existing StringTable_GST");
     AssertNilOrVarMem(paridLim);
 
     short bo;
     long imactr, imactrMac;
-    PCFL pcfl = pcrf->Pcfl();
-    KID kid;
-    BLCK blck;
-    MACTR mactr;
+    PChunkyFile pcfl = pcrf->Pcfl();
+    ChildChunkIdentification kid;
+    DataBlock blck;
+    PStringTable_GST pgstOnFile = pvNil;
+    PStringTable_GST pgstRuntime = pvNil;
+    String stn;
+    RollCallActorEntryOnFile mactrOnFile;
+    RollCallActorEntry mactr;
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, cno, 0, kctgGst, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
@@ -472,28 +492,48 @@ bool MVIE::FReadRollCall(PCRF pcrf, CNO cno, PGST *ppgst, long *paridLim)
         goto LFail;
     }
 
-    *ppgst = GST::PgstRead(&blck, &bo);
-    if (*ppgst == pvNil)
+    // Read the wire-format GST (extras are sized RollCallActorEntryOnFile).
+    pgstOnFile = StringTable_GST::PgstRead(&blck, &bo);
+    if (pgstOnFile == pvNil)
         goto LFail;
 
-    imactrMac = (*ppgst)->IvMac();
+    // Marshal into a fresh runtime GST whose extras are sized RollCallActorEntry
+    // (which on x64 is wider than the wire form because TAG embeds a pointer).
+    pgstRuntime = StringTable_GST::PgstNew(size(RollCallActorEntry));
+    if (pgstRuntime == pvNil)
+        goto LFail;
+
+    imactrMac = pgstOnFile->IvMac();
     for (imactr = 0; imactr < imactrMac; imactr++)
     {
-        (*ppgst)->GetExtra(imactr, &mactr);
+        pgstOnFile->GetStn(imactr, &stn);
+        pgstOnFile->GetExtra(imactr, &mactrOnFile);
         if (bo == kboOther)
-            SwapBytesBom(&mactr, kbomMactr);
+            SwapBytesBom(&mactrOnFile, kbomMactr);
+
+        mactr.arid = mactrOnFile.arid;
+        mactr.cactRef = mactrOnFile.cactRef;
+        mactr.grfbrws = mactrOnFile.grfbrws;
+        TagFromOnFile(&mactr.tagTmpl, mactrOnFile.tagTmpl);
 
         if (paridLim != pvNil && mactr.arid >= *paridLim)
             *paridLim = mactr.arid + 1;
 
-        // Open the tags, since they might be TDTs
+        // Open the tags, since they might be ThreeDTexts. FOpenTag may
+        // populate mactr.tagTmpl.pcrf for ksidUseCrf tags; that pcrf is the
+        // owning ref balanced by CloseTag, so it must land in the runtime GST.
         AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, pcrf), "Should never fail when not copying the tag");
 
-        (*ppgst)->PutExtra(imactr, &mactr);
+        if (!pgstRuntime->FAddStn(&stn, &mactr))
+            goto LFail;
     }
 
+    ReleasePpo(&pgstOnFile);
+    *ppgst = pgstRuntime;
     return fTrue;
 LFail:
+    ReleasePpo(&pgstOnFile);
+    ReleasePpo(&pgstRuntime);
     TrashVar(ppgst);
     return fFalse;
 }
@@ -503,7 +543,7 @@ LFail:
         Ensures that the data has been written to disk.
 
 ************************************************************ PETED ***********/
-void MVIE::Flush(void)
+void Movie::Flush(void)
 {
     if (_fFniSaveValid)
     {
@@ -525,7 +565,7 @@ void MVIE::Flush(void)
  *    bool fPurgeAll -- if fFalse, only purge invalid sounds
  *
  ****************************************************/
-void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
+void Movie::_DoSndGarbageCollection(bool fPurgeAll)
 {
     AssertThis(0);
 
@@ -538,7 +578,7 @@ void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
     if (pvNil == _pcrfAutoSave)
         return;
 
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     if (pvNil == pcfl)
         return;
 
@@ -546,12 +586,12 @@ void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
     ikid = pcfl->Ckid(kctgMvie, _cno);
     while (ikid--)
     {
-        KID kid;
-        KID kidT;
+        ChildChunkIdentification kid;
+        ChildChunkIdentification kidT;
 
         if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
         {
-            Bug("CFL returned bogus Ckid()");
+            Bug("ChunkyFile returned bogus Ckid()");
             break;
         }
 
@@ -576,12 +616,12 @@ void MVIE::_DoSndGarbageCollection(bool fPurgeAll)
  * Destructor for movies.
  *
  ****************************************************/
-MVIE::~MVIE(void)
+Movie::~Movie(void)
 {
     AssertBaseThis(0);
 
     long imactr;
-    MACTR mactr;
+    RollCallActorEntry mactr;
 
     ReleasePpo(&_pcrfAutoSave);
     ReleasePpo(&_pfilSave);
@@ -612,7 +652,7 @@ MVIE::~MVIE(void)
         //
         // Release open scene.
         //
-        SCEN::Close(&_pscenOpen);
+        Scene::Close(&_pscenOpen);
     }
 
     //
@@ -651,7 +691,7 @@ MVIE::~MVIE(void)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the MVIE
+ * Mark memory used by the Movie
  *
  * Parameters:
  * 	None.
@@ -660,11 +700,11 @@ MVIE::~MVIE(void)
  *  None.
  *
  ****************************************************/
-void MVIE::MarkMem(void)
+void Movie::MarkMem(void)
 {
     AssertThis(0);
 
-    MVIE_PAR::MarkMem();
+    Movie_PAR::MarkMem();
 
     MarkMemObj(_pcrfAutoSave);
 
@@ -685,7 +725,7 @@ void MVIE::MarkMem(void)
 
 /***************************************************************************
  *
- * Assert the validity of the MVIE.
+ * Assert the validity of the Movie.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -694,9 +734,9 @@ void MVIE::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::AssertValid(ulong grf)
+void Movie::AssertValid(ulong grf)
 {
-    MVIE_PAR::AssertValid(fobjAllocated);
+    Movie_PAR::AssertValid(fobjAllocated);
 
     AssertNilOrPo(_pcrfAutoSave, 0);
     AssertPo(_pgstmactr, 0);
@@ -709,25 +749,25 @@ void MVIE::AssertValid(ulong grf)
 
 /***************************************************************************
  *
- * Returns a list of all tags being used by this MVIE
+ * Returns a list of all tags being used by this Movie
  *
  * Parameters:
  *	None.
  *
  * Returns:
- *  A TAGL (list of tags that the movie uses)
+ *  A TagList (list of tags that the movie uses)
  *
  **************************************************************************/
-PTAGL MVIE::_PtaglFetch(void)
+PTagList Movie::_PtaglFetch(void)
 {
     AssertThis(0);
     Assert(_pcrfAutoSave != pvNil, "need pcrfAutosave");
 
-    PTAGL ptagl;
-    KID kid;
-    CHID chid;
+    PTagList ptagl;
+    ChildChunkIdentification kid;
+    ChildChunkID chid;
 
-    ptagl = TAGL::PtaglNew();
+    ptagl = TagList::PtaglNew();
     if (pvNil == ptagl)
         return pvNil;
 
@@ -736,7 +776,7 @@ PTAGL MVIE::_PtaglFetch(void)
     //
     for (chid = 0; _pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, chid, kctgScen, &kid); chid++)
     {
-        if (!SCEN::FAddTagsToTagl(_pcrfAutoSave->Pcfl(), kid.cki.cno, ptagl))
+        if (!Scene::FAddTagsToTagl(_pcrfAutoSave->Pcfl(), kid.cki.cno, ptagl))
         {
             ReleasePpo(&ptagl);
             return pvNil;
@@ -760,13 +800,13 @@ PTAGL MVIE::_PtaglFetch(void)
  *	 fTrue if successful, else fFalse if out of range.
  *
  ****************************************************/
-bool MVIE::FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef, PTAG ptagTmpl)
+bool Movie::FGetArid(long iarid, long *parid, PString pstn, long *pcactRef, PTAG ptagTmpl)
 {
     AssertThis(0);
     AssertPvCb(parid, size(long));
     AssertVarMem(pcactRef);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
 
     if (iarid < 0 || iarid >= _pgstmactr->IvMac())
     {
@@ -796,17 +836,17 @@ bool MVIE::FGetArid(long iarid, long *parid, PSTN pstn, long *pcactRef, PTAG pta
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FChooseArid(long arid)
+bool Movie::FChooseArid(long arid)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    PACTR pactr, pactrDup;
-    MACTR mactr;
+    PActor pactr, pactrDup;
+    RollCallActorEntry mactr;
     long imactr;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     if (pmvu == pvNil)
     {
         return (fFalse);
@@ -854,7 +894,7 @@ bool MVIE::FChooseArid(long arid)
             _pgstmactr->GetExtra(imactr, &mactr);
             if (mactr.arid == arid)
             {
-                pactr = ACTR::PactrNew(&(mactr.tagTmpl));
+                pactr = Actor::PactrNew(&(mactr.tagTmpl));
 
                 if (pactr == pvNil)
                 {
@@ -892,7 +932,7 @@ bool MVIE::FChooseArid(long arid)
  *   Arid of the selected actor, else aridNil.
  *
  ****************************************************/
-long MVIE::AridSelected(void)
+long Movie::AridSelected(void)
 {
     AssertThis(0);
 
@@ -918,12 +958,12 @@ long MVIE::AridSelected(void)
  *	 fTrue if successful, else fFalse if failure.
  *
  ****************************************************/
-bool MVIE::FGetName(long arid, PSTN pstn)
+bool Movie::FGetName(long arid, PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
@@ -951,13 +991,13 @@ bool MVIE::FGetName(long arid, PSTN pstn)
  *	 fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FNameActr(long arid, PSTN pstn)
+bool Movie::FNameActr(long arid, PString pstn)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
     AssertPo(pstn, 0);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
@@ -992,12 +1032,12 @@ bool MVIE::FNameActr(long arid, PSTN pstn)
  *	 bool
  *
  ****************************************************/
-bool MVIE::FIsPropBrwsIarid(long iarid)
+bool Movie::FIsPropBrwsIarid(long iarid)
 {
     AssertThis(0);
     AssertIn(iarid, 0, _pgstmactr->IvMac());
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     _pgstmactr->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsProp);
 }
@@ -1013,12 +1053,12 @@ bool MVIE::FIsPropBrwsIarid(long iarid)
  *	 bool
  *
  ****************************************************/
-bool MVIE::FIsIaridTdt(long iarid)
+bool Movie::FIsIaridTdt(long iarid)
 {
     AssertThis(0);
     AssertIn(iarid, 0, _pgstmactr->IvMac());
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     _pgstmactr->GetExtra(iarid, &mactr);
     return FPure(mactr.grfbrws & fbrwsTdt);
 }
@@ -1029,19 +1069,19 @@ bool MVIE::FIsIaridTdt(long iarid)
  *
  * Parameters:
  *   arid - The arid to set.
- *   ptag - Pointer to the TMPL tag.
+ *   ptag - Pointer to the Template tag.
  *
  * Returns:
  *	 none
  *
  ****************************************************/
-void MVIE::ChangeActrTag(long arid, PTAG ptag)
+void Movie::ChangeActrTag(long arid, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
     AssertVarMem(ptag);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     for (imactr = 0; imactr < _pgstmactr->IvMac(); imactr++)
@@ -1072,13 +1112,13 @@ void MVIE::ChangeActrTag(long arid, PTAG ptag)
  *   fTrue if successful, else fFalse indicating out of resources.
  *
  ****************************************************/
-bool MVIE::FAddToRollCall(ACTR *pactr, PSTN pstn)
+bool Movie::FAddToRollCall(Actor *pactr, PString pstn)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
     AssertNilOrPo(pstn, 0); // can be pvNil if the actor is already in the movie.
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     if (pactr->Arid() != aridNil)
@@ -1094,14 +1134,14 @@ bool MVIE::FAddToRollCall(ACTR *pactr, PSTN pstn)
             {
                 TAG tagTmpl;
                 mactr.cactRef++;
-                // TDTs sometimes need to update tagTmpl
+                // ThreeDTexts sometimes need to update tagTmpl
                 pactr->GetTagTmpl(&tagTmpl);
-                if (fcmpEq != TAGM::FcmpCompareTags(&mactr.tagTmpl, &tagTmpl))
+                if (fcmpEq != TagManager::FcmpCompareTags(&mactr.tagTmpl, &tagTmpl))
                 {
-                    TAGM::CloseTag(&mactr.tagTmpl);
+                    TagManager::CloseTag(&mactr.tagTmpl);
                     mactr.tagTmpl = tagTmpl;
-                    // ACTR::GetTagTmpl doesn't AddRef the pcrf, so do it here:
-                    TAGM::DupTag(&tagTmpl);
+                    // Actor::GetTagTmpl doesn't AddRef the pcrf, so do it here:
+                    TagManager::DupTag(&tagTmpl);
                 }
                 _pgstmactr->PutExtra(imactr, &mactr);
                 Pmcc()->UpdateRollCall();
@@ -1131,7 +1171,7 @@ bool MVIE::FAddToRollCall(ACTR *pactr, PSTN pstn)
     }
     mactr.cactRef = 1;
     pactr->GetTagTmpl(&mactr.tagTmpl);
-    // Open the tag, since it might be a TDT
+    // Open the tag, since it might be a ThreeDText
     AssertDo(vptagm->FOpenTag(&mactr.tagTmpl, _pcrfAutoSave), "Should never fail when not copying the tag");
     if (_pgstmactr->FAddStn(pstn, &mactr))
     {
@@ -1154,12 +1194,12 @@ bool MVIE::FAddToRollCall(ACTR *pactr, PSTN pstn)
  *   None.
  *
  ****************************************************/
-void MVIE::RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef)
+void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
 
-    MACTR mactr;
+    RollCallActorEntry mactr;
     long imactr;
 
     //
@@ -1206,14 +1246,14 @@ void MVIE::RemFromRollCall(ACTR *pactr, bool fDelIfOnlyRef)
  *  same scene is still open (if possible).
  *
  ****************************************************/
-bool MVIE::FSwitchScen(long iscen)
+bool Movie::FSwitchScen(long iscen)
 {
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
     Assert((iscen == ivNil) || (_pcrfAutoSave != pvNil), "Invalid save file");
 
-    PSCEN pscen;
-    KID kid;
+    PScene pscen;
+    ChildChunkIdentification kid;
     long iscenOld;
     bool fRet = fTrue;
 
@@ -1238,7 +1278,7 @@ bool MVIE::FSwitchScen(long iscen)
 
     //
     // If memory is low, release unreferenced content BACOs to reduce thrashing.
-    // Note that APP::MemStat() is unavailable from the movie engine
+    // Note that Application::MemStat() is unavailable from the movie engine
     //
 #ifdef WIN
     MEMORYSTATUS ms;
@@ -1266,7 +1306,7 @@ LRetry:
     //
     AssertDo(_pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
 
-    pscen = SCEN::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
+    pscen = Scene::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
 
     if ((pscen == pvNil) || !pscen->FPlayStartEvents())
     {
@@ -1275,7 +1315,7 @@ LRetry:
 
         if (pscen != pvNil)
         {
-            SCEN::Close(&pscen);
+            Scene::Close(&pscen);
         }
 
         if (iscenOld != ivNil)
@@ -1299,7 +1339,7 @@ LRetry:
 
         _pscenOpen = pvNil;
         _iscen = ivNil;
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
 
         if (iscenOld != ivNil)
         {
@@ -1329,17 +1369,17 @@ LRetry:
  *  fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FNewScenInsCore(long iscen)
+bool Movie::FNewScenInsCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
 
-    PSCEN pscen;
+    PScene pscen;
 
     //
     // Create the new scene.
     //
-    pscen = SCEN::PscenNew(this);
+    pscen = Scene::PscenNew(this);
     if (pscen == pvNil)
     {
         return (fFalse);
@@ -1347,11 +1387,11 @@ bool MVIE::FNewScenInsCore(long iscen)
 
     if (!FInsScenCore(iscen, pscen))
     {
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         return (fFalse);
     }
 
-    SCEN::Close(&pscen);
+    Scene::Close(&pscen);
     return (fTrue);
 }
 
@@ -1367,13 +1407,13 @@ bool MVIE::FNewScenInsCore(long iscen)
  *  None.
  *
  ****************************************************/
-void MVIE::_MoveChids(CHID chid, bool fDown)
+void Movie::_MoveChids(ChildChunkID chid, bool fDown)
 {
     AssertThis(0);
 
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
-    KID kid;
-    CHID chidTmp;
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    ChildChunkIdentification kid;
+    ChildChunkID chidTmp;
 
     if (fDown)
     {
@@ -1393,7 +1433,7 @@ void MVIE::_MoveChids(CHID chid, bool fDown)
         //
         // Move up chids of all old scenes (decrease by one)
         //
-        for (chidTmp = chid; chidTmp < (CHID)_cscen; chidTmp++)
+        for (chidTmp = chid; chidTmp < (ChildChunkID)_cscen; chidTmp++)
         {
             AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, chidTmp + 1, kctgScen, &kid), "Should never fail");
 
@@ -1404,29 +1444,29 @@ void MVIE::_MoveChids(CHID chid, bool fDown)
 
 /******************************************************************************
     _FIsChild
-        Enumerates the children of the MVIE chunk and reports whether the
-        given (ctg, cno) chunk is an actual child of the MVIE chunk.
+        Enumerates the children of the Movie chunk and reports whether the
+        given (ctg, cno) chunk is an actual child of the Movie chunk.
 
     Arguments:
-        PCFL pcfl  --  the file on which to check
-        CTG ctg    --  these are self-explanatory
-        CNO cno
+        PChunkyFile pcfl  --  the file on which to check
+        ChunkTagOrType ctg    --  these are self-explanatory
+        ChunkNumber cno
 
-    Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the MVIE
+    Returns:  fTrue if the (ctg, cno) chunk is an immediate child of the Movie
 
 ************************************************************ PETED ***********/
-bool MVIE::_FIsChild(PCFL pcfl, CTG ctg, CNO cno)
+bool Movie::_FIsChild(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     bool fIsChild = fFalse;
     long ckid, ikid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     ckid = pcfl->Ckid(kctgMvie, _cno);
     for (ikid = 0; ikid < ckid; ikid++)
     {
         if (!pcfl->FGetKid(kctgMvie, _cno, ikid, &kid))
         {
-            Bug("CFL returned bogus ckid");
+            Bug("ChunkyFile returned bogus ckid");
             break;
         }
 
@@ -1454,21 +1494,21 @@ bool MVIE::_FIsChild(PCFL pcfl, CTG ctg, CNO cno)
  * success or failure
  *
  ****************************************************/
-bool MVIE::_FAdoptMsndInMvie(PCFL pcfl, CNO cnoScen)
+bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    CHID chidMvie;
+    ChildChunkID chidMvie;
     long ckid, ikid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     ckid = pcfl->Ckid(kctgScen, cnoScen);
     for (ikid = 0; ikid < ckid; ikid++)
     {
         if (!pcfl->FGetKid(kctgScen, cnoScen, ikid, &kid))
         {
-            Bug("CFL returned bogus ckid");
+            Bug("ChunkyFile returned bogus ckid");
             break;
         }
 
@@ -1507,16 +1547,16 @@ LFail:
  * Updated *ptag
  *
  ****************************************************/
-bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, CNO cnoScen, PCRF pcrf)
+bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     AssertNilOrVarMem(pcrf);
 
-    KID kidScen;
-    KID kid;
+    ChildChunkIdentification kidScen;
+    ChildChunkIdentification kid;
     TAG tagNew = *ptag;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if (pvNil == pcrf)
         pcrf = _pcrfAutoSave;
@@ -1539,9 +1579,9 @@ bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, CNO cnoScen, PCRF pcrf)
         // As the pcrf has not changed, it is not essential
         // to close & open the respective tags.
         tagNew.cno = kid.cki.cno;
-        if (!TAGM::FOpenTag(&tagNew, pcrf))
+        if (!TagManager::FOpenTag(&tagNew, pcrf))
             return fFalse;
-        TAGM::CloseTag(ptag);
+        TagManager::CloseTag(ptag);
         *ptag = tagNew;
     }
     return fTrue;
@@ -1560,16 +1600,16 @@ bool MVIE::FResolveSndTag(PTAG ptag, CHID chid, CNO cnoScen, PCRF pcrf)
  * Updated *pchid
  *
  ****************************************************/
-bool MVIE::FChidFromUserSndCno(CNO cno, CHID *pchid)
+bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 {
     AssertThis(0);
     AssertVarMem(pchid);
 
-    KID kidScen;
-    KID kid;
+    ChildChunkIdentification kidScen;
+    ChildChunkIdentification kid;
     long ckid;
     long ikid;
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
         return fFalse;
@@ -1595,7 +1635,7 @@ bool MVIE::FChidFromUserSndCno(CNO cno, CHID *pchid)
 /****************************************************
  *
  * Copies a sound file to the movie. (Importing snd)
- * Sounds are written as MSND children of the current
+ * Sounds are written as MovieSoundMSND children of the current
  * scene chunk
  *
  * Parameters:
@@ -1606,7 +1646,7 @@ bool MVIE::FChidFromUserSndCno(CNO cno, CHID *pchid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, CNO *pcno, PSTN pstn)
+bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertThis(0);
     AssertVarMem(pfilSrc);
@@ -1614,10 +1654,10 @@ bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, CNO *pcno, PSTN pstn)
     AssertNilOrPo(pstn, 0);
     Assert(_pcrfAutoSave != pvNil, "Bad working file.");
 
-    PCFL pcfl;
-    FNI fniSrc;
-    CHID chid;
-    KID kidScen;
+    PChunkyFile pcfl;
+    Filename fniSrc;
+    ChildChunkID chid;
+    ChildChunkIdentification kidScen;
 
     pcfl = _pcrfAutoSave->Pcfl();
 
@@ -1632,12 +1672,12 @@ bool MVIE::FCopySndFileToMvie(PFIL pfilSrc, long sty, CNO *pcno, PSTN pstn)
     pfilSrc->GetFni(&fniSrc);
     if (fniSrc.Ftg() == kftgMidi)
     {
-        if (!MSND::FCopyMidi(pfilSrc, pcfl, pcno, pstn))
+        if (!MovieSoundMSND::FCopyMidi(pfilSrc, pcfl, pcno, pstn))
             goto LFail;
     }
     else
     {
-        if (!MSND::FCopyWave(pfilSrc, pcfl, sty, pcno, pstn))
+        if (!MovieSoundMSND::FCopyWave(pfilSrc, pcfl, sty, pcno, pstn))
             goto LFail;
     }
 
@@ -1673,16 +1713,16 @@ LFail:
  *	*pcnoDest
  *
  ****************************************************/
-bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, CNO cnoSrc, CNO *pcnoDest)
+bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
     AssertBaseThis(0);
     AssertPo(pcflSrc, 0);
     AssertVarMem(pcnoDest);
 
-    PCFL pcflDest;
-    KID kidScen;
-    CHID chid;
-    FNI fni;
+    PChunkyFile pcflDest;
+    ChildChunkIdentification kidScen;
+    ChildChunkID chid;
+    Filename fni;
 
     if (!FEnsureAutosave())
         return fFalse;
@@ -1718,14 +1758,14 @@ bool MVIE::FCopyMsndFromPcfl(PCFL pcflSrc, CNO cnoSrc, CNO *pcnoDest)
  *  unique chid for new msnd chunk child of scene
  *
  ****************************************************/
-CHID MVIE::_ChidScenNewSnd(void)
+ChildChunkID Movie::_ChidScenNewSnd(void)
 {
     AssertBaseThis(0);
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     long ckid;
     long chid;
-    KID kidScen;
-    KID kid;
+    ChildChunkIdentification kidScen;
+    ChildChunkIdentification kid;
 
     if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, _iscen, kctgScen, &kidScen))
         return fFalse;
@@ -1734,9 +1774,9 @@ CHID MVIE::_ChidScenNewSnd(void)
     for (chid = 0; chid < ckid; chid++)
     {
         if (!pcfl->FGetKidChidCtg(kctgScen, kidScen.cki.cno, chid, kctgMsnd, &kid))
-            return (CHID)chid;
+            return (ChildChunkID)chid;
     }
-    return (CHID)chid;
+    return (ChildChunkID)chid;
 }
 
 /****************************************************
@@ -1750,21 +1790,21 @@ CHID MVIE::_ChidScenNewSnd(void)
  *  unique chid for new msnd chunk child of scene
  *
  ****************************************************/
-CHID MVIE::_ChidMvieNewSnd(void)
+ChildChunkID Movie::_ChidMvieNewSnd(void)
 {
     AssertBaseThis(0);
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
     long ckid;
     long chid;
-    KID kid;
+    ChildChunkIdentification kid;
 
     ckid = pcfl->Ckid(kctgMvie, _cno);
     for (chid = 0; chid < ckid; chid++)
     {
         if (!pcfl->FGetKidChidCtg(kctgMvie, _cno, chid, kctgMsnd, &kid))
-            return (CHID)chid;
+            return (ChildChunkID)chid;
     }
-    return (CHID)chid;
+    return (ChildChunkID)chid;
 }
 
 /****************************************************
@@ -1780,15 +1820,15 @@ CHID MVIE::_ChidMvieNewSnd(void)
  *  *pcno updated
  *
  ****************************************************/
-bool MVIE::FVerifyVersion(PCFL pcfl, CNO *pcno)
+bool Movie::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
 {
-    AssertBaseThis(0); // MVIE hasn't been loaded yet
+    AssertBaseThis(0); // Movie hasn't been loaded yet
     AssertPo(pcfl, 0);
 
-    KID kid;
-    CNO cnoMvie;
-    MFP mfp;
-    BLCK blck;
+    ChildChunkIdentification kid;
+    ChunkNumber cnoMvie;
+    MovieFilePrefix mfp;
+    DataBlock blck;
 
     // Get the cno of the first kid of the movie
     if (pvNil == pcno || cnoNil == *pcno)
@@ -1804,8 +1844,8 @@ bool MVIE::FVerifyVersion(PCFL pcfl, CNO *pcno)
     }
 
     // Get version number of the file
-    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData() || (blck.Cb() != size(MFP)) ||
-        !blck.FReadRgb(&mfp, size(MFP), 0))
+    if (!pcfl->FFind(kctgMvie, cnoMvie, &blck) || !blck.FUnpackData() || (blck.Cb() != size(MovieFilePrefix)) ||
+        !blck.FReadRgb(&mfp, size(MovieFilePrefix), 0))
     {
         PushErc(ercSocBadFile);
         return fFalse;
@@ -1836,15 +1876,15 @@ bool MVIE::FVerifyVersion(PCFL pcfl, CNO *pcno)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FRemScenCore(long iscen)
+bool Movie::FRemScenCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
     Assert(_pcrfAutoSave != pvNil, "Bad working file.");
 
-    KID kid;
-    PCFL pcfl;
-    PSCEN pscen;
+    ChildChunkIdentification kid;
+    PChunkyFile pcfl;
+    PScene pscen;
     long iscenOld;
 
     pcfl = _pcrfAutoSave->Pcfl();
@@ -1883,7 +1923,7 @@ bool MVIE::FRemScenCore(long iscen)
     //
     // Close the current scene
     //
-    SCEN::Close(&_pscenOpen);
+    Scene::Close(&_pscenOpen);
     _iscen = ivNil;
 
     //
@@ -1902,7 +1942,7 @@ bool MVIE::FRemScenCore(long iscen)
     // Move up chids of all old scenes.
     //
     _cscen--;
-    _MoveChids((CHID)iscen, fFalse);
+    _MoveChids((ChildChunkID)iscen, fFalse);
 
     //
     // Save changes, if this fails, we don't care.  It only
@@ -1952,14 +1992,14 @@ bool MVIE::FRemScenCore(long iscen)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FRemScen(long iscen)
+bool Movie::FRemScen(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
 
-    KID kid;
-    PMUNS pmuns;
-    PSCEN pscen;
+    ChildChunkIdentification kid;
+    PMovieSceneUndo pmuns;
+    PScene pscen;
 
     if (_iscen == iscen)
     {
@@ -1971,11 +2011,11 @@ bool MVIE::FRemScen(long iscen)
 
         AssertDo(_pcrfAutoSave->Pcfl()->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Should never fail");
 
-        pscen = SCEN::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
+        pscen = Scene::PscenRead(this, _pcrfAutoSave, kid.cki.cno);
 
         if ((pscen == pvNil) || !pscen->FPlayStartEvents())
         {
-            SCEN::Close(&pscen);
+            Scene::Close(&pscen);
             return (fFalse);
         }
 
@@ -1983,7 +2023,7 @@ bool MVIE::FRemScen(long iscen)
         pscen->HideTboxes();
     }
 
-    pmuns = MUNS::PmunsNew();
+    pmuns = MovieSceneUndo::PmunsNew();
 
     if (pmuns == pvNil)
     {
@@ -2026,15 +2066,15 @@ bool MVIE::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
+bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
 {
     AssertThis(0);
     AssertPo(pmtrl, 0);
     AssertVarMem(ptag);
 
-    PCRF pcrf;
-    PCFL pcfl;
-    CNO cno;
+    PChunkyResourceFile pcrf;
+    PChunkyFile pcfl;
+    ChunkNumber cno;
 
     if (!FEnsureAutosave(&pcrf))
     {
@@ -2053,7 +2093,7 @@ bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
     ptag->ctg = kctgMtrl;
     ptag->cno = cno;
 
-    if (!TAGM::FOpenTag(ptag, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(ptag, _pcrfAutoSave))
     {
         return fFalse;
     }
@@ -2072,7 +2112,7 @@ bool MVIE::FInsertMtrl(PMTRL pmtrl, PTAG ptag)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-bool MVIE::FEnsureAutosave(PCRF *ppcrf)
+bool Movie::FEnsureAutosave(PChunkyResourceFile *ppcrf)
 {
     AssertThis(0);
 
@@ -2099,28 +2139,28 @@ bool MVIE::FEnsureAutosave(PCRF *ppcrf)
  * Adds a new 3-D Text object to the user's document.
  *
  * Parameters:
- *  pstn - TDT text
- *  tdts - the TDT shape
- *  ptagTdf - a tag to the TDT's font
+ *  pstn - ThreeDText text
+ *  tdts - the ThreeDText shape
+ *  ptagTdf - a tag to the ThreeDText's font
  *
  * Returns:
- *  fTrue if success, fFalse if couldn't add the TDT
+ *  fTrue if success, fFalse if couldn't add the ThreeDText
  *
  ****************************************************/
-bool MVIE::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    Assert(pstn->Cch() > 0, "can't insert 0-length TDT");
+    Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
     AssertIn(tdts, 0, tdtsLim);
     AssertVarMem(ptagTdf);
 
-    PCFL pcfl;
-    CNO cno;
-    PTDT ptdt;
+    PChunkyFile pcfl;
+    ChunkNumber cno;
+    PThreeDText ptdt;
     TAG tagTdt;
 
-    ptdt = TDT::PtdtNew(pstn, tdts, ptagTdf);
+    ptdt = ThreeDText::PtdtNew(pstn, tdts, ptagTdf);
     if (pvNil == ptdt)
         return fFalse;
 
@@ -2152,7 +2192,7 @@ bool MVIE::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
     tagTdt.ctg = kctgTmpl;
     tagTdt.cno = cno;
 
-    if (!TAGM::FOpenTag(&tagTdt, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(&tagTdt, _pcrfAutoSave))
     {
         return fFalse;
     }
@@ -2160,41 +2200,41 @@ bool MVIE::FInsTdt(PSTN pstn, long tdts, PTAG ptagTdf)
     if (!FInsActr(&tagTdt))
         return fFalse;
 
-    TAGM::CloseTag(&tagTdt);
+    TagManager::CloseTag(&tagTdt);
 
     return fTrue;
 }
 
 /****************************************************
  *
- * Edits the TDT attached to pactr.
+ * Edits the ThreeDText attached to pactr.
  *
  * Parameters:
  *  pactr - Pointer to actor to change
- *  pstn - New TDT text
- *	tdts - New TDT shape
- *  ptagTdf - New TDT font
+ *  pstn - New ThreeDText text
+ *	tdts - New ThreeDText shape
+ *  ptagTdf - New ThreeDText font
  *
  * Returns:
- *  fTrue if success, fFalse if couldn't change the TDT
+ *  fTrue if success, fFalse if couldn't change the ThreeDText
  *
  ****************************************************/
-bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
+bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
-    Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a TDT");
+    Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a ThreeDText");
     AssertPo(pstn, 0);
     AssertIn(tdts, 0, tdtsLim);
     AssertVarMem(ptagTdf);
 
     long ich;
     bool fNonSpaceFound;
-    PTDT ptdtNew;
+    PThreeDText ptdtNew;
     TAG tagTdtNew;
-    PCFL pcfl;
-    CNO cno;
-    PACTR pactrDup;
+    PChunkyFile pcfl;
+    ChunkNumber cno;
+    PActor pactrDup;
 
     Assert(pactr == Pscen()->PactrSelected(), 0);
     fNonSpaceFound = fFalse;
@@ -2211,7 +2251,7 @@ bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
         return FRemActr();
     }
 
-    ptdtNew = TDT::PtdtNew(pstn, tdts, ptagTdf);
+    ptdtNew = ThreeDText::PtdtNew(pstn, tdts, ptagTdf);
     if (pvNil == ptdtNew)
         return fFalse;
 
@@ -2243,20 +2283,20 @@ bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     tagTdtNew.ctg = kctgTmpl;
     tagTdtNew.cno = cno;
 
-    if (!TAGM::FOpenTag(&tagTdtNew, _pcrfAutoSave))
+    if (!TagManager::FOpenTag(&tagTdtNew, _pcrfAutoSave))
     {
         return fFalse;
     }
 
     if (!pactr->FDup(&pactrDup))
     {
-        TAGM::CloseTag(&tagTdtNew);
+        TagManager::CloseTag(&tagTdtNew);
         return fFalse;
     }
 
     if (!pactr->FChangeTagTmpl(&tagTdtNew))
     {
-        TAGM::CloseTag(&tagTdtNew);
+        TagManager::CloseTag(&tagTdtNew);
         ReleasePpo(&pactrDup);
         return fFalse;
     }
@@ -2269,13 +2309,13 @@ bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
     {
         pactr->Restore(pactrDup);
         ReleasePpo(&pactrDup);
-        TAGM::CloseTag(&tagTdtNew);
+        TagManager::CloseTag(&tagTdtNew);
         return fFalse;
     }
     RemFromRollCall(pactrDup);
     ReleasePpo(&pactrDup);
 
-    TAGM::CloseTag(&tagTdtNew);
+    TagManager::CloseTag(&tagTdtNew);
     SetDirty();
 
     return fTrue;
@@ -2292,7 +2332,7 @@ bool MVIE::FChangeActrTdt(PACTR pactr, PSTN pstn, long tdts, PTAG ptagTdf)
  *  fTrue if success, fFalse if couldn't autosave
  *
  ****************************************************/
-bool MVIE::_FCloseCurrentScene(void)
+bool Movie::_FCloseCurrentScene(void)
 {
     AssertThis(0);
 
@@ -2304,7 +2344,7 @@ bool MVIE::_FCloseCurrentScene(void)
             return fFalse;
         }
 
-        SCEN::Close(&_pscenOpen);
+        Scene::Close(&_pscenOpen);
         _iscen = ivNil;
     }
     return fTrue;
@@ -2321,13 +2361,13 @@ bool MVIE::_FCloseCurrentScene(void)
  *  fTrue if success, fFalse if couldn't switch
  *
  ****************************************************/
-bool MVIE::_FUseTempFile(void)
+bool Movie::_FUseTempFile(void)
 {
     AssertThis(0);
 
-    PCFL pcfl;
-    KID kid;
-    FNI fni;
+    PChunkyFile pcfl;
+    ChildChunkIdentification kid;
+    Filename fni;
 
     pcfl = _pcrfAutoSave->Pcfl();
 
@@ -2371,12 +2411,12 @@ bool MVIE::_FUseTempFile(void)
  *  fTrue if success, fFalse if couldn't switch
  *
  ****************************************************/
-bool MVIE::_FMakeCrfValid(void)
+bool Movie::_FMakeCrfValid(void)
 {
     AssertThis(0);
 
-    PCFL pcfl;
-    FNI fni;
+    PChunkyFile pcfl;
+    Filename fni;
 
     if (_pcrfAutoSave != pvNil)
     {
@@ -2391,20 +2431,20 @@ bool MVIE::_FMakeCrfValid(void)
         return (fFalse);
     }
 
-    pcfl = CFL::PcflCreate(&fni, fcflTemp);
+    pcfl = ChunkyFile::PcflCreate(&fni, fcflTemp);
     if (pcfl == pvNil)
     {
         return (fFalse);
     }
 
-    Assert(pcfl->FTemp(), "Bad CFL");
+    Assert(pcfl->FTemp(), "Bad ChunkyFile");
 
     //
-    // Note (by *****): CRF *must* have 0 cache size, because of
-    // serious cache-coherency problems otherwise.  TMPL data is not
+    // Note (by *****): ChunkyResourceFile *must* have 0 cache size, because of
+    // serious cache-coherency problems otherwise.  Template data is not
     // read-only, and chunk numbers change over time.
     //
-    _pcrfAutoSave = CRF::PcrfNew(pcfl, 0); // cache size must be 0
+    _pcrfAutoSave = ChunkyResourceFile::PcrfNew(pcfl, 0); // cache size must be 0
     if (pvNil == _pcrfAutoSave)
     {
         ReleasePpo(&pcfl);
@@ -2437,7 +2477,7 @@ bool MVIE::_FMakeCrfValid(void)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FAutoSave(PFNI pfni, bool fCleanRollCall)
+bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
 {
     AssertThis(0);
     AssertNilOrPo(_pcrfAutoSave, 0);
@@ -2446,14 +2486,14 @@ bool MVIE::FAutoSave(PFNI pfni, bool fCleanRollCall)
 #ifdef BUG1848
     bool fRetry = fTrue;
 #endif // BUG1848
-    BLCK blck;
-    CNO cno;
-    CNO cnoScen;
-    CNO cnoSource;
-    MFP mfp;
-    KID kidScen, kidGstRollCall, kidGstSource;
-    PCFL pcfl;
-    PGST pgstSource = pvNil;
+    DataBlock blck;
+    ChunkNumber cno;
+    ChunkNumber cnoScen;
+    ChunkNumber cnoSource;
+    MovieFilePrefix mfp;
+    ChildChunkIdentification kidScen, kidGstRollCall, kidGstSource;
+    PChunkyFile pcfl;
+    PStringTable_GST pgstSource = pvNil;
 
     if (_pcrfAutoSave == pvNil)
     {
@@ -2486,7 +2526,7 @@ LRetry:
     //
     if (_cno == cnoNil)
     {
-        if (!pcfl->FAdd(size(MFP), kctgMvie, &_cno, &blck))
+        if (!pcfl->FAdd(size(MovieFilePrefix), kctgMvie, &_cno, &blck))
         {
             goto LFail0;
         }
@@ -2535,7 +2575,7 @@ LRetry:
     //
     if (fCleanRollCall)
     {
-        MACTR mactr;
+        RollCallActorEntry mactr;
         long imactr;
 
         for (imactr = 0; imactr < _pgstmactr->IvMac();)
@@ -2563,15 +2603,42 @@ LRetry:
         kidGstRollCall.cki.cno = cnoNil;
     }
 
-    if (!pcfl->FAdd(_pgstmactr->CbOnFile(), kctgGst, &cno, &blck))
     {
-        goto LFail1;
-    }
-
-    if (!_pgstmactr->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, _cno, kctgGst, cno, 0))
-    {
-        pcfl->Delete(kctgGst, cno);
-        goto LFail1;
+        // Marshal the runtime GST into a transient wire-format GST whose
+        // extras are sized RollCallActorEntryOnFile (28 bytes on every arch).
+        // The runtime GST holds RollCallActorEntry which on x64 is wider, so
+        // we cannot FWrite it directly without breaking the .3MM wire format.
+        PStringTable_GST pgstOnFile = StringTable_GST::PgstNew(size(RollCallActorEntryOnFile));
+        if (pvNil == pgstOnFile)
+            goto LFail1;
+        long imactrSave, imactrMacSave = _pgstmactr->IvMac();
+        String stnSave;
+        RollCallActorEntry mactrSave;
+        RollCallActorEntryOnFile mactrSaveOnFile;
+        bool fOk = fTrue;
+        for (imactrSave = 0; imactrSave < imactrMacSave && fOk; imactrSave++)
+        {
+            _pgstmactr->GetStn(imactrSave, &stnSave);
+            _pgstmactr->GetExtra(imactrSave, &mactrSave);
+            mactrSaveOnFile.arid = mactrSave.arid;
+            mactrSaveOnFile.cactRef = mactrSave.cactRef;
+            mactrSaveOnFile.grfbrws = mactrSave.grfbrws;
+            mactrSaveOnFile.tagTmpl.From(mactrSave.tagTmpl);
+            if (!pgstOnFile->FAddStn(&stnSave, &mactrSaveOnFile))
+                fOk = fFalse;
+        }
+        if (!fOk || !pcfl->FAdd(pgstOnFile->CbOnFile(), kctgGst, &cno, &blck))
+        {
+            ReleasePpo(&pgstOnFile);
+            goto LFail1;
+        }
+        if (!pgstOnFile->FWrite(&blck) || !pcfl->FAdoptChild(kctgMvie, _cno, kctgGst, cno, 0))
+        {
+            ReleasePpo(&pgstOnFile);
+            pcfl->Delete(kctgGst, cno);
+            goto LFail1;
+        }
+        ReleasePpo(&pgstOnFile);
     }
 
     //
@@ -2637,13 +2704,13 @@ LRetry:
     if (pfni != pvNil)
     {
         bool fSuccess;
-        PFIL pfil;
+        PFileObject pfil;
 
         //
         // If we have this file open, then we need to release it
         // so we can do the save.  We will restore our open below.
         //
-        pfil = FIL::PfilFromFni(pfni);
+        pfil = FileObject::PfilFromFni(pfni);
         if (pfil == _pfilSave)
         {
             ReleasePpo(&_pfilSave);
@@ -2663,7 +2730,7 @@ LRetry:
 
         if (pfil != pvNil)
         {
-            _pfilSave = FIL::PfilFromFni(pfni);
+            _pfilSave = FileObject::PfilFromFni(pfni);
             if (_pfilSave != pvNil)
             {
                 _pfilSave->AddRef();
@@ -2711,7 +2778,7 @@ LFail0:
 #ifdef BUG1848
         if (fRetry && pfni != pvNil)
         {
-            FNI fniTemp;
+            Filename fniTemp;
 
             /* Effectively, move the temp file to the destination path */
             /* REVIEW seanse(peted): note that the autosave file could whined up
@@ -2744,7 +2811,7 @@ LFail0:
  *  fTrue on success, fFalse on failure
  *
  ****************************************************/
-bool MVIE::_FDoGarbageCollection(PCFL pcfl)
+bool Movie::_FDoGarbageCollection(PChunkyFile pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
@@ -2761,7 +2828,7 @@ bool MVIE::_FDoGarbageCollection(PCFL pcfl)
 
 /****************************************************
  *
- * Removes all MTRL and TMPL chunks that are not
+ * Removes all Material_MTRL and Template chunks that are not
  * referenced by any actors in this movie.
  *
  * Parameters:
@@ -2771,24 +2838,24 @@ bool MVIE::_FDoGarbageCollection(PCFL pcfl)
  *  fTrue on success, fFalse on failure
  *
  ****************************************************/
-bool MVIE::_FDoMtrlTmplGC(PCFL pcfl)
+bool Movie::_FDoMtrlTmplGC(PChunkyFile pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    PTAGL ptagl = pvNil;
+    PTagList ptagl = pvNil;
     long itag;
     TAG tag;
     long icki1 = 0;
     long icki2 = 0;
-    CKI cki;
-    PGL pglckiDoomed = pvNil;
+    ChunkIdentification cki;
+    PDynamicArray pglckiDoomed = pvNil;
 
     ptagl = _PtaglFetch(); // get all tags in user's document
     if (ptagl == pvNil)
         goto LEnd; // no work to do
 
-    pglckiDoomed = GL::PglNew(size(CKI), 0);
+    pglckiDoomed = DynamicArray::PglNew(size(ChunkIdentification), 0);
     if (pvNil == pglckiDoomed)
         goto LFail;
 
@@ -2822,24 +2889,24 @@ bool MVIE::_FDoMtrlTmplGC(PCFL pcfl)
     {
         pglckiDoomed->Get(icki1, &cki);
         pcfl->Delete(cki.ctg, cki.cno);
-        if (pcfl == _pcrfAutoSave->Pcfl()) // remove chunk from CRF cache
+        if (pcfl == _pcrfAutoSave->Pcfl()) // remove chunk from ChunkyResourceFile cache
         {
             PFNRPO pfnrpo;
 
             if (kctgMtrl == cki.ctg)
             {
-                pfnrpo = MTRL::FReadMtrl;
+                pfnrpo = Material_MTRL::FReadMtrl;
             }
             else if (kctgTmpl == cki.ctg)
             {
-                pfnrpo = TMPL::FReadTmpl;
+                pfnrpo = Template::FReadTmpl;
             }
             else
             {
                 Bug("unexpected ctg");
             }
             // ignore failure of FSetCrep, because return value of fFalse
-            // just means that the chunk is not stored in the CRF's cache
+            // just means that the chunk is not stored in the ChunkyResourceFile's cache
             _pcrfAutoSave->FSetCrep(crepToss, cki.ctg, cki.cno, pfnrpo);
         }
     }
@@ -2865,7 +2932,7 @@ LFail:
  *  pfni filled in.
  *
  ****************************************************/
-bool MVIE::FGetFni(FNI *pfni)
+bool Movie::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
@@ -2889,7 +2956,7 @@ bool MVIE::FGetFni(FNI *pfni)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FSave(long cid)
+bool Movie::FSave(long cid)
 {
     AssertThis(0);
 
@@ -2900,7 +2967,7 @@ bool MVIE::FSave(long cid)
         cid = cidSaveAs;
 
     // Now take the default action.
-    return MVIE_PAR::FSave(cid);
+    return Movie_PAR::FSave(cid);
 }
 
 /****************************************************
@@ -2915,13 +2982,13 @@ bool MVIE::FSave(long cid)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FSaveToFni(FNI *pfni, bool fSetFni)
+bool Movie::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
 
-    CKI cki;
-    PCFL pcfl;
+    ChunkIdentification cki;
+    PChunkyFile pcfl;
 
     if (_pcrfAutoSave == pvNil)
     {
@@ -2973,7 +3040,7 @@ bool MVIE::FSaveToFni(FNI *pfni, bool fSetFni)
  *  FALSE - User canceled, (or other error).
  *
  ***************************************************************************/
-bool MVIE::FGetFniSave(FNI *pfni)
+bool Movie::FGetFniSave(Filename *pfni)
 {
     AssertThis(0);
     AssertVarMem(pfni);
@@ -2993,11 +3060,11 @@ bool MVIE::FGetFniSave(FNI *pfni)
  *  A pointer to the view, otw pvNil on failure
  *
  ****************************************************/
-PDDG MVIE::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject Movie::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     AssertVarMem(pgcb);
-    return (MVU::PmvuNew(this, pgcb, _pmcc->Dxp(), _pmcc->Dyp()));
+    return (MovieView::PmvuNew(this, pgcb, _pmcc->Dxp(), _pmcc->Dyp()));
 }
 
 /****************************************************
@@ -3012,7 +3079,7 @@ PDDG MVIE::PddgNew(PGCB pgcb)
  *  pvNil
  *
  ****************************************************/
-PDMD MVIE::PdmdNew(void)
+PDocumentMDIWindow Movie::PdmdNew(void)
 {
     Bug("Movie does not support DMDs, use multiple DDGs.");
     return (pvNil);
@@ -3029,7 +3096,7 @@ PDMD MVIE::PdmdNew(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MVIE::FAddUndo(PMUNB pmunb)
+bool Movie::FAddUndo(PMovieUndo pmunb)
 {
     AssertThis(0);
 
@@ -3043,7 +3110,7 @@ bool MVIE::FAddUndo(PMUNB pmunb)
         pmunb->SetNfrm(Pscen()->Nfrm());
     }
 
-    if (!DOCB::FAddUndo(pmunb))
+    if (!DocumentBase::FAddUndo(pmunb))
     {
         Pmcc()->SetUndo(undoDisabled);
         return (fFalse);
@@ -3064,11 +3131,11 @@ bool MVIE::FAddUndo(PMUNB pmunb)
  *  None.
  *
  ****************************************************/
-void MVIE::ClearUndo(void)
+void Movie::ClearUndo(void)
 {
     AssertThis(0);
 
-    MVIE_PAR::ClearUndo();
+    Movie_PAR::ClearUndo();
     Pmcc()->SetUndo(undoDisabled);
 }
 
@@ -3083,7 +3150,7 @@ void MVIE::ClearUndo(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FChangeCam(long icam)
+bool Movie::FChangeCam(long icam)
 {
     AssertThis(0);
     AssertIn(icam, 0, kccamMax);
@@ -3111,7 +3178,7 @@ bool MVIE::FChangeCam(long icam)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FInsTbox(RC *prc, bool fStory)
+bool Movie::FInsTbox(RC *prc, bool fStory)
 {
     AssertThis(0);
     AssertPvCb(prc, size(RC));
@@ -3119,7 +3186,7 @@ bool MVIE::FInsTbox(RC *prc, bool fStory)
 
     PTBOX ptbox;
 
-    ptbox = TBOX::PtboxNew(Pscen(), prc, fStory);
+    ptbox = TextBox::PtboxNew(Pscen(), prc, fStory);
 
     if (ptbox == pvNil)
     {
@@ -3152,7 +3219,7 @@ bool MVIE::FInsTbox(RC *prc, bool fStory)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FNukeTbox(void)
+bool Movie::FNukeTbox(void)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3181,7 +3248,7 @@ bool MVIE::FNukeTbox(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FHideTbox(void)
+bool Movie::FHideTbox(void)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3210,7 +3277,7 @@ bool MVIE::FHideTbox(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::SelectTbox(long itbox)
+void Movie::SelectTbox(long itbox)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -3251,13 +3318,13 @@ void MVIE::SelectTbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-void MVIE::SetPaintAcr(ACR acr)
+void Movie::SetPaintAcr(AbstractColor acr)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     AssertPo(pmvu, 0);
     pmvu->SetPaintAcr(acr);
 }
@@ -3270,7 +3337,7 @@ void MVIE::SetPaintAcr(ACR acr)
         long dypFont  --  the new textbox font size
 
 ************************************************************ PETED ***********/
-void MVIE::SetDypFontTextCur(long dypFont)
+void Movie::SetDypFontTextCur(long dypFont)
 {
     AssertThis(0);
 
@@ -3285,7 +3352,7 @@ void MVIE::SetDypFontTextCur(long dypFont)
         long grfont  --  the new textbox font style
 
 ************************************************************ PETED ***********/
-void MVIE::SetStyleTextCur(ulong grfont)
+void Movie::SetStyleTextCur(ulong grfont)
 {
     AssertThis(0);
 
@@ -3300,7 +3367,7 @@ void MVIE::SetStyleTextCur(ulong grfont)
         long onn  -- the new textbox font face
 
 ************************************************************ PETED ***********/
-void MVIE::SetOnnTextCur(long onn)
+void Movie::SetOnnTextCur(long onn)
 {
     AssertThis(0);
 
@@ -3309,31 +3376,31 @@ void MVIE::SetOnnTextCur(long onn)
 
 /******************************************************************************
     PmvuCur
-        Returns the active MVU for this movie
+        Returns the active MovieView for this movie
 
 ************************************************************ PETED ***********/
-PMVU MVIE::PmvuCur(void)
+PMovieView Movie::PmvuCur(void)
 {
     AssertThis(0);
-    PMVU pmvu = (PMVU)PddgActive();
+    PMovieView pmvu = (PMovieView)PddgActive();
 
     AssertPo(pmvu, 0);
-    Assert(pmvu->FIs(kclsMVU), "Current DDG isn't an MVU");
+    Assert(pmvu->FIs(kclsMovieView), "Current DocumentDisplayGraphicsObject isn't an MovieView");
     return pmvu;
 }
 
 /******************************************************************************
     PmvuFirst
-        Returns the first MVU for this movie
+        Returns the first MovieView for this movie
 
 ************************************************************ PETED ***********/
-PMVU MVIE::PmvuFirst(void)
+PMovieView Movie::PmvuFirst(void)
 {
     AssertThis(0);
-    PMVU pmvu = (PMVU)PddgGet(0);
+    PMovieView pmvu = (PMovieView)PddgGet(0);
 
     AssertPo(pmvu, 0);
-    Assert(pmvu->FIs(kclsMVU), "First DDG isn't an MVU");
+    Assert(pmvu->FIs(kclsMovieView), "First DocumentDisplayGraphicsObject isn't an MovieView");
     return pmvu;
 }
 
@@ -3348,13 +3415,13 @@ PMVU MVIE::PmvuFirst(void)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FInsActr(PTAG ptag)
+bool Movie::FInsActr(PTAG ptag)
 {
     AssertThis(0);
     AssertPvCb(ptag, size(TAG));
     AssertPo(Pscen(), 0);
 
-    PACTR pactr;
+    PActor pactr;
 
     vpappb->BeginLongOp();
 
@@ -3369,7 +3436,7 @@ bool MVIE::FInsActr(PTAG ptag)
 
     vpappb->EndLongOp();
 
-    pactr = ACTR::PactrNew(ptag);
+    pactr = Actor::PactrNew(ptag);
     if (pactr == pvNil)
     {
         return (fFalse);
@@ -3402,12 +3469,12 @@ bool MVIE::FInsActr(PTAG ptag)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FAddOnstage(long arid)
+bool Movie::FAddOnstage(long arid)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
     //
     // Get the actor
     //
@@ -3451,12 +3518,12 @@ bool MVIE::FAddOnstage(long arid)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FRemActr()
+bool Movie::FRemActr()
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3489,12 +3556,12 @@ bool MVIE::FRemActr()
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
+bool Movie::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3524,12 +3591,12 @@ bool MVIE::FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FSquashStretchActr(BRS brs)
+bool Movie::FSquashStretchActr(BRS brs)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3566,13 +3633,13 @@ bool MVIE::FSquashStretchActr(BRS brs)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FSoonerLaterActr(long nfrm)
+bool Movie::FSoonerLaterActr(long nfrm)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
-    PAUND paund;
+    Actor *pactr;
+    PActorUndo paund;
 
     long dnfrm = nfrm - Pscen()->Nfrm();
 
@@ -3592,7 +3659,7 @@ bool MVIE::FSoonerLaterActr(long nfrm)
 
         _pglpundb->Get(_ipundbLimDone - 1, &paund);
 
-        if (paund->FIs(kclsAUND) && paund->FSoonerLater())
+        if (paund->FIs(kclsActorUndo) && paund->FSoonerLater())
         {
             AssertPo(paund, 0);
             paund->SetNfrmLast(nfrm);
@@ -3616,12 +3683,12 @@ bool MVIE::FSoonerLaterActr(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FScaleActr(BRS brs)
+bool Movie::FScaleActr(BRS brs)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3645,7 +3712,7 @@ bool MVIE::FScaleActr(BRS brs)
  * Adds a sound to the background
  *
  * Parameters:
- *  ptag - tag to the MSND to insert
+ *  ptag - tag to the MovieSoundMSND to insert
  *  fLoop - play snd over and over?
  *  fQueue - replace existing sounds, or queue afterwards?
  *  vlm - volume to play sound
@@ -3655,16 +3722,16 @@ bool MVIE::FScaleActr(BRS brs)
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long sty)
+bool Movie::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long sty)
 {
     AssertThis(0);
     Assert(Pscen(), 0);
 
     if (vlm == vlmNil || sty == styNil)
     {
-        PMSND pmsnd;
+        PMovieSoundMSND pmsnd;
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
         if (pmsnd == pvNil)
             return fFalse;
         if (vlm == vlmNil)
@@ -3683,7 +3750,7 @@ bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long 
  *
  * Parameters:
  *  pactr - actor to attach sound to
- *  ptag - tag to the MSND to insert
+ *  ptag - tag to the MovieSoundMSND to insert
  *  fLoop - play snd over and over?
  *  fQueue - replace existing sounds, or queue afterwards?
  *  vlm - volume to use (vlmNil -> use pmsnd volume)
@@ -3693,10 +3760,10 @@ bool MVIE::FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm, long 
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty)
+bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty)
 {
     AssertThis(0);
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -3720,15 +3787,15 @@ bool MVIE::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCe
  *  fFalse if there was a failure, else fTrue.
  *
  ****************************************************/
-bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
+bool Movie::FInsScenCore(long iscen, Scene *pscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
     AssertPo(pscen, 0);
     Assert(pscen->Pmvie() == this, "Cannot insert a scene from another movie");
 
-    CNO cnoScen;
-    PCFL pcfl;
+    ChunkNumber cnoScen;
+    PChunkyFile pcfl;
 
     //
     // Make sure we have a file to switch to
@@ -3768,9 +3835,9 @@ bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
     // Hide all bodies, textboxes, etc, created when the write updated the thumbnail.
     //
     pscen->AddRef();
-    SCEN::Close(&pscen);
+    Scene::Close(&pscen);
 
-    _MoveChids((CHID)iscen, fTrue);
+    _MoveChids((ChildChunkID)iscen, fTrue);
 
     _cscen++;
 
@@ -3815,7 +3882,7 @@ bool MVIE::FInsScenCore(long iscen, SCEN *pscen)
 LFail3:
     _cscen--;
     pcfl->DeleteChild(kctgMvie, _cno, kctgScen, cnoScen, iscen);
-    _MoveChids((CHID)iscen, fFalse);
+    _MoveChids((ChildChunkID)iscen, fFalse);
     pcfl->FSave(kctgSoc);
 
     if (_cscen > 0)
@@ -3834,7 +3901,7 @@ LFail3:
     return (fFalse);
 
 LFail2:
-    _MoveChids((CHID)iscen, fFalse);
+    _MoveChids((ChildChunkID)iscen, fFalse);
     pcfl->Delete(kctgScen, cnoScen);
 
 LFail0:
@@ -3852,21 +3919,21 @@ LFail0:
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FAddScen(PTAG ptag)
+bool Movie::FAddScen(PTAG ptag)
 {
     AssertThis(0);
     AssertPvCb(ptag, size(TAG));
 
     long iscen;
     TAG tagOld;
-    PMUNS pmuns;
+    PMovieSceneUndo pmuns;
 
     vpappb->BeginLongOp();
 
     //
     // Set the background
     //
-    if (!BKGD::FCacheToHD(ptag))
+    if (!Background::FCacheToHD(ptag))
     {
         vpappb->EndLongOp();
         return (fFalse);
@@ -3914,7 +3981,7 @@ bool MVIE::FAddScen(PTAG ptag)
             _pmsq->FlushMsq();
         }
 
-        pmuns = MUNS::PmunsNew();
+        pmuns = MovieSceneUndo::PmunsNew();
 
         if (pmuns != pvNil)
         {
@@ -3964,7 +4031,7 @@ bool MVIE::FAddScen(PTAG ptag)
  *  None.
  *
  **************************************************************************/
-void MVIE::Play()
+void Movie::Play()
 {
     AssertThis(0);
 
@@ -4103,19 +4170,19 @@ void MVIE::Play()
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
-bool MVIE::FCmdAlarm(PCMD pcmd)
+bool Movie::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    CMD cmd;
+    Command cmd;
 
     if (FIdleSeen() || vpcex->PgobTracking() != pvNil)
     {
 
         SetFIdleSeen(fFalse);
 
-        ClearPb(&cmd, size(CMD));
+        ClearPb(&cmd, size(Command));
 
         cmd.pcmh = this;
         cmd.cid = cidRender;
@@ -4129,7 +4196,7 @@ bool MVIE::FCmdAlarm(PCMD pcmd)
         //
         if (!_clok.FSetAlarm(0, this))
         {
-            PMVU pmvu;
+            PMovieView pmvu;
 
             //
             // Things are in a bad way.
@@ -4142,7 +4209,7 @@ bool MVIE::FCmdAlarm(PCMD pcmd)
             _fPausing = fFalse;
             _fScrolling = fFalse;
             _wit = witNil;
-            pmvu = (PMVU)PddgGet(0);
+            pmvu = (PMovieView)PddgGet(0);
             pmvu->PauseUntilClick(fFalse);
             Pscen()->Enable(fscenTboxes);
             Pscen()->Disable(fscenPauses);
@@ -4189,17 +4256,17 @@ bool MVIE::FCmdAlarm(PCMD pcmd)
  *  fTrue if it handled the command, else fFalse.
  *
  ***************************************************************************/
-bool MVIE::FCmdRender(PCMD pcmd)
+bool Movie::FCmdRender(PCommand pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PTBOX ptbox;
     long itbox;
     ulong tsCur = TsCurrent();
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     AssertPo(pmvu, 0);
 
     if (FStopPlaying())
@@ -4464,18 +4531,20 @@ bool MVIE::FCmdRender(PCMD pcmd)
 
         if (Iscen() == (Cscen() - 1))
         {
-            // since this is the last scene/last frame, we want to
-            // fade out music, by setting _vlmOrg we turn off rendering and fade out
-            // music until VlmCur is 0, at which point we go into stop state.
+            // disable volume fade
 
-            if (!vpsndm->FPlayingAll()) // there are no sounds playing
-                SetFStopPlaying(fTrue); // there is nothing to fade
-            else
-            {
-                _vlmOrg = vpsndm->VlmCur(); // get the current volume
-                if ((0 == _vlmOrg))         // if there is volume to fade with
+            // // since this is the last scene/last frame, we want to
+            // // fade out music, by setting _vlmOrg we turn off rendering and fade out
+            // // music until VlmCur is 0, at which point we go into stop state.
+
+            // if (!vpsndm->FPlayingAll()) // there are no sounds playing
+            //     SetFStopPlaying(fTrue); // there is nothing to fade
+            // else
+            // {
+            //     _vlmOrg = vpsndm->VlmCur(); // get the current volume
+            //     if ((0 == _vlmOrg))         // if there is volume to fade with
                     SetFStopPlaying(fTrue); // there is nothing to fade
-            }
+            // }
             return (fTrue);
         }
 
@@ -4530,12 +4599,12 @@ bool MVIE::FCmdRender(PCMD pcmd)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
+bool Movie::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    ACTR *pactr;
+    Actor *pactr;
 
     //
     // Get the current actor
@@ -4566,7 +4635,7 @@ bool MVIE::FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FPause(WIT wit, long dts)
+bool Movie::FPause(WaitReason wit, long dts)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
@@ -4583,14 +4652,14 @@ bool MVIE::FPause(WIT wit, long dts)
 #ifdef DEBUG
 /******************************************************************************
     MarkMem
-        Marks memory used by the CMVI
+        Marks memory used by the CompositeMovie
 
 ************************************************************ PETED ***********/
-void CMVI::MarkMem(void)
+void CompositeMovie::MarkMem(void)
 {
     long iv, ivMac;
-    MVIED mvied;
-    SCEND scend;
+    MovieDescriptor mvied;
+    SceneDescriptor scend;
 
     ivMac = pglmvied->IvMac();
     for (iv = 0; iv < ivMac; iv++)
@@ -4612,29 +4681,29 @@ void CMVI::MarkMem(void)
 
 /******************************************************************************
     FAddToCmvi
-        Generates a GL of SCENDs that describes this movie.  A movie client
-        that wishes to makes wholesale changes to a movie may get this GL,
+        Generates a DynamicArray of SCENDs that describes this movie.  A movie client
+        that wishes to makes wholesale changes to a movie may get this DynamicArray,
         rearrange it, including inserting references to new movie files, and
         pass it back to the movie via FSetCmvi to modify the movie.
-        Adds the movie to the GL of movie descriptors.
+        Adds the movie to the DynamicArray of movie descriptors.
 
     Arguments:
-        PCMVI pcmvi     --  the CMVI to add the movie to
+        PCompositeMovie pcmvi     --  the CompositeMovie to add the movie to
         long iscendIns  --  the point at which to start inserting scenes
 
     Returns: fTrue if it was successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
+bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
     AssertNilOrPo(pcmvi->pglscend, 0);
 
     long iscen = 0, iscenMac = Cscen(), imvied;
-    SCEND scend;
-    MVIED mvied;
-    PCFL pcfl;
+    SceneDescriptor scend;
+    MovieDescriptor mvied;
+    PChunkyFile pcfl;
 
     scend.imvied = ivNil;
 
@@ -4647,12 +4716,12 @@ bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     if (!FAutoSave(pvNil, fFalse))
         goto LFail;
 
-    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = GL::PglNew(size(SCEND))) == pvNil)
+    if ((pcmvi->pglscend == pvNil) && (pcmvi->pglscend = DynamicArray::PglNew(size(SceneDescriptor))) == pvNil)
     {
         goto LFail;
     }
 
-    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = GL::PglNew(size(MVIED))) == pvNil)
+    if ((pcmvi->pglmvied == pvNil) && (pcmvi->pglmvied = DynamicArray::PglNew(size(MovieDescriptor))) == pvNil)
     {
         goto LFail;
     }
@@ -4671,27 +4740,27 @@ bool MVIE::FAddToCmvi(PCMVI pcmvi, long *piscendIns)
     for (iscen = 0; iscen < iscenMac; iscen++, (*piscendIns)++)
     {
         bool fSuccess;
-        KID kid;
+        ChildChunkIdentification kid;
 
-        /* Get CNO */
+        /* Get ChunkNumber */
         AssertDo(pcfl->FGetKidChidCtg(kctgMvie, _cno, iscen, kctgScen, &kid), "Not enough scene chunks for movie");
         scend.cno = kid.cki.cno;
         scend.chid = iscen;
         scend.pmbmp = pvNil;
 
-        /* Get PMBMP and TRANS from the scene */
+        /* Get PMaskedBitmapMBMP and TRANS from the scene */
         if (iscen != Iscen())
         {
-            BLCK blck;
+            DataBlock blck;
 
-            if (!SCEN::FTransOnFile(mvied.pcrf, scend.cno, &scend.trans))
+            if (!Scene::FTransOnFile(mvied.pcrf, scend.cno, &scend.trans))
                 goto LFail;
 
             AssertDo(pcfl->FGetKidChidCtg(kctgScen, scend.cno, 0, kctgThumbMbmp, &kid),
                      "Scene doesn't have a thumbnail");
             if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
                 goto LFail;
-            if ((scend.pmbmp = MBMP::PmbmpRead(&blck)) == pvNil)
+            if ((scend.pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck)) == pvNil)
                 goto LFail;
         }
         else
@@ -4727,24 +4796,24 @@ LFail:
 
 /******************************************************************************
     FSetCmvi
-        Rebuilds the movie based on the given CMVI.  Any scenes
-        marked for deletion are disowned by their MVIE chunk.  Any scenes that
-        refer to a movie file other than this MVIE's auto save file are
-        copied into this MVIE's auto save file.  SCEN chunks are given new
+        Rebuilds the movie based on the given CompositeMovie.  Any scenes
+        marked for deletion are disowned by their Movie chunk.  Any scenes that
+        refer to a movie file other than this Movie's auto save file are
+        copied into this Movie's auto save file.  Scene chunks are given new
         CHIDs reflecting their new position within the movie.  The non-nuked
-        scenes must appear in the GL in the order that they appear in the
+        scenes must appear in the DynamicArray in the order that they appear in the
         movie; other than that, there is no restriction on the order of the
-        scenes (ie, nuked scenes can appear anywhere in the GL, even though
+        scenes (ie, nuked scenes can appear anywhere in the DynamicArray, even though
         currently the only client of this API keeps the nuked scenes at the
         end).
 
     Arguments:
-        PCMVI pcmvi -- the CMVI that describes the new movie structure
+        PCompositeMovie pcmvi -- the CompositeMovie that describes the new movie structure
 
     Returns: fTrue if it could accomplish all of the above, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::FSetCmvi(PCMVI pcmvi)
+bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
@@ -4756,10 +4825,10 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
     long iscenOld = Iscen();
     long imvied, imviedMac = pcmvi->pglmvied->IvMac();
     long aridMin = 0;
-    CHID chidScen = 0;
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
-    PCRF pcrf = _pcrfAutoSave;
-    PGL pglmviedNew;
+    ChildChunkID chidScen = 0;
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PChunkyResourceFile pcrf = _pcrfAutoSave;
+    PDynamicArray pglmviedNew;
 
     pglmviedNew = pcmvi->pglmvied->PglDup();
     if (pglmviedNew == pvNil)
@@ -4768,7 +4837,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
     /* Copy all the external movie chunks into this movie */
     for (imvied = 0; imvied < imviedMac; imvied++)
     {
-        MVIED mvied;
+        MovieDescriptor mvied;
 
         pglmviedNew->Get(imvied, &mvied);
 
@@ -4784,17 +4853,17 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
         }
         else
         {
-            Assert(mvied.pcrf == pcrf, "Invalid GL of MVIEDs");
-            Assert(mvied.cno == _cno, "Invalid GL of MVIEDs");
+            Assert(mvied.pcrf == pcrf, "Invalid DynamicArray of MVIEDs");
+            Assert(mvied.cno == _cno, "Invalid DynamicArray of MVIEDs");
         }
         aridMin += mvied.aridLim;
     }
 
     for (iscend = 0; iscend < iscendMac; iscend++)
     {
-        CNO cnoScen = cnoNil;
-        SCEND scend;
-        MVIED mvied;
+        ChunkNumber cnoScen = cnoNil;
+        SceneDescriptor scend;
+        MovieDescriptor mvied;
 
         pcmvi->pglscend->Get(iscend, &scend);
         pglmviedNew->Get(scend.imvied, &mvied);
@@ -4802,7 +4871,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
         /* Was this scene imported? */
         if (scend.imvied > 0)
         {
-            KID kid;
+            ChildChunkIdentification kid;
 
             if (!pcfl->FGetKidChidCtg(kctgMvie, mvied.cno, scend.chid, kctgScen, &kid))
             {
@@ -4813,13 +4882,13 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             /* If so, only bother keeping it if the user didn't delete it */
             if (!scend.fNuked)
             {
-                PSCEN pscen;
+                PScene pscen;
 
                 if (!pcfl->FAdoptChild(kctgMvie, _cno, kctgScen, cnoScen, chidScen++))
                     goto LFail;
                 if (!_FAdoptMsndInMvie(pcfl, cnoScen))
                     goto LFail;
-                if ((pscen = SCEN::PscenRead(this, pcrf, cnoScen)) == pvNil || !pscen->FPlayStartEvents(fTrue) ||
+                if ((pscen = Scene::PscenRead(this, pcrf, cnoScen)) == pvNil || !pscen->FPlayStartEvents(fTrue) ||
                     !pscen->FAddActrsToRollCall())
                 {
                     PushErc(ercSocNoImportRollCall);
@@ -4834,11 +4903,11 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
         {
             if (scend.fNuked)
             {
-                PSCEN pscen;
+                PScene pscen;
 
-                if (scend.chid != (CHID)iscenOld)
+                if (scend.chid != (ChildChunkID)iscenOld)
                 {
-                    pscen = SCEN::PscenRead(this, pcrf, scend.cno);
+                    pscen = Scene::PscenRead(this, pcrf, scend.cno);
                     if (pscen == pvNil || !pscen->FPlayStartEvents(fTrue))
                         PushErc(ercSocNoNukeRollCall);
                 }
@@ -4857,20 +4926,20 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             }
             else
             {
-                /* Set the CHID to be the current scene number */
+                /* Set the ChildChunkID to be the current scene number */
                 cnoScen = scend.cno;
                 pcfl->ChangeChid(kctgMvie, _cno, kctgScen, scend.cno, scend.chid, chidScen++);
             }
         }
 
         /* If we didn't delete the scene, go ahead and update its transition */
-        if (scend.chid != (CHID)iscenOld || scend.imvied != 0)
+        if (scend.chid != (ChildChunkID)iscenOld || scend.imvied != 0)
         {
             if (!scend.fNuked)
             {
-                Assert(mvied.pcrf == pcrf, "Scene's MVIE didn't get copied");
+                Assert(mvied.pcrf == pcrf, "Scene's Movie didn't get copied");
                 Assert(cnoScen != cnoNil, "Didn't set the cnoScen");
-                if (!SCEN::FSetTransOnFile(pcrf, cnoScen, scend.trans))
+                if (!Scene::FSetTransOnFile(pcrf, cnoScen, scend.trans))
                     goto LFail;
             }
         }
@@ -4879,7 +4948,7 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             if (scend.fNuked)
             {
                 /* Basically, do an _FCloseCurrentScene w/out the autosave */
-                SCEN::Close(&_pscenOpen);
+                Scene::Close(&_pscenOpen);
                 _iscen = ivNil;
             }
             else
@@ -4906,8 +4975,8 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
 #ifdef DEBUG
     {
         long ckid = pcfl->Ckid(kctgMvie, _cno);
-        KID kid;
-        CHID chidLast = chidNil;
+        ChildChunkIdentification kid;
+        ChildChunkID chidLast = chidNil;
 
         for (long ikid = 0; ikid < ckid; ikid++)
         {
@@ -4915,13 +4984,13 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
             {
                 if (kid.cki.ctg == kctgScen)
                 {
-                    Assert(chidLast == chidNil || kid.chid > chidLast, "Found duplicate CHID in scene children");
+                    Assert(chidLast == chidNil || kid.chid > chidLast, "Found duplicate ChildChunkID in scene children");
                     chidLast = kid.chid;
                 }
             }
             else
             {
-                Bug("Can't guarantee validity of MVIE's SCEN children");
+                Bug("Can't guarantee validity of Movie's Scene children");
                 break;
             }
         }
@@ -4932,13 +5001,13 @@ bool MVIE::FSetCmvi(PCMVI pcmvi)
 LFail:
     if (pglmviedNew != pvNil)
     {
-        /* Remove any copied movies; leave the first MVIED alone */
+        /* Remove any copied movies; leave the first MovieDescriptor alone */
         while (imvied-- > 1)
         {
-            MVIED mvied;
+            MovieDescriptor mvied;
 
             pglmviedNew->Get(imvied, &mvied);
-            Assert(mvied.pcrf == pcrf, "Invalid MVIED during cleanup");
+            Assert(mvied.pcrf == pcrf, "Invalid MovieDescriptor during cleanup");
             pcfl->Delete(kctgMvie, mvied.cno);
             ReleasePpo(&mvied.pcrf);
         }
@@ -4950,25 +5019,25 @@ LFail:
 /******************************************************************************
     _FAddMvieToRollCall
         Updates roll call (including remapping arids for the actors found in
-        the new movie) for a given MVIE that's just been copied into this
+        the new movie) for a given Movie that's just been copied into this
         movie's file.
 
     Arguments:
-        CNO cno       -- the CNO of the copied movie
+        ChunkNumber cno       -- the ChunkNumber of the copied movie
         long aridMin  -- the new base arid for this movie's actors
 
     Returns: fTrue if it succeeds, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
+bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 {
     AssertThis(0);
 
     long imactr, imactrMac, icnoMac = 0;
-    PCFL pcfl = _pcrfAutoSave->Pcfl();
-    PGST pgstmactr = pvNil;
+    PChunkyFile pcfl = _pcrfAutoSave->Pcfl();
+    PStringTable_GST pgstmactr = pvNil;
 
-    /* Update the roll call GST */
+    /* Update the roll call StringTable_GST */
     if (!FReadRollCall(_pcrfAutoSave, cno, &pgstmactr))
     {
         pgstmactr = pvNil;
@@ -4977,8 +5046,8 @@ bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
     imactrMac = pgstmactr->IvMac();
     for (imactr = 0; imactr < imactrMac; imactr++)
     {
-        STN stn;
-        MACTR mactr;
+        String stn;
+        RollCallActorEntry mactr;
 
         pgstmactr->GetStn(imactr, &stn);
         pgstmactr->GetExtra(imactr, &mactr);
@@ -4993,12 +5062,12 @@ bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
     if (aridMin > 0)
     {
         ulong grfcge, grfcgeIn = fcgeNil;
-        PGL pglcno;
-        CKI ckiParLast = {ctgNil, cnoNil}, ckiPar;
-        KID kid;
-        CGE cge;
+        PDynamicArray pglcno;
+        ChunkIdentification ckiParLast = {ctgNil, cnoNil}, ckiPar;
+        ChildChunkIdentification kid;
+        ChunkGraphEnumerator cge;
 
-        if ((pglcno = GL::PglNew(size(CNO))) == pvNil)
+        if ((pglcno = DynamicArray::PglNew(size(ChunkNumber))) == pvNil)
             goto LFail;
         cge.Init(pcfl, kctgMvie, cno);
         while (cge.FNextKid(&kid, &ckiPar, &grfcge, fcgeNil))
@@ -5006,11 +5075,11 @@ bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
             if (grfcge & fcgePre)
             {
 
-                /* If we've found an ACTR chunk, remap its arid */
+                /* If we've found an Actor chunk, remap its arid */
                 if (kid.cki.ctg == kctgActr)
                 {
                     long icno;
-                    CNO cnoActr;
+                    ChunkNumber cnoActr;
 
                     /* Only do a given chunk once */
                     Assert(icnoMac == pglcno->IvMac(), "icnoMac isn't up-to-date");
@@ -5026,17 +5095,17 @@ bool MVIE::_FAddMvieToRollCall(CNO cno, long aridMin)
                         goto LFail1;
 
                     /* Change the arid */
-                    if (!ACTR::FAdjustAridOnFile(pcfl, kid.cki.cno, aridMin))
+                    if (!Actor::FAdjustAridOnFile(pcfl, kid.cki.cno, aridMin))
                     {
                         /* Don't bother trying to fix the arids on file; the caller
-                            should be deleting the copied MVIE chunk anyway */
+                            should be deleting the copied Movie chunk anyway */
                     LFail1:
                         ReleasePpo(&pglcno);
                         goto LFail;
                     }
                     icnoMac++;
 
-                    /* Once we're at an ACTR chunk, set up so that we don't
+                    /* Once we're at an Actor chunk, set up so that we don't
                         enumerate down again until returning to our parent's
                         next sibling */
                     ckiParLast = ckiPar;
@@ -5061,7 +5130,7 @@ LFail:
         performance here */
     if (pgstmactr != pvNil)
     {
-        MACTR mactr;
+        RollCallActorEntry mactr;
 
         /* Remove added entries to the movie's roll call */
         imactrMac = _pgstmactr->IvMac();
@@ -5087,22 +5156,22 @@ LFail:
 
 /******************************************************************************
     EmptyCmvi
-        Frees up the memory used by the CMVI.  For each scene in the
-        GL of SCENDs, releases memory that the SCEND referred to.  Likewise
-        for each MVIED in the GL of MVIEDs.
+        Frees up the memory used by the CompositeMovie.  For each scene in the
+        DynamicArray of SCENDs, releases memory that the SceneDescriptor referred to.  Likewise
+        for each MovieDescriptor in the DynamicArray of MVIEDs.
 
     Arguments:
-        PCMVI pcmvi -- the CMVI to empty
+        PCompositeMovie pcmvi -- the CompositeMovie to empty
 
     Returns: Sets the client's pointer to pvNil when finished
 
 ************************************************************ PETED ***********/
-void CMVI::Empty(void)
+void CompositeMovie::Empty(void)
 {
     AssertPo(pglscend, 0);
     AssertPo(pglmvied, 0);
 
-    PGL pgl;
+    PDynamicArray pgl;
 
     if ((pgl = pglscend) != pvNil)
     {
@@ -5110,7 +5179,7 @@ void CMVI::Empty(void)
 
         while (iscend-- > 0)
         {
-            SCEND scend;
+            SceneDescriptor scend;
 
             pgl->Get(iscend, &scend);
             ReleasePpo(&scend.pmbmp);
@@ -5125,7 +5194,7 @@ void CMVI::Empty(void)
 
         while (imvied-- > 0)
         {
-            MVIED mvied;
+            MovieDescriptor mvied;
 
             pgl->Get(imvied, &mvied);
             ReleasePpo(&mvied.pcrf);
@@ -5137,18 +5206,18 @@ void CMVI::Empty(void)
 
 /******************************************************************************
     _FInsertScend
-        Inserts the given SCEND into a GL of SCENDs that was created by this
+        Inserts the given SceneDescriptor into a DynamicArray of SCENDs that was created by this
         movie.
 
     Arguments:
-        PGL pglscend  -- the GL of SCENDs to insert into
-        long iscend   -- the position at which to insert this SCEND
-        PSCEND pscend -- the SCEND to insert
+        PDynamicArray pglscend  -- the DynamicArray of SCENDs to insert into
+        long iscend   -- the position at which to insert this SceneDescriptor
+        PSceneDescriptor pscend -- the SceneDescriptor to insert
 
     Returns: fTrue if successful, fFalse otherwise
 
 ************************************************************ PETED ***********/
-bool MVIE::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
+bool Movie::_FInsertScend(PDynamicArray pglscend, long iscend, PSceneDescriptor pscend)
 {
     AssertPo(pglscend, 0);
     AssertPo(pscend->pmbmp, 0);
@@ -5161,20 +5230,20 @@ bool MVIE::_FInsertScend(PGL pglscend, long iscend, PSCEND pscend)
 
 /******************************************************************************
     _DeleteScend
-        Deletes the given SCEND from a GL of SCENDs that was created by this
+        Deletes the given SceneDescriptor from a DynamicArray of SCENDs that was created by this
         movie.
 
     Arguments:
-        PGL pglscend -- the GL of SCENDs to delete from
-        long iscend  -- which SCEND to delete
+        PDynamicArray pglscend -- the DynamicArray of SCENDs to delete from
+        long iscend  -- which SceneDescriptor to delete
 
 ************************************************************ PETED ***********/
-void MVIE::_DeleteScend(PGL pglscend, long iscend)
+void Movie::_DeleteScend(PDynamicArray pglscend, long iscend)
 {
     AssertPo(pglscend, 0);
     AssertIn(iscend, 0, pglscend->IvMac());
 
-    SCEND scend;
+    SceneDescriptor scend;
 
     pglscend->Get(iscend, &scend);
     AssertPo(scend.pmbmp, 0);
@@ -5193,7 +5262,7 @@ void MVIE::_DeleteScend(PGL pglscend, long iscend)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FSetTransition(TRANS trans)
+bool Movie::FSetTransition(TRANS trans)
 {
     AssertThis(0);
     AssertIn(trans, 0, transLim);
@@ -5219,15 +5288,15 @@ bool MVIE::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FPasteActr(PACTR pactr)
+bool Movie::FPasteActr(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
     AssertPo(Pscen(), 0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)PddgGet(0);
+    pmvu = (PMovieView)PddgGet(0);
     if (pmvu == pvNil)
     {
         return (fFalse);
@@ -5266,17 +5335,17 @@ bool MVIE::FPasteActr(PACTR pactr)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool MVIE::FPasteActrPath(PACTR pactr)
+bool Movie::FPasteActrPath(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
     AssertPo(Pscen(), 0);
     AssertNilOrPo(Pscen()->PactrSelected(), 0);
 
-    PACTR pactrDup;
+    PActor pactrDup;
 
     // REVIEW SeanSe(seanse): This is wrong.  Move the undo stuff into
-    //     ACTR::FPasteRte() and make ACTR::FPasteRte into FPasteRteCore.
+    //     Actor::FPasteRte() and make Actor::FPasteRte into FPasteRteCore.
     if (Pscen()->PactrSelected() == pvNil)
     {
         PushErc(ercSocNoActrSelected);
@@ -5322,12 +5391,12 @@ bool MVIE::FPasteActrPath(PACTR pactr)
  *  None.
  *
  **************************************************************************/
-void MVIE::InvalViews(void)
+void Movie::InvalViews(void)
 {
     AssertThis(0);
 
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     for (ipddg = 0; pvNil != (pddg = PddgGet(ipddg)); ipddg++)
     {
@@ -5346,7 +5415,7 @@ void MVIE::InvalViews(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::InvalViewsAndScb(void)
+void Movie::InvalViewsAndScb(void)
 {
     AssertThis(0);
 
@@ -5366,12 +5435,12 @@ void MVIE::InvalViewsAndScb(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::MarkViews(void)
+void Movie::MarkViews(void)
 {
     AssertThis(0);
 
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     //
     // Need this call in order to mark correctly the changed regions.
@@ -5381,8 +5450,8 @@ void MVIE::MarkViews(void)
 #ifdef DEBUG
     if (FWriteBmps())
     {
-        FNI fni;
-        STN stn;
+        Filename fni;
+        String stn;
 
         if (stn.FFormatSz(PszLit("cel%04d.dib"), _lwBmp++))
         {
@@ -5412,7 +5481,7 @@ void MVIE::MarkViews(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::GetName(PSTN pstnTitle)
+void Movie::GetName(PString pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);
@@ -5423,13 +5492,13 @@ void MVIE::GetName(PSTN pstnTitle)
 /******************************************************************************
     ResetTitle
         Resets the movie title to whatever it's normal default would be (either
-        from the filename or from the MCC string table).
+        from the filename or from the MovieClientCallbacks string table).
 ************************************************************ PETED ***********/
-void MVIE::ResetTitle(void)
+void Movie::ResetTitle(void)
 {
     AssertThis(0);
 
-    FNI fni;
+    Filename fni;
 
     _stnTitle.SetNil();
     _SetTitle(FGetFni(&fni) ? &fni : pvNil);
@@ -5446,7 +5515,7 @@ void MVIE::ResetTitle(void)
  *  None.
  *
  **************************************************************************/
-void MVIE::BuildActionMenu()
+void Movie::BuildActionMenu()
 {
     AssertThis(0);
     long arid = aridNil;
@@ -5472,8 +5541,8 @@ const long kdtsTrans = 4 * kdtsSecond;
  * until every number is hit.  This fact is used to create the dissolve effect.
  *
  * Parameters:
- *	pgnvDst - The destination GNV.
- *	pgnvSrc - The source GNV.
+ *	pgnvDst - The destination GraphicsEnvironment.
+ *	pgnvSrc - The source GraphicsEnvironment.
  *	prcDst - The clipping rectangle in the destination.
  *	prcSrc - The clipping rectangle in the source.
  *
@@ -5481,7 +5550,7 @@ const long kdtsTrans = 4 * kdtsSecond;
  *  None.
  *
  **************************************************************************/
-void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
+void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, RC *prcDst, RC *prcSrc)
 {
     AssertThis(0);
     AssertPo(pgnvDst, 0);
@@ -5489,11 +5558,11 @@ void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
     AssertVarMem(prcDst);
     AssertVarMem(prcSrc);
 
-    PGL pglclrSystem = pvNil;
-    PGL pglclrBkgd = pvNil;
+    PDynamicArray pglclrSystem = pvNil;
+    PDynamicArray pglclrBkgd = pvNil;
     long iclrMin;
 
-    pglclrSystem = GPT::PglclrGetPalette();
+    pglclrSystem = GraphicsPort::PglclrGetPalette();
     if (Pscen() == pvNil || !Pscen()->Pbkgd()->FGetPalette(&pglclrBkgd, &iclrMin))
     {
         pglclrBkgd = pvNil;
@@ -5501,7 +5570,7 @@ void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
     if (pvNil != pglclrSystem && pvNil != pglclrBkgd)
     {
         Assert(pglclrBkgd->IvMac() + iclrMin <= pglclrSystem->IvMac(), "Background palette too large");
-        CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(CLR), pglclrBkgd->IvMac()));
+        CopyPb(pglclrBkgd->QvGet(0), pglclrSystem->QvGet(iclrMin), LwMul(size(Color), pglclrBkgd->IvMac()));
     }
 
     switch (_trans)
@@ -5524,7 +5593,7 @@ void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
 
     case transCut:
         pgnvDst->FillRc(prcDst, kacrBlack);
-        GPT::SetActiveColors(pglclrSystem, fpalIdentity);
+        GraphicsPort::SetActiveColors(pglclrSystem, fpalIdentity);
         pgnvDst->CopyPixels(pgnvSrc, prcSrc, prcDst);
         break;
 
@@ -5551,7 +5620,7 @@ void MVIE::DoTrans(PGNV pgnvDst, PGNV pgnvSrc, RC *prcDst, RC *prcSrc)
  *  1 if exists, else 0.
  *
  **************************************************************************/
-long MVIE::LwQueryExists(long lwType, long lwId)
+long Movie::LwQueryExists(long lwType, long lwId)
 {
     AssertThis(0);
     AssertIn(lwType, 0, 2);
@@ -5582,12 +5651,12 @@ long MVIE::LwQueryExists(long lwType, long lwId)
  *  -1 if nonexistent or non-visible, else x in high word, y in low word.
  *
  **************************************************************************/
-long MVIE::LwQueryLocation(long lwType, long lwId)
+long Movie::LwQueryLocation(long lwType, long lwId)
 {
     AssertThis(0);
     AssertIn(lwType, 0, 2);
 
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     long xp, yp;
     RC rc;
@@ -5602,7 +5671,7 @@ long MVIE::LwQueryLocation(long lwType, long lwId)
     {
         RC rcBounds;
         long cactGuessPt = 0;
-        RND rnd;
+        Random rnd;
         long ibset;
 
         pactr = Pscen()->PactrFromArid(lwId);
@@ -5664,7 +5733,7 @@ long MVIE::LwQueryLocation(long lwType, long lwId)
  *  0 if successful, else -1.
  *
  **************************************************************************/
-long MVIE::LwSetMoviePos(long lwScene, long lwFrame)
+long Movie::LwSetMoviePos(long lwScene, long lwFrame)
 {
     AssertThis(0);
 
@@ -5692,14 +5761,14 @@ long MVIE::LwSetMoviePos(long lwScene, long lwFrame)
  *                         actually usable
  **************************************************************************/
 
-bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
+bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfHaveValid);
 
     bool fUnused = fFalse;
     long icki, ccki;
-    PCFL pcfl;
+    PChunkyFile pcfl;
 
     if (pfHaveValid != pvNil)
         *pfHaveValid = fFalse;
@@ -5711,11 +5780,11 @@ bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
     ccki = pcfl->CckiCtg(kctgMsnd);
     for (icki = 0; icki < ccki; icki++)
     {
-        CKI cki;
-        KID kid;
+        ChunkIdentification cki;
+        ChildChunkIdentification kid;
 
         AssertDo(pcfl->FGetCkiCtg(kctgMsnd, icki, &cki), "Should never fail");
-        Assert(_FIsChild(pcfl, cki.ctg, cki.cno), "Not a child of MVIE chunk");
+        Assert(_FIsChild(pcfl, cki.ctg, cki.cno), "Not a child of Movie chunk");
         if (pcfl->CckiRef(cki.ctg, cki.cno) < 2)
         {
             fUnused = fTrue;
@@ -5745,7 +5814,7 @@ bool MVIE::FUnusedSndsUser(bool *pfHaveValid)
  *  None.
  *
  **************************************************************************/
-void MVIE::_SetTitle(PFNI pfni)
+void Movie::_SetTitle(PFilename pfni)
 {
     AssertThis(0);
 
@@ -5783,37 +5852,39 @@ void MVIE::_SetTitle(PFNI pfni)
 //
 //
 //
-//  BEGIN MVU GOODIES
+//  BEGIN MovieView GOODIES
 //
 //
 //
 
-BEGIN_CMD_MAP(MVU, DDG)
-ON_CID_GEN(cidCopyRoute, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidCutTool, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidShiftCut, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidCopyTool, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidShiftCopy, &MVU::FCmdClip, pvNil)
-ON_CID_GEN(cidPasteTool, &MVU::FCmdClip, pvNil)
+BEGIN_CMD_MAP(MovieView, DocumentDisplayGraphicsObject)
+ON_CID_GEN(cidCopyRoute, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidCutTool, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidShiftCut, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidCopyTool, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidShiftCopy, &MovieView::FCmdClip, pvNil)
+ON_CID_GEN(cidPasteTool, &MovieView::FCmdClip, pvNil)
 ON_CID_GEN(cidClose, pvNil, pvNil)
-ON_CID_GEN(cidSave, &MVU::FCmdSave, pvNil)
-ON_CID_GEN(cidSaveAs, &MVU::FCmdSave, pvNil)
-ON_CID_GEN(cidSaveCopy, &MVU::FCmdSave, pvNil)
-ON_CID_GEN(cidIdle, &MVU::FCmdIdle, pvNil)
-ON_CID_GEN(cidRollOff, &MVU::FCmdRollOff, pvNil)
+ON_CID_GEN(cidSave, &MovieView::FCmdSave, pvNil)
+ON_CID_GEN(cidSaveAs, &MovieView::FCmdSave, pvNil)
+ON_CID_GEN(cidSaveCopy, &MovieView::FCmdSave, pvNil)
+ON_CID_GEN(cidIdle, &MovieView::FCmdIdle, pvNil)
+ON_CID_GEN(cidRollOff, &MovieView::FCmdRollOff, pvNil)
+ON_CID_GEN(cidKey, &MovieView::FCmdKeyCore, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(MVU)
+RTCLASS(MovieView)
 
 /****************************************************
  *
  * Destructor for movie view objects
  *
  ****************************************************/
-MVU::~MVU(void)
+MovieView::~MovieView(void)
 {
     if (_tagTool.sid != ksidInvalid)
-        TAGM::CloseTag(&_tagTool);
+        TagManager::CloseTag(&_tagTool);
+    ReleasePpo(&_paundGroup);
 }
 
 /***************************************************************************
@@ -5830,18 +5901,18 @@ MVU::~MVU(void)
  *  A pointer to the view, otw pvNil on failure
  *
  ***************************************************************************/
-MVU *MVU::PmvuNew(PMVIE pmvie, PGCB pgcb, long dxp, long dyp)
+MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp, long dyp)
 {
     AssertPo(pmvie, 0);
     AssertVarMem(pgcb);
 
-    MVU *pmvu;
+    MovieView *pmvu;
     BRS rgr[3][3] = {{rOne, rZero, rZero}, {rZero, rZero, rOne}, {rZero, -rOne, rZero}};
 
     //
     // Create the new view
     //
-    if ((pmvu = NewObj MVU(pmvie, pgcb)) == pvNil)
+    if ((pmvu = NewObj MovieView(pmvie, pgcb)) == pvNil)
         return pvNil;
 
     //
@@ -5860,6 +5931,12 @@ MVU *MVU::PmvuNew(PMVIE pmvie, PGCB pgcb, long dxp, long dyp)
     pmvu->_dyp = dyp;
     pmvu->_tool = toolCompose;
     pmvu->_tagTool.sid = ksidInvalid;
+    pmvu->_fSelToggleArmed = fFalse;
+    pmvu->_pactrSelToggle = pvNil;
+    pmvu->_paundGroup = pvNil;
+    pmvu->_xrPivot = rZero;
+    pmvu->_yrPivot = rZero;
+    pmvu->_zrPivot = rZero;
 
     //
     // Make this the active view
@@ -5879,7 +5956,7 @@ MVU *MVU::PmvuNew(PMVIE pmvie, PGCB pgcb, long dxp, long dyp)
  *  None.
  *
  ***************************************************************************/
-void MVU::SetTool(long tool)
+void MovieView::SetTool(long tool)
 {
     AssertThis(0);
     AssertPo(Pmvie(), 0);
@@ -5887,7 +5964,7 @@ void MVU::SetTool(long tool)
 
     long lwMode; // -1 = Textbox mode, 0 = either mode, 1 = Actor mode
     PTBOX ptbox = pvNil;
-    PACTR pactr = pvNil;
+    PActor pactr = pvNil;
 
     if (Pmvie()->Pscen() != pvNil)
     {
@@ -6121,14 +6198,14 @@ void MVU::SetTool(long tool)
  *  None.
  *
  ***************************************************************************/
-void MVU::SetTagTool(PTAG ptag)
+void MovieView::SetTagTool(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
 
     if (_tagTool.sid != ksidInvalid)
     {
-        TAGM::CloseTag(&_tagTool);
+        TagManager::CloseTag(&_tagTool);
     }
 
 #ifdef DEBUG
@@ -6141,7 +6218,7 @@ void MVU::SetTagTool(PTAG ptag)
 
     _tagTool = *ptag;
     if (_tagTool.sid != ksidInvalid)
-        TAGM::DupTag(ptag);
+        TagManager::DupTag(ptag);
 }
 
 /***************************************************************************
@@ -6156,7 +6233,7 @@ void MVU::SetTagTool(PTAG ptag)
  *  None.
  *
  ***************************************************************************/
-void MVU::Draw(PGNV pgnv, RC *prcClip)
+void MovieView::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -6195,6 +6272,27 @@ void MVU::Draw(PGNV pgnv, RC *prcClip)
         {
             pgnv->FrameRcApt(&_rcFrame, &vaptLtGray, kacrBlack, kacrWhite);
         }
+
+        //
+        // Numeric pose readout for selected actor (UI-2). Shows world X/Y/Z
+        // of the primary selection in the top-left of the viewport when the
+        // toggle is on (Product Info dialog).
+        //
+        if (_fShowPoseReadout)
+        {
+            PActor pactrSel = Pmvie()->Pscen()->PactrSelected();
+            if (pactrSel != pvNil && pactrSel->Pbody() != pvNil)
+            {
+                // Read live BRender transform so the readout tracks during
+                // drag. Actor::GetXyzWorld reads committed path data and is
+                // stale until mouseup.
+                BRS xr, yr, zr;
+                String stn;
+                pactrSel->Pbody()->GetPosition(&xr, &yr, &zr);
+                stn.FFormatSz(PszLit("X=%d Y=%d Z=%d"), BrScalarToInt(xr), BrScalarToInt(yr), BrScalarToInt(zr));
+                pgnv->DrawStn(&stn, 4, 4, kacrBlack, kacrWhite);
+            }
+        }
     }
     else
     {
@@ -6215,7 +6313,7 @@ void MVU::Draw(PGNV pgnv, RC *prcClip)
  *	None.
  *
  **************************************************************************/
-void MVU::WarpCursToCenter(void)
+void MovieView::WarpCursToCenter(void)
 {
     AssertThis(0);
 
@@ -6241,7 +6339,7 @@ void MVU::WarpCursToCenter(void)
  *	None.
  *
  **************************************************************************/
-void MVU::WarpCursToActor(PACTR pactr)
+void MovieView::WarpCursToActor(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -6269,7 +6367,7 @@ void MVU::WarpCursToActor(PACTR pactr)
  *	None.
  *
  **************************************************************************/
-void MVU::AdjustCursor(long xp, long yp)
+void MovieView::AdjustCursor(long xp, long yp)
 {
     AssertThis(0);
 
@@ -6307,7 +6405,7 @@ void MVU::AdjustCursor(long xp, long yp)
  *  None.
  *
  **************************************************************************/
-void MVU::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord)
+void MovieView::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord)
 {
     AssertThis(0);
     AssertVarMem(pdxrWld);
@@ -6337,9 +6435,10 @@ void MVU::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, B
     *pdzrWld = BR_MAC3(dxrScr, bmat34Cam.m[0][2], dyrScr, bmat34Cam.m[1][2], dzrScr, bmat34Cam.m[2][2]);
 }
 
-bool MVU::_fKbdDelayed = fFalse;
-long MVU::_dtsKbdDelay;
-long MVU::_dtsKbdRepeat;
+bool MovieView::_fKbdDelayed = fFalse;
+long MovieView::_dtsKbdDelay;
+long MovieView::_dtsKbdRepeat;
+bool MovieView::_fShowPoseReadout = fFalse;
 
 /***************************************************************************
  *
@@ -6353,7 +6452,7 @@ long MVU::_dtsKbdRepeat;
  *  none
  *
  **************************************************************************/
-void MVU::SlowKeyboardRepeat(void)
+void MovieView::SlowKeyboardRepeat(void)
 {
     if (_fKbdDelayed)
         return;
@@ -6396,7 +6495,7 @@ void MVU::SlowKeyboardRepeat(void)
  *  none
  *
  **************************************************************************/
-void MVU::RestoreKeyboardRepeat(void)
+void MovieView::RestoreKeyboardRepeat(void)
 {
     if (!_fKbdDelayed)
         return;
@@ -6431,12 +6530,12 @@ void MVU::RestoreKeyboardRepeat(void)
  *  None.
  *
  **************************************************************************/
-void MVU::StartPlaceActor(bool fEntireScene)
+void MovieView::StartPlaceActor(bool fEntireScene)
 {
     AssertThis(0);
     AssertPo(Pmvie()->Pscen(), 0);
 
-    PACTR pactr = Pmvie()->Pscen()->PactrSelected();
+    PActor pactr = Pmvie()->Pscen()->PactrSelected();
 
     AssertPo(pactr, 0);
 
@@ -6478,7 +6577,7 @@ void MVU::StartPlaceActor(bool fEntireScene)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-void MVU::EndPlaceActor()
+void MovieView::EndPlaceActor()
 {
     AssertThis(0);
     AssertPo(Pmvie()->Pscen(), 0);
@@ -6510,14 +6609,14 @@ void MVU::EndPlaceActor()
  *  fTrue - indicating that the command was processed.
  *
  ***************************************************************************/
-bool MVU::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool MovieView::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PACTR pactr;
+    PActor pactr;
     long ibset;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     AssertPo(Pmvie(), 0);
     if (Pmvie()->Pscen() == pvNil)
@@ -6653,9 +6752,9 @@ bool MVU::FCmdMouseMove(PCMD_MOUSE pcmd)
             {
                 Pmvie()->Pmcc()->SetCurs(toolComposeAll);
             }
-            else if ((Tool() == toolPasteObject) && vpclip->FGetFormat(kclsACLP, &pdocb))
+            else if ((Tool() == toolPasteObject) && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
             {
-                if (((PACLP)pdocb)->FRouteOnly())
+                if (((PActorClipboard)pdocb)->FRouteOnly())
                     Pmvie()->Pmcc()->SetCurs(toolPasteRte);
                 else
                     Pmvie()->Pmcc()->SetCurs(Tool());
@@ -6694,7 +6793,7 @@ bool MVU::FCmdMouseMove(PCMD_MOUSE pcmd)
  *  fTrue - indicating that the command was processed.
  *
  ***************************************************************************/
-bool MVU::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool MovieView::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -6740,15 +6839,15 @@ bool MVU::FCmdTrackMouse(PCMD_MOUSE pcmd)
  *  None.
  *
  **************************************************************************/
-void MVU::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
+void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
 {
     AssertThis(0);
     Assert(Tool() == toolPlace, "Wrong tool in effect");
 
-    PMVIE pmvie;
-    PSCEN pscen;
+    PMovie pmvie;
+    PScene pscen;
     bool fMoved;
-    PACTR pactr = pvNil;
+    PActor pactr = pvNil;
     ulong grfmaf = fmafOrient;
 
     pmvie = Pmvie();
@@ -6797,7 +6896,7 @@ void MVU::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
  *  None.
  *
  **************************************************************************/
-void MVU::_ActorClicked(PACTR pactr, bool fDown)
+void MovieView::_ActorClicked(PActor pactr, bool fDown)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -6835,18 +6934,18 @@ void MVU::_ActorClicked(PACTR pactr, bool fDown)
  *  None.
  *
  **************************************************************************/
-void MVU::_MouseDown(CMD_MOUSE *pcmd)
+void MovieView::_MouseDown(CMD_MOUSE *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PACTR pactr = pvNil;
-    PACTR pactrDup;
+    PActor pactr = pvNil;
+    PActor pactrDup;
     PTBOX ptbox;
-    PAUND paund;
+    PActorUndo paund;
     PT pt;
     long ibset;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     SlowKeyboardRepeat();
 
@@ -6871,9 +6970,8 @@ void MVU::_MouseDown(CMD_MOUSE *pcmd)
     }
     else if ((Tool() != toolPlace) && (Tool() != toolSceneChop) && (Tool() != toolSceneChopBack))
     {
-
         //
-        // Select the actor under the cursor
+        // Select the actor under the cursor.
         //
         pactr = Pmvie()->Pscen()->PactrSelected();
         AssertNilOrPo(pactr, 0);
@@ -6885,23 +6983,62 @@ void MVU::_MouseDown(CMD_MOUSE *pcmd)
 
         pactrDup = Pmvie()->Pscen()->PactrFromPt(pcmd->xp, pcmd->yp, &ibset);
 
-        //
-        // Use previously selected actor if mouse in the actor.
-        // Don't change the selected actor if we're using the default tool
-        //
-        if (((pactr == pvNil) || !pactr->FIsInView() || !pactr->FPtIn(pcmd->xp, pcmd->yp, &ibset)) &&
-            Tool() != toolDefault)
+        // Shift-click on an actor with a selection-friendly tool: arm a toggle for mouseup.
+        // Tools that support multi-actor drags participate (move, rotate, resize, squash),
+        // plus the default and explicit-select tools. Other tools collapse to single-select
+        // via the existing path below.
+        bool fShiftSelectTool = (Tool() == toolCompose) || (Tool() == toolDefault) ||
+                                (Tool() == toolActorSelect) || (Tool() == toolRotateX) ||
+                                (Tool() == toolRotateY) || (Tool() == toolRotateZ) ||
+                                (Tool() == toolResize) || (Tool() == toolSquashStretch);
+        if (fShiftSelectTool && (pcmd->grfcust & fcustShift) && pactrDup != pvNil)
         {
-            pactr = pactrDup;
-            AssertNilOrPo(pactr, 0);
+            _fSelToggleArmed = fTrue;
+            _pactrSelToggle = pactrDup;
+            _xpSelToggleDown = pcmd->xp;
+            _ypSelToggleDown = pcmd->yp;
+            Pmvie()->Pbwld()->MarkDirty();
+            // Do NOT call SelectActr here. Toggle fires at mouseup if we didn't drag.
+            // Skip the rest of the mousedown selection flow; existing behavior resumes
+            // at the switch on Tool() below if the user goes on to drag.
         }
+        else if (fShiftSelectTool && pactrDup != pvNil &&
+                 Pmvie()->Pscen()->CactrSelected() >= 2 && Pmvie()->Pscen()->FIsActrSelected(pactrDup))
+        {
+            // Plain click (no shift) on an actor that is already part of an existing
+            // multi-selection: do NOT collapse the selection via SelectActr, so a
+            // click-drag moves the whole group. Without this, SelectActr would clear
+            // the extras list and the drag would only translate the clicked actor.
+            Pmvie()->Pbwld()->MarkDirty();
+        }
+        else
+        {
+            //
+            // Use previously selected actor if mouse in the actor.
+            // Don't change the selected actor if we're using the default tool.
+            //
+            if (((pactr == pvNil) || !pactr->FIsInView() || !pactr->FPtIn(pcmd->xp, pcmd->yp, &ibset)) &&
+                Tool() != toolDefault)
+            {
+                pactr = pactrDup;
+                AssertNilOrPo(pactr, 0);
+            }
 
-        if (pvNil != pactr)
-        {
-            _ActorClicked(pactr, fTrue);
+            if (pvNil != pactr)
+            {
+                _ActorClicked(pactr, fTrue);
+                // Plain click on a tagged actor recalls its whole group;
+                // for actors with no tag this collapses to SelectActr, the
+                // pre-tag-feature behaviour. Shift-click bypasses this --
+                // shift-toggle is single-actor by design.
+                Pmvie()->Pscen()->FSelectActrsSharingTagsWith(pactr);
+            }
+            else
+            {
+                Pmvie()->Pscen()->SelectActr(pvNil);
+            }
+            Pmvie()->Pbwld()->MarkDirty();
         }
-        Pmvie()->Pscen()->SelectActr(pactr); // okay even if pactr is pvNil
-        Pmvie()->Pbwld()->MarkDirty();
     }
 
 #ifdef DEBUG
@@ -7030,7 +7167,7 @@ void MVU::_MouseDown(CMD_MOUSE *pcmd)
     case toolPasteObject:
         if (!_fTextMode)
         {
-            if (vpclip->FGetFormat(kclsACLP, &pdocb) && ((PACLP)pdocb)->FRouteOnly() && (pactr != pvNil))
+            if (vpclip->FGetFormat(kclsActorClipboard, &pdocb) && ((PActorClipboard)pdocb)->FRouteOnly() && (pactr != pvNil))
             {
                 FDoClip(Tool());
                 ReleasePpo(&pdocb);
@@ -7075,29 +7212,95 @@ void MVU::_MouseDown(CMD_MOUSE *pcmd)
     case toolSquashStretch:
         if (pactr != pvNil)
         {
-
             vpappb->HideCurs();
 
-            //
-            // Create an actor undo object
-            //
-            paund = AUND::PaundNew();
-            if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
+            // For multi-selection drags (move / rotate / resize / squash):
+            // snapshot every selected actor and bundle into an
+            // ActorMoveGroupUndo. Single-select retains the _paund flow.
+            // Group rotate / scale also freeze a pivot here.
+            bool fGroupTool = (Tool() == toolCompose) || (Tool() == toolRotateX) ||
+                              (Tool() == toolRotateY) || (Tool() == toolRotateZ) ||
+                              (Tool() == toolResize) || (Tool() == toolSquashStretch);
+            long cactrSel = (fGroupTool && Pmvie()->Pscen() != pvNil)
+                                ? Pmvie()->Pscen()->CactrSelected()
+                                : 1;
+
+            if (cactrSel >= 2 && Tool() != toolCompose)
             {
-                Pmvie()->ClearUndo();
-                PushErc(ercSocNotUndoable);
+                // Freeze the rotate / scale pivot at the selection centroid.
+                // If no selected actor is currently visible the centroid is
+                // undefined; default the pivot to origin -- every per-tick
+                // FMoveRoute will no-op on the offstage actors anyway, so the
+                // drag is harmlessly inert and the group undo entry is empty.
+                if (!Pmvie()->Pscen()->FXyzSelectionCentroid(&_xrPivot, &_yrPivot, &_zrPivot))
+                {
+                    _xrPivot = _yrPivot = _zrPivot = rZero;
+                }
+            }
+
+            if (cactrSel >= 2)
+            {
+                PActorMoveGroupUndo pamgu = ActorMoveGroupUndo::PamguNew();
+                bool fOk = (pamgu != pvNil);
+                for (long iactr = 0; fOk && iactr < cactrSel; iactr++)
+                {
+                    PActor pactrSel = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                    PActorUndo paundChild = ActorUndo::PaundNew();
+                    PActor pactrSnap = pvNil;
+                    if (paundChild == pvNil || !pactrSel->FDup(&pactrSnap, fTrue))
+                    {
+                        ReleasePpo(&paundChild);
+                        ReleasePpo(&pactrSnap);
+                        fOk = fFalse;
+                        break;
+                    }
+                    paundChild->SetPactr(pactrSnap);
+                    ReleasePpo(&pactrSnap);
+                    paundChild->SetArid(pactrSel->Arid());
+                    if (!pamgu->FAddChild(paundChild))
+                    {
+                        ReleasePpo(&paundChild);
+                        fOk = fFalse;
+                        break;
+                    }
+                    ReleasePpo(&paundChild); // pamgu holds its own ref via FAddChild
+                }
+
+                if (!fOk)
+                {
+                    ReleasePpo(&pamgu);
+                    Pmvie()->ClearUndo();
+                    PushErc(ercSocNotUndoable);
+                }
+                else
+                {
+                    Assert(_paundGroup == pvNil, "leaking previous group undo");
+                    _paundGroup = pamgu;
+                }
             }
             else
             {
-                paund->SetPactr(pactrDup);
-                ReleasePpo(&pactrDup);
-                paund->SetArid(pactr->Arid());
+                //
+                // Create an actor undo object (single-actor flow, unchanged).
+                //
+                paund = ActorUndo::PaundNew();
+                if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
+                {
+                    Pmvie()->ClearUndo();
+                    PushErc(ercSocNotUndoable);
+                }
+                else
+                {
+                    paund->SetPactr(pactrDup);
+                    ReleasePpo(&pactrDup);
+                    paund->SetArid(pactr->Arid());
 
-                //
-                // Store it.  We will only add it if there is a change done
-                // to the actor.
-                //
-                _paund = paund;
+                    //
+                    // Store it.  We will only add it if there is a change done
+                    // to the actor.
+                    //
+                    _paund = paund;
+                }
             }
 
             if ((Tool() != toolResize) && (Tool() != toolSquashStretch))
@@ -7253,6 +7456,36 @@ LEnd:
 
 /***************************************************************************
  *
+ * Commits whichever pending move-undo we have (group or single) to the
+ * movie's undo stack. Releases the field afterwards. Nil-safe.
+ *
+ **************************************************************************/
+void MovieView::_CommitMoveUndo(void)
+{
+    AssertThis(0);
+
+    if (_paundGroup != pvNil)
+    {
+        if (!Pmvie()->FAddUndo(_paundGroup))
+        {
+            PushErc(ercSocNotUndoable);
+            Pmvie()->ClearUndo();
+        }
+        ReleasePpo(&_paundGroup);
+    }
+    else if (_paund != pvNil)
+    {
+        if (!Pmvie()->FAddUndo(_paund))
+        {
+            PushErc(ercSocNotUndoable);
+            Pmvie()->ClearUndo();
+        }
+        ReleasePpo(&_paund);
+    }
+}
+
+/***************************************************************************
+ *
  * Handle Mouse drag (mouse move while button down)
  *
  * Parameters:
@@ -7262,14 +7495,14 @@ LEnd:
  *  None.
  *
  **************************************************************************/
-void MVU::_MouseDrag(CMD_MOUSE *pcmd)
+void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVIE pmvie;
-    PSCEN pscen;
-    PACTR pactr = pvNil;
+    PMovie pmvie;
+    PScene pscen;
+    PActor pactr = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
     BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
     BRS zrActr, zrCam, dzrActr;
@@ -7293,6 +7526,69 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
     if (pvNil == pscen)
     {
         return;
+    }
+
+    //
+    // Shift-click selection toggle, retroactive arm:
+    //   - If the user shift-clicked at mousedown and the mouse stays within
+    //     a 3 px tolerance, leave the toggle armed -- _MouseUp will fire it.
+    //   - Once the mouse moves past tolerance the click "becomes a drag".
+    //     For parity with original 3DMM (where shift+mousedown on a
+    //     non-selected actor would call SelectActr on it), retroactively
+    //     collapse the selection to the clicked actor and allocate the
+    //     drag-undo snapshot we skipped in _MouseDown. If the clicked actor
+    //     is already part of the current selection, just disarm so the
+    //     existing single-/multi-actor drag flow continues unchanged.
+    //
+    if (_fSelToggleArmed)
+    {
+        const long kdxpSelToggleTol = 3;
+        const long kdypSelToggleTol = 3;
+        long dxpSel = LwAbs(pcmd->xp - _xpSelToggleDown);
+        long dypSel = LwAbs(pcmd->yp - _ypSelToggleDown);
+
+        if (dxpSel <= kdxpSelToggleTol && dypSel <= kdypSelToggleTol)
+        {
+            // Still within tolerance. Suppress drag application this tick so
+            // we don't translate the previous selection while the user might
+            // still be aiming at a click.
+            return;
+        }
+
+        if (_pactrSelToggle != pvNil && !pscen->FIsActrSelected(_pactrSelToggle))
+        {
+            // Clicked actor is not part of the current selection. Drop any
+            // undo state allocated for the previous selection in _MouseDown
+            // and rebuild it for the now-clicked actor (matches what the
+            // pre-MVP non-shift-arm mousedown path would have done).
+            ReleasePpo(&_paund);
+            ReleasePpo(&_paundGroup);
+
+            pscen->SelectActr(_pactrSelToggle);
+
+            if (Tool() == toolCompose)
+            {
+                PActorUndo paundDrag = ActorUndo::PaundNew();
+                PActor pactrDup = pvNil;
+                if (paundDrag != pvNil && _pactrSelToggle->FDup(&pactrDup, fTrue))
+                {
+                    paundDrag->SetPactr(pactrDup);
+                    ReleasePpo(&pactrDup);
+                    paundDrag->SetArid(_pactrSelToggle->Arid());
+                    _paund = paundDrag;
+                }
+                else
+                {
+                    ReleasePpo(&paundDrag);
+                    ReleasePpo(&pactrDup);
+                    Pmvie()->ClearUndo();
+                    PushErc(ercSocNotUndoable);
+                }
+            }
+        }
+
+        _fSelToggleArmed = fFalse;
+        _pactrSelToggle = pvNil;
     }
 
     pactr = pscen->PactrSelected();
@@ -7398,7 +7694,8 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
 
     case toolCompose: {
         ulong grfmaf = fmafNil;
-        bool fMoved{};
+        bool fAnyMoved = fFalse;
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
 
         if (_fRespectGround)
         {
@@ -7409,47 +7706,62 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
         {
             AdjustCursor(pcmd->xp, pcmd->yp);
 
-            if (pactr->FTweakRoute(dxrWld, dyrWld, dzrWld, grfmaf))
+            for (long iactr = 0; iactr < cactrSel; iactr++)
             {
-                if (fMoved)
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil)
                 {
-                    if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-                    {
-                        PushErc(ercSocNotUndoable);
-                        Pmvie()->ClearUndo();
-                    }
-
-                    ReleasePpo(&_paund);
+                    continue;
                 }
+                if (pa->FTweakRoute(dxrWld, dyrWld, dzrWld, grfmaf))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            // NOTE: Pre-Task-4 the Tweak (Cmd-drag) branch declared a local
+            // bool fMoved{} that was never assigned, so its `if (fMoved)`
+            // arm was dead code -- Tweak drags silently leaked their undo
+            // snapshot at mouseup. Driving the commit off FTweakRoute's
+            // return value here also makes single-actor Tweak drags
+            // undoable for the first time. This is intentional; the Task 4
+            // spec said "no single-select behavior change" but the prior
+            // behavior was a latent bug that nobody noticed.
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
             }
 
             Pmvie()->MarkViews();
         }
         else
         {
-
             if (_grfcust & fcustShift)
             {
                 grfmaf |= fmafEntireSubrte;
             }
 
-            // FMoveRoute returns fTrue if the distance moved was non-zero
-            if (pactr->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMoved, grfmaf))
+            for (long iactr = 0; iactr < cactrSel; iactr++)
             {
-                if (fMoved)
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil)
                 {
-                    if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-                    {
-                        PushErc(ercSocNotUndoable);
-                        Pmvie()->ClearUndo();
-                    }
-
-                    ReleasePpo(&_paund);
-
-                    AdjustCursor(pcmd->xp, pcmd->yp);
-                    Pmvie()->Pbwld()->MarkDirty();
-                    Pmvie()->MarkViews();
+                    continue;
                 }
+                bool fMovedThis = fFalse;
+                if (pa->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMovedThis, grfmaf) && fMovedThis)
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+
+                AdjustCursor(pcmd->xp, pcmd->yp);
+                Pmvie()->Pbwld()->MarkDirty();
+                Pmvie()->MarkViews();
             }
         }
     }
@@ -7480,7 +7792,66 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
             break;
         }
 
-        if (pmvie->FRotateActr(xa, ya, za, FPure(_grfcust & fcustCmd)))
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+
+        if (cactrSel >= 2)
+        {
+            // Multi-actor rigid group rotation: each actor's world position
+            // orbits the frozen pivot AND each actor's body rotates around the
+            // SAME world axis (via FRotateAroundWorld, which conjugates through
+            // the actor's rest orientation -- otherwise actors facing different
+            // directions tilt around different world axes and the group looks
+            // chaotic). Only one of xa/ya/za is non-zero per tick.
+            // Orbit world-axis matches the body world-axis used in
+            // FRotateAroundWorld: tool X uses world Z, tool Z uses world X
+            // (so the canonical face-camera actor's right/forward axes line
+            // up with the user's tool labels).
+            BMAT34 bmat;
+            if (xa != aZero)
+                BrMatrix34RotateZ(&bmat, xa);
+            else if (ya != aZero)
+                BrMatrix34RotateY(&bmat, ya);
+            else if (za != aZero)
+                BrMatrix34RotateX(&bmat, za);
+            else
+                BrMatrix34Identity(&bmat);
+
+            bool fFwd = FPure(_grfcust & fcustCmd);
+            bool fAnyMoved = fFalse;
+            for (long iactr = 0; iactr < cactrSel; iactr++)
+            {
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil || pa->Pbody() == pvNil)
+                {
+                    continue;
+                }
+                BRS xr, yr, zr;
+                pa->Pbody()->GetPosition(&xr, &yr, &zr);
+                br_vector3 vIn, vOut;
+                vIn.v[0] = BrsSub(xr, _xrPivot);
+                vIn.v[1] = BrsSub(yr, _yrPivot);
+                vIn.v[2] = BrsSub(zr, _zrPivot);
+                BrMatrix34ApplyV(&vOut, &vIn, &bmat);
+                BRS dxr = BrsSub(vOut.v[0], vIn.v[0]);
+                BRS dyr = BrsSub(vOut.v[1], vIn.v[1]);
+                BRS dzr = BrsSub(vOut.v[2], vIn.v[2]);
+                bool fMovedThis = fFalse;
+                bool fMovedRoute = pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                bool fRotated = pa->FRotateAroundWorld(xa, ya, za, fFwd);
+                if (fMovedRoute || fRotated)
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+                Pmvie()->SetDirty();
+                Pmvie()->InvalViews();
+            }
+        }
+        else if (pmvie->FRotateActr(xa, ya, za, FPure(_grfcust & fcustCmd)))
         {
             if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
             {
@@ -7514,7 +7885,40 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (dxrMouse + dyrMouse > 0) ? 0 : fcustShift);
         }
 
-        if (pmvie->FScaleActr(brs2))
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+
+        if (cactrSel >= 2)
+        {
+            BRS sm1 = BrsSub(brs2, rOne); // (s - 1)
+            bool fAnyMoved = fFalse;
+            for (long iactr = 0; iactr < cactrSel; iactr++)
+            {
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil || pa->Pbody() == pvNil)
+                {
+                    continue;
+                }
+                BRS xr, yr, zr;
+                pa->Pbody()->GetPosition(&xr, &yr, &zr);
+                BRS dxr = BrsMul(sm1, BrsSub(xr, _xrPivot));
+                BRS dyr = BrsMul(sm1, BrsSub(yr, _yrPivot));
+                BRS dzr = BrsMul(sm1, BrsSub(zr, _zrPivot));
+                bool fMovedThis = fFalse;
+                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                if (pa->FScale(brs2))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+                Pmvie()->SetDirty();
+                Pmvie()->InvalViewsAndScb();
+            }
+        }
+        else if (pmvie->FScaleActr(brs2))
         {
             if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
             {
@@ -7549,7 +7953,47 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (-dxrMouse - dyrMouse < 0) ? 0 : fcustShift);
         }
 
-        if (pmvie->FSquashStretchActr(brs2))
+        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
+
+        if (cactrSel >= 2)
+        {
+            // Mirror Movie::FSquashStretchActr's per-axis factors:
+            // sx = brs2, sy = 1/brs2, sz = brs2.
+            BRS sx = brs2;
+            BRS sy = BrsDiv(rOne, brs2);
+            BRS sz = brs2;
+            BRS sxm1 = BrsSub(sx, rOne);
+            BRS sym1 = BrsSub(sy, rOne);
+            BRS szm1 = BrsSub(sz, rOne);
+            bool fAnyMoved = fFalse;
+            for (long iactr = 0; iactr < cactrSel; iactr++)
+            {
+                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
+                if (pa == pvNil || pa->Pbody() == pvNil)
+                {
+                    continue;
+                }
+                BRS xr, yr, zr;
+                pa->Pbody()->GetPosition(&xr, &yr, &zr);
+                BRS dxr = BrsMul(sxm1, BrsSub(xr, _xrPivot));
+                BRS dyr = BrsMul(sym1, BrsSub(yr, _yrPivot));
+                BRS dzr = BrsMul(szm1, BrsSub(zr, _zrPivot));
+                bool fMovedThis = fFalse;
+                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
+                if (pa->FPull(sx, sy, sz))
+                {
+                    fAnyMoved = fTrue;
+                }
+            }
+
+            if (fAnyMoved)
+            {
+                _CommitMoveUndo();
+                Pmvie()->SetDirty();
+                Pmvie()->InvalViews();
+            }
+        }
+        else if (pmvie->FSquashStretchActr(brs2))
         {
             if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
             {
@@ -7667,16 +8111,39 @@ void MVU::_MouseDrag(CMD_MOUSE *pcmd)
  *  None.
  *
  **************************************************************************/
-void MVU::_MouseUp(CMD_MOUSE *pcmd)
+void MovieView::_MouseUp(CMD_MOUSE *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVIE pmvie;
-    PSCEN pscen;
-    PACTR pactr = pvNil;
-    PACTR pactrDup;
-    PSUNA psuna;
+    PMovie pmvie;
+    PScene pscen;
+    PActor pactr = pvNil;
+    PActor pactrDup;
+    PSceneActorUndo psuna;
+    bool fJustToggledSel = fFalse; // user shift-click-released without dragging
+
+    // Shift-click selection toggle: if the user shift-clicked at mousedown
+    // and didn't drag past tolerance, fire the toggle now.
+    if (_fSelToggleArmed)
+    {
+        const long kdxpSelToggleTol = 3;
+        const long kdypSelToggleTol = 3;
+        long dxp = LwAbs(pcmd->xp - _xpSelToggleDown);
+        long dyp = LwAbs(pcmd->yp - _ypSelToggleDown);
+        if (dxp <= kdxpSelToggleTol && dyp <= kdypSelToggleTol)
+        {
+            if (_pactrSelToggle != pvNil && Pmvie()->Pscen() != pvNil)
+            {
+                Pmvie()->Pscen()->FToggleActrSelected(_pactrSelToggle);
+                Pmvie()->Pbwld()->MarkDirty();
+                Pmvie()->MarkViews();
+                fJustToggledSel = fTrue;
+            }
+        }
+        _fSelToggleArmed = fFalse;
+        _pactrSelToggle = pvNil;
+    }
 
     pmvie = Pmvie();
     AssertPo(pmvie, 0);
@@ -7696,7 +8163,7 @@ void MVU::_MouseUp(CMD_MOUSE *pcmd)
         //
         if (!pmvie->Pclok()->FSetAlarm(0, pmvie))
         {
-            CMD cmd;
+            Command cmd;
 
             pmvie->SetFStopPlaying(fTrue);
             cmd.pcmh = pmvie;
@@ -7790,7 +8257,7 @@ void MVU::_MouseUp(CMD_MOUSE *pcmd)
         //
         // Now build an undo object for the placing of the actor
         //
-        psuna = SUNA::PsunaNew();
+        psuna = SceneActorUndo::PsunaNew();
 
         if ((psuna == pvNil) || ((_pactrUndo == pvNil) && !pactr->FDup(&pactrDup, fTrue)))
         {
@@ -7834,7 +8301,14 @@ void MVU::_MouseUp(CMD_MOUSE *pcmd)
     case toolSquashStretch:
         if (pactr != pvNil)
         {
-            WarpCursToActor(pactr);
+            // Don't snap the cursor to the primary actor when the user just
+            // shift-clicked an actor without dragging -- they were modifying
+            // the selection set, not moving anything, and warping the cursor
+            // away from the click point feels jarring.
+            if (!fJustToggledSel)
+            {
+                WarpCursToActor(pactr);
+            }
             vpappb->ShowCurs();
         }
         break;
@@ -7871,10 +8345,10 @@ void MVU::_MouseUp(CMD_MOUSE *pcmd)
         {
             Assert(pactr->FTimeFrozen(), "Something odd is going on");
 
-            PACTR pactrDup;
-            PAUND paund;
+            PActor pactrDup;
+            PActorUndo paund;
 
-            paund = AUND::PaundNew();
+            paund = ActorUndo::PaundNew();
             if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
             {
                 Pmvie()->ClearUndo();
@@ -7936,6 +8410,8 @@ void MVU::_MouseUp(CMD_MOUSE *pcmd)
     AssertNilOrPo(_paund, 0);
     ReleasePpo(&_paund); // If you just did a mousedown then mouseup, we have a leftover
                          // undo object that we don't want.  So nuke it.
+    AssertNilOrPo(_paundGroup, 0);
+    ReleasePpo(&_paundGroup); // Same cleanup for the multi-select group-undo path.
 
 LEndTracking:
 
@@ -7945,6 +8421,18 @@ LEndTracking:
 #ifdef WIN
     ClipCursor(NULL);
 #endif // WIN
+
+    // Refresh the pose readout once at mouseup. BRender's per-frame dirty
+    // region only covers the actor bounds, so the top-left readout strip
+    // stays clean through the drag and would otherwise display the
+    // pre-drag position until the next selection change. One inval per
+    // mouseup is safe (no paint-storm).
+    if (_fShowPoseReadout)
+    {
+        RC rcReadout;
+        rcReadout.Set(0, 0, 200, 24);
+        InvalRc(&rcReadout, kginSysInval);
+    }
 }
 
 /***************************************************************************
@@ -7959,15 +8447,15 @@ LEndTracking:
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MVU::FCmdClip(PCMD pcmd)
+bool MovieView::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     PTBOX ptbox;
-    PDOCB pdocb;
+    PDocumentBase pdocb;
     bool fOV = fFalse;
-    CMD cmd;
+    Command cmd;
 
     //
     // Check for O-V model for text in text box.
@@ -7992,17 +8480,17 @@ bool MVU::FCmdClip(PCMD pcmd)
 
         AssertNilOrPo(ptbox, 0);
 
-        if (pcmd->cid == cidPasteTool && vpclip->FGetFormat(kclsACLP, &pdocb))
+        if (pcmd->cid == cidPasteTool && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
         {
-            fOV = !((PACLP)pdocb)->FRouteOnly();
+            fOV = !((PActorClipboard)pdocb)->FRouteOnly();
             ReleasePpo(&pdocb);
         }
         else if (((ptbox != pvNil) && ptbox->FTextSelected()) ||
-                 ((pcmd->cid == cidPasteTool) && vpclip->FGetFormat(kclsTCLP)))
+                 ((pcmd->cid == cidPasteTool) && vpclip->FGetFormat(kclsTextBoxClipboard)))
         {
             if (ptbox != pvNil)
             {
-                CMD cmd = *pcmd;
+                Command cmd = *pcmd;
 
                 cmd.pcmh = ptbox->PddgGet(0);
                 vpcex->EnqueueCmd(&cmd);
@@ -8044,7 +8532,7 @@ bool MVU::FCmdClip(PCMD pcmd)
         if (fOV)
         {
 
-            if (vpclip->FGetFormat(kclsTCLP) || vpclip->FGetFormat(kclsACLP))
+            if (vpclip->FGetFormat(kclsTextBoxClipboard) || vpclip->FGetFormat(kclsActorClipboard))
             {
                 FDoClip(toolPasteObject);
             }
@@ -8101,11 +8589,11 @@ bool MVU::FCmdClip(PCMD pcmd)
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MVU::FDoClip(long tool)
+bool MovieView::FDoClip(long tool)
 {
     AssertThis(0);
 
-    PDOCB pdocb = pvNil;
+    PDocumentBase pdocb = pvNil;
 
     switch (tool)
     {
@@ -8135,9 +8623,9 @@ bool MVU::FDoClip(long tool)
     case toolPasteObject:
         if (!vpclip->FDocIsClip(pvNil))
         {
-            PTCLP ptclp;
+            PTextBoxClipboard ptclp;
 
-            if (vpclip->FGetFormat(kclsTCLP, (PDOCB *)&ptclp))
+            if (vpclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
             {
                 AssertPo(ptclp, 0);
 
@@ -8185,7 +8673,7 @@ bool MVU::FDoClip(long tool)
  *  fTrue if it processed the command, else fFalse.
  *
  **************************************************************************/
-bool MVU::FCmdUndo(PCMD pcmd)
+bool MovieView::FCmdUndo(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8201,7 +8689,7 @@ bool MVU::FCmdUndo(PCMD pcmd)
         Pmvie()->Pmcc()->PlayUISound(toolRedo);
     }
 
-    fRet = MVU_PAR::FCmdUndo(pcmd);
+    fRet = MovieView_PAR::FCmdUndo(pcmd);
     Pmvie()->Pmcc()->SetUndo(Pmvie()->CundbUndo() != 0   ? undoUndo
                              : Pmvie()->CundbRedo() != 0 ? undoRedo
                                                          : undoDisabled);
@@ -8225,12 +8713,12 @@ bool MVU::FCmdUndo(PCMD pcmd)
  *  fTrue if it was successful, else fFalse.
  *
  **************************************************************************/
-bool MVU::_FCopySel(PDOCB *ppdocb, bool fRteOnly)
+bool MovieView::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
 {
     AssertThis(0);
 
-    PACTR pactr;
-    PACLP paclp;
+    PActor pactr;
+    PActorClipboard paclp;
 
     if (FTextMode())
     {
@@ -8251,10 +8739,10 @@ bool MVU::_FCopySel(PDOCB *ppdocb, bool fRteOnly)
         return (fFalse);
     }
 
-    paclp = ACLP::PaclpNew(pactr, fRteOnly, FPure(_grfcust & fcustShift));
+    paclp = ActorClipboard::PaclpNew(pactr, fRteOnly, FPure(_grfcust & fcustShift));
     AssertNilOrPo(paclp, 0);
 
-    *ppdocb = (PDOCB)paclp;
+    *ppdocb = (PDocumentBase)paclp;
 
     return (paclp != pvNil);
 }
@@ -8273,11 +8761,11 @@ bool MVU::_FCopySel(PDOCB *ppdocb, bool fRteOnly)
  *  None.
  *
  **************************************************************************/
-void MVU::_ClearSel()
+void MovieView::_ClearSel()
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     bool fAlive;
     bool fEnableSounds;
 
@@ -8338,17 +8826,17 @@ void MVU::_ClearSel()
  *  fTrue if it was successful, else fFalse.
  *
  **************************************************************************/
-bool MVU::_FPaste(PCLIP pclip)
+bool MovieView::_FPaste(PClipboardObject pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
 
-    PACLP paclp;
-    PTCLP ptclp;
-    PACTR pactr;
+    PActorClipboard paclp;
+    PTextBoxClipboard ptclp;
+    PActor pactr;
     bool fRet;
 
-    if (pclip->FGetFormat(kclsACLP, (PDOCB *)&paclp))
+    if (pclip->FGetFormat(kclsActorClipboard, (PDocumentBase *)&paclp))
     {
         AssertPo(paclp, 0);
 
@@ -8380,7 +8868,7 @@ bool MVU::_FPaste(PCLIP pclip)
         return fRet;
     }
 
-    if (pclip->FGetFormat(kclsTCLP, (PDOCB *)&ptclp))
+    if (pclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
     {
         AssertPo(ptclp, 0);
 
@@ -8410,11 +8898,11 @@ bool MVU::_FPaste(PCLIP pclip)
  * 	fTrue if the client should close this document.
  *
  **************************************************************************/
-bool MVU::FCloseDoc(bool fAssumeYes, bool fSaveDDG)
+bool MovieView::FCloseDoc(bool fAssumeYes, bool fSaveDDG)
 {
     AssertThis(0);
     bool fRet;
-    FNI fni;
+    Filename fni;
 
     //
     // FQueryClose calls FAutosave depending on the result of the query.
@@ -8464,7 +8952,7 @@ LSaved:
  *  fTrue.
  *
  **************************************************************************/
-bool MVU::FCmdSave(PCMD pcmd)
+bool MovieView::FCmdSave(PCommand pcmd)
 {
     if (Pmvie()->Cscen() < 1)
     {
@@ -8489,7 +8977,7 @@ bool MVU::FCmdSave(PCMD pcmd)
  *  fFalse.
  *
  ***************************************************************************/
-bool MVU::FCmdIdle(PCMD pcmd)
+bool MovieView::FCmdIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8509,7 +8997,7 @@ bool MVU::FCmdIdle(PCMD pcmd)
  *  fFalse.
  *
  ***************************************************************************/
-bool MVU::FCmdRollOff(PCMD pcmd)
+bool MovieView::FCmdRollOff(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -8524,10 +9012,282 @@ bool MVU::FCmdRollOff(PCMD pcmd)
     return (fFalse);
 }
 
+/***************************************************************************
+ *
+ * Handle a key command. Esc clears the entire selection (primary actor +
+ * extras). All other keys defer to the base class.
+ *
+ * Parameters:
+ *	pcmd - Pointer to the key command to process.
+ *
+ * Returns:
+ *  fTrue if the key was consumed (Esc); otherwise the base class result.
+ *
+ ***************************************************************************/
+// File-local helpers for the actor-tag-group hotkeys (Ctrl+G / Ctrl+Shift+G /
+// Ctrl+1..9). Tag syntax: '#' followed by [A-Za-z0-9_]+, terminated by
+// whitespace, end-of-string, or another '#'. ASCII-only.
+static bool _FIsTagCharMv(achar ch)
+{
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+           (ch >= '0' && ch <= '9') || ch == '_';
+}
+
+// Walk pstn, find each '#N...' tag, parse the run of digits as an integer.
+// Returns the largest integer seen, or 0 if no purely-numeric tag is found.
+static long _LwMaxNumericTagInName(PString pstn)
+{
+    achar *prgch = pstn->Prgch();
+    long cch = pstn->Cch();
+    long lwMax = 0;
+    for (long ich = 0; ich < cch; ich++)
+    {
+        if (prgch[ich] != '#')
+            continue;
+        long jch = ich + 1;
+        long lw = 0;
+        bool fAllDigits = (jch < cch && prgch[jch] >= '0' && prgch[jch] <= '9');
+        while (jch < cch && _FIsTagCharMv(prgch[jch]))
+        {
+            if (!(prgch[jch] >= '0' && prgch[jch] <= '9'))
+            {
+                fAllDigits = fFalse;
+                break;
+            }
+            lw = lw * 10 + (prgch[jch] - '0');
+            jch++;
+        }
+        if (fAllDigits && jch > ich + 1 && lw > lwMax)
+            lwMax = lw;
+    }
+    return lwMax;
+}
+
+// Walks every actor in the current scene's roll-call and returns
+// max(numeric tags) + 1, or 1 if none. Auto-numbering for Ctrl+G.
+static long _LwNextFreeNumericTagInScene(PScene pscen, PMovie pmvie)
+{
+    AssertPo(pscen, 0);
+    AssertPo(pmvie, 0);
+
+    long cactr = pscen->Cactr();
+    long lwMax = 0;
+    String stn;
+    PDynamicArray pglpactr = pscen->PglRollCall();
+    if (pglpactr == pvNil)
+        return 1;
+    for (long iactr = 0; iactr < cactr; iactr++)
+    {
+        PActor pactr;
+        pglpactr->Get(iactr, &pactr);
+        if (pactr == pvNil)
+            continue;
+        pactr->GetName(&stn);
+        long lw = _LwMaxNumericTagInName(&stn);
+        if (lw > lwMax)
+            lwMax = lw;
+    }
+    return lwMax + 1;
+}
+
+// Strips the rightmost '#tag' from pstn (with any single preceding space).
+// Sets *pfStripped to fTrue iff anything was removed. No-op + fFalse if
+// the name has no tag.
+static void _StripRightmostTag(PString pstn, bool *pfStripped)
+{
+    AssertPo(pstn, 0);
+    AssertVarMem(pfStripped);
+
+    *pfStripped = fFalse;
+    achar *prgch = pstn->Prgch();
+    long cch = pstn->Cch();
+
+    for (long ich = cch - 1; ich >= 0; ich--)
+    {
+        if (prgch[ich] != '#')
+            continue;
+        // Verify this is a real tag: at least one tag char follows.
+        if (ich + 1 >= cch || !_FIsTagCharMv(prgch[ich + 1]))
+            continue;
+        // Verify the run after '#' is all tag chars (no embedded space).
+        long jch;
+        for (jch = ich + 1; jch < cch && _FIsTagCharMv(prgch[jch]); jch++)
+            ;
+        if (jch != cch)
+            continue; // there's non-tag content after this '#tag'; not the rightmost tag
+        // Eat one preceding space so "Foo #1" -> "Foo".
+        long ichDel = ich;
+        if (ichDel > 0 && prgch[ichDel - 1] == ' ')
+            ichDel--;
+        pstn->Delete(ichDel, cch - ichDel);
+        *pfStripped = fTrue;
+        return;
+    }
+}
+
+// Helper: append " #N" to a copy of pstnIn into pstnOut.
+static bool _FAppendNumericTag(PString pstnIn, long lwTag, PString pstnOut)
+{
+    *pstnOut = *pstnIn;
+    if (!pstnOut->FAppendCh((achar)' '))
+        return fFalse;
+    if (!pstnOut->FAppendCh((achar)'#'))
+        return fFalse;
+    achar rgch[16];
+    long cch = 0;
+    long lwTmp = lwTag;
+    do
+    {
+        rgch[cch++] = (achar)('0' + (lwTmp % 10));
+        lwTmp /= 10;
+    } while (lwTmp > 0 && cch < 15);
+    // rgch is little-endian; append in reverse.
+    for (long ich = cch - 1; ich >= 0; ich--)
+    {
+        if (!pstnOut->FAppendCh(rgch[ich]))
+            return fFalse;
+    }
+    return fTrue;
+}
+
+bool MovieView::FCmdKey(PCMD_KEY pcmd)
+{
+    AssertThis(0);
+    AssertVarMem(pcmd);
+
+    if (pcmd->vk == kvkEscape)
+    {
+        if (Pmvie()->Pscen() != pvNil)
+        {
+            Pmvie()->Pscen()->ClearSelection(); // already calls InvalViews internally
+            Pmvie()->Pbwld()->MarkDirty();
+        }
+        return fTrue; // command consumed
+    }
+
+    // Ctrl+A (Cmd+A on Mac) selects every actor in the current scene.
+    // In text mode, defer to the base class so the focused TBOX edit can
+    // interpret it as "select all text" instead.
+    if (pcmd->vk == 'A' && (pcmd->grfcust & fcustCmd) && !FTextMode())
+    {
+        if (Pmvie()->Pscen() != pvNil)
+        {
+            if (Pmvie()->Pscen()->FSelectAllActrs())
+            {
+                Pmvie()->Pbwld()->MarkDirty();
+            }
+        }
+        return fTrue; // command consumed
+    }
+
+    // Ctrl+G: tag the current selection as group #N (auto-numbered).
+    // Ctrl+Shift+G: strip the rightmost #tag from each selected actor.
+    // In text mode defer to the base.
+    if (pcmd->vk == 'G' && (pcmd->grfcust & fcustCmd) && !FTextMode())
+    {
+        PScene pscen = Pmvie()->Pscen();
+        if (pscen != pvNil && pscen->CactrSelected() >= 1)
+        {
+            bool fStrip = FPure(pcmd->grfcust & fcustShift);
+            PActorRenameGroupUndo parg = ActorRenameGroupUndo::PargNew();
+            if (parg == pvNil)
+            {
+                PushErc(ercSocNotUndoable);
+                return fTrue;
+            }
+            long cactrSel = pscen->CactrSelected();
+            long lwTag = fStrip ? 0 : _LwNextFreeNumericTagInScene(pscen, Pmvie());
+            bool fOk = fTrue;
+            bool fAnyChanged = fFalse;
+            for (long iactr = 0; fOk && iactr < cactrSel; iactr++)
+            {
+                PActor pactr = pscen->PactrSelectedAt(iactr);
+                if (pactr == pvNil)
+                    continue;
+                String stnOld, stnNew;
+                pactr->GetName(&stnOld);
+                if (fStrip)
+                {
+                    stnNew = stnOld;
+                    bool fStripped = fFalse;
+                    _StripRightmostTag(&stnNew, &fStripped);
+                    if (!fStripped)
+                        continue; // actor had no tag; skip without recording undo
+                }
+                else
+                {
+                    if (!_FAppendNumericTag(&stnOld, lwTag, &stnNew))
+                    {
+                        fOk = fFalse;
+                        break;
+                    }
+                }
+                if (!parg->FAddChild(pactr->Arid(), &stnOld))
+                {
+                    fOk = fFalse;
+                    break;
+                }
+                if (!Pmvie()->FNameActr(pactr->Arid(), &stnNew))
+                {
+                    fOk = fFalse;
+                    break;
+                }
+                fAnyChanged = fTrue;
+            }
+            if (!fOk)
+            {
+                ReleasePpo(&parg);
+                Pmvie()->ClearUndo();
+                PushErc(ercSocNotUndoable);
+            }
+            else if (fAnyChanged)
+            {
+                if (!Pmvie()->FAddUndo(parg))
+                {
+                    PushErc(ercSocNotUndoable);
+                    Pmvie()->ClearUndo();
+                }
+                ReleasePpo(&parg);
+                Pmvie()->SetDirty();
+            }
+            else
+            {
+                ReleasePpo(&parg);
+            }
+        }
+        return fTrue;
+    }
+
+    // Ctrl+1..Ctrl+9: replace the current selection with all actors in the
+    // current scene whose name has the matching numeric #tag, and warp the
+    // cursor to the (newly-primary) actor so it's clear which group was
+    // recalled. Silent no-op if the tag isn't bound to any actor.
+    if (pcmd->vk >= '1' && pcmd->vk <= '9' && (pcmd->grfcust & fcustCmd) && !FTextMode())
+    {
+        PScene pscen = Pmvie()->Pscen();
+        if (pscen != pvNil)
+        {
+            achar szTag[2];
+            szTag[0] = (achar)pcmd->vk;
+            szTag[1] = (achar)0;
+            if (pscen->FSelectActrsByTag(szTag) && pscen->CactrSelected() >= 1)
+            {
+                PActor pactr = pscen->PactrSelectedAt(0);
+                if (pactr != pvNil)
+                    WarpCursToActor(pactr);
+                Pmvie()->Pbwld()->MarkDirty();
+            }
+        }
+        return fTrue;
+    }
+
+    return MovieView_PAR::FCmdKey(pcmd);
+}
+
 #ifdef DEBUG
 /***************************************************************************
  *
- * Assert the validity of the MVU.
+ * Assert the validity of the MovieView.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -8536,14 +9296,14 @@ bool MVU::FCmdRollOff(PCMD pcmd)
  *  None.
  *
  **************************************************************************/
-void MVU::AssertValid(ulong grf)
+void MovieView::AssertValid(ulong grf)
 {
-    MVU_PAR::AssertValid(fobjAllocated);
+    MovieView_PAR::AssertValid(fobjAllocated);
 }
 
 /***************************************************************************
  *
- * Mark memory used by the MVU
+ * Mark memory used by the MovieView
  *
  * Parameters:
  *  None.
@@ -8552,10 +9312,10 @@ void MVU::AssertValid(ulong grf)
  *  None.
  *
  **************************************************************************/
-void MVU::MarkMem(void)
+void MovieView::MarkMem(void)
 {
     AssertThis(0);
-    MVU_PAR::MarkMem();
+    MovieView_PAR::MarkMem();
     MarkMemObj(Pmvie());
 }
 #endif // DEBUG
@@ -8580,10 +9340,10 @@ void MVU::MarkMem(void)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PMUNS MUNS::PmunsNew()
+PMovieSceneUndo MovieSceneUndo::PmunsNew()
 {
-    PMUNS pmuns;
-    pmuns = NewObj MUNS();
+    PMovieSceneUndo pmuns;
+    pmuns = NewObj MovieSceneUndo();
     return (pmuns);
 }
 
@@ -8592,7 +9352,7 @@ PMUNS MUNS::PmunsNew()
  * Destructor for movies undo objects
  *
  ****************************************************/
-MUNS::~MUNS(void)
+MovieSceneUndo::~MovieSceneUndo(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pscen);
@@ -8609,7 +9369,7 @@ MUNS::~MUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MUNS::FDo(PDOCB pdocb)
+bool MovieSceneUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -8664,7 +9424,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool MUNS::FUndo(PDOCB pdocb)
+bool MovieSceneUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -8703,7 +9463,7 @@ LFail:
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the MUNS
+ * Mark memory used by the MovieSceneUndo
  *
  * Parameters:
  * 	None.
@@ -8712,16 +9472,16 @@ LFail:
  *  None.
  *
  ****************************************************/
-void MUNS::MarkMem(void)
+void MovieSceneUndo::MarkMem(void)
 {
     AssertThis(0);
-    MUNS_PAR::MarkMem();
+    MovieSceneUndo_PAR::MarkMem();
     MarkMemObj(_pscen);
 }
 
 /***************************************************************************
  *
- * Assert the validity of the MUNS.
+ * Assert the validity of the MovieSceneUndo.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -8730,7 +9490,7 @@ void MUNS::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MUNS::AssertValid(ulong grf)
+void MovieSceneUndo::AssertValid(ulong grf)
 {
     AssertNilOrPo(_pscen, 0);
 }
@@ -8739,7 +9499,7 @@ void MUNS::AssertValid(ulong grf)
 #ifdef DEBUG
 /***************************************************************************
  *
- * Assert the validity of the MUNB.
+ * Assert the validity of the MovieUndo.
  *
  * Parameters:
  *  grf - Bit field of options
@@ -8748,9 +9508,9 @@ void MUNS::AssertValid(ulong grf)
  *  None.
  *
  **************************************************************************/
-void MUNB::AssertValid(ulong grf)
+void MovieUndo::AssertValid(ulong grf)
 {
-    MUNB_PAR::AssertValid(fobjAllocated);
+    MovieUndo_PAR::AssertValid(fobjAllocated);
     AssertPo(_pmvie, 0);
 }
 #endif // DEBUG

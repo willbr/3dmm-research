@@ -16,24 +16,24 @@
 #define VIDEO_H
 
 /***************************************************************************
-    Generic video class. This is an interface that supports the GVDS
-    (video stream) and GVDW (video window) classes.
+    Generic video class. This is an interface that supports the VideoStream
+    (video stream) and VideoWindow (video window) classes.
 ***************************************************************************/
-typedef class GVID *PGVID;
-#define GVID_PAR CMH
-#define kclsGVID 'GVID'
-class GVID : public GVID_PAR
+typedef class Video *PVideo;
+#define Video_PAR CommandHandler
+#define kclsVideo 'GVID'
+class Video : public Video_PAR
 {
     RTCLASS_DEC
 
   protected:
-    GVID(long hid);
-    ~GVID(void)
+    Video(long hid);
+    ~Video(void)
     {
     }
 
   public:
-    static PGVID PgvidNew(PFNI pfni, PGOB pgobBase, bool fHwndBased = fFalse, long hid = hidNil);
+    static PVideo PgvidNew(PFilename pfni, PGraphicsObject pgobBase, bool fHwndBased = fFalse, long hid = hidNil);
 
     virtual long NfrMac(void) = 0;
     virtual long NfrCur(void) = 0;
@@ -43,7 +43,7 @@ class GVID : public GVID_PAR
     virtual bool FPlay(RC *prc = pvNil) = 0;
     virtual void Stop(void) = 0;
 
-    virtual void Draw(PGNV pgnv, RC *prc) = 0;
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prc) = 0;
     virtual void GetRc(RC *prc) = 0;
     virtual void SetRcPlay(RC *prc) = 0;
 };
@@ -51,13 +51,13 @@ class GVID : public GVID_PAR
 /****************************************
     Video stream class.
 ****************************************/
-typedef class GVDS *PGVDS;
-#define GVDS_PAR GVID
-#define kclsGVDS 'GVDS'
-class GVDS : public GVDS_PAR
+typedef class VideoStream *PVideoStream;
+#define VideoStream_PAR Video
+#define kclsVideoStream 'GVDS'
+class VideoStream : public VideoStream_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(GVDS)
+    CMD_MAP_DEC(VideoStream)
     ASSERT
 
   protected:
@@ -67,7 +67,7 @@ class GVDS : public GVDS_PAR
     long _dxp;
     long _dyp;
 
-    PGOB _pgobBase;
+    PGraphicsObject _pgobBase;
     RC _rcPlay;
     ulong _tsPlay;
 
@@ -81,13 +81,13 @@ class GVDS : public GVDS_PAR
     HDRAWDIB _hdd;
 #endif // WIN
 
-    GVDS(long hid);
-    ~GVDS(void);
+    VideoStream(long hid);
+    ~VideoStream(void);
 
-    virtual bool _FInit(PFNI pfni, PGOB pgobBase);
+    virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
 
   public:
-    static PGVDS PgvdsNew(PFNI pfni, PGOB pgobBase, long hid = hidNil);
+    static PVideoStream PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);
@@ -97,20 +97,20 @@ class GVDS : public GVDS_PAR
     virtual bool FPlay(RC *prc = pvNil);
     virtual void Stop(void);
 
-    virtual void Draw(PGNV pgnv, RC *prc);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prc);
     virtual void GetRc(RC *prc);
     virtual void SetRcPlay(RC *prc);
 
-    virtual bool FCmdAll(PCMD pcmd);
+    virtual bool FCmdAll(PCommand pcmd);
 };
 
 /****************************************
     Video in a window class.
 ****************************************/
-typedef class GVDW *PGVDW;
-#define GVDW_PAR GVID
-#define kclsGVDW 'GVDW'
-class GVDW : public GVDW_PAR
+typedef class VideoWindow *PVideoWindow;
+#define VideoWindow_PAR Video
+#define kclsVideoWindow 'GVDW'
+class VideoWindow : public VideoWindow_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -123,21 +123,21 @@ class GVDW : public GVDW_PAR
     RC _rc;
     RC _rcPlay;
     long _nfrMac;
-    PGOB _pgobBase;
+    PGraphicsObject _pgobBase;
     long _cactPal;
 
     bool _fDeviceOpen : 1;
     bool _fPlaying : 1;
     bool _fVisible : 1;
 
-    GVDW(long hid);
-    ~GVDW(void);
+    VideoWindow(long hid);
+    ~VideoWindow(void);
 
-    virtual bool _FInit(PFNI pfni, PGOB pgobBase);
+    virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
     virtual void _SetRc(void);
 
   public:
-    static PGVDW PgvdwNew(PFNI pfni, PGOB pgobBase, long hid = hidNil);
+    static PVideoWindow PgvdwNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
 
     virtual long NfrMac(void);
     virtual long NfrCur(void);
@@ -147,7 +147,7 @@ class GVDW : public GVDW_PAR
     virtual bool FPlay(RC *prc = pvNil);
     virtual void Stop(void);
 
-    virtual void Draw(PGNV pgnv, RC *prc);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prc);
     virtual void GetRc(RC *prc);
     virtual void SetRcPlay(RC *prc);
 };

@@ -24,7 +24,7 @@ function(target_chomp_sources target)
     target_include_directories(${target} PRIVATE ${parent})
     cmake_path(GET parent PARENT_PATH parent)
     target_include_directories(${target} PRIVATE ${parent})
-    set(output "${CMAKE_CURRENT_BINARY_DIR}/chomp/${target}/${output}")
+    set(output "${CMAKE_CURRENT_BINARY_DIR}/3dmovie/${output}")
     set(processed "${CMAKE_CURRENT_BINARY_DIR}/chomp/${target}/${filename}.i")
     add_custom_command(
       OUTPUT "${processed}"

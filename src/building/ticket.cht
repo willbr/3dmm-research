@@ -82,7 +82,7 @@ OBJECT( "ticket2: exit", kgobTicket2Exit, 10, kcrsHand1 )
 // McZee the ticket boy in the ticket booth...
 //----------------------------------------------------------------
 OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
-	REP_ANIM( CHID( kst1, krepEnterAnimation ), "Ticket2: Dispatch state.")
+	REP_ANIM( ChildChunkID( kst1, krepEnterAnimation ), "Ticket2: Dispatch state.")
 		ASSERT(GLOBAL(kstEntry) == kst2 || GLOBAL(kstEntry) == kst3);
 
 		.fWay = fFalse;	  // A flag set by portfolio callback script and used in kst5.
@@ -92,7 +92,7 @@ OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
  	//----------------------------------------------------------------
 	// Mczee playing air guitar
 	//----------------------------------------------------------------
-	REP_ANIM( CHID( kst2, krepDefault), "ticket mczee animate" )
+	REP_ANIM( ChildChunkID( kst2, krepDefault), "ticket mczee animate" )
 		// create the animation
 		PLAYMIDI( cnoNil );	// stop music
 		ENDVOICE();			// stop any talking
@@ -115,7 +115,7 @@ OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
  	//----------------------------------------------------------------
 	// Mczee presenting film and cans, choices
 	//----------------------------------------------------------------
-	REP_ANIM( CHID( kst3, krepDefault ), "ticket:mczee (map entry)" )
+	REP_ANIM( ChildChunkID( kst3, krepDefault ), "ticket:mczee (map entry)" )
 		ENDVOICE();
 
 		DISABLEHOTSPOTS(kflgBuildingMin);
@@ -136,7 +136,7 @@ OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
 		ChangeStateThis( kst4 );
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst4, krepDefault ), "McZee waiting animation" )
+	REP_ANIM( ChildChunkID( kst4, krepDefault ), "McZee waiting animation" )
 		Cell( kcell301, 0,0,1 );	// draw ourselves.
 		WAIT_FOR_TRANSITION();		// If a transition is occuring wait 
 
@@ -168,7 +168,7 @@ OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
 		End;
 	ENDCHUNK
 
-	REP_ANIM( CHID( kst5, krepDefault ), "McZee opening the portfolio" )
+	REP_ANIM( ChildChunkID( kst5, krepDefault ), "McZee opening the portfolio" )
 		DISABLEHOTSPOTS(kflgBuildingMin);
 
 		DEBUGCMD( PrintStr("Ticket McZee: State 5") );
@@ -185,7 +185,7 @@ OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
 		kgobPortfolio->chidCallScript = kchidScript1;
 	ENDCHUNK 
 
-   	REP_ANIM( CHID( kst6, krepDefault ), "McZee close the portfolio.")
+   	REP_ANIM( ChildChunkID( kst6, krepDefault ), "McZee close the portfolio.")
 
 		DEBUGCMD( PrintStr("Ticket McZee: State 6") );
 
@@ -205,7 +205,7 @@ OBJECT( "ticket2:mczee", kgobTicket2McZee, 20, kcrsHand1 )
 		End;
 	ENDCHUNK;
 	
-	REP_ANIM( CHID( kst7, krepDefault), "McZee starting camera pull to backstage" )
+	REP_ANIM( ChildChunkID( kst7, krepDefault), "McZee starting camera pull to backstage" )
 		DISABLEHOTSPOTS(kflgBuildingMin);
 
 		DEBUGCMD( PrintStr("Ticket McZee: State 7") );

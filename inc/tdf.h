@@ -8,19 +8,21 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> TDF  (Three-D Font)
+    BASE ---> BaseCacheableObject ---> ThreeDFont  (Three-D Font)
 
 ***************************************************************************/
-#ifndef TDF_H
-#define TDF_H
+#ifndef ThreeDFont_H
+#define ThreeDFont_H
+
+using namespace BRender;
 
 /****************************************
     3-D Font class
 ****************************************/
-typedef class TDF *PTDF;
-#define TDF_PAR BACO
-#define kclsTDF 'TDF'
-class TDF : public TDF_PAR
+typedef class ThreeDFont *PThreeDFont;
+#define ThreeDFont_PAR BaseCacheableObject
+#define kclsThreeDFont 'TDF'
+class ThreeDFont : public ThreeDFont_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -33,19 +35,19 @@ class TDF : public TDF_PAR
     BRS *_prgdyr; // character heights
 
   protected:
-    TDF(void)
+    ThreeDFont(void)
     {
     }
-    bool _FInit(PBLCK pblck);
+    bool _FInit(PDataBlock pblck);
 
   public:
-    static bool FReadTdf(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    ~TDF(void);
+    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    ~ThreeDFont(void);
 
-    // This authoring-only API creates a new TDF based on a set of models
-    static bool FCreate(PCRF pcrf, PGL pglkid, STN *pstn, CKI *pckiTdf = pvNil);
+    // This authoring-only API creates a new ThreeDFont based on a set of models
+    static bool FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf = pvNil);
 
-    PMODL PmodlFetch(CHID chid);
+    PModel PmodlFetch(ChildChunkID chid);
     BRS DxrChar(long ich);
     BRS DyrChar(long ich);
     BRS DyrMax(void)
@@ -54,4 +56,4 @@ class TDF : public TDF_PAR
     }
 };
 
-#endif // TDF_H
+#endif // ThreeDFont_H

@@ -8,20 +8,20 @@
     Primary Authors: *****, *****
     Status:  Reviewed
 
-    BASE ---> BACO ---> MSND
-    BASE ---> CMH  ---> MSQ
+    BASE ---> BaseCacheableObject ---> MovieSoundMSND
+    BASE ---> CommandHandler  ---> MovieSoundQueue
 
-    NOTE: when the MSQ stops sounds, it does it based on sound class (scl)
+    NOTE: when the MovieSoundQueue stops sounds, it does it based on sound class (scl)
     and not sound queue (sqn).  This is slightly less efficient, because the
-    SNDM must search all open sound queues for the given scl's when we stop
+    SoundManager must search all open sound queues for the given scl's when we stop
     sounds; however, the code is made much simpler, because the sqn is
     generated on the fly based on whether the sound is for an actor or
     background, the sty of the sound, and (in the case of actor sounds) the
     arid of the source of the sound.  If we had to enumerate all sounds
-    based on that information, we'd wind up calling into the SNDM a minimum
+    based on that information, we'd wind up calling into the SoundManager a minimum
     of three times, plus three times for each actor; not only is the
-    enumeration on this side inefficient (the MSQ would have to call into the
-    MVIE to enumerate all the known actors), but the number of calls to SNDM
+    enumeration on this side inefficient (the MovieSoundQueue would have to call into the
+    Movie to enumerate all the known actors), but the number of calls to SoundManager
     gets to be huge!  On top of all that, we'd probably wind up finding some
     bugs where a sound is still playing for an actor that's been deleted, and
     possibly fail to stop the sound properly (Murphy reigning strong in any
@@ -30,6 +30,8 @@
 ***************************************************************************/
 #ifndef MSND_H
 #define MSND_H
+
+#include <cstdint>
 
 // Sound types
 enum
@@ -73,17 +75,18 @@ const long kSndChannels = 1;
     Movie Sound on file
 
 ****************************************/
-struct MSNDF
+struct MovieSoundFile
 {
-    short bo;
-    short osk;
-    long sty;        // sound type
-    long vlmDefault; // default volume
-    bool fInvalid;   // Invalid flag
+    int16_t bo;
+    int16_t osk;
+    int32_t sty;        // sound type
+    int32_t vlmDefault; // default volume
+    bool fInvalid;      // Invalid flag
 };
-const BOM kbomMsndf = 0x5FC00000;
+static_assert(sizeof(MovieSoundFile) == 16, "MovieSoundFile on-disk layout drift");
+const ByteOrderMask kbomMsndf = 0x5FC00000;
 
-const CHID kchidSnd = 0; // Movie Sound sound/music
+const ChildChunkID kchidSnd = 0; // Movie Sound sound/music
 
 // Function to stop all movie sounds.
 inline void StopAllMovieSounds(void)
@@ -98,10 +101,10 @@ inline void StopAllMovieSounds(void)
     The Movie Sound class
 
 ****************************************/
-typedef class MSND *PMSND;
-#define MSND_PAR BACO
-#define kclsMSND 'MSND'
-class MSND : public MSND_PAR
+typedef class MovieSoundMSND *PMovieSoundMSND;
+#define MovieSoundMSND_PAR BaseCacheableObject
+#define kclsMovieSoundMSND 'MSND'
+class MovieSoundMSND : public MovieSoundMSND_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -109,27 +112,27 @@ class MSND : public MSND_PAR
 
   protected:
     // these are inherent to the msnd
-    CTG _ctgSnd;       // CTG of the WAV or MIDI chunk
-    CNO _cnoSnd;       // CNO of the WAV or MIDI chunk
-    PRCA _prca;        // file that the WAV/MIDI lives in
+    ChunkTagOrType _ctgSnd;       // ChunkTagOrType of the WAV or MIDI chunk
+    ChunkNumber _cnoSnd;       // ChunkNumber of the WAV or MIDI chunk
+    PResourceCache _prca;        // file that the WAV/MIDI lives in
     long _sty;         // MIDI, speech, or sfx
     long _vlm;         // Volume of the sound
     tribool _fNoSound; // Set if silent sound
-    STN _stn;          // Sound name
+    String _stn;          // Sound name
     bool _fInvalid;    // Invalid flag
 
   protected:
-    bool _FInit(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static bool FReadMsnd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static bool FGetMsndInfo(PCFL pcfl, CTG ctg, CNO cno, bool *pfInvalid = pvNil, long *psty = pvNil,
+    static bool FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
                              long *pvlm = pvNil);
-    static bool FCopyMidi(PFIL pfilSrc, PCFL pcflDest, CNO *pcno, PSTN pstn = pvNil);
-    static bool FWriteMidi(PCFL pcflDest, PMIDS pmids, STN *pstnName, CNO *pcno);
-    static bool FCopyWave(PFIL pfilSrc, PCFL pcflDest, long sty, CNO *pcno, PSTN pstn = pvNil);
-    static bool FWriteWave(PFIL pfilSrc, PCFL pcflDest, long sty, STN *pstnName, CNO *pcno);
-    ~MSND(void);
+    static bool FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn = pvNil);
+    static bool FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno);
+    static bool FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn = pvNil);
+    static bool FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno);
+    ~MovieSoundMSND(void);
 
     static long SqnActr(long sty, long objID);
     static long SqnBkgd(long sty, long objID);
@@ -154,7 +157,7 @@ class MSND : public MSND_PAR
         AssertBaseThis(0);
         return FPure(!_fInvalid);
     }
-    PSTN Pstn(void)
+    PString Pstn(void)
     {
         AssertThis(0);
         return &_stn;
@@ -181,20 +184,20 @@ class MSND : public MSND_PAR
 
 /****************************************
 
-    Movie Sound Queue  (MSQ)
+    Movie Sound Queue  (MovieSoundQueue)
     Sounds to be played at one time.
     These are of all types, queues &
     classes
 
 ****************************************/
-typedef class MSQ *PMSQ;
-#define MSQ_PAR CMH
-#define kclsMSQ 'MSQ'
+typedef class MovieSoundQueue *PMovieSoundQueue;
+#define MovieSoundQueue_PAR CommandHandler
+#define kclsMovieSoundQueue 'MSQ'
 
 const long kcsqeGrow = 10; // quantum growth for sqe
 
 // Movie sound queue entry
-struct SQE
+struct SoundQueryEntry
 {
     long objID;     // Unique identifier (actor id, eg)
     bool fLoop;     // Looping sound flag
@@ -202,35 +205,35 @@ struct SQE
     long vlmMod;    // Volume modification
     long spr;       // Priority
     bool fActr;     // Actor vs Scene (to generate unique class)
-    PMSND pmsnd;    // PMSND
+    PMovieSoundMSND pmsnd;    // PMovieSoundMSND
     ulong dtsStart; // How far into the sound to start playing
 };
 
-class MSQ : public MSQ_PAR
+class MovieSoundQueue : public MovieSoundQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(MSQ)
+    CMD_MAP_DEC(MovieSoundQueue)
 
   protected:
-    PGL _pglsqe; // Sound queue entries
+    PDynamicArray _pglsqe; // Sound queue entries
     long _dtim;  // Time sound allowed to play
-    PCLOK _pclok;
+    PClock _pclok;
 
   public:
-    MSQ(long hid) : MSQ_PAR(hid)
+    MovieSoundQueue(long hid) : MovieSoundQueue_PAR(hid)
     {
     }
-    ~MSQ(void);
+    ~MovieSoundQueue(void);
 
-    static PMSQ PmsqNew(void);
+    static PMovieSoundQueue PmsqNew(void);
 
-    bool FEnqueue(PMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse,
+    bool FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse,
                   ulong dtsStart = 0, bool fLowPri = fFalse);
     void PlayMsq(void);  // Destroys queue as it plays
     void FlushMsq(void); // Without playing the sounds
-    bool FCmdAlarm(PCMD pcmd);
+    bool FCmdAlarm(PCommand pcmd);
 
     // Sound on/off & duration control
     void SndOff(void)

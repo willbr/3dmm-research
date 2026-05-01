@@ -20,11 +20,28 @@
 #include "kiddef.h"
 
 // forward declarations
-typedef class WOKS *PWOKS;
-typedef class SCEG *PSCEG;
-typedef class GOK *PGOK;
-typedef class HBAL *PHBAL;
-typedef struct HTOP *PHTOP;
+typedef class WorldOfKidspace *PWorldOfKidspace;
+namespace ScriptInterpreter {
+   class GraphicsObjectInterpreter;
+   typedef class GraphicsObjectInterpreter *PGraphicsObjectInterpreter;
+}
+namespace GraphicalObjectRepresentation {
+   class KidspaceGraphicObject;
+   typedef class KidspaceGraphicObject *PKidspaceGraphicObject;
+   class GraphicalObjectRepresentation;
+   typedef class GraphicalObjectRepresentation *PGraphicalObjectRepresentation;
+}
+namespace Help {
+   class Balloon;
+   typedef class Balloon *PBalloon;
+   struct Topic;
+   typedef struct Topic *PTopic;
+}
+
+using GraphicalObjectRepresentation::KidspaceGraphicObject;
+using GraphicalObjectRepresentation::PKidspaceGraphicObject;
+// using GraphicalObjectRepresentation::GraphicalObjectRepresentation;
+using GraphicalObjectRepresentation::PGraphicalObjectRepresentation;
 
 #include "scrcomg.h"
 #include "kidworld.h"

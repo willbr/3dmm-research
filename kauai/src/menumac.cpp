@@ -10,7 +10,7 @@
     Mac menu bar management.
 
     REVIEW shonk: this is broken! Menu item names should be stored as STNs
-    in the GG, except for DA names, which should be raw schar's (since
+    in the GeneralGroup, except for DA names, which should be raw schar's (since
     they can have zeros in them).
 
 ***************************************************************************/
@@ -21,13 +21,13 @@ const achar kchCid = '#';
 const achar kchList = '_';
 const achar kchFontList = '$';
 
-PMUB vpmubCur;
-RTCLASS(MUB)
+PMenuBar vpmubCur;
+RTCLASS(MenuBar)
 
 /***************************************************************************
     Destructor - make sure vpmubCur is not this mub.
 ***************************************************************************/
-MUB::~MUB(void)
+MenuBar::~MenuBar(void)
 {
     // REVIEW shonk: free the _hnmbar
     if (vpmubCur == this)
@@ -38,11 +38,11 @@ MUB::~MUB(void)
 /***************************************************************************
     Static method to load and set a new menu bar.
 ***************************************************************************/
-PMUB MUB::PmubNew(ulong ridMenuBar)
+PMenuBar MenuBar::PmubNew(ulong ridMenuBar)
 {
-    PMUB pmub;
+    PMenuBar pmub;
 
-    if ((pmub = NewObj MUB) == pvNil)
+    if ((pmub = NewObj MenuBar) == pvNil)
         return pvNil;
 
     if (!pmub->_FFetchRes(ridMenuBar))
@@ -57,7 +57,7 @@ PMUB MUB::PmubNew(ulong ridMenuBar)
 /***************************************************************************
     Frees all mem associated with the menu bar.
 ***************************************************************************/
-void MUB::_Free(void)
+void MenuBar::_Free(void)
 {
     long imnu;
     MNU mnu;
@@ -74,10 +74,10 @@ void MUB::_Free(void)
 }
 
 /***************************************************************************
-    Loads the menu bar with the given resource id and makes this MUB the
+    Loads the menu bar with the given resource id and makes this MenuBar the
     current one.  Can only be called once per mub.
 ***************************************************************************/
-bool MUB::_FFetchRes(ulong ridMenuBar)
+bool MenuBar::_FFetchRes(ulong ridMenuBar)
 {
     SMB **hnsmb;
     MNU mnu;
@@ -88,7 +88,7 @@ bool MUB::_FFetchRes(ulong ridMenuBar)
         return fFalse;
 
     cmnu = (*hnsmb)->cmid;
-    if ((_pglmnu = GL::PglNew(size(MNU), cmnu)) == pvNil)
+    if ((_pglmnu = DynamicArray::PglNew(size(MNU), cmnu)) == pvNil)
         return fFalse;
 
     mnu.hnsmu = hNil;
@@ -115,7 +115,7 @@ bool MUB::_FFetchRes(ulong ridMenuBar)
         if (hNil == (mnu.hnsmu = GetMHandle((ushort)mnu.mid)))
             goto LFail;
         cmni = CountMItems(mnu.hnsmu);
-        if ((mnu.pglmni = GL::PglNew(size(MNI), cmni)) == pvNil)
+        if ((mnu.pglmni = DynamicArray::PglNew(size(MNI), cmni)) == pvNil)
             goto LFail;
         _pglmnu->Put(imnu, &mnu);
 
@@ -236,7 +236,7 @@ bool MUB::_FFetchRes(ulong ridMenuBar)
                 }
 
             LInsertMlst:
-                if (pvNil == _pglmlst && pvNil == (_pglmlst = GL::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
+                if (pvNil == _pglmlst && pvNil == (_pglmlst = DynamicArray::PglNew(size(MLST), 1)) || !_pglmlst->FPush(&mlst))
                 {
                     goto LFail;
                 }
@@ -258,7 +258,7 @@ LFail:
 /***************************************************************************
     Make this the current menu bar.
 ***************************************************************************/
-void MUB::Set(void)
+void MenuBar::Set(void)
 {
     AssertThis(0);
     SetMenuBar(_hnmbar);
@@ -269,12 +269,12 @@ void MUB::Set(void)
 /***************************************************************************
     Handle a mouse down event in the menu bar.
 ***************************************************************************/
-bool MUB::FDoClick(EVT *pevt)
+bool MenuBar::FDoClick(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
     long lwCode;
-    CMD cmd;
+    Command cmd;
     bool fRet = fFalse;
 
     Clean();
@@ -291,12 +291,12 @@ bool MUB::FDoClick(EVT *pevt)
 /***************************************************************************
     Handle a menu key event.
 ***************************************************************************/
-bool MUB::FDoKey(EVT *pevt)
+bool MenuBar::FDoKey(EVT *pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
     long lwCode;
-    CMD cmd;
+    Command cmd;
     bool fRet = fFalse;
 
     Clean();
@@ -314,14 +314,14 @@ bool MUB::FDoKey(EVT *pevt)
     Make sure the menu's are clean - ie, items are enabled/disabled/marked
     correctly.  Called immediately before dropping the menus.
 ***************************************************************************/
-void MUB::Clean(void)
+void MenuBar::Clean(void)
 {
     AssertThis(0);
     long imnu, imni;
     ulong grfeds;
     MNU mnu;
     MNI mni;
-    CMD cmd;
+    Command cmd;
     achar st[kcbMaxSt];
     long cch;
 
@@ -343,10 +343,10 @@ void MUB::Clean(void)
 
             if (_FFindMlst(imnu, imni))
             {
-                // need the item name in a GG
+                // need the item name in a GeneralGroup
                 GetItem(mnu.hnsmu, imni + 1, (byte *)st);
                 cch = (long)*(byte *)st;
-                if ((cmd.pgg = GG::PggNew(0, 1, cch)) != pvNil)
+                if ((cmd.pgg = GeneralGroup::PggNew(0, 1, cch)) != pvNil)
                     AssertDo(cmd.pgg->FInsert(0, cch, st + 1), 0);
             }
             grfeds = vpcex->GrfedsForCmd(&cmd);
@@ -371,7 +371,7 @@ void MUB::Clean(void)
 /***************************************************************************
     See if the given item is in a list.
 ***************************************************************************/
-bool MUB::_FFindMlst(long imnu, long imni, MLST *pmlst, long *pimlst)
+bool MenuBar::_FFindMlst(long imnu, long imni, MLST *pmlst, long *pimlst)
 {
     AssertThis(0);
     AssertNilOrVarMem(pmlst);
@@ -402,7 +402,7 @@ bool MUB::_FFindMlst(long imnu, long imni, MLST *pmlst, long *pimlst)
 /***************************************************************************
     Get a command struct for the command from the Mac menu item code.
 ***************************************************************************/
-bool MUB::_FGetCmdFromCode(long lwCode, CMD *pcmd)
+bool MenuBar::_FGetCmdFromCode(long lwCode, Command *pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -449,10 +449,10 @@ bool MUB::_FGetCmdFromCode(long lwCode, CMD *pcmd)
 
     if (fNeedName)
     {
-        // need the item name in a GG
+        // need the item name in a GeneralGroup
         GetItem(mnu.hnsmu, imni + 1, (byte *)st);
         cch = (long)*(byte *)st;
-        if (pvNil == (pcmd->pgg = GG::PggNew(0, 1, cch)))
+        if (pvNil == (pcmd->pgg = GeneralGroup::PggNew(0, 1, cch)))
             return fFalse;
         AssertDo(pcmd->pgg->FInsert(0, cch, st + 1), 0);
     }
@@ -464,7 +464,7 @@ bool MUB::_FGetCmdFromCode(long lwCode, CMD *pcmd)
     Adds an item identified by the given list cid, long parameter
     and string.
 ***************************************************************************/
-bool MUB::FAddListCid(long cid, long lw0, PSTZ pstz)
+bool MenuBar::FAddListCid(long cid, long lw0, PSTZ pstz)
 {
     AssertThis(0);
     AssertStz(pstz);
@@ -538,7 +538,7 @@ bool MUB::FAddListCid(long cid, long lw0, PSTZ pstz)
 /***************************************************************************
     Insert a new menu item.
 ***************************************************************************/
-bool MUB::_FInsertMni(long imnu, long imni, long cid, long lw0, PSTZ pstz)
+bool MenuBar::_FInsertMni(long imnu, long imni, long cid, long lw0, PSTZ pstz)
 {
     AssertThis(0);
     AssertIn(imnu, 0, _pglmnu->IvMac());
@@ -567,7 +567,7 @@ bool MUB::_FInsertMni(long imnu, long imni, long cid, long lw0, PSTZ pstz)
 /***************************************************************************
     Delete a menu item.
 ***************************************************************************/
-void MUB::_DeleteMni(long imnu, long imni)
+void MenuBar::_DeleteMni(long imnu, long imni)
 {
     AssertThis(0);
     AssertIn(imnu, 0, _pglmnu->IvMac());
@@ -585,7 +585,7 @@ void MUB::_DeleteMni(long imnu, long imni)
     or string.  If pstz is non-nil, it is used to find the item.
     If pstz is nil, lw0 is used to identify the item.
 ***************************************************************************/
-bool MUB::FRemoveListCid(long cid, long lw0, PSTZ pstz)
+bool MenuBar::FRemoveListCid(long cid, long lw0, PSTZ pstz)
 {
     AssertThis(0);
     AssertNilOrStz(pstz);
@@ -676,7 +676,7 @@ bool MUB::FRemoveListCid(long cid, long lw0, PSTZ pstz)
 /***************************************************************************
     Removes all items identified by the given list cid.
 ***************************************************************************/
-bool MUB::FRemoveAllListCid(long cid)
+bool MenuBar::FRemoveAllListCid(long cid)
 {
     AssertThis(0);
     long imlst;
@@ -751,7 +751,7 @@ bool MUB::FRemoveAllListCid(long cid)
     lwNew is set as the new long parameter and if pstzNew is non-nil,
     it is used as the new menu item text.
 ***************************************************************************/
-bool MUB::FChangeListCid(long cid, long lwOld, PSTZ pstzOld, long lwNew, PSTZ pstzNew)
+bool MenuBar::FChangeListCid(long cid, long lwOld, PSTZ pstzOld, long lwNew, PSTZ pstzNew)
 {
     AssertThis(0);
     AssertNilOrStz(pstzOld);
@@ -805,13 +805,13 @@ bool MUB::FChangeListCid(long cid, long lwOld, PSTZ pstzOld, long lwNew, PSTZ ps
 /***************************************************************************
     Mark mem used by the menu bar.
 ***************************************************************************/
-void MUB::MarkMem(void)
+void MenuBar::MarkMem(void)
 {
     AssertThis(0);
     long imnu;
     MNU mnu;
 
-    MUB_PAR::MarkMem();
+    MenuBar_PAR::MarkMem();
     MarkMemObj(_pglmnu);
     if (_pglmnu == pvNil || (imnu = _pglmnu->IvMac()) == 0)
         return;

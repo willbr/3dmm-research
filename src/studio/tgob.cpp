@@ -16,14 +16,14 @@
 #include "studio.h"
 
 ASSERTNAME
-RTCLASS(TGOB)
+RTCLASS(TextGraphicsObject)
 
 /****************************************************
  *
  * Constructor for text gobs.
  *
  ****************************************************/
-TGOB::TGOB(GCB *pgcb) : GOB(pgcb)
+TextGraphicsObject::TextGraphicsObject(GraphicsObjectBlock *pgcb) : GraphicsObject(pgcb)
 {
     _acrFore = kacrBlack;
     _acrBack = kacrClear;
@@ -38,7 +38,7 @@ TGOB::TGOB(GCB *pgcb) : GOB(pgcb)
  * Constructor for text gobs.
  *
  ****************************************************/
-TGOB::TGOB(long hid) : GOB(hid)
+TextGraphicsObject::TextGraphicsObject(long hid) : GraphicsObject(hid)
 {
     _acrFore = kacrBlack;
     _acrBack = kacrClear;
@@ -56,7 +56,7 @@ TGOB::TGOB(long hid) : GOB(hid)
  *  None.
  *
  ***************************************************************************/
-void TGOB::Draw(PGNV pgnv, RC *prcClip)
+void TextGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -64,7 +64,7 @@ void TGOB::Draw(PGNV pgnv, RC *prcClip)
 
     RC rc, rcText;
     long xp, yp;
-    STN stnDraw(_stn);
+    String stnDraw(_stn);
 
     // Use a temporary stn here for the displayed text. For example, the tgob
     // text may be 'hello', but the dispayed text may be 'hel..'. This means
@@ -97,7 +97,7 @@ void TGOB::Draw(PGNV pgnv, RC *prcClip)
     }
     else
     {
-        STN stnDots;
+        String stnDots;
         RC rcDots;
         int iCh;
 
@@ -133,38 +133,38 @@ void TGOB::Draw(PGNV pgnv, RC *prcClip)
  *		tav = text align vertical
  *
  ****************************************************/
-PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
+PTextGraphicsObject TextGraphicsObject::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
 {
     RC rcRel;
     RC rcAbs;
-    PGOB pgob;
-    STN stn;
-    GCB gcb;
+    PGraphicsObject pgob;
+    String stn;
+    GraphicsObjectBlock gcb;
     long onn;
-    PTGOB ptgob;
+    PTextGraphicsObject ptgob;
 
     rcRel.xpLeft = rcRel.ypTop = krelZero;
     rcRel.xpRight = rcRel.ypBottom = krelOne;
     rcAbs.Set(0, 0, 0, 0);
 
-    pgob = ((APP *)vpappb)->Pkwa()->PgobFromHid(kidFrm);
+    pgob = ((Application *)vpappb)->Pkwa()->PgobFromHid(kidFrm);
 
     if (pgob == pvNil)
         return pvNil;
 
     if (hidNil == hid)
-        hid = GOB::HidUnique();
+        hid = GraphicsObject::HidUnique();
     gcb.Set(hid, pgob, fgobNil, kginDefault, &rcAbs, &rcRel);
 
-    if (pvNil == (ptgob = NewObj TGOB(&gcb)))
+    if (pvNil == (ptgob = NewObj TextGraphicsObject(&gcb)))
         return pvNil;
 
     if (idsFont != idsNil)
     {
-        PSTDIO pstdio;
+        PStudio pstdio;
 
-        pstdio = (PSTDIO)vapp.Pkwa()->PgobFromCls(kclsSTDIO);
-        Assert(pstdio != pvNil, "Creating a TGOB with no STDIO present");
+        pstdio = (PStudio)vapp.Pkwa()->PgobFromCls(kclsStudio);
+        Assert(pstdio != pvNil, "Creating a TextGraphicsObject with no Studio present");
         pstdio->GetStnMisc(idsFont, &stn);
         vapp.FGetOnn(&stn, &onn); //  Ignore failure
         if (onn != onnNil)
@@ -179,13 +179,13 @@ PTGOB TGOB::PtgobCreate(long kidFrm, long idsFont, long tav, long hid)
 
 /******************************************************************************
     SetAlign
-        set the text alignment for this TGOB
+        set the text alignment for this TextGraphicsObject
 
     Arguments:
         long tah  --  the horizontal alignment
         long tav  --  the vertical alignment
 ************************************************************ PETED ***********/
-void TGOB::SetAlign(long tah, long tav)
+void TextGraphicsObject::SetAlign(long tah, long tav)
 {
     if (tah != tahLim)
         _tah = tah;
@@ -195,13 +195,13 @@ void TGOB::SetAlign(long tah, long tav)
 
 /******************************************************************************
     GetAlign
-        Gets the text alignment for this TGOB
+        Gets the text alignment for this TextGraphicsObject
 
     Arguments:
         long *ptah  --  pointer to take the horizontal alignment
         long *ptav  --  pointer to take the vertical alignment
 ************************************************************ PETED ***********/
-void TGOB::GetAlign(long *ptah, long *ptav)
+void TextGraphicsObject::GetAlign(long *ptah, long *ptav)
 {
     if (ptah != pvNil)
         *ptah = _tah;
@@ -213,7 +213,7 @@ void TGOB::GetAlign(long *ptah, long *ptav)
 
 /*****************************************************************************
  *
- *	Mark memory used by the TGOB
+ *	Mark memory used by the TextGraphicsObject
  *
  *	Parameters:
  *		None.
@@ -222,16 +222,16 @@ void TGOB::GetAlign(long *ptah, long *ptav)
  *		Nothing.
  *
  *****************************************************************************/
-void TGOB::MarkMem(void)
+void TextGraphicsObject::MarkMem(void)
 {
     AssertThis(0);
 
-    TGOB_PAR::MarkMem();
+    TextGraphicsObject_PAR::MarkMem();
 }
 
 /*****************************************************************************\
  *
- *	Assert the validity of the TGOB
+ *	Assert the validity of the TextGraphicsObject
  *
  *	Parameters:
  *		grf - bit array of options.
@@ -240,9 +240,9 @@ void TGOB::MarkMem(void)
  *		Nothing.
  *
 \*****************************************************************************/
-void TGOB::AssertValid(ulong grf)
+void TextGraphicsObject::AssertValid(ulong grf)
 {
-    TGOB_PAR::AssertValid(fobjAllocated);
+    TextGraphicsObject_PAR::AssertValid(fobjAllocated);
 }
 
 #endif // DEBUG

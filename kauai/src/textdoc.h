@@ -12,65 +12,65 @@
 
     For editing a text file or text stream as a document.  Unlike the edit
     controls in text.h/text.cpp, all the text need not be in memory (this
-    uses a BSF) and there can be multiple views on the same text.
+    uses a FileByteStream) and there can be multiple views on the same text.
 
 ***************************************************************************/
 #ifndef TEXTDOC_H
 #define TEXTDOC_H
 
 /***************************************************************************
-    Text document.  A doc wrapper for a BSF.
+    Text document.  A doc wrapper for a FileByteStream.
 ***************************************************************************/
-typedef class TXDC *PTXDC;
-#define TXDC_PAR DOCB
-#define kclsTXDC 'TXDC'
-class TXDC : public TXDC_PAR
+typedef class TextDocumentByteStream *PTextDocumentByteStream;
+#define TextDocumentByteStream_PAR DocumentBase
+#define kclsTextDocumentByteStream 'TXDC'
+class TextDocumentByteStream : public TextDocumentByteStream_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PBSF _pbsf;
-    PFIL _pfil;
+    PFileByteStream _pbsf;
+    PFileObject _pfil;
 
-    TXDC(PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
-    ~TXDC(void);
-    bool _FInit(PFNI pfni = pvNil, PBSF pbsf = pvNil);
+    TextDocumentByteStream(PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
+    ~TextDocumentByteStream(void);
+    bool _FInit(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil);
 
   public:
-    static PTXDC PtxdcNew(PFNI pfni = pvNil, PBSF pbsf = pvNil, PDOCB pdocb = pvNil, ulong grfdoc = fdocNil);
+    static PTextDocumentByteStream PtxdcNew(PFilename pfni = pvNil, PFileByteStream pbsf = pvNil, PDocumentBase pdocb = pvNil, ulong grfdoc = fdocNil);
 
-    PBSF Pbsf(void)
+    PFileByteStream Pbsf(void)
     {
         return _pbsf;
     }
 
-    virtual PDDG PddgNew(PGCB pgcb);
-    virtual bool FGetFni(FNI *pfni);
-    virtual bool FSaveToFni(FNI *pfni, bool fSetFni);
+    virtual PDocumentDisplayGraphicsObject PddgNew(PGraphicsObjectBlock pgcb);
+    virtual bool FGetFni(Filename *pfni);
+    virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
 };
 
 /***************************************************************************
-    Text document display GOB - DDG for a TXDC.
+    Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TextDocumentByteStream.
 ***************************************************************************/
 const long kcchMaxLine = 512;
 const long kdxpIndentTxdd = 5;
 
-typedef class TXDD *PTXDD;
-#define TXDD_PAR DDG
-#define kclsTXDD 'TXDD'
-class TXDD : public TXDD_PAR
+typedef class TextDocumentByteStreamDisplay *PTextDocumentByteStreamDisplay;
+#define TextDocumentByteStreamDisplay_PAR DocumentDisplayGraphicsObject
+#define kclsTextDocumentByteStreamDisplay 'TXDD'
+class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PBSF _pbsf;
+    PFileByteStream _pbsf;
     long _clnDisp;
     long _clnDispWhole;
-    PGL _pglichStarts;
+    PDynamicArray _pglichStarts;
 
     // the selection
     long _ichAnchor;
@@ -92,8 +92,8 @@ class TXDD : public TXDD_PAR
     long _ichMinCache;
     long _ichLimCache;
 
-    TXDD(PDOCB pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
-    ~TXDD(void);
+    TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
+    ~TextDocumentByteStreamDisplay(void);
     virtual bool _FInit(void);
     virtual void _NewRc(void);
     virtual void _Activate(bool fActive);
@@ -108,15 +108,15 @@ class TXDD : public TXDD_PAR
     bool _FFindLineStart(long ich, long *pich);
     bool _FFindNextLineStartCached(long ich, long *pich, achar *prgch = pvNil, long cchMax = 0);
     bool _FFindLineStartCached(long ich, long *pich);
-    void _DrawLine(PGNV pgnv, RC *prcClip, long yp, achar *prgch, long cch);
+    void _DrawLine(PGraphicsEnvironment pgnv, RC *prcClip, long yp, achar *prgch, long cch);
     void _SwitchSel(bool fOn, bool fDraw);
-    void _InvertSel(PGNV pgnv, bool fDraw);
-    void _InvertIchRange(PGNV pgnv, long ich1, long ich2, bool fDraw);
+    void _InvertSel(PGraphicsEnvironment pgnv, bool fDraw);
+    void _InvertIchRange(PGraphicsEnvironment pgnv, long ich1, long ich2, bool fDraw);
     long _LnFromIch(long ich);
     long _IchMinLn(long ln);
-    long _XpFromLnIch(PGNV pgnv, long ln, long ich);
+    long _XpFromLnIch(PGraphicsEnvironment pgnv, long ln, long ich);
     long _XpFromIch(long ich);
-    long _XpFromRgch(PGNV pgnv, achar *prgch, long cch);
+    long _XpFromRgch(PGraphicsEnvironment pgnv, achar *prgch, long cch);
     long _IchFromLnXp(long ln, long xp);
     long _IchFromIchXp(long ich, long xp);
     long _IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp);
@@ -134,17 +134,17 @@ class TXDD : public TXDD_PAR
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
 
     // clipboard support
-    virtual bool _FCopySel(PDOCB *ppdocb = pvNil);
+    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
-    virtual bool _FPaste(PCLIP pclip, bool fDoIt, long cid);
+    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
   public:
-    static PTXDD PtxddNew(PDOCB pdocb, PGCB pgcb, PBSF pbsf, long onn, ulong grfont, long dypFont);
+    static PTextDocumentByteStreamDisplay PtxddNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
     virtual bool FCmdKey(PCMD_KEY pcmd);
-    virtual bool FCmdSelIdle(PCMD pcmd);
+    virtual bool FCmdSelIdle(PCommand pcmd);
 
     void SetSel(long ichAnchor, long ichOther, bool fDraw);
     void ShowSel(bool fDraw);

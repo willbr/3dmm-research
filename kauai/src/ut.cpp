@@ -24,14 +24,14 @@ bool FFindPrime(long lwMax, long lwMaxRoot, long *plwPrime, long *plwRoot);
 void __cdecl main(long cpszs, char **prgpszs)
 {
 #ifdef REVIEW // shonk: for counting lines
-    FNE fne;
-    FNI fniDir, fni;
-    FTG rgftg[2];
+    FileNameEnumerator fne;
+    Filename fniDir, fni;
+    FileType rgftg[2];
     byte rgb[512];
-    FP fpMac, fp;
+    FilePosition fpMac, fp;
     long cbTot, clnTot, ib, cbT, cln;
-    PFIL pfil;
-    STN stn;
+    PFileObject pfil;
+    String stn;
 
     if (!fniDir.FGetOpen("All files\0*.*\0", hNil))
         return;
@@ -48,7 +48,7 @@ void __cdecl main(long cpszs, char **prgpszs)
     {
         fni.GetStnPath(&stn);
 
-        if (pvNil == (pfil = FIL::PfilOpen(&fni)))
+        if (pvNil == (pfil = FileObject::PfilOpen(&fni)))
             return;
         fpMac = pfil->FpMac();
         cbTot += fpMac;
@@ -75,7 +75,7 @@ void __cdecl main(long cpszs, char **prgpszs)
 
 #ifndef REVIEW // shonk: for finding a prime and a primitive root for the prime
     long lwPrime, lwRoot, lw;
-    STN stn;
+    String stn;
 
     lwPrime = 6000;
     if (cpszs > 1)

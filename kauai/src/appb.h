@@ -29,7 +29,7 @@ typedef EVT *PEVT;
 
 #ifdef WIN
 // windows specific globals
-struct WIG
+struct WindowsAppGlobals
 {
     HINSTANCE hinst;
     HINSTANCE hinstPrev;
@@ -43,7 +43,7 @@ struct WIG
     HWND hwndNextViewer; // next clipboard viewer
     long lwThreadMain;   // main thread
 };
-extern WIG vwig;
+extern WindowsAppGlobals vwig;
 #endif // WIN
 
 /***************************************************************************
@@ -58,22 +58,22 @@ enum
     fappOnscreen = 0x2,
 };
 
-typedef class APPB *PAPPB;
-#define APPB_PAR CMH
-#define kclsAPPB 'APPB'
-class APPB : public APPB_PAR
+typedef class ApplicationBase *PApplicationBase;
+#define ApplicationBase_PAR CommandHandler
+#define kclsApplicationBase 'APPB'
+class ApplicationBase : public ApplicationBase_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(APPB)
+    CMD_MAP_DEC(ApplicationBase)
 
   protected:
     // marked region - for fast updating
     struct MKRGN
     {
         HWND hwnd;
-        PREGN pregn;
+        PRegion pregn;
     };
 
     // map from a property id to its value
@@ -87,8 +87,8 @@ class APPB : public APPB_PAR
     struct MODCX
     {
         long cactLongOp;
-        PCEX pcex;
-        PUSAC pusac;
+        PCommandExecutionManager pcex;
+        PUniversalScalableApplicationClock pusac;
         ulong luScale;
     };
 
@@ -104,16 +104,16 @@ class APPB : public APPB_PAR
     bool _fForeground : 1;      // whether we're the foreground app
     bool _fEndModal : 1;        // set to end the topmost modal loop
 
-    PGL _pglmkrgn;        // list of marked regions for fast updating
+    PDynamicArray _pglmkrgn;        // list of marked regions for fast updating
     long _onnDefFixed;    // default fixed pitch font
     long _onnDefVariable; // default variable pitched font
-    PGPT _pgptOff;        // cached offscreen GPT for offscreen updates
-    long _dxpOff;         // size of the offscreen GPT
+    PGraphicsPort _pgptOff;        // cached offscreen GraphicsPort for offscreen updates
+    long _dxpOff;         // size of the offscreen GraphicsPort
     long _dypOff;
 
     long _xpMouse; // location of mouse on last reported mouse move
     long _ypMouse;
-    PGOB _pgobMouse;     // gob mouse was last over
+    PGraphicsObject _pgobMouse;     // gob mouse was last over
     ulong _grfcustMouse; // cursor state on last mouse move
 
     // for determining the multiplicity of a click
@@ -123,22 +123,22 @@ class APPB : public APPB_PAR
     // for tool tips
     ulong _tsMouseEnter;     // when the mouse entered _pgobMouse
     ulong _dtsToolTip;       // time lag for tool tip
-    PGOB _pgobToolTipTarget; // if there is a tool tip up, it's for this gob
+    PGraphicsObject _pgobToolTipTarget; // if there is a tool tip up, it's for this gob
 
-    PCURS _pcurs;     // current cursor
-    PCURS _pcursWait; // cursor to use for long operations
+    PCursor _pcurs;     // current cursor
+    PCursor _pcursWait; // cursor to use for long operations
     long _cactLongOp; // long operation count
     ulong _grfcust;   // current cursor state
 
     long _gft;     // transition to apply during next fast update
     long _lwGft;   // parameter for transition
     ulong _dtsGft; // how much time to give the transition
-    PGL _pglclr;   // palette to transition to
-    ACR _acr;      // intermediate color to transition to
+    PDynamicArray _pglclr;   // palette to transition to
+    AbstractColor _acr;      // intermediate color to transition to
 
-    PGL _pglprop; // the properties
+    PDynamicArray _pglprop; // the properties
 
-    PGL _pglmodcx;   // The modal context stack
+    PDynamicArray _pglmodcx;   // The modal context stack
     long _lwModal;   // Return value from modal loop
     long _cactModal; // how deep we are in application loops
 
@@ -171,13 +171,13 @@ class APPB : public APPB_PAR
 #endif
 
     // fast updating
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
-    virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
-    void _MarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo);
-    void _UnmarkRegnRc(PREGN pregn, RC *prc, PGOB pgobCoo);
+    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
+    virtual void _CopyPixels(PGraphicsEnvironment pgvnSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst);
+    void _MarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
+    void _UnmarkRegnRc(PRegion pregn, RC *prc, PGraphicsObject pgobCoo);
 
-    // to borrow the common offscreen GPT
-    virtual PGPT _PgptEnsure(RC *prc);
+    // to borrow the common offscreen GraphicsPort
+    virtual PGraphicsPort _PgptEnsure(RC *prc);
 
     // property list management
     bool _FFindProp(long prid, PROP *pprop, long *piprop = pvNil);
@@ -204,8 +204,8 @@ class APPB : public APPB_PAR
     virtual void _Activate(bool fActive);
 
   public:
-    APPB(void);
-    ~APPB(void);
+    ApplicationBase(void);
+    ~ApplicationBase(void);
 
 #ifdef MAC
     // setting up the heap
@@ -235,25 +235,25 @@ class APPB : public APPB_PAR
 
     // Look for mouse events and get the mouse location
     // GrfcustCur() is synchronized with this
-    void TrackMouse(PGOB pgob, PT *ppt);
+    void TrackMouse(PGraphicsObject pgob, PT *ppt);
 
     // app name
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
 
     // command handler stuff
-    virtual void BuryCmh(PCMH pcmh);
-    virtual PCMH PcmhFromHid(long hid);
+    virtual void BuryCmh(PCommandHandler pcmh);
+    virtual PCommandHandler PcmhFromHid(long hid);
 
     // drawing
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
-    virtual void MarkRc(RC *prc, PGOB pgobCoo);
-    virtual void MarkRegn(PREGN pregn, PGOB pgobCoo);
-    virtual void UnmarkRc(RC *prc, PGOB pgobCoo);
-    virtual void UnmarkRegn(PREGN pregn, PGOB pgobCoo);
+    virtual void MarkRc(RC *prc, PGraphicsObject pgobCoo);
+    virtual void MarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
+    virtual void UnmarkRc(RC *prc, PGraphicsObject pgobCoo);
+    virtual void UnmarkRegn(PRegion pregn, PGraphicsObject pgobCoo);
     virtual bool FGetMarkedRc(HWND hwnd, RC *prc);
     virtual void UpdateMarked(void);
     virtual void InvalMarked(HWND hwnd);
-    virtual void SetGft(long gft, long lwGft, ulong dts = kdtsSecond, PGL pglclr = pvNil, ACR acr = kacrClear);
+    virtual void SetGft(long gft, long lwGft, ulong dts = kdtsSecond, PDynamicArray pglclr = pvNil, AbstractColor acr = kacrClear);
 
     // default fonts
     virtual long OnnDefVariable(void);
@@ -261,16 +261,16 @@ class APPB : public APPB_PAR
     virtual long DypTextDef(void);
 
     // basic alert handling
-    virtual tribool TGiveAlertSz(PSZ psz, long bk, long cok);
+    virtual tribool TGiveAlertSz(PZString psz, long bk, long cok);
 
     // common commands
-    virtual bool FCmdQuit(PCMD pcmd);
-    virtual bool FCmdShowClipboard(PCMD pcmd);
-    virtual bool FEnableAppCmd(PCMD pcmd, ulong *pgrfeds);
-    virtual bool FCmdIdle(PCMD pcmd);
-    virtual bool FCmdChooseWnd(PCMD pcmd);
+    virtual bool FCmdQuit(PCommand pcmd);
+    virtual bool FCmdShowClipboard(PCommand pcmd);
+    virtual bool FEnableAppCmd(PCommand pcmd, ulong *pgrfeds);
+    virtual bool FCmdIdle(PCommand pcmd);
+    virtual bool FCmdChooseWnd(PCommand pcmd);
 #ifdef MAC
-    virtual bool FCmdOpenDA(PCMD pcmd);
+    virtual bool FCmdOpenDA(PCommand pcmd);
 #endif // MAC
 
 #ifdef DEBUG
@@ -279,8 +279,8 @@ class APPB : public APPB_PAR
 #endif // DEBUG
 
     // cursor stuff
-    virtual void SetCurs(PCURS pcurs, bool fLongOp = fFalse);
-    virtual void SetCursCno(PRCA prca, CNO cno, bool fLongOp = fFalse);
+    virtual void SetCurs(PCursor pcurs, bool fLongOp = fFalse);
+    virtual void SetCursCno(PResourceCache prca, ChunkNumber cno, bool fLongOp = fFalse);
     virtual void RefreshCurs(void);
     virtual ulong GrfcustCur(bool fAsynch = fFalse);
     virtual void ModifyGrfcust(ulong grfcustOr, ulong grfcustXor);
@@ -295,25 +295,25 @@ class APPB : public APPB_PAR
     virtual bool FGetProp(long prid, long *plw);
 
     // clipboard importing - normally only called by the clipboard object
-    virtual bool FImportClip(long clfm, void *pv = pvNil, long cb = 0, PDOCB *ppdocb = pvNil, bool *pfDelay = pvNil);
+    virtual bool FImportClip(long clfm, void *pv = pvNil, long cb = 0, PDocumentBase *ppdocb = pvNil, bool *pfDelay = pvNil);
 
     // reset tooltip tracking.
     virtual void ResetToolTip(void);
 
     // modal loop support
-    virtual bool FPushModal(PCEX pcex = pvNil);
+    virtual bool FPushModal(PCommandExecutionManager pcex = pvNil);
     virtual bool FModalLoop(long *plwRet);
     virtual void EndModal(long lwRet);
     virtual void PopModal(void);
-    virtual bool FCmdEndModal(PCMD pcmd);
+    virtual bool FCmdEndModal(PCommand pcmd);
     long CactModal(void)
     {
         return _cactModal;
     }
-    virtual void BadModalCmd(PCMD pcmd);
+    virtual void BadModalCmd(PCommand pcmd);
 
     // Query save changes for a document
-    virtual tribool TQuerySaveDoc(PDOCB pdocb, bool fForce);
+    virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);
 
     // flush user generated events from the system event queue.
     virtual void FlushUserEvents(ulong grfevt = kgrfevtAll);
@@ -322,9 +322,9 @@ class APPB : public APPB_PAR
     virtual bool FAllowScreenSaver(void);
 };
 
-extern PAPPB vpappb;
-extern PCEX vpcex;
-extern PSNDM vpsndm;
+extern PApplicationBase vpappb;
+extern PCommandExecutionManager vpcex;
+extern PSoundManager vpsndm;
 
 // main entry point for the client app
 void FrameMain(void);

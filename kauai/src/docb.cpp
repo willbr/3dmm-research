@@ -14,38 +14,38 @@
 ASSERTNAME
 
 #define dsnoNil 0
-long DOCB::_cactLast = 0;
-PDOCB DOCB::_pdocbFirst = pvNil;
+long DocumentBase::_cactLast = 0;
+PDocumentBase DocumentBase::_pdocbFirst = pvNil;
 
-BEGIN_CMD_MAP(DDG, GOB)
-ON_CID_GEN(cidClose, &DDG::FCmdCloseDoc, pvNil)
-ON_CID_GEN(cidSaveAndClose, &DDG::FCmdCloseDoc, pvNil)
-ON_CID_GEN(cidSave, &DDG::FCmdSave, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidSaveAs, &DDG::FCmdSave, pvNil)
-ON_CID_GEN(cidSaveCopy, &DDG::FCmdSave, pvNil)
-ON_CID_GEN(cidCut, &DDG::FCmdClip, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidCopy, &DDG::FCmdClip, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidPaste, &DDG::FCmdClip, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidPasteSpecial, &DDG::FCmdClip, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidClear, &DDG::FCmdClip, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidUndo, &DDG::FCmdUndo, &DDG::FEnableDdgCmd)
-ON_CID_GEN(cidRedo, &DDG::FCmdUndo, &DDG::FEnableDdgCmd)
+BEGIN_CMD_MAP(DocumentDisplayGraphicsObject, GraphicsObject)
+ON_CID_GEN(cidClose, &DocumentDisplayGraphicsObject::FCmdCloseDoc, pvNil)
+ON_CID_GEN(cidSaveAndClose, &DocumentDisplayGraphicsObject::FCmdCloseDoc, pvNil)
+ON_CID_GEN(cidSave, &DocumentDisplayGraphicsObject::FCmdSave, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidSaveAs, &DocumentDisplayGraphicsObject::FCmdSave, pvNil)
+ON_CID_GEN(cidSaveCopy, &DocumentDisplayGraphicsObject::FCmdSave, pvNil)
+ON_CID_GEN(cidCut, &DocumentDisplayGraphicsObject::FCmdClip, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidCopy, &DocumentDisplayGraphicsObject::FCmdClip, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidPaste, &DocumentDisplayGraphicsObject::FCmdClip, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidPasteSpecial, &DocumentDisplayGraphicsObject::FCmdClip, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidClear, &DocumentDisplayGraphicsObject::FCmdClip, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidUndo, &DocumentDisplayGraphicsObject::FCmdUndo, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
+ON_CID_GEN(cidRedo, &DocumentDisplayGraphicsObject::FCmdUndo, &DocumentDisplayGraphicsObject::FEnableDdgCmd)
 END_CMD_MAP_NIL()
 
-RTCLASS(DOCB)
-RTCLASS(DTE)
-RTCLASS(DDG)
-RTCLASS(DMD)
-RTCLASS(DMW)
-RTCLASS(DSG)
-RTCLASS(DSSP)
-RTCLASS(DSSM)
-RTCLASS(UNDB)
+RTCLASS(DocumentBase)
+RTCLASS(DocumentTreeEnumerator)
+RTCLASS(DocumentDisplayGraphicsObject)
+RTCLASS(DocumentMDIWindow)
+RTCLASS(DocumentMainWindow)
+RTCLASS(DocumentScrollGraphicsObject)
+RTCLASS(DocumentScrollWindowSplitter)
+RTCLASS(DocumentScrollSplitMover)
+RTCLASS(UndoBase)
 
 /***************************************************************************
-    Constructor for DOCB
+    Constructor for DocumentBase
 ***************************************************************************/
-DOCB::DOCB(PDOCB pdocb, ulong grfdoc) : CMH(khidDoc)
+DocumentBase::DocumentBase(PDocumentBase pdocb, ulong grfdoc) : CommandHandler(khidDoc)
 {
     _pdocbChd = pvNil;
     if (pvNil == pdocb)
@@ -74,20 +74,20 @@ DOCB::DOCB(PDOCB pdocb, ulong grfdoc) : CMH(khidDoc)
 }
 
 /***************************************************************************
-    First calls Release on all direct child docb's of this DOCB.
+    First calls Release on all direct child docb's of this DocumentBase.
     Finally calls delete on itself.
 ***************************************************************************/
-void DOCB::Release(void)
+void DocumentBase::Release(void)
 {
     AssertThis(fobjAssertFull);
-    PDOCB pdocb;
-    PUNDB pundb;
+    PDocumentBase pdocb;
+    PUndoBase pundb;
 
     if (--_cactRef > 0)
         return;
 
-    Assert(Cddg() == 0, "why are there still DDG's open on this DOCB?");
-    Assert(!_fFreeing, "we're recursing into the DOCB::Release!");
+    Assert(Cddg() == 0, "why are there still DocumentDisplayGraphicsObject's open on this DocumentBase?");
+    Assert(!_fFreeing, "we're recursing into the DocumentBase::Release!");
     _fFreeing = fTrue;
 
     if (pvNil != _pglpundb)
@@ -104,7 +104,7 @@ void DOCB::Release(void)
         if (pdocb == _pdocbChd)
         {
             // REVIEW shonk: Release: is this the right thing to do?  What if
-            // someone else has a reference count to this child DOCB?
+            // someone else has a reference count to this child DocumentBase?
             Bug("why wasn't this child doc released?");
             ReleasePpo(&pdocb);
         }
@@ -114,18 +114,18 @@ void DOCB::Release(void)
 }
 
 /***************************************************************************
-    Close all DDGs on this DOCB.
+    Close all DDGs on this DocumentBase.
 ***************************************************************************/
-void DOCB::CloseAllDdg(void)
+void DocumentBase::CloseAllDdg(void)
 {
-    PDDG pddg;
-    PDMD pdmd;
+    PDocumentDisplayGraphicsObject pddg;
+    PDocumentMDIWindow pdmd;
 
     if (pvNil != _pglpddg)
     {
         // the pddg's are removed from _hplpddg in RemoveDdg
-        // Note that freeing one DMD may end up nuking more than
-        // one DDG.
+        // Note that freeing one DocumentMDIWindow may end up nuking more than
+        // one DocumentDisplayGraphicsObject.
         // REVIEW shonk: this assumes that no one else has a
         // reference count open on one of these DMDs or DDGs.
         AddRef(); // so we aren't freed in the loop
@@ -135,7 +135,7 @@ void DOCB::CloseAllDdg(void)
             if (pvNil != (pdmd = pddg->Pdmd()))
                 ReleasePpo(&pdmd); // close the MDI window
             else
-                ReleasePpo(&pddg); // close just the DDG
+                ReleasePpo(&pddg); // close just the DocumentDisplayGraphicsObject
         }
         Release(); // balance our AddRef
     }
@@ -144,10 +144,10 @@ void DOCB::CloseAllDdg(void)
 /***************************************************************************
     Destructor for the document class.
 ***************************************************************************/
-DOCB::~DOCB(void)
+DocumentBase::~DocumentBase(void)
 {
     AssertThis(fobjAssertFull);
-    PDOCB *ppdocb;
+    PDocumentBase *ppdocb;
 
     Assert(_fFreeing, "Release not called first!");
     Assert(pvNil == _pdocbChd, "docb still has children");
@@ -179,9 +179,9 @@ DOCB::~DOCB(void)
 /***************************************************************************
     Static method: calls FQueryClose on all open docs.
 ***************************************************************************/
-bool DOCB::FQueryCloseAll(ulong grfdoc)
+bool DocumentBase::FQueryCloseAll(ulong grfdoc)
 {
-    PDOCB pdocb;
+    PDocumentBase pdocb;
 
     for (pdocb = _pdocbFirst; pvNil != pdocb; pdocb = pdocb->_pdocbSib)
     {
@@ -198,11 +198,11 @@ bool DOCB::FQueryCloseAll(ulong grfdoc)
     (assume yes) if fdocAssumeYes is set.  Doesn't assume doc is fni
     based (calls FSave() to perform the save).
 ***************************************************************************/
-bool DOCB::FQueryClose(ulong grfdoc)
+bool DocumentBase::FQueryClose(ulong grfdoc)
 {
     tribool tRet;
-    DTE dte;
-    PDOCB pdocb;
+    DocumentTreeEnumerator dte;
+    PDocumentBase pdocb;
     ulong grfdte;
     bool fForce = FPure(grfdoc & fdocForceClose);
 
@@ -232,7 +232,7 @@ bool DOCB::FQueryClose(ulong grfdoc)
 /***************************************************************************
     Ask the user if they want to save the document before closing it.
 ***************************************************************************/
-tribool DOCB::_TQuerySave(bool fForce)
+tribool DocumentBase::_TQuerySave(bool fForce)
 {
     AssertThis(0);
 
@@ -240,19 +240,19 @@ tribool DOCB::_TQuerySave(bool fForce)
 }
 
 /***************************************************************************
-    If the document is dirty, and this is the only DMD displaying the doc,
+    If the document is dirty, and this is the only DocumentMDIWindow displaying the doc,
     ask the user if they want to save changes (and save if they do).
     Return false if the user cancels the operation or the save fails.
 ***************************************************************************/
-bool DOCB::FQueryCloseDmd(PDMD pdmd)
+bool DocumentBase::FQueryCloseDmd(PDocumentMDIWindow pdmd)
 {
-    PDDG pddg;
-    PDMD pdmdT;
+    PDocumentDisplayGraphicsObject pddg;
+    PDocumentMDIWindow pdmdT;
     long ipddg;
 
     if (pvNil == _pglpddg || _pglpddg->IvMac() == 0)
     {
-        Bug("why are there no DDGs for this doc if there's a DMD?");
+        Bug("why are there no DDGs for this doc if there's a DocumentMDIWindow?");
         return fTrue;
     }
 
@@ -274,7 +274,7 @@ bool DOCB::FQueryCloseDmd(PDMD pdmd)
 /***************************************************************************
     Return whether this is an internal document.
 ***************************************************************************/
-bool DOCB::FInternal(void)
+bool DocumentBase::FInternal(void)
 {
     AssertThis(0);
     return _fInternal || vpclip->FDocIsClip(this);
@@ -283,7 +283,7 @@ bool DOCB::FInternal(void)
 /***************************************************************************
     Change this document's internal status.
 ***************************************************************************/
-void DOCB::SetInternal(bool fInternal)
+void DocumentBase::SetInternal(bool fInternal)
 {
     AssertThis(0);
     _fInternal = FPure(fInternal);
@@ -292,11 +292,11 @@ void DOCB::SetInternal(bool fInternal)
 /***************************************************************************
     Static method to return the DOC open on this fni (if there is one).
 ***************************************************************************/
-PDOCB DOCB::PdocbFromFni(FNI *pfni)
+PDocumentBase DocumentBase::PdocbFromFni(Filename *pfni)
 {
     AssertPo(pfni, 0);
-    PDOCB pdocb;
-    FNI fni;
+    PDocumentBase pdocb;
+    Filename fni;
 
     for (pdocb = _pdocbFirst; pvNil != pdocb; pdocb = pdocb->_pdocbSib)
     {
@@ -309,10 +309,10 @@ PDOCB DOCB::PdocbFromFni(FNI *pfni)
 }
 
 /***************************************************************************
-    Get the current FNI for the doc.  Return false if the doc is not
-    currently based on an FNI (it's a new doc or an internal one).
+    Get the current Filename for the doc.  Return false if the doc is not
+    currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool DOCB::FGetFni(FNI *pfni)
+bool DocumentBase::FGetFni(Filename *pfni)
 {
     return fFalse;
 }
@@ -320,9 +320,9 @@ bool DOCB::FGetFni(FNI *pfni)
 /***************************************************************************
     High level save.
 ***************************************************************************/
-bool DOCB::FSave(long cid)
+bool DocumentBase::FSave(long cid)
 {
-    FNI fni;
+    Filename fni;
 
     switch (cid)
     {
@@ -353,12 +353,12 @@ bool DOCB::FSave(long cid)
 
 /***************************************************************************
     Save the document and optionally set this fni as the current one.
-    If the doc is currently based on an FNI, pfni may be nil, indicating
+    If the doc is currently based on an Filename, pfni may be nil, indicating
     that this is a normal save (not save as).  If pfni is not nil and
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool DOCB::FSaveToFni(FNI *pfni, bool fSetFni)
+bool DocumentBase::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     return fFalse;
 }
@@ -367,7 +367,7 @@ bool DOCB::FSaveToFni(FNI *pfni, bool fSetFni)
     Ask the user what file they want to save to.  On Mac, assumes saving
     to a text file.
 ***************************************************************************/
-bool DOCB::FGetFniSave(FNI *pfni)
+bool DocumentBase::FGetFniSave(Filename *pfni)
 {
     return FGetFniSaveMacro(pfni, 'TEXT',
                             "\x9"
@@ -376,15 +376,15 @@ bool DOCB::FGetFniSave(FNI *pfni)
 }
 
 /***************************************************************************
-    Add the DDG to the list of DDGs displaying this document
+    Add the DocumentDisplayGraphicsObject to the list of DDGs displaying this document
 ***************************************************************************/
-bool DOCB::FAddDdg(PDDG pddg)
+bool DocumentBase::FAddDdg(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pddg, 0);
     bool fT;
 
-    if (pvNil == _pglpddg && pvNil == (_pglpddg = GL::PglNew(size(PDDG), 1)))
+    if (pvNil == _pglpddg && pvNil == (_pglpddg = DynamicArray::PglNew(size(PDocumentDisplayGraphicsObject), 1)))
     {
         return fFalse;
     }
@@ -394,14 +394,14 @@ bool DOCB::FAddDdg(PDDG pddg)
 }
 
 /***************************************************************************
-    Find the position of the pddg in the DOCB's list.
+    Find the position of the pddg in the DocumentBase's list.
 ***************************************************************************/
-bool DOCB::_FFindDdg(PDDG pddg, long *pipddg)
+bool DocumentBase::_FFindDdg(PDocumentDisplayGraphicsObject pddg, long *pipddg)
 {
     AssertThis(0);
     AssertVarMem(pipddg);
     long ipddg, cpddg;
-    PDDG pddgT;
+    PDocumentDisplayGraphicsObject pddgT;
 
     if (_pglpddg == pvNil)
         goto LFail;
@@ -425,7 +425,7 @@ LFail:
 /***************************************************************************
     Remove the pddg from the list of DDGs for this doc.
 ***************************************************************************/
-void DOCB::RemoveDdg(PDDG pddg)
+void DocumentBase::RemoveDdg(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
     long ipddg;
@@ -436,9 +436,9 @@ void DOCB::RemoveDdg(PDDG pddg)
 }
 
 /***************************************************************************
-    Make this DDG the first one in the DOCB's list.
+    Make this DocumentDisplayGraphicsObject the first one in the DocumentBase's list.
 ***************************************************************************/
-void DOCB::MakeFirstDdg(PDDG pddg)
+void DocumentBase::MakeFirstDdg(PDocumentDisplayGraphicsObject pddg)
 {
     long ipddg;
 
@@ -453,14 +453,14 @@ void DOCB::MakeFirstDdg(PDDG pddg)
 }
 
 /***************************************************************************
-    Return the iddg'th DDG displaying this doc.  If iddg is too big,
+    Return the iddg'th DocumentDisplayGraphicsObject displaying this doc.  If iddg is too big,
     return pvNil.
 ***************************************************************************/
-PDDG DOCB::PddgGet(long iddg)
+PDocumentDisplayGraphicsObject DocumentBase::PddgGet(long iddg)
 {
     AssertThis(0);
     AssertIn(iddg, 0, klwMax);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     if (pvNil == _pglpddg || iddg >= _pglpddg->IvMac())
         return pvNil;
@@ -470,12 +470,12 @@ PDDG DOCB::PddgGet(long iddg)
 }
 
 /***************************************************************************
-    If there is an active DDG for this doc, return it.
+    If there is an active DocumentDisplayGraphicsObject for this doc, return it.
 ***************************************************************************/
-PDDG DOCB::PddgActive(void)
+PDocumentDisplayGraphicsObject DocumentBase::PddgActive(void)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     pddg = PddgGet(0);
     if (pvNil == pddg || !pddg->FActive())
@@ -486,68 +486,68 @@ PDDG DOCB::PddgActive(void)
 /***************************************************************************
     Create a new mdi window for this document.
 ***************************************************************************/
-PDMD DOCB::PdmdNew(void)
+PDocumentMDIWindow DocumentBase::PdmdNew(void)
 {
     AssertThis(fobjAssertFull);
-    return DMD::PdmdNew(this);
+    return DocumentMDIWindow::PdmdNew(this);
 }
 
 /***************************************************************************
-    If this DOCB has a DMD, make it the activate hwnd.
+    If this DocumentBase has a DocumentMDIWindow, make it the activate hwnd.
 ***************************************************************************/
-void DOCB::ActivateDmd(void)
+void DocumentBase::ActivateDmd(void)
 {
     AssertThis(fobjAssertFull);
     long ipddg;
-    PDDG pddg;
-    PDMD pdmd;
+    PDocumentDisplayGraphicsObject pddg;
+    PDocumentMDIWindow pdmd;
 
     for (ipddg = 0; pvNil != (pddg = PddgGet(ipddg)); ipddg++)
     {
-        pdmd = (PDMD)pddg->PgobParFromCls(kclsDMD);
+        pdmd = (PDocumentMDIWindow)pddg->PgobParFromCls(kclsDocumentMDIWindow);
         if (pvNil != pdmd)
         {
-            GOB::MakeHwndActive(pdmd->HwndContainer());
+            GraphicsObject::MakeHwndActive(pdmd->HwndContainer());
             return;
         }
     }
 }
 
 /***************************************************************************
-    Create a DMW for the document.
+    Create a DocumentMainWindow for the document.
 ***************************************************************************/
-PDMW DOCB::PdmwNew(PGCB pgcb)
+PDocumentMainWindow DocumentBase::PdmwNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(fobjAssertFull);
-    return DMW::PdmwNew(this, pgcb);
+    return DocumentMainWindow::PdmwNew(this, pgcb);
 }
 
 /***************************************************************************
-    Create a new DSG for the doc in the given DMW.
+    Create a new DocumentScrollGraphicsObject for the doc in the given DocumentMainWindow.
 ***************************************************************************/
-PDSG DOCB::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDocumentScrollGraphicsObject DocumentBase::PdsgNew(PDocumentMainWindow pdmw, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
-    return DSG::PdsgNew(pdmw, pdsgSplit, grfdsg, rel);
+    return DocumentScrollGraphicsObject::PdsgNew(pdmw, pdsgSplit, grfdsg, rel);
 }
 
 /***************************************************************************
-    Create a new DDG for the doc in the given DSG.
+    Create a new DocumentDisplayGraphicsObject for the doc in the given DocumentScrollGraphicsObject.
 ***************************************************************************/
-PDDG DOCB::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DocumentBase::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(fobjAssertFull);
-    return DDG::PddgNew(this, pgcb);
+    return DocumentDisplayGraphicsObject::PddgNew(this, pgcb);
 }
 
 /***************************************************************************
     Get the name of a default (untitled) document.
 ***************************************************************************/
-void DOCB::GetName(PSTN pstn)
+void DocumentBase::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
-    FNI fni;
+    Filename fni;
 
     // REVIEW shonk: clipboard constant string.
     if (vpclip->FDocIsClip(this))
@@ -565,15 +565,15 @@ void DOCB::GetName(PSTN pstn)
 /***************************************************************************
     Makes sure all windows displaying this document have the correct title.
 ***************************************************************************/
-void DOCB::UpdateName(void)
+void DocumentBase::UpdateName(void)
 {
-    DTE dte;
+    DocumentTreeEnumerator dte;
     ulong grfdte;
-    STN stn;
+    String stn;
     long ipddg;
-    PDDG pddg;
-    PDOCB pdocb;
-    PDMD pdmd;
+    PDocumentDisplayGraphicsObject pddg;
+    PDocumentBase pdocb;
+    PDocumentMDIWindow pdmd;
 
     dte.Init(this);
     while (dte.FNextDoc(&pdocb, &grfdte, fdteNil))
@@ -592,10 +592,10 @@ void DOCB::UpdateName(void)
 /***************************************************************************
     Does a single Undo off the undo list.
 ***************************************************************************/
-bool DOCB::FUndo()
+bool DocumentBase::FUndo()
 {
     AssertThis(fobjAssertFull);
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb || _ipundbLimDone <= 0)
         return fFalse;
@@ -610,10 +610,10 @@ bool DOCB::FUndo()
 /***************************************************************************
     Redoes a single undo off the undo list.
 ***************************************************************************/
-bool DOCB::FRedo()
+bool DocumentBase::FRedo()
 {
     AssertThis(fobjAssertFull);
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb || _ipundbLimDone >= _pglpundb->IvMac())
         return fFalse;
@@ -630,16 +630,16 @@ bool DOCB::FRedo()
     the ref count on the pundb if we keep a reference to it.  Assumes
     the action has already been done.
 ***************************************************************************/
-bool DOCB::FAddUndo(PUNDB pundb)
+bool DocumentBase::FAddUndo(PUndoBase pundb)
 {
     AssertThis(fobjAssertFull);
-    PUNDB pundbT;
+    PUndoBase pundbT;
     bool fRet;
 
     if (_cundbMax == 0)
         return fTrue;
 
-    if (pvNil == _pglpundb && pvNil == (_pglpundb = GL::PglNew(size(PUNDB), 1)))
+    if (pvNil == _pglpundb && pvNil == (_pglpundb = DynamicArray::PglNew(size(PUndoBase), 1)))
     {
         return fFalse;
     }
@@ -669,9 +669,9 @@ bool DOCB::FAddUndo(PUNDB pundb)
 /***************************************************************************
     Delete all undo and redo records.
 ***************************************************************************/
-void DOCB::ClearUndo(void)
+void DocumentBase::ClearUndo(void)
 {
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb)
         return;
@@ -684,9 +684,9 @@ void DOCB::ClearUndo(void)
 /***************************************************************************
     Delete all redo records.
 ***************************************************************************/
-void DOCB::ClearRedo(void)
+void DocumentBase::ClearRedo(void)
 {
-    PUNDB pundb;
+    PUndoBase pundb;
 
     if (pvNil == _pglpundb)
         return;
@@ -701,12 +701,12 @@ void DOCB::ClearRedo(void)
 /***************************************************************************
     Set the maximum allowable number of undoable operations.
 ***************************************************************************/
-void DOCB::SetCundbMax(long cundbMax)
+void DocumentBase::SetCundbMax(long cundbMax)
 {
     AssertThis(fobjAssertFull);
     AssertIn(cundbMax, 0, kcbMax);
     long ipundbLimNew;
-    PUNDB pundb;
+    PUndoBase pundb;
 
     _cundbMax = cundbMax;
     if (pvNil == _pglpundb || _pglpundb->IvMac() <= cundbMax)
@@ -733,7 +733,7 @@ void DOCB::SetCundbMax(long cundbMax)
 /***************************************************************************
     Return the maximum number of undoable operations for this doc
 ***************************************************************************/
-long DOCB::CundbMax(void)
+long DocumentBase::CundbMax(void)
 {
     AssertThis(0);
     return _cundbMax;
@@ -742,7 +742,7 @@ long DOCB::CundbMax(void)
 /***************************************************************************
     Return the number of operations that can currently be undone.
 ***************************************************************************/
-long DOCB::CundbUndo(void)
+long DocumentBase::CundbUndo(void)
 {
     AssertThis(0);
     return _ipundbLimDone;
@@ -751,7 +751,7 @@ long DOCB::CundbUndo(void)
 /***************************************************************************
     Return the number of operations that can currently be redone.
 ***************************************************************************/
-long DOCB::CundbRedo(void)
+long DocumentBase::CundbRedo(void)
 {
     if (pvNil == _pglpundb)
         return 0;
@@ -761,7 +761,7 @@ long DOCB::CundbRedo(void)
 /***************************************************************************
     Export this docb as the external clipboard.
 ***************************************************************************/
-void DOCB::ExportFormats(PCLIP pclip)
+void DocumentBase::ExportFormats(PClipboardObject pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
@@ -770,7 +770,7 @@ void DOCB::ExportFormats(PCLIP pclip)
 /***************************************************************************
     See if this document can be coerced to the given format.
 ***************************************************************************/
-bool DOCB::FGetFormat(long cls, PDOCB *ppdocb)
+bool DocumentBase::FGetFormat(long cls, PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
@@ -782,16 +782,16 @@ bool DOCB::FGetFormat(long cls, PDOCB *ppdocb)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert validity of a DOCB
+    Assert validity of a DocumentBase
 ***************************************************************************/
-void DOCB::AssertValid(ulong grfdocb)
+void DocumentBase::AssertValid(ulong grfdocb)
 {
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     long ipundb;
-    PUNDB pundb;
+    PUndoBase pundb;
 
-    DOCB_PAR::AssertValid(grfdocb & fobjAssertFull);
+    DocumentBase_PAR::AssertValid(grfdocb & fobjAssertFull);
     AssertNilOrPo(_pglpddg, 0);
 
     if (!(grfdocb & fobjAssertFull))
@@ -824,15 +824,15 @@ void DOCB::AssertValid(ulong grfdocb)
 }
 
 /***************************************************************************
-    Mark the memory used by the DOCB
+    Mark the memory used by the DocumentBase
 ***************************************************************************/
-void DOCB::MarkMem(void)
+void DocumentBase::MarkMem(void)
 {
     long ipundb;
-    PUNDB pundb;
+    PUndoBase pundb;
 
     AssertThis(fobjAssertFull);
-    DOCB_PAR::MarkMem();
+    DocumentBase_PAR::MarkMem();
     MarkMemObj(_pglpddg);
     if (pvNil != _pglpundb)
     {
@@ -850,7 +850,7 @@ void DOCB::MarkMem(void)
 /***************************************************************************
     Constructor for a document tree enumerator.
 ***************************************************************************/
-DTE::DTE(void)
+DocumentTreeEnumerator::DocumentTreeEnumerator(void)
 {
     _es = esDone;
 }
@@ -858,7 +858,7 @@ DTE::DTE(void)
 /***************************************************************************
     Initialize a document tree enumerator.
 ***************************************************************************/
-void DTE::Init(PDOCB pdocb)
+void DocumentTreeEnumerator::Init(PDocumentBase pdocb)
 {
     _pdocbRoot = pdocb;
     _pdocbCur = pvNil;
@@ -869,9 +869,9 @@ void DTE::Init(PDOCB pdocb)
     Goes to the next node in the sub tree being enumerated.  Returns false
     iff the enumeration is done.
 ***************************************************************************/
-bool DTE::FNextDoc(PDOCB *ppdocb, ulong *pgrfdteOut, ulong grfdte)
+bool DocumentTreeEnumerator::FNextDoc(PDocumentBase *ppdocb, ulong *pgrfdteOut, ulong grfdte)
 {
-    PDOCB pdocbT;
+    PDocumentBase pdocbT;
 
     *pgrfdteOut = fdteNil;
     switch (_es)
@@ -937,13 +937,13 @@ bool DTE::FNextDoc(PDOCB *ppdocb, ulong *pgrfdteOut, ulong grfdte)
 }
 
 /***************************************************************************
-    Static method to create a new DDG.
+    Static method to create a new DocumentDisplayGraphicsObject.
 ***************************************************************************/
-PDDG DDG::PddgNew(PDOCB pdocb, PGCB pgcb)
+PDocumentDisplayGraphicsObject DocumentDisplayGraphicsObject::PddgNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb)
 {
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
-    if (pvNil == (pddg = NewObj DDG(pdocb, pgcb)))
+    if (pvNil == (pddg = NewObj DocumentDisplayGraphicsObject(pdocb, pgcb)))
         return pvNil;
 
     if (!pddg->_FInit())
@@ -958,9 +958,9 @@ PDDG DDG::PddgNew(PDOCB pdocb, PGCB pgcb)
 }
 
 /***************************************************************************
-    Constructor for a DDG.  AddRef's the DOCB.
+    Constructor for a DocumentDisplayGraphicsObject.  AddRef's the DocumentBase.
 ***************************************************************************/
-DDG::DDG(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
+DocumentDisplayGraphicsObject::DocumentDisplayGraphicsObject(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertBasePo(pdocb, 0);
     pdocb->AddRef();
@@ -970,13 +970,13 @@ DDG::DDG(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
 }
 
 /***************************************************************************
-    Destructor for DDG - remove itself from the DOCB's list.  Releases
-    the DOCB.
+    Destructor for DocumentDisplayGraphicsObject - remove itself from the DocumentBase's list.  Releases
+    the DocumentBase.
 ***************************************************************************/
-DDG::~DDG(void)
+DocumentDisplayGraphicsObject::~DocumentDisplayGraphicsObject(void)
 {
     AssertBasePo(_pdocb, 0);
-    PDMD pdmd;
+    PDocumentMDIWindow pdmd;
 
     _pdocb->RemoveDdg(this);
     if (_fActive && pvNil != (pdmd = Pdmd()))
@@ -985,9 +985,9 @@ DDG::~DDG(void)
 }
 
 /***************************************************************************
-    Initialize the DDG - including setting its position.
+    Initialize the DocumentDisplayGraphicsObject - including setting its position.
 ***************************************************************************/
-bool DDG::_FInit(void)
+bool DocumentDisplayGraphicsObject::_FInit(void)
 {
     _fCreating = fTrue;
 
@@ -999,23 +999,23 @@ bool DDG::_FInit(void)
 }
 
 /***************************************************************************
-    If this DDG is contained in a DMD, return the DMD.  Otherwise, return
+    If this DocumentDisplayGraphicsObject is contained in a DocumentMDIWindow, return the DocumentMDIWindow.  Otherwise, return
     pvNil.
 ***************************************************************************/
-PDMD DDG::Pdmd(void)
+PDocumentMDIWindow DocumentDisplayGraphicsObject::Pdmd(void)
 {
-    return (PDMD)GOB::PgobParFromCls(kclsDMD);
+    return (PDocumentMDIWindow)GraphicsObject::PgobParFromCls(kclsDocumentMDIWindow);
 }
 
 /***************************************************************************
-    Make this the active DDG for the docb or deactivate it according to
+    Make this the active DocumentDisplayGraphicsObject for the docb or deactivate it according to
     fActive.
 ***************************************************************************/
-void DDG::Activate(bool fActive)
+void DocumentDisplayGraphicsObject::Activate(bool fActive)
 {
     AssertThis(fobjAssertFull);
-    PDDG pddg;
-    PDMD pdmd;
+    PDocumentDisplayGraphicsObject pddg;
+    PDocumentMDIWindow pdmd;
 
     if (FPure(fActive) == FPure(_fActive))
         return;
@@ -1034,7 +1034,7 @@ void DDG::Activate(bool fActive)
         if (pvNil != (pdmd = Pdmd()))
         {
             // bring our parent chain to the front
-            PGOB pgob;
+            PGraphicsObject pgob;
 
             for (pgob = this; pgob != pdmd; pgob = pgob->PgobPar())
                 pgob->BringToFront();
@@ -1047,9 +1047,9 @@ void DDG::Activate(bool fActive)
 }
 
 /***************************************************************************
-    Default for a DDG - add/remove itself to the command handler list.
+    Default for a DocumentDisplayGraphicsObject - add/remove itself to the command handler list.
 ***************************************************************************/
-void DDG::_Activate(bool fActive)
+void DocumentDisplayGraphicsObject::_Activate(bool fActive)
 {
     vpcex->RemoveCmh(this, 0);
     if (fActive)
@@ -1059,7 +1059,7 @@ void DDG::_Activate(bool fActive)
 /***************************************************************************
     Handles enabling/disabling of common Ddg commands.
 ***************************************************************************/
-bool DDG::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
+bool DocumentDisplayGraphicsObject::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
 
@@ -1108,11 +1108,11 @@ bool DDG::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Handles the Cut, Copy, Paste and Clear commands.
 ***************************************************************************/
-bool DDG::FCmdClip(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdClip(PCommand pcmd)
 {
     AssertThis(fobjAssertFull);
     AssertVarMem(pcmd);
-    PDOCB pdocb = pvNil;
+    PDocumentBase pdocb = pvNil;
 
     switch (pcmd->cid)
     {
@@ -1147,7 +1147,7 @@ bool DDG::FCmdClip(PCMD pcmd)
     Default for copying a selection.  Just returns false so the Cut, Copy
     and Clear edit menu items are disabled.
 ***************************************************************************/
-bool DDG::_FCopySel(PDOCB *ppdocb)
+bool DocumentDisplayGraphicsObject::_FCopySel(PDocumentBase *ppdocb)
 {
     return fFalse;
 }
@@ -1155,7 +1155,7 @@ bool DDG::_FCopySel(PDOCB *ppdocb)
 /***************************************************************************
     Default for clearing (deleting) a selection.
 ***************************************************************************/
-void DDG::_ClearSel(void)
+void DocumentDisplayGraphicsObject::_ClearSel(void)
 {
 }
 
@@ -1163,7 +1163,7 @@ void DDG::_ClearSel(void)
     Default for pasting over a selection.  Just returns false so the Paste
     edit menu item is disabled.
 ***************************************************************************/
-bool DDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool DocumentDisplayGraphicsObject::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     return fFalse;
 }
@@ -1171,7 +1171,7 @@ bool DDG::_FPaste(PCLIP pclip, bool fDoIt, long cid)
 /***************************************************************************
     Handle a close command.
 ***************************************************************************/
-bool DDG::FCmdCloseDoc(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdCloseDoc(PCommand pcmd)
 {
     if (_pdocb->FQueryClose(pcmd->cid == cidSaveAndClose ? fdocAssumeYes : fdocNil))
         _pdocb->CloseAllDdg();
@@ -1181,7 +1181,7 @@ bool DDG::FCmdCloseDoc(PCMD pcmd)
 /***************************************************************************
     Handle a save, save as or save a copy command.
 ***************************************************************************/
-bool DDG::FCmdSave(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdSave(PCommand pcmd)
 {
     _pdocb->FSave(pcmd->cid);
     return fTrue;
@@ -1190,7 +1190,7 @@ bool DDG::FCmdSave(PCMD pcmd)
 /***************************************************************************
     Handle a save, save as or save a copy command.
 ***************************************************************************/
-bool DDG::FCmdUndo(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdUndo(PCommand pcmd)
 {
     if (pcmd->cid == cidUndo)
         _pdocb->FUndo();
@@ -1200,18 +1200,18 @@ bool DDG::FCmdUndo(PCMD pcmd)
 }
 
 /***************************************************************************
-    Default for a DDG - for frame testing only.
+    Default for a DocumentDisplayGraphicsObject - for frame testing only.
 ***************************************************************************/
-void DDG::Draw(PGNV pgnv, RC *prcClip)
+void DocumentDisplayGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     pgnv->FillRc(prcClip, _fActive ? kacrBlue : kacrMagenta);
 }
 
 /***************************************************************************
-    Activate the selection.  Default activates the DDG.
+    Activate the selection.  Default activates the DocumentDisplayGraphicsObject.
 ***************************************************************************/
-bool DDG::FCmdActivateSel(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdActivateSel(PCommand pcmd)
 {
     Activate(fTrue);
     return fTrue;
@@ -1220,7 +1220,7 @@ bool DDG::FCmdActivateSel(PCMD pcmd)
 /***************************************************************************
     Scroll the DCD
 ***************************************************************************/
-bool DDG::FCmdScroll(PCMD pcmd)
+bool DocumentDisplayGraphicsObject::FCmdScroll(PCommand pcmd)
 {
     bool fVert;
     long scv;
@@ -1254,26 +1254,26 @@ bool DDG::FCmdScroll(PCMD pcmd)
     Scroll with the given scrolling actions.  Sets the scroll bar values
     accordingly.
 ***************************************************************************/
-void DDG::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
+void DocumentDisplayGraphicsObject::_Scroll(long scaHorz, long scaVert, long scvHorz, long scvVert)
 {
     _SetScrollValues();
 }
 
 /***************************************************************************
-    Set the scroll bar values for the DDG to _scvHorz and _scvVert and
+    Set the scroll bar values for the DocumentDisplayGraphicsObject to _scvHorz and _scvVert and
     the Max values.
 ***************************************************************************/
-void DDG::_SetScrollValues(void)
+void DocumentDisplayGraphicsObject::_SetScrollValues(void)
 {
-    PSCB pscb;
-    PGOB pgob;
+    PScrollBar pscb;
+    PGraphicsObject pgob;
 
     pgob = PgobPar();
-    if (pgob->FIs(kclsDSG))
+    if (pgob->FIs(kclsDocumentScrollGraphicsObject))
     {
-        if (pvNil != (pscb = (PSCB)pgob->PgobFromHid(khidVScroll)))
+        if (pvNil != (pscb = (PScrollBar)pgob->PgobFromHid(khidVScroll)))
             pscb->SetValMinMax(_scvVert, 0, _ScvMax(fTrue));
-        if (pvNil != (pscb = (PSCB)pgob->PgobFromHid(khidHScroll)))
+        if (pvNil != (pscb = (PScrollBar)pgob->PgobFromHid(khidHScroll)))
             pscb->SetValMinMax(_scvHorz, 0, _ScvMax(fFalse));
     }
 }
@@ -1282,7 +1282,7 @@ void DDG::_SetScrollValues(void)
     Actually move the bits for a scroll.  The _scvVert and _scvHorz
     member variables have already been updated.
 ***************************************************************************/
-void DDG::_ScrollDxpDyp(long dxp, long dyp)
+void DocumentDisplayGraphicsObject::_ScrollDxpDyp(long dxp, long dyp)
 {
     Scroll(pvNil, -dxp, -dyp, kginDraw);
 }
@@ -1290,53 +1290,53 @@ void DDG::_ScrollDxpDyp(long dxp, long dyp)
 /***************************************************************************
     Return the scroll bound.
 ***************************************************************************/
-long DDG::_ScvMax(bool fVert)
+long DocumentDisplayGraphicsObject::_ScvMax(bool fVert)
 {
     return 0;
 }
 
 /***************************************************************************
-    The DDG has changed sizes, reset the scroll bounds.
+    The DocumentDisplayGraphicsObject has changed sizes, reset the scroll bounds.
 ***************************************************************************/
-void DDG::_NewRc(void)
+void DocumentDisplayGraphicsObject::_NewRc(void)
 {
     _SetScrollValues();
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a DDG.
+    Assert the validity of a DocumentDisplayGraphicsObject.
 ***************************************************************************/
-void DDG::AssertValid(ulong grfobj)
+void DocumentDisplayGraphicsObject::AssertValid(ulong grfobj)
 {
-    DDG_PAR::AssertValid(grfobj | fobjAllocated);
+    DocumentDisplayGraphicsObject_PAR::AssertValid(grfobj | fobjAllocated);
     AssertPo(_pdocb, grfobj & fobjAssertFull);
 }
 
 /***************************************************************************
-    Mark memory for the DDG.
+    Mark memory for the DocumentDisplayGraphicsObject.
 ***************************************************************************/
-void DDG::MarkMem(void)
+void DocumentDisplayGraphicsObject::MarkMem(void)
 {
     AssertValid(fobjAssertFull);
-    DDG_PAR::MarkMem();
+    DocumentDisplayGraphicsObject_PAR::MarkMem();
     MarkMemObj(_pdocb);
 }
 #endif // DEBUG
 
 /***************************************************************************
     Static method: create a new Document MDI window.  Put a size box in
-    it and add a DMW.
+    it and add a DocumentMainWindow.
 ***************************************************************************/
-PDMD DMD::PdmdNew(PDOCB pdocb)
+PDocumentMDIWindow DocumentMDIWindow::PdmdNew(PDocumentBase pdocb)
 {
     AssertPo(pdocb, 0);
-    PDMD pdmd;
-    STN stn;
+    PDocumentMDIWindow pdmd;
+    String stn;
     RC rcRel, rcAbs;
 
-    GCB gcb(khidDmd, GOB::PgobScreen());
-    if (pvNil == (pdmd = NewObj DMD(pdocb, &gcb)))
+    GraphicsObjectBlock gcb(khidDmd, GraphicsObject::PgobScreen());
+    if (pvNil == (pdmd = NewObj DocumentMDIWindow(pdocb, &gcb)))
         return pvNil;
     pdocb->GetName(&stn);
     if (!pdmd->FCreateAndAttachMdi(&stn))
@@ -1346,7 +1346,7 @@ PDMD DMD::PdmdNew(PDOCB pdocb)
     rcRel.xpRight = rcRel.ypBottom = krelOne;
     rcAbs.xpLeft = rcAbs.ypTop = 0;
     rcAbs.xpRight = rcAbs.ypBottom = 1;
-    if (pvNil == WSB::PwsbNew(pdmd, fgobNil))
+    if (pvNil == WindowSizeBox::PwsbNew(pdmd, fgobNil))
         goto LFail;
     gcb.Set(khidDmw, pdmd, fgobNil, kginDefault, &rcAbs, &rcRel);
     if (pvNil == pdocb->PdmwNew(&gcb))
@@ -1361,39 +1361,39 @@ PDMD DMD::PdmdNew(PDOCB pdocb)
 }
 
 /***************************************************************************
-    Static method: returns the currently active DMD (if there is one).
+    Static method: returns the currently active DocumentMDIWindow (if there is one).
 ***************************************************************************/
-PDMD DMD::PdmdTop(void)
+PDocumentMDIWindow DocumentMDIWindow::PdmdTop(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
-    if (pvNil == (pgob = GOB::PgobMdiActive()))
+    if (pvNil == (pgob = GraphicsObject::PgobMdiActive()))
         return pvNil;
     AssertPo(pgob, 0);
-    if (!pgob->FIs(kclsDMD))
+    if (!pgob->FIs(kclsDocumentMDIWindow))
         return pvNil;
-    AssertPo((PDMD)pgob, 0);
-    return (PDMD)pgob;
+    AssertPo((PDocumentMDIWindow)pgob, 0);
+    return (PDocumentMDIWindow)pgob;
 }
 
 /***************************************************************************
     Constructor for document mdi window.
 ***************************************************************************/
-DMD::DMD(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
+DocumentMDIWindow::DocumentMDIWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
 }
 
 /***************************************************************************
-    Activate the next DDG (after the given one).
+    Activate the next DocumentDisplayGraphicsObject (after the given one).
 ***************************************************************************/
-void DMD::ActivateNext(PDDG pddg)
+void DocumentMDIWindow::ActivateNext(PDocumentDisplayGraphicsObject pddg)
 {
     AssertThis(fobjAssertFull);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (_fFreeing)
         return;
@@ -1401,9 +1401,9 @@ void DMD::ActivateNext(PDDG pddg)
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (pgob->FIs(kclsDDG) && pgob != pddg)
+        if (pgob->FIs(kclsDocumentDisplayGraphicsObject) && pgob != pddg)
         {
-            ((PDDG)pgob)->Activate(fTrue);
+            ((PDocumentDisplayGraphicsObject)pgob)->Activate(fTrue);
             return;
         }
     }
@@ -1412,12 +1412,12 @@ void DMD::ActivateNext(PDDG pddg)
 /***************************************************************************
     Handle activation/deactivation of the hwnd.
 ***************************************************************************/
-void DMD::_ActivateHwnd(bool fActive)
+void DocumentMDIWindow::_ActivateHwnd(bool fActive)
 {
     AssertThis(0);
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
-    pddg = (PDDG)PgobFromCls(kclsDDG);
+    pddg = (PDocumentDisplayGraphicsObject)PgobFromCls(kclsDocumentDisplayGraphicsObject);
     if (FPure(fActive) != FPure(pddg->FActive()))
         pddg->Activate(fActive);
 }
@@ -1425,7 +1425,7 @@ void DMD::_ActivateHwnd(bool fActive)
 /***************************************************************************
     Handles cidCloseWnd.
 ***************************************************************************/
-bool DMD::FCmdCloseWnd(PCMD pcmd)
+bool DocumentMDIWindow::FCmdCloseWnd(PCommand pcmd)
 {
     // ask the user about saving the doc
     if (!_pdocb->FQueryCloseDmd(this))
@@ -1438,14 +1438,14 @@ bool DMD::FCmdCloseWnd(PCMD pcmd)
 }
 
 /***************************************************************************
-    Static method to create a new DMW (document window) based on the given
+    Static method to create a new DocumentMainWindow (document window) based on the given
     document.
 ***************************************************************************/
-PDMW DMW::PdmwNew(PDOCB pdocb, PGCB pgcb)
+PDocumentMainWindow DocumentMainWindow::PdmwNew(PDocumentBase pdocb, PGraphicsObjectBlock pgcb)
 {
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
 
-    pdmw = NewObj DMW(pdocb, pgcb);
+    pdmw = NewObj DocumentMainWindow(pdocb, pgcb);
     if (!pdmw->_FInit())
     {
         ReleasePpo(&pdmw);
@@ -1459,7 +1459,7 @@ PDMW DMW::PdmwNew(PDOCB pdocb, PGCB pgcb)
 /***************************************************************************
     Constructor for document window class
 ***************************************************************************/
-DMW::DMW(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
+DocumentMainWindow::DocumentMainWindow(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertPo(pdocb, 0);
     _pdocb = pdocb;
@@ -1470,9 +1470,9 @@ DMW::DMW(PDOCB pdocb, PGCB pgcb) : GOB(pgcb)
 
 /***************************************************************************
     Free the DSED tree so we don't bother with the tree manipulations
-    during freeing.  Then call GOB::Free.
+    during freeing.  Then call GraphicsObject::Free.
 ***************************************************************************/
-void DMW::Release(void)
+void DocumentMainWindow::Release(void)
 {
     AssertThis(fobjAssertFull);
     if (_cactRef <= 1)
@@ -1482,13 +1482,13 @@ void DMW::Release(void)
         ReleasePpo(&_paldsed);
         _idsedRoot = ivNil;
     }
-    DMW_PAR::Release();
+    DocumentMainWindow_PAR::Release();
 }
 
 /***************************************************************************
     Create the actual mdi window, etc.
 ***************************************************************************/
-bool DMW::_FInit(void)
+bool DocumentMainWindow::_FInit(void)
 {
     _fCreating = fTrue;
 
@@ -1496,16 +1496,16 @@ bool DMW::_FInit(void)
     if (pvNil == _pdocb->PdsgNew(this, pvNil, fdsgNil, krelOne))
         return fFalse;
     AssertPo(_paldsed, 0);
-    Assert(_paldsed->IvMac() > 0, "the DSG wasn't added to the DMW");
+    Assert(_paldsed->IvMac() > 0, "the DocumentScrollGraphicsObject wasn't added to the DocumentMainWindow");
 
     _fCreating = fFalse;
     return fTrue;
 }
 
 /***************************************************************************
-    The DMW has been resized, make sure no DSGs are too small.
+    The DocumentMainWindow has been resized, make sure no DSGs are too small.
 ***************************************************************************/
-void DMW::_NewRc(void)
+void DocumentMainWindow::_NewRc(void)
 {
     AssertThis(0);
     _Layout(_idsedRoot);
@@ -1515,7 +1515,7 @@ void DMW::_NewRc(void)
     Add the dsg to the dmw (the dsg is already a child gob - we now promote
     it to a full fledged child dsg).
 ***************************************************************************/
-bool DMW::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
+bool DocumentMainWindow::FAddDsg(PDocumentScrollGraphicsObject pdsg, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
     AssertIn(rel, 0, krelOne + 1);
@@ -1531,7 +1531,7 @@ bool DMW::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
     {
         // this is the first one
         Assert(pvNil == pdsgSplit, "no DSGs yet, so can't split one");
-        if (pvNil == _paldsed && pvNil == (_paldsed = AL::PalNew(size(DSED), 1)))
+        if (pvNil == _paldsed && pvNil == (_paldsed = AllocatedArray::PalNew(size(DSED), 1)))
             return fFalse;
         dsed.pdsg = pdsg;
         if (!_paldsed->FAdd(&dsed, &_idsedRoot))
@@ -1544,7 +1544,7 @@ bool DMW::FAddDsg(PDSG pdsg, PDSG pdsgSplit, ulong grfdsg, long rel)
     AssertIn(_idsedRoot, 0, _paldsed->IvMac());
     if ((idsedSplit = pdsgSplit->_dsno) == dsnoNil)
     {
-        Bug("pdsgSplit is not a registered DSG");
+        Bug("pdsgSplit is not a registered DocumentScrollGraphicsObject");
         return fFalse;
     }
     idsedSplit--;
@@ -1609,7 +1609,7 @@ LDone:
 /***************************************************************************
     Remove the dsg from the list of active DSGs.
 ***************************************************************************/
-void DMW::RemoveDsg(PDSG pdsg)
+void DocumentMainWindow::RemoveDsg(PDocumentScrollGraphicsObject pdsg)
 {
     long idsedStart;
 
@@ -1621,9 +1621,9 @@ void DMW::RemoveDsg(PDSG pdsg)
 }
 
 /***************************************************************************
-    Remove the DSG from the tree and set its _dsno to nil.
+    Remove the DocumentScrollGraphicsObject from the tree and set its _dsno to nil.
 ***************************************************************************/
-void DMW::_RemoveDsg(PDSG pdsg, long *pidsedStartLayout)
+void DocumentMainWindow::_RemoveDsg(PDocumentScrollGraphicsObject pdsg, long *pidsedStartLayout)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1698,7 +1698,7 @@ void DMW::_RemoveDsg(PDSG pdsg, long *pidsedStartLayout)
     either hit the root (return ivNil) or we just went up a left arc (return
     the parent).
 ***************************************************************************/
-long DMW::_IdsedEdge(long idsed, long idsedRoot)
+long DocumentMainWindow::_IdsedEdge(long idsed, long idsedRoot)
 {
     // Don't call AssertThis because AssertValid calls this
     AssertBaseThis(0);
@@ -1730,7 +1730,7 @@ long DMW::_IdsedEdge(long idsed, long idsedRoot)
     Find the next dsed to visit in the sub-tree traversal based at
     idsedStart (pre-order traversal).
 ***************************************************************************/
-long DMW::_IdsedNext(long idsed, long idsedRoot)
+long DocumentMainWindow::_IdsedNext(long idsed, long idsedRoot)
 {
     DSED *qdsed;
 
@@ -1747,9 +1747,9 @@ long DMW::_IdsedNext(long idsed, long idsedRoot)
 }
 
 /***************************************************************************
-    Re-layout the DSGs in the DMW.  If any become too small, delete them.
+    Re-layout the DSGs in the DocumentMainWindow.  If any become too small, delete them.
 ***************************************************************************/
-void DMW::_Layout(long idsedStart)
+void DocumentMainWindow::_Layout(long idsedStart)
 {
     AssertThis(0);
     RC rc, rcDsg;
@@ -1757,7 +1757,7 @@ void DMW::_Layout(long idsedStart)
     long idsed;
     DSED *qdsed;
     RC rcRel;
-    PDSG pdsg;
+    PDocumentScrollGraphicsObject pdsg;
 
 LRestart:
     if (ivNil == idsedStart)
@@ -1791,7 +1791,7 @@ LRestart:
         qdsed = _Qdsed(idsed);
         if (ivNil != qdsed->idsedLeft)
         {
-            // internal node - no DSG
+            // internal node - no DocumentScrollGraphicsObject
             DSED dsed;
 
             Assert(ivNil != qdsed->idsedRight, "bad node");
@@ -1814,7 +1814,7 @@ LRestart:
         rcDsg.ypBottom = LwMulDiv(dypDmw, rcRel.ypBottom, krelOne);
         if ((rcDsg.Dxp() < rc.xpLeft || rcDsg.Dyp() < rc.ypTop) && idsed != _idsedRoot)
         {
-            // DSG is becoming too small and it's not the only one, so nuke it
+            // DocumentScrollGraphicsObject is becoming too small and it's not the only one, so nuke it
             // and restart this routine from the top.
 
             // Remove the dsg first so we don't recursively enter _Layout
@@ -1847,7 +1847,7 @@ LRestart:
 /***************************************************************************
     Find the two child rc's from the DSED's rc.
 ***************************************************************************/
-void DMW::_SplitRcRel(long idsed, RC *prcLeft, RC *prcRight)
+void DocumentMainWindow::_SplitRcRel(long idsed, RC *prcLeft, RC *prcRight)
 {
     DSED *qdsed;
 
@@ -1867,7 +1867,7 @@ void DMW::_SplitRcRel(long idsed, RC *prcLeft, RC *prcRight)
 /***************************************************************************
     Return the number of DSGs.
 ***************************************************************************/
-long DMW::Cdsg(void)
+long DocumentMainWindow::Cdsg(void)
 {
     AssertThis(0);
     long idsed, cdsg;
@@ -1893,7 +1893,7 @@ long DMW::Cdsg(void)
     Get the rectangles for the split associated with pdsg and for the area
     that the split affects.
 ***************************************************************************/
-void DMW::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
+void DocumentMainWindow::GetRcSplit(PDocumentScrollGraphicsObject pdsg, RC *prcBounds, RC *prcSplit)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1926,20 +1926,20 @@ void DMW::GetRcSplit(PDSG pdsg, RC *prcBounds, RC *prcSplit)
     {
         rel = qdsed->rcRel.ypTop + LwMulDiv(qdsed->rel, qdsed->rcRel.Dyp(), krelOne);
         prcSplit->ypBottom = LwMulDiv(rc.ypBottom, rel, krelOne);
-        prcSplit->ypTop = prcSplit->ypBottom - SCB::DypNormal();
+        prcSplit->ypTop = prcSplit->ypBottom - ScrollBar::DypNormal();
     }
     else
     {
         rel = qdsed->rcRel.xpLeft + LwMulDiv(qdsed->rel, qdsed->rcRel.Dxp(), krelOne);
         prcSplit->xpRight = LwMulDiv(rc.xpRight, rel, krelOne);
-        prcSplit->xpLeft = prcSplit->xpRight - SCB::DxpNormal();
+        prcSplit->xpLeft = prcSplit->xpRight - ScrollBar::DxpNormal();
     }
 }
 
 /***************************************************************************
-    Move the split corresponding to the given DSG.
+    Move the split corresponding to the given DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DMW::MoveSplit(PDSG pdsg, long relNew)
+void DocumentMainWindow::MoveSplit(PDocumentScrollGraphicsObject pdsg, long relNew)
 {
     AssertThis(fobjAssertFull);
     AssertPo(pdsg, 0);
@@ -1970,7 +1970,7 @@ void DMW::MoveSplit(PDSG pdsg, long relNew)
     Determine whether the split corresponding to pdsg is vertical,
     horizontal or inactive.
 ***************************************************************************/
-tribool DMW::TVert(PDSG pdsg)
+tribool DocumentMainWindow::TVert(PDocumentScrollGraphicsObject pdsg)
 {
     AssertThis(0);
     AssertPo(pdsg, 0);
@@ -1986,15 +1986,15 @@ tribool DMW::TVert(PDSG pdsg)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the DMW.
+    Assert the validity of the DocumentMainWindow.
 ***************************************************************************/
-void DMW::AssertValid(ulong grfobj)
+void DocumentMainWindow::AssertValid(ulong grfobj)
 {
     long cdsed, idsed;
     DSED dsed;
     DSED *qdsed;
 
-    DMW_PAR::AssertValid(grfobj);
+    DocumentMainWindow_PAR::AssertValid(grfobj);
     AssertPo(_pdocb, grfobj & fobjAssertFull);
 
     if (pvNil == _paldsed || _paldsed->IvMac() == 0)
@@ -2033,7 +2033,7 @@ void DMW::AssertValid(ulong grfobj)
         {
             Assert(ivNil == dsed.idsedRight, "left nil, but right not");
             AssertPo(dsed.pdsg, 0);
-            Assert(dsed.pdsg->_dsno == idsed + 1, "bad _dsno in DSG");
+            Assert(dsed.pdsg->_dsno == idsed + 1, "bad _dsno in DocumentScrollGraphicsObject");
         }
         else
         {
@@ -2073,31 +2073,31 @@ void DMW::AssertValid(ulong grfobj)
 }
 
 /***************************************************************************
-    Mark memory used by the DMW.
+    Mark memory used by the DocumentMainWindow.
 ***************************************************************************/
-void DMW::MarkMem(void)
+void DocumentMainWindow::MarkMem(void)
 {
-    DMW_PAR::MarkMem();
+    DocumentMainWindow_PAR::MarkMem();
     MarkMemObj(_paldsed);
 }
 #endif // DEBUG
 
-BEGIN_CMD_MAP(DSG, GOB)
-ON_CID_ME(cidDoScroll, &DSG::FCmdScroll, pvNil)
-ON_CID_ME(cidEndScroll, &DSG::FCmdScroll, pvNil)
+BEGIN_CMD_MAP(DocumentScrollGraphicsObject, GraphicsObject)
+ON_CID_ME(cidDoScroll, &DocumentScrollGraphicsObject::FCmdScroll, pvNil)
+ON_CID_ME(cidEndScroll, &DocumentScrollGraphicsObject::FCmdScroll, pvNil)
 END_CMD_MAP_NIL()
 
 /***************************************************************************
-    Static method to create a new DSG.
+    Static method to create a new DocumentScrollGraphicsObject.
 ***************************************************************************/
-PDSG DSG::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
+PDocumentScrollGraphicsObject DocumentScrollGraphicsObject::PdsgNew(PDocumentMainWindow pdmw, PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
     AssertPo(pdmw, 0);
-    Assert(pvNil != pdsgSplit || pdmw->Cdsg() == 0, "must split an existing DSG");
-    PDSG pdsg;
-    GCB gcb(khidDsg, pdmw);
+    Assert(pvNil != pdsgSplit || pdmw->Cdsg() == 0, "must split an existing DocumentScrollGraphicsObject");
+    PDocumentScrollGraphicsObject pdsg;
+    GraphicsObjectBlock gcb(khidDsg, pdmw);
 
-    if (pvNil == (pdsg = NewObj DSG(&gcb)))
+    if (pvNil == (pdsg = NewObj DocumentScrollGraphicsObject(&gcb)))
         return pvNil;
 
     if (!pdsg->_FInit(pdsgSplit, grfdsg, rel))
@@ -2110,50 +2110,50 @@ PDSG DSG::PdsgNew(PDMW pdmw, PDSG pdsgSplit, ulong grfdsg, long rel)
 }
 
 /***************************************************************************
-    Constructor for DSG.
+    Constructor for DocumentScrollGraphicsObject.
 ***************************************************************************/
-DSG::DSG(PGCB pgcb) : GOB(pgcb)
+DocumentScrollGraphicsObject::DocumentScrollGraphicsObject(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _dsno = dsnoNil;
     AssertThis(fobjAssertFull);
 }
 
 /***************************************************************************
-    Destructor for DSG - remove ourselves from the DMW.
+    Destructor for DocumentScrollGraphicsObject - remove ourselves from the DocumentMainWindow.
 ***************************************************************************/
-DSG::~DSG(void)
+DocumentScrollGraphicsObject::~DocumentScrollGraphicsObject(void)
 {
     Pdmw()->RemoveDsg(this);
 }
 
 /***************************************************************************
-    Create the scroll bars, the DDG and do any other DSG initialization.
+    Create the scroll bars, the DocumentDisplayGraphicsObject and do any other DocumentScrollGraphicsObject initialization.
 ***************************************************************************/
-bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
+bool DocumentScrollGraphicsObject::_FInit(PDocumentScrollGraphicsObject pdsgSplit, ulong grfdsg, long rel)
 {
-    Assert(pvNil != pdsgSplit || Pdmw()->Cdsg() == 0, "must split an existing DSG");
-    PDMW pdmw;
-    PDOCB pdocb;
+    Assert(pvNil != pdsgSplit || Pdmw()->Cdsg() == 0, "must split an existing DocumentScrollGraphicsObject");
+    PDocumentMainWindow pdmw;
+    PDocumentBase pdocb;
 
     _fCreating = fTrue;
 
     // create the split mover
-    if (pvNil == DSSM::PdssmNew(this))
+    if (pvNil == DocumentScrollSplitMover::PdssmNew(this))
         return fFalse;
 
     // Create the scroll bars and split boxes
-    GCB gcb(khidVScroll, this);
-    SCB::GetStandardRc(fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
-    gcb._rcAbs.ypTop += DSSP::DypNormal();
-    if (pvNil == SCB::PscbNew(&gcb, fscbVert) || pvNil == DSSP::PdsspNew(this, fdsspVert))
+    GraphicsObjectBlock gcb(khidVScroll, this);
+    ScrollBar::GetStandardRc(fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
+    gcb._rcAbs.ypTop += DocumentScrollWindowSplitter::DypNormal();
+    if (pvNil == ScrollBar::PscbNew(&gcb, fscbVert) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspVert))
     {
         return fFalse;
     }
 
     gcb._hid = khidHScroll;
-    SCB::GetStandardRc(fscbHorz | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
-    gcb._rcAbs.xpLeft += DSSP::DxpNormal();
-    if (pvNil == SCB::PscbNew(&gcb, fscbHorz) || pvNil == DSSP::PdsspNew(this, fdsspHorz))
+    ScrollBar::GetStandardRc(fscbHorz | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
+    gcb._rcAbs.xpLeft += DocumentScrollWindowSplitter::DxpNormal();
+    if (pvNil == ScrollBar::PscbNew(&gcb, fscbHorz) || pvNil == DocumentScrollWindowSplitter::PdsspNew(this, fdsspHorz))
     {
         return fFalse;
     }
@@ -2164,7 +2164,7 @@ bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
     pdocb = pdmw->Pdocb();
     AssertBasePo(pdocb, 0);
     gcb._hid = khidDdg;
-    SCB::GetClientRc(fscbHorz | fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
+    ScrollBar::GetClientRc(fscbHorz | fscbVert | fscbShowBottom | fscbShowRight, &gcb._rcAbs, &gcb._rcRel);
     if (pvNil == (_pddg = pdocb->PddgNew(&gcb)))
         return fFalse;
 
@@ -2177,34 +2177,34 @@ bool DSG::_FInit(PDSG pdsgSplit, ulong grfdsg, long rel)
 }
 
 /***************************************************************************
-    Get the min and max sizes for the DSG.
+    Get the min and max sizes for the DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DSG::GetMinMax(RC *prcMinMax)
+void DocumentScrollGraphicsObject::GetMinMax(RC *prcMinMax)
 {
     AssertThis(0);
-    long dxpScb = SCB::DxpNormal();
-    long dypScb = SCB::DypNormal();
+    long dxpScb = ScrollBar::DxpNormal();
+    long dypScb = ScrollBar::DypNormal();
 
     AssertPo(_pddg, 0);
     _pddg->GetMinMax(prcMinMax);
 
     // impose our own min and add the scroll bar dimensions
-    prcMinMax->xpLeft = dxpScb + LwMax(prcMinMax->xpLeft, DSSP::DxpNormal() + dxpScb);
-    prcMinMax->ypTop = dypScb + LwMax(prcMinMax->ypTop, DSSP::DypNormal() + dypScb);
+    prcMinMax->xpLeft = dxpScb + LwMax(prcMinMax->xpLeft, DocumentScrollWindowSplitter::DxpNormal() + dxpScb);
+    prcMinMax->ypTop = dypScb + LwMax(prcMinMax->ypTop, DocumentScrollWindowSplitter::DypNormal() + dypScb);
     prcMinMax->xpRight = LwMax(prcMinMax->xpLeft, dxpScb + prcMinMax->xpRight);
     prcMinMax->ypBottom = LwMax(prcMinMax->ypTop, dypScb + prcMinMax->ypBottom);
 }
 
 /***************************************************************************
-    Split the DSG into two dsg's.
+    Split the DocumentScrollGraphicsObject into two dsg's.
 ***************************************************************************/
-void DSG::Split(ulong grfdsg, long rel)
+void DocumentScrollGraphicsObject::Split(ulong grfdsg, long rel)
 {
     AssertThis(fobjAssertFull);
-    PDMW pdmw;
-    PDOCB pdocb;
+    PDocumentMainWindow pdmw;
+    PDocumentBase pdocb;
 
-    Assert(_dsno != dsnoNil, "why are we splitting an unattached DSG?");
+    Assert(_dsno != dsnoNil, "why are we splitting an unattached DocumentScrollGraphicsObject?");
     pdmw = Pdmw();
     pdocb = pdmw->Pdocb();
     pdocb->PdsgNew(pdmw, this, grfdsg, rel);
@@ -2213,11 +2213,11 @@ void DSG::Split(ulong grfdsg, long rel)
 /***************************************************************************
     A scroll bar has been hit.  Do the scroll.
 ***************************************************************************/
-bool DSG::FCmdScroll(PCMD pcmd)
+bool DocumentScrollGraphicsObject::FCmdScroll(PCommand pcmd)
 {
-    // just pass it on to the DDG
+    // just pass it on to the DocumentDisplayGraphicsObject
     AssertThis(0);
-    CMD cmd = *pcmd;
+    Command cmd = *pcmd;
 
     cmd.pcmh = _pddg;
     cmd.pgg = pvNil;
@@ -2226,14 +2226,14 @@ bool DSG::FCmdScroll(PCMD pcmd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the DSG.
+    Assert the validity of the DocumentScrollGraphicsObject.
 ***************************************************************************/
-void DSG::AssertValid(ulong grfobj)
+void DocumentScrollGraphicsObject::AssertValid(ulong grfobj)
 {
-    PDMW pdmw;
+    PDocumentMainWindow pdmw;
 
-    DSG_PAR::AssertValid(grfobj);
-    pdmw = (PDMW)PgobPar();
+    DocumentScrollGraphicsObject_PAR::AssertValid(grfobj);
+    pdmw = (PDocumentMainWindow)PgobPar();
     AssertBasePo(pdmw, 0);
 }
 #endif // DEBUG
@@ -2241,7 +2241,7 @@ void DSG::AssertValid(ulong grfobj)
 /***************************************************************************
     Constructor for the splitter.
 ***************************************************************************/
-DSSP::DSSP(PGCB pgcb) : GOB(pgcb)
+DocumentScrollWindowSplitter::DocumentScrollWindowSplitter(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     AssertThis(0);
 }
@@ -2249,18 +2249,18 @@ DSSP::DSSP(PGCB pgcb) : GOB(pgcb)
 /***************************************************************************
     Static method to create a new split box.
 ***************************************************************************/
-PDSSP DSSP::PdsspNew(PDSG pdsg, ulong grfdssp)
+PDocumentScrollWindowSplitter DocumentScrollWindowSplitter::PdsspNew(PDocumentScrollGraphicsObject pdsg, ulong grfdssp)
 {
     Assert(FPure(grfdssp & fdsspHorz) != FPure(grfdssp & fdsspVert),
            "must specify exactly one of (fdsspVert,fdsspHorz)");
     AssertPo(pdsg, 0);
-    GCB gcb((grfdssp & fdsspVert) ? khidDsspVert : khidDsspHorz, pdsg);
+    GraphicsObjectBlock gcb((grfdssp & fdsspVert) ? khidDsspVert : khidDsspHorz, pdsg);
 
     if (grfdssp & fdsspVert)
     {
         gcb._rcRel.xpLeft = gcb._rcRel.xpRight = krelOne;
         gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelZero;
-        gcb._rcAbs.xpLeft = -SCB::DxpNormal();
+        gcb._rcAbs.xpLeft = -ScrollBar::DxpNormal();
         gcb._rcAbs.ypTop = 0;
         gcb._rcAbs.xpRight = 0;
         gcb._rcAbs.ypBottom = DypNormal();
@@ -2270,17 +2270,17 @@ PDSSP DSSP::PdsspNew(PDSG pdsg, ulong grfdssp)
         gcb._rcRel.xpLeft = gcb._rcRel.xpRight = krelZero;
         gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelOne;
         gcb._rcAbs.xpLeft = 0;
-        gcb._rcAbs.ypTop = -SCB::DypNormal();
+        gcb._rcAbs.ypTop = -ScrollBar::DypNormal();
         gcb._rcAbs.xpRight = DxpNormal();
         gcb._rcAbs.ypBottom = 0;
     }
-    return NewObj DSSP(&gcb);
+    return NewObj DocumentScrollWindowSplitter(&gcb);
 }
 
 /***************************************************************************
     Draw the split box.
 ***************************************************************************/
-void DSSP::Draw(PGNV pgnv, RC *prcClip)
+void DocumentScrollWindowSplitter::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
@@ -2290,17 +2290,17 @@ void DSSP::Draw(PGNV pgnv, RC *prcClip)
 }
 
 /***************************************************************************
-    See if the parent DSG can be split.  If so, track the mouse and draw
+    See if the parent DocumentScrollGraphicsObject can be split.  If so, track the mouse and draw
     the gray outline until the user releases the mouse.
 ***************************************************************************/
-void DSSP::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void DocumentScrollWindowSplitter::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
 
     long dzpMinDsg, dzpDsg, zpMin, zpLast, dzp, zp;
     RC rc;
     bool fVert = Hid() == khidDsspVert;
-    PDSG pdsg = (PDSG)PgobPar();
+    PDocumentScrollGraphicsObject pdsg = (PDocumentScrollGraphicsObject)PgobPar();
     PT pt(xp, yp);
 
     MapPt(&pt, cooLocal, cooParent);
@@ -2338,31 +2338,31 @@ void DSSP::MouseDown(long xp, long yp, long cact, ulong grfcust)
 /***************************************************************************
     Constructor for the split mover.
 ***************************************************************************/
-DSSM::DSSM(PGCB pgcb) : GOB(pgcb)
+DocumentScrollSplitMover::DocumentScrollSplitMover(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
 }
 
 /***************************************************************************
     Static method to create a new split mover.
 ***************************************************************************/
-PDSSM DSSM::PdssmNew(PDSG pdsg)
+PDocumentScrollSplitMover DocumentScrollSplitMover::PdssmNew(PDocumentScrollGraphicsObject pdsg)
 {
     AssertPo(pdsg, 0);
-    PDSSM pdssm;
-    GCB gcb(khidDssm, pdsg);
+    PDocumentScrollSplitMover pdssm;
+    GraphicsObjectBlock gcb(khidDssm, pdsg);
 
     gcb._rcRel.xpLeft = gcb._rcRel.xpRight = gcb._rcRel.ypTop = gcb._rcRel.ypBottom = krelOne;
-    gcb._rcAbs.xpLeft = -SCB::DxpNormal();
-    gcb._rcAbs.ypTop = -SCB::DypNormal();
+    gcb._rcAbs.xpLeft = -ScrollBar::DxpNormal();
+    gcb._rcAbs.ypTop = -ScrollBar::DypNormal();
     gcb._rcAbs.xpRight = gcb._rcAbs.ypBottom = 0;
-    pdssm = NewObj DSSM(&gcb);
+    pdssm = NewObj DocumentScrollSplitMover(&gcb);
     return pdssm;
 }
 
 /***************************************************************************
     Draw the split mover.
 ***************************************************************************/
-void DSSM::Draw(PGNV pgnv, RC *prcClip)
+void DocumentScrollSplitMover::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     RC rc;
@@ -2382,13 +2382,13 @@ void DSSM::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Track the mouse and change the split location.
 ***************************************************************************/
-void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void DocumentScrollSplitMover::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
     long zp, zpMin, zpLast, zpOrig, dzpMinDsg, dzp;
     RC rc, rcSplit;
-    PDSG pdsg;
-    PDMW pdmw;
+    PDocumentScrollGraphicsObject pdsg;
+    PDocumentMainWindow pdmw;
     tribool tVert;
     PT pt(xp, yp);
 
@@ -2396,7 +2396,7 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
     if (tMaybe == tVert)
         return;
 
-    pdsg = (PDSG)PgobPar();
+    pdsg = (PDocumentScrollGraphicsObject)PgobPar();
     AssertPo(pdsg, 0);
     pdsg->GetMinMax(&rc);
     dzpMinDsg = (tYes == tVert) ? rc.ypTop : rc.xpLeft;
@@ -2441,12 +2441,12 @@ void DSSM::MouseDown(long xp, long yp, long cact, ulong grfcust)
     Determine if we are disabled (tMaybe) or if not whether we are vertical
     (tYes) or horizontal (tNo).
 ***************************************************************************/
-tribool DSSM::TVert(void)
+tribool DocumentScrollSplitMover::TVert(void)
 {
-    PDSG pdsg;
-    PDMW pdmw;
+    PDocumentScrollGraphicsObject pdsg;
+    PDocumentMainWindow pdmw;
 
-    pdsg = (PDSG)PgobPar();
+    pdsg = (PDocumentScrollGraphicsObject)PgobPar();
     pdmw = pdsg->Pdmw();
     return pdmw->TVert(pdsg);
 }

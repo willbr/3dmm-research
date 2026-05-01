@@ -17,11 +17,11 @@
 #define SNDAMPRI_H
 
 /***************************************************************************
-    IStream interface for a BLCK.
+    IStream interface for a DataBlock.
 ***************************************************************************/
-typedef class STBL *PSTBL;
-#define STBL_PAR IStream
-class STBL : public STBL_PAR
+typedef class DataBlockStream *PDataBlockStream;
+#define DataBlockStream_PAR IStream
+class DataBlockStream : public DataBlockStream_PAR
 {
     ASSERT
     MARKMEM
@@ -29,10 +29,10 @@ class STBL : public STBL_PAR
   protected:
     long _cactRef;
     long _ib;
-    BLCK _blck;
+    DataBlock _blck;
 
-    STBL(void);
-    ~STBL(void);
+    DataBlockStream(void);
+    ~DataBlockStream(void);
 
   public:
     // IUnknown methods
@@ -87,10 +87,10 @@ class STBL : public STBL_PAR
         return E_NOTIMPL;
     }
 
-    static PSTBL PstblNew(FLO *pflo, bool fPacked);
+    static PDataBlockStream PstblNew(FileLocation *pflo, bool fPacked);
     long CbMem(void)
     {
-        return size(STBL) + _blck.CbMem();
+        return size(DataBlockStream) + _blck.CbMem();
     }
     bool FInMemory(void)
     {
@@ -101,10 +101,10 @@ class STBL : public STBL_PAR
 /***************************************************************************
     Cached AudioMan Sound.
 ***************************************************************************/
-typedef class CAMS *PCAMS;
-#define CAMS_PAR BACO
-#define kclsCAMS 'CAMS'
-class CAMS : public CAMS_PAR
+typedef class CachedAudioManSound *PCachedAudioManSound;
+#define CachedAudioManSound_PAR BaseCacheableObject
+#define kclsCachedAudioManSound 'CAMS'
+class CachedAudioManSound : public CachedAudioManSound_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -112,17 +112,17 @@ class CAMS : public CAMS_PAR
 
   protected:
     // this is just so we can do a MarkMemObj on it while AudioMan has it
-    PSTBL _pstbl;
+    PDataBlockStream _pstbl;
 
-    CAMS(void);
+    CachedAudioManSound(void);
 
   public:
-    ~CAMS(void);
-    static PCAMS PcamsNewLoop(PCAMS pcamsSrc, long cactPlay);
+    ~CachedAudioManSound(void);
+    static PCachedAudioManSound PcamsNewLoop(PCachedAudioManSound pcamsSrc, long cactPlay);
 
     IAMSound *psnd; // the sound to use
 
-    static bool FReadCams(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     bool FInMemory(void)
     {
         return _pstbl->FInMemory();
@@ -132,17 +132,17 @@ class CAMS : public CAMS_PAR
 /***************************************************************************
     Notify sink class.
 ***************************************************************************/
-typedef class AMQUE *PAMQUE; // forward declaration
+typedef class AudioManQueue *PAudioManQueue; // forward declaration
 
-typedef class AMNOT *PAMNOT;
-#define AMNOT_PAR IAMNotifySink
-class AMNOT : public AMNOT_PAR
+typedef class AudioManNotifySink *PAudioManNotifySink;
+#define AudioManNotifySink_PAR IAMNotifySink
+class AudioManNotifySink : public AudioManNotifySink_PAR
 {
     ASSERT
 
   protected:
     long _cactRef;
-    PAMQUE _pamque; // the amque to notify
+    PAudioManQueue _pamque; // the amque to notify
 
   public:
     // IUnknown methods
@@ -162,40 +162,40 @@ class AMNOT : public AMNOT_PAR
     {
     }
 
-    AMNOT(void);
-    void Set(PAMQUE pamque);
+    AudioManNotifySink(void);
+    void Set(PAudioManQueue pamque);
 };
 
 /***************************************************************************
     Audioman queue.
 ***************************************************************************/
-#define AMQUE_PAR SNQUE
-#define kclsAMQUE 'amqu'
-class AMQUE : public AMQUE_PAR
+#define AudioManQueue_PAR SoundQueue
+#define kclsAudioManQueue 'amqu'
+class AudioManQueue : public AudioManQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
 
   protected:
-    MUTX _mutx;         // restricts access to member variables
+    Mutex _mutx;         // restricts access to member variables
     IAMChannel *_pchan; // the audioman channel
     ulong _tsStart;     // when we started the current sound
-    AMNOT _amnot;       // notify sink
+    AudioManNotifySink _amnot;       // notify sink
 
-    AMQUE(void);
+    AudioManQueue(void);
 
     virtual void _Enter(void);
     virtual void _Leave(void);
 
     virtual bool _FInit(void);
-    virtual PBACO _PbacoFetch(PRCA prca, CTG ctg, CNO cno);
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);
 
   public:
-    static PAMQUE PamqueNew(void);
-    ~AMQUE(void);
+    static PAudioManQueue PamqueNew(void);
+    ~AudioManQueue(void);
 
     void Notify(LPSOUND psnd);
 };

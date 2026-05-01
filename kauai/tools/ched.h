@@ -20,22 +20,22 @@
 
 #include "chdoc.h"
 
-#define APP_PAR APPB
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+#define Application_PAR ApplicationBase
+#define kclsApplication 'APP'
+class Application : public Application_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(Application)
 
   protected:
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
 
   public:
-    virtual void GetStnAppName(PSTN pstn);
+    virtual void GetStnAppName(PString pstn);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
 
-    virtual bool FCmdOpen(PCMD pcmd);
+    virtual bool FCmdOpen(PCommand pcmd);
 };
 
 #endif //! CHED_H

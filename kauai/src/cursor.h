@@ -21,8 +21,8 @@ enum
     curtMonochrome = 0,
 };
 
-// cursor on file - stored in a GG with the rgb's in the variable part
-struct CURF
+// cursor on file - stored in a GeneralGroup with the rgb's in the variable part
+struct CursorOnFile
 {
     long curt; // type of cursor
     byte xp;   // hot spot
@@ -32,12 +32,12 @@ struct CURF
     // byte rgbAnd[];
     // byte rgbXor[];
 };
-const BOM kbomCurf = 0xC0000000;
+const ByteOrderMask kbomCurf = 0xC0000000;
 
-typedef class CURS *PCURS;
-#define CURS_PAR BACO
-#define kclsCURS 'CURS'
-class CURS : public CURS_PAR
+typedef class Cursor *PCursor;
+#define Cursor_PAR BaseCacheableObject
+#define kclsCursor 'CURS'
+class Cursor : public Cursor_PAR
 {
     RTCLASS_DEC
 
@@ -50,13 +50,13 @@ class CURS : public CURS_PAR
     Cursor _crs;
 #endif // MAC
 
-    CURS(void)
+    Cursor(void)
     {
     } // we have to be allocated
-    ~CURS(void);
+    ~Cursor(void);
 
   public:
-    static bool FReadCurs(PCRF pcrf, CTG ctg, CNO cno, BLCK *pblck, PBACO *ppbaco, long *pcb);
+    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
     void Set(void);
 };

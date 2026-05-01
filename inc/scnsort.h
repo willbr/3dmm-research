@@ -13,34 +13,34 @@
 #ifndef SCNSORT_H
 #define SCNSORT_H
 
-#define SCRT_PAR GOK
-#define kclsSCRT 'SCRT'
-typedef class SCRT *PSCRT;
-class SCRT : public SCRT_PAR
+#define SceneSorter_PAR KidspaceGraphicObject
+#define kclsSceneSorter 'SCRT'
+typedef class SceneSorter *PSceneSorter;
+class SceneSorter : public SceneSorter_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(SCRT)
+    CMD_MAP_DEC(SceneSorter)
 
   protected:
     static const TRANS _mplwtrans[];
 
     /* Obtained from the script */
-    long _kidFrameMin;  // kid of first frame GOK in the easel
+    long _kidFrameMin;  // kid of first frame KidspaceGraphicObject in the easel
     long _kidScbtnsMin; // kid of the first scroll button (scroll up)
     long _cfrmPage;     // number of frame GOKs on the easel
-    long _cgokFrame;    // number of pieces to a frame GOK
+    long _cgokFrame;    // number of pieces to a frame KidspaceGraphicObject
 
     /* Hidden from the script */
     long _iscenCur;   // currently selected scene
     long _iscenTop;   // first scene visible in the browser
     long _iscenMac;   // number of scenes
-    PMVIE _pmvie;     // pointer to movie we're editing
-    CMVI _cmvi;       // Composite movie
+    PMovie _pmvie;     // pointer to movie we're editing
+    CompositeMovie _cmvi;       // Composite movie
     bool _fError : 1, // Did an error occur during the easel?
         _fInited : 1; // Have I seen the cidSceneSortInit yet?
-    PSTDIO _pstdio;   // The STDIO that instantiated me
+    PStudio _pstdio;   // The Studio that instantiated me
 
   protected:
     long _IscenFromKid(long kid)
@@ -57,38 +57,38 @@ class SCRT : public SCRT_PAR
     void _SetSelectionVis(bool fShow, bool fHideSel = fFalse);
     void _ErrorExit(void);
     bool _FResetThumbnails(bool fHideSel);
-    bool _FResetTransition(PGOK pgokPar, TRANS trans);
+    bool _FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans);
     TRANS _TransFromLw(long lwTrans);
     long _LwFromTrans(TRANS trans);
 
   public:
-    SCRT(PGCB pgcb);
-    ~SCRT(void);
+    SceneSorter(PGraphicsObjectBlock pgcb);
+    ~SceneSorter(void);
 
-    static PSCRT PscrtNew(long hid, PMVIE pmvie, PSTDIO pstdio, PRCA prca);
-    static bool FSceneSortMovie(long hid, PMVIE pmvie);
+    static PSceneSorter PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca);
+    static bool FSceneSortMovie(long hid, PMovie pmvie);
 
     /* Command API */
-    bool FCmdInit(PCMD pcmd);
-    bool FCmdSelect(PCMD pcmd);
-    bool FCmdInsert(PCMD pcmd);
-    bool FCmdScroll(PCMD pcmd);
-    bool FCmdNuke(PCMD pcmd);
-    bool FCmdDismiss(PCMD pcmd);
-    bool FCmdPortfolio(PCMD pcmd);
-    bool FCmdTransition(PCMD pcmd);
+    bool FCmdInit(PCommand pcmd);
+    bool FCmdSelect(PCommand pcmd);
+    bool FCmdInsert(PCommand pcmd);
+    bool FCmdScroll(PCommand pcmd);
+    bool FCmdNuke(PCommand pcmd);
+    bool FCmdDismiss(PCommand pcmd);
+    bool FCmdPortfolio(PCommand pcmd);
+    bool FCmdTransition(PCommand pcmd);
 };
 
 /******************************************************************************
 
-    GOMP class -- wraps an MBMP in a GOB for display in the Scene Sorter
+    MaskedBitmapGraphicsObject class -- wraps an MaskedBitmapMBMP in a GraphicsObject for display in the Scene Sorter
 
 ************************************************************ PETED ***********/
 
-#define GOMP_PAR GOB
-#define kclsGOMP 'GOMP'
-typedef class GOMP *PGOMP;
-class GOMP : public GOMP_PAR
+#define MaskedBitmapGraphicsObject_PAR GraphicsObject
+#define kclsMaskedBitmapGraphicsObject 'GOMP'
+typedef class MaskedBitmapGraphicsObject *PMaskedBitmapGraphicsObject;
+class MaskedBitmapGraphicsObject : public MaskedBitmapGraphicsObject_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -96,21 +96,21 @@ class GOMP : public GOMP_PAR
     /* REVIEW peted: do I need to declare a command map? */
 
   protected:
-    PMBMP _pmbmp;
+    PMaskedBitmapMBMP _pmbmp;
 
   public:
-    GOMP(PGCB pgcb);
-    ~GOMP(void)
+    MaskedBitmapGraphicsObject(PGraphicsObjectBlock pgcb);
+    ~MaskedBitmapGraphicsObject(void)
     {
         AssertThis(0);
         ReleasePpo(&_pmbmp);
     }
 
-    static PGOMP PgompNew(PGOB pgobPar, long hid);
-    static PGOMP PgompFromHidScr(long hid);
-    bool FSetMbmp(PMBMP pmbmp);
+    static PMaskedBitmapGraphicsObject PgompNew(PGraphicsObject pgobPar, long hid);
+    static PMaskedBitmapGraphicsObject PgompFromHidScr(long hid);
+    bool FSetMbmp(PMaskedBitmapMBMP pmbmp);
 
-    /* Makes the GOMP invisible to mouse actions */
+    /* Makes the MaskedBitmapGraphicsObject invisible to mouse actions */
     virtual bool FPtIn(long xp, long yp)
     {
         return fFalse;
@@ -120,7 +120,7 @@ class GOMP : public GOMP_PAR
         return fFalse;
     }
 
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
 };
 
 #endif /* SCNSORT_H */

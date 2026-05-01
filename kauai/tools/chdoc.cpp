@@ -9,7 +9,7 @@
 #include "ched.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(DCD, DDG)
+BEGIN_CMD_MAP(DCD, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidAddChunk, &DCD::FCmdAddChunk, pvNil)
 ON_CID_GEN(cidAddPicChunk, &DCD::FCmdAddPicChunk, pvNil)
 ON_CID_GEN(cidAddMbmpChunk, &DCD::FCmdAddBitmapChunk, pvNil)
@@ -46,12 +46,12 @@ ON_CID_GEN(cidCloneChunk, &DCD::FCmdCloneChunk, &DCD::FEnableDcdCmd)
 ON_CID_GEN(cidReopen, &DCD::FCmdReopen, pvNil)
 END_CMD_MAP_NIL()
 
-BEGIN_CMD_MAP(TSCG, GOB)
-ON_CID_GEN(cidClose, &GOB::FCmdCloseWnd, pvNil)
+BEGIN_CMD_MAP(TSCG, GraphicsObject)
+ON_CID_GEN(cidClose, &GraphicsObject::FCmdCloseWnd, pvNil)
 END_CMD_MAP_NIL()
 
-bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg);
-void _PutCtgStn(PDLG pdlg, long idit, CTG ctg);
+bool _FGetCtg(PDialog pdlg, long idit, ChunkTagOrType *pctg);
+void _PutCtgStn(PDialog pdlg, long idit, ChunkTagOrType ctg);
 
 RTCLASS(DOC)
 RTCLASS(DOCE)
@@ -76,21 +76,21 @@ enum
 // add chunk data
 struct ADCD
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fCkiValid;
-    CKI cki;
+    ChunkIdentification cki;
 };
 
-bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgAddChunk(PDialog pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for Add Chunk dialog. pv should be a padcd.
 ***************************************************************************/
-bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgAddChunk(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    CTG ctg;
+    ChunkTagOrType ctg;
     long lw;
     bool fEmpty;
     ADCD *padcd = (ADCD *)pv;
@@ -108,13 +108,13 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
         }
         if (!_FGetCtg(pdlg, kiditCtgInfo, &ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkTagOrType is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoInfo, &lw, &fEmpty) && !fEmpty)
         {
-            vpappb->TGiveAlertSz(PszLit("CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoInfo);
             return fFalse;
         }
@@ -122,7 +122,7 @@ bool _FDlgAddChunk(PDLG pdlg, long *pidit, void *pv)
         if (!fEmpty && (!padcd->fCkiValid || ctg != padcd->cki.ctg || lw != (long)padcd->cki.cno) &&
             padcd->pcfl->FFind(ctg, lw))
         {
-            tribool tRet = vpappb->TGiveAlertSz(PszLit("A chunk with this CTG & CNO")
+            tribool tRet = vpappb->TGiveAlertSz(PszLit("A chunk with this ChunkTagOrType & ChunkNumber")
                                                     PszLit(" already exists. Replace the existing chunk?"),
                                                 bkYesNoCancel, cokQuestion);
 
@@ -167,21 +167,21 @@ DOC::~DOC(void)
     Use pfni == pvNil to create a new file, non-nil to open an
     existing file.
 ***************************************************************************/
-PDOC DOC::PdocNew(FNI *pfni)
+PDOC DOC::PdocNew(Filename *pfni)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     PDOC pdoc;
 
     if (pvNil == pfni)
-        pcfl = CFL::PcflCreateTemp();
+        pcfl = ChunkyFile::PcflCreateTemp();
     else
     {
         AssertPo(pfni, ffniFile);
 
         // make sure no other docs are based on this pcfl.
-        if (pvNil != DOCB::PdocbFromFni(pfni))
+        if (pvNil != DocumentBase::PdocbFromFni(pfni))
             return pvNil;
-        pcfl = CFL::PcflOpen(pfni, fcflNil);
+        pcfl = ChunkyFile::PcflOpen(pfni, fcflNil);
     }
 
     if (pvNil == pcfl)
@@ -199,19 +199,19 @@ PDOC DOC::PdocNew(FNI *pfni)
 }
 
 /***************************************************************************
-    Create a new DDG for the doc.
+    Create a new DocumentDisplayGraphicsObject for the doc.
 ***************************************************************************/
-PDDG DOC::PddgNew(PGCB pgcb)
+PDocumentDisplayGraphicsObject DOC::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     return DCD::PdcdNew(this, _pcfl, pgcb);
 }
 
 /***************************************************************************
-    Get the current FNI for the doc. Return false if the doc is not
-    currently based on an FNI (it's a new doc or an internal one).
+    Get the current Filename for the doc. Return false if the doc is not
+    currently based on an Filename (it's a new doc or an internal one).
 ***************************************************************************/
-bool DOC::FGetFni(FNI *pfni)
+bool DOC::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
@@ -224,12 +224,12 @@ bool DOC::FGetFni(FNI *pfni)
 
 /***************************************************************************
     Save the document and optionally set this fni as the current one.
-    If the doc is currently based on an FNI, pfni may be nil, indicating
+    If the doc is currently based on an Filename, pfni may be nil, indicating
     that this is a normal save (not save as). If pfni is not nil and
     fSetFni is false, this just writes a copy of the doc but doesn't change
     the doc one bit.
 ***************************************************************************/
-bool DOC::FSaveToFni(FNI *pfni, bool fSetFni)
+bool DOC::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     if (!fSetFni && pvNil != pfni)
@@ -255,7 +255,7 @@ bool DOC::FSaveToFni(FNI *pfni, bool fSetFni)
 /***************************************************************************
     Ask the user what file they want to save to.
 ***************************************************************************/
-bool DOC::FGetFniSave(FNI *pfni)
+bool DOC::FGetFniSave(Filename *pfni)
 {
     AssertThis(0);
     return FGetFniSaveMacro(pfni, 'CHN2',
@@ -278,7 +278,7 @@ void DOC::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for chunk editing doc.
 ***************************************************************************/
-DOCE::DOCE(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno) : DOCB(pdocb)
+DOCE::DOCE(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno) : DocumentBase(pdocb)
 {
     _pcfl = pcfl;
     _ctg = ctg;
@@ -291,7 +291,7 @@ DOCE::DOCE(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno) : DOCB(pdocb)
 ***************************************************************************/
 bool DOCE::_FInit(void)
 {
-    BLCK blck;
+    DataBlock blck;
 
     if (!_pcfl->FFind(_ctg, _cno, &blck))
     {
@@ -307,7 +307,7 @@ bool DOCE::_FInit(void)
 /***************************************************************************
     Static method to look for a DOCE for the given chunk.
 ***************************************************************************/
-PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno)
+PDOCE DOCE::PdoceFromChunk(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     PDOCE pdoce;
 
@@ -324,12 +324,12 @@ PDOCE DOCE::PdoceFromChunk(PDOCB pdocb, PCFL pcfl, CTG ctg, CNO cno)
 }
 
 /***************************************************************************
-    Static method: For all DOCE children of the DOCB, checks if the chunk
+    Static method: For all DOCE children of the DocumentBase, checks if the chunk
     still exists and nukes the DOCE if not.
 ***************************************************************************/
-void DOCE::CloseDeletedDoce(PDOCB pdocb)
+void DOCE::CloseDeletedDoce(PDocumentBase pdocb)
 {
-    PDOCB pdocbNext;
+    PDocumentBase pdocbNext;
     PDOCE pdoce;
 
     for (pdocb = pdocb->PdocbChd(); pvNil != pdocb; pdocb = pdocbNext)
@@ -351,10 +351,10 @@ void DOCE::CloseDeletedDoce(PDOCB pdocb)
 /***************************************************************************
     Get the name of the item document.
 ***************************************************************************/
-void DOCE::GetName(PSTN pstn)
+void DOCE::GetName(PString pstn)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit(": %f %08x"), _ctg, _cno);
     _pdocbPar->GetName(pstn);
@@ -367,10 +367,10 @@ void DOCE::GetName(PSTN pstn)
 bool DOCE::FSave(long cid)
 {
     AssertThis(0);
-    CTG ctg;
-    CNO cno;
+    ChunkTagOrType ctg;
+    ChunkNumber cno;
     bool fCreated = fFalse;
-    PDLG pdlg = pvNil;
+    PDialog pdlg = pvNil;
 
     switch (cid)
     {
@@ -390,7 +390,7 @@ bool DOCE::FSave(long cid)
         adcd.fCkiValid = fTrue;
         adcd.cki.ctg = _ctg;
         adcd.cki.cno = _cno;
-        pdlg = DLG::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
+        pdlg = Dialog::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
         if (pvNil == pdlg)
             goto LCancel;
         _PutCtgStn(pdlg, kiditCtgInfo, _ctg);
@@ -419,8 +419,8 @@ bool DOCE::FSave(long cid)
 
     if (_FSaveToChunk(ctg, cno, cid != cidSaveCopy))
     {
-        PDOCB pdocb;
-        PDDG pddg;
+        PDocumentBase pdocb;
+        PDocumentDisplayGraphicsObject pddg;
 
         if (pvNil != (pdocb = PdocbPar()) && pvNil != (pddg = pdocb->PddgGet(0)) && pddg->FIs(kclsDCD))
         {
@@ -445,12 +445,12 @@ LCancel:
 /***************************************************************************
     Save the chunk data to a chunk.
 ***************************************************************************/
-bool DOCE::_FSaveToChunk(CTG ctg, CNO cno, bool fRedirect)
+bool DOCE::_FSaveToChunk(ChunkTagOrType ctg, ChunkNumber cno, bool fRedirect)
 {
     AssertThis(0);
-    CNO cnoT;
-    CKI cki;
-    BLCK blck;
+    ChunkNumber cnoT;
+    ChunkIdentification cki;
+    DataBlock blck;
     long cb = _CbOnFile();
 
     // if the chunk already exists, add a temporary chunk, swap the data
@@ -500,18 +500,18 @@ void DOCE::AssertValid(ulong grf)
 {
     DOCE_PAR::AssertValid(0);
     AssertPo(_pcfl, 0);
-    Assert(_pcfl->FFind(_ctg, _cno), "chunk not in CFL");
+    Assert(_pcfl->FFind(_ctg, _cno), "chunk not in ChunkyFile");
 }
 #endif // DEBUG
 
 /***************************************************************************
     Constructor for a DCLB.
 ***************************************************************************/
-DCLB::DCLB(PDOCB pdocb, PGCB pgcb) : DDG(pdocb, pgcb)
+DCLB::DCLB(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
 {
     achar ch;
     RC rc;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     _dypHeader = 0;
     _onn = vpappb->OnnDefFixed();
@@ -655,7 +655,7 @@ void DCLB::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the DCD.
 ***************************************************************************/
-DCD::DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
+DCD::DCD(PDocumentBase pdocb, PChunkyFile pcfl, PGraphicsObjectBlock pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
 {
     _pcfl = pcfl;
     _dypBorder = 1;
@@ -667,7 +667,7 @@ DCD::DCD(PDOCB pdocb, PCFL pcfl, PGCB pgcb) : DCLB(pdocb, pgcb), _sel(pcfl)
 /***************************************************************************
     Static method to create a new DCD.
 ***************************************************************************/
-PDCD DCD::PdcdNew(PDOCB pdocb, PCFL pcfl, PGCB pgcb)
+PDCD DCD::PdcdNew(PDocumentBase pdocb, PChunkyFile pcfl, PGraphicsObjectBlock pgcb)
 {
     PDCD pdcd;
 
@@ -691,9 +691,9 @@ PDCD DCD::PdcdNew(PDOCB pdocb, PCFL pcfl, PGCB pgcb)
 void DCD::_Activate(bool fActive)
 {
     AssertThis(0);
-    DDG::_Activate(fActive);
+    DocumentDisplayGraphicsObject::_Activate(fActive);
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
     _DrawSel(&gnv);
 }
 
@@ -702,14 +702,14 @@ void DCD::_Activate(bool fActive)
     *pcki and *pkid should be at or before the first line modified.
     pcki and pkid can be nil.
 ***************************************************************************/
-void DCD::InvalAllDcd(PDOCB pdocb, PCFL pcfl, CKI *pcki, KID *pkid)
+void DCD::InvalAllDcd(PDocumentBase pdocb, PChunkyFile pcfl, ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertPo(pdocb, 0);
     AssertPo(pcfl, 0);
     AssertNilOrVarMem(pcki);
     AssertNilOrVarMem(pkid);
     long ipddg;
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     PDCD pdcd;
 
     // mark the document dirty
@@ -731,7 +731,7 @@ void DCD::InvalAllDcd(PDOCB pdocb, PCFL pcfl, CKI *pcki, KID *pkid)
     Invalidate the display from (pcki, pkid) to the end of the display. If
     we're the active DCD, also redraw.
 ***************************************************************************/
-void DCD::_InvalCkiKid(CKI *pcki, KID *pkid)
+void DCD::_InvalCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -773,19 +773,19 @@ void DCD::_InvalCkiKid(CKI *pcki, KID *pkid)
 /***************************************************************************
     Draw the chunk list
 ***************************************************************************/
-void DCD::Draw(PGNV pgnv, RC *prcClip)
+void DCD::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
-    STN stn;
-    STN stnT;
+    String stn;
+    String stnT;
     RC rc;
     long yp, xp;
     long ikid, cckiRef;
-    CKI cki;
-    KID kid;
-    BLCK blck;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
+    DataBlock blck;
     ulong grfsel;
     SEL sel = _sel;
 
@@ -798,7 +798,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
     rc.ypTop = 0;
     rc.ypBottom = _dypHeader - _dypBorder;
     pgnv->FillRc(&rc, kacrWhite);
-    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (CHID)   CTG     CNO     Name   Lines: %d"), _sel.LnLim());
+    stn.FFormatSz(PszLit("LPF  PARS   SIZE     (ChildChunkID)   ChunkTagOrType     ChunkNumber     Name   Lines: %d"), _sel.LnLim());
     pgnv->DrawStn(&stn, xp, 0);
     rc = *prcClip;
     rc.ypTop = _dypHeader - _dypBorder;
@@ -875,7 +875,7 @@ void DCD::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Hilite the selection (if there is one)
 ***************************************************************************/
-void DCD::_DrawSel(PGNV pgnv)
+void DCD::_DrawSel(PGraphicsEnvironment pgnv)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -895,7 +895,7 @@ void DCD::_DrawSel(PGNV pgnv)
 /***************************************************************************
     Set the selection to the given ln.
 ***************************************************************************/
-void DCD::_SetSel(long ln, CKI *pcki, KID *pkid)
+void DCD::_SetSel(long ln, ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -916,7 +916,7 @@ void DCD::_SetSel(long ln, CKI *pcki, KID *pkid)
     if (_sel.Ln() == sel.Ln())
         return;
 
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     // erase the old sel
     if (_fActive)
@@ -956,13 +956,13 @@ void DCD::_ShowSel(void)
 void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
     PDCD pdcd, pdcdNew;
     PT pt, ptT;
     bool fDown;
     long ln, lnNew;
-    CKI cki, ckiNew;
-    KID kid;
+    ChunkIdentification cki, ckiNew;
+    ChildChunkIdentification kid;
     ulong grfsel;
 
     ln = _sel.Ln();
@@ -984,7 +984,7 @@ void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
     if (lnNil == lnNew)
         return;
 
-    // handle a control/command click--edit chunk information/change CHID
+    // handle a control/command click--edit chunk information/change ChildChunkID
     if (grfcust & fcustCmd)
     {
         _SetSel(lnNil);
@@ -1026,7 +1026,7 @@ void DCD::MouseDown(long xp, long yp, long cact, ulong grfcust)
     {
         ptT = pt;
         MapPt(&ptT, cooLocal, cooGlobal);
-        pgob = GOB::PgobFromPtGlobal(ptT.xp, ptT.yp, &ptT);
+        pgob = GraphicsObject::PgobFromPtGlobal(ptT.xp, ptT.yp, &ptT);
         if (pgob != this && (pvNil == pgob || !pgob->FIs(kclsDCD) || _pcfl != ((PDCD)pgob)->_pcfl))
         {
             pdcdNew = pvNil;
@@ -1083,7 +1083,7 @@ void DCD::_HiliteLn(long ln)
 {
     AssertThis(0);
     RC rc;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     gnv.GetRcSrc(&rc);
     rc.ypTop = _YpFromLn(ln);
@@ -1095,13 +1095,13 @@ void DCD::_HiliteLn(long ln)
 /***************************************************************************
     Reopen the file - nuking all changes since last saved.
 ***************************************************************************/
-bool DCD::FCmdReopen(PCMD pcmd)
+bool DCD::FCmdReopen(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
-    PDOCB pdocb;
-    CKI cki;
-    KID kid;
+    PDocumentBase pdocb;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
     ulong grfsel;
     long lnOld;
 
@@ -1134,7 +1134,7 @@ bool DCD::FCmdReopen(PCMD pcmd)
         if (pdocb == _pdocb->PdocbChd())
         {
             //	REVIEW shonk: Release: is this the right thing to do?  What if
-            // someone else has a reference count to this child DOCB?
+            // someone else has a reference count to this child DocumentBase?
             Bug("why wasn't this child doc released?");
             ReleasePpo(&pdocb);
         }
@@ -1152,8 +1152,8 @@ bool DCD::FCmdKey(PCMD_KEY pcmd)
     AssertThis(0);
     long ln, lnLim, lnNew, cln;
     ulong grfsel;
-    KID kid;
-    CKI cki;
+    ChildChunkIdentification kid;
+    ChunkIdentification cki;
     RC rc;
 
     ln = _sel.Ln();
@@ -1264,12 +1264,12 @@ long DCD::_ScvMax(bool fVert)
 /***************************************************************************
     Handle enabling/disabling DCD commands.
 ***************************************************************************/
-bool DCD::FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds)
+bool DCD::FEnableDcdCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(pgrfeds);
-    CKI cki;
+    ChunkIdentification cki;
 
     switch (pcmd->cid)
     {
@@ -1324,21 +1324,21 @@ bool DCD::FEnableDcdCmd(PCMD pcmd, ulong *pgrfeds)
 /***************************************************************************
     Put up the dialog and add the chunk.
 ***************************************************************************/
-bool DCD::_FAddChunk(CTG ctgDef, CKI *pcki, bool *pfCreated)
+bool DCD::_FAddChunk(ChunkTagOrType ctgDef, ChunkIdentification *pcki, bool *pfCreated)
 {
     AssertVarMem(pcki);
     AssertVarMem(pfCreated);
     long idit;
     long lw;
     bool fEmpty;
-    PDLG pdlg;
+    PDialog pdlg;
     ADCD adcd;
-    STN stn;
+    String stn;
 
     // put up the dialog
     adcd.pcfl = _pcfl;
     adcd.fCkiValid = fFalse;
-    pdlg = DLG::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
+    pdlg = Dialog::PdlgNew(dlidChunkInfo, _FDlgAddChunk, &adcd);
     if (pvNil == pdlg)
         goto LCancel;
     if (ctgNil != ctgDef)
@@ -1391,11 +1391,11 @@ bool DCD::_FAddChunk(CTG ctgDef, CKI *pcki, bool *pfCreated)
 /***************************************************************************
     Handle command to add a chunk.
 ***************************************************************************/
-bool DCD::FCmdAddChunk(PCMD pcmd)
+bool DCD::FCmdAddChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkIdentification cki;
     long lnOld;
     bool fCreated;
 
@@ -1419,28 +1419,28 @@ bool DCD::FCmdAddChunk(PCMD pcmd)
 /***************************************************************************
     Handle command to add a chunk.
 ***************************************************************************/
-bool DCD::FCmdAddPicChunk(PCMD pcmd)
+bool DCD::FCmdAddPicChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    BLCK blck;
+    ChunkIdentification cki;
+    DataBlock blck;
     long cb;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
-    PPIC ppic = pvNil;
+    PPicture ppic = pvNil;
 
     // save and clear the sel
     lnOld = _sel.Ln();
     _SetSel(lnNil);
 
     // get the fni of the file to add
-    Mac(FTG ftg = 'PICT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("MetaFiles\0*.EMF;*.WMF\0"), vwig.hwndApp))
+    Mac(FileType ftg = 'PICT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("MetaFiles\0*.EMF;*.WMF\0"), vwig.hwndApp))
     {
         goto LCancel;
     }
-    if (pvNil == (ppic = PIC::PpicReadNative(&fni)))
+    if (pvNil == (ppic = Picture::PpicReadNative(&fni)))
     {
         vpappb->TGiveAlertSz(PszLit("Reading picture file failed"), bkOk, cokExclamation);
         goto LCancel;
@@ -1482,12 +1482,12 @@ enum
     kiditDefaultMbmp,
     kiditLimMbmp
 };
-bool _FDlgMbmp(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgMbmp(PDialog pdlg, long *pidit, void *pv);
 
 /****************************************************************************
     Dialog proc for input of transparent pixel value and reference point
 ****************************************************************************/
-bool _FDlgMbmp(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgMbmp(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
@@ -1532,33 +1532,33 @@ bool _FDlgMbmp(PDLG pdlg, long *pidit, void *pv)
 /***************************************************************************
     Handle command to add Mbmp or chunk.
 ***************************************************************************/
-bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
+bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    BLCK blck;
+    ChunkIdentification cki;
+    DataBlock blck;
     long lw;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
     byte bTransparent;
     long xp, yp;
     bool fMask = pcmd->cid != cidAddMbmpChunk;
-    PBACO pbaco = pvNil;
-    CTG ctg;
-    PDLG pdlg = pvNil;
+    PBaseCacheableObject pbaco = pvNil;
+    ChunkTagOrType ctg;
+    PDialog pdlg = pvNil;
 
     // save and clear the sel
     lnOld = _sel.Ln();
     _SetSel(lnNil);
 
     // get the fni of the file to add
-    Mac(FTG ftg = '\0BMP';) // REVIEW shonk: this is bogus
+    Mac(FileType ftg = '\0BMP';) // REVIEW shonk: this is bogus
         if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("Bitmaps\0*.BMP\0"), vwig.hwndApp)) goto LCancel;
 
     // get the transparent pixel value
-    pdlg = DLG::PdlgNew(dlidMbmp, _FDlgMbmp);
+    pdlg = Dialog::PdlgNew(dlidMbmp, _FDlgMbmp);
     if (pvNil == pdlg)
         goto LCancel;
     // put up the initial values
@@ -1585,7 +1585,7 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
     yp = lw;
     ReleasePpo(&pdlg);
 
-    if (pvNil == (pbaco = MBMP::PmbmpReadNative(&fni, bTransparent, xp, yp, fMask ? fmbmpMask : fmbmpNil)))
+    if (pvNil == (pbaco = MaskedBitmapMBMP::PmbmpReadNative(&fni, bTransparent, xp, yp, fMask ? fmbmpMask : fmbmpNil)))
     {
         vpappb->TGiveAlertSz(PszLit("Reading bitmap file failed"), bkOk, cokExclamation);
         goto LCancel;
@@ -1618,15 +1618,15 @@ bool DCD::FCmdAddBitmapChunk(PCMD pcmd)
 /***************************************************************************
     Handle command to add a chunk that is a copy of a file's contents.
 ***************************************************************************/
-bool DCD::FCmdAddFileChunk(PCMD pcmd)
+bool DCD::FCmdAddFileChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    PFIL pfil;
-    BLCK blck;
+    ChunkIdentification cki;
+    PFileObject pfil;
+    DataBlock blck;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
 
     // save and clear the sel
@@ -1636,7 +1636,7 @@ bool DCD::FCmdAddFileChunk(PCMD pcmd)
     // get the fni of the file to add
     if (!FGetFniOpenMacro(&fni, pvNil, 0, PszLit("All files\0*.*\0"), vwig.hwndApp))
         goto LCancel;
-    if (pvNil == (pfil = FIL::PfilOpen(&fni)))
+    if (pvNil == (pfil = FileObject::PfilOpen(&fni)))
     {
         vpappb->TGiveAlertSz(PszLit("Opening file failed"), bkOk, cokExclamation);
         goto LCancel;
@@ -1673,22 +1673,22 @@ bool DCD::FCmdAddFileChunk(PCMD pcmd)
 // child chunks and the chunky file.
 struct CLAN
 {
-    CKI cki;
-    KID kid;
-    PCFL pcfl;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
+    PChunkyFile pcfl;
 };
 
-bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgEditChunkInfo(PDialog pdlg, long *pidit, void *pv);
 
 /**************************************************************************
     Dialog proc for Edit Chunk Info dialog. *pv should be a CLAN *, with
     the cki and pcfl fields filled in (the kid field is not used).
 **************************************************************************/
-bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgEditChunkInfo(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    CKI cki;
+    ChunkIdentification cki;
     long lw;
     bool fEmpty;
     CLAN *pclan = (CLAN *)pv;
@@ -1709,20 +1709,20 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
         // check the chunk
         if (!_FGetCtg(pdlg, kiditCtgInfo, &cki.ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkTagOrType is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoInfo, &lw, &fEmpty))
         {
-            vpappb->TGiveAlertSz(PszLit("CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoInfo);
             return fFalse;
         }
         cki.cno = lw;
         if (pclan->pcfl->FFind(cki.ctg, cki.cno) && (cki.ctg != pclan->cki.ctg || cki.cno != pclan->cki.cno))
         {
-            vpappb->TGiveAlertSz(PszLit("That CTG/CNO pair already exists"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("That ChunkTagOrType/ChunkNumber pair already exists"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgInfo);
             return fFalse;
         }
@@ -1737,21 +1737,21 @@ bool _FDlgEditChunkInfo(PDLG pdlg, long *pidit, void *pv)
     Put up the dialog with initial values and edit the chunk. This function
     will update *pckiOld to contain the new ctg and cno values.
 ****************************************************************************/
-bool DCD::_FEditChunkInfo(CKI *pckiOld)
+bool DCD::_FEditChunkInfo(ChunkIdentification *pckiOld)
 {
     AssertVarMem(pckiOld);
     long idit;
     long lw;
-    PDLG pdlg;
-    STN stn;
+    PDialog pdlg;
+    String stn;
     CLAN clan;
-    CKI cki;
+    ChunkIdentification cki;
 
     clan.pcfl = _pcfl;
     clan.cki = *pckiOld;
     TrashVar(&clan.kid);
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidChunkInfo, _FDlgEditChunkInfo, &clan);
+    pdlg = Dialog::PdlgNew(dlidChunkInfo, _FDlgEditChunkInfo, &clan);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -1788,11 +1788,11 @@ bool DCD::_FEditChunkInfo(CKI *pckiOld)
 /**************************************************************************
     Handle command to edit chunk information.
 **************************************************************************/
-bool DCD::FCmdEditChunkInfo(PCMD pcmd)
+bool DCD::FCmdEditChunkInfo(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkIdentification cki;
     long lnOld;
 
     // record, save, and clear the sel
@@ -1819,11 +1819,11 @@ bool DCD::FCmdEditChunkInfo(PCMD pcmd)
 /***************************************************************************
     Handle command to delete a chunk.
 ***************************************************************************/
-bool DCD::FCmdDeleteChunk(PCMD pcmd)
+bool DCD::FCmdDeleteChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkIdentification cki;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         goto LCancel;
@@ -1850,7 +1850,7 @@ LCancel:
 }
 
 /**************************************************************************
-    Change CHID dialog
+    Change ChildChunkID dialog
 **************************************************************************/
 enum
 {
@@ -1860,16 +1860,16 @@ enum
     kiditLimChid
 };
 
-bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgChangeChid(PDialog pdlg, long *pidit, void *pv);
 
 /**************************************************************************
-    Dialog proc for Change CHID dialog.
+    Dialog proc for Change ChildChunkID dialog.
 **************************************************************************/
-bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgChangeChid(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
-    CHID chid;
+    ChildChunkID chid;
     long lw;
     long ikid;
     CLAN *pclan = (CLAN *)pv;
@@ -1890,13 +1890,13 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
         // get the new chid
         if (!pdlg->FGetLwFromEdit(kiditChidChid, &lw))
         {
-            vpappb->TGiveAlertSz(PszLit("CHID value is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("ChildChunkID value is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditChidChid);
             return fFalse;
         }
         chid = lw;
 
-        // check the new chid to make sure that the CTG/CNO/new CHID does not
+        // check the new chid to make sure that the ChunkTagOrType/ChunkNumber/new ChildChunkID does not
         // already exist
         if (pclan->pcfl->FGetIkid(pclan->cki.ctg, pclan->cki.cno, pclan->kid.cki.ctg, pclan->kid.cki.cno, chid,
                                   &ikid) &&
@@ -1914,16 +1914,16 @@ bool _FDlgChangeChid(PDLG pdlg, long *pidit, void *pv)
 }
 
 /****************************************************************************
-    Put up the dialog with initial values and change the CHID. *pkid will be
+    Put up the dialog with initial values and change the ChildChunkID. *pkid will be
     affected to reflect this change.
 ****************************************************************************/
-bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
+bool DCD::_FChangeChid(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertVarMem(pcki);
     AssertVarMem(pkid);
     long idit;
-    CHID chid;
-    PDLG pdlg;
+    ChildChunkID chid;
+    PDialog pdlg;
     long lw;
     CLAN clan;
 
@@ -1932,7 +1932,7 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
     clan.pcfl = _pcfl;
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidChangeChid, _FDlgChangeChid, &clan);
+    pdlg = Dialog::PdlgNew(dlidChangeChid, _FDlgChangeChid, &clan);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -1948,13 +1948,13 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
     chid = lw;
     ReleasePpo(&pdlg);
 
-    // If new CHID is different, unadopt and adopt child to change CHID.
-    // This is easier than directly changing the GG which keeps track of the
+    // If new ChildChunkID is different, unadopt and adopt child to change ChildChunkID.
+    // This is easier than directly changing the GeneralGroup which keeps track of the
     // parent and its children.
     if (chid != pkid->chid)
     {
         _pcfl->ChangeChid(pcki->ctg, pcki->cno, pkid->cki.ctg, pkid->cki.cno, pkid->chid, chid);
-        // set the new CHID so the caller has the right kid
+        // set the new ChildChunkID so the caller has the right kid
         pkid->chid = chid;
     }
 
@@ -1962,14 +1962,14 @@ bool DCD::_FChangeChid(CKI *pcki, KID *pkid)
 }
 
 /**************************************************************************
-    Handle command to change the CHID.
+    Handle command to change the ChildChunkID.
 **************************************************************************/
-bool DCD::FCmdChangeChid(PCMD pcmd)
+bool DCD::FCmdChangeChid(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    KID kid;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
     long lnOld;
 
     // record, save, and clear the sel
@@ -2007,21 +2007,21 @@ enum
     kiditChidAdopt,
     kiditLimAdopt
 };
-bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv);
+bool _FDlgAdoptChunk(PDialog pdlg, long *pidit, void *pv);
 
 /***************************************************************************
     Dialog proc for Adopt Chunk dialog.
 ***************************************************************************/
-bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
+bool _FDlgAdoptChunk(PDialog pdlg, long *pidit, void *pv)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pidit);
     long lw;
-    CKI cki;
-    KID kid;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
     long ikid;
     bool fEmpty;
-    PCFL pcfl = (PCFL)pv;
+    PChunkyFile pcfl = (PChunkyFile)pv;
 
     AssertPo(pcfl, 0);
     switch (*pidit)
@@ -2039,13 +2039,13 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
         // check the parent
         if (!_FGetCtg(pdlg, kiditCtgParAdopt, &cki.ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("Parent CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Parent ChunkTagOrType is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgParAdopt);
             return fFalse;
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoParAdopt, &lw))
         {
-            vpappb->TGiveAlertSz(PszLit("Parent CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Parent ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoParAdopt);
             return fFalse;
         }
@@ -2060,13 +2060,13 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
         // check the child
         if (!_FGetCtg(pdlg, kiditCtgChdAdopt, &kid.cki.ctg))
         {
-            vpappb->TGiveAlertSz(PszLit("Child CTG is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Child ChunkTagOrType is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCtgChdAdopt);
             return fFalse;
         }
         if (!pdlg->FGetLwFromEdit(kiditCnoChdAdopt, &lw))
         {
-            vpappb->TGiveAlertSz(PszLit("Child CNO is bad"), bkOk, cokStop);
+            vpappb->TGiveAlertSz(PszLit("Child ChunkNumber is bad"), bkOk, cokStop);
             pdlg->SelectDit(kiditCnoChdAdopt);
             return fFalse;
         }
@@ -2117,21 +2117,21 @@ bool _FDlgAdoptChunk(PDLG pdlg, long *pidit, void *pv)
     Put up and handle the adopt dialog with the given initial values
     (if not nil).
 ***************************************************************************/
-bool DCD::_FDoAdoptChunkDlg(CKI *pcki, KID *pkid)
+bool DCD::_FDoAdoptChunkDlg(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
     AssertNilOrVarMem(pkid);
     long idit;
-    CKI cki;
-    KID kid;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
     long lnOld;
     long lw1, lw2, lw3;
     bool fEmptyChid;
-    PDLG pdlg = pvNil;
+    PDialog pdlg = pvNil;
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidAdoptChunk, _FDlgAdoptChunk, _pcfl);
+    pdlg = Dialog::PdlgNew(dlidAdoptChunk, _FDlgAdoptChunk, _pcfl);
     if (pvNil == pdlg)
         return fFalse;
 
@@ -2193,13 +2193,13 @@ bool DCD::_FDoAdoptChunkDlg(CKI *pcki, KID *pkid)
 /***************************************************************************
     Handle command to adopt a chunk.
 ***************************************************************************/
-bool DCD::FCmdAdoptChunk(PCMD pcmd)
+bool DCD::FCmdAdoptChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    CKI *pcki;
-    PDLG pdlg = pvNil;
+    ChunkIdentification cki;
+    ChunkIdentification *pcki;
+    PDialog pdlg = pvNil;
 
     if (fselCki & _sel.GrfselGetCkiKid(&cki, pvNil))
         pcki = &cki;
@@ -2215,12 +2215,12 @@ bool DCD::FCmdAdoptChunk(PCMD pcmd)
 /***************************************************************************
     Handle command to unadopt a chunk.
 ***************************************************************************/
-bool DCD::FCmdUnadoptChunk(PCMD pcmd)
+bool DCD::FCmdUnadoptChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    KID kid;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
 
     if (!(_sel.GrfselGetCkiKid(&cki, &kid) & fselKid))
     {
@@ -2238,9 +2238,9 @@ bool DCD::FCmdUnadoptChunk(PCMD pcmd)
 /***************************************************************************
     Handles commands to edit a chunk.
 ***************************************************************************/
-bool DCD::FCmdEditChunk(PCMD pcmd)
+bool DCD::FCmdEditChunk(PCommand pcmd)
 {
-    CKI cki;
+    ChunkIdentification cki;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
@@ -2250,15 +2250,15 @@ bool DCD::FCmdEditChunk(PCMD pcmd)
 }
 
 /***************************************************************************
-    Opens a window onto the CKI's data.
+    Opens a window onto the ChunkIdentification's data.
 ***************************************************************************/
-void DCD::_EditCki(CKI *pcki, long cid)
+void DCD::_EditCki(ChunkIdentification *pcki, long cid)
 {
     AssertThis(0);
     AssertVarMem(pcki);
     PDOCE pdoce;
     long cls;
-    CTG ctg;
+    ChunkTagOrType ctg;
 
     // check for a doce already open on the chunk.
     if (pvNil != (pdoce = DOCE::PdoceFromChunk(_pdocb, _pcfl, pcki->ctg, pcki->cno)))
@@ -2292,10 +2292,10 @@ void DCD::_EditCki(CKI *pcki, long cid)
         switch (ctg)
         {
         case kctgGst:
-            cls = kclsGST;
+            cls = kclsStringTable_GST;
             goto LDocg;
         case kctgAst:
-            cls = kclsAST;
+            cls = kclsAllocatedStringTable;
             goto LDocg;
         default:
             break;
@@ -2306,16 +2306,16 @@ void DCD::_EditCki(CKI *pcki, long cid)
         switch (ctg)
         {
         case kctgGl:
-            cls = kclsGL;
+            cls = kclsDynamicArray;
             goto LDocg;
         case kctgAl:
-            cls = kclsAL;
+            cls = kclsAllocatedArray;
             goto LDocg;
         case kctgGg:
-            cls = kclsGG;
+            cls = kclsGeneralGroup;
             goto LDocg;
         case kctgAg:
-            cls = kclsAG;
+            cls = kclsAllocatedGroup;
             goto LDocg;
         default:
             break;
@@ -2328,22 +2328,22 @@ void DCD::_EditCki(CKI *pcki, long cid)
         break;
 
     case cidEditGL:
-        cls = kclsGL;
+        cls = kclsDynamicArray;
         goto LDocg;
     case cidEditAL:
-        cls = kclsAL;
+        cls = kclsAllocatedArray;
         goto LDocg;
     case cidEditGG:
-        cls = kclsGG;
+        cls = kclsGeneralGroup;
         goto LDocg;
     case cidEditAG:
-        cls = kclsAG;
+        cls = kclsAllocatedGroup;
         goto LDocg;
     case cidEditGST:
-        cls = kclsGST;
+        cls = kclsStringTable_GST;
         goto LDocg;
     case cidEditAST:
-        cls = kclsAST;
+        cls = kclsAllocatedStringTable;
     LDocg:
         pdoce = DOCG::PdocgNew(_pdocb, _pcfl, pcki->ctg, pcki->cno, cls);
         break;
@@ -2362,9 +2362,9 @@ void DCD::_EditCki(CKI *pcki, long cid)
         if ((pcki->ctg == kctgMidi || pcki->ctg == kctgWave) && pvNil != vpsndm)
         {
             // play once
-            PCRF pcrf;
+            PChunkyResourceFile pcrf;
 
-            if (pvNil == (pcrf = CRF::PcrfNew(_pcfl, 1)))
+            if (pvNil == (pcrf = ChunkyResourceFile::PcrfNew(_pcfl, 1)))
             {
                 ReleasePpo(&pcrf);
                 // edit as hex
@@ -2406,24 +2406,24 @@ void DCD::_EditCki(CKI *pcki, long cid)
 /***************************************************************************
     Handle command to compile and add a script chunk.
 ***************************************************************************/
-bool DCD::FCmdImportScript(PCMD pcmd)
+bool DCD::FCmdImportScript(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    SCCG sccg;
-    CKI cki;
+    GraphicsObjectCompiler sccg;
+    ChunkIdentification cki;
     long lnOld;
-    FNI fni;
+    Filename fni;
     bool fCreated;
-    MSFIL msfil;
-    PSCPT pscpt = pvNil;
+    MessageSinkFile msfil;
+    PScript pscpt = pvNil;
 
     // save and clear the sel
     lnOld = _sel.Ln();
     _SetSel(lnNil);
 
     // get the fni of the file to add
-    Mac(FTG ftg = 'TEXT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("All files\0*.*\0"), vwig.hwndApp)) goto LCancel;
+    Mac(FileType ftg = 'TEXT';) if (!FGetFniOpenMacro(&fni, &ftg, 1, PszLit("All files\0*.*\0"), vwig.hwndApp)) goto LCancel;
     if (pvNil == (pscpt = sccg.PscptCompileFni(&fni, pcmd->cid == cidCompileInScript, &msfil)))
     {
         // if the error file isn't empty, open it
@@ -2459,7 +2459,7 @@ bool DCD::FCmdImportScript(PCMD pcmd)
 /***************************************************************************
     Draw routine for a test-script gob - just erase the gob.
 ***************************************************************************/
-void TSCG::Draw(PGNV pgnv, RC *prcClip)
+void TSCG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     pgnv->FillRc(prcClip, kacrWhite);
 }
@@ -2475,11 +2475,11 @@ enum
 /***************************************************************************
     Open a new window and run a script in it.
 ***************************************************************************/
-bool DCD::FCmdTestScript(PCMD pcmd)
+bool DCD::FCmdTestScript(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkIdentification cki;
     long cbCache;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2488,10 +2488,10 @@ bool DCD::FCmdTestScript(PCMD pcmd)
     if (pcmd->cid == cidRunScriptCache)
     {
         // get the cache size from the user
-        PDLG pdlg;
+        PDialog pdlg;
 
         // get the cache size
-        pdlg = DLG::PdlgNew(dlidScriptCache);
+        pdlg = Dialog::PdlgNew(dlidScriptCache);
         if (pvNil == pdlg)
             return fTrue;
 
@@ -2518,7 +2518,7 @@ bool DCD::FCmdTestScript(PCMD pcmd)
 /***************************************************************************
     Command handler to Edit a WAVE chunk
 ***************************************************************************/
-bool DCD::FCmdStopSound(PCMD pcmd)
+bool DCD::FCmdStopSound(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -2533,11 +2533,11 @@ bool DCD::FCmdStopSound(PCMD pcmd)
     Command handler to pack or unpack (toggle) a chunk.  Also handle just
     toggling the packed flag.
 ***************************************************************************/
-bool DCD::FCmdPack(PCMD pcmd)
+bool DCD::FCmdPack(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
+    ChunkIdentification cki;
     bool fPack;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2571,25 +2571,25 @@ bool DCD::FCmdPack(PCMD pcmd)
 /***************************************************************************
     Run a script. Make the crf cache cbCache large.
 ***************************************************************************/
-bool DCD::FTestScript(CTG ctg, CNO cno, long cbCache)
+bool DCD::FTestScript(ChunkTagOrType ctg, ChunkNumber cno, long cbCache)
 {
     AssertThis(0);
     AssertIn(cbCache, 0, kcbMax);
-    STN stn;
+    String stn;
     PTSCG ptscg;
-    PSCPT pscpt = pvNil;
-    PSCEG psceg = pvNil;
-    PCRF pcrf = pvNil;
+    PScript pscpt = pvNil;
+    PGraphicsObjectInterpreter psceg = pvNil;
+    PChunkyResourceFile pcrf = pvNil;
 
-    GCB gcb(khidMdi, GOB::PgobScreen());
+    GraphicsObjectBlock gcb(khidMdi, GraphicsObject::PgobScreen());
     if (pvNil == (ptscg = NewObj TSCG(&gcb)))
         goto LFail;
     vpcex->FAddCmh(ptscg, 0);
 
     stn.FFormatSz(PszLit("Run Script: %f %08x"), ctg, cno);
-    if (!ptscg->FCreateAndAttachMdi(&stn) || pvNil == (pcrf = CRF::PcrfNew(_pcfl, cbCache)) ||
+    if (!ptscg->FCreateAndAttachMdi(&stn) || pvNil == (pcrf = ChunkyResourceFile::PcrfNew(_pcfl, cbCache)) ||
         pvNil == (psceg = ptscg->PscegNew(pcrf, ptscg)) ||
-        pvNil == (pscpt = (PSCPT)pcrf->PbacoFetch(ctg, cno, SCPT::FReadScript)) || !psceg->FRunScript(pscpt))
+        pvNil == (pscpt = (PScript)pcrf->PbacoFetch(ctg, cno, Script::FReadScript)) || !psceg->FRunScript(pscpt))
     {
     LFail:
         vpappb->TGiveAlertSz(PszLit("Running script failed"), bkOk, cokExclamation);
@@ -2604,18 +2604,18 @@ bool DCD::FTestScript(CTG ctg, CNO cno, long cbCache)
 /***************************************************************************
     Disassemble a script and display it in a new window.
 ***************************************************************************/
-bool DCD::FCmdDisasmScript(PCMD pcmd)
+bool DCD::FCmdDisasmScript(PCommand pcmd)
 {
-    CKI cki;
-    PSCPT pscpt;
-    SCCG sccg;
-    FNI fni;
-    MSFIL msfil, msfilError;
+    ChunkIdentification cki;
+    PScript pscpt;
+    GraphicsObjectCompiler sccg;
+    Filename fni;
+    MessageSinkFile msfil, msfilError;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
 
-    if (pvNil == (pscpt = SCPT::PscptRead(_pcfl, cki.ctg, cki.cno)))
+    if (pvNil == (pscpt = Script::PscptRead(_pcfl, cki.ctg, cki.cno)))
     {
         vpappb->TGiveAlertSz(PszLit("Error reading script (or it's not a script)"), bkOk, cokExclamation);
         return fTrue;
@@ -2635,10 +2635,10 @@ bool DCD::FCmdDisasmScript(PCMD pcmd)
 /***************************************************************************
     Copy the selection to a new document.
 ***************************************************************************/
-bool DCD::_FCopySel(PDOCB *ppdocb)
+bool DCD::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertNilOrVarMem(ppdocb);
-    CKI cki;
+    ChunkIdentification cki;
     PDOC pdoc;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
@@ -2663,7 +2663,7 @@ bool DCD::_FCopySel(PDOCB *ppdocb)
 void DCD::_ClearSel(void)
 {
     ulong grfsel;
-    CMD cmd;
+    Command cmd;
 
     grfsel = _sel.GrfselGetCkiKid(pvNil, pvNil);
     if (!(grfsel & fselCki))
@@ -2683,14 +2683,14 @@ void DCD::_ClearSel(void)
     REVIEW shonk: should this delete the current selection?
     REVIEW shonk: is there an easy way to make this atomic?
 ***************************************************************************/
-bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
+bool DCD::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
     PDOC pdoc;
-    PCFL pcfl;
+    PChunkyFile pcfl;
     long icki;
-    CKI cki, ckiSel;
+    ChunkIdentification cki, ckiSel;
     bool fFailed = fFalse;
 
     if (!pclip->FGetFormat(kclsDOC))
@@ -2699,7 +2699,7 @@ bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
     if (!fDoIt)
         return fTrue;
 
-    if (!pclip->FGetFormat(kclsDOC, (PDOCB *)&pdoc))
+    if (!pclip->FGetFormat(kclsDOC, (PDocumentBase *)&pdoc))
         return fFalse;
 
     if (pvNil == (pcfl = pdoc->Pcfl()) || pcfl->Ccki() <= 0)
@@ -2739,21 +2739,21 @@ bool DCD::_FPaste(PCLIP pclip, bool fDoIt, long cid)
 /***************************************************************************
     Use the selected chunk as the current color table.
 ***************************************************************************/
-bool DCD::FCmdSetColorTable(PCMD pcmd)
+bool DCD::FCmdSetColorTable(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki;
-    BLCK blck;
-    PGL pglclr;
+    ChunkIdentification cki;
+    DataBlock blck;
+    PDynamicArray pglclr;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
     if (!_pcfl->FFind(cki.ctg, cki.cno, &blck))
         return fFalse;
 
-    if (pvNil != (pglclr = GL::PglRead(&blck)) && pglclr->CbEntry() == size(CLR))
-        GPT::SetActiveColors(pglclr, fpalIdentity);
+    if (pvNil != (pglclr = DynamicArray::PglRead(&blck)) && pglclr->CbEntry() == size(Color))
+        GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
 
     ReleasePpo(&pglclr);
     return fTrue;
@@ -2772,17 +2772,17 @@ enum
 /***************************************************************************
     Change the filtering.
 ***************************************************************************/
-bool DCD::FCmdFilterChunk(PCMD pcmd)
+bool DCD::FCmdFilterChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    STN stn;
-    STN stnT;
-    PDLG pdlg;
+    String stn;
+    String stnT;
+    PDialog pdlg;
     ulong grfsel;
-    CKI cki;
-    KID kid;
-    CTG ctg;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
+    ChunkTagOrType ctg;
     long ictg;
     achar *prgch;
     achar chQuote, *psz;
@@ -2791,7 +2791,7 @@ bool DCD::FCmdFilterChunk(PCMD pcmd)
     _SetSel(lnNil);
 
     // put up the dialog
-    pdlg = DLG::PdlgNew(dlidFilter);
+    pdlg = Dialog::PdlgNew(dlidFilter);
     if (pvNil == pdlg)
         goto LCancel;
 
@@ -2859,11 +2859,11 @@ LCancel:
 /***************************************************************************
     Clone a chunk and its subgraph
 ***************************************************************************/
-bool DCD::FCmdCloneChunk(PCMD pcmd)
+bool DCD::FCmdCloneChunk(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    CKI cki, ckiNew;
+    ChunkIdentification cki, ckiNew;
 
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         goto LFail;
@@ -2911,7 +2911,7 @@ void DCD::MarkMem(void)
     Parses the stn as a ctg. Pads with spaces. Fails if pstn is longer
     than 4 characters or empty.
 ***************************************************************************/
-bool FGetCtgFromStn(CTG *pctg, PSTN pstn)
+bool FGetCtgFromStn(ChunkTagOrType *pctg, PString pstn)
 {
     achar rgch[4];
 
@@ -2932,15 +2932,15 @@ bool FGetCtgFromStn(CTG *pctg, PSTN pstn)
 }
 
 /***************************************************************************
-    Get the indicated edit item from the dialog and convert it to a CTG.
+    Get the indicated edit item from the dialog and convert it to a ChunkTagOrType.
     Pads with spaces. Fails if the text in the edit item is longer
     than 4 characters or empty.
 ***************************************************************************/
-bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg)
+bool _FGetCtg(PDialog pdlg, long idit, ChunkTagOrType *pctg)
 {
     AssertPo(pdlg, 0);
     AssertVarMem(pctg);
-    STN stn;
+    String stn;
 
     pdlg->GetStn(idit, &stn);
     return FGetCtgFromStn(pctg, &stn);
@@ -2949,10 +2949,10 @@ bool _FGetCtg(PDLG pdlg, long idit, CTG *pctg)
 /***************************************************************************
     Put the ctg into the indicated edit item.
 ***************************************************************************/
-void _PutCtgStn(PDLG pdlg, long idit, CTG ctg)
+void _PutCtgStn(PDialog pdlg, long idit, ChunkTagOrType ctg)
 {
     AssertPo(pdlg, 0);
-    STN stn;
+    String stn;
 
     stn.FFormatSz(PszLit("%f"), ctg);
     pdlg->FPutStn(idit, &stn);
@@ -2961,7 +2961,7 @@ void _PutCtgStn(PDLG pdlg, long idit, CTG ctg)
 /***************************************************************************
     Constructor for SEL class.
 ***************************************************************************/
-SEL::SEL(PCFL pcfl)
+SEL::SEL(PChunkyFile pcfl)
 {
     AssertPo(pcfl, 0);
     _pcfl = pcfl;
@@ -2982,7 +2982,7 @@ SEL::SEL(SEL &selT)
 }
 
 /***************************************************************************
-    Destructor for a selection. Release the GL of ctg's to filter on.
+    Destructor for a selection. Release the DynamicArray of ctg's to filter on.
 ***************************************************************************/
 SEL::~SEL(void)
 {
@@ -2995,7 +2995,7 @@ SEL::~SEL(void)
 ***************************************************************************/
 SEL &SEL::operator=(SEL &selT)
 {
-    PGL pglctgOld = _pglctg;
+    PDynamicArray pglctgOld = _pglctg;
 
     SEL_PAR::operator=(selT);
     CopyPb(PvAddBv(&selT, size(SEL_PAR)), PvAddBv(this, size(SEL_PAR)), size(SEL) - size(SEL_PAR));
@@ -3020,7 +3020,7 @@ void SEL::_SetNil(void)
     Get the cki and kid. Return which of the elements are valid. One or
     both of pcki, pkid may be nil.
 ***************************************************************************/
-ulong SEL::GrfselGetCkiKid(CKI *pcki, KID *pkid)
+ulong SEL::GrfselGetCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcki);
@@ -3201,7 +3201,7 @@ bool SEL::FRetreat(void)
     fExact is false, this sets the sel to the last item at or before
     the given (pcki, pkid).
 ***************************************************************************/
-bool SEL::FSetCkiKid(CKI *pcki, KID *pkid, bool fExact)
+bool SEL::FSetCkiKid(ChunkIdentification *pcki, ChildChunkIdentification *pkid, bool fExact)
 {
     AssertThis(0);
     AssertVarMem(pcki);
@@ -3227,7 +3227,7 @@ bool SEL::FSetCkiKid(CKI *pcki, KID *pkid, bool fExact)
     Adjust the sel after an edit to the doc. Assume icki and ikid are wrong
     (except as indicators of invalid cki and kid fields), and assume ln
     is wrong. If fExact is false and the current (cki, kid) is no longer
-    in the CFL or our filtering on it, we select the item immediately before
+    in the ChunkyFile or our filtering on it, we select the item immediately before
     where this one would be.
 ***************************************************************************/
 void SEL::Adjust(bool fExact)
@@ -3309,7 +3309,7 @@ void SEL::HideList(bool fHide)
 /***************************************************************************
     Get the ictg'th ctg that we're filtering on.
 ***************************************************************************/
-bool SEL::FGetCtgFilter(long ictg, CTG *pctg)
+bool SEL::FGetCtgFilter(long ictg, ChunkTagOrType *pctg)
 {
     AssertThis(0);
     AssertVarMem(pctg);
@@ -3337,11 +3337,11 @@ void SEL::FreeFilterList(void)
 /***************************************************************************
     Add an element to the filter list.
 ***************************************************************************/
-bool SEL::FAddCtgFilter(CTG ctg)
+bool SEL::FAddCtgFilter(ChunkTagOrType ctg)
 {
     AssertThis(0);
 
-    if (pvNil == _pglctg && pvNil == (_pglctg = GL::PglNew(size(CTG), 1)))
+    if (pvNil == _pglctg && pvNil == (_pglctg = DynamicArray::PglNew(size(ChunkTagOrType), 1)))
         return fFalse;
     if (!_pglctg->FAdd(&ctg))
         return fFalse;
@@ -3352,15 +3352,15 @@ bool SEL::FAddCtgFilter(CTG ctg)
 /***************************************************************************
     Return true iff (ctg, cno) passes our filtering criteria.
 ***************************************************************************/
-bool SEL::_FFilter(CTG ctg, CNO cno)
+bool SEL::_FFilter(ChunkTagOrType ctg, ChunkNumber cno)
 {
     long cctg;
-    CTG *qctg;
+    ChunkTagOrType *qctg;
 
     if (pvNil == _pglctg || 0 == (cctg = _pglctg->IvMac()))
         return fTrue;
 
-    for (qctg = (CTG *)_pglctg->QvGet(0); cctg-- > 0; qctg++)
+    for (qctg = (ChunkTagOrType *)_pglctg->QvGet(0); cctg-- > 0; qctg++)
     {
         if (*qctg == ctg)
             return !_fHideList;

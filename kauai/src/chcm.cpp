@@ -12,11 +12,13 @@
 #include "kidframe.h" //because we need scrcomg
 ASSERTNAME
 
-RTCLASS(CHCM)
-RTCLASS(CHLX)
-RTCLASS(CHDC)
+namespace Chunky {
 
-PSZ _mpertpsz[] = {
+RTCLASS(Compiler)
+RTCLASS(CompilerLexer)
+RTCLASS(Decompiler)
+
+PZString _mpertpsz[] = {
     PszLit("no error"),
     PszLit("Internal allocation error"),                      // ertOom
     PszLit("Can't open the given file"),                      // ertOpenFile
@@ -40,15 +42,15 @@ PSZ _mpertpsz[] = {
     PszLit("Alignment parameter out of range"),               // ertBodyAlignRange
     PszLit("File name expected"),                             // ertBodyFile
     PszLit("ENDCHUNK expected"),                              // ertNeedEndChunk
-    PszLit("Invalid GL or AL declaration"),                   // ertListHead
+    PszLit("Invalid DynamicArray or AllocatedArray declaration"),                   // ertListHead
     PszLit("Invalid size for list entries"),                  // ertListEntrySize
     PszLit("Variable undefined"),                             // ertVarUndefined
     PszLit("Too much data for item"),                         // ertItemOverflow
     PszLit("Can't have a free item in a general collection"), // ertBadFree
     PszLit("Syntax error"),                                   // ertSyntax
-    PszLit("Invalid GG or AG declaration"),                   // ertGroupHead
+    PszLit("Invalid GeneralGroup or AllocatedGroup declaration"),                   // ertGroupHead
     PszLit("Invalid size for fixed group data"),              // ertGroupEntrySize
-    PszLit("Invalid GST or AST declaration"),                 // ertGstHead
+    PszLit("Invalid StringTable_GST or AllocatedStringTable declaration"),                 // ertGstHead
     PszLit("Invalid size for extra string table data"),       // ertGstEntrySize
     PszLit("Script compilation failed"),                      // ertScript
     PszLit("Invalid ADOPT declaration"),                      // ertAdoptHead
@@ -65,9 +67,9 @@ PSZ _mpertpsz[] = {
 };
 
 /***************************************************************************
-    Constructor for the CHCM class.
+    Constructor for the Compiler class.
 ***************************************************************************/
-CHCM::CHCM(void)
+Compiler::Compiler(void)
 {
     _pglcsfc = pvNil;
     _pcfl = pvNil;
@@ -79,9 +81,9 @@ CHCM::CHCM(void)
 }
 
 /***************************************************************************
-    Destructor for the CHCM class.
+    Destructor for the Compiler class.
 ***************************************************************************/
-CHCM::~CHCM(void)
+Compiler::~Compiler(void)
 {
     if (pvNil != _pglcsfc)
     {
@@ -101,11 +103,11 @@ CHCM::~CHCM(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert that the CHCM is a valid object.
+    Assert that the Compiler is a valid object.
 ***************************************************************************/
-void CHCM::AssertValid(ulong grf)
+void Compiler::AssertValid(ulong grf)
 {
-    CHCM_PAR::AssertValid(grf);
+    Compiler_PAR::AssertValid(grf);
     AssertNilOrPo(_pcfl, 0);
     AssertPo(&_bsf, 0);
     AssertNilOrPo(_pchlx, 0);
@@ -114,13 +116,13 @@ void CHCM::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the CHCM object.
+    Mark memory for the Compiler object.
 ***************************************************************************/
-void CHCM::MarkMem(void)
+void Compiler::MarkMem(void)
 {
     AssertThis(0);
 
-    CHCM_PAR::MarkMem();
+    Compiler_PAR::MarkMem();
     MarkMemObj(_pglcsfc);
     MarkMemObj(_pcfl);
     MarkMemObj(&_bsf);
@@ -133,13 +135,13 @@ void CHCM::MarkMem(void)
     Registers an error, prints error message with filename and line number.
     pszMessage may be nil.
 ***************************************************************************/
-void CHCM::_Error(long ert, PSZ pszMessage)
+void Compiler::_Error(long ert, PZString pszMessage)
 {
     AssertThis(0);
     AssertIn(ert, ertNil, ertLim);
     AssertPo(_pchlx, 0);
-    STN stnFile;
-    STN stn;
+    String stnFile;
+    String stn;
 
     _pchlx->GetStnFile(&stnFile);
     if (ertNil == ert)
@@ -160,7 +162,7 @@ void CHCM::_Error(long ert, PSZ pszMessage)
 /***************************************************************************
     Checks that lw could be accepted under the current numerical mode.
 ***************************************************************************/
-void CHCM::_GetRgbFromLw(long lw, byte *prgb)
+void Compiler::_GetRgbFromLw(long lw, byte *prgb)
 {
     AssertThis(0);
     AssertPvCb(prgb, size(long));
@@ -194,7 +196,7 @@ void CHCM::_GetRgbFromLw(long lw, byte *prgb)
     Checks if data is already in the buffer (and issues an error) for a
     non-buffer command such as metafile import.
 ***************************************************************************/
-void CHCM::_ErrorOnData(PSZ pszPreceed)
+void Compiler::_ErrorOnData(PZString pszPreceed)
 {
     AssertThis(0);
     AssertSz(pszPreceed);
@@ -213,7 +215,7 @@ void CHCM::_ErrorOnData(PSZ pszPreceed)
     Get a token, automatically handling mode change commands and negatives.
     Return true iff *ptok is valid, not whether an error occurred.
 ***************************************************************************/
-bool CHCM::_FGetCleanTok(TOK *ptok, bool fEofOk)
+bool Compiler::_FGetCleanTok(Token *ptok, bool fEofOk)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -284,10 +286,10 @@ bool CHCM::_FGetCleanTok(TOK *ptok, bool fEofOk)
 /***************************************************************************
     Skip tokens until we encounter the given token type.
 ***************************************************************************/
-void CHCM::_SkipPastTok(long tt)
+void Compiler::_SkipPastTok(long tt)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
 
     while (_FGetCleanTok(&tok) && tt != tok.tt)
         ;
@@ -296,14 +298,14 @@ void CHCM::_SkipPastTok(long tt)
 /***************************************************************************
     Parse a parenthesized header from the source file.
 ***************************************************************************/
-bool CHCM::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
+bool Compiler::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
 {
     AssertThis(0);
     AssertIn(cphpMax, 1, kcbMax);
     AssertPvCb(prgphp, LwMul(cphpMax, size(PHP)));
     AssertVarMem(pcphp);
 
-    TOK tok;
+    Token tok;
     long iphp;
 
     if (!_pchlx->FGetTok(&tok))
@@ -394,13 +396,13 @@ bool CHCM::_FParseParenHeader(PHP *prgphp, long cphpMax, long *pcphp)
 /***************************************************************************
     Parse a chunk header from the source file.
 ***************************************************************************/
-void CHCM::_ParseChunkHeader(CTG *pctg, CNO *pcno)
+void Compiler::_ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertVarMem(pctg);
     AssertVarMem(pcno);
 
-    STN stnChunkName;
+    String stnChunkName;
     PHP rgphp[3];
     long cphp;
 
@@ -438,7 +440,7 @@ void CHCM::_ParseChunkHeader(CTG *pctg, CNO *pcno)
 /***************************************************************************
     Append a string to the chunk data stream.
 ***************************************************************************/
-void CHCM::_AppendString(PSTN pstnValue)
+void Compiler::_AppendString(PString pstnValue)
 {
     AssertThis(0);
     AssertPo(pstnValue, 0);
@@ -463,11 +465,11 @@ void CHCM::_AppendString(PSTN pstnValue)
         break;
     case smSz:
         pv = pstnValue->Psz();
-        cb = CchTotSz((PSZ)pv) * size(achar);
+        cb = CchTotSz((PZString)pv) * size(achar);
         break;
     case smSt:
         pv = pstnValue->Pst();
-        cb = CchTotSt((PST)pv) * size(achar);
+        cb = CchTotSt((PPascalString)pv) * size(achar);
         break;
     }
 
@@ -478,7 +480,7 @@ void CHCM::_AppendString(PSTN pstnValue)
 /***************************************************************************
     Stores a numerical value in the chunk data stream.
 ***************************************************************************/
-void CHCM::_AppendNumber(long lwValue)
+void Compiler::_AppendNumber(long lwValue)
 {
     AssertThis(0);
     byte rgb[size(long)];
@@ -491,12 +493,12 @@ void CHCM::_AppendNumber(long lwValue)
 /***************************************************************************
     Parse a child statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyChild(CTG ctg, CNO cno)
+void Compiler::_ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    CTG ctgChild;
-    CNO cnoChild;
-    CHID chid;
+    ChunkTagOrType ctgChild;
+    ChunkNumber cnoChild;
+    ChildChunkID chid;
     PHP rgphp[3];
     long cphp;
 
@@ -535,12 +537,12 @@ void CHCM::_ParseBodyChild(CTG ctg, CNO cno)
 /***************************************************************************
     Parse a parent statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyParent(CTG ctg, CNO cno)
+void Compiler::_ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    CTG ctgParent;
-    CNO cnoParent;
-    CHID chid;
+    ChunkTagOrType ctgParent;
+    ChunkNumber cnoParent;
+    ChildChunkID chid;
     PHP rgphp[3];
     long cphp;
 
@@ -579,10 +581,10 @@ void CHCM::_ParseBodyParent(CTG ctg, CNO cno)
 /***************************************************************************
     Parse an align statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyAlign(void)
+void Compiler::_ParseBodyAlign(void)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
 
     if (!_FGetCleanTok(&tok))
         return;
@@ -595,7 +597,7 @@ void CHCM::_ParseBodyAlign(void)
 
     if (!FIn(tok.lw, kcbMinAlign, kcbMaxAlign + 1))
     {
-        STN stn;
+        String stn;
 
         stn.FFormatSz(PszLit("legal range for alignment is (%d, %d)"), kcbMinAlign, kcbMaxAlign);
         _Error(ertBodyAlignRange, stn.Psz());
@@ -627,11 +629,11 @@ void CHCM::_ParseBodyAlign(void)
 /***************************************************************************
     Parse a file statement from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyFile(void)
+void Compiler::_ParseBodyFile(void)
 {
     AssertThis(0);
-    FNI fni;
-    FLO floSrc;
+    Filename fni;
+    FileLocation floSrc;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -640,7 +642,7 @@ void CHCM::_ParseBodyFile(void)
         return;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fni)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fni)))
     {
         _Error(ertOpenFile);
         return;
@@ -656,10 +658,10 @@ void CHCM::_ParseBodyFile(void)
 
 /***************************************************************************
     Start a write operation. If fPack is true, allocate a temporary block.
-    Otherwise, get the block on the CFL. The caller should write its data
+    Otherwise, get the block on the ChunkyFile. The caller should write its data
     into the pblck, then call _FEndWrite to complete the operation.
 ***************************************************************************/
-bool CHCM::_FPrepWrite(bool fPack, long cb, CTG ctg, CNO cno, PBLCK pblck)
+bool Compiler::_FPrepWrite(bool fPack, long cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -677,7 +679,7 @@ bool CHCM::_FPrepWrite(bool fPack, long cb, CTG ctg, CNO cno, PBLCK pblck)
 /***************************************************************************
     Balances a call to _FPrepWrite.
 ***************************************************************************/
-bool CHCM::_FEndWrite(bool fPack, CTG ctg, CNO cno, PBLCK pblck)
+bool Compiler::_FEndWrite(bool fPack, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, fblckUnpacked);
@@ -696,13 +698,13 @@ bool CHCM::_FEndWrite(bool fPack, CTG ctg, CNO cno, PBLCK pblck)
 /***************************************************************************
     Parse a metafile import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyMeta(bool fPack, CTG ctg, CNO cno)
+void Compiler::_ParseBodyMeta(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    FNI fni;
-    BLCK blck;
-    PPIC ppic;
-    TOK tok;
+    Filename fni;
+    DataBlock blck;
+    PPicture ppic;
+    Token tok;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -711,7 +713,7 @@ void CHCM::_ParseBodyMeta(bool fPack, CTG ctg, CNO cno)
         return;
     }
 
-    if (pvNil == (ppic = PIC::PpicReadNative(&fni)))
+    if (pvNil == (ppic = Picture::PpicReadNative(&fni)))
     {
         _Error(ertReadMeta);
         return;
@@ -737,15 +739,15 @@ void CHCM::_ParseBodyMeta(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a bitmap import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno)
+void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    FNI fni;
-    BLCK blck;
-    TOK tok;
+    Filename fni;
+    DataBlock blck;
+    Token tok;
     PHP rgphp[3];
     long cphp;
-    PMBMP pmbmp = pvNil;
+    PMaskedBitmapMBMP pmbmp = pvNil;
 
     ClearPb(rgphp, size(rgphp));
     if (!_FParseParenHeader(rgphp, 3, &cphp))
@@ -760,10 +762,10 @@ void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno)
         goto LFail;
     }
 
-    if (pvNil == (pmbmp = MBMP::PmbmpReadNative(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
+    if (pvNil == (pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
                                                 fMask ? fmbmpMask : fmbmpNil)))
     {
-        STN stn;
+        String stn;
         fni.GetStnPath(&stn);
         _Error(ertReadBitmap, stn.Psz());
         goto LFail;
@@ -790,13 +792,13 @@ void CHCM::_ParseBodyBitmap(bool fPack, bool fMask, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a palette import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyPalette(bool fPack, CTG ctg, CNO cno)
+void Compiler::_ParseBodyPalette(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    FNI fni;
-    BLCK blck;
-    TOK tok;
-    PGL pglclr;
+    Filename fni;
+    DataBlock blck;
+    Token tok;
+    PDynamicArray pglclr;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -831,13 +833,13 @@ void CHCM::_ParseBodyPalette(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a midi import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyMidi(bool fPack, CTG ctg, CNO cno)
+void Compiler::_ParseBodyMidi(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    FNI fni;
-    BLCK blck;
-    TOK tok;
-    PMIDS pmids;
+    Filename fni;
+    DataBlock blck;
+    Token tok;
+    PMidiStream pmids;
 
     if (!_pchlx->FGetPath(&fni))
     {
@@ -845,7 +847,7 @@ void CHCM::_ParseBodyMidi(bool fPack, CTG ctg, CNO cno)
         goto LFail;
     }
 
-    if (pvNil == (pmids = MIDS::PmidsReadNative(&fni)))
+    if (pvNil == (pmids = MidiStream::PmidsReadNative(&fni)))
     {
         _Error(ertReadMidi);
         goto LFail;
@@ -872,7 +874,7 @@ void CHCM::_ParseBodyMidi(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a cursor import command from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyCursor(bool fPack, CTG ctg, CNO cno)
+void Compiler::_ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     // These are for parsing a Windows cursor file
     struct CURDIR
@@ -905,17 +907,17 @@ void CHCM::_ParseBodyCursor(bool fPack, CTG ctg, CNO cno)
     };
 
     AssertThis(0);
-    FNI fni;
-    BLCK blck;
-    FLO floSrc;
-    TOK tok;
+    Filename fni;
+    DataBlock blck;
+    FileLocation floSrc;
+    Token tok;
     long ccurdir, cbBits;
-    CURF curf;
+    CursorOnFile curf;
     short rgsw[3];
     byte *prgb;
     CURDIR *pcurdir;
     CURH *pcurh;
-    PGG pggcurf = pvNil;
+    PGeneralGroup pggcurf = pvNil;
     HQ hq = hqNil;
 
     floSrc.pfil = pvNil;
@@ -926,7 +928,7 @@ void CHCM::_ParseBodyCursor(bool fPack, CTG ctg, CNO cno)
         return;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fni)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fni)))
     {
         _Error(ertReadCursor);
         goto LFail;
@@ -952,7 +954,7 @@ void CHCM::_ParseBodyCursor(bool fPack, CTG ctg, CNO cno)
 
     prgb = (byte *)PvLockHq(hq);
     pcurdir = (CURDIR *)prgb;
-    if (pvNil == (pggcurf = GG::PggNew(size(CURF), ccurdir)))
+    if (pvNil == (pggcurf = GeneralGroup::PggNew(size(CursorOnFile), ccurdir)))
     {
         _Error(ertOom);
         goto LFail;
@@ -1042,7 +1044,7 @@ LFail:
     with the first token and when _FParseData returns it contains the next
     token to be processed.  Returns false iff no tokens were consumed.
 ***************************************************************************/
-bool CHCM::_FParseData(PTOK ptok)
+bool Compiler::_FParseData(PToken ptok)
 {
     enum
     {
@@ -1159,18 +1161,18 @@ bool CHCM::_FParseData(PTOK ptok)
 /***************************************************************************
     Parse a list structure from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
+void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     PHP rgphp[1];
     long cphp;
     long cbEntry, cb;
     byte *prgb;
     long iv, iiv;
-    BLCK blck;
-    PGLB pglb = pvNil;
-    PGL pglivFree = pvNil;
+    DataBlock blck;
+    PVirtualArray pglb = pvNil;
+    PDynamicArray pglivFree = pvNil;
 
     // get size of entry data
     ClearPb(rgphp, size(rgphp));
@@ -1188,7 +1190,7 @@ void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
         return;
     }
 
-    pglb = fAl ? (PGLB)AL::PalNew(cbEntry) : (PGLB)GL::PglNew(cbEntry);
+    pglb = fAl ? (PVirtualArray)AllocatedArray::PalNew(cbEntry) : (PVirtualArray)DynamicArray::PglNew(cbEntry);
     if (pvNil == pglb)
     {
         _Error(ertOom);
@@ -1203,7 +1205,7 @@ void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
 
     for (;;)
     {
-        // empty the BSF
+        // empty the FileByteStream
         _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
         if (ttFree == tok.tt)
@@ -1213,7 +1215,7 @@ void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
             else if (!FError())
             {
                 iv = pglb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = GL::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1266,7 +1268,7 @@ void CHCM::_ParseBodyList(bool fPack, bool fAl, CTG ctg, CNO cno)
 
     if (pvNil != pglivFree)
     {
-        Assert(fAl, "why did GL have free entries?");
+        Assert(fAl, "why did DynamicArray have free entries?");
         for (iiv = pglivFree->IvMac(); iiv-- > 0;)
         {
             pglivFree->Get(iiv, &iv);
@@ -1290,19 +1292,19 @@ LFail:
 /***************************************************************************
     Parse a group structure from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
+void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     PHP rgphp[1];
     long cphp;
     long cbFixed, cb;
     byte *prgb;
     long iv, iiv;
-    BLCK blck;
+    DataBlock blck;
     bool fFree;
-    PGGB pggb = pvNil;
-    PGL pglivFree = pvNil;
+    PVirtualGroup pggb = pvNil;
+    PDynamicArray pglivFree = pvNil;
 
     // get size of fixed data
     ClearPb(rgphp, size(rgphp));
@@ -1320,7 +1322,7 @@ void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
         return;
     }
 
-    pggb = fAg ? (PGGB)AG::PagNew(cbFixed) : (PGGB)GG::PggNew(cbFixed);
+    pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagNew(cbFixed) : (PVirtualGroup)GeneralGroup::PggNew(cbFixed);
     if (pvNil == pggb)
     {
         _Error(ertOom);
@@ -1335,7 +1337,7 @@ void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
 
     for (;;)
     {
-        // empty the BSF
+        // empty the FileByteStream
         _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
         fFree = (ttFree == tok.tt);
@@ -1346,7 +1348,7 @@ void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
             else if (!FError())
             {
                 iv = pggb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = GL::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1423,7 +1425,7 @@ void CHCM::_ParseBodyGroup(bool fPack, bool fAg, CTG ctg, CNO cno)
 
     if (pvNil != pglivFree)
     {
-        Assert(fAg, "why did GG have free entries?");
+        Assert(fAg, "why did GeneralGroup have free entries?");
         for (iiv = pglivFree->IvMac(); iiv-- > 0;)
         {
             pglivFree->Get(iiv, &iv);
@@ -1447,19 +1449,19 @@ LFail:
 /***************************************************************************
     Parse a string table from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
+void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
+    Token tok;
     PHP rgphp[1];
     long cphp;
     long cbExtra, cb;
     long iv, iiv;
-    STN stn;
-    BLCK blck;
+    String stn;
+    DataBlock blck;
     bool fFree;
-    PGSTB pgstb = pvNil;
-    PGL pglivFree = pvNil;
+    PVirtualStringTable pgstb = pvNil;
+    PDynamicArray pglivFree = pvNil;
     void *pvExtra = pvNil;
 
     // get size of attached data
@@ -1478,7 +1480,7 @@ void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
         return;
     }
 
-    pgstb = fAst ? (PGSTB)AST::PastNew(cbExtra) : (PGSTB)GST::PgstNew(cbExtra);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastNew(cbExtra) : (PVirtualStringTable)StringTable_GST::PgstNew(cbExtra);
     if (pvNil == pgstb || cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
     {
         _Error(ertOom);
@@ -1501,7 +1503,7 @@ void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
             else if (!FError())
             {
                 iv = pgstb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = GL::PglNew(size(long))) || !pglivFree->FAdd(&iv))
+                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(long))) || !pglivFree->FAdd(&iv))
                 {
                     _Error(ertOom);
                 }
@@ -1534,7 +1536,7 @@ void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
         if (cbExtra <= 0 || fFree)
             continue;
 
-        // empty the BSF and get the extra data
+        // empty the FileByteStream and get the extra data
         _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
         _FParseData(&tok);
 
@@ -1568,7 +1570,7 @@ void CHCM::_ParseBodyStringTable(bool fPack, bool fAst, CTG ctg, CNO cno)
 
     if (pvNil != pglivFree)
     {
-        Assert(fAst, "why did GST have free entries?");
+        Assert(fAst, "why did StringTable_GST have free entries?");
         for (iiv = pglivFree->IvMac(); iiv-- > 0;)
         {
             pglivFree->Get(iiv, &iv);
@@ -1593,11 +1595,11 @@ LFail:
 /***************************************************************************
     Parse a script from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyScript(bool fPack, bool fInfix, CTG ctg, CNO cno)
+void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    SCCG sccg;
-    PSCPT pscpt;
+    GraphicsObjectCompiler sccg;
+    PScript pscpt;
 
     if (pvNil == (pscpt = sccg.PscptCompileLex(_pchlx, fInfix, _pmsnkError, ttEndChunk)))
     {
@@ -1614,11 +1616,11 @@ void CHCM::_ParseBodyScript(bool fPack, bool fInfix, CTG ctg, CNO cno)
 /***************************************************************************
     Parse a script from the source file.
 ***************************************************************************/
-void CHCM::_ParseBodyPackedFile(bool *pfPacked)
+void Compiler::_ParseBodyPackedFile(bool *pfPacked)
 {
     AssertThis(0);
     long lw, lwSwapped;
-    TOK tok;
+    Token tok;
 
     _ParseBodyFile();
     if (_bsf.IbMac() < size(long))
@@ -1654,12 +1656,12 @@ void CHCM::_ParseBodyPackedFile(bool *pfPacked)
 /***************************************************************************
     Start a sub file.
 ***************************************************************************/
-void CHCM::_StartSubFile(bool fPack, CTG ctg, CNO cno)
+void Compiler::_StartSubFile(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     CSFC csfc;
 
-    if (pvNil == _pglcsfc && pvNil == (_pglcsfc = GL::PglNew(size(CSFC))))
+    if (pvNil == _pglcsfc && pvNil == (_pglcsfc = DynamicArray::PglNew(size(CSFC))))
         goto LFail;
 
     csfc.pcfl = _pcfl;
@@ -1670,7 +1672,7 @@ void CHCM::_StartSubFile(bool fPack, CTG ctg, CNO cno)
     if (!_pglcsfc->FPush(&csfc))
         goto LFail;
 
-    if (pvNil == (_pcfl = CFL::PcflCreateTemp()))
+    if (pvNil == (_pcfl = ChunkyFile::PcflCreateTemp()))
     {
         _pglcsfc->FPop();
         _pcfl = csfc.pcfl;
@@ -1682,7 +1684,7 @@ void CHCM::_StartSubFile(bool fPack, CTG ctg, CNO cno)
 /***************************************************************************
     End a sub file.
 ***************************************************************************/
-void CHCM::_EndSubFile(void)
+void Compiler::_EndSubFile(void)
 {
     AssertThis(0);
     CSFC csfc;
@@ -1698,10 +1700,10 @@ void CHCM::_EndSubFile(void)
     if (!FError())
     {
         long icki;
-        CKI cki;
+        ChunkIdentification cki;
         long cbTot, cbT;
-        FP fpDst;
-        PFIL pfilDst = pvNil;
+        FilePosition fpDst;
+        PFileObject pfilDst = pvNil;
         bool fRet = fFalse;
 
         // get the size of the data
@@ -1718,12 +1720,12 @@ void CHCM::_EndSubFile(void)
         // setup pfilDst and fpDst for writing the chunk trees
         if (csfc.fPack)
         {
-            pfilDst = FIL::PfilCreateTemp();
+            pfilDst = FileObject::PfilCreateTemp();
             fpDst = 0;
         }
         else
         {
-            FLO floDst;
+            FileLocation floDst;
 
             // resize the chunk
             if (!csfc.pcfl->FPut(cbTot, csfc.ctg, csfc.cno))
@@ -1749,7 +1751,7 @@ void CHCM::_EndSubFile(void)
 
         if (csfc.fPack)
         {
-            BLCK blck(pfilDst, 0, fpDst);
+            DataBlock blck(pfilDst, 0, fpDst);
 
             // pack the data and put it in the chunk.
             blck.FPackData();
@@ -1775,7 +1777,7 @@ void CHCM::_EndSubFile(void)
     Parse a PACKFMT command, which is used to specify the packing format
     to use.
 ***************************************************************************/
-void CHCM::_ParsePackFmt(void)
+void Compiler::_ParsePackFmt(void)
 {
     AssertThis(0);
     PHP rgphp[1];
@@ -1800,16 +1802,16 @@ void CHCM::_ParsePackFmt(void)
 /***************************************************************************
     Parse the chunk body from the source file.
 ***************************************************************************/
-void CHCM::_ParseChunkBody(CTG ctg, CNO cno)
+void Compiler::_ParseChunkBody(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    TOK tok;
-    BLCK blck;
-    CKI cki;
+    Token tok;
+    DataBlock blck;
+    ChunkIdentification cki;
     bool fFetch;
     bool fPack, fPrePacked;
 
-    // empty the BSF
+    // empty the FileByteStream
     _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
     fFetch = fTrue;
@@ -1846,7 +1848,7 @@ void CHCM::_ParseChunkBody(CTG ctg, CNO cno)
             }
             cki.ctg = ctg;
             cki.cno = cno;
-            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = GL::PglNew(size(CKI))) || !_pglckiLoner->FPush(&cki))
+            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = DynamicArray::PglNew(size(ChunkIdentification))) || !_pglckiLoner->FPush(&cki))
             {
                 _Error(ertOom);
             }
@@ -1935,12 +1937,12 @@ void CHCM::_ParseChunkBody(CTG ctg, CNO cno)
 /***************************************************************************
     Parse an adopt parenthesized header from the source file.
 ***************************************************************************/
-void CHCM::_ParseAdopt(void)
+void Compiler::_ParseAdopt(void)
 {
     AssertThis(0);
-    CTG ctgParent, ctgChild;
-    CNO cnoParent, cnoChild;
-    CHID chid;
+    ChunkTagOrType ctgParent, ctgChild;
+    ChunkNumber cnoParent, cnoChild;
+    ChildChunkID chid;
     PHP rgphp[5];
     long cphp;
 
@@ -1983,18 +1985,18 @@ void CHCM::_ParseAdopt(void)
 /***************************************************************************
     Compile the given file.
 ***************************************************************************/
-PCFL CHCM::PcflCompile(PFNI pfniSrc, PFNI pfniDst, PMSNK pmsnk)
+PChunkyFile Compiler::PcflCompile(PFilename pfniSrc, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pfniSrc, ffniFile);
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
-    BSF bsfSrc;
-    STN stnFile;
-    FLO flo;
+    FileByteStream bsfSrc;
+    String stnFile;
+    FileLocation flo;
     bool fRet;
 
-    if (pvNil == (flo.pfil = FIL::PfilOpen(pfniSrc)))
+    if (pvNil == (flo.pfil = FileObject::PfilOpen(pfniSrc)))
     {
         pmsnk->ReportLine(PszLit("opening source file failed"));
         return pvNil;
@@ -2012,28 +2014,28 @@ PCFL CHCM::PcflCompile(PFNI pfniSrc, PFNI pfniDst, PMSNK pmsnk)
 }
 
 /***************************************************************************
-    Compile the given BSF, using initial file name given by pstnFile.
+    Compile the given FileByteStream, using initial file name given by pstnFile.
 ***************************************************************************/
-PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFNI pfniDst, PMSNK pmsnk)
+PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFilename pfniDst, PMSNK pmsnk)
 {
     AssertThis(0);
     AssertPo(pbsfSrc, ffniFile);
     AssertPo(pstnFile, 0);
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
-    TOK tok;
-    CTG ctg;
-    CNO cno;
-    PCFL pcfl;
+    Token tok;
+    ChunkTagOrType ctg;
+    ChunkNumber cno;
+    PChunkyFile pcfl;
     bool fReportBadTok;
 
-    if (pvNil == (_pchlx = NewObj CHLX(pbsfSrc, pstnFile)))
+    if (pvNil == (_pchlx = NewObj CompilerLexer(pbsfSrc, pstnFile)))
     {
         pmsnk->ReportLine(PszLit("Memory failure"));
         return pvNil;
     }
 
-    if (pvNil == (_pcfl = CFL::PcflCreate(pfniDst, fcflWriteEnable)))
+    if (pvNil == (_pcfl = ChunkyFile::PcflCreate(pfniDst, fcflWriteEnable)))
     {
         pmsnk->ReportLine(PszLit("Couldn't create destination file"));
         ReleasePpo(&_pchlx);
@@ -2089,7 +2091,7 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFNI pfniDst, PMSNK pmsnk)
         }
     }
 
-    // empty the BSF
+    // empty the FileByteStream
     _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 
     // make sure we're not in any subfiles
@@ -2107,7 +2109,7 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFNI pfniDst, PMSNK pmsnk)
 
     if (!FError() && pvNil != _pglckiLoner)
     {
-        CKI cki;
+        ChunkIdentification cki;
         long icki;
 
         for (icki = _pglckiLoner->IvMac(); icki-- > 0;)
@@ -2137,18 +2139,18 @@ PCFL CHCM::PcflCompile(PBSF pbsfSrc, PSTN pstnFile, PFNI pfniDst, PMSNK pmsnk)
 /***************************************************************************
     Keyword-tokentype mappings
 ***************************************************************************/
-static KEYTT _rgkeytt[] = {
+static LexerKeywordEntry _rgkeytt[] = {
     PszLit("ITEM"),      ttItem,      PszLit("FREE"),       ttFree,       PszLit("VAR"),     ttVar,
     PszLit("BYTE"),      ttModeByte,  PszLit("SHORT"),      ttModeShort,  PszLit("LONG"),    ttModeLong,
     PszLit("CHUNK"),     ttChunk,     PszLit("ENDCHUNK"),   ttEndChunk,   PszLit("ADOPT"),   ttAdopt,
     PszLit("CHILD"),     ttChild,     PszLit("PARENT"),     ttParent,     PszLit("BO"),      ttBo,
-    PszLit("OSK"),       ttOsk,       PszLit("STN"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
-    PszLit("SZ"),        ttModeSz,    PszLit("ST"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
+    PszLit("OSK"),       ttOsk,       PszLit("String"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
+    PszLit("ZString"),        ttModeSz,    PszLit("PascalString"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
     PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
     PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
-    PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("GL"),      ttGl,
-    PszLit("AL"),        ttAl,        PszLit("GG"),         ttGg,         PszLit("AG"),      ttAg,
-    PszLit("GST"),       ttGst,       PszLit("AST"),        ttAst,        PszLit("MACBO"),   ttMacBo,
+    PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
+    PszLit("AllocatedArray"),        ttAl,        PszLit("GeneralGroup"),         ttGg,         PszLit("AllocatedGroup"),      ttAg,
+    PszLit("StringTable_GST"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
     PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
     PszLit("LONER"),     ttLoner,     PszLit("CURSOR"),     ttCursor,     PszLit("PALETTE"), ttPalette,
     PszLit("PREPACKED"), ttPrePacked, PszLit("PACK"),       ttPack,       PszLit("PACKFMT"), ttPackFmt,
@@ -2160,7 +2162,7 @@ static KEYTT _rgkeytt[] = {
 /***************************************************************************
     Constructor for the chunky compiler lexer.
 ***************************************************************************/
-CHLX::CHLX(PBSF pbsf, PSTN pstnFile) : CHLX_PAR(pbsf, pstnFile)
+CompilerLexer::CompilerLexer(PFileByteStream pbsf, PString pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
 {
     _pgstVariables = pvNil;
     AssertThis(0);
@@ -2169,7 +2171,7 @@ CHLX::CHLX(PBSF pbsf, PSTN pstnFile) : CHLX_PAR(pbsf, pstnFile)
 /***************************************************************************
     Destructor for the chunky compiler lexer.
 ***************************************************************************/
-CHLX::~CHLX(void)
+CompilerLexer::~CompilerLexer(void)
 {
     ReleasePpo(&_pgstVariables);
 }
@@ -2177,7 +2179,7 @@ CHLX::~CHLX(void)
 /***************************************************************************
     Reads in the next token.  Resolves certain names to keyword tokens.
 ***************************************************************************/
-bool CHLX::FGetTok(PTOK ptok)
+bool CompilerLexer::FGetTok(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2186,7 +2188,7 @@ bool CHLX::FGetTok(PTOK ptok)
 
     for (;;)
     {
-        if (!CHLX_PAR::FGetTok(ptok))
+        if (!CompilerLexer_PAR::FGetTok(ptok))
             return fFalse;
 
         if (ttName != ptok->tt)
@@ -2228,7 +2230,7 @@ bool CHLX::FGetTok(PTOK ptok)
 /***************************************************************************
     Reads in the next token.  Skips semicolons and commas.
 ***************************************************************************/
-bool CHLX::FGetTokSkipSemi(PTOK ptok)
+bool CompilerLexer::FGetTokSkipSemi(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2244,14 +2246,14 @@ bool CHLX::FGetTokSkipSemi(PTOK ptok)
 }
 
 /***************************************************************************
-    Reads a path and builds an FNI.
+    Reads a path and builds an Filename.
 ***************************************************************************/
-bool CHLX::FGetPath(FNI *pfni)
+bool CompilerLexer::FGetPath(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
     achar ch;
-    STN stn;
+    String stn;
 
     if (!_FSkipWhiteSpace())
     {
@@ -2278,7 +2280,7 @@ bool CHLX::FGetPath(FNI *pfni)
 
 #ifdef WIN
     static achar _szInclude[1024];
-    SZ szT;
+    ZString szT;
 
     if (_szInclude[0] == 0)
     {
@@ -2297,7 +2299,7 @@ bool CHLX::FGetPath(FNI *pfni)
 /***************************************************************************
     Handle a set command.
 ***************************************************************************/
-bool CHLX::_FDoSet(PTOK ptok)
+bool CompilerLexer::_FDoSet(PToken ptok)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -2306,12 +2308,12 @@ bool CHLX::_FDoSet(PTOK ptok)
     long istn;
     bool fNegate;
 
-    if (!CHLX_PAR::FGetTok(ptok) || ttName != ptok->tt)
+    if (!CompilerLexer_PAR::FGetTok(ptok) || ttName != ptok->tt)
         return fFalse;
 
     lw = 0;
     istn = ivNil;
-    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = GST::PgstNew(size(long))))
+    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = StringTable_GST::PgstNew(size(long))))
     {
         if (_pgstVariables->FFindStn(&ptok->stn, &istn, fgstSorted))
             _pgstVariables->GetExtra(istn, &lw);
@@ -2319,7 +2321,7 @@ bool CHLX::_FDoSet(PTOK ptok)
             istn = ivNil;
     }
 
-    if (!CHLX_PAR::FGetTok(ptok))
+    if (!CompilerLexer_PAR::FGetTok(ptok))
         return fFalse;
 
     switch (ptok->tt)
@@ -2346,7 +2348,7 @@ bool CHLX::_FDoSet(PTOK ptok)
         fNegate = fFalse;
         for (;;)
         {
-            if (!CHLX_PAR::FGetTok(ptok))
+            if (!CompilerLexer_PAR::FGetTok(ptok))
                 return fFalse;
             if (ttLong == ptok->tt)
                 break;
@@ -2420,29 +2422,29 @@ bool CHLX::_FDoSet(PTOK ptok)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert that the CHLX is a valid object.
+    Assert that the CompilerLexer is a valid object.
 ***************************************************************************/
-void CHLX::AssertValid(ulong grf)
+void CompilerLexer::AssertValid(ulong grf)
 {
-    CHLX_PAR::AssertValid(grf);
+    CompilerLexer_PAR::AssertValid(grf);
     AssertNilOrPo(_pgstVariables, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CHLX object.
+    Mark memory for the CompilerLexer object.
 ***************************************************************************/
-void CHLX::MarkMem(void)
+void CompilerLexer::MarkMem(void)
 {
     AssertValid(0);
-    CHLX_PAR::MarkMem();
+    CompilerLexer_PAR::MarkMem();
     MarkMemObj(_pgstVariables);
 }
 #endif
 
 /***************************************************************************
-    Constructor for the CHDC class. This is the chunky decompiler.
+    Constructor for the Decompiler class. This is the chunky decompiler.
 ***************************************************************************/
-CHDC::CHDC(void)
+Decompiler::Decompiler(void)
 {
     _ert = ertNil;
     _pcfl = pvNil;
@@ -2450,32 +2452,32 @@ CHDC::CHDC(void)
 }
 
 /***************************************************************************
-    Destructor for the CHDC class.
+    Destructor for the Decompiler class.
 ***************************************************************************/
-CHDC::~CHDC(void)
+Decompiler::~Decompiler(void)
 {
     ReleasePpo(&_pcfl);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CHDC.
+    Assert the validity of a Decompiler.
 ***************************************************************************/
-void CHDC::AssertValid(ulong grf)
+void Decompiler::AssertValid(ulong grf)
 {
-    CHDC_PAR::AssertValid(0);
+    Decompiler_PAR::AssertValid(0);
     AssertNilOrPo(_pcfl, 0);
     AssertPo(&_bsf, 0);
     AssertPo(&_chse, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CHDC.
+    Mark memory for the Decompiler.
 ***************************************************************************/
-void CHDC::MarkMem(void)
+void Decompiler::MarkMem(void)
 {
     AssertValid(0);
-    CHDC_PAR::MarkMem();
+    Decompiler_PAR::MarkMem();
     MarkMemObj(&_bsf);
     MarkMemObj(&_chse);
 }
@@ -2484,15 +2486,15 @@ void CHDC::MarkMem(void)
 /***************************************************************************
     Decompile a chunky file.
 ***************************************************************************/
-bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
+bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pcflSrc, 0);
     long icki, ikid, ckid;
-    CTG ctg;
-    CKI cki;
-    KID kid;
-    BLCK blck;
+    ChunkTagOrType ctg;
+    ChunkIdentification cki;
+    ChildChunkIdentification kid;
+    DataBlock blck;
 
     _pcfl = pcflSrc;
     _ert = ertNil;
@@ -2505,7 +2507,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     _chse.DumpSz(PszLit(""));
     for (icki = 0; _pcfl->FGetCki(icki, &cki, pvNil, &blck); icki++)
     {
-        STN stnName;
+        String stnName;
 
         // don't dump these, because they're embedded in the script
         if (cki.ctg == kctgScriptStrs)
@@ -2514,7 +2516,7 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
         _pcfl->FGetName(cki.ctg, cki.cno, &stnName);
         _chse.DumpHeader(cki.ctg, cki.cno, &stnName);
 
-        // look for special CTGs
+        // look for special ChunkTags
         ctg = cki.ctg;
 
         // handle 4 character ctg's
@@ -2584,21 +2586,21 @@ bool CHDC::FDecompile(PCFL pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 /***************************************************************************
     Disassemble the script and dump it.
 ***************************************************************************/
-bool CHDC::_FDumpScript(CKI *pcki)
+bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
 {
     AssertThis(0);
     AssertVarMem(pcki);
-    PSCPT pscpt;
+    PScript pscpt;
     bool fRet;
-    SCCG sccg;
+    GraphicsObjectCompiler sccg;
     long cfmt;
     bool fPacked;
-    BLCK blck;
+    DataBlock blck;
 
     _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
     fPacked = blck.FPacked(&cfmt);
 
-    if (pvNil == (pscpt = SCPT::PscptRead(_pcfl, pcki->ctg, pcki->cno)))
+    if (pvNil == (pscpt = Script::PscptRead(_pcfl, pcki->ctg, pcki->cno)))
         return fFalse;
 
     if (fPacked)
@@ -2615,17 +2617,17 @@ bool CHDC::_FDumpScript(CKI *pcki)
     Try to read the chunk as a list and dump it out.  If the chunk isn't
     a list, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpList(PBLCK pblck, bool fAl)
+bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
 
-    PGLB pglb;
+    PVirtualArray pglb;
     short bo, osk;
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pglb = fAl ? (PGLB)AL::PalRead(pblck, &bo, &osk) : (PGLB)GL::PglRead(pblck, &bo, &osk);
+    pglb = fAl ? (PVirtualArray)AllocatedArray::PalRead(pblck, &bo, &osk) : (PVirtualArray)DynamicArray::PglRead(pblck, &bo, &osk);
     if (pvNil == pglb)
         return fFalse;
 
@@ -2653,17 +2655,17 @@ bool CHDC::_FDumpList(PBLCK pblck, bool fAl)
     Try to read the chunk as a group and dump it out.  If the chunk isn't
     a group, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpGroup(PBLCK pblck, bool fAg)
+bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
 
-    PGGB pggb;
+    PVirtualGroup pggb;
     short bo, osk;
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
 
-    pggb = fAg ? (PGGB)AG::PagRead(pblck, &bo, &osk) : (PGGB)GG::PggRead(pblck, &bo, &osk);
+    pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagRead(pblck, &bo, &osk) : (PVirtualGroup)GeneralGroup::PggRead(pblck, &bo, &osk);
     if (pvNil == pggb)
         return fFalse;
 
@@ -2691,18 +2693,18 @@ bool CHDC::_FDumpGroup(PBLCK pblck, bool fAg)
     Try to read the chunk as a string table and dump it out.  If the chunk
     isn't a string table, return false so it can be dumped in hex.
 ***************************************************************************/
-bool CHDC::_FDumpStringTable(PBLCK pblck, bool fAst)
+bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
 {
     AssertThis(0);
     AssertPo(pblck, fblckReadable);
 
-    PGSTB pgstb;
+    PVirtualStringTable pgstb;
     short bo, osk;
     long cfmt;
     bool fPacked = pblck->FPacked(&cfmt);
     bool fRet;
 
-    pgstb = fAst ? (PGSTB)AST::PastRead(pblck, &bo, &osk) : (PGSTB)GST::PgstRead(pblck, &bo, &osk);
+    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable_GST::PgstRead(pblck, &bo, &osk);
     if (pvNil == pgstb)
         return fFalse;
 
@@ -2729,10 +2731,10 @@ bool CHDC::_FDumpStringTable(PBLCK pblck, bool fAst)
 /***************************************************************************
     Write out the PACKFMT and PACK commands
 ***************************************************************************/
-void CHDC::_WritePack(long cfmt)
+void Decompiler::_WritePack(long cfmt)
 {
     AssertThis(0);
-    STN stn;
+    String stn;
 
     if (cfmtNil == cfmt)
         _chse.DumpSz(PszLit("PACK"));
@@ -2742,3 +2744,5 @@ void CHDC::_WritePack(long cfmt)
         _chse.DumpSz(stn.Psz());
     }
 }
+
+} // end of namespace Chunky

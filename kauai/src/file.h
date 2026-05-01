@@ -27,7 +27,7 @@ const short kboOther = 0x0100;
     Basic types
 ****************************************/
 
-typedef long FP;
+typedef long FilePosition;
 
 enum
 {
@@ -52,25 +52,25 @@ enum
 };
 
 /****************************************
-    FIL class
+    FileObject class
 ****************************************/
-typedef class FIL *PFIL;
-#define FIL_PAR BLL
-#define kclsFIL 'FIL'
-class FIL : public FIL_PAR
+typedef class FileObject *PFileObject;
+#define FileObject_PAR BaseLinkedList
+#define kclsFileObject 'FIL'
+class FileObject : public FileObject_PAR
 {
     RTCLASS_DEC
-    BLL_DEC(FIL, PfilNext)
+    BLL_DEC(FileObject, PfilNext)
     ASSERT
 
   protected:
     // static member variables
-    static MUTX _mutxList;
-    static PFIL _pfilFirst;
+    static Mutex _mutxList;
+    static PFileObject _pfilFirst;
 
-    MUTX _mutx;
+    Mutex _mutx;
 
-    FNI _fni;
+    Filename _fni;
     bool _fOpen : 1;
     bool _fEverOpen : 1;
     bool _fWrote : 1;
@@ -84,16 +84,16 @@ class FIL : public FIL_PAR
 #endif // WIN
 
     // private methods
-    FIL(FNI *pfni, ulong grffil);
-    ~FIL(void);
+    FileObject(Filename *pfni, ulong grffil);
+    ~FileObject(void);
 
     bool _FOpen(bool fCreate, ulong grffil);
     void _Close(bool fFinal = fFalse);
-    void _SetFpPos(FP fp);
+    void _SetFpPos(FilePosition fp);
 
   public:
     // public static members
-    static FTG vftgCreator;
+    static FileType vftgCreator;
 
   public:
     // static methods
@@ -101,15 +101,15 @@ class FIL : public FIL_PAR
     static void CloseUnmarked(void);
     static void ShutDown(void);
 
-    // static methods returning a PFIL
-    static PFIL PfilFirst(void)
+    // static methods returning a PFileObject
+    static PFileObject PfilFirst(void)
     {
         return _pfilFirst;
     }
-    static PFIL PfilOpen(FNI *pfni, ulong grffil = ffilDenyWrite);
-    static PFIL PfilCreate(FNI *pfni, ulong grffil = ffilWriteEnable | ffilDenyWrite);
-    static PFIL PfilCreateTemp(FNI *pfni = pvNil);
-    static PFIL PfilFromFni(FNI *pfni);
+    static PFileObject PfilOpen(Filename *pfni, ulong grffil = ffilDenyWrite);
+    static PFileObject PfilCreate(Filename *pfni, ulong grffil = ffilWriteEnable | ffilDenyWrite);
+    static PFileObject PfilCreateTemp(Filename *pfni = pvNil);
+    static PFileObject PfilFromFni(Filename *pfni);
 
     virtual void Release(void);
     void Mark(void)
@@ -135,16 +135,16 @@ class FIL : public FIL_PAR
     {
         return FPure(_grffil & ffilTemp);
     }
-    void GetFni(FNI *pfni)
+    void GetFni(Filename *pfni)
     {
         *pfni = _fni;
     }
-    void GetStnPath(PSTN pstn);
+    void GetStnPath(PString pstn);
 
-    bool FSetFpMac(FP fp);
-    FP FpMac(void);
-    bool FReadRgb(void *pv, long cb, FP fp);
-    bool FReadRgbSeq(void *pv, long cb, FP *pfp)
+    bool FSetFpMac(FilePosition fp);
+    FilePosition FpMac(void);
+    bool FReadRgb(void *pv, long cb, FilePosition fp);
+    bool FReadRgbSeq(void *pv, long cb, FilePosition *pfp)
     {
         AssertVarMem(pfp);
         if (!FReadRgb(pv, cb, *pfp))
@@ -152,8 +152,8 @@ class FIL : public FIL_PAR
         *pfp += cb;
         return fTrue;
     }
-    bool FWriteRgb(void *pv, long cb, FP fp);
-    bool FWriteRgbSeq(void *pv, long cb, FP *pfp)
+    bool FWriteRgb(void *pv, long cb, FilePosition fp);
+    bool FWriteRgbSeq(void *pv, long cb, FilePosition *pfp)
     {
         AssertVarMem(pfp);
         if (!FWriteRgb(pv, cb, *pfp))
@@ -161,9 +161,9 @@ class FIL : public FIL_PAR
         *pfp += cb;
         return fTrue;
     }
-    bool FSwapNames(PFIL pfil);
-    bool FRename(FNI *pfni);
-    bool FSetFni(FNI *pfni);
+    bool FSwapNames(PFileObject pfil);
+    bool FRename(Filename *pfni);
+    bool FSetFni(Filename *pfni);
     void Flush(void);
 };
 
@@ -177,11 +177,11 @@ enum
     ffloReadable,
 };
 
-typedef struct FLO *PFLO;
-struct FLO
+typedef struct FileLocation *PFileLocation;
+struct FileLocation
 {
-    PFIL pfil;
-    FP fp;
+    PFileObject pfil;
+    FilePosition fp;
     long cb;
 
     bool FRead(void *pv)
@@ -192,11 +192,11 @@ struct FLO
     {
         return FWriteRgb(pv, cb, 0);
     }
-    bool FReadRgb(void *pv, long cbRead, FP dfp);
-    bool FWriteRgb(void *pv, long cbWrite, FP dfp);
-    bool FCopy(PFLO pfloDst);
-    bool FReadHq(HQ *phq, long cbRead, FP dfp = 0);
-    bool FWriteHq(HQ hq, FP dfp = 0);
+    bool FReadRgb(void *pv, long cbRead, FilePosition dfp);
+    bool FWriteRgb(void *pv, long cbWrite, FilePosition dfp);
+    bool FCopy(PFileLocation pfloDst);
+    bool FReadHq(HQ *phq, long cbRead, FilePosition dfp = 0);
+    bool FWriteHq(HQ hq, FilePosition dfp = 0);
     bool FReadHq(HQ *phq)
     {
         return FReadHq(phq, cb, 0);
@@ -219,13 +219,13 @@ enum
     fblckReadable = 16,
 };
 
-typedef class BLCK *PBLCK;
-#define BLCK_PAR BASE
-#define kclsBLCK 'BLCK'
-class BLCK : public BLCK_PAR
+typedef class DataBlock *PDataBlock;
+#define DataBlock_PAR BASE
+#define kclsDataBlock 'BLCK'
+class DataBlock : public DataBlock_PAR
 {
     RTCLASS_DEC
-    NOCOPY(BLCK)
+    NOCOPY(DataBlock)
     ASSERT
     MARKMEM
 
@@ -233,7 +233,7 @@ class BLCK : public BLCK_PAR
     bool _fPacked;
 
     // for file based blocks
-    FLO _flo;
+    FileLocation _flo;
 
     // for memory based blocks
     HQ _hq;
@@ -241,14 +241,14 @@ class BLCK : public BLCK_PAR
     long _ibLim;
 
   public:
-    BLCK(PFLO pflo, bool fPacked = fFalse);
-    BLCK(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);
-    BLCK(HQ *phq, bool fPacked = fFalse);
-    BLCK(void);
-    ~BLCK(void);
+    DataBlock(PFileLocation pflo, bool fPacked = fFalse);
+    DataBlock(PFileObject pfil, FilePosition fp, long cb, bool fPacked = fFalse);
+    DataBlock(HQ *phq, bool fPacked = fFalse);
+    DataBlock(void);
+    ~DataBlock(void);
 
-    void Set(PFLO pflo, bool fPacked = fFalse);
-    void Set(PFIL pfil, FP fp, long cb, bool fPacked = fFalse);
+    void Set(PFileLocation pflo, bool fPacked = fFalse);
+    void Set(PFileObject pfil, FilePosition fp, long cb, bool fPacked = fFalse);
     void SetHq(HQ *phq, bool fPacked = fFalse);
     void Free(void);
     HQ HqFree(bool fPackedOk = fFalse);
@@ -280,9 +280,9 @@ class BLCK : public BLCK_PAR
     }
 
     // writing a block to a flo or another blck.
-    bool FWriteToFlo(PFLO pfloDst, bool fPackedOk = fFalse);
-    bool FWriteToBlck(PBLCK pblckDst, bool fPackedOk = fFalse);
-    bool FGetFlo(PFLO pflo, bool fPackedOk = fFalse);
+    bool FWriteToFlo(PFileLocation pfloDst, bool fPackedOk = fFalse);
+    bool FWriteToBlck(PDataBlock pblckDst, bool fPackedOk = fFalse);
+    bool FGetFlo(PFileLocation pflo, bool fPackedOk = fFalse);
 
     // packing and unpacking
     bool FPacked(long *pcfmt = pvNil);
@@ -296,46 +296,46 @@ class BLCK : public BLCK_PAR
 /***************************************************************************
     Message sink class. Basic interface for output streaming.
 ***************************************************************************/
-typedef class MSNK *PMSNK;
-#define MSNK_PAR BASE
-#define kclsMSNK 'MSNK'
-class MSNK : public MSNK_PAR
+typedef class MessageSink *PMSNK;
+#define MessageSink_PAR BASE
+#define kclsMessageSink 'MSNK'
+class MessageSink : public MessageSink_PAR
 {
-    RTCLASS_INLINE(MSNK)
+    RTCLASS_INLINE(MessageSink)
 
   public:
-    virtual void ReportLine(PSZ psz) = 0;
-    virtual void Report(PSZ psz) = 0;
+    virtual void ReportLine(PZString psz) = 0;
+    virtual void Report(PZString psz) = 0;
     virtual bool FError(void) = 0;
 };
 
 /***************************************************************************
     File based message sink.
 ***************************************************************************/
-typedef class MSFIL *PMSFIL;
-#define MSFIL_PAR MSNK
-#define kclsMSFIL 'msfl'
-class MSFIL : public MSFIL_PAR
+typedef class MessageSinkFile *PMessageSinkFile;
+#define MessageSinkFile_PAR MessageSink
+#define kclsMessageSinkFile 'msfl'
+class MessageSinkFile : public MessageSinkFile_PAR
 {
     ASSERT
     RTCLASS_DEC
 
   protected:
     bool _fError;
-    PFIL _pfil;
-    FP _fpCur;
+    PFileObject _pfil;
+    FilePosition _fpCur;
     void _EnsureFile(void);
 
   public:
-    MSFIL(PFIL pfil = pvNil);
-    ~MSFIL(void);
+    MessageSinkFile(PFileObject pfil = pvNil);
+    ~MessageSinkFile(void);
 
-    virtual void ReportLine(PSZ psz);
-    virtual void Report(PSZ psz);
+    virtual void ReportLine(PZString psz);
+    virtual void Report(PZString psz);
     virtual bool FError(void);
 
-    void SetFile(PFIL pfil);
-    PFIL PfilRelease(void);
+    void SetFile(PFileObject pfil);
+    PFileObject PfilRelease(void);
 };
 
 #endif //! FILE_H

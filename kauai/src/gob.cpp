@@ -13,27 +13,27 @@
 #include "frame.h"
 ASSERTNAME
 
-BEGIN_CMD_MAP(GOB, CMH)
-ON_CID_GEN(cidKey, &GOB::FCmdKeyCore, pvNil)
-ON_CID_GEN(cidSelIdle, &GOB::FCmdSelIdle, pvNil)
-ON_CID_ME(cidActivateSel, &GOB::FCmdActivateSel, pvNil)
-ON_CID_ME(cidBadKey, &GOB::FCmdBadKeyCore, pvNil)
-ON_CID_ME(cidCloseWnd, &GOB::FCmdCloseWnd, pvNil)
-ON_CID_ME(cidMouseDown, &GOB::FCmdTrackMouseCore, pvNil)
-ON_CID_ME(cidTrackMouse, &GOB::FCmdTrackMouseCore, pvNil)
-ON_CID_ME(cidMouseMove, &GOB::FCmdMouseMoveCore, pvNil)
+BEGIN_CMD_MAP(GraphicsObject, CommandHandler)
+ON_CID_GEN(cidKey, &GraphicsObject::FCmdKeyCore, pvNil)
+ON_CID_GEN(cidSelIdle, &GraphicsObject::FCmdSelIdle, pvNil)
+ON_CID_ME(cidActivateSel, &GraphicsObject::FCmdActivateSel, pvNil)
+ON_CID_ME(cidBadKey, &GraphicsObject::FCmdBadKeyCore, pvNil)
+ON_CID_ME(cidCloseWnd, &GraphicsObject::FCmdCloseWnd, pvNil)
+ON_CID_ME(cidMouseDown, &GraphicsObject::FCmdTrackMouseCore, pvNil)
+ON_CID_ME(cidTrackMouse, &GraphicsObject::FCmdTrackMouseCore, pvNil)
+ON_CID_ME(cidMouseMove, &GraphicsObject::FCmdMouseMoveCore, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(GOB)
-RTCLASS(GTE)
+RTCLASS(GraphicsObject)
+RTCLASS(GraphicsObjectTreeEnumerator)
 
-long GOB::_ginDefGob = kginSysInval;
-long GOB::_gridLast;
+long GraphicsObject::_ginDefGob = kginSysInval;
+long GraphicsObject::_gridLast;
 
 /***************************************************************************
-    Fill in the elements of the GCB.
+    Fill in the elements of the GraphicsObjectBlock.
 ***************************************************************************/
-void GCB::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel)
+void GraphicsObjectBlock::Set(long hid, PGraphicsObject pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRel)
 {
     Assert(hidNil != hid, "bad hid");
     AssertNilOrPo(pgob, 0);
@@ -54,7 +54,7 @@ void GCB::Set(long hid, PGOB pgob, ulong grfgob, long gin, RC *prcAbs, RC *prcRe
 /***************************************************************************
     Static method to shut down all GOBs.
 ***************************************************************************/
-void GOB::ShutDown(void)
+void GraphicsObject::ShutDown(void)
 {
     while (pvNil != _pgobScreen)
     {
@@ -70,7 +70,7 @@ void GOB::ShutDown(void)
     Constructor for a graphics object.  pgob is either the parent of the new
     gob or a sibling, according to (grfgob & fgobSibling).
 ***************************************************************************/
-GOB::GOB(PGCB pgcb) : CMH(pgcb->_hid)
+GraphicsObject::GraphicsObject(PGraphicsObjectBlock pgcb) : CommandHandler(pgcb->_hid)
 {
     _Init(pgcb);
 }
@@ -78,7 +78,7 @@ GOB::GOB(PGCB pgcb) : CMH(pgcb->_hid)
 /***************************************************************************
     Initialize the gob.
 ***************************************************************************/
-void GOB::_Init(PGCB pgcb)
+void GraphicsObject::_Init(PGraphicsObjectBlock pgcb)
 {
     AssertVarMem(pgcb);
     AssertNilOrPo(pgcb->_pgob, 0);
@@ -116,22 +116,22 @@ void GOB::_Init(PGCB pgcb)
 }
 
 /***************************************************************************
-    Constructor for GOB.
+    Constructor for GraphicsObject.
 ***************************************************************************/
-GOB::GOB(long hid) : CMH(hid)
+GraphicsObject::GraphicsObject(long hid) : CommandHandler(hid)
 {
-    GCB gcb(hid, GOB::PgobScreen());
+    GraphicsObjectBlock gcb(hid, GraphicsObject::PgobScreen());
     _Init(&gcb);
 }
 
 /***************************************************************************
     First tells the app that the gob is dying; then calls Release on all direct
-    child gobs of this GOB; then calls delete on itself.
+    child gobs of this GraphicsObject; then calls delete on itself.
 ***************************************************************************/
-void GOB::Release(void)
+void GraphicsObject::Release(void)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (--_cactRef > 0)
         return;
@@ -152,10 +152,10 @@ void GOB::Release(void)
 /***************************************************************************
     Destructor for the graphics object class.
 ***************************************************************************/
-GOB::~GOB(void)
+GraphicsObject::~GraphicsObject(void)
 {
     AssertThis(0);
-    PGOB *ppgob;
+    PGraphicsObject *ppgob;
 
     // remove it from the sibling list
     Assert(pvNil == _pgobChd, "gob still has children");
@@ -182,9 +182,9 @@ GOB::~GOB(void)
     We inform the entire gob subtree for the hwnd so individual elements
     can do whatever is necessary.  This is a static member function.
 ***************************************************************************/
-void GOB::ActivateHwnd(HWND hwnd, bool fActive)
+void GraphicsObject::ActivateHwnd(HWND hwnd, bool fActive)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil == (pgob = PgobFromHwnd(hwnd)))
         return;
@@ -193,7 +193,7 @@ void GOB::ActivateHwnd(HWND hwnd, bool fActive)
     if (fActive)
         pgob->SendBehind(pvNil);
 
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
 
     gte.Init(pgob, fgteBackToFront);
@@ -207,22 +207,22 @@ void GOB::ActivateHwnd(HWND hwnd, bool fActive)
 /***************************************************************************
     Make this the first child of its parent.  Doesn't invalidate anything.
 ***************************************************************************/
-void GOB::BringToFront(void)
+void GraphicsObject::BringToFront(void)
 {
     AssertThis(0);
     SendBehind(pvNil);
 }
 
 /***************************************************************************
-    Put this GOB behind the given sibling.  If pgobBehind is nil, does
+    Put this GraphicsObject behind the given sibling.  If pgobBehind is nil, does
     the equivalent of a BringToFront.  Asserts that pgobBehind and this
     gob have the same parent.  Does no invalidation.
 ***************************************************************************/
-void GOB::SendBehind(PGOB pgobBehind)
+void GraphicsObject::SendBehind(PGraphicsObject pgobBehind)
 {
     AssertThis(0);
     AssertNilOrPo(pgobBehind, 0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (pvNil != pgobBehind && pgobBehind->_pgobPar != _pgobPar)
     {
@@ -237,12 +237,12 @@ void GOB::SendBehind(PGOB pgobBehind)
     // take this gob out of the sibling list
     if (pvNil == pgob)
     {
-        Assert(_pgobPar->_pgobChd == this, "corrupt GOB tree");
+        Assert(_pgobPar->_pgobChd == this, "corrupt GraphicsObject tree");
         _pgobPar->_pgobChd = _pgobSib;
     }
     else
     {
-        Assert(pgob->_pgobSib == this, "corrupt GOB tree");
+        Assert(pgob->_pgobSib == this, "corrupt GraphicsObject tree");
         pgob->_pgobSib = _pgobSib;
     }
 
@@ -268,14 +268,14 @@ void GOB::SendBehind(PGOB pgobBehind)
     area is marked dirty at the operating system level.  In all cases,
     passing pvNil for prc affects the whole gob.
 ***************************************************************************/
-void GOB::InvalRc(RC *prc, long gin)
+void GraphicsObject::InvalRc(RC *prc, long gin)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
     PT dpt;
     RC rc;
-    PGOB pgob;
-    RCS rcs;
+    PGraphicsObject pgob;
+    SystemRectangle rcs;
 
     if (kginDefault == gin)
     {
@@ -317,7 +317,7 @@ void GOB::InvalRc(RC *prc, long gin)
         break;
 
     case kginSysInval:
-        rcs = RCS(rc);
+        rcs = SystemRectangle(rc);
         InvalHwndRcs(pgob->_hwnd, &rcs);
         break;
     }
@@ -330,12 +330,12 @@ void GOB::InvalRc(RC *prc, long gin)
     validated only at the given level.  In any case, passing pvNil for prc
     affects the whole gob.
 ***************************************************************************/
-void GOB::ValidRc(RC *prc, long gin)
+void GraphicsObject::ValidRc(RC *prc, long gin)
 {
     AssertThis(0);
     RC rc;
     PT dpt;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if (kginDefault == gin)
     {
@@ -369,9 +369,9 @@ void GOB::ValidRc(RC *prc, long gin)
     if (gin != kginMark)
     {
         // do a system level validation
-        RCS rcs;
+        SystemRectangle rcs;
 
-        rcs = RCS(rc);
+        rcs = SystemRectangle(rc);
         ValidHwndRcs(pgob->_hwnd, &rcs);
     }
 }
@@ -381,12 +381,12 @@ void GOB::ValidRc(RC *prc, long gin)
     is non-empty.  If gin is kginDraw, gets the union of the marked area
     and system-invalidated area.
 ***************************************************************************/
-bool GOB::FGetRcInval(RC *prc, long gin)
+bool GraphicsObject::FGetRcInval(RC *prc, long gin)
 {
     AssertThis(0);
     AssertVarMem(prc);
     RC rc;
-    PGOB pgob;
+    PGraphicsObject pgob;
     PT dpt(0, 0);
 
     prc->Zero();
@@ -418,7 +418,7 @@ bool GOB::FGetRcInval(RC *prc, long gin)
     if (kginMark != gin)
     {
         // get any system invalidated area
-        RCS rcs;
+        SystemRectangle rcs;
         RC rcT;
 
 #ifdef WIN
@@ -430,8 +430,8 @@ bool GOB::FGetRcInval(RC *prc, long gin)
         rcs = (*pgob->_hwnd->updateRgn)->rgnBBox;
         GetPort(&pprt);
         SetPort(&pgob->_hwnd->port);
-        GlobalToLocal((PTS *)&rcs);
-        GlobalToLocal((PTS *)&rcs + 1);
+        GlobalToLocal((SystemPoint *)&rcs);
+        GlobalToLocal((SystemPoint *)&rcs + 1);
         SetPort(pprt);
 #endif // MAC
         rcT = RC(rcs);
@@ -444,11 +444,11 @@ bool GOB::FGetRcInval(RC *prc, long gin)
 }
 
 /***************************************************************************
-    Scrolls the given rectangle in the GOB.  Translates any invalid portion.
+    Scrolls the given rectangle in the GraphicsObject.  Translates any invalid portion.
     Handles this being covered by any GOBs or system windows.  If prc is
     nil, the entire content rectangle is used.
 ***************************************************************************/
-void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2)
+void GraphicsObject::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
@@ -456,8 +456,8 @@ void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2
     AssertNilOrVarMem(prcBad2);
     RC rc, rcBad1, rcBad2, rcInval, rcT;
     PT dpt(0, 0);
-    PGOB pgob, pgobT;
-    GTE gte;
+    PGraphicsObject pgob, pgobT;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte, grfgteIn;
     bool fFound;
 
@@ -505,7 +505,7 @@ void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2
         pgobT->GetRc(&rcT, cooHwnd);
         if (rcT.FIntersect(&rc))
         {
-            // there is a GOB on top of this one, just invalidate the
+            // there is a GraphicsObject on top of this one, just invalidate the
             // rectangle to be scrolled
             pgob->ValidRc(&rc, kginDraw);
             pgob->InvalRc(&rc, gin);
@@ -533,11 +533,11 @@ void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2
 #ifdef WIN
     // SW_INVALIDATE invalidates any uncovered stuff and translates any
     // previously invalid stuff
-    RCS rcs = RCS(rc);
+    SystemRectangle rcs = SystemRectangle(rc);
     ScrollWindowEx(pgob->_hwnd, dxp, dyp, pvNil, &rcs, hNil, pvNil, SW_INVALIDATE);
 
     // compute the bad rectangles
-    GNV::GetBadRcForScroll(&rc, dxp, dyp, &rcBad1, &rcBad2);
+    GraphicsEnvironment::GetBadRcForScroll(&rc, dxp, dyp, &rcBad1, &rcBad2);
 
     if (pvNil != prcBad1)
         prcBad1->OffsetCopy(&rcBad1, -dpt.xp, -dpt.yp);
@@ -561,12 +561,12 @@ void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2
     case ginNil:
         if (!rcBad1.FEmpty())
         {
-            rcs = RCS(rcBad1);
+            rcs = SystemRectangle(rcBad1);
             ValidateRect(pgob->_hwnd, &rcs);
         }
         if (!rcBad2.FEmpty())
         {
-            rcs = RCS(rcBad2);
+            rcs = SystemRectangle(rcBad2);
             ValidateRect(pgob->_hwnd, &rcs);
         }
         break;
@@ -590,7 +590,7 @@ void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2
     }
     FreePhrgn(&hrgn);
 
-    GNV gnv(pgob);
+    GraphicsEnvironment gnv(pgob);
     gnv.ScrollRc(&rc, dxp, dyp, &rcBad1, &rcBad2);
 
     // translate any invalid area
@@ -638,12 +638,12 @@ void GOB::Scroll(RC *prc, long dxp, long dyp, long gin, RC *prcBad1, RC *prcBad2
 
 /***************************************************************************
     Draw the gob and its children into the given port.  If the pgpt is nil,
-    use the GOB's UI (natural) port.  If the prc is pvNil, use the GOB's
-    rectangle based at (0, 0).  If prcClip is not nil, only GOB's that
-    intersect prcClip will be drawn.  prcClip is in the GOB's local
+    use the GraphicsObject's UI (natural) port.  If the prc is pvNil, use the GraphicsObject's
+    rectangle based at (0, 0).  If prcClip is not nil, only GraphicsObject's that
+    intersect prcClip will be drawn.  prcClip is in the GraphicsObject's local
     coordinates.
 ***************************************************************************/
-void GOB::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
+void GraphicsObject::DrawTree(PGraphicsPort pgpt, RC *prc, RC *prcClip, ulong grfgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgpt, 0);
@@ -673,10 +673,10 @@ void GOB::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
     else if (!rcClip.FIntersect(prcClip, &rcSrc))
         return;
 
-    GNV gnv(pgpt);
-    GTE gte;
+    GraphicsEnvironment gnv(pgpt);
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte, grfgteIn;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteBackToFront);
     grfgteIn = fgteNil;
@@ -746,11 +746,11 @@ void GOB::DrawTree(PGPT pgpt, RC *prc, RC *prcClip, ulong grfgob)
 
 /***************************************************************************
     Draw the gob and its children into the given port.  If the pgpt is nil,
-    use the GOB's UI (natural) port.  If the prc is pvNil, use the GOB's
-    rectangle based at (0, 0).  Only GOB's that intersect pregn will be
-    drawn.  pregn is in the GOB's local coordinates.
+    use the GraphicsObject's UI (natural) port.  If the prc is pvNil, use the GraphicsObject's
+    rectangle based at (0, 0).  Only GraphicsObject's that intersect pregn will be
+    drawn.  pregn is in the GraphicsObject's local coordinates.
 ***************************************************************************/
-void GOB::DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob)
+void GraphicsObject::DrawTreeRgn(PGraphicsPort pgpt, RC *prc, Region *pregn, ulong grfgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgpt, 0);
@@ -778,14 +778,14 @@ void GOB::DrawTreeRgn(PGPT pgpt, RC *prc, REGN *pregn, ulong grfgob)
     if (rcSrc.FEmpty())
         return;
 
-    GNV gnv(pgpt);
-    GTE gte;
+    GraphicsEnvironment gnv(pgpt);
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte, grfgteIn;
-    PGOB pgob;
-    PREGN pregnClip;
-    PREGN pregnClipGob = pvNil;
+    PGraphicsObject pgob;
+    PRegion pregnClip;
+    PRegion pregnClipGob = pvNil;
 
-    if (pvNil == (pregnClip = REGN::PregnNew(&rcSrc)) || pvNil == (pregnClipGob = REGN::PregnNew()) ||
+    if (pvNil == (pregnClip = Region::PregnNew(&rcSrc)) || pvNil == (pregnClipGob = Region::PregnNew()) ||
         !pregnClip->FIntersect(pregn))
     {
         goto LFail;
@@ -882,12 +882,12 @@ LFail:
 }
 
 /***************************************************************************
-    Draw the GOB into the given graphics environment.  On entry, the source
-    rectangle of the GNV is set to (0, 0, dxp, dyp), where dxp and dyp are
+    Draw the GraphicsObject into the given graphics environment.  On entry, the source
+    rectangle of the GraphicsEnvironment is set to (0, 0, dxp, dyp), where dxp and dyp are
     the width and height of the gob.  The gob is free to change the source
     rectangle, but should not touch the destination rectangle.
 ***************************************************************************/
-void GOB::Draw(PGNV pgnv, RC *prcClip)
+void GraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
 }
@@ -895,7 +895,7 @@ void GOB::Draw(PGNV pgnv, RC *prcClip)
 /***************************************************************************
     Make this gob fill up its parent's interior.
 ***************************************************************************/
-void GOB::Maximize(void)
+void GraphicsObject::Maximize(void)
 {
     AssertThis(0);
     _rcAbs.Zero();
@@ -907,7 +907,7 @@ void GOB::Maximize(void)
 /***************************************************************************
     Set the gob's position.  Invalidates both the old and new position.
 ***************************************************************************/
-void GOB::SetPos(RC *prcAbs, RC *prcRel)
+void GraphicsObject::SetPos(RC *prcAbs, RC *prcRel)
 {
     AssertThis(0);
     AssertNilOrVarMem(prcAbs);
@@ -928,7 +928,7 @@ void GOB::SetPos(RC *prcAbs, RC *prcRel)
 /***************************************************************************
     Get the gob's position.
 ***************************************************************************/
-void GOB::GetPos(RC *prcAbs, RC *prcRel)
+void GraphicsObject::GetPos(RC *prcAbs, RC *prcRel)
 {
     AssertThis(0);
     AssertNilOrVarMem(prcAbs);
@@ -942,7 +942,7 @@ void GOB::GetPos(RC *prcAbs, RC *prcRel)
 /***************************************************************************
     Set the gob's rectangle from its hwnd.
 ***************************************************************************/
-void GOB::SetRcFromHwnd(void)
+void GraphicsObject::SetRcFromHwnd(void)
 {
     AssertThis(0);
     Assert(_hwnd != hNil, "no hwnd");
@@ -952,7 +952,7 @@ void GOB::SetRcFromHwnd(void)
 /***************************************************************************
     Get the bounding rectangle of the gob in the given coordinates.
 ***************************************************************************/
-void GOB::GetRc(RC *prc, long coo)
+void GraphicsObject::GetRc(RC *prc, long coo)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -966,7 +966,7 @@ void GOB::GetRc(RC *prc, long coo)
 /***************************************************************************
     Get the visible rectangle of the gob in the given coordinates.
 ***************************************************************************/
-void GOB::GetRcVis(RC *prc, long coo)
+void GraphicsObject::GetRcVis(RC *prc, long coo)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -981,7 +981,7 @@ void GOB::GetRcVis(RC *prc, long coo)
     Get the rectangle for the gob in cooHwnd coordinates and return the
     enclosing hwnd (if there is one).  This is a protected API.
 ***************************************************************************/
-HWND GOB::_HwndGetRc(RC *prc)
+HWND GraphicsObject::_HwndGetRc(RC *prc)
 {
     PT dpt;
     HWND hwnd;
@@ -993,12 +993,12 @@ HWND GOB::_HwndGetRc(RC *prc)
 }
 
 /***************************************************************************
-    Return the hwnd that contains this GOB.
+    Return the hwnd that contains this GraphicsObject.
 ***************************************************************************/
-HWND GOB::HwndContainer(void)
+HWND GraphicsObject::HwndContainer(void)
 {
     AssertThis(0);
-    PGOB pgob = this;
+    PGraphicsObject pgob = this;
 
     while (pvNil != pgob)
     {
@@ -1013,7 +1013,7 @@ HWND GOB::HwndContainer(void)
     Map a point from cooSrc coordinates to cooDst coordinates (relative
     to the gob).
 ***************************************************************************/
-void GOB::MapPt(PT *ppt, long cooSrc, long cooDst)
+void GraphicsObject::MapPt(PT *ppt, long cooSrc, long cooDst)
 {
     AssertThis(0);
     AssertVarMem(ppt);
@@ -1031,7 +1031,7 @@ void GOB::MapPt(PT *ppt, long cooSrc, long cooDst)
     Map an rc from cooSrc coordinates to cooDst coordinates (relative to
     the gob).
 ***************************************************************************/
-void GOB::MapRc(RC *prc, long cooSrc, long cooDst)
+void GraphicsObject::MapRc(RC *prc, long cooSrc, long cooDst)
 {
     AssertThis(0);
     AssertVarMem(prc);
@@ -1048,9 +1048,9 @@ void GOB::MapRc(RC *prc, long cooSrc, long cooDst)
     If coo is cooHwnd or cooGlobal, also return the containing hwnd
     (otherwise return hNil).
 ***************************************************************************/
-HWND GOB::_HwndGetDptFromCoo(PT *pdpt, long coo)
+HWND GraphicsObject::_HwndGetDptFromCoo(PT *pdpt, long coo)
 {
-    PGOB pgob, pgobT;
+    PGraphicsObject pgob, pgobT;
     HWND hwnd = hNil;
 
     switch (coo)
@@ -1087,8 +1087,8 @@ HWND GOB::_HwndGetDptFromCoo(PT *pdpt, long coo)
         if (cooGlobal == coo && hNil != hwnd)
         {
             // Map from Hwnd to screen
-            PTS pts;
-            pts = PTS(*pdpt);
+            SystemPoint pts;
+            pts = SystemPoint(*pdpt);
 #ifdef WIN
             ClientToScreen(hwnd, &pts);
 #endif // WIN
@@ -1110,7 +1110,7 @@ HWND GOB::_HwndGetDptFromCoo(PT *pdpt, long coo)
 /***************************************************************************
     Get the minimum and maximum size for a gob.
 ***************************************************************************/
-void GOB::GetMinMax(RC *prcMinMax)
+void GraphicsObject::GetMinMax(RC *prcMinMax)
 {
     prcMinMax->xpLeft = prcMinMax->ypTop = 0;
     // yes kswMax for safety
@@ -1119,15 +1119,15 @@ void GOB::GetMinMax(RC *prcMinMax)
 
 /***************************************************************************
     Static method to find the gob containing the given point (in global
-    coordinates).  If the mouse isn't over a GOB, this returns pvNil and
+    coordinates).  If the mouse isn't over a GraphicsObject, this returns pvNil and
     sets *pptLocal to the passed in (xp, yp).
 ***************************************************************************/
-PGOB GOB::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
+PGraphicsObject GraphicsObject::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
 {
     AssertNilOrVarMem(pptLocal);
     HWND hwnd;
-    PTS pts;
-    PGOB pgob;
+    SystemPoint pts;
+    PGraphicsObject pgob;
 
 #ifdef MAC
     PPRT pprt;
@@ -1167,13 +1167,13 @@ PGOB GOB::PgobFromPtGlobal(long xp, long yp, PT *pptLocal)
 }
 
 /***************************************************************************
-    Determine which gob in the tree starting with this GOB the given point
+    Determine which gob in the tree starting with this GraphicsObject the given point
     is in.  This may return pvNil if no gob claims to contain the given
     point.  xp, yp is assumed to be in this gob's parent's coordinates.
-    This is recursive, so a GOB can build it's own world and hit testing
+    This is recursive, so a GraphicsObject can build it's own world and hit testing
     method.
 ***************************************************************************/
-PGOB GOB::PgobFromPt(long xp, long yp, PT *pptLocal)
+PGraphicsObject GraphicsObject::PgobFromPt(long xp, long yp, PT *pptLocal)
 {
     AssertThis(0);
 
@@ -1184,7 +1184,7 @@ PGOB GOB::PgobFromPt(long xp, long yp, PT *pptLocal)
     {
         // the point is in our bounding rectangle, so give the children
         // a whack at it
-        PGOB pgob, pgobT;
+        PGraphicsObject pgob, pgobT;
 
         for (pgob = _pgobChd; pvNil != pgob; pgob = pgob->_pgobSib)
         {
@@ -1214,7 +1214,7 @@ PGOB GOB::PgobFromPt(long xp, long yp, PT *pptLocal)
     (including ones that don't want to respond to the mouse at all).
     We handle tool tips here to avoid bugs of omission and for convenience.
 ***************************************************************************/
-bool GOB::FPtIn(long xp, long yp)
+bool GraphicsObject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
     RC rc;
@@ -1230,12 +1230,12 @@ bool GOB::FPtIn(long xp, long yp)
 /***************************************************************************
     Determine whether the given point (in this gob's local coordinates)
     is in this gob's bounding rectangle.  This indicates whether it's OK to
-    ask the GOB's children whether the point is in them.  This will be
+    ask the GraphicsObject's children whether the point is in them.  This will be
     subclassed by all GOBs that don't want to respond to the mouse.  We
     handle tool tips here to avoid bugs of omission and for convenience.
     If this returns false, PgobFromPt will still call FPtIn.
 ***************************************************************************/
-bool GOB::FPtInBounds(long xp, long yp)
+bool GraphicsObject::FPtInBounds(long xp, long yp)
 {
     AssertThis(0);
     RC rc;
@@ -1252,7 +1252,7 @@ bool GOB::FPtInBounds(long xp, long yp)
     Default mouse down handler just enqueues a cidActivateSel, cidSelIdle and
     a cidTrackMouse command.
 ***************************************************************************/
-void GOB::MouseDown(long xp, long yp, long cact, ulong grfcust)
+void GraphicsObject::MouseDown(long xp, long yp, long cact, ulong grfcust)
 {
     AssertThis(0);
     Assert(grfcust & fcustMouse, "grfcust wrong");
@@ -1267,18 +1267,18 @@ void GOB::MouseDown(long xp, long yp, long cact, ulong grfcust)
     cmd.yp = yp;
     cmd.grfcust = grfcust;
     cmd.cact = cact;
-    vpcex->EnqueueCmd((PCMD)&cmd);
+    vpcex->EnqueueCmd((PCommand)&cmd);
 }
 
 /***************************************************************************
     Set the _rcCur values based on _rcAbs and _rcRel.  If there is an OS
-    window associated with this GOB, set _rcCur based on the hwnd.
+    window associated with this GraphicsObject, set _rcCur based on the hwnd.
     Invalidates the old and new rectangles.
 ***************************************************************************/
-void GOB::_SetRcCur(void)
+void GraphicsObject::_SetRcCur(void)
 {
-    PGOB pgob;
-    GTE gte;
+    PGraphicsObject pgob;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
     RC rc, rcVis;
 
@@ -1296,7 +1296,7 @@ void GOB::_SetRcCur(void)
 
         if (pgob->_hwnd != hNil)
         {
-            RCS rcs;
+            SystemRectangle rcs;
 
             GetClientRect(pgob->_hwnd, &rcs);
             rc = rcs;
@@ -1343,9 +1343,9 @@ void GOB::_SetRcCur(void)
 /***************************************************************************
     Return the previous sibling for the gob.
 ***************************************************************************/
-PGOB GOB::PgobPrevSib(void)
+PGraphicsObject GraphicsObject::PgobPrevSib(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     pgob = _pgobPar == pvNil ? _pgobScreen : _pgobPar->_pgobChd;
     if (pgob == this)
@@ -1366,9 +1366,9 @@ PGOB GOB::PgobPrevSib(void)
 /***************************************************************************
     Return the last child of the gob.
 ***************************************************************************/
-PGOB GOB::PgobLastChild(void)
+PGraphicsObject GraphicsObject::PgobLastChild(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     if ((pgob = _pgobChd) == pvNil)
         return pvNil;
@@ -1383,7 +1383,7 @@ PGOB GOB::PgobLastChild(void)
 /***************************************************************************
     Create a new MDI window and attach it to the gob.
 ***************************************************************************/
-bool GOB::FCreateAndAttachMdi(PSTN pstnTitle)
+bool GraphicsObject::FCreateAndAttachMdi(PString pstnTitle)
 {
     AssertThis(0);
     AssertPo(pstnTitle, 0);
@@ -1403,7 +1403,7 @@ bool GOB::FCreateAndAttachMdi(PSTN pstnTitle)
 /***************************************************************************
     Static method: find the currently active MDI gob.
 ***************************************************************************/
-PGOB GOB::PgobMdiActive(void)
+PGraphicsObject GraphicsObject::PgobMdiActive(void)
 {
     HWND hwnd;
 
@@ -1416,7 +1416,7 @@ PGOB GOB::PgobMdiActive(void)
     Static method: find the first gob of the given class in the screen's gob
     tree.
 ***************************************************************************/
-PGOB GOB::PgobFromClsScr(long cls)
+PGraphicsObject GraphicsObject::PgobFromClsScr(long cls)
 {
     if (pvNil == _pgobScreen)
         return pvNil;
@@ -1426,12 +1426,12 @@ PGOB GOB::PgobFromClsScr(long cls)
 /***************************************************************************
     Find a gob in this gob's subtree that is of the given class.
 ***************************************************************************/
-PGOB GOB::PgobFromCls(long cls)
+PGraphicsObject GraphicsObject::PgobFromCls(long cls)
 {
     AssertThis(0);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -1445,10 +1445,10 @@ PGOB GOB::PgobFromCls(long cls)
 /***************************************************************************
     Find a direct child of this gob of the given class.
 ***************************************************************************/
-PGOB GOB::PgobChildFromCls(long cls)
+PGraphicsObject GraphicsObject::PgobChildFromCls(long cls)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobChd; pvNil != pgob; pgob = pgob->_pgobSib)
     {
@@ -1461,10 +1461,10 @@ PGOB GOB::PgobChildFromCls(long cls)
 /***************************************************************************
     Find a gob of the given class in the parent chain of this gob.
 ***************************************************************************/
-PGOB GOB::PgobParFromCls(long cls)
+PGraphicsObject GraphicsObject::PgobParFromCls(long cls)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobPar; pvNil != pgob; pgob = pgob->_pgobPar)
     {
@@ -1478,7 +1478,7 @@ PGOB GOB::PgobParFromCls(long cls)
     Static method: find the first gob with the given hid in the screen's gob
     tree.
 ***************************************************************************/
-PGOB GOB::PgobFromHidScr(long hid)
+PGraphicsObject GraphicsObject::PgobFromHidScr(long hid)
 {
     Assert(hid != hidNil, "nil hid");
     if (pvNil == _pgobScreen)
@@ -1490,12 +1490,12 @@ PGOB GOB::PgobFromHidScr(long hid)
 /***************************************************************************
     Find a gob in this gobs subtree having the given hid.
 ***************************************************************************/
-PGOB GOB::PgobFromHid(long hid)
+PGraphicsObject GraphicsObject::PgobFromHid(long hid)
 {
     AssertThis(0);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -1509,10 +1509,10 @@ PGOB GOB::PgobFromHid(long hid)
 /***************************************************************************
     Find a direct child of this gob having the given hid.
 ***************************************************************************/
-PGOB GOB::PgobChildFromHid(long hid)
+PGraphicsObject GraphicsObject::PgobChildFromHid(long hid)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobChd; pvNil != pgob; pgob = pgob->_pgobSib)
     {
@@ -1525,10 +1525,10 @@ PGOB GOB::PgobChildFromHid(long hid)
 /***************************************************************************
     Find a gob with the given hid in the parent chain of this gob.
 ***************************************************************************/
-PGOB GOB::PgobParFromHid(long hid)
+PGraphicsObject GraphicsObject::PgobParFromHid(long hid)
 {
     AssertThis(0);
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     for (pgob = _pgobPar; pvNil != pgob; pgob = pgob->_pgobPar)
     {
@@ -1541,12 +1541,12 @@ PGOB GOB::PgobParFromHid(long hid)
 /***************************************************************************
     Find a gob in this gobs subtree having the given gob run-time id.
 ***************************************************************************/
-PGOB GOB::PgobFromGrid(long grid)
+PGraphicsObject GraphicsObject::PgobFromGrid(long grid)
 {
     AssertThis(0);
-    GTE gte;
+    GraphicsObjectTreeEnumerator gte;
     ulong grfgte;
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
@@ -1560,7 +1560,7 @@ PGOB GOB::PgobFromGrid(long grid)
 /***************************************************************************
     Handles a close command.
 ***************************************************************************/
-bool GOB::FCmdCloseWnd(PCMD pcmd)
+bool GraphicsObject::FCmdCloseWnd(PCommand pcmd)
 {
     AssertThis(0);
     Release();
@@ -1570,7 +1570,7 @@ bool GOB::FCmdCloseWnd(PCMD pcmd)
 /***************************************************************************
     Handles a mouse track command.
 ***************************************************************************/
-bool GOB::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool GraphicsObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     return fTrue;
@@ -1579,7 +1579,7 @@ bool GOB::FCmdTrackMouse(PCMD_MOUSE pcmd)
 /***************************************************************************
     Command function to handle a key stroke.
 ***************************************************************************/
-bool GOB::FCmdKey(PCMD_KEY pcmd)
+bool GraphicsObject::FCmdKey(PCMD_KEY pcmd)
 {
     return fFalse;
 }
@@ -1588,7 +1588,7 @@ bool GOB::FCmdKey(PCMD_KEY pcmd)
     Command function to handle a bad key command (sent by a child to
     its parent).
 ***************************************************************************/
-bool GOB::FCmdBadKey(PCMD_BADKEY pcmd)
+bool GraphicsObject::FCmdBadKey(PCMD_BADKEY pcmd)
 {
     return fFalse;
 }
@@ -1598,7 +1598,7 @@ bool GOB::FCmdBadKey(PCMD_BADKEY pcmd)
     according to rglw[0] (non-zero means on) and set rglw[0] to false.
     Always return false.
 ***************************************************************************/
-bool GOB::FCmdSelIdle(PCMD pcmd)
+bool GraphicsObject::FCmdSelIdle(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1609,7 +1609,7 @@ bool GOB::FCmdSelIdle(PCMD pcmd)
 /***************************************************************************
     Activate the selection.  Default does nothing.
 ***************************************************************************/
-bool GOB::FCmdActivateSel(PCMD pcmd)
+bool GraphicsObject::FCmdActivateSel(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1618,9 +1618,9 @@ bool GOB::FCmdActivateSel(PCMD pcmd)
 }
 
 /***************************************************************************
-    The mouse moved in this GOB, set the cursor.
+    The mouse moved in this GraphicsObject, set the cursor.
 ***************************************************************************/
-bool GOB::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool GraphicsObject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1634,12 +1634,12 @@ bool GOB::FCmdMouseMove(PCMD_MOUSE pcmd)
     [zpMinActive, zpLimActive), the bar is filled with solid invert, otherwise
     with patterned (50%) invert.
 ***************************************************************************/
-long GOB::ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpLim, long zpMinActive, long zpLimActive)
+long GraphicsObject::ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpLim, long zpMinActive, long zpLimActive)
 {
     RC rcBound, rcActive;
     PT pt, dpt;
     bool fActive, fActiveNew, fDown;
-    GNV gnv(this);
+    GraphicsEnvironment gnv(this);
 
     if (fVert)
     {
@@ -1740,9 +1740,9 @@ long GOB::ZpDragRc(RC *prc, bool fVert, long zp, long zpMin, long zpLim, long zp
 }
 
 /***************************************************************************
-    Set the cursor for this GOB to pcurs.
+    Set the cursor for this GraphicsObject to pcurs.
 ***************************************************************************/
-void GOB::SetCurs(PCURS pcurs)
+void GraphicsObject::SetCurs(PCursor pcurs)
 {
     AssertThis(0);
     AssertNilOrPo(pcurs, 0);
@@ -1754,14 +1754,14 @@ void GOB::SetCurs(PCURS pcurs)
 }
 
 /***************************************************************************
-    Set the cursor for this GOB as indicated.
+    Set the cursor for this GraphicsObject as indicated.
 ***************************************************************************/
-void GOB::SetCursCno(PRCA prca, CNO cno)
+void GraphicsObject::SetCursCno(PResourceCache prca, ChunkNumber cno)
 {
     AssertPo(prca, 0);
-    PCURS pcurs;
+    PCursor pcurs;
 
-    if (pvNil == (pcurs = (PCURS)prca->PbacoFetch(kctgCursor, cno, CURS::FReadCurs)))
+    if (pvNil == (pcurs = (PCursor)prca->PbacoFetch(kctgCursor, cno, Cursor::FReadCurs)))
     {
         Warn("cursor not found");
         return;
@@ -1774,16 +1774,16 @@ void GOB::SetCursCno(PRCA prca, CNO cno)
     Return the address of the variable list belonging to this gob.  When the
     gob is freed, the pointer is no longer valid.
 ***************************************************************************/
-PGL *GOB::Ppglrtvm(void)
+PDynamicArray *GraphicsObject::Ppglrtvm(void)
 {
     AssertThis(0);
     return &_pglrtvm;
 }
 
 /***************************************************************************
-    Put up a tool tip if this GOB has one.
+    Put up a tool tip if this GraphicsObject has one.
 ***************************************************************************/
-bool GOB::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
+bool GraphicsObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xpMouse, long ypMouse)
 {
     AssertThis(0);
     AssertVarMem(ppgobCurTip);
@@ -1793,9 +1793,9 @@ bool GOB::FEnsureToolTip(PGOB *ppgobCurTip, long xpMouse, long ypMouse)
 }
 
 /***************************************************************************
-    Return the state of the GOB. Must be non-zero.
+    Return the state of the GraphicsObject. Must be non-zero.
 ***************************************************************************/
-long GOB::LwState(void)
+long GraphicsObject::LwState(void)
 {
     AssertThis(0);
     return 1;
@@ -1803,11 +1803,11 @@ long GOB::LwState(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the GOB.
+    Assert the validity of the GraphicsObject.
 ***************************************************************************/
-void GOB::AssertValid(ulong grf)
+void GraphicsObject::AssertValid(ulong grf)
 {
-    GOB_PAR::AssertValid(0);
+    GraphicsObject_PAR::AssertValid(0);
     if (hNil != _hwnd)
     {
         Assert(0 == _rcCur.xpLeft && 0 == _rcCur.ypTop, "_hwnd based gob not at (0, 0)");
@@ -1821,10 +1821,10 @@ void GOB::AssertValid(ulong grf)
 /***************************************************************************
     Mark memory referenced by the gob.
 ***************************************************************************/
-void GOB::MarkMem(void)
+void GraphicsObject::MarkMem(void)
 {
     AssertValid(0);
-    GOB_PAR::MarkMem();
+    GraphicsObject_PAR::MarkMem();
     MarkMemObj(_pgpt);
     MarkMemObj(_pglrtvm);
 }
@@ -1832,10 +1832,10 @@ void GOB::MarkMem(void)
 /***************************************************************************
     Mark memory for this gob and all descendent gobs.
 ***************************************************************************/
-void GOB::MarkGobTree(void)
+void GraphicsObject::MarkGobTree(void)
 {
-    GTE gte;
-    PGOB pgob;
+    GraphicsObjectTreeEnumerator gte;
+    PGraphicsObject pgob;
     ulong grfgte;
 
     gte.Init(this, fgteNil);
@@ -1848,17 +1848,17 @@ void GOB::MarkGobTree(void)
 #endif // DEBUG
 
 /***************************************************************************
-    Constructor for a GOB tree enumerator.
+    Constructor for a GraphicsObject tree enumerator.
 ***************************************************************************/
-GTE::GTE(void)
+GraphicsObjectTreeEnumerator::GraphicsObjectTreeEnumerator(void)
 {
     _es = esDone;
 }
 
 /***************************************************************************
-    Initialize a GOB tree enumerator.
+    Initialize a GraphicsObject tree enumerator.
 ***************************************************************************/
-void GTE::Init(PGOB pgob, ulong grfgte)
+void GraphicsObjectTreeEnumerator::Init(PGraphicsObject pgob, ulong grfgte)
 {
     _pgobRoot = pgob;
     _pgobCur = pvNil;
@@ -1870,9 +1870,9 @@ void GTE::Init(PGOB pgob, ulong grfgte)
     Goes to the next node in the sub tree being enumerated.  Returns false
     iff the enumeration is done.
 ***************************************************************************/
-bool GTE::FNextGob(PGOB *ppgob, ulong *pgrfgteOut, ulong grfgte)
+bool GraphicsObjectTreeEnumerator::FNextGob(PGraphicsObject *ppgob, ulong *pgrfgteOut, ulong grfgte)
 {
-    PGOB pgobT;
+    PGraphicsObject pgobT;
 
     *pgrfgteOut = fgteNil;
     switch (_es)

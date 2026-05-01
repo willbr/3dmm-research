@@ -16,7 +16,7 @@
 #define SPELL_H
 
 // REVIEW shonk: dictionary type on Mac
-const FTG kftgDictionary = MacWin('DICT', 'DIC');
+const FileType kftgDictionary = MacWin('DICT', 'DIC');
 
 // include the standard spell checker API header
 #ifdef WIN
@@ -48,10 +48,10 @@ enum
     fsplcIgnoreSingleLetter = soIgnoreSingleLetter,
 };
 
-typedef class SPLC *PSPLC;
-#define SPLC_PAR BASE
-#define kclsSPLC 'SPLC'
-class SPLC : public SPLC_PAR
+typedef class SpellChecker *PSpellChecker;
+#define SpellChecker_PAR BASE
+#define kclsSpellChecker 'SPLC'
+class SpellChecker : public SpellChecker_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -107,25 +107,25 @@ class SPLC : public SPLC_PAR
     SC_SEC SpellCloseUdr(SC_SPLID splid, SC_UDR udr, SC_BOOL fForce);
 #endif // WIN
 
-    SPLC(void);
-    virtual bool _FInit(SC_LID sclid, PSTN pstnCustom = pvNil);
+    SpellChecker(void);
+    virtual bool _FInit(SC_LID sclid, PString pstnCustom = pvNil);
     virtual bool _FEnsureDll(SC_LID sclid);
-    virtual bool _FEnsureMainDict(SC_LID sclid, PFNI pfniDic = pvNil);
-    virtual bool _FEnsureUserDict(PSTN pstnCustom, PFNI pfniDef = pvNil);
-    virtual bool _FLoadDictionary(SC_LID sclid, PSZ psz, SC_MDRS *pmdrs);
-    virtual bool _FLoadUserDictionary(PSZ psz, SC_UDR *pudr, bool fCreate = fFalse);
+    virtual bool _FEnsureMainDict(SC_LID sclid, PFilename pfniDic = pvNil);
+    virtual bool _FEnsureUserDict(PString pstnCustom, PFilename pfniDef = pvNil);
+    virtual bool _FLoadDictionary(SC_LID sclid, PZString psz, SC_MDRS *pmdrs);
+    virtual bool _FLoadUserDictionary(PZString psz, SC_UDR *pudr, bool fCreate = fFalse);
 
   public:
-    ~SPLC(void);
-    static PSPLC PsplcNew(SC_LID sclid, PSTN pstnCustom = pvNil);
+    ~SpellChecker(void);
+    static PSpellChecker PsplcNew(SC_LID sclid, PString pstnCustom = pvNil);
 
     virtual bool FSetOptions(ulong grfsplc);
-    virtual bool FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PSTN pstn, long *pscrs);
-    virtual bool FSuggest(achar *prgch, long cch, bool fFirst, PSTN pstn);
+    virtual bool FCheck(achar *prgch, long cch, long *pichMinBad, long *pichLimBad, PString pstn, long *pscrs);
+    virtual bool FSuggest(achar *prgch, long cch, bool fFirst, PString pstn);
 
-    virtual bool FIgnoreAll(PSTN pstn);
-    virtual bool FChange(PSTN pstnSrc, PSTN pstnDst, bool fAll);
-    virtual bool FAddToUser(PSTN pstn);
+    virtual bool FIgnoreAll(PString pstn);
+    virtual bool FChange(PString pstnSrc, PString pstnDst, bool fAll);
+    virtual bool FAddToUser(PString pstn);
 
     virtual void FlushIgnoreList(void);
     virtual void FlushChangeList(bool fAll);

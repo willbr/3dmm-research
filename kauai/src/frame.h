@@ -20,29 +20,29 @@
 #include "util.h"
 #include "keys.h"
 
-class GPT;  // graphics port
-class GNV;  // graphics environment
-class CMH;  // command handler
-class GOB;  // graphic object
-class MUB;  // menu bar
-class DOCB; // base document
-class DMD;  // document mdi window
-class DMW;  // main document window
-class DSG;  // document scroll gob
-class DDG;  // document display gob
-class SNDM; // sound manager
+class GraphicsPort;  // graphics port
+class GraphicsEnvironment;  // graphics environment
+class CommandHandler;  // command handler
+class GraphicsObject;  // graphic object
+class MenuBar;  // menu bar
+class DocumentBase; // base document
+class DocumentMDIWindow;  // document mdi window
+class DocumentMainWindow;  // main document window
+class DocumentScrollGraphicsObject;  // document scroll gob
+class DocumentDisplayGraphicsObject;  // document display gob
+class SoundManager; // sound manager
 
-typedef class GPT *PGPT;
-typedef class GNV *PGNV;
-typedef class CMH *PCMH;
-typedef class GOB *PGOB;
-typedef class MUB *PMUB;
-typedef class DOCB *PDOCB;
-typedef class DMD *PDMD;
-typedef class DMW *PDMW;
-typedef class DSG *PDSG;
-typedef class DDG *PDDG;
-typedef class SNDM *PSNDM;
+typedef class GraphicsPort *PGraphicsPort;
+typedef class GraphicsEnvironment *PGraphicsEnvironment;
+typedef class CommandHandler *PCommandHandler;
+typedef class GraphicsObject *PGraphicsObject;
+typedef class MenuBar *PMenuBar;
+typedef class DocumentBase *PDocumentBase;
+typedef class DocumentMDIWindow *PDocumentMDIWindow;
+typedef class DocumentMainWindow *PDocumentMainWindow;
+typedef class DocumentScrollGraphicsObject *PDocumentScrollGraphicsObject;
+typedef class DocumentDisplayGraphicsObject *PDocumentDisplayGraphicsObject;
+typedef class SoundManager *PSoundManager;
 
 #include "region.h"
 #include "pic.h"

@@ -13,22 +13,22 @@ void FrameMain(void)
 ***************************************************************************/
 int __cdecl main(int cpszs, char *prgpszs[])
 {
-    FNI fniSrc, fniDst;
-    FNI fniPalette;
-    STN stn;
-    FLO floSrc;
+    Filename fniSrc, fniDst;
+    Filename fniPalette;
+    String stn;
+    FileLocation floSrc;
     long lwSig;
-    BLCK blck;
+    DataBlock blck;
     bool fPacked;
     bool fCompress = fFalse;
     long cfni = 0;
     long cfmt = vpcodmUtil->CfmtDefault();
     long lwSwapped;
-    PMBMP mbmp;
-    PGL pglclrSrc;
+    PMaskedBitmapMBMP mbmp;
+    PDynamicArray pglclrSrc;
 
 #ifdef UNICODE
-    fprintf(stderr, "\nPBM to MBMP Utility (Unicode; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
+    fprintf(stderr, "\nPBM to MaskedBitmapMBMP Utility (Unicode; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
 #else  //! UNICODE
     fprintf(stderr, "\nPBM to MBMPUtility (Ansi; " Debug("Debug; ") __DATE__ "; " __TIME__ ")\n");
 #endif //! UNICODE
@@ -59,7 +59,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fniSrc)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fniSrc)))
     {
         fprintf(stderr, "Can't open source file\n\n");
         goto LFail;
@@ -108,15 +108,15 @@ int __cdecl main(int cpszs, char *prgpszs[])
         FreePpv((void **)&prgb);
     }
 
-    fprintf(stderr, "Reading MBMP...\n");
+    fprintf(stderr, "Reading MaskedBitmapMBMP...\n");
 
-    mbmp = MBMP::PmbmpRead(&blck);
+    mbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
     if (mbmp == pvNil)
     {
-        fprintf(stderr, "Reading MBMP failed\n\n");
+        fprintf(stderr, "Reading MaskedBitmapMBMP failed\n\n");
         goto LFail;
     }
-    fprintf(stderr, "Read MBMP.\n");
+    fprintf(stderr, "Read MaskedBitmapMBMP.\n");
     if (1)
     {
         RC size;
@@ -139,7 +139,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     }
 
     ReleasePpo(&floSrc.pfil);
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -149,6 +149,6 @@ LUsage:
 LFail:
     ReleasePpo(&floSrc.pfil);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }

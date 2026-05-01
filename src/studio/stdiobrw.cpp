@@ -15,18 +15,18 @@
     and applies browser selections.
 
     Studio Independent Browsers:
-    BASE --> CMH --> GOK	-->	BRWD  (Browser display class)
-    BRWD --> BRWL  (Browser list class; chunky based)
-    BRWD --> BRWT  (Browser text class)
-    BRWD --> BRWL --> BRWN  (Browser named list class)
+    BASE --> CommandHandler --> KidspaceGraphicObject	-->	BrowserDisplay  (Browser display class)
+    BrowserDisplay --> BrowserList  (Browser list class; chunky based)
+    BrowserDisplay --> BrowserText  (Browser text class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList  (Browser named list class)
 
     Studio Dependent Browsers:
-    BRWD --> BRWT --> BRWA  (Browser action class)
-    BRWD --> BRWL --> BRWP	(Browser prop/actor class)
-    BRWD --> BRWL --> BRWB	(Browser background class)
-    BRWD --> BRWL --> BRWC	(Browser camera class)
-    BRWD --> BRWL --> BRWN --> BRWM (Browser music class)
-    BRWD --> BRWL --> BRWN --> BRWM --> BRWI (Browser import sound class)
+    BrowserDisplay --> BrowserText --> BrowserAction  (Browser action class)
+    BrowserDisplay --> BrowserList --> BrowserPropActor	(Browser prop/actor class)
+    BrowserDisplay --> BrowserList --> BrowserBackground	(Browser background class)
+    BrowserDisplay --> BrowserList --> BrowserCamera	(Browser camera class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic (Browser music class)
+    BrowserDisplay --> BrowserList --> BrowserNamedList --> BrowserMusic --> BrowserImportSound (Browser import sound class)
 
 NOTE:  In this implementation, browsers are considered to be studio related.
 If for any reason one wanted to decouple them from the studio, then	it would
@@ -70,20 +70,20 @@ ASSERTNAME
  **************************************************************************/
 const long kglpbrcnGrow = 5;
 
-bool STDIO::FCmdBrowserReady(PCMD pcmd)
+bool Studio::FCmdBrowserReady(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     bool fSuccess = fFalse;
-    PBRCN pbrcn = pvNil; // Browser context carryover
-    PBRWD pbrwd = pvNil;
-    CKI ckiRoot;
+    PBrowserContext pbrcn = pvNil; // Browser context carryover
+    PBrowserDisplay pbrwd = pvNil;
+    ChunkIdentification ckiRoot;
     TAG tag;
     PTAG ptag;
-    PMVU pmvu;
+    PMovieView pmvu;
     long thumSelect;
-    long sid = ((APP *)vpappb)->SidProduct();
+    long sid = ((Application *)vpappb)->SidProduct();
     long brwdid = pcmd->rglw[0];
 
     vapp.BeginLongOp();
@@ -96,7 +96,7 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
     // Optionally Save/Retrieve Browser Context
     if (_pglpbrcn == pvNil)
     {
-        if (pvNil == (_pglpbrcn = GL::PglNew(size(PBRCN), kglpbrcnGrow)))
+        if (pvNil == (_pglpbrcn = DynamicArray::PglNew(size(PBrowserContext), kglpbrcnGrow)))
             goto LFail;
     }
 
@@ -124,16 +124,16 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
             sid = tag.sid;
         }
 
-        pbrwd = (PBRWD)(BRWB::PbrwbNew(_pcrm));
+        pbrwd = (PBrowserDisplay)(BrowserBackground::PbrwbNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
+            pbrcn = NewObj BrowserListContext;
 
         // Selection is cno based
-        if (!((PBRWB)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserBackground)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -150,15 +150,15 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
         ckiRoot.cno = _pmvie->Pscen()->Pbkgd()->Cno();
 
         thumSelect = _pmvie->Pscen()->Pbkgd()->Icam();
-        pbrwd = (PBRWD)(BRWC::PbrwcNew(_pcrm));
+        pbrwd = (PBrowserDisplay)(BrowserCamera::PbrwcNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
+            pbrcn = NewObj BrowserListContext;
         AssertDo(_pmvie->Pscen()->FGetTagBkgd(&tag), "Missing background event");
-        if (!((PBRWC)pbrwd)->FInit(pcmd, kbwsChid, thumSelect, tag.sid, ckiRoot, kctgCath, this, (PBRCNL)pbrcn))
+        if (!((PBrowserCamera)pbrwd)->FInit(pcmd, kbwsChid, thumSelect, tag.sid, ckiRoot, kctgCath, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -166,11 +166,11 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
 
     case kidBrwsProp:
         ckiRoot.ctg = kctgPrth;
-        pbrwd = (PBRWD)(BRWP::PbrwpNew(_pcrm, kidPropGlass));
+        pbrwd = (PBrowserDisplay)(BrowserPropActor::PbrwpNew(_pcrm, kidPropGlass));
         goto LActor;
     case kidBrwsActor:
         ckiRoot.ctg = kctgTmth;
-        pbrwd = (PBRWD)(BRWP::PbrwpNew(_pcrm, kidActorGlass));
+        pbrwd = (PBrowserDisplay)(BrowserPropActor::PbrwpNew(_pcrm, kidActorGlass));
     LActor:
         ckiRoot.cno = cnoNil;
         Assert(pvNil != _pmvie->Pscen(), "Actor browser requires scene");
@@ -178,10 +178,10 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
         if (pvNil == pbrwd)
             goto LFail;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
-        if (!((PBRWP)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, 0, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+            pbrcn = NewObj BrowserListContext;
+        if (!((PBrowserPropActor)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, 0, ckiRoot, ctgNil, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -194,35 +194,35 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
             goto LFail;
         }
         thumSelect = _pmvie->Pscen()->PactrSelected()->AnidCur();
-        pbrwd = (PBRWD)BRWA::PbrwaNew(_pcrm);
+        pbrwd = (PBrowserDisplay)BrowserAction::PbrwaNew(_pcrm);
 
         if (pvNil == pbrwd)
             goto LFail;
 
         // Build the string table before initializing
-        if (!((PBRWA)pbrwd)->FBuildGst(_pmvie->Pscen()))
+        if (!((PBrowserAction)pbrwd)->FBuildGst(_pmvie->Pscen()))
             goto LFail;
-        if (!((PBRWT)pbrwd)->FInit(pcmd, thumSelect, thumSelect, this))
+        if (!((PBrowserText)pbrwd)->FInit(pcmd, thumSelect, thumSelect, this))
             goto LFail;
         break;
 
     case kidSSorterBackground:
-        if (SCRT::PscrtNew(brwdid, _pmvie, this, _pcrm) == pvNil)
+        if (SceneSorter::PscrtNew(brwdid, _pmvie, this, _pcrm) == pvNil)
             PushErc(ercSocCantInitSceneSort);
         vapp.EndLongOp();
         return fTrue;
 
     case kidBrwsFX:
         ckiRoot.ctg = kctgSfth;
-        pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
+        pbrwd = (PBrowserDisplay)(BrowserMusic::PbrwmNew(_pcrm, kidFXGlass, stySfx, this));
         goto LMusic;
     case kidBrwsSpeech:
         ckiRoot.ctg = kctgSvth;
-        pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
+        pbrwd = (PBrowserDisplay)(BrowserMusic::PbrwmNew(_pcrm, kidSpeechGlass, stySpeech, this));
         goto LMusic;
     case kidBrwsMidi:
         ckiRoot.ctg = kctgSmth;
-        pbrwd = (PBRWD)(BRWM::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
+        pbrwd = (PBrowserDisplay)(BrowserMusic::PbrwmNew(_pcrm, kidMidiGlass, styMidi, this));
     LMusic:
         if (pvNil == pbrwd)
             goto LFail;
@@ -231,11 +231,11 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
         ckiRoot.cno = cnoNil;
         thumSelect = (long)cnoNil;
 
-        // Create BRCNL for context carryover (optional choice)
+        // Create BrowserListContext for context carryover (optional choice)
         if (pbrcn == pvNil)
-            pbrcn = NewObj BRCNL;
+            pbrcn = NewObj BrowserListContext;
 
-        pmvu = (PMVU)(Pmvie()->PddgGet(0));
+        pmvu = (PMovieView)(Pmvie()->PddgGet(0));
         ptag = pmvu->PtagTool();
         if (ptag->sid != ksidInvalid)
         {
@@ -243,7 +243,7 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
             sid = ptag->sid;
         }
         // Selection is cno based
-        if (!((PBRWM)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBRCNL)pbrcn))
+        if (!((PBrowserMusic)pbrwd)->FInit(pcmd, kbwsCnoRoot, thumSelect, sid, ckiRoot, ctgNil, this, (PBrowserListContext)pbrcn))
         {
             goto LFail;
         }
@@ -255,20 +255,20 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
     //
     case kidBrwsImportFX:
         ckiRoot.ctg = kctgSfth;
-        pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
+        pbrwd = (PBrowserDisplay)(BrowserImportSound::PbrwiNew(_pcrm, kidSoundsImportGlass, stySfx));
         goto LImport;
     case kidBrwsImportSpeech:
         ckiRoot.ctg = kctgSvth;
-        pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
+        pbrwd = (PBrowserDisplay)(BrowserImportSound::PbrwiNew(_pcrm, kidSoundsImportGlass, stySpeech));
         goto LImport;
     case kidBrwsImportMidi:
         ckiRoot.ctg = kctgSmth;
-        pbrwd = (PBRWD)(BRWI::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
+        pbrwd = (PBrowserDisplay)(BrowserImportSound::PbrwiNew(_pcrm, kidSoundsImportGlass, styMidi));
     LImport:
         if (pvNil == pbrwd)
             goto LFail;
-        // Build the string table before initializing the BRWD
-        if (!((PBRWI)pbrwd)->FInit(pcmd, ckiRoot, this))
+        // Build the string table before initializing the BrowserDisplay
+        if (!((PBrowserImportSound)pbrwd)->FInit(pcmd, ckiRoot, this))
         {
             goto LFail;
         }
@@ -276,15 +276,15 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
 
     case kidRollCallProp:
         Assert(pvNil == _pbrwrProp, "Roll Call browser already up");
-        _pbrwrProp = BRWR::PbrwrNew(_pcrm, kidRollCallProp);
-        pbrwd = (PBRWD)_pbrwrProp;
+        _pbrwrProp = BrowserRollCall::PbrwrNew(_pcrm, kidRollCallProp);
+        pbrwd = (PBrowserDisplay)_pbrwrProp;
         if (pvNil == pbrwd)
             goto LFail;
 
         // Create the cno map from tmpl-->gokd
         if (_pglcmg == pvNil)
         {
-            if (pvNil == (_pglcmg = GL::PglNew(size(CMG), kglcmgGrow)))
+            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(GokdCnoMap), kglcmgGrow)))
                 goto LFail;
             _pglcmg->SetMinGrow(kglcmgGrow);
         }
@@ -295,15 +295,15 @@ bool STDIO::FCmdBrowserReady(PCMD pcmd)
 
     case kidRollCallActor:
         Assert(pvNil == _pbrwrActr, "Roll Call browser already up");
-        _pbrwrActr = BRWR::PbrwrNew(_pcrm, kidRollCallActor);
-        pbrwd = (PBRWD)_pbrwrActr;
+        _pbrwrActr = BrowserRollCall::PbrwrNew(_pcrm, kidRollCallActor);
+        pbrwd = (PBrowserDisplay)_pbrwrActr;
         if (pvNil == pbrwd)
             goto LFail;
 
         // Create the cno map from tmpl-->gokd
         if (_pglcmg == pvNil)
         {
-            if (pvNil == (_pglcmg = GL::PglNew(size(CMG), kglcmgGrow)))
+            if (pvNil == (_pglcmg = DynamicArray::PglNew(size(GokdCnoMap), kglcmgGrow)))
                 goto LFail;
             _pglcmg->SetMinGrow(kglcmgGrow);
         }
@@ -349,10 +349,10 @@ LFail:
  * Destroy browser context (when Studio destructs)
  *
  **************************************************************************/
-void STDIO::ReleaseBrcn(void)
+void Studio::ReleaseBrcn(void)
 {
     long ipbrcn;
-    PBRCN pbrcn;
+    PBrowserContext pbrcn;
 
     if (pvNil == _pglpbrcn)
         return;
@@ -370,11 +370,11 @@ void STDIO::ReleaseBrcn(void)
  * Locate a browser pbrwd
  *
  **************************************************************************/
-PBRCN STDIO::_PbrcnFromBrwdid(long brwdid)
+PBrowserContext Studio::_PbrcnFromBrwdid(long brwdid)
 {
     AssertThis(0);
     long ipbrcn;
-    PBRCN pbrcn;
+    PBrowserContext pbrcn;
 
     for (ipbrcn = 0; ipbrcn < _pglpbrcn->IvMac(); ipbrcn++)
     {
@@ -393,16 +393,16 @@ PBRCN STDIO::_PbrcnFromBrwdid(long brwdid)
  * thumSelect is an index and a chid
  *
  **************************************************************************/
-void BRWC::_ApplySelection(long thumSelect, long sid)
+void BrowserCamera::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     _pstdio->Pmvie()->Pscen()->FChangeCam(thumSelect);
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
@@ -416,18 +416,18 @@ void BRWC::_ApplySelection(long thumSelect, long sid)
  * thumSelect is a cno
  *
  **************************************************************************/
-void BRWB::_ApplySelection(long thumSelect, long sid)
+void BrowserBackground::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
     TAG tag;
-    CMD cmd;
-    PMVU pmvu;
+    Command cmd;
+    PMovieView pmvu;
 
     tag.sid = sid;
     tag.pcrf = pvNil;
     tag.ctg = kctgBkgd;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
 
     ClearPb(&cmd, size(cmd));
     cmd.cid = cidNewScene;
@@ -438,7 +438,7 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
     vpcex->EnqueueCmd(&cmd);
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
 
@@ -456,14 +456,14 @@ void BRWB::_ApplySelection(long thumSelect, long sid)
  *
  *
  **************************************************************************/
-void BRWP::_ApplySelection(long thumSelect, long sid)
+void BrowserPropActor::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
     TAG tag;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     if (pmvu == pvNil)
     {
         Warn("No pmvu");
@@ -474,7 +474,7 @@ void BRWP::_ApplySelection(long thumSelect, long sid)
     tag.sid = sid;
     tag.pcrf = pvNil;
     tag.ctg = kctgTmpl;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
 
     if (!_pstdio->Pmvie()->FInsActr(&tag))
         goto LFail;
@@ -492,14 +492,14 @@ LFail:
  * thumSelect is a chid
  *
  **************************************************************************/
-void BRWA::_ApplySelection(long thumSelect, long sid)
+void BrowserAction::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
 
-    PACTR pactr;
-    PMVU pmvu;
-    PGOK pgok;
+    PActor pactr;
+    PMovieView pmvu;
+    PKidspaceGraphicObject pgok;
 
     // Apply the action to the actor
     pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
@@ -507,7 +507,7 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
         return; // Error reported earlier
 
     // Update the tool
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgActive());
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolRecordSameAction);
 
@@ -515,11 +515,11 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
     _pstdio->Pmvie()->Pmcc()->ChangeTool(toolRecordSameAction);
 
     // Reset the studio action button state	(record will be depressed)
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidActorsActionBrowser);
 
-    if ((pgok != pvNil) && pgok->FIs(kclsGOK))
+    if ((pgok != pvNil) && pgok->FIs(kclsKidspaceGraphicObject))
     {
-        Assert(pgok->FIs(kclsGOK), "Invalid class");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Invalid class");
         pgok->FChangeState(kstDefault);
     }
 
@@ -533,21 +533,21 @@ void BRWA::_ApplySelection(long thumSelect, long sid)
  * thumSelect is a cnoContent
  *
  **************************************************************************/
-void BRWM::_ApplySelection(long thumSelect, long sid)
+void BrowserMusic::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
 
-    PGOK pgok;
-    PMVU pmvu;
+    PKidspaceGraphicObject pgok;
+    PMovieView pmvu;
     TAG tag;
     BOOL fClick = fTrue;
 
-    pmvu = (PMVU)(_pstdio->Pmvie()->PddgGet(0));
+    pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
     AssertPo(pmvu, 0);
 
     tag.ctg = kctgMsnd;
-    tag.cno = (CNO)thumSelect;
+    tag.cno = (ChunkNumber)thumSelect;
     tag.sid = sid;
     if (ksidUseCrf != sid)
         tag.pcrf = pvNil;
@@ -559,22 +559,22 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     }
 
     // Set the tool to "play once", if necessary
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidSoundsLooping);
-    if (pgok != pvNil && pgok->FIs(kclsGOK) && (pgok->Sno() == kstSelected))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidSoundsLooping);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() == kstSelected))
     {
         fClick = fFalse;
     }
 
-    pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidSoundsAttachToCell);
-    if (pgok != pvNil && pgok->FIs(kclsGOK) && (pgok->Sno() == kstSelected) && (_sty != styMidi))
+    pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidSoundsAttachToCell);
+    if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() == kstSelected) && (_sty != styMidi))
     {
         fClick = fFalse;
     }
 
     if (fClick)
     {
-        pgok = (PGOK)vpapp->Pkwa()->PgobFromHid(kidSoundsPlayOnce);
-        if (pgok != pvNil && pgok->FIs(kclsGOK) && (pgok->Sno() != kstSelected))
+        pgok = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidSoundsPlayOnce);
+        if (pgok != pvNil && pgok->FIs(kclsKidspaceGraphicObject) && (pgok->Sno() != kstSelected))
         {
             AssertPo(pgok, 0);
             vpcex->EnqueueCid(cidClicked, pgok, pvNil, pvNil);
@@ -582,24 +582,24 @@ void BRWM::_ApplySelection(long thumSelect, long sid)
     }
 
     pmvu->SetTagTool(&tag);
-    TAGM::CloseTag(&tag);
+    TagManager::CloseTag(&tag);
     return;
 }
 
 /***************************************************************************
  *
  * Apply an Import Music Selection.
- * Copy the msnd chunk from the open BRWI movie to the current movie
+ * Copy the msnd chunk from the open BrowserImportSound movie to the current movie
  * Then notify the underlying sound browser to update
  *
  * thumSelect is a cnoContent
  *
  **************************************************************************/
-void BRWI::_ApplySelection(long thumSelect, long sid)
+void BrowserImportSound::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
     AssertPo(_pstdio->Pmvie(), 0);
-    CNO cnoDest;
+    ChunkNumber cnoDest;
     long kidBrws;
 
     switch (_sty)
@@ -623,7 +623,7 @@ void BRWI::_ApplySelection(long thumSelect, long sid)
 
     // Copy	sound from _pcrf->Pcfl() to current movie
     vpappb->BeginLongOp();
-    if (!_pstdio->Pmvie()->FCopyMsndFromPcfl(_pcrf->Pcfl(), (CNO)thumSelect, &cnoDest))
+    if (!_pstdio->Pmvie()->FCopyMsndFromPcfl(_pcrf->Pcfl(), (ChunkNumber)thumSelect, &cnoDest))
     {
         vpappb->EndLongOp();
         return;
@@ -642,14 +642,14 @@ void BRWI::_ApplySelection(long thumSelect, long sid)
  * thumSelect equals ithum
  *
  **************************************************************************/
-void BRWR::_ApplySelection(long thumSelect, long sid)
+void BrowserRollCall::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
-    PMVU pmvu;
-    PMVIE pmvie = _pstdio->Pmvie();
+    PMovieView pmvu;
+    PMovie pmvie = _pstdio->Pmvie();
     long arid;
-    STN stn;
+    String stn;
     long cactRef;
 
     long iarid = _IaridFromIthum(thumSelect);
@@ -657,7 +657,7 @@ void BRWR::_ApplySelection(long thumSelect, long sid)
         return;
 
     _fApplyingSel = fTrue;
-    pmvu = (PMVU)pmvie->PddgActive();
+    pmvu = (PMovieView)pmvie->PddgActive();
     pmvie->FChooseArid(arid);
     if (!pmvu->FActrMode())
     {

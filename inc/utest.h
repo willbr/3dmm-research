@@ -15,29 +15,29 @@
 /****************************************
     KidWorld for the App class
 ****************************************/
-typedef class KWA *PKWA;
-#define KWA_PAR WOKS
-#define kclsKWA 'KWA'
-class KWA : public KWA_PAR
+typedef class KidWorld *PKidWorld;
+#define KidWorld_PAR WorldOfKidspace
+#define kclsKidWorld 'KWA'
+class KidWorld : public KidWorld_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PMBMP _pmbmp; // MBMP to draw in KWA (may be pvNil)
+    PMaskedBitmapMBMP _pmbmp; // MaskedBitmapMBMP to draw in KidWorld (may be pvNil)
     bool _fAskForCD;
 
   public:
-    KWA(GCB *pgcb) : WOKS(pgcb)
+    KidWorld(GraphicsObjectBlock *pgcb) : WorldOfKidspace(pgcb)
     {
         _fAskForCD = fTrue;
     }
-    ~KWA(void);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
-    virtual bool FFindFile(PSTN pstnSrc, PFNI pfni); // for finding AVIs
-    virtual bool FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet);
-    void SetMbmp(PMBMP pmbmp);
+    ~KidWorld(void);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
+    virtual bool FFindFile(PString pstnSrc, PFilename pfni); // for finding AVIs
+    virtual bool FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet);
+    void SetMbmp(PMaskedBitmapMBMP pmbmp);
     void SetCDPrompt(bool fAskForCD)
     {
         _fAskForCD = fAskForCD;
@@ -61,6 +61,10 @@ class KWA : public KWA_PAR
 #define kszProductsKey PszLit("Software\\Microsoft\\Microsoft Kids\\3D Movie Maker\\Products")
 #define kszUserDataValue PszLit("UserData")
 #define kszBetterSpeedValue PszLit("BetterSpeed")
+#define kszSkipSplashScreenValue PszLit("SkipSplashScreen")
+#define kszWireframeValue PszLit("Wireframe")
+#define kszNoTextureValue PszLit("NoTexture")
+#define kszShowPoseReadoutValue PszLit("ShowPoseReadout")
 
 // FGetSetRegKey flags
 enum
@@ -76,25 +80,25 @@ enum
 /****************************************
     The app class
 ****************************************/
-typedef class APP *PAPP;
-#define APP_PAR APPB
-#define kclsAPP 'APP'
-class APP : public APP_PAR
+typedef class Application *PApplication;
+#define Application_PAR ApplicationBase
+#define kclsApplication 'APP'
+class Application : public Application_PAR
 {
     RTCLASS_DEC
-    CMD_MAP_DEC(APP)
+    CMD_MAP_DEC(Application)
     ASSERT
     MARKMEM
 
   protected:
     bool _fDontReportInitFailure; // init failure was already reported
     bool _fOnscreenDrawing;
-    PCFL _pcfl;                   // resource file for app
-    PSTDIO _pstdio;               // Current studio
-    PTATR _ptatr;                 // Current theater
-    PCRM _pcrmAll;                // The app CRM -- all crfs are loaded into this.
-    PGL _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
-    PGL _pglicrfStudio;           // List of crfs in _pcrmAll belonging to Studio.
+    PChunkyFile _pcfl;                   // resource file for app
+    PStudio _pstdio;               // Current studio
+    PTheater _ptatr;                 // Current theater
+    PChunkyResourceManager _pcrmAll;                // The app ChunkyResourceManager -- all crfs are loaded into this.
+    PDynamicArray _pglicrfBuilding;         // List of crfs in _pcrmAll belonging to Building.
+    PDynamicArray _pglicrfStudio;           // List of crfs in _pcrmAll belonging to Studio.
     bool _fDontMinimize : 1,      // "/M" command-line switch
         _fSlowCPU : 1,            // running on slow CPU
         _fSwitchedResolution : 1, // we successfully switched to 640x480 mode
@@ -102,27 +106,27 @@ class APP : public APP_PAR
         _fRunInWindow : 1, // run in a window (as opposed to fullscreen)
         _fFontError : 1,   // Have we already seen a font error?
         _fInPortfolio : 1; // Is the portfolio active?
-    PCEX _pcex;            // Pointer to suspended cex.
-    FNI _fniPortfolioDoc;  // document last opened in portfolio
-    PMVIE _pmvieHandoff;   // Stores movie for studio to use
-    PKWA _pkwa;            // Kidworld for App
-    PGST _pgstBuildingFiles;
-    PGST _pgstStudioFiles;
-    PGST _pgstSharedFiles;
-    PGST _pgstApp;        // Misc. app global strings
-    STN _stnAppName;      // App name
-    STN _stnProductLong;  // Long version of product name
-    STN _stnProductShort; // Short version of product name
-    STN _stnUser;         // User's name
+    PCommandExecutionManager _pcex;            // Pointer to suspended cex.
+    Filename _fniPortfolioDoc;  // document last opened in portfolio
+    PMovie _pmvieHandoff;   // Stores movie for studio to use
+    PKidWorld _pkwa;            // Kidworld for App
+    PStringTable_GST _pgstBuildingFiles;
+    PStringTable_GST _pgstStudioFiles;
+    PStringTable_GST _pgstSharedFiles;
+    PStringTable_GST _pgstApp;        // Misc. app global strings
+    String _stnAppName;      // App name
+    String _stnProductLong;  // Long version of product name
+    String _stnProductShort; // Short version of product name
+    String _stnUser;         // User's name
     long _sidProduct;
-    FNI _fniCurrentDir; // fni of current working directory
-    FNI _fniExe;        // fni of this executable file
-    FNI _fniMsKidsDir;  // e.g., \mskids
-    FNI _fniUsersDir;   // e.g., \mskids\users
-    FNI _fniMelanieDir; // e.g., \mskids\users\melanie
-    FNI _fniProductDir; // e.g., \mskids\3dmovie or \mskids\otherproduct
-    FNI _fniUserDir;    // User's preferred directory
-    FNI _fni3DMovieDir; // e.g., \mskids\3dMovie
+    Filename _fniCurrentDir; // fni of current working directory
+    Filename _fniExe;        // fni of this executable file
+    Filename _fniMsKidsDir;  // e.g., \mskids
+    Filename _fniUsersDir;   // e.g., \mskids\users
+    Filename _fniMelanieDir; // e.g., \mskids\users\melanie
+    Filename _fniProductDir; // e.g., \mskids\3dmovie or \mskids\otherproduct
+    Filename _fniUserDir;    // User's preferred directory
+    Filename _fni3DMovieDir; // e.g., \mskids\3dMovie
     long _dypTextDef;   // Default text height
 
     long _cactDisable; // disable count for keyboard accelerators
@@ -155,54 +159,55 @@ class APP : public APP_PAR
     void _SkipToSpace(char **ppch);
     void _SkipSpace(char **ppch);
     bool _FEnsureProductNames(void);
-    bool _FFindProductDir(PGST pgst);
-    bool _FQueryProductExists(STN *pstnLong, STN *pstnShort, FNI *pfni);
+    bool _FFindProductDir(PStringTable_GST pgst);
+    bool _FQueryProductExists(String *pstnLong, String *pstnShort, Filename *pfni);
     bool _FFindMsKidsDir(void);
-    bool _FFindMsKidsDirAt(FNI *path);
-    bool _FCantFindFileDialog(PSTN pstn);
+    bool _FFindMsKidsDirAt(Filename *path);
+    bool _FMsKidsDirIsComplete(Filename *path);
+    bool _FCantFindFileDialog(PString pstn);
     bool _FGenericError(PSTZ message);
-    bool _FGenericError(PSTN message);
-    bool _FGenericError(FNI *path);
+    bool _FGenericError(PString message);
+    bool _FGenericError(Filename *path);
     bool _FGetUserName(void);
     bool _FGetUserDirectories(void);
     bool _FReadUserData(void);
     bool _FWriteUserData(void);
-    bool _FDisplayHomeLogo(void);
+    bool _FDisplayHomeLogo(bool fSkipSplashScreen);
     bool _FDetermineIfSlowCPU(void);
     bool _FOpenResourceFile(void);
     bool _FInitKidworld(void);
     bool _FInitProductNames(void);
-    bool _FReadTitlesFromReg(PGST *ppgst);
+    bool _FReadTitlesFromReg(PStringTable_GST *ppgst);
     bool _FInitTdt(void);
-    PGST _PgstRead(CNO cno);
+    PStringTable_GST _PgstRead(ChunkNumber cno);
     bool _FReadStringTables(void);
     bool _FSetWindowTitle(void);
     bool _FInitCrm(void);
-    bool _FAddToCrm(PGST pgstFiles, PCRM pcrm, PGL pglFiles);
+    bool _FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager pcrm, PDynamicArray pglFiles);
     bool _FInitBuilding(void);
-    bool _FInitStudio(PFNI pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
+    bool _FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed = fTrue);
     void _GetWindowProps(long *pxp, long *pyp, long *pdxp, long *pdyp, DWORD *pdwStyle);
     void _RebuildMainWindow(void);
     bool _FSwitch640480(bool fTo640480);
     bool _FDisplayIs640480(void);
     bool _FShowSplashScreen(void);
     bool _FPlaySplashSound(void);
-    PMVIE _Pmvie(void);
+    PMovie _Pmvie(void);
     void _CleanupTemp(void);
 #ifdef WIN
-    bool _FSendOpenDocCmd(HWND hwnd, PFNI pfniUserDoc);
+    bool _FSendOpenDocCmd(HWND hwnd, PFilename pfniUserDoc);
     bool _FProcessOpenDocCmd(void);
 #endif // WIN
 
-    // APPB methods that we override
+    // ApplicationBase methods that we override
     virtual bool _FInit(ulong grfapp, ulong grfgob, long ginDef);
     virtual bool _FInitOS(void);
     virtual bool _FInitMenu(void)
     {
         return fTrue;
     } // no menubar
-    virtual void _CopyPixels(PGNV pgvnSrc, RC *prcSrc, PGNV pgnvDst, RC *prcDst);
-    virtual void _FastUpdate(PGOB pgob, PREGN pregnClip, ulong grfapp = fappNil, PGPT pgpt = pvNil);
+    virtual void _CopyPixels(PGraphicsEnvironment pgvnSrc, RC *prcSrc, PGraphicsEnvironment pgnvDst, RC *prcDst);
+    virtual void _FastUpdate(PGraphicsObject pgob, PRegion pregnClip, ulong grfapp = fappNil, PGraphicsPort pgpt = pvNil);
     virtual void _CleanUp(void);
     virtual void _Activate(bool fActive);
     virtual bool _FGetNextEvt(PEVT pevt);
@@ -211,16 +216,16 @@ class APP : public APP_PAR
 #endif // WIN
 
   public:
-    APP(void)
+    Application(void)
     {
         _dypTextDef = 0;
     }
 
-    // Overridden APPB functions
-    virtual void GetStnAppName(PSTN pstn);
+    // Overridden ApplicationBase functions
+    virtual void GetStnAppName(PString pstn);
     virtual long OnnDefVariable(void);
     virtual long DypTextDef(void);
-    virtual tribool TQuerySaveDoc(PDOCB pdocb, bool fForce);
+    virtual tribool TQuerySaveDoc(PDocumentBase pdocb, bool fForce);
     virtual void Quit(bool fForce);
     virtual void UpdateHwnd(HWND hwnd, RC *prc, ulong grfapp = fappNil);
     virtual void Run(ulong grfapp, ulong grfgob, long ginDef);
@@ -234,27 +239,27 @@ class APP : public APP_PAR
 #endif // BUG 1085
 
     // Command processors
-    bool FCmdLoadStudio(PCMD pcmd);
-    bool FCmdLoadBuilding(PCMD pcmd);
-    bool FCmdTheaterOpen(PCMD pcmd);
-    bool FCmdTheaterClose(PCMD pcmd);
-    bool FCmdIdle(PCMD pcmd);
-    bool FCmdInfo(PCMD pcmd);
-    bool FCmdPortfolioClear(PCMD pcmd);
-    bool FCmdPortfolioOpen(PCMD pcmd);
-    bool FCmdDisableAccel(PCMD pcmd);
-    bool FCmdEnableAccel(PCMD pcmd);
-    bool FCmdInvokeSplot(PCMD pcmd);
-    bool FCmdExitStudio(PCMD pcmd);
-    bool FCmdDeactivate(PCMD pcmd);
+    bool FCmdLoadStudio(PCommand pcmd);
+    bool FCmdLoadBuilding(PCommand pcmd);
+    bool FCmdTheaterOpen(PCommand pcmd);
+    bool FCmdTheaterClose(PCommand pcmd);
+    bool FCmdIdle(PCommand pcmd);
+    bool FCmdInfo(PCommand pcmd);
+    bool FCmdPortfolioClear(PCommand pcmd);
+    bool FCmdPortfolioOpen(PCommand pcmd);
+    bool FCmdDisableAccel(PCommand pcmd);
+    bool FCmdEnableAccel(PCommand pcmd);
+    bool FCmdInvokeSplot(PCommand pcmd);
+    bool FCmdExitStudio(PCommand pcmd);
+    bool FCmdDeactivate(PCommand pcmd);
 
-    static bool FInsertCD(PSTN pstnTitle);
+    static bool FInsertCD(PString pstnTitle);
     void DisplayErrors(void);
-    void SetPortfolioDoc(PFNI pfni)
+    void SetPortfolioDoc(PFilename pfni)
     {
         _fniPortfolioDoc = *pfni;
     }
-    void GetPortfolioDoc(PFNI pfni)
+    void GetPortfolioDoc(PFilename pfni)
     {
         *pfni = _fniPortfolioDoc;
     }
@@ -267,15 +272,15 @@ class APP : public APP_PAR
         return _fInPortfolio;
     }
 
-    PSTDIO Pstdio(void)
+    PStudio Pstdio(void)
     {
         return _pstdio;
     }
-    PKWA Pkwa(void)
+    PKidWorld Pkwa(void)
     {
         return _pkwa;
     }
-    PCRM PcrmAll(void)
+    PChunkyResourceManager PcrmAll(void)
     {
         return _pcrmAll;
     }
@@ -284,35 +289,35 @@ class APP : public APP_PAR
         return _fMinimized;
     }
 
-    bool FGetStnApp(long ids, PSTN pstn)
+    bool FGetStnApp(long ids, PString pstn)
     {
         return _pgstApp->FFindExtra(&ids, pstn);
     }
-    void GetStnProduct(PSTN pstn)
+    void GetStnProduct(PString pstn)
     {
         *pstn = _stnProductLong;
     }
-    void GetStnUser(PSTN pstn)
+    void GetStnUser(PString pstn)
     {
         *pstn = _stnUser;
     }
-    void GetFniExe(PFNI pfni)
+    void GetFniExe(PFilename pfni)
     {
         *pfni = _fniExe;
     }
-    void GetFniProduct(PFNI pfni)
+    void GetFniProduct(PFilename pfni)
     {
         *pfni = _fniProductDir;
     }
-    void GetFniUsers(PFNI pfni)
+    void GetFniUsers(PFilename pfni)
     {
         *pfni = _fniUsersDir;
     }
-    void GetFniUser(PFNI pfni)
+    void GetFniUser(PFilename pfni)
     {
         *pfni = _fniUserDir;
     }
-    void GetFniMelanie(PFNI pfni)
+    void GetFniMelanie(PFilename pfni)
     {
         *pfni = _fniMelanieDir;
     }
@@ -320,7 +325,7 @@ class APP : public APP_PAR
     {
         return _sidProduct;
     }
-    bool FGetOnn(PSTN pstn, long *ponn);
+    bool FGetOnn(PString pstn, long *ponn);
     void MemStat(long *pdwTotalPhys, long *pdwAvailPhys = pvNil);
     bool FSlowCPU(void)
     {
@@ -344,25 +349,25 @@ class APP : public APP_PAR
 #endif //! WIN
         }
     }
-    tribool TModal(PRCA prca, long tpc, PSTN pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
-                   PSTN pstnSubst = pvNil);
+    tribool TModal(PResourceCache prca, long tpc, PString pstnBackup = pvNil, long bkBackup = ivNil, long stidSubst = ivNil,
+                   PString pstnSubst = pvNil);
 
     // Enable/disable accelerator keys
     void DisableAccel(void);
     void EnableAccel(void);
 
     // Registry access function
-    bool FGetSetRegKey(PSZ pszValueName, void *pvData, long cbData, ulong grfreg = fregSetDefault,
+    bool FGetSetRegKey(PZString pszValueName, void *pvData, long cbData, ulong grfreg = fregSetDefault,
                        bool *pfNoValue = pvNil);
 
     // Movie handoff routines
-    void HandoffMovie(PMVIE pmvie);
-    PMVIE PmvieRetrieve(void);
+    void HandoffMovie(PMovie pmvie);
+    PMovie PmvieRetrieve(void);
 
     // Determines whether screen savers should be blocked.
     virtual bool FAllowScreenSaver(void);
 };
 
-#define vpapp ((APP *)vpappb)
+#define vpapp ((Application *)vpappb)
 
 #endif //! UTEST_H

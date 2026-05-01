@@ -17,16 +17,16 @@
 #define SNDM_H
 
 const long siiNil = 0;
-const FTG kftgMidi = MacWin('MIDI', 'MID'); // REVIEW shonk: Mac: file type
-const FTG kftgWave = MacWin('WAVE', 'WAV'); // REVIEW shonk: Mac: file type
+const FileType kftgMidi = MacWin('MIDI', 'MID'); // REVIEW shonk: Mac: file type
+const FileType kftgWave = MacWin('WAVE', 'WAV'); // REVIEW shonk: Mac: file type
 
 /***************************************************************************
     Sound device - like audioman or our midi player.
 ***************************************************************************/
-typedef class SNDV *PSNDV;
-#define SNDV_PAR BASE
-#define kclsSNDV 'SNDV'
-class SNDV : public SNDV_PAR
+typedef class SoundDevice *PSoundDevice;
+#define SoundDevice_PAR BASE
+#define kclsSoundDevice 'SNDV'
+class SoundDevice : public SoundDevice_PAR
 {
     RTCLASS_DEC
 
@@ -45,7 +45,7 @@ class SNDV : public SNDV_PAR
     virtual void SetVlm(long vlm) = 0;
     virtual long VlmCur(void) = 0;
 
-    virtual long SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil) = 0;
 
     virtual void Stop(long sii) = 0;
@@ -68,10 +68,10 @@ class SNDV : public SNDV_PAR
 /****************************************
     Sound manager class
 ****************************************/
-typedef class SNDM *PSNDM;
-#define SNDM_PAR SNDV
-#define kclsSNDM 'SNDM'
-class SNDM : public SNDM_PAR
+typedef class SoundManager *PSoundManager;
+#define SoundManager_PAR SoundDevice
+#define kclsSoundManager 'SNDM'
+class SoundManager : public SoundManager_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -80,28 +80,28 @@ class SNDM : public SNDM_PAR
   protected:
     struct SNDMPE
     {
-        CTG ctg;
-        PSNDV psndv;
+        ChunkTagOrType ctg;
+        PSoundDevice psndv;
     };
 
-    PGL _pglsndmpe; // sound type to device mapper
+    PDynamicArray _pglsndmpe; // sound type to device mapper
 
     long _cactSuspend;  // nesting level for suspending
     bool _fActive : 1;  // whether the app is active
     bool _fFreeing : 1; // we're in the destructor
 
-    SNDM(void);
+    SoundManager(void);
     bool _FInit(void);
-    bool _FFindCtg(CTG ctg, SNDMPE *psndmpe, long *pisndmpe = pvNil);
+    bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, long *pisndmpe = pvNil);
 
   public:
-    static PSNDM PsndmNew(void);
-    ~SNDM(void);
+    static PSoundManager PsndmNew(void);
+    ~SoundManager(void);
 
     // new methods
-    virtual bool FAddDevice(CTG ctg, PSNDV psndv);
-    virtual PSNDV PsndvFromCtg(CTG ctg);
-    virtual void RemoveSndv(CTG ctg);
+    virtual bool FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv);
+    virtual PSoundDevice PsndvFromCtg(ChunkTagOrType ctg);
+    virtual void RemoveSndv(ChunkTagOrType ctg);
 
     // inherited methods
     virtual bool FActive(void);
@@ -110,7 +110,7 @@ class SNDM : public SNDM_PAR
     virtual void SetVlm(long vlm);
     virtual long VlmCur(void);
 
-    virtual long SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil);
 
     virtual void Stop(long sii);
@@ -133,12 +133,12 @@ class SNDM : public SNDM_PAR
 /***************************************************************************
     A useful base class for devices that support multiple queues.
 ***************************************************************************/
-typedef class SNQUE *PSNQUE;
+typedef class SoundQueue *PSoundQueue;
 
-typedef class SNDMQ *PSNDMQ;
-#define SNDMQ_PAR SNDV
-#define kclsSNDMQ 'snmq'
-class SNDMQ : public SNDMQ_PAR
+typedef class SoundManagerQueue *PSoundManagerQueue;
+#define SoundManagerQueue_PAR SoundDevice
+#define kclsSoundManagerQueue 'snmq'
+class SoundManagerQueue : public SoundManagerQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -148,11 +148,11 @@ class SNDMQ : public SNDMQ_PAR
     // queue descriptor
     struct SNQD
     {
-        PSNQUE psnque;
+        PSoundQueue psnque;
         long sqn;
     };
 
-    PGL _pglsnqd; // the queues
+    PDynamicArray _pglsnqd; // the queues
 
     long _cactSuspend;
     bool _fActive : 1;
@@ -160,18 +160,18 @@ class SNDMQ : public SNDMQ_PAR
     virtual bool _FInit(void);
     virtual bool _FEnsureQueue(long sqn, SNQD *psnqd, long *pisnqd);
 
-    virtual PSNQUE _PsnqueNew(void) = 0;
+    virtual PSoundQueue _PsnqueNew(void) = 0;
     virtual void _Suspend(bool fSuspend) = 0;
 
   public:
-    ~SNDMQ(void);
+    ~SoundManagerQueue(void);
 
     // inherited methods
     virtual bool FActive(void);
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
 
-    virtual long SiiPlay(PRCA prca, CTG ctg, CNO cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
+    virtual long SiiPlay(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long sqn = ksqnNone, long vlm = kvlmFull, long cactPlay = 1,
                          ulong dtsStart = 0, long spr = 0, long scl = sclNil);
 
     virtual void Stop(long sii);
@@ -194,7 +194,7 @@ class SNDMQ : public SNDMQ_PAR
 ***************************************************************************/
 struct SNDIN
 {
-    PBACO pbaco;    // the sound to play
+    PBaseCacheableObject pbaco;    // the sound to play
     long sii;       // the sound instance id
     long vlm;       // volume to play at
     long cactPlay;  // how many times to play
@@ -207,36 +207,36 @@ struct SNDIN
 };
 
 /***************************************************************************
-    Sound queue for a SNDMQ
+    Sound queue for a SoundManagerQueue
 ***************************************************************************/
-#define SNQUE_PAR BASE
-#define kclsSNQUE 'snqu'
-class SNQUE : public SNQUE_PAR
+#define SoundQueue_PAR BASE
+#define kclsSoundQueue 'snqu'
+class SoundQueue : public SoundQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PGL _pglsndin;   // the queue
+    PDynamicArray _pglsndin;   // the queue
     long _isndinCur; // SNDIN that we should be playing
 
-    SNQUE(void);
+    SoundQueue(void);
 
     virtual bool _FInit(void);
     virtual void _Queue(long isndinMin) = 0;
     virtual void _PauseQueue(long isndinMin) = 0;
     virtual void _ResumeQueue(long isndinMin) = 0;
-    virtual PBACO _PbacoFetch(PRCA prca, CTG ctg, CNO cno) = 0;
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno) = 0;
 
     virtual void _Enter(void);
     virtual void _Leave(void);
     virtual void _Flush(void);
 
   public:
-    ~SNQUE(void);
+    ~SoundQueue(void);
 
-    void Enqueue(long sii, PRCA prca, CTG ctg, CNO cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
+    void Enqueue(long sii, PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno, long vlm, long cactPlay, ulong dtsStart, long spr, long scl);
 
     long SprCur(void);
     void Stop(long sii);

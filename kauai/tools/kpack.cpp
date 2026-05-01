@@ -20,12 +20,12 @@ bool _FGetLwFromSzs(PSZS pszs, long *plw);
 ***************************************************************************/
 int __cdecl main(int cpszs, char *prgpszs[])
 {
-    FNI fniSrc, fniDst;
-    STN stn;
+    Filename fniSrc, fniDst;
+    String stn;
     char chs;
-    FLO floSrc, floDst;
+    FileLocation floSrc, floDst;
     long lwSig;
-    BLCK blck;
+    DataBlock blck;
     bool fPacked;
     bool fCompress = fTrue;
     long cfni = 0;
@@ -122,7 +122,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    if (pvNil == (floSrc.pfil = FIL::PfilOpen(&fniSrc)))
+    if (pvNil == (floSrc.pfil = FileObject::PfilOpen(&fniSrc)))
     {
         fprintf(stderr, "Can't open source file\n\n");
         goto LFail;
@@ -130,7 +130,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     floSrc.fp = 0;
     floSrc.cb = floSrc.pfil->FpMac();
 
-    if (fniDst.FEqual(&fniSrc) || pvNil == (floDst.pfil = FIL::PfilCreate(&fniDst)))
+    if (fniDst.FEqual(&fniSrc) || pvNil == (floDst.pfil = FileObject::PfilCreate(&fniDst)))
     {
         fprintf(stderr, "Can't create destination file\n\n");
         goto LFail;
@@ -201,7 +201,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     ReleasePpo(&floSrc.pfil);
     ReleasePpo(&floDst.pfil);
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -214,18 +214,18 @@ LFail:
     ReleasePpo(&floDst.pfil);
     ReleasePpo(&floSrc.pfil);
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 1;
 }
 
 /***************************************************************************
     Get a long value from a string. If the string isn't a number and the
     length is <= 4, assumes the characters are to be packed into a long
-    (ala CTGs and FTGs).
+    (ala ChunkTags and FileTypes).
 ***************************************************************************/
 bool _FGetLwFromSzs(PSZS pszs, long *plw)
 {
-    STN stn;
+    String stn;
     long ich;
 
     stn.SetSzs(pszs);

@@ -20,7 +20,7 @@ const achar vrgchHex[] = PszLit("0123456789ABCDEF");
 /***************************************************************************
     Constructor for a string based on another string.
 ***************************************************************************/
-STN::STN(STN &stnSrc)
+String::String(String &stnSrc)
 {
     AssertPo(&stnSrc, 0);
 
@@ -31,7 +31,7 @@ STN::STN(STN &stnSrc)
 /***************************************************************************
     Constructor for a string based on an sz.
 ***************************************************************************/
-STN::STN(PSZ pszSrc)
+String::String(PZString pszSrc)
 {
     long cch = LwBound(CchSz(pszSrc), 0, kcchMaxStn + 1);
 
@@ -45,7 +45,7 @@ STN::STN(PSZ pszSrc)
 /***************************************************************************
     Assignment of one string to another.
 ***************************************************************************/
-STN &STN::operator=(STN &stnSrc)
+String &String::operator=(String &stnSrc)
 {
     AssertThis(0);
     AssertPo(&stnSrc, 0);
@@ -58,7 +58,7 @@ STN &STN::operator=(STN &stnSrc)
 /***************************************************************************
     Set the string to the given array of characters.
 ***************************************************************************/
-void STN::SetRgch(achar *prgchSrc, long cch)
+void String::SetRgch(achar *prgchSrc, long cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -78,9 +78,9 @@ void STN::SetRgch(achar *prgchSrc, long cch)
 }
 
 /***************************************************************************
-    Put the zero terminated short character string into the STN.
+    Put the zero terminated short character string into the String.
 ***************************************************************************/
-void STN::SetSzs(PSZS pszsSrc)
+void String::SetSzs(PSZS pszsSrc)
 {
     AssertThis(0);
     AssertVarMem(pszsSrc);
@@ -105,7 +105,7 @@ void STN::SetSzs(PSZS pszsSrc)
 /***************************************************************************
     Delete (at most) cch characters starting at position ich.
 ***************************************************************************/
-void STN::Delete(long ich, long cch)
+void String::Delete(long ich, long cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -135,7 +135,7 @@ void STN::Delete(long ich, long cch)
 /***************************************************************************
     Append some characters to the end of the string.
 ***************************************************************************/
-bool STN::FAppendRgch(achar *prgchSrc, long cch)
+bool String::FAppendRgch(achar *prgchSrc, long cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -163,7 +163,7 @@ bool STN::FAppendRgch(achar *prgchSrc, long cch)
 /***************************************************************************
     Insert some characters into the middle of a string.
 ***************************************************************************/
-bool STN::FInsertRgch(long ich, achar *prgchSrc, long cch)
+bool String::FInsertRgch(long ich, achar *prgchSrc, long cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -204,7 +204,7 @@ bool STN::FInsertRgch(long ich, achar *prgchSrc, long cch)
     Test whether the given rgch is equal to this string.  This does bytewise
     compare - not user level comparison.
 ***************************************************************************/
-bool STN::FEqualRgch(achar *prgch, long cch)
+bool String::FEqualRgch(achar *prgch, long cch)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -216,7 +216,7 @@ bool STN::FEqualRgch(achar *prgch, long cch)
 /***************************************************************************
     Do user level string equality testing with the options given in grfstn.
 ***************************************************************************/
-bool STN::FEqualUserRgch(achar *prgch, long cch, ulong grfstn)
+bool String::FEqualUserRgch(achar *prgch, long cch, ulong grfstn)
 {
     AssertThis(0);
     AssertIn(cch, 0, kcbMax);
@@ -227,9 +227,9 @@ bool STN::FEqualUserRgch(achar *prgch, long cch, ulong grfstn)
 
 /***************************************************************************
     Return the buffer size needed by GetData, or the block size needed
-    by STN::FWrite.
+    by String::FWrite.
 ***************************************************************************/
-long STN::CbData(void)
+long String::CbData(void)
 {
     AssertThis(0);
 
@@ -240,7 +240,7 @@ long STN::CbData(void)
     Get the streamed data for the stn. pv should point to a buffer
     CbData() bytes long.
 ***************************************************************************/
-void STN::GetData(void *pv)
+void String::GetData(void *pv)
 {
     AssertThis(0);
     AssertPvCb(pv, CbData());
@@ -253,7 +253,7 @@ void STN::GetData(void *pv)
 /***************************************************************************
     Writes the string data to the given block starting at position ib.
 ***************************************************************************/
-bool STN::FWrite(PBLCK pblck, long ib)
+bool String::FWrite(PDataBlock pblck, long ib)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -263,7 +263,7 @@ bool STN::FWrite(PBLCK pblck, long ib)
 
     if (!FIn(ib, 0, cbTot - cbWrite + 1))
     {
-        Bug("BLCK is not big enough");
+        Bug("DataBlock is not big enough");
         return fFalse;
     }
 
@@ -278,7 +278,7 @@ bool STN::FWrite(PBLCK pblck, long ib)
 /***************************************************************************
     Set the string from the given data.
 ***************************************************************************/
-bool STN::FSetData(void *pv, long cbMax, long *pcbRead)
+bool String::FSetData(void *pv, long cbMax, long *pcbRead)
 {
     AssertThis(0);
     AssertIn(cbMax, 0, kcbMax);
@@ -375,7 +375,7 @@ bool STN::FSetData(void *pv, long cbMax, long *pcbRead)
     default:
     LFail:
         PushErc(ercStnRead);
-        Warn("bad STN data");
+        Warn("bad String data");
         SetNil();
         TrashVar(pcbRead);
         return fFalse;
@@ -385,7 +385,7 @@ bool STN::FSetData(void *pv, long cbMax, long *pcbRead)
 /***************************************************************************
     Read a string from a block.
 ***************************************************************************/
-bool STN::FRead(PBLCK pblck, long ib, long *pcbRead)
+bool String::FRead(PDataBlock pblck, long ib, long *pcbRead)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -487,7 +487,7 @@ bool STN::FRead(PBLCK pblck, long ib, long *pcbRead)
     default:
     LFail:
         PushErc(ercStnRead);
-        Warn("bad STN data or read failure");
+        Warn("bad String data or read failure");
         SetNil();
         TrashVar(pcbRead);
         return fFalse;
@@ -497,7 +497,7 @@ bool STN::FRead(PBLCK pblck, long ib, long *pcbRead)
 /***************************************************************************
     Get a zero terminated short string from this string.
 ***************************************************************************/
-void STN::GetSzs(PSZS pszs)
+void String::GetSzs(PSZS pszs)
 {
     AssertThis(0);
     AssertPvCb(pszs, kcchTotSz);
@@ -530,7 +530,7 @@ void STN::GetSzs(PSZS pszs)
     %d signed decimal (long)
     %u unsigned decimal (long)
     %x hex
-    %f long as a 4 character value: 'xxxx' (ala FTG and CTG values)
+    %f long as a 4 character value: 'xxxx' (ala FileType and ChunkTagOrType values)
     %% a percent sign
 
     Supports the following options, in this order:
@@ -550,7 +550,7 @@ void STN::GetSzs(PSZS pszs)
 
     WARNING: all arguments should be 4 bytes long.
 ***************************************************************************/
-bool STN::FFormat(PSTN pstnFormat, ...)
+bool String::FFormat(PString pstnFormat, ...)
 {
     AssertThis(0);
     AssertPo(pstnFormat, 0);
@@ -559,9 +559,9 @@ bool STN::FFormat(PSTN pstnFormat, ...)
 }
 
 /***************************************************************************
-    See comments for STN::FFormat
+    See comments for String::FFormat
 ***************************************************************************/
-bool STN::FFormatSz(PSZ pszFormat, ...)
+bool String::FFormatSz(PZString pszFormat, ...)
 {
     AssertThis(0);
     AssertSz(pszFormat);
@@ -572,12 +572,12 @@ bool STN::FFormatSz(PSZ pszFormat, ...)
 /***************************************************************************
     Core routine for sprintf functionality.
 ***************************************************************************/
-bool STN::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData)
+bool String::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserDataa)
 {
     AssertThis(0);
     AssertIn(cchFormat, 0, kcchMaxStn + 1);
     AssertPvCb(prgchFormat, cchFormat * size(achar));
-    AssertVarMem(prgluData);
+    AssertVarMem(prglUserDataa);
 
     // Data Write Order - these dwo values are pcode for when to add what
     enum
@@ -597,7 +597,7 @@ bool STN::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData)
     achar *prgchTerm;
     achar chSign, chPad;
     ulong dwo;
-    PSTN pstn;
+    PString pstn;
     bool fRet = fFalse;
 
     pchInLim = (pchIn = prgchFormat) + cchFormat;
@@ -684,8 +684,8 @@ bool STN::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData)
 
         // code after the switch assumes that prgchTerm points to the
         // characters to add to the stream and cch is the number of characters
-        AssertPvCb(prgluData, LwMul(ivArg + 1, size(ulong)));
-        lu = prgluData[ivArg++];
+        AssertPvCb(prglUserDataa, LwMul(ivArg + 1, size(ulong)));
+        lu = prglUserDataa[ivArg++];
         prgchTerm = rgchT;
         switch (ch)
         {
@@ -695,7 +695,7 @@ bool STN::FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData)
             break;
 
         case ChLit('s'):
-            pstn = (PSTN)lu;
+            pstn = (PString)lu;
             AssertPo(pstn, 0);
             prgchTerm = pstn->Prgch();
             cch = pstn->Cch();
@@ -802,12 +802,12 @@ LFail:
 }
 
 /***************************************************************************
-    Parses the STN as a number.  If lwBase is 0, automatically determines
+    Parses the String as a number.  If lwBase is 0, automatically determines
     the base as one of 10, 8 or 16 (as in standard C) and allows leading
     spaces, '+' and '-' signs, and trailing spaces.  Doesn't deal with
     overflow.
 ***************************************************************************/
-bool STN::FGetLw(long *plw, long lwBase)
+bool String::FGetLw(long *plw, long lwBase)
 {
     AssertThis(0);
     AssertVarMem(plw);
@@ -816,7 +816,7 @@ bool STN::FGetLw(long *plw, long lwBase)
     long lwDigit;
     achar ch;
     bool fNegative = fFalse;
-    PSZ psz = Psz();
+    PZString psz = Psz();
 
     if (lwBase < 2)
     {
@@ -899,7 +899,7 @@ bool STN::FGetLw(long *plw, long lwBase)
     Doubles any backslash characters in the string and replaces " literals
     with \".
 ***************************************************************************/
-bool STN::FExpandControls(void)
+bool String::FExpandControls(void)
 {
     AssertThis(0);
     achar rgch[kcchMaxStn];
@@ -947,9 +947,9 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a STN.
+    Assert the validity of a String.
 ***************************************************************************/
-void STN::AssertValid(ulong grf)
+void String::AssertValid(ulong grf)
 {
     AssertThisMem();
 
@@ -969,7 +969,7 @@ void STN::AssertValid(ulong grf)
 /***************************************************************************
     Check the validity of an st (make sure no zeros are in it).
 ***************************************************************************/
-bool FValidSt(PST pst)
+bool FValidSt(PPascalString pst)
 {
     AssertVarMem(pst);
     achar *pch;
@@ -996,7 +996,7 @@ bool FValidStz(PSTZ pstz)
 /***************************************************************************
     Find the length of a zero terminated string.
 ***************************************************************************/
-long CchSz(PSZ psz)
+long CchSz(PZString psz)
 {
     // WARNING: don't call AssertSz, since AssertSz calls CchSz!
     AssertVarMem(psz);
@@ -1490,7 +1490,7 @@ void AssertOsk(short osk)
 /***************************************************************************
     Check the validity of an st (make sure no zeros are in it).
 ***************************************************************************/
-void AssertSt(PST pst)
+void AssertSt(PPascalString pst)
 {
     Assert(FValidSt(pst), "bad st");
 }
@@ -1506,7 +1506,7 @@ void AssertStz(PSTZ pstz)
 /***************************************************************************
     Make sure the sz isn't too long.
 ***************************************************************************/
-void AssertSz(PSZ psz)
+void AssertSz(PZString psz)
 {
     // CchSz does all the asserting we need
     long cch = CchSz(psz);
@@ -1515,7 +1515,7 @@ void AssertSz(PSZ psz)
 /***************************************************************************
     Check the validity of an st, nil is allowed.
 ***************************************************************************/
-void AssertNilOrSt(PST pst)
+void AssertNilOrSt(PPascalString pst)
 {
     if (pst != pvNil)
         AssertSt(pst);
@@ -1533,7 +1533,7 @@ void AssertNilOrStz(PSTZ pstz)
 /***************************************************************************
     Check the validity of an sz, nil is allowed.
 ***************************************************************************/
-void AssertNilOrSz(PSZ psz)
+void AssertNilOrSz(PZString psz)
 {
     if (psz != pvNil)
         AssertSz(psz);

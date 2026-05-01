@@ -22,8 +22,8 @@
 ***************************************************************************/
 
 // command handler forward declaration
-class CMH;
-typedef CMH *PCMH;
+class CommandHandler;
+typedef CommandHandler *PCommandHandler;
 
 // command enable-disable status flags
 enum
@@ -39,37 +39,37 @@ const ulong kgrfedsMark = fedsUncheck | fedsCheck | fedsBullet;
 
 // command
 #define kclwCmd 4 // if this ever changes, change the CMD_TYPE macro also
-struct CMD
+struct Command
 {
     ASSERT
 
-    PCMH pcmh;          // the target of the command - may be nil
+    PCommandHandler pcmh;          // the target of the command - may be nil
     long cid;           // the command id
-    PGG pgg;            // additional parameters for the command
+    PGeneralGroup pgg;            // additional parameters for the command
     long rglw[kclwCmd]; // standard parameters
 };
-typedef CMD *PCMD;
+typedef Command *PCommand;
 
 // command on file - for saving recorded macros
-struct CMDF
+struct CommandFile
 {
     long cid;
     long hid;
     long cact;
-    CHID chidGg; // child id of the pgg, 0 if none
+    ChildChunkID chidGg; // child id of the pgg, 0 if none
     long rglw[kclwCmd];
 };
 
 /***************************************************************************
     Custom command types
 ***************************************************************************/
-// used to define a new CMD structure.  Needs a trailing semicolon.
+// used to define a new Command structure.  Needs a trailing semicolon.
 #define CMD_TYPE(foo, a, b, c, d)                                                                                      \
     struct CMD_##foo                                                                                                   \
     {                                                                                                                  \
-        PCMH pcmh;                                                                                                     \
+        PCommandHandler pcmh;                                                                                                     \
         long cid;                                                                                                      \
-        PGG pgg;                                                                                                       \
+        PGeneralGroup pgg;                                                                                                       \
         long a, b, c, d;                                                                                               \
     };                                                                                                                 \
     typedef CMD_##foo *PCMD_##foo
@@ -79,7 +79,7 @@ CMD_TYPE(BADKEY, ch, vk, grfcust, hid); // defines CMD_BADKEY and PCMD_BADKEY
 CMD_TYPE(MOUSE, xp, yp, grfcust, cact); // defines CMD_MOUSE and PCMD_MOUSE
 
 /***************************************************************************
-    Command Map stuff.  To attach a command map to a subclass of CMH,
+    Command Map stuff.  To attach a command map to a subclass of CommandHandler,
     put a CMD_MAP_DEC(cls) in the definition of the class.  Then in the
     .cpp file, use BEGIN_CMD_MAP, ON_CID and END_CMD_MAP to define the
     command map.  This architecture was borrowed from MFC.
@@ -96,22 +96,22 @@ const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 // for including a command map in this class
 #define CMD_MAP_DEC(cls)                                                                                               \
   private:                                                                                                             \
-    static CMME _rgcmme##cls[];                                                                                        \
+    static CommandMapEntry _rgcmme##cls[];                                                                                        \
                                                                                                                        \
   protected:                                                                                                           \
-    static CMM _cmm##cls;                                                                                              \
-    virtual CMM *Pcmm(void)                                                                                            \
+    static CommandMap _cmm##cls;                                                                                              \
+    virtual CommandMap *Pcmm(void)                                                                                            \
     {                                                                                                                  \
         return &_cmm##cls;                                                                                             \
     }
 
 // for defining the command map in a .cpp file
 #define BEGIN_CMD_MAP_BASE(cls)                                                                                        \
-    cls::CMM cls::_cmm##cls = {pvNil, cls::_rgcmme##cls};                                                              \
-    cls::CMME cls::_rgcmme##cls[] = {
+    cls::CommandMap cls::_cmm##cls = {pvNil, cls::_rgcmme##cls};                                                              \
+    cls::CommandMapEntry cls::_rgcmme##cls[] = {
 #define BEGIN_CMD_MAP(cls, clsBase)                                                                                    \
-    cls::CMM cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls};                                          \
-    cls::CMME cls::_rgcmme##cls[] = {
+    cls::CommandMap cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls};                                          \
+    cls::CommandMapEntry cls::_rgcmme##cls[] = {
 
 #define ON_CID(cid, pfncmd, pfneds, grfcmm) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, grfcmm},
 #define ON_CID_ME(cid, pfncmd, pfneds) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, fcmmThis},
@@ -134,9 +134,9 @@ const ulong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 /***************************************************************************
     Command handler class
 ***************************************************************************/
-#define CMH_PAR BASE
-#define kclsCMH 'CMH'
-class CMH : public CMH_PAR
+#define CommandHandler_PAR BASE
+#define kclsCommandHandler 'CMH'
+class CommandHandler : public CommandHandler_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -147,13 +147,13 @@ class CMH : public CMH_PAR
 
   protected:
     // command function
-    typedef bool (CMH::*PFNCMD)(PCMD pcmd);
+    typedef bool (CommandHandler::*PFNCMD)(PCommand pcmd);
 
     // command enabler function
-    typedef bool (CMH::*PFNEDS)(PCMD pcmd, ulong *pgrfeds);
+    typedef bool (CommandHandler::*PFNEDS)(PCommand pcmd, ulong *pgrfeds);
 
     // command map entry
-    struct CMME
+    struct CommandMapEntry
     {
         long cid;
         PFNCMD pfncmd;
@@ -162,24 +162,24 @@ class CMH : public CMH_PAR
     };
 
     // command map
-    struct CMM
+    struct CommandMap
     {
-        CMM *pcmmBase;
-        CMME *prgcmme;
+        CommandMap *pcmmBase;
+        CommandMapEntry *prgcmme;
     };
 
-    CMD_MAP_DEC(CMH)
+    CMD_MAP_DEC(CommandHandler)
 
   protected:
-    virtual bool _FGetCmme(long cid, ulong grfcmmWanted, CMME *pcmme);
+    virtual bool _FGetCmme(long cid, ulong grfcmmWanted, CommandMapEntry *pcmme);
 
   public:
-    CMH(long hid);
-    ~CMH(void);
+    CommandHandler(long hid);
+    ~CommandHandler(void);
 
     // return indicates whether the command was handled, not success
-    virtual bool FDoCmd(PCMD pcmd);
-    virtual bool FEnableCmd(PCMD pcmd, ulong *pgrfeds);
+    virtual bool FDoCmd(PCommand pcmd);
+    virtual bool FEnableCmd(PCommand pcmd, ulong *pgrfeds);
 
     long Hid(void)
     {
@@ -203,21 +203,21 @@ enum
     recLim
 };
 
-typedef class CEX *PCEX;
-#define CEX_PAR BASE
-#define kclsCEX 'CEX'
-class CEX : public CEX_PAR
+typedef class CommandExecutionManager *PCommandExecutionManager;
+#define CommandExecutionManager_PAR BASE
+#define kclsCommandExecutionManager 'CEX'
+class CommandExecutionManager : public CommandExecutionManager_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CEX)
+    NOCOPY(CommandExecutionManager)
 
   protected:
     // an entry in the command handler list
-    struct CMHE
+    struct CommandHandlerEntry
     {
-        PCMH pcmh;
+        PCommandHandler pcmh;
         long cmhl;
         ulong grfcmm;
     };
@@ -234,51 +234,51 @@ class CEX : public CEX_PAR
     // recording and playback
     long _rs;       // recording/playback state
     long _rec;      // recording/playback errors
-    PCFL _pcfl;     // the file we are recording to or playing from
-    PGL _pglcmdf;   // the command stream
-    CNO _cno;       // which macro is being played
+    PChunkyFile _pcfl;     // the file we are recording to or playing from
+    PDynamicArray _pglcmdf;   // the command stream
+    ChunkNumber _cno;       // which macro is being played
     long _icmdf;    // current command for recording or playback
-    CHID _chidLast; // last chid used for recording
+    ChildChunkID _chidLast; // last chid used for recording
     long _cact;     // number of times on this command
-    CMD _cmd;       // previous command recorded or played
+    Command _cmd;       // previous command recorded or played
 
     // dispatching
-    CMD _cmdCur;     // command being dispatched
+    Command _cmdCur;     // command being dispatched
     long _icmheNext; // next command handler to dispatch to
-    PGOB _pgobTrack; // the gob that is tracking the mouse
+    PGraphicsObject _pgobTrack; // the gob that is tracking the mouse
 #ifdef WIN
     HWND _hwndCapture; // the hwnd that we captured the mouse with
 #endif                 // WIN
 
     // filter list and command queue
-    PGL _pglcmhe;       // the command filter list
-    PGL _pglcmd;        // the command queue
+    PDynamicArray _pglcmhe;       // the command filter list
+    PDynamicArray _pglcmd;        // the command queue
     bool _fDispatching; // whether we're currently in FDispatchNextCmd
 
     // Modal filtering
-    PGOB _pgobModal;
+    PGraphicsObject _pgobModal;
 
 #ifdef DEBUG
     long _ccmdMax; // running max
 #endif             // DEBUG
 
-    CEX(void);
+    CommandExecutionManager(void);
 
     virtual bool _FInit(long ccmdInit, long ccmhInit);
     virtual bool _FFindCmhl(long cmhl, long *picmhe);
 
-    virtual bool _FCmhOk(PCMH pcmh);
+    virtual bool _FCmhOk(PCommandHandler pcmh);
     virtual tribool _TGetNextCmd(void);
-    virtual bool _FSendCmd(PCMH pcmh);
+    virtual bool _FSendCmd(PCommandHandler pcmh);
     virtual void _CleanUpCmd(void);
-    virtual bool _FEnableCmd(PCMH pcmh, PCMD pcmd, ulong *pgrfeds);
+    virtual bool _FEnableCmd(PCommandHandler pcmh, PCommand pcmd, ulong *pgrfeds);
 
     // command recording and playback
-    bool _FReadCmd(PCMD pcmd);
+    bool _FReadCmd(PCommand pcmd);
 
   public:
-    static PCEX PcexNew(long ccmdInit, long ccmhInit);
-    ~CEX(void);
+    static PCommandExecutionManager PcexNew(long ccmdInit, long ccmhInit);
+    ~CommandExecutionManager(void);
 
     // recording and play back
     bool FRecording(void)
@@ -289,42 +289,42 @@ class CEX : public CEX_PAR
     {
         return _rs == rsPlaying;
     }
-    void Record(PCFL pcfl);
-    void Play(PCFL pcfl, CNO cno);
+    void Record(PChunkyFile pcfl);
+    void Play(PChunkyFile pcfl, ChunkNumber cno);
     void StopRecording(void);
     void StopPlaying(void);
 
-    void RecordCmd(PCMD pcmd);
+    void RecordCmd(PCommand pcmd);
 
     // managing the filter list
-    virtual bool FAddCmh(PCMH pcmh, long cmhl, ulong grfcmm = fcmmNobody);
-    virtual void RemoveCmh(PCMH pcmh, long cmhl);
-    virtual void BuryCmh(PCMH pcmh);
+    virtual bool FAddCmh(PCommandHandler pcmh, long cmhl, ulong grfcmm = fcmmNobody);
+    virtual void RemoveCmh(PCommandHandler pcmh, long cmhl);
+    virtual void BuryCmh(PCommandHandler pcmh);
 
     // queueing and dispatching
-    virtual void EnqueueCmd(PCMD pcmd);
-    virtual void PushCmd(PCMD pcmd);
-    virtual void EnqueueCid(long cid, PCMH pcmh = pvNil, PGG pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual void EnqueueCmd(PCommand pcmd);
+    virtual void PushCmd(PCommand pcmd);
+    virtual void EnqueueCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                             long lw3 = 0);
-    virtual void PushCid(long cid, PCMH pcmh = pvNil, PGG pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual void PushCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                          long lw3 = 0);
     virtual bool FDispatchNextCmd(void);
-    virtual bool FGetNextKey(PCMD pcmd);
+    virtual bool FGetNextKey(PCommand pcmd);
     virtual bool FCidIn(long cid);
     virtual void FlushCid(long cid);
 
     // menu marking
-    virtual ulong GrfedsForCmd(PCMD pcmd);
-    virtual ulong GrfedsForCid(long cid, PCMH pcmh = pvNil, PGG pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
+    virtual ulong GrfedsForCmd(PCommand pcmd);
+    virtual ulong GrfedsForCid(long cid, PCommandHandler pcmh = pvNil, PGeneralGroup pgg = pvNil, long lw0 = 0, long lw1 = 0, long lw2 = 0,
                                long lw3 = 0);
 
     // mouse tracking
-    virtual void TrackMouse(PGOB pgob);
+    virtual void TrackMouse(PGraphicsObject pgob);
     virtual void EndMouseTracking(void);
-    virtual PGOB PgobTracking(void);
+    virtual PGraphicsObject PgobTracking(void);
 
     virtual void Suspend(bool fSuspend = fTrue);
-    virtual void SetModalGob(PGOB pgob);
+    virtual void SetModalGob(PGraphicsObject pgob);
 };
 
 #endif //! CMD_H

@@ -16,18 +16,18 @@
 #ifndef PIC_H
 #define PIC_H
 
-const FTG kftgPict = 'PICT';
-const FTG kftgMeta = 'WMF';
-const FTG kftgEnhMeta = 'EMF';
+const FileType kftgPict = 'PICT';
+const FileType kftgMeta = 'WMF';
+const FileType kftgEnhMeta = 'EMF';
 
 /***************************************************************************
     Picture class.  This is a wrapper around a system picture (Mac Pict or
     Win MetaFile).
 ***************************************************************************/
-typedef class PIC *PPIC;
-#define PIC_PAR BACO
-#define kclsPIC 'PIC'
-class PIC : public PIC_PAR
+typedef class Picture *PPicture;
+#define Picture_PAR BaseCacheableObject
+#define kclsPicture 'PIC'
+class Picture : public Picture_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -42,31 +42,31 @@ class PIC : public PIC_PAR
     HPIC _hpic;
     RC _rc;
 
-    PIC(void);
+    Picture(void);
 #ifdef WIN
-    static HPIC _HpicReadWmf(FNI *pfni);
+    static HPIC _HpicReadWmf(Filename *pfni);
 #endif // WIN
 
   public:
-    ~PIC(void);
+    ~Picture(void);
 
-    static PPIC PpicFetch(PCFL pcfl, CTG ctg, CNO cno, CHID chid = 0);
-    static PPIC PpicRead(PBLCK pblck);
-    static PPIC PpicReadNative(FNI *pfni);
-    static PPIC PpicNew(HPIC hpic, RC *prc);
+    static PPicture PpicFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid = 0);
+    static PPicture PpicRead(PDataBlock pblck);
+    static PPicture PpicReadNative(Filename *pfni);
+    static PPicture PpicNew(HPIC hpic, RC *prc);
 
     void GetRc(RC *prc);
     HPIC Hpic(void)
     {
         return _hpic;
     }
-    bool FAddToCfl(PCFL pcfl, CTG ctg, CNO *pcno, CHID chid = 0);
-    bool FPutInCfl(PCFL pcfl, CTG ctg, CNO cno, CHID chid = 0);
+    bool FAddToCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno, ChildChunkID chid = 0);
+    bool FPutInCfl(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid = 0);
     virtual long CbOnFile(void);
-    virtual bool FWrite(PBLCK pblck);
+    virtual bool FWrite(PDataBlock pblck);
 };
 
 // a chunky resource reader to read picture 0 from a GRAF chunk
-bool FReadMainPic(PCFL pcfl, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+bool FReadMainPic(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
 
 #endif //! PIC_H

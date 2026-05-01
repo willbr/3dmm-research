@@ -19,14 +19,14 @@ ASSERTNAME
 int __cdecl main(int cpszs, char *prgpszs[])
 {
     schar chs;
-    STN stn;
-    FNI fniSrc, fniT;
-    CKI cki;
+    String stn;
+    Filename fniSrc, fniT;
+    ChunkIdentification cki;
     long icki;
-    CNO cnoDst;
-    PCFL pcflSrc;
+    ChunkNumber cnoDst;
+    PChunkyFile pcflSrc;
     bool fPreOrder = fFalse;
-    PCFL pcflMerge = pvNil;
+    PChunkyFile pcflMerge = pvNil;
 
 #ifdef UNICODE
     fprintf(stderr,
@@ -53,7 +53,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
                     goto LUsage;
                 }
 
-                if (pvNil == (pcflMerge = CFL::PcflCreateTemp()))
+                if (pvNil == (pcflMerge = ChunkyFile::PcflCreateTemp()))
                     goto LFail;
                 break;
 
@@ -70,7 +70,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
                 fprintf(stderr, "Error: Bad file name: %s\n\n", *prgpszs);
                 goto LUsage;
             }
-            if (pvNil == (pcflMerge = CFL::PcflOpen(&fniSrc, fcflNil)))
+            if (pvNil == (pcflMerge = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
             {
                 fprintf(stderr, "Error: Couldn't open %s\n\n", *prgpszs);
                 goto LUsage;
@@ -93,7 +93,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
             }
 
             // merge fniSrc into pcflMerge
-            if (pvNil == (pcflSrc = CFL::PcflOpen(&fniSrc, fcflNil)))
+            if (pvNil == (pcflSrc = ChunkyFile::PcflOpen(&fniSrc, fcflNil)))
             {
                 fprintf(stderr, "Error: Couldn't open %s\n\n", *prgpszs);
                 goto LUsage;
@@ -127,12 +127,12 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     if (fPreOrder)
     {
-        FLO floSrc, floDst;
+        FileLocation floSrc, floDst;
 
         if (!pcflMerge->FSave('CHMR'))
             goto LFail;
         pcflMerge->GetFni(&fniT);
-        if (pvNil == (floSrc.pfil = FIL::PfilFromFni(&fniT)))
+        if (pvNil == (floSrc.pfil = FileObject::PfilFromFni(&fniT)))
         {
             Bug("what happened?");
             goto LFail;
@@ -140,7 +140,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         floSrc.fp = 0;
         floSrc.cb = floSrc.pfil->FpMac();
 
-        if (pvNil == (floDst.pfil = FIL::PfilCreate(&fniSrc)))
+        if (pvNil == (floDst.pfil = FileObject::PfilCreate(&fniSrc)))
             goto LFail;
         floDst.fp = 0;
         floDst.cb = floSrc.cb;
@@ -158,7 +158,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
             goto LFail;
     }
 
-    FIL::ShutDown();
+    FileObject::ShutDown();
     return 0;
 
 LUsage:
@@ -166,7 +166,7 @@ LUsage:
     fprintf(stderr, "%s", "Usage:  chmerge [-r] <srcFile0> [<srcFile1> ...] <dstFile>\n\n");
 
 LFail:
-    FIL::ShutDown();
+    FileObject::ShutDown();
     fprintf(stderr, "Something failed\n");
     return 1;
 }

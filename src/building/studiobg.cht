@@ -13,7 +13,7 @@
 WAVE_CHUNK( "building\sound\studio\tvpop.wav", kwavStudioTVPop)
 OBJECT( "studio1: toolbox",  kgobStudio1Tools, 120, kcrsHand1 )
 	REP_PPMBMP( CHID1( krepDefault), "building\pbm\studio\st1tbx.pbm" )
-	REP_ANIM(CHID(kst2, krepDefault), "Studio: Toolbox TV")
+	REP_ANIM(ChildChunkID(kst2, krepDefault), "Studio: Toolbox TV")
  		// disable hotspots and play the toolbox pop out.
  		DISABLEHOTSPOTS(kflgBuildingMin);
 		ENDVOICE();
@@ -33,7 +33,7 @@ OBJECT( "studio1: toolbox",  kgobStudio1Tools, 120, kcrsHand1 )
 
 												 // Z depth above help balloons which have depth of 800.
 OBJECT( "studio1: toolbox anim",  kgobStudio1TV, 810, kcrsHand1 )
-	REP_ANIM(CHID(kst1, krepDefault), "Studio: Toolbox TV")
+	REP_ANIM(ChildChunkID(kst1, krepDefault), "Studio: Toolbox TV")
  		cnt = kcell1;
 		SetNoSlipThis( fTrue );		// we can now drop frames!
 		While (cnt <= kcell22);
@@ -74,12 +74,12 @@ OBJECT("studio1: mczee", kgobStudio1McZee, 111, kcrsHand1)
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 1: Default and hidden state.
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_RECT(CHID(kst1, krepDefault), "studio1:mczee", 0, 0, 0, 0)
+	REP_RECT(ChildChunkID(kst1, krepDefault), "studio1:mczee", 0, 0, 0, 0)
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 2: Wait state.
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_ANIM(CHID(kst2, krepDefault), "mczee talking on phone")
+	REP_ANIM(ChildChunkID(kst2, krepDefault), "mczee talking on phone")
 		Cell(kcell69, 0, 0, 120);
 		WAIT_FOR_TRANSITION();
 		While (fTrue);
@@ -121,7 +121,7 @@ OBJECT("studio1: mczee", kgobStudio1McZee, 111, kcrsHand1)
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 	// State 3: McZee Studio Intro/Help.  "Hey --welcome to the studio!"
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_ANIM(CHID(kst3, krepDefault), "mczee intro")
+	REP_ANIM(ChildChunkID(kst3, krepDefault), "mczee intro")
 		VOICE(kwavStd1B, ktpcStd1B);
  		i = kcell69;
 		While (i <= kcell138);
@@ -138,10 +138,10 @@ OBJECT("studio1: mczee", kgobStudio1McZee, 111, kcrsHand1)
 	// State 4: McZee - take us into the tools (play intro anim of 
 	// talking in front of the tools if necessary)
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-	REP_ANIM(CHID(kst4, krepDefault), "mczee intro")
+	REP_ANIM(ChildChunkID(kst4, krepDefault), "mczee intro")
 		PLAYMIDI( cnoNil );	// stop midi
 		//WAIT_FOR_TRANSITION();
-		Cell( CHID(kst1, krepDefault), 0,0, 1 );	// hide mczee
+		Cell( ChildChunkID(kst1, krepDefault), 0,0, 1 );	// hide mczee
 		DestroyGob( kgobStudio1TV );
 		DestroyGob( kgobStudio1Tools );
 		ChangeStateGob( kgobStudio1, kst2 );		// switch to tools background in case AVI goes
@@ -157,15 +157,15 @@ OBJECT("studio1: mczee", kgobStudio1McZee, 111, kcrsHand1)
 		::fStdIntro = fTrue;
 		ENDVOICE();
 		CreateChildGob( GidParThis(), kgobToolsIntroAVI, kgobToolsIntroAVI );
-		Cell( CHID(kst1, krepDefault),0,0, 100 );	// pause for sufficient cue-up 
+		Cell( ChildChunkID(kst1, krepDefault),0,0, 100 );	// pause for sufficient cue-up 
 		While( PlayingGob( kgobToolsIntroAVI ));
-			Cell( CHID(kst1, krepDefault), 0, 0, 10 );	// poll at 1/6ths of a second
+			Cell( ChildChunkID(kst1, krepDefault), 0, 0, 10 );	// poll at 1/6ths of a second
 		End; 
 		SETGLOBAL( fStudioPS, fFalse );
 		ChangeStateThis( kst5 );
 	ENDCHUNK
 	
-	REP_ANIM( CHID(kst5, krepDefault), "start tools")
+	REP_ANIM( ChildChunkID(kst5, krepDefault), "start tools")
 		DestroyThis();	// Erase McZee to prevent palette flash
 		ENDVOICE();		// Make sure McZee isn't talking
 		

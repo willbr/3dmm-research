@@ -8,47 +8,51 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    The GG of TAGFs is maintained in sorted order.  It is sorted by sid,
-    then by	CTG, then by CNO.
+    The GeneralGroup of CachedTags is maintained in sorted order.  It is sorted by sid,
+    then by	ChunkTagOrType, then by ChunkNumber.
 
 ***************************************************************************/
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TAGL)
+RTCLASS(TagList)
 
 /****************************************
-    TAGF, or "tag-flag" struct, stores
-    the tag that you want to cache and
-    whether to cache its children
-    automatically or not.
+    CachedTag stores the tag that you
+    want to cache and whether to cache
+    its children automatically or not.
 ****************************************/
-struct TAGF
+struct CachedTag
 {
     TAG tag;
     bool fCacheChildren;
 };
+// CachedTag is runtime-only — TagList is built fresh by enumerating scenes
+// (see Movie::_PtaglFetch) and is never serialized. So this struct's size is
+// allowed to grow with TAG on 64-bit platforms (24 bytes vs 20 on x86) without
+// breaking the .3MM wire format.
 
 /****************************************
-    CC, or "chid-ctg" struct, for
+    ChidCtgPair: "chid-ctg" struct, for
     children of a tag.  An array of
     these is the variable part of the
-    GG.
+    GeneralGroup.
 ****************************************/
-struct CC
+struct ChidCtgPair
 {
-    CHID chid;
-    CTG ctg;
+    ChildChunkID chid;
+    ChunkTagOrType ctg;
 };
+static_assert(sizeof(ChidCtgPair) == 8, "ChidCtgPair on-disk layout drift");
 
 /***************************************************************************
-    Create a new TAGL
+    Create a new TagList
 ***************************************************************************/
-PTAGL TAGL::PtaglNew(void)
+PTagList TagList::PtaglNew(void)
 {
-    PTAGL ptagl;
+    PTagList ptagl;
 
-    ptagl = NewObj TAGL;
+    ptagl = NewObj TagList;
     if (pvNil == ptagl)
         return pvNil;
     if (!ptagl->_FInit())
@@ -61,13 +65,13 @@ PTAGL TAGL::PtaglNew(void)
 }
 
 /***************************************************************************
-    Initialize the TAGL
+    Initialize the TagList
 ***************************************************************************/
-bool TAGL::_FInit(void)
+bool TagList::_FInit(void)
 {
     AssertBaseThis(0);
 
-    _pggtagf = GG::PggNew(size(TAGF));
+    _pggtagf = GeneralGroup::PggNew(size(CachedTag));
     if (pvNil == _pggtagf)
         return fFalse;
     return fTrue;
@@ -76,16 +80,16 @@ bool TAGL::_FInit(void)
 /***************************************************************************
     Clean up and delete this tag list
 ***************************************************************************/
-TAGL::~TAGL(void)
+TagList::~TagList(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pggtagf);
 }
 
 /***************************************************************************
-    Return the count of tags in the TAGL
+    Return the count of tags in the TagList
 ***************************************************************************/
-long TAGL::Ctag(void)
+long TagList::Ctag(void)
 {
     AssertThis(0);
 
@@ -93,38 +97,38 @@ long TAGL::Ctag(void)
 }
 
 /***************************************************************************
-    Get the itag'th tag from the TAGL
+    Get the itag'th tag from the TagList
 ***************************************************************************/
-void TAGL::GetTag(long itag, PTAG ptag)
+void TagList::GetTag(long itag, PTAG ptag)
 {
     AssertThis(0);
     AssertIn(itag, 0, Ctag());
     AssertVarMem(ptag);
 
-    TAGF tagf;
+    CachedTag tagf;
 
     _pggtagf->GetFixed(itag, &tagf);
     *ptag = tagf.tag;
 }
 
 /***************************************************************************
-    Find ptag in the TAGL.  If the tag is found, the function returns
-    fTrue and *pitag is the location of the tag in the GG.  If the tag
+    Find ptag in the TagList.  If the tag is found, the function returns
+    fTrue and *pitag is the location of the tag in the GeneralGroup.  If the tag
     is not found, the function returns fFalse and *pitag is the location
-    at which the tag should be inserted into the GG to maintain correct
-    sorting order in the GG.
+    at which the tag should be inserted into the GeneralGroup to maintain correct
+    sorting order in the GeneralGroup.
 ***************************************************************************/
-bool TAGL::_FFindTag(PTAG ptag, long *pitag)
+bool TagList::_FFindTag(PTAG ptag, long *pitag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     AssertVarMem(pitag);
 
-    TAGF *qtagf;
+    CachedTag *qtagf;
     long itagfMin, itagfLim, itagf;
     long sid = ptag->sid;
-    CTG ctg = ptag->ctg;
-    CNO cno = ptag->cno;
+    ChunkTagOrType ctg = ptag->ctg;
+    ChunkNumber cno = ptag->cno;
 
     if (_pggtagf->IvMac() == 0)
     {
@@ -132,11 +136,11 @@ bool TAGL::_FFindTag(PTAG ptag, long *pitag)
         return fFalse;
     }
 
-    // Do a binary search.  The TAGFs are sorted by (sid, ctg, cno).
+    // Do a binary search.  The CachedTags are sorted by (sid, ctg, cno).
     for (itagfMin = 0, itagfLim = _pggtagf->IvMac(); itagfMin < itagfLim;)
     {
         itagf = (itagfMin + itagfLim) / 2;
-        qtagf = (TAGF *)_pggtagf->QvFixedGet(itagf);
+        qtagf = (CachedTag *)_pggtagf->QvFixedGet(itagf);
         if (sid < qtagf->tag.sid)
             itagfLim = itagf;
         else if (sid > qtagf->tag.sid)
@@ -162,49 +166,49 @@ bool TAGL::_FFindTag(PTAG ptag, long *pitag)
 }
 
 /***************************************************************************
-    Insert the given tag into the TAGL, if it isn't already in there.
+    Insert the given tag into the TagList, if it isn't already in there.
 ***************************************************************************/
-bool TAGL::FInsertTag(PTAG ptag, bool fCacheChildren)
+bool TagList::FInsertTag(PTAG ptag, bool fCacheChildren)
 {
     AssertThis(0);
     AssertVarMem(ptag);
 
     long itag;
-    TAGF tagf;
+    CachedTag tagf;
 
     if (!_FFindTag(ptag, &itag))
     {
-        // Build and insert TAGF into fixed part of GG
+        // Build and insert CachedTag into fixed part of GeneralGroup
         tagf.tag = *ptag;
         tagf.fCacheChildren = fCacheChildren;
         if (!_pggtagf->FInsert(itag, 0, pvNil, &tagf))
             return fFalse;
         return fTrue;
     }
-    // Tag is already in GG, see if fCacheChildren needs to be updated
+    // Tag is already in GeneralGroup, see if fCacheChildren needs to be updated
     _pggtagf->GetFixed(itag, &tagf);
     if (!tagf.fCacheChildren && fCacheChildren)
     {
         // FIXME(bruxisma): The compiler has correctly identified that this
         // should be an assignment.
-        tagf.fCacheChildren == fTrue;
+        tagf.fCacheChildren = fTrue;
         _pggtagf->PutFixed(itag, &tagf);
     }
     return fTrue;
 }
 
 /***************************************************************************
-    Insert a TAG child into the TAGL
+    Insert a TAG child into the TagList
 ***************************************************************************/
-bool TAGL::FInsertChild(PTAG ptag, CHID chid, CTG ctg)
+bool TagList::FInsertChild(PTAG ptag, ChildChunkID chid, ChunkTagOrType ctg)
 {
     AssertThis(0);
     AssertVarMem(ptag);
 
     long itagf;
-    CC ccNew;
-    CC *prgcc;
-    long ccc; // count of CCs
+    ChidCtgPair ccNew;
+    ChidCtgPair *prgcc;
+    long ccc; // count of ChidCtgPairs
     long icc;
 
     if (!_FFindTag(ptag, &itagf))
@@ -213,7 +217,7 @@ bool TAGL::FInsertChild(PTAG ptag, CHID chid, CTG ctg)
         return fFalse;
     }
 #ifdef DEBUG
-    TAGF tagf;
+    CachedTag tagf;
     _pggtagf->GetFixed(itagf, &tagf);
     if (tagf.tag.ctg != ptag->ctg || tagf.tag.cno != ptag->cno)
         Bug("_FFindTag has a bug");
@@ -221,14 +225,14 @@ bool TAGL::FInsertChild(PTAG ptag, CHID chid, CTG ctg)
 
     ccNew.chid = chid;
     ccNew.ctg = ctg;
-    ccc = _pggtagf->Cb(itagf) / size(CC);
+    ccc = _pggtagf->Cb(itagf) / size(ChidCtgPair);
     if (ccc == 0)
     {
-        if (!_pggtagf->FPut(itagf, size(CC), &ccNew))
+        if (!_pggtagf->FPut(itagf, size(ChidCtgPair), &ccNew))
             return fFalse;
         return fTrue;
     }
-    prgcc = (CC *)_pggtagf->QvGet(itagf);
+    prgcc = (ChidCtgPair *)_pggtagf->QvGet(itagf);
     // linear search through prgcc to find where to insert ccNew
     for (icc = 0; icc < ccc; icc++)
     {
@@ -237,23 +241,23 @@ bool TAGL::FInsertChild(PTAG ptag, CHID chid, CTG ctg)
         if (prgcc[icc].ctg == ccNew.ctg && prgcc[icc].chid > ccNew.chid)
             break;
     }
-    if (!_pggtagf->FInsertRgb(itagf, icc * size(CC), size(CC), &ccNew))
+    if (!_pggtagf->FInsertRgb(itagf, icc * size(ChidCtgPair), size(ChidCtgPair), &ccNew))
         return fFalse;
     return fTrue;
 }
 
 /***************************************************************************
-    Cache all the tags and child tags in TAGL
+    Cache all the tags and child tags in TagList
 ***************************************************************************/
-bool TAGL::FCacheTags(void)
+bool TagList::FCacheTags(void)
 {
     AssertThis(0);
 
     long itagf;
-    TAGF tagf;
-    long ccc; // count of CCs
+    CachedTag tagf;
+    long ccc; // count of ChidCtgPairs
     long icc;
-    CC cc;
+    ChidCtgPair cc;
     TAG tag;
 
     for (itagf = 0; itagf < _pggtagf->IvMac(); itagf++)
@@ -264,15 +268,15 @@ bool TAGL::FCacheTags(void)
             return fFalse;
 
         // Cache the child tags
-        ccc = _pggtagf->Cb(itagf) / size(CC);
+        ccc = _pggtagf->Cb(itagf) / size(ChidCtgPair);
         for (icc = 0; icc < ccc; icc++)
         {
-            _pggtagf->GetRgb(itagf, icc * size(CC), size(CC), &cc);
+            _pggtagf->GetRgb(itagf, icc * size(ChidCtgPair), size(ChidCtgPair), &cc);
             if (!vptagm->FBuildChildTag(&tagf.tag, cc.chid, cc.ctg, &tag))
                 return fFalse;
             // Note that if we ever have the case where we don't always
-            // want the CC tag to be cached with all its children, we could
-            // change the CC structure to hold a boolean and pass it to
+            // want the ChidCtgPair tag to be cached with all its children, we could
+            // change the ChidCtgPair structure to hold a boolean and pass it to
             // FCacheTagToHD here.
             if (!vptagm->FCacheTagToHD(&tag, fTrue))
                 return fFalse;
@@ -283,21 +287,21 @@ bool TAGL::FCacheTags(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TAGL.
+    Assert the validity of the TagList.
 ***************************************************************************/
-void TAGL::AssertValid(ulong grf)
+void TagList::AssertValid(ulong grf)
 {
-    TAGL_PAR::AssertValid(fobjAllocated);
+    TagList_PAR::AssertValid(fobjAllocated);
     AssertPo(_pggtagf, 0);
 }
 
 /***************************************************************************
-    Mark memory used by the TAGL
+    Mark memory used by the TagList
 ***************************************************************************/
-void TAGL::MarkMem(void)
+void TagList::MarkMem(void)
 {
     AssertThis(0);
-    TAGL_PAR::MarkMem();
+    TagList_PAR::MarkMem();
     MarkMemObj(_pggtagf);
 }
 #endif // DEBUG

@@ -10,11 +10,16 @@
     Reviewed:
     Copyright (c) Microsoft Corporation
 
-    Header file for the CHSE class - the chunky source emitter class.
+    Header file for the SourceEmitter class - the chunky source emitter class.
 
 ***************************************************************************/
 #ifndef CHSE_H
 #define CHSE_H
+
+namespace Chunky {
+
+using ScriptInterpreter::PScript;
+using ScriptCompiler::PCompilerBase;
 
 /***************************************************************************
     Chunky source emitter class
@@ -27,50 +32,50 @@ enum
 };
 #endif // DEBUG
 
-typedef class CHSE *PCHSE;
-#define CHSE_PAR BASE
-#define kclsCHSE 'CHSE'
-class CHSE : public CHSE_PAR
+typedef class SourceEmitter *PSourceEmitter;
+#define SourceEmitter_PAR BASE
+#define kclsSourceEmitter 'CHSE'
+class SourceEmitter : public SourceEmitter_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    NOCOPY(CHSE)
+    NOCOPY(SourceEmitter)
 
   protected:
     PMSNK _pmsnkDump;
     PMSNK _pmsnkError;
-    BSF _bsf;
+    FileByteStream _bsf;
     bool _fError;
 
   protected:
     void _DumpBsf(long cactTab);
 
   public:
-    CHSE(void);
-    ~CHSE(void);
+    SourceEmitter(void);
+    ~SourceEmitter(void);
     void Init(PMSNK pmsnkDump, PMSNK pmsnkError = pvNil);
     void Uninit(void);
 
-    void DumpHeader(CTG ctg, CNO cno, PSTN pstnName = pvNil, bool fPack = fFalse);
+    void DumpHeader(ChunkTagOrType ctg, ChunkNumber cno, PString pstnName = pvNil, bool fPack = fFalse);
     void DumpRgb(void *prgb, long cb, long cactTab = 1);
-    void DumpParentCmd(CTG ctg, CNO cno, CHID chid);
-    void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PSTN pstnFile);
-    void DumpFileCmd(PSTN pstnFile, bool fPacked = fFalse);
-    void DumpAdoptCmd(CKI *pcki, KID *pkid);
-    void DumpList(PGLB pglb);
-    void DumpGroup(PGGB pggb);
-    bool FDumpStringTable(PGSTB pgstb);
-    void DumpBlck(PBLCK pblck);
-    bool FDumpScript(PSCPT pscpt, PSCCB psccb);
+    void DumpParentCmd(ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid);
+    void DumpBitmapCmd(byte bTransparent, long dxp, long dyp, PString pstnFile);
+    void DumpFileCmd(PString pstnFile, bool fPacked = fFalse);
+    void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
+    void DumpList(PVirtualArray pglb);
+    void DumpGroup(PVirtualGroup pggb);
+    bool FDumpStringTable(PVirtualStringTable pgstb);
+    void DumpBlck(PDataBlock pblck);
+    bool FDumpScript(PScript pscpt, PCompilerBase psccb);
 
     // General sz emitting routines
-    void DumpSz(PSZ psz)
+    void DumpSz(PZString psz)
     {
         AssertThis(fchseDump);
         _pmsnkDump->ReportLine(psz);
     }
-    void Error(PSZ psz)
+    void Error(PZString psz)
     {
         AssertThis(fchseNil);
         _fError = fTrue;
@@ -82,5 +87,7 @@ class CHSE : public CHSE_PAR
         return _fError || pvNil != _pmsnkDump && _pmsnkDump->FError();
     }
 };
+
+} // end of namespace Chunky
 
 #endif // !CHSE_H

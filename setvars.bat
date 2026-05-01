@@ -22,7 +22,4 @@ set ARCH=WIN
 :: Set build type
 set TYPE=DBSHIP
 
-:: Use optimized assembly for Intel 80386
-set CHIP=IN_80386
-
 :: BLD_TYPE_DIR will be set automatically

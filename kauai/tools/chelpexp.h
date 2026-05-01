@@ -16,6 +16,6 @@
 #ifndef CHELPEXP_H
 #define CHELPEXP_H
 
-bool FExportHelpText(PCFL pcfl, PMSNK pmsnk);
+bool FExportHelpText(PChunkyFile pcfl, PMSNK pmsnk);
 
 #endif //! CHELPEXP_H

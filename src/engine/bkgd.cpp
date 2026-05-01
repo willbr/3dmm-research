@@ -8,32 +8,32 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    A BKGD (background) consists of a set of light sources (GLLT), a
+    A Background (background) consists of a set of light sources (GLLT), a
     background sound (SND), and one or more camera views.  Each camera view
     consists of a camera specification, a pre-rendered RGB bitmap, and a
     pre-rendered Z-buffer.  Here's how the chunks look:
 
-    BKGD // Contains stage bounding cuboid
+    Background // Contains stage bounding cuboid
      |
-     +---GLLT (chid 0) // GL of light position specs (LITEs)
+     +---GLLT (chid 0) // DynamicArray of light position specs (LITEs)
      |
      +---SND  (chid 0) // Background sound/music
      |
-     +---CAM  (chid 0) // Contains camera pos/orient matrix, hither, yon
+     +---CameraPosition  (chid 0) // Contains camera pos/orient matrix, hither, yon
      |    |
-     |    +---MBMP (chid 0) // Background RGB bitmap
+     |    +---MaskedBitmapMBMP (chid 0) // Background RGB bitmap
      |    |
      |    +---ZBMP (chid 0) // Background Z-buffer
      |
-     +---CAM (chid 1)
+     +---CameraPosition (chid 1)
      |    |
-     |    +---MBMP (chid 0)
+     |    +---MaskedBitmapMBMP (chid 0)
      |    |
      |    +---ZBMP (chid 0)
      |
-     +---CAM (chid 2)
+     +---CameraPosition (chid 2)
      .    |
-     .    +---MBMP (chid 0)
+     .    +---MaskedBitmapMBMP (chid 0)
      .    |
           +---ZBMP (chid 0)
 
@@ -41,17 +41,17 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(BKGD)
+RTCLASS(Background)
 
-const CHID kchidBds = 0;  // Background default sound
-const CHID kchidGllt = 0; // GL of LITEs
-const CHID kchidGlcr = 0; // Palette
+const ChildChunkID kchidBds = 0;  // Background default sound
+const ChildChunkID kchidGllt = 0; // DynamicArray of LITEs
+const ChildChunkID kchidGlcr = 0; // Palette
 const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 
 /***************************************************************************
     Add the background's chunks (excluding camera views) to the tag list
 ***************************************************************************/
-bool BKGD::FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl)
+bool Background::FAddTagsToTagl(PTAG ptagBkgd, PTagList ptagl)
 {
     AssertVarMem(ptagBkgd);
     AssertPo(ptagl, 0);
@@ -75,7 +75,7 @@ bool BKGD::FAddTagsToTagl(PTAG ptagBkgd, PTAGL ptagl)
 /***************************************************************************
     Cache the background's chunks (excluding camera views) to HD
 ***************************************************************************/
-bool BKGD::FCacheToHD(PTAG ptagBkgd)
+bool Background::FCacheToHD(PTAG ptagBkgd)
 {
     AssertVarMem(ptagBkgd);
 
@@ -94,7 +94,7 @@ bool BKGD::FCacheToHD(PTAG ptagBkgd)
     if (!vptagm->FBuildChildTag(ptagBkgd, 0, kctgCam, &tagCam))
         return fFalse;
 
-    // Cache the BKGD chunk
+    // Cache the Background chunk
     if (!vptagm->FCacheTagToHD(ptagBkgd, fFalse))
         return fFalse;
 
@@ -115,21 +115,21 @@ bool BKGD::FCacheToHD(PTAG ptagBkgd)
 }
 
 /***************************************************************************
-    A PFNRPO to read a BKGD from a file
+    A PFNRPO to read a Background from a file
 ***************************************************************************/
-bool BKGD::FReadBkgd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
 
-    BKGD *pbkgd;
+    Background *pbkgd;
 
-    *pcb = size(BKGD) + size(BACT) + size(BLIT); // estimate BKGD size
+    *pcb = size(Background) + size(BACT) + size(BLIT); // estimate Background size
     if (pvNil == ppbaco)
         return fTrue;
-    pbkgd = NewObj BKGD;
+    pbkgd = NewObj Background;
     if (pvNil == pbkgd || !pbkgd->_FInit(pcrf->Pcfl(), ctg, cno))
     {
         TrashVar(ppbaco);
@@ -140,25 +140,25 @@ bool BKGD::FReadBkgd(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
     AssertPo(pbkgd, 0);
     *ppbaco = pbkgd;
     *pcb =
-        size(BKGD) + LwMul(pbkgd->_cbactLight, size(BACT)) + LwMul(pbkgd->_cbactLight, size(BLIT)); // actual BKGD size
+        size(Background) + LwMul(pbkgd->_cbactLight, size(BACT)) + LwMul(pbkgd->_cbactLight, size(BLIT)); // actual Background size
     return fTrue;
 }
 
 /***************************************************************************
-    Read a BKGD from the given chunk of the given CFL.
+    Read a Background from the given chunk of the given ChunkyFile.
     Note: Although we read the data for the lights here, we don't turn
-    them on yet because we don't have a BWLD to add them to.  The lights
+    them on yet because we don't have a World to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
+bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    BLCK blck;
-    BKGDF bkgdf;
-    KID kid;
-    PGL pgllite = pvNil;
+    DataBlock blck;
+    BackgroundFile bkgdf;
+    ChildChunkIdentification kid;
+    PDynamicArray pgllite = pvNil;
     short bo;
 
     _ccam = _Ccam(pcfl, ctg, cno); // compute # of views in this background
@@ -166,13 +166,13 @@ bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
 
     if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData())
         goto LFail;
-    if (blck.Cb() != size(BKGDF))
+    if (blck.Cb() != size(BackgroundFile))
         goto LFail;
-    if (!blck.FReadRgb(&bkgdf, size(BKGDF), 0))
+    if (!blck.FReadRgb(&bkgdf, size(BackgroundFile), 0))
         goto LFail;
     if (kboCur != bkgdf.bo)
         SwapBytesBom(&bkgdf, kbomBkgdf);
-    Assert(kboCur == bkgdf.bo, "bad BKGDF");
+    Assert(kboCur == bkgdf.bo, "bad BackgroundFile");
 
     if (!pcfl->FGetName(ctg, cno, &_stn))
         goto LFail;
@@ -180,15 +180,21 @@ bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
     // Get the default sound
     if (pcfl->FGetKidChidCtg(ctg, cno, kchidBds, kctgBds, &kid))
     {
+        BackgroundDefaultSoundOnFile bdsOnFile;
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || !blck.FUnpackData())
             goto LFail;
-        if (blck.Cb() != size(BDS))
+        if (blck.Cb() != size(BackgroundDefaultSoundOnFile))
             goto LFail;
-        if (!blck.FReadRgb(&_bds, size(BDS), 0))
+        if (!blck.FReadRgb(&bdsOnFile, size(BackgroundDefaultSoundOnFile), 0))
             goto LFail;
-        if (kboCur != _bds.bo)
-            SwapBytesBom(&_bds, kbomBds);
-        Assert(kboCur == _bds.bo, "bad BDS");
+        if (kboCur != bdsOnFile.bo)
+            SwapBytesBom(&bdsOnFile, kbomBds);
+        Assert(kboCur == bdsOnFile.bo, "bad BackgroundDefaultSound");
+        _bds.bo = bdsOnFile.bo;
+        _bds.osk = bdsOnFile.osk;
+        _bds.vlm = bdsOnFile.vlm;
+        _bds.fLoop = bdsOnFile.fLoop;
+        TagFromOnFile(&_bds.tagSnd, bdsOnFile.tagSnd);
     }
     else
     {
@@ -200,7 +206,7 @@ bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
     {
         if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
             goto LFail;
-        _pglclr = GL::PglRead(&blck, &bo);
+        _pglclr = DynamicArray::PglRead(&blck, &bo);
         if (_pglclr != pvNil)
         {
             if (kboOther == bo)
@@ -211,19 +217,19 @@ bool BKGD::_FInit(PCFL pcfl, CTG ctg, CNO cno)
     else
         _pglclr = pvNil;
 
-    // Read the GL of LITEs (GLLT)
+    // Read the DynamicArray of LITEs (GLLT)
     if (!pcfl->FGetKidChidCtg(ctg, cno, kchidGllt, kctgGllt, &kid))
         goto LFail;
     if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
         goto LFail;
-    pgllite = GL::PglRead(&blck, &bo);
+    pgllite = DynamicArray::PglRead(&blck, &bo);
     if (pvNil == pgllite)
         goto LFail;
-    Assert(pgllite->CbEntry() == size(LITE), "bad pgllite...you may need to update bkgds.chk");
-    AssertBomRglw(kbomLite, size(LITE));
+    Assert(pgllite->CbEntry() == size(LightPosition), "bad pgllite...you may need to update bkgds.chk");
+    AssertBomRglw(kbomLite, size(LightPosition));
     if (kboOther == bo)
     {
-        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LITE) / size(long)));
+        SwapBytesRglw(pgllite->QvGet(0), LwMul(pgllite->IvMac(), size(LightPosition) / size(long)));
     }
     _cbactLight = pgllite->IvMac();
     if (!FAllocPv((void **)&_prgbactLight, LwMul(_cbactLight, size(BACT)), fmemClear, mprNormal))
@@ -244,15 +250,15 @@ LFail:
 }
 
 /***************************************************************************
-    Return the number of camera views in this scene.  CAM chunks need to be
-    contiguous CHIDs starting at CHID 0.
+    Return the number of camera views in this scene.  CameraPosition chunks need to be
+    contiguous CHIDs starting at ChildChunkID 0.
 ***************************************************************************/
-long BKGD::_Ccam(PCFL pcfl, CTG ctg, CNO cno)
+long Background::_Ccam(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    KID kid;
+    ChildChunkIdentification kid;
     long ccam;
 
     for (ccam = 0; pcfl->FGetKidChidCtg(ctg, cno, ccam, kctgCam, &kid); ccam++)
@@ -273,21 +279,21 @@ long BKGD::_Ccam(PCFL pcfl, CTG ctg, CNO cno)
 }
 
 /***************************************************************************
-    Fill _prgbactLight and _prgblitLight using a GL of LITEs
+    Fill _prgbactLight and _prgblitLight using a DynamicArray of LITEs
 ***************************************************************************/
-void BKGD::_SetupLights(PGL pgllite)
+void Background::_SetupLights(PDynamicArray pgllite)
 {
     AssertBaseThis(0);
     AssertPo(pgllite, 0);
 
     long ilite;
-    LITE *qlite;
+    LightPosition *qlite;
     BACT *pbact;
     BLIT *pblit;
 
     for (ilite = 0; ilite < _cbactLight; ilite++)
     {
-        qlite = (LITE *)pgllite->QvGet(ilite);
+        qlite = (LightPosition *)pgllite->QvGet(ilite);
         pbact = &_prgbactLight[ilite];
         pblit = &_prgblitLight[ilite];
         pblit->type = (byte)qlite->lt;
@@ -303,7 +309,7 @@ void BKGD::_SetupLights(PGL pgllite)
 /***************************************************************************
     Clean up and delete this background
 ***************************************************************************/
-BKGD::~BKGD(void)
+Background::~Background(void)
 {
     AssertBaseThis(0);
     Assert(!_fLeaveLitesOn, "Shouldn't be freeing background now");
@@ -318,7 +324,7 @@ BKGD::~BKGD(void)
 /***************************************************************************
     Get the background's name
 ***************************************************************************/
-void BKGD::GetName(PSTN pstn)
+void Background::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -328,10 +334,10 @@ void BKGD::GetName(PSTN pstn)
 
 /***************************************************************************
     Get the custom palette for this background, if any.  Returns fFalse if
-    an error occurs.  Sets *ppglclr to an empty GL and *piclrMin to 0 if
+    an error occurs.  Sets *ppglclr to an empty DynamicArray and *piclrMin to 0 if
     this background has no custom palette.
 ***************************************************************************/
-bool BKGD::FGetPalette(PGL *ppglclr, long *piclrMin)
+bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
 {
     AssertThis(0);
     AssertVarMem(ppglclr);
@@ -340,7 +346,7 @@ bool BKGD::FGetPalette(PGL *ppglclr, long *piclrMin)
     *piclrMin = _bIndexBase;
     if (pvNil == _pglclr) // no custom palette
     {
-        *ppglclr = GL::PglNew(size(CLR)); // "palette" with 0 entries
+        *ppglclr = DynamicArray::PglNew(size(Color)); // "palette" with 0 entries
     }
     else
     {
@@ -352,7 +358,7 @@ bool BKGD::FGetPalette(PGL *ppglclr, long *piclrMin)
 /***************************************************************************
     Get the camera position in worldspace
 ***************************************************************************/
-void BKGD::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
+void Background::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertNilOrVarMem(pxr);
@@ -370,7 +376,7 @@ void BKGD::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
 /***************************************************************************
     Turn on lights in pbwld
 ***************************************************************************/
-void BKGD::TurnOnLights(PBWLD pbwld)
+void Background::TurnOnLights(PWorld pbwld)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
@@ -394,7 +400,7 @@ void BKGD::TurnOnLights(PBWLD pbwld)
 /***************************************************************************
     Turn off lights in pbwld
 ***************************************************************************/
-void BKGD::TurnOffLights(void)
+void Background::TurnOffLights(void)
 {
     AssertThis(0);
 
@@ -415,19 +421,19 @@ void BKGD::TurnOffLights(void)
 /***************************************************************************
     Set the camera and associated bitmaps to icam
 ***************************************************************************/
-bool BKGD::FSetCamera(PBWLD pbwld, long icam)
+bool Background::FSetCamera(PWorld pbwld, long icam)
 {
     AssertThis(0);
     AssertPo(pbwld, 0);
     AssertIn(icam, 0, Ccam());
 
     long capos;
-    KID kidCam;
-    KID kidRGB;
-    KID kidZ;
-    BLCK blck;
-    CAM cam;
-    PCFL pcfl = Pcrf()->Pcfl();
+    ChildChunkIdentification kidCam;
+    ChildChunkIdentification kidRGB;
+    ChildChunkIdentification kidZ;
+    DataBlock blck;
+    CameraPosition cam;
+    PChunkyFile pcfl = Pcrf()->Pcfl();
     BREUL breul;
 
     TurnOnLights(pbwld);
@@ -439,25 +445,25 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
         return fFalse;
 
     // Need at least one actor position
-    if (blck.Cb() < size(CAM))
+    if (blck.Cb() < size(CameraPosition))
     {
-        Bug("CAM chunk not large enough");
+        Bug("CameraPosition chunk not large enough");
         return fFalse;
     }
-    capos = (blck.Cb() - size(CAM)) / size(APOS);
-    if ((capos * size(APOS) + size(CAM)) != blck.Cb())
+    capos = (blck.Cb() - size(CameraPosition)) / size(APOS);
+    if ((capos * size(APOS) + size(CameraPosition)) != blck.Cb())
     {
-        Bug("CAM chunk's extra data not an even multiple of size(APOS)");
+        Bug("CameraPosition chunk's extra data not an even multiple of size(APOS)");
         return fFalse;
     }
 
-    if (!blck.FReadRgb(&cam, size(CAM), 0))
+    if (!blck.FReadRgb(&cam, size(CameraPosition), 0))
         return fFalse;
 
 #ifdef DEBUG
     {
-        BOM bomCam = kbomCam, bomCamOld = kbomCamOld;
-        Assert(bomCam == bomCamOld, "BOM macros aren't right");
+        ByteOrderMask bomCam = kbomCam, bomCamOld = kbomCamOld;
+        Assert(bomCam == bomCamOld, "ByteOrderMask macros aren't right");
     }
 #endif // DEBUG
 
@@ -465,8 +471,8 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
     if (kboOther == cam.bo)
     {
         SwapBytesBom(&cam, kbomCam);
-        SwapBytesRglw(PvAddBv(&cam, offset(CAM, bmat34Cam)), size(cam.bmat34Cam) / size(long));
-        SwapBytesRglw(PvAddBv(&cam, size(CAM)), capos * (size(APOS) / size(long)));
+        SwapBytesRglw(PvAddBv(&cam, offset(CameraPosition, bmat34Cam)), size(cam.bmat34Cam) / size(long));
+        SwapBytesRglw(PvAddBv(&cam, size(CameraPosition)), capos * (size(APOS) / size(long)));
     }
     Assert(kboCur == cam.bo, "bad cam");
 
@@ -488,11 +494,11 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
     // Get actor placements
     ReleasePpo(&_pglapos);
     _iaposNext = _iaposLast = 0;
-    if (capos > 0 && (_pglapos = GL::PglNew(size(APOS), capos)) != pvNil)
+    if (capos > 0 && (_pglapos = DynamicArray::PglNew(size(APOS), capos)) != pvNil)
     {
         AssertDo(_pglapos->FSetIvMac(capos), "Should never fail");
         _pglapos->Lock();
-        if (!blck.FReadRgb(_pglapos->QvGet(0), size(APOS) * capos, size(CAM)))
+        if (!blck.FReadRgb(_pglapos->QvGet(0), size(APOS) * capos, size(CameraPosition)))
         {
             ReleasePpo(&_pglapos);
             return fFalse;
@@ -524,7 +530,7 @@ bool BKGD::FSetCamera(PBWLD pbwld, long icam)
 /***************************************************************************
     Gets the matrix for mouse-dragging relative to the camera
 ***************************************************************************/
-void BKGD::GetMouseMatrix(BMAT34 *pbmat34)
+void Background::GetMouseMatrix(BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -535,7 +541,7 @@ void BKGD::GetMouseMatrix(BMAT34 *pbmat34)
 /***************************************************************************
     Gets the point at which to place new actors for this bkgd/view.
 ***************************************************************************/
-void BKGD::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
+void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertVarMem(pxr);
@@ -573,7 +579,7 @@ void BKGD::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
         from the actor placement code if the actor was placed at a point other
         than the one you just asked for.
 ************************************************************ PETED ***********/
-void BKGD::ReuseActorPlacePoint(void)
+void Background::ReuseActorPlacePoint(void)
 {
     _iaposNext = _iaposLast;
 }
@@ -582,16 +588,16 @@ void BKGD::ReuseActorPlacePoint(void)
 /***************************************************************************
     Authoring only.  Writes a special file with the given place info.
 ***************************************************************************/
-bool BKGD::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
+bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
 {
     AssertThis(0);
     Assert(yrPlace == rZero, "are you sure you want non-zero Y?");
 
-    STN stnFile;
-    FNI fni;
-    PFIL pfil = pvNil;
-    STN stnData;
-    FP fp;
+    String stnFile;
+    Filename fni;
+    PFileObject pfil = pvNil;
+    String stnData;
+    FilePosition fp;
     long xr1 = BrScalarToInt(xrPlace);
     long xr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(xrPlace - BrIntToScalar(xr1))));
     long yr1 = BrScalarToInt(yrPlace);
@@ -604,9 +610,9 @@ bool BKGD::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     if (!fni.FBuildFromPath(&stnFile))
         goto LFail;
     if (fni.TExists() == tYes)
-        pfil = FIL::PfilOpen(&fni, ffilWriteEnable);
+        pfil = FileObject::PfilOpen(&fni, ffilWriteEnable);
     else
-        pfil = FIL::PfilCreate(&fni);
+        pfil = FileObject::PfilCreate(&fni);
     if (pvNil == pfil)
         goto LFail;
     if (!stnData.FFormatSz("NEW_ACTOR_POS %d.%06d %d.%06d %d.%06d\n\r", xr1, xr2, yr1, yr2, zr1, zr2))
@@ -631,11 +637,11 @@ LFail:
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the BKGD.
+    Assert the validity of the Background.
 ***************************************************************************/
-void BKGD::AssertValid(ulong grf)
+void Background::AssertValid(ulong grf)
 {
-    BKGD_PAR::AssertValid(fobjAllocated);
+    Background_PAR::AssertValid(fobjAllocated);
     AssertIn(_cbactLight, 1, 100); // 100 is sanity check
     AssertIn(_ccam, 1, 100);       // 100 is sanity check
     Assert(_icam == ivNil || (_icam >= 0 && _icam < _ccam), "bad _icam");
@@ -646,12 +652,12 @@ void BKGD::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the BKGD
+    Mark memory used by the Background
 ***************************************************************************/
-void BKGD::MarkMem(void)
+void Background::MarkMem(void)
 {
     AssertThis(0);
-    BKGD_PAR::MarkMem();
+    Background_PAR::MarkMem();
     MarkPv(_prgbactLight);
     MarkPv(_prgblitLight);
     MarkMemObj(_pglclr);

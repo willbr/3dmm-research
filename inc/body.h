@@ -8,19 +8,21 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BODY
+    BASE ---> Body
 
 *************************************************************************/
-#ifndef BODY_H
-#define BODY_H
+#ifndef Body_H
+#define Body_H
+
+using namespace BRender;
 
 /****************************************
-    The BODY class
+    The Body class
 ****************************************/
-typedef class BODY *PBODY;
-#define BODY_PAR BASE
-#define kclsBODY 'BODY'
-class BODY : public BODY_PAR
+typedef class Body *PBody;
+#define Body_PAR BASE
+#define kclsBody 'BODY'
+class Body : public Body_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -28,28 +30,28 @@ class BODY : public BODY_PAR
 
   protected:
     static BMTL *_pbmtlHilite; // hilight material
-    static BODY *_pbodyClosestClicked;
+    static Body *_pbodyClosestClicked;
     static long _dzpClosestClicked;
     static BACT *_pbactClosestClicked;
     BACT *_prgbact;      // array of BACTs
-    PGL _pglibset;       // body part set IDs
+    PDynamicArray _pglibset;       // body part set IDs
     long _cbset;         // count of body part sets
-    PCMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
+    PCustomMaterial_CMTL *_prgpcmtl;    // array of PCMTLs -- one per body part set
     long _cbactPart;     // count of model body parts in body
     long _cactHidden;    // for Show() / Hide()
-    PBWLD _pbwld;        // world that body lives in
+    PWorld _pbwld;        // world that body lives in
     RC _rcBounds;        // bounds of body after last render
     RC _rcBoundsLastVis; // bounds of body last time it was visible
     bool _fFound;        // is the actor found under the mouse?
     long _ibset;         // which body part got hit.
 
   protected:
-    BODY(void)
+    Body(void)
     {
     } // can't instantiate directly; must use PbodyNew
     void _DestroyShape(void);
-    bool _FInit(PGL pglibactPar, PGL pglibset);
-    bool _FInitShape(PGL pglibactPar, PGL pglibset);
+    bool _FInit(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    bool _FInitShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
     PBACT _PbactRoot(void) // ptr to root BACT
     {
         return _prgbact;
@@ -80,17 +82,17 @@ class BODY : public BODY_PAR
     static void _GetRc(PBACT pbact, RC *prc);
 
   public:
-    static PBODY PbodyNew(PGL pglibactPar, PGL pglibset);
-    static PBODY PbodyFromBact(BACT *pbact, long *pibset = pvNil);
-    static PBODY PbodyClicked(long xp, long yp, PBWLD pbwld, long *pibset = pvNil);
-    ~BODY(void);
-    PBODY PbodyDup(void);
-    void Restore(PBODY pbodyDup);
+    static PBody PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    static PBody PbodyFromBact(BACT *pbact, long *pibset = pvNil);
+    static PBody PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset = pvNil);
+    ~Body(void);
+    PBody PbodyDup(void);
+    void Restore(PBody pbodyDup);
     static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
                                     BRS dzpNear, BRS dzpFar, void *pv);
 
-    bool FChangeShape(PGL pglibactPar, PGL pglibset);
-    void SetBwld(PBWLD pbwld)
+    bool FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
+    void SetBwld(PWorld pbwld)
     {
         _pbwld = pbwld;
     }
@@ -103,11 +105,11 @@ class BODY : public BODY_PAR
     static void SetHiliteColor(long iclr);
 
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
-    void SetPartModel(long ibact, MODL *pmodl);
+    void SetPartModel(long ibact, Model *pmodl);
     void SetPartMatrix(long ibact, BMAT34 *pbmat34);
-    void SetPartSetMtrl(long ibset, MTRL *pmtrl);
-    void SetPartSetCmtl(CMTL *pcmtl);
-    void GetPartSetMaterial(long ibset, bool *pfMtrl, MTRL **ppmtrl, CMTL **ppcmtl);
+    void SetPartSetMtrl(long ibset, Material_MTRL *pmtrl);
+    void SetPartSetCmtl(CustomMaterial_CMTL *pcmtl);
+    void GetPartSetMaterial(long ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);
     long Cbset()
     {
         return _cbset;
@@ -122,14 +124,14 @@ class BODY : public BODY_PAR
 };
 
 /****************************************
-    The COST class, which is used to
-    save and restore a BODY's entire
+    The BodyCostume class, which is used to
+    save and restore a Body's entire
     costume for unwinding purposes
 ****************************************/
-typedef class COST *PCOST;
-#define COST_PAR BASE
-#define kclsCOST 'COST'
-class COST : public COST_PAR
+typedef class BodyCostume *PBodyCostume;
+#define BodyCostume_PAR BASE
+#define kclsBodyCostume 'COST'
+class BodyCostume : public BodyCostume_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -143,13 +145,13 @@ class COST : public COST_PAR
     void _Clear(void); // release _prgpo and material references
 
   public:
-    COST(void);
-    ~COST(void);
+    BodyCostume(void);
+    ~BodyCostume(void);
 
-    bool FGet(PBODY pbody); // read and store BODY's costume
+    bool FGet(PBody pbody); // read and store Body's costume
 
-    // replace BODY's costume with this one
-    void Set(PBODY pbody, bool fAllowDifferentShape = fFalse);
+    // replace Body's costume with this one
+    void Set(PBody pbody, bool fAllowDifferentShape = fFalse);
 };
 
-#endif // !BODY_H
+#endif // !Body_H

@@ -13,13 +13,13 @@
 #include "mdev2pri.h"
 ASSERTNAME
 
-RTCLASS(MDWS)
-RTCLASS(MSQUE)
-RTCLASS(MDPS)
-RTCLASS(MSMIX)
-RTCLASS(MISI)
-RTCLASS(WMS)
-RTCLASS(OMS)
+RTCLASS(MidiStreamCached)
+RTCLASS(MidiStreamQueue)
+RTCLASS(MidiStreamPlayer)
+RTCLASS(MidiStreamMixer)
+RTCLASS(MidiStreamInterface)
+RTCLASS(WindowsMidiStream)
+RTCLASS(OurMidiStream)
 
 const long kdtsMinSlip = kdtsSecond / 30;
 const long kcbMaxWmsBuffer = 0x0000FFFF / size(MEV) * size(MEV);
@@ -27,14 +27,14 @@ const long kcbMaxWmsBuffer = 0x0000FFFF / size(MEV) * size(MEV);
 /***************************************************************************
     Constructor for the midi stream device.
 ***************************************************************************/
-MDPS::MDPS(void)
+MidiStreamPlayer::MidiStreamPlayer(void)
 {
 }
 
 /***************************************************************************
     Destructor for the midi stream device.
 ***************************************************************************/
-MDPS::~MDPS(void)
+MidiStreamPlayer::~MidiStreamPlayer(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pmsmix);
@@ -42,21 +42,21 @@ MDPS::~MDPS(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MDPS.
+    Assert the validity of a MidiStreamPlayer.
 ***************************************************************************/
-void MDPS::AssertValid(ulong grf)
+void MidiStreamPlayer::AssertValid(ulong grf)
 {
-    MDPS_PAR::AssertValid(0);
+    MidiStreamPlayer_PAR::AssertValid(0);
     AssertPo(_pmsmix, 0);
 }
 
 /***************************************************************************
-    Mark memory for the MDPS.
+    Mark memory for the MidiStreamPlayer.
 ***************************************************************************/
-void MDPS::MarkMem(void)
+void MidiStreamPlayer::MarkMem(void)
 {
     AssertValid(0);
-    MDPS_PAR::MarkMem();
+    MidiStreamPlayer_PAR::MarkMem();
     MarkMemObj(_pmsmix);
 }
 #endif // DEBUG
@@ -64,11 +64,11 @@ void MDPS::MarkMem(void)
 /***************************************************************************
     Static method to create the midi stream device.
 ***************************************************************************/
-PMDPS MDPS::PmdpsNew(void)
+PMidiStreamPlayer MidiStreamPlayer::PmdpsNew(void)
 {
-    PMDPS pmdps;
+    PMidiStreamPlayer pmdps;
 
-    if (pvNil == (pmdps = NewObj MDPS))
+    if (pvNil == (pmdps = NewObj MidiStreamPlayer))
         return pvNil;
 
     if (!pmdps->_FInit())
@@ -81,15 +81,15 @@ PMDPS MDPS::PmdpsNew(void)
 /***************************************************************************
     Initialize the midi stream device.
 ***************************************************************************/
-bool MDPS::_FInit(void)
+bool MidiStreamPlayer::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (!MDPS_PAR::_FInit())
+    if (!MidiStreamPlayer_PAR::_FInit())
         return fFalse;
 
     // Create the midi stream output scheduler
-    if (pvNil == (_pmsmix = MSMIX::PmsmixNew()))
+    if (pvNil == (_pmsmix = MidiStreamMixer::PmsmixNew()))
         return fFalse;
 
     _Suspend(_cactSuspend > 0 || !_fActive);
@@ -101,17 +101,17 @@ bool MDPS::_FInit(void)
 /***************************************************************************
     Allocate a new midi stream queue.
 ***************************************************************************/
-PSNQUE MDPS::_PsnqueNew(void)
+PSoundQueue MidiStreamPlayer::_PsnqueNew(void)
 {
     AssertThis(0);
 
-    return MSQUE::PmsqueNew(_pmsmix);
+    return MidiStreamQueue::PmsqueNew(_pmsmix);
 }
 
 /***************************************************************************
     Activate or deactivate the midi stream device.
 ***************************************************************************/
-void MDPS::_Suspend(bool fSuspend)
+void MidiStreamPlayer::_Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -121,7 +121,7 @@ void MDPS::_Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume.
 ***************************************************************************/
-void MDPS::SetVlm(long vlm)
+void MidiStreamPlayer::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -131,7 +131,7 @@ void MDPS::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long MDPS::VlmCur(void)
+long MidiStreamPlayer::VlmCur(void)
 {
     AssertThis(0);
 
@@ -141,35 +141,35 @@ long MDPS::VlmCur(void)
 /***************************************************************************
     Constructor for a midi stream object.
 ***************************************************************************/
-MDWS::MDWS(void)
+MidiStreamCached::MidiStreamCached(void)
 {
 }
 
 /***************************************************************************
     Destructor for a Win95 midi stream object.
 ***************************************************************************/
-MDWS::~MDWS(void)
+MidiStreamCached::~MidiStreamCached(void)
 {
     ReleasePpo(&_pglmev);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MDWS.
+    Assert the validity of a MidiStreamCached.
 ***************************************************************************/
-void MDWS::AssertValid(ulong grf)
+void MidiStreamCached::AssertValid(ulong grf)
 {
-    MDWS_PAR::AssertValid(0);
+    MidiStreamCached_PAR::AssertValid(0);
     AssertPo(_pglmev, 0);
 }
 
 /***************************************************************************
-    Mark memory for the MDWS.
+    Mark memory for the MidiStreamCached.
 ***************************************************************************/
-void MDWS::MarkMem(void)
+void MidiStreamCached::MarkMem(void)
 {
     AssertValid(0);
-    MDWS_PAR::MarkMem();
+    MidiStreamCached_PAR::MarkMem();
     MarkMemObj(_pglmev);
 }
 #endif // DEBUG
@@ -177,13 +177,13 @@ void MDWS::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MDWS::FReadMdws(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MidiStreamCached::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PMDWS pmdws;
+    PMidiStreamCached pmdws;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)
@@ -199,7 +199,7 @@ bool MDWS::FReadMdws(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
         TrashVar(pcb);
         return fFalse;
     }
-    *pcb = pmdws->_pglmev->IvMac() * size(MEV) + size(MDWS);
+    *pcb = pmdws->_pglmev->IvMac() * size(MEV) + size(MidiStreamCached);
 
     *ppbaco = pmdws;
     return fTrue;
@@ -208,17 +208,17 @@ bool MDWS::FReadMdws(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 /***************************************************************************
     Read a midi stream from the given block.
 ***************************************************************************/
-PMDWS MDWS::PmdwsRead(PBLCK pblck)
+PMidiStreamCached MidiStreamCached::PmdwsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 
-    PMIDS pmids;
-    PMDWS pmdws;
+    PMidiStream pmids;
+    PMidiStreamCached pmdws;
 
-    if (pvNil == (pmids = MIDS::PmidsRead(pblck)))
+    if (pvNil == (pmids = MidiStream::PmidsRead(pblck)))
         return pvNil;
 
-    if (pvNil != (pmdws = NewObj MDWS) && !pmdws->_FInit(pmids))
+    if (pvNil != (pmdws = NewObj MidiStreamCached) && !pmdws->_FInit(pmids))
         ReleasePpo(&pmdws);
 
     ReleasePpo(&pmids);
@@ -228,20 +228,20 @@ PMDWS MDWS::PmdwsRead(PBLCK pblck)
 }
 
 /***************************************************************************
-    Initialize the MDWS with the midi data in *pmids.
+    Initialize the MidiStreamCached with the midi data in *pmids.
 ***************************************************************************/
-bool MDWS::_FInit(PMIDS pmids)
+bool MidiStreamCached::_FInit(PMidiStream pmids)
 {
     AssertPo(pmids, 0);
 
-    MSTP mstp;
+    MidiStreamParser mstp;
     ulong tsCur;
     MEV rgmev[100];
     PMEV pmev, pmevLim;
     MIDEV midev;
     bool fEvt;
 
-    if (pvNil == (_pglmev = GL::PglNew(size(MEV))))
+    if (pvNil == (_pglmev = DynamicArray::PglNew(size(MEV))))
         return fFalse;
 
     Assert(MEVT_SHORTMSG == 0, "this code assumes MEVT_SHORTMSG is 0 and it's not");
@@ -303,7 +303,7 @@ bool MDWS::_FInit(PMIDS pmids)
 /***************************************************************************
     Return a locked pointer to the data.
 ***************************************************************************/
-void *MDWS::PvLockData(long *pcb)
+void *MidiStreamCached::PvLockData(long *pcb)
 {
     AssertThis(0);
     AssertVarMem(pcb);
@@ -315,7 +315,7 @@ void *MDWS::PvLockData(long *pcb)
 /***************************************************************************
     Balance a call to PvLockData.
 ***************************************************************************/
-void MDWS::UnlockData(void)
+void MidiStreamCached::UnlockData(void)
 {
     AssertThis(0);
 
@@ -325,14 +325,14 @@ void MDWS::UnlockData(void)
 /***************************************************************************
     Constructor for a midi stream queue.
 ***************************************************************************/
-MSQUE::MSQUE(void)
+MidiStreamQueue::MidiStreamQueue(void)
 {
 }
 
 /***************************************************************************
     Destructor for a midi stream queue.
 ***************************************************************************/
-MSQUE::~MSQUE(void)
+MidiStreamQueue::~MidiStreamQueue(void)
 {
     if (pvNil != _pmsmix)
     {
@@ -343,21 +343,21 @@ MSQUE::~MSQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSQUE.
+    Assert the validity of a MidiStreamQueue.
 ***************************************************************************/
-void MSQUE::AssertValid(ulong grf)
+void MidiStreamQueue::AssertValid(ulong grf)
 {
-    MSQUE_PAR::AssertValid(0);
+    MidiStreamQueue_PAR::AssertValid(0);
     AssertPo(_pmsmix, 0);
 }
 
 /***************************************************************************
-    Mark memory for the MSQUE.
+    Mark memory for the MidiStreamQueue.
 ***************************************************************************/
-void MSQUE::MarkMem(void)
+void MidiStreamQueue::MarkMem(void)
 {
     AssertValid(0);
-    MSQUE_PAR::MarkMem();
+    MidiStreamQueue_PAR::MarkMem();
     MarkMemObj(_pmsmix);
 }
 #endif // DEBUG
@@ -365,12 +365,12 @@ void MSQUE::MarkMem(void)
 /***************************************************************************
     Static method to create a new midi stream queue.
 ***************************************************************************/
-PMSQUE MSQUE::PmsqueNew(PMSMIX pmsmix)
+PMidiStreamQueue MidiStreamQueue::PmsqueNew(PMidiStreamMixer pmsmix)
 {
     AssertPo(pmsmix, 0);
-    PMSQUE pmsque;
+    PMidiStreamQueue pmsque;
 
-    if (pvNil == (pmsque = NewObj MSQUE))
+    if (pvNil == (pmsque = NewObj MidiStreamQueue))
         return pvNil;
 
     if (!pmsque->_FInit(pmsmix))
@@ -383,12 +383,12 @@ PMSQUE MSQUE::PmsqueNew(PMSMIX pmsmix)
 /***************************************************************************
     Initialize the midi stream queue.
 ***************************************************************************/
-bool MSQUE::_FInit(PMSMIX pmsmix)
+bool MidiStreamQueue::_FInit(PMidiStreamMixer pmsmix)
 {
     AssertPo(pmsmix, 0);
     AssertBaseThis(0);
 
-    if (!MSQUE_PAR::_FInit())
+    if (!MidiStreamQueue_PAR::_FInit())
         return fFalse;
 
     _pmsmix = pmsmix;
@@ -401,7 +401,7 @@ bool MSQUE::_FInit(PMSMIX pmsmix)
 /***************************************************************************
     Enter the critical section protecting member variables.
 ***************************************************************************/
-void MSQUE::_Enter(void)
+void MidiStreamQueue::_Enter(void)
 {
     _mutx.Enter();
 }
@@ -409,26 +409,26 @@ void MSQUE::_Enter(void)
 /***************************************************************************
     Leave the critical section protecting member variables.
 ***************************************************************************/
-void MSQUE::_Leave(void)
+void MidiStreamQueue::_Leave(void)
 {
     _mutx.Leave();
 }
 
 /***************************************************************************
-    Fetch the given sound chunk as an MDWS.
+    Fetch the given sound chunk as an MidiStreamCached.
 ***************************************************************************/
-PBACO MSQUE::_PbacoFetch(PRCA prca, CTG ctg, CNO cno)
+PBaseCacheableObject MidiStreamQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return prca->PbacoFetch(ctg, cno, &MDWS::FReadMdws);
+    return prca->PbacoFetch(ctg, cno, &MidiStreamCached::FReadMdws);
 }
 
 /***************************************************************************
     An item was added to or deleted from the queue.
 ***************************************************************************/
-void MSQUE::_Queue(long isndinMin)
+void MidiStreamQueue::_Queue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -443,7 +443,7 @@ void MSQUE::_Queue(long isndinMin)
             if (0 < sndin.cactPause)
                 break;
 
-            if (0 == sndin.cactPause && _pmsmix->FPlay(this, (PMDWS)sndin.pbaco, sndin.sii, sndin.spr, sndin.cactPlay,
+            if (0 == sndin.cactPause && _pmsmix->FPlay(this, (PMidiStreamCached)sndin.pbaco, sndin.sii, sndin.spr, sndin.cactPlay,
                                                        sndin.dtsStart, sndin.vlm))
             {
                 _tsStart = TsCurrentSystem() - sndin.dtsStart;
@@ -461,7 +461,7 @@ LDone:
 /***************************************************************************
     One or more items in the queue were paused.
 ***************************************************************************/
-void MSQUE::_PauseQueue(long isndinMin)
+void MidiStreamQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -483,7 +483,7 @@ void MSQUE::_PauseQueue(long isndinMin)
 /***************************************************************************
     One or more items in the queue were resumed.
 ***************************************************************************/
-void MSQUE::_ResumeQueue(long isndinMin)
+void MidiStreamQueue::_ResumeQueue(long isndinMin)
 {
     AssertThis(0);
 
@@ -491,10 +491,10 @@ void MSQUE::_ResumeQueue(long isndinMin)
 }
 
 /***************************************************************************
-    Called by the MSMIX to tell us that the indicated sound is done.
+    Called by the MidiStreamMixer to tell us that the indicated sound is done.
     WARNING: this is called in an auxillary thread.
 ***************************************************************************/
-void MSQUE::Notify(PMDWS pmdws)
+void MidiStreamQueue::Notify(PMidiStreamCached pmdws)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -517,7 +517,7 @@ void MSQUE::Notify(PMDWS pmdws)
 /***************************************************************************
     Constructor for the midi stream output object.
 ***************************************************************************/
-MSMIX::MSMIX(void)
+MidiStreamMixer::MidiStreamMixer(void)
 {
     _vlmBase = kvlmFull;
     _vlmSound = kvlmFull;
@@ -526,9 +526,9 @@ MSMIX::MSMIX(void)
 /***************************************************************************
     Destructor for the midi stream output object.
 ***************************************************************************/
-MSMIX::~MSMIX(void)
+MidiStreamMixer::~MidiStreamMixer(void)
 {
-    Assert(pvNil == _pmisi || !_pmisi->FActive(), "MISI still active!");
+    Assert(pvNil == _pmisi || !_pmisi->FActive(), "MidiStreamInterface still active!");
 
     if (hNil != _hth)
     {
@@ -543,7 +543,7 @@ MSMIX::~MSMIX(void)
 
     if (pvNil != _pglmsos)
     {
-        Assert(_pglmsos->IvMac() == 0, "MSMIX still has active sounds");
+        Assert(_pglmsos->IvMac() == 0, "MidiStreamMixer still has active sounds");
         ReleasePpo(&_pglmsos);
     }
     ReleasePpo(&_pmisi);
@@ -551,13 +551,13 @@ MSMIX::~MSMIX(void)
 }
 
 /***************************************************************************
-    Static method to create a new MSMIX.
+    Static method to create a new MidiStreamMixer.
 ***************************************************************************/
-PMSMIX MSMIX::PmsmixNew(void)
+PMidiStreamMixer MidiStreamMixer::PmsmixNew(void)
 {
-    PMSMIX pmsmix;
+    PMidiStreamMixer pmsmix;
 
-    if (pvNil == (pmsmix = NewObj MSMIX))
+    if (pvNil == (pmsmix = NewObj MidiStreamMixer))
         return pvNil;
 
     if (!pmsmix->_FInit())
@@ -568,20 +568,20 @@ PMSMIX MSMIX::PmsmixNew(void)
 }
 
 /***************************************************************************
-    Initialize the MSMIX - allocate the pglmsos and the midi stream api
+    Initialize the MidiStreamMixer - allocate the pglmsos and the midi stream api
     object.
 ***************************************************************************/
-bool MSMIX::_FInit(void)
+bool MidiStreamMixer::_FInit(void)
 {
     AssertBaseThis(0);
     ulong luThread;
 
-    if (pvNil == (_pglmsos = GL::PglNew(size(MSOS))))
+    if (pvNil == (_pglmsos = DynamicArray::PglNew(size(MSOS))))
         return fFalse;
     _pglmsos->SetMinGrow(1);
 
-    if (pvNil == (_pmisi = WMS::PwmsNew(_MidiProc, (ulong)this)) &&
-        pvNil == (_pmisi = OMS::PomsNew(_MidiProc, (ulong)this)))
+    if (pvNil == (_pmisi = WindowsMidiStream::PwmsNew(_MidiProc, (ulong)this)) &&
+        pvNil == (_pmisi = OurMidiStream::PomsNew(_MidiProc, (ulong)this)))
     {
         return fFalse;
     }
@@ -590,7 +590,7 @@ bool MSMIX::_FInit(void)
         return fFalse;
 
     // create the thread
-    if (hNil == (_hth = CreateThread(pvNil, 1024, MSMIX::_ThreadProc, this, 0, &luThread)))
+    if (hNil == (_hth = CreateThread(pvNil, 1024, MidiStreamMixer::_ThreadProc, this, 0, &luThread)))
     {
         return fFalse;
     }
@@ -600,11 +600,11 @@ bool MSMIX::_FInit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSMIX.
+    Assert the validity of a MidiStreamMixer.
 ***************************************************************************/
-void MSMIX::AssertValid(ulong grf)
+void MidiStreamMixer::AssertValid(ulong grf)
 {
-    MSMIX_PAR::AssertValid(0);
+    MidiStreamMixer_PAR::AssertValid(0);
     _mutx.Enter();
     Assert(hNil != _hevt, "nil event");
     Assert(hNil != _hth, "nil thread");
@@ -615,13 +615,13 @@ void MSMIX::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the MSMIX.
+    Mark memory for the MidiStreamMixer.
 ***************************************************************************/
-void MSMIX::MarkMem(void)
+void MidiStreamMixer::MarkMem(void)
 {
     AssertValid(0);
 
-    MSMIX_PAR::MarkMem();
+    MidiStreamMixer_PAR::MarkMem();
 
     _mutx.Enter();
     MarkMemObj(_pglmsos);
@@ -634,7 +634,7 @@ void MSMIX::MarkMem(void)
 /***************************************************************************
     Suspend or resume the midi stream mixer.
 ***************************************************************************/
-void MSMIX::Suspend(bool fSuspend)
+void MidiStreamMixer::Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -653,7 +653,7 @@ void MSMIX::Suspend(bool fSuspend)
     If we're currently playing a midi stream stop it. Assumes the mutx is
     already checked out exactly once.
 ***************************************************************************/
-void MSMIX::_StopStream(void)
+void MidiStreamMixer::_StopStream(void)
 {
     AssertThis(0);
 
@@ -680,7 +680,7 @@ void MSMIX::_StopStream(void)
 /***************************************************************************
     Set the volume for the midi stream output device.
 ***************************************************************************/
-void MSMIX::SetVlm(long vlm)
+void MidiStreamMixer::SetVlm(long vlm)
 {
     AssertThis(0);
     ulong luHigh, luLow;
@@ -697,7 +697,7 @@ void MSMIX::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long MSMIX::VlmCur(void)
+long MidiStreamMixer::VlmCur(void)
 {
     AssertThis(0);
 
@@ -707,7 +707,7 @@ long MSMIX::VlmCur(void)
 /***************************************************************************
     Play the given midi stream from the indicated queue.
 ***************************************************************************/
-bool MSMIX::FPlay(PMSQUE pmsque, PMDWS pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
+bool MidiStreamMixer::FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws, long sii, long spr, long cactPlay, ulong dtsStart, long vlm)
 {
     AssertThis(0);
     AssertPo(pmsque, 0);
@@ -784,7 +784,7 @@ bool MSMIX::FPlay(PMSQUE pmsque, PMDWS pmdws, long sii, long spr, long cactPlay,
     The sound list changed so make sure we're playing the first tune.
     Assumes the mutx is already checked out.
 ***************************************************************************/
-void MSMIX::_Restart(bool fNew)
+void MidiStreamMixer::_Restart(bool fNew)
 {
     AssertThis(0);
 
@@ -811,7 +811,7 @@ void MSMIX::_Restart(bool fNew)
     Submit the buffer(s) for the current MSOS. Assumes the mutx is already
     checked out.
 ***************************************************************************/
-void MSMIX::_SubmitBuffers(ulong tsCur)
+void MidiStreamMixer::_SubmitBuffers(ulong tsCur)
 {
     Assert(!_fPlaying, "already playing!");
     long cb, cbSkip;
@@ -838,7 +838,7 @@ void MSMIX::_SubmitBuffers(ulong tsCur)
             _pglmsos->Put(imsos, &msos);
         }
 
-        // Calling SetVlm causes us to tell the MISI about the new volume
+        // Calling SetVlm causes us to tell the MidiStreamInterface about the new volume
         _vlmSound = msos.vlm;
         SetVlm(_vlmBase);
 
@@ -907,7 +907,7 @@ void MSMIX::_SubmitBuffers(ulong tsCur)
     Seek into the pmdws the given amount of time, and accumulate key events
     in _pglmevKey.
 ***************************************************************************/
-bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
+bool MidiStreamMixer::_FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip)
 {
     AssertPo(pmdws, 0);
     AssertVarMem(pcbSkip);
@@ -944,7 +944,7 @@ bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
     ClearPb(&mkey, size(mkey));
     ClearPb(rgmev, size(rgmev));
 
-    if (pvNil == _pglmevKey && (pvNil == (_pglmevKey = GL::PglNew(size(MEV)))))
+    if (pvNil == _pglmevKey && (pvNil == (_pglmevKey = DynamicArray::PglNew(size(MEV)))))
         return fFalse;
     _pglmevKey->FSetIvMac(0);
 
@@ -1066,14 +1066,14 @@ bool MSMIX::_FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip)
 /***************************************************************************
     Call back from the midi stream stuff.
 ***************************************************************************/
-void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong luData)
+void MidiStreamMixer::_MidiProc(ulong luUser, void *pvData, ulong lUserDataa)
 {
-    PMSMIX pmsmix;
-    PMDWS pmdws;
+    PMidiStreamMixer pmsmix;
+    PMidiStreamCached pmdws;
 
-    pmsmix = (PMSMIX)luUser;
+    pmsmix = (PMidiStreamMixer)luUser;
     AssertPo(pmsmix, 0);
-    pmdws = (PMDWS)luData;
+    pmdws = (PMidiStreamCached)lUserDataa;
     AssertNilOrPo(pmdws, 0);
 
     pmsmix->_Notify(pvData, pmdws);
@@ -1082,7 +1082,7 @@ void MSMIX::_MidiProc(ulong luUser, void *pvData, ulong luData)
 /***************************************************************************
     The midi stream is done with the given header.
 ***************************************************************************/
-void MSMIX::_Notify(void *pvData, PMDWS pmdws)
+void MidiStreamMixer::_Notify(void *pvData, PMidiStreamCached pmdws)
 {
     AssertNilOrPo(pmdws, 0);
     MSOS msos;
@@ -1136,11 +1136,11 @@ void MSMIX::_Notify(void *pvData, PMDWS pmdws)
 }
 
 /***************************************************************************
-    AT: Static method. Thread function for the MSMIX object.
+    AT: Static method. Thread function for the MidiStreamMixer object.
 ***************************************************************************/
-ulong __stdcall MSMIX::_ThreadProc(void *pv)
+ulong __stdcall MidiStreamMixer::_ThreadProc(void *pv)
 {
-    PMSMIX pmsmix = (PMSMIX)pv;
+    PMidiStreamMixer pmsmix = (PMidiStreamMixer)pv;
 
     AssertPo(pmsmix, 0);
 
@@ -1151,7 +1151,7 @@ ulong __stdcall MSMIX::_ThreadProc(void *pv)
     AT: This thread just sleeps until the next sound is due to expire, then
     wakes up and nukes any expired sounds.
 ***************************************************************************/
-ulong MSMIX::_LuThread(void)
+ulong MidiStreamMixer::_LuThread(void)
 {
     AssertThis(0);
     ulong tsCur;
@@ -1222,7 +1222,7 @@ ulong MSMIX::_LuThread(void)
 /***************************************************************************
     Constructor for the MIDI stream interface.
 ***************************************************************************/
-MISI::MISI(PFNMIDI pfn, ulong luUser)
+MidiStreamInterface::MidiStreamInterface(PFNMIDI pfn, ulong luUser)
 {
     AssertBaseThis(0);
     Assert(pvNil != pfn, 0);
@@ -1238,7 +1238,7 @@ MISI::MISI(PFNMIDI pfn, ulong luUser)
 /***************************************************************************
     Reset the midi device.
 ***************************************************************************/
-void MISI::_Reset(void)
+void MidiStreamInterface::_Reset(void)
 {
     Assert(hNil != _hms, 0);
     long iv;
@@ -1257,7 +1257,7 @@ void MISI::_Reset(void)
 /***************************************************************************
     Get the system volume level.
 ***************************************************************************/
-void MISI::_GetSysVol(void)
+void MidiStreamInterface::_GetSysVol(void)
 {
     Assert(hNil != _hms, "calling _GetSysVol with nil _hms");
     ulong lu0, lu1, lu2;
@@ -1310,7 +1310,7 @@ void MISI::_GetSysVol(void)
 /***************************************************************************
     Set the system volume level.
 ***************************************************************************/
-void MISI::_SetSysVol(ulong luVol)
+void MidiStreamInterface::_SetSysVol(ulong luVol)
 {
     Assert(hNil != _hms, "calling _SetSysVol with nil _hms");
     midiOutSetVolume(_hms, luVol);
@@ -1321,7 +1321,7 @@ void MISI::_SetSysVol(ulong luVol)
     and _luVolSys. We set the system volume to the result of scaling
     _luVolSys by _vlmBase.
 ***************************************************************************/
-void MISI::_SetSysVlm(void)
+void MidiStreamInterface::_SetSysVlm(void)
 {
     ulong luVol;
 
@@ -1332,7 +1332,7 @@ void MISI::_SetSysVlm(void)
 /***************************************************************************
     Set the volume for the midi stream output device.
 ***************************************************************************/
-void MISI::SetVlm(long vlm)
+void MidiStreamInterface::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -1347,7 +1347,7 @@ void MISI::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long MISI::VlmCur(void)
+long MidiStreamInterface::VlmCur(void)
 {
     AssertThis(0);
 
@@ -1357,7 +1357,7 @@ long MISI::VlmCur(void)
 /***************************************************************************
     Return whether the midi stream output device is active.
 ***************************************************************************/
-bool MISI::FActive(void)
+bool MidiStreamInterface::FActive(void)
 {
     return hNil != _hms;
 }
@@ -1365,7 +1365,7 @@ bool MISI::FActive(void)
 /***************************************************************************
     Activate or deactivate the Midi stream output object.
 ***************************************************************************/
-bool MISI::FActivate(bool fActivate)
+bool MidiStreamInterface::FActivate(bool fActivate)
 {
     AssertThis(0);
 
@@ -1375,14 +1375,14 @@ bool MISI::FActivate(bool fActivate)
 /***************************************************************************
     Constructor for the Win95 Midi stream class.
 ***************************************************************************/
-WMS::WMS(PFNMIDI pfn, ulong luUser) : MISI(pfn, luUser)
+WindowsMidiStream::WindowsMidiStream(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
 /***************************************************************************
     Destructor for the Win95 Midi stream class.
 ***************************************************************************/
-WMS::~WMS(void)
+WindowsMidiStream::~WindowsMidiStream(void)
 {
     if (hNil != _hth)
     {
@@ -1397,7 +1397,7 @@ WMS::~WMS(void)
 
     if (pvNil != _pglpmsir)
     {
-        Assert(0 == _pglpmsir->IvMac(), "WMS still has some active buffers");
+        Assert(0 == _pglpmsir->IvMac(), "WindowsMidiStream still has some active buffers");
         ReleasePpo(&_pglpmsir);
     }
     if (hNil != _hlib)
@@ -1408,13 +1408,13 @@ WMS::~WMS(void)
 }
 
 /***************************************************************************
-    Create a new WMS.
+    Create a new WindowsMidiStream.
 ***************************************************************************/
-PWMS WMS::PwmsNew(PFNMIDI pfn, ulong luUser)
+PWindowsMidiStream WindowsMidiStream::PwmsNew(PFNMIDI pfn, ulong luUser)
 {
-    PWMS pwms;
+    PWindowsMidiStream pwms;
 
-    if (pvNil == (pwms = NewObj WMS(pfn, luUser)))
+    if (pvNil == (pwms = NewObj WindowsMidiStream(pfn, luUser)))
         return pvNil;
 
     if (!pwms->_FInit())
@@ -1424,9 +1424,9 @@ PWMS WMS::PwmsNew(PFNMIDI pfn, ulong luUser)
 }
 
 /***************************************************************************
-    Initialize the WMS: get the addresses of the stream API.
+    Initialize the WindowsMidiStream: get the addresses of the stream API.
 ***************************************************************************/
-bool WMS::_FInit(void)
+bool WindowsMidiStream::_FInit(void)
 {
     OSVERSIONINFO osv;
     ulong luThread;
@@ -1468,7 +1468,7 @@ bool WMS::_FInit(void)
 
 #undef _Get
 
-    if (pvNil == (_pglpmsir = GL::PglNew(size(PMSIR))))
+    if (pvNil == (_pglpmsir = DynamicArray::PglNew(size(PMSIR))))
         return fFalse;
     _pglpmsir->SetMinGrow(1);
 
@@ -1476,7 +1476,7 @@ bool WMS::_FInit(void)
         return fFalse;
 
     // create the thread
-    if (hNil == (_hth = CreateThread(pvNil, 1024, WMS::_ThreadProc, this, 0, &luThread)))
+    if (hNil == (_hth = CreateThread(pvNil, 1024, WindowsMidiStream::_ThreadProc, this, 0, &luThread)))
     {
         return fFalse;
     }
@@ -1487,11 +1487,11 @@ bool WMS::_FInit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a WMS.
+    Assert the validity of a WindowsMidiStream.
 ***************************************************************************/
-void WMS::AssertValid(ulong grf)
+void WindowsMidiStream::AssertValid(ulong grf)
 {
-    WMS_PAR::AssertValid(0);
+    WindowsMidiStream_PAR::AssertValid(0);
     Assert(hNil != _hlib, 0);
     long cpmsir;
 
@@ -1506,15 +1506,15 @@ void WMS::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the WMS.
+    Mark memory for the WindowsMidiStream.
 ***************************************************************************/
-void WMS::MarkMem(void)
+void WindowsMidiStream::MarkMem(void)
 {
     AssertValid(0);
     PMSIR pmsir;
     long ipmsir;
 
-    WMS_PAR::MarkMem();
+    WindowsMidiStream_PAR::MarkMem();
 
     _mutx.Enter();
     for (ipmsir = _pglpmsir->IvMac(); ipmsir-- > 0;)
@@ -1534,7 +1534,7 @@ void WMS::MarkMem(void)
     indicating 1 quarter note per second (1000000 microseconds per quarter).
     The end result is that ticks are milliseconds.
 ***************************************************************************/
-bool WMS::_FOpen(void)
+bool WindowsMidiStream::_FOpen(void)
 {
     AssertThis(0);
 
@@ -1592,7 +1592,7 @@ LDone:
 /***************************************************************************
     Close the midi stream.
 ***************************************************************************/
-bool WMS::_FClose(void)
+bool WindowsMidiStream::_FClose(void)
 {
     AssertThis(0);
 
@@ -1630,7 +1630,7 @@ bool WMS::_FClose(void)
 /***************************************************************************
     Just return the value of our flag, not (hNil != _hms).
 ***************************************************************************/
-bool WMS::FActive(void)
+bool WindowsMidiStream::FActive(void)
 {
     return _fActive;
 }
@@ -1638,11 +1638,11 @@ bool WMS::FActive(void)
 /***************************************************************************
     Need to set _fActive as well.
 ***************************************************************************/
-bool WMS::FActivate(bool fActivate)
+bool WindowsMidiStream::FActivate(bool fActivate)
 {
     bool fRet;
 
-    fRet = WMS_PAR::FActivate(fActivate);
+    fRet = WindowsMidiStream_PAR::FActivate(fActivate);
     if (fRet)
         _fActive = FPure(fActivate);
     return fRet;
@@ -1653,7 +1653,7 @@ bool WMS::FActivate(bool fActivate)
     Reset the midi stream so it's ready to accept new input. Assumes we
     already have the mutx.
 ***************************************************************************/
-void WMS::_ResetStream(void)
+void WindowsMidiStream::_ResetStream(void)
 {
     if (!FActive())
         return;
@@ -1677,7 +1677,7 @@ void WMS::_ResetStream(void)
     This submits a buffer and restarts the midi stream. If the data is
     bigger than 64K, this (in conjunction with _Notify) deals with it.
 ***************************************************************************/
-bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData)
+bool WindowsMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -1700,7 +1700,7 @@ bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
     pmsir->pvData = pvData;
     pmsir->cb = cb;
     pmsir->cactPlay = cactPlay;
-    pmsir->luData = luData;
+    pmsir->lUserDataa = lUserDataa;
     pmsir->ibNext = ibStart;
 
     if (_hms == hNil || !_pglpmsir->FAdd(&pmsir, &ipmsir))
@@ -1724,7 +1724,7 @@ bool WMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
 /***************************************************************************
     Submits buffers. Assumes the _mutx is already ours.
 ***************************************************************************/
-long WMS::_CmhSubmitBuffers(void)
+long WindowsMidiStream::_CmhSubmitBuffers(void)
 {
     PMSIR pmsir;
     long cbMh;
@@ -1788,7 +1788,7 @@ long WMS::_CmhSubmitBuffers(void)
 /***************************************************************************
     Prepare and submit the given buffer. Assumes the mutx is ours.
 ***************************************************************************/
-bool WMS::_FSubmit(PMH pmh)
+bool WindowsMidiStream::_FSubmit(PMH pmh)
 {
     bool fRestart = (0 == _cmhOut);
 
@@ -1815,7 +1815,7 @@ bool WMS::_FSubmit(PMH pmh)
 /***************************************************************************
     Stop the midi stream.
 ***************************************************************************/
-void WMS::StopPlaying(void)
+void WindowsMidiStream::StopPlaying(void)
 {
     AssertThis(0);
 
@@ -1835,15 +1835,15 @@ void WMS::StopPlaying(void)
     to 0, this stops the midi stream. If the indicated sound is done,
     we notify the client.
 ***************************************************************************/
-void __stdcall WMS::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong lu2)
+void __stdcall WindowsMidiStream::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong lu2)
 {
-    PWMS pwms;
+    PWindowsMidiStream pwms;
     PMH pmh;
 
     if (msg != MOM_DONE)
         return;
 
-    pwms = (PWMS)luUser;
+    pwms = (PWindowsMidiStream)luUser;
     AssertPo(pwms, 0);
     pmh = (PMH)lu1;
     AssertVarMem(pmh);
@@ -1857,7 +1857,7 @@ void __stdcall WMS::_MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong
     midiStreamStop and midiOutReset. So we just signal another thread to
     do this work.
 ***************************************************************************/
-void WMS::_Notify(HMS hms, PMH pmh)
+void WindowsMidiStream::_Notify(HMS hms, PMH pmh)
 {
     AssertThis(0);
     Assert(hNil != hms, 0);
@@ -1907,13 +1907,13 @@ void WMS::_Notify(HMS hms, PMH pmh)
 }
 
 /***************************************************************************
-    AT: Static method. Thread function for the WMS object. This thread
+    AT: Static method. Thread function for the WindowsMidiStream object. This thread
     just waits for the event to be triggered, indicating that we got
     a callback from the midiStream stuff and it's time to do our callbacks.
 ***************************************************************************/
-ulong __stdcall WMS::_ThreadProc(void *pv)
+ulong __stdcall WindowsMidiStream::_ThreadProc(void *pv)
 {
-    PWMS pwms = (PWMS)pv;
+    PWindowsMidiStream pwms = (PWindowsMidiStream)pv;
 
     AssertPo(pwms, 0);
 
@@ -1924,7 +1924,7 @@ ulong __stdcall WMS::_ThreadProc(void *pv)
     AT: This thread just sleeps until the next sound is due to expire, then
     wakes up and nukes any expired sounds.
 ***************************************************************************/
-ulong WMS::_LuThread(void)
+ulong WindowsMidiStream::_LuThread(void)
 {
     AssertThis(0);
 
@@ -1950,7 +1950,7 @@ ulong WMS::_LuThread(void)
     Check for MSIRs that are done and do the callback on them and free them.
     Assumes the _mutx is checked out exactly once.
 ***************************************************************************/
-void WMS::_DoCallBacks()
+void WindowsMidiStream::_DoCallBacks()
 {
     PMSIR pmsir;
 
@@ -1980,7 +1980,7 @@ void WMS::_DoCallBacks()
         _mutx.Leave();
 
         // notify the client that we're done with the sound
-        (*_pfnCall)(_luUser, pmsir->pvData, pmsir->luData);
+        (*_pfnCall)(_luUser, pmsir->pvData, pmsir->lUserDataa);
         FreePpv((void **)&pmsir);
 
         _mutx.Enter();
@@ -1991,14 +1991,14 @@ void WMS::_DoCallBacks()
 /***************************************************************************
     Constructor for our own midi stream api implementation.
 ***************************************************************************/
-OMS::OMS(PFNMIDI pfn, ulong luUser) : MISI(pfn, luUser)
+OurMidiStream::OurMidiStream(PFNMIDI pfn, ulong luUser) : MidiStreamInterface(pfn, luUser)
 {
 }
 
 /***************************************************************************
     Destructor for our midi stream.
 ***************************************************************************/
-OMS::~OMS(void)
+OurMidiStream::~OurMidiStream(void)
 {
     if (hNil != _hth)
     {
@@ -2021,13 +2021,13 @@ OMS::~OMS(void)
 }
 
 /***************************************************************************
-    Create a new OMS.
+    Create a new OurMidiStream.
 ***************************************************************************/
-POMS OMS::PomsNew(PFNMIDI pfn, ulong luUser)
+POurMidiStream OurMidiStream::PomsNew(PFNMIDI pfn, ulong luUser)
 {
-    POMS poms;
+    POurMidiStream poms;
 
-    if (pvNil == (poms = NewObj OMS(pfn, luUser)))
+    if (pvNil == (poms = NewObj OurMidiStream(pfn, luUser)))
         return pvNil;
 
     if (!poms->_FInit())
@@ -2037,14 +2037,14 @@ POMS OMS::PomsNew(PFNMIDI pfn, ulong luUser)
 }
 
 /***************************************************************************
-    Initialize the OMS.
+    Initialize the OurMidiStream.
 ***************************************************************************/
-bool OMS::_FInit(void)
+bool OurMidiStream::_FInit(void)
 {
     AssertBaseThis(0);
     ulong luThread;
 
-    if (pvNil == (_pglmsb = GL::PglNew(size(MSB))))
+    if (pvNil == (_pglmsb = DynamicArray::PglNew(size(MSB))))
         return fFalse;
     _pglmsb->SetMinGrow(1);
 
@@ -2052,7 +2052,7 @@ bool OMS::_FInit(void)
         return fFalse;
 
     // create the thread in a suspended state
-    if (hNil == (_hth = CreateThread(pvNil, 1024, OMS::_ThreadProc, this, CREATE_SUSPENDED, &luThread)))
+    if (hNil == (_hth = CreateThread(pvNil, 1024, OurMidiStream::_ThreadProc, this, CREATE_SUSPENDED, &luThread)))
     {
         return fFalse;
     }
@@ -2067,11 +2067,11 @@ bool OMS::_FInit(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a OMS.
+    Assert the validity of a OurMidiStream.
 ***************************************************************************/
-void OMS::AssertValid(ulong grf)
+void OurMidiStream::AssertValid(ulong grf)
 {
-    OMS_PAR::AssertValid(0);
+    OurMidiStream_PAR::AssertValid(0);
 
     _mutx.Enter();
     Assert(hNil != _hth, "nil thread");
@@ -2081,12 +2081,12 @@ void OMS::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the OMS.
+    Mark memory for the OurMidiStream.
 ***************************************************************************/
-void OMS::MarkMem(void)
+void OurMidiStream::MarkMem(void)
 {
     AssertValid(0);
-    OMS_PAR::MarkMem();
+    OurMidiStream_PAR::MarkMem();
 
     _mutx.Enter();
     MarkMemObj(_pglmsb);
@@ -2097,7 +2097,7 @@ void OMS::MarkMem(void)
 /***************************************************************************
     Open the stream.
 ***************************************************************************/
-bool OMS::_FOpen(void)
+bool OurMidiStream::_FOpen(void)
 {
     AssertThis(0);
 
@@ -2129,7 +2129,7 @@ LDone:
 /***************************************************************************
     Close the stream.
 ***************************************************************************/
-bool OMS::_FClose(void)
+bool OurMidiStream::_FClose(void)
 {
     AssertThis(0);
 
@@ -2165,7 +2165,7 @@ bool OMS::_FClose(void)
 /***************************************************************************
     Queue a buffer to the midi stream.
 ***************************************************************************/
-bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData)
+bool OurMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa)
 {
     AssertThis(0);
     AssertPvCb(pvData, cb);
@@ -2184,7 +2184,7 @@ bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
     msb.cb = cb;
     msb.ibStart = ibStart;
     msb.cactPlay = cactPlay;
-    msb.luData = luData;
+    msb.lUserDataa = lUserDataa;
 
     if (!_pglmsb->FAdd(&msb))
     {
@@ -2209,7 +2209,7 @@ bool OMS::FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong
     Stop the stream and release all buffers. The buffer notifies are
     asynchronous.
 ***************************************************************************/
-void OMS::StopPlaying(void)
+void OurMidiStream::StopPlaying(void)
 {
     AssertThis(0);
 
@@ -2228,9 +2228,9 @@ void OMS::StopPlaying(void)
 /***************************************************************************
     AT: Static method. Thread function for the midi stream object.
 ***************************************************************************/
-ulong __stdcall OMS::_ThreadProc(void *pv)
+ulong __stdcall OurMidiStream::_ThreadProc(void *pv)
 {
-    POMS poms = (POMS)pv;
+    POurMidiStream poms = (POurMidiStream)pv;
 
     AssertPo(poms, 0);
 
@@ -2240,7 +2240,7 @@ ulong __stdcall OMS::_ThreadProc(void *pv)
 /***************************************************************************
     AT: The midi stream playback thread.
 ***************************************************************************/
-ulong OMS::_LuThread(void)
+ulong OurMidiStream::_LuThread(void)
 {
     AssertThis(0);
     MSB msb;
@@ -2345,7 +2345,7 @@ ulong OMS::_LuThread(void)
     Release all buffers up to _imsbCur. Assumes that we have the mutx
     checked out exactly once.
 ***************************************************************************/
-void OMS::_ReleaseBuffers(void)
+void OurMidiStream::_ReleaseBuffers(void)
 {
     MSB msb;
 
@@ -2361,7 +2361,7 @@ void OMS::_ReleaseBuffers(void)
         _mutx.Leave();
 
         // call the notify proc
-        (*_pfnCall)(_luUser, msb.pvData, msb.luData);
+        (*_pfnCall)(_luUser, msb.pvData, msb.lUserDataa);
 
         _mutx.Enter();
     }

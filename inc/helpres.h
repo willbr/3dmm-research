@@ -127,8 +127,8 @@
 #define mbmpBrowserThumbLim 0X2026F
 #define mbmpActorsRotateNorm 0x20270
 #define mbmpActorsTransformNorm 0x20271
-#define mbmpBrwsSceneFrame 0x20273 // CNO for Scene browser frame
-#define mbmpBrwsActorFrame 0x20275 // CNO for Actor browser frame
+#define mbmpBrwsSceneFrame 0x20273 // ChunkNumber for Scene browser frame
+#define mbmpBrwsActorFrame 0x20275 // ChunkNumber for Actor browser frame
 #define mbmpBrwsMaterial 0x20276
 #define mbmpBrwsCMaterial 0x20277
 #define mbmpBrwsThreeD 0x20278

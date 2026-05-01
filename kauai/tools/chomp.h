@@ -17,4 +17,6 @@
 #include "frame.h"
 #include "mssio.h"
 
+using namespace Chunky;
+
 #endif //! CHOMP_H

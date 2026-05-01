@@ -16,6 +16,8 @@
 #ifndef UTILINT_H
 #define UTILINT_H
 
+#include <cstdint>
+
 /****************************************
     Scalar constants
 ****************************************/
@@ -310,25 +312,29 @@ inline long LwMul(long lw1, long lw2)
     Byte Swapping
 ****************************************/
 
-// byte order mask
-typedef ulong BOM;
+// byte order mask: a packed array of 16 2-bit lane descriptors used by
+// SwapBytesBom to byteswap a struct field-by-field. Pinned to 32 bits via
+// uint32_t so the kbom* literals (e.g. 0xC0000000) keep the same bit layout
+// on every architecture; bare `unsigned long` would silently widen to 64 bits
+// on LP64 (Linux/Mac x64) and reinterpret the high half as extra fields.
+typedef uint32_t ByteOrderMask;
 
-void SwapBytesBom(void *pv, BOM bom);
+void SwapBytesBom(void *pv, ByteOrderMask bom);
 void SwapBytesRgsw(void *psw, long csw);
 void SwapBytesRglw(void *plw, long clw);
 
-const BOM bomNil = 0;
-const BOM kbomSwapShort = 0x40000000;
-const BOM kbomSwapLong = 0xC0000000;
-const BOM kbomLeaveShort = 0x00000000;
-const BOM kbomLeaveLong = 0x80000000;
+const ByteOrderMask bomNil = 0;
+const ByteOrderMask kbomSwapShort = 0x40000000;
+const ByteOrderMask kbomSwapLong = 0xC0000000;
+const ByteOrderMask kbomLeaveShort = 0x00000000;
+const ByteOrderMask kbomLeaveLong = 0x80000000;
 
 /* You can chain up to 16 of these (2 bits each) */
 #define BomField(bomNew, bomLast) ((bomNew) | ((bomLast) >> 2))
 
 #ifdef DEBUG
-void AssertBomRglw(BOM bom, long cb);
-void AssertBomRgsw(BOM bom, long cb);
+void AssertBomRglw(ByteOrderMask bom, long cb);
+void AssertBomRgsw(ByteOrderMask bom, long cb);
 #else //! DEBUG
 #define AssertBomRglw(bom, cb)
 #define AssertBomRgsw(bom, cb)
@@ -339,11 +345,11 @@ void AssertBomRgsw(BOM bom, long cb);
 ****************************************/
 
 #ifdef MAC
-typedef Rect RCS;
-typedef Point PTS;
+typedef Rect SystemRectangle;
+typedef Point SystemPoint;
 #elif defined(WIN)
-typedef RECT RCS;
-typedef POINT PTS;
+typedef RECT SystemRectangle;
+typedef POINT SystemPoint;
 #endif // WIN
 
 /****************************************
@@ -377,10 +383,10 @@ class PT
         xp = xpT, yp = ypT;
     }
 
-    // for assigning to/from a PTS
-    operator PTS(void);
-    PT &operator=(PTS &pts);
-    PT(PTS &pts)
+    // for assigning to/from a SystemPoint
+    operator SystemPoint(void);
+    PT &operator=(SystemPoint &pts);
+    PT(SystemPoint &pts)
     {
         *this = pts;
     }
@@ -449,10 +455,10 @@ class RC
         ypBottom = ypBottomT;
     }
 
-    // for assigning to/from an RCS
-    operator RCS(void);
-    RC &operator=(RCS &rcs);
-    RC(RCS &rcs)
+    // for assigning to/from an SystemRectangle
+    operator SystemRectangle(void);
+    RC &operator=(SystemRectangle &rcs);
+    RC(SystemRectangle &rcs)
     {
         *this = rcs;
     }
@@ -820,7 +826,7 @@ class RAT
 /***************************************************************************
     Data versioning utility
 ***************************************************************************/
-struct DVER
+struct DataVersion
 {
     short _swCur;
     short _swBack;
@@ -828,5 +834,6 @@ struct DVER
     void Set(short swCur, short swBack);
     bool FReadable(short swCur, short swMin);
 };
+static_assert(sizeof(DataVersion) == 4, "DataVersion on-disk layout drift");
 
 #endif // UTILINT_H

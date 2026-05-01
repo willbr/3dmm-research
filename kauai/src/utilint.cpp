@@ -399,7 +399,7 @@ void AssertIn(long lw, long lwMin, long lwLim)
     bit of each opcode indicates whether the bytes are to be swapped
     in the field (1) or left alone (0).
 ***************************************************************************/
-void SwapBytesBom(void *pv, BOM bom)
+void SwapBytesBom(void *pv, ByteOrderMask bom)
 {
     byte b;
     byte *pb = (byte *)pv;
@@ -483,13 +483,13 @@ void SwapBytesRglw(void *plw, long clw)
 
 #ifdef DEBUG
 /***************************************************************************
-    Asserts that the given BOM indicates a struct having cb/size(long) longs
+    Asserts that the given ByteOrderMask indicates a struct having cb/size(long) longs
     to be swapped (so SwapBytesRglw can legally be used on an array of
     these).
 ***************************************************************************/
-void AssertBomRglw(BOM bom, long cb)
+void AssertBomRglw(ByteOrderMask bom, long cb)
 {
-    BOM bomT;
+    ByteOrderMask bomT;
     long clw;
 
     clw = cb / size(long);
@@ -500,13 +500,13 @@ void AssertBomRglw(BOM bom, long cb)
 }
 
 /***************************************************************************
-    Asserts that the given BOM indicates a struct having cb/size(short) shorts
+    Asserts that the given ByteOrderMask indicates a struct having cb/size(short) shorts
     to be swapped (so SwapBytesRgsw can legally be used on an array of
     these).
 ***************************************************************************/
-void AssertBomRgsw(BOM bom, long cb)
+void AssertBomRgsw(ByteOrderMask bom, long cb)
 {
-    BOM bomT;
+    ByteOrderMask bomT;
     long csw;
 
     csw = cb / size(short);
@@ -522,10 +522,10 @@ void AssertBomRgsw(BOM bom, long cb)
     REVIEW shonk: should we assert on truncation?  Should we truncate
     on windows?
 ***************************************************************************/
-PT::operator PTS(void)
+PT::operator SystemPoint(void)
 {
     AssertThisMem();
-    PTS pts;
+    SystemPoint pts;
 
     MacWin(pts.h, pts.x) = SwTruncLw(xp);
     MacWin(pts.v, pts.y) = SwTruncLw(yp);
@@ -535,7 +535,7 @@ PT::operator PTS(void)
 /***************************************************************************
     Copies a system point to a util point.
 ***************************************************************************/
-PT &PT::operator=(PTS &pts)
+PT &PT::operator=(SystemPoint &pts)
 {
     AssertThisMem();
     xp = MacWin(pts.h, pts.x);
@@ -972,7 +972,7 @@ void RC::PinToRc(RC *prc)
 /***************************************************************************
     Copies a system rectangle to a util rectangle.
 ***************************************************************************/
-RC &RC::operator=(RCS &rcs)
+RC &RC::operator=(SystemRectangle &rcs)
 {
     AssertThisMem();
 
@@ -987,10 +987,10 @@ RC &RC::operator=(RCS &rcs)
     Truncates util rectangle to a system rectangle.
     REVIEW shonk: should we assert on truncation?
 ***************************************************************************/
-RC::operator RCS(void)
+RC::operator SystemRectangle(void)
 {
     AssertThisMem();
-    RCS rcs;
+    SystemRectangle rcs;
 
     rcs.left = SwTruncLw(xpLeft);
     rcs.right = SwTruncLw(xpRight);
@@ -1078,7 +1078,7 @@ void RAT::AssertValid(ulong grf)
 /***************************************************************************
     Constructor for the master clock.
 ***************************************************************************/
-USAC::USAC(void)
+UniversalScalableApplicationClock::UniversalScalableApplicationClock(void)
 {
     AssertThisMem();
     _tsBaseSys = MacWin(TickCount(), timeGetTime());
@@ -1089,7 +1089,7 @@ USAC::USAC(void)
 /***************************************************************************
     Return the current application time.
 ***************************************************************************/
-ulong USAC::TsCur(void)
+ulong UniversalScalableApplicationClock::TsCur(void)
 {
     AssertThisMem();
     ulong dtsSys = TsCurrentSystem() - _tsBaseSys;
@@ -1107,7 +1107,7 @@ ulong USAC::TsCur(void)
 /***************************************************************************
     Scale the time.
 ***************************************************************************/
-void USAC::Scale(ulong luScale)
+void UniversalScalableApplicationClock::Scale(ulong luScale)
 {
     AssertThisMem();
     ulong tsSys, dts;
@@ -1130,19 +1130,19 @@ void USAC::Scale(ulong luScale)
 }
 
 /***************************************************************************
-    Set the DVER structure.
+    Set the DataVersion structure.
 ***************************************************************************/
-void DVER::Set(short swCur, short swBack)
+void DataVersion::Set(short swCur, short swBack)
 {
     _swBack = swBack;
     _swCur = swCur;
 }
 
 /***************************************************************************
-    Determines if the DVER structure is compatible with (swCur and swMin).
+    Determines if the DataVersion structure is compatible with (swCur and swMin).
     Asserts that 0 <= swMin <= swCur.
 ***************************************************************************/
-bool DVER::FReadable(short swCur, short swMin)
+bool DataVersion::FReadable(short swCur, short swMin)
 {
     AssertIn(_swBack, 0, _swCur + 1);
     AssertIn(_swCur, 0, kswMax);

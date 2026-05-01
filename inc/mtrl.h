@@ -8,27 +8,32 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> MTRL
-    BASE ---> BACO ---> CMTL
+    BASE ---> BaseCacheableObject ---> Material_MTRL
+    BASE ---> BaseCacheableObject ---> CustomMaterial_CMTL
 
 *************************************************************************/
 #ifndef MTRL_H
 #define MTRL_H
 
-// CMTL on File
-struct CMTLF
-{
-    short bo;
-    short osk;
-    long ibset; // which body part set this CMTL attaches to
-};
-const BOM kbomCmtlf = 0x5c000000;
+#include <cstdint>
 
-// material on file (MTRL chunk)
-struct MTRLF
+using namespace BRender;
+
+// CustomMaterial_CMTL on File
+struct CustomMaterialOnFile
 {
-    short bo;            // byte order
-    short osk;           // OS kind
+    int16_t bo;
+    int16_t osk;
+    int32_t ibset; // which body part set this CustomMaterial_CMTL attaches to
+};
+static_assert(sizeof(CustomMaterialOnFile) == 8, "CustomMaterialOnFile on-disk layout drift");
+const ByteOrderMask kbomCmtlf = 0x5c000000;
+
+// material on file (Material_MTRL chunk)
+struct MaterialOnFile
+{
+    int16_t bo;          // byte order
+    int16_t osk;         // OS kind
     br_colour brc;       // RGB color
     br_ufraction brufKa; // ambient component
     br_ufraction brufKd; // diffuse component
@@ -37,88 +42,89 @@ struct MTRLF
     byte cIndexRange;    // count of entries in palette for this color
     BRS rPower;          // specular exponent
 };
-const BOM kbomMtrlf = 0x5D530000;
+static_assert(sizeof(MaterialOnFile) == 20, "MaterialOnFile on-disk layout drift");
+const ByteOrderMask kbomMtrlf = 0x5D530000;
 
 /****************************************
-    The MTRL class.  There are two kinds
+    The Material_MTRL class.  There are two kinds
     of MTRLs: solid-color MTRLs and
     texmap materials.  Texmap MTRLs have
-    TMAPs under the MTRL chunk with chid
+    TMAPs under the Material_MTRL chunk with chid
     0.
 ****************************************/
-typedef class MTRL *PMTRL;
-#define MTRL_PAR BACO
-#define kclsMTRL 'MTRL'
-class MTRL : public MTRL_PAR
+typedef class Material_MTRL *PMaterial_MTRL;
+#define Material_MTRL_PAR BaseCacheableObject
+#define kclsMaterial_MTRL 'MTRL'
+class Material_MTRL : public Material_MTRL_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    static PTMAP _ptmapShadeTable; // shade table for all MTRLs
+    static PTextureMap _ptmapShadeTable; // shade table for all MTRLs
     PBMTL _pbmtl;
 
   protected:
-    MTRL(void)
+    Material_MTRL(void)
     {
         _pbmtl = pvNil;
     } // can't instantiate directly; must use FReadMtrl
-    bool _FInit(PCRF pcrf, CTG ctg, CNO cno);
+    bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static bool FSetShadeTable(PCFL pcfl, CTG ctg, CNO cno);
-    static PMTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
-    static bool FReadMtrl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PMTRL PmtrlNewFromPix(PFNI pfni);
-    static PMTRL PmtrlNewFromBmp(PFNI pfni, PGL pglclr = pvNil);
-    static PMTRL PmtrlFromBmtl(PBMTL pbmtl);
-    ~MTRL(void);
-    PTMAP Ptmap(void);
+    static bool FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    static PMaterial_MTRL PmtrlNew(long iclrBase = ivNil, long cclr = ivNil);
+    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PMaterial_MTRL PmtrlNewFromPix(PFilename pfni);
+    static PMaterial_MTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
+    static PMaterial_MTRL PmtrlFromBmtl(PBMTL pbmtl);
+    ~Material_MTRL(void);
+    PTextureMap Ptmap(void);
     PBMTL Pbmtl(void)
     {
         return _pbmtl;
     }
-    bool FWrite(PCFL pcfl, CTG ctg, CNO *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG
 };
 
 /****************************************
-    The CMTL (custom material) class
+    The CustomMaterial_CMTL (custom material) class
     This manages a set of materials to
     apply to a body part set
 ****************************************/
-typedef class CMTL *PCMTL;
-#define CMTL_PAR BACO
-#define kclsCMTL 'CMTL'
-class CMTL : public CMTL_PAR
+typedef class CustomMaterial_CMTL *PCustomMaterial_CMTL;
+#define CustomMaterial_CMTL_PAR BaseCacheableObject
+#define kclsCustomMaterial_CMTL 'CMTL'
+class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PMTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CMTL's set
-    PMODL *_prgpmodl; // _cbprt PMODLs, one per body part in this CMTL's set
-    long _cbprt;      // count of body parts in this CMTL
-    long _ibset;      // body part set that this CMTL should be applied to
+    PMaterial_MTRL *_prgpmtrl; // _cbprt PMTRLs, one per body part in this CustomMaterial_CMTL's set
+    PModel *_prgpmodl; // _cbprt PMODLs, one per body part in this CustomMaterial_CMTL's set
+    long _cbprt;      // count of body parts in this CustomMaterial_CMTL
+    long _ibset;      // body part set that this CustomMaterial_CMTL should be applied to
 
   protected:
-    bool _FInit(PCRF pcrf, CTG ctg, CNO cno);
-    CMTL(void)
+    bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    CustomMaterial_CMTL(void)
     {
     } // can't instantiate directly; must use PcmtlRead
 
   public:
-    static PCMTL PcmtlNew(long ibset, long cbprt, PMTRL *prgpmtrl);
-    static bool FReadCmtl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static bool FHasModels(PCFL pcfl, CTG ctg, CNO cno);
-    static bool FEqualModels(PCFL pcfl, CNO cno1, CNO cno2);
-    ~CMTL(void);
+    static PCustomMaterial_CMTL PcmtlNew(long ibset, long cbprt, PMaterial_MTRL *prgpmtrl);
+    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static bool FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
+    ~CustomMaterial_CMTL(void);
     PBMTL Pbmtl(long ibmtl);
-    PMODL Pmodl(long imodl);
+    PModel Pmodl(long imodl);
     long Ibset(void)
     {
         return _ibset;

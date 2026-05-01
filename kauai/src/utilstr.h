@@ -104,11 +104,11 @@ enum
 /***************************************************************************
     String types
 ***************************************************************************/
-typedef achar *PSZ;
-typedef achar *PST;
+typedef achar *PZString;
+typedef achar *PPascalString;
 typedef achar *PSTZ;
-typedef achar SZ[kcchTotSz];
-typedef achar ST[kcchTotSt];
+typedef achar ZString[kcchTotSz];
+typedef achar PascalString[kcchTotSt];
 typedef achar STZ[kcchTotStz];
 typedef schar *PSZS;
 typedef schar SZS[kcchTotSz];
@@ -119,9 +119,9 @@ typedef schar SZS[kcchTotSz];
 #ifdef DEBUG
 void AssertRgch(achar *prgch, long cch);
 void AssertStz(PSTZ pstz);
-void AssertSt(PST pst);
-void AssertSz(PSZ psz);
-void AssertNilOrSz(PSZ psz);
+void AssertSt(PPascalString pst);
+void AssertSz(PZString psz);
+void AssertNilOrSz(PZString psz);
 #else
 #define AssertRgch(prgch, cch)
 #define AssertStz(pstz)
@@ -134,24 +134,24 @@ void AssertNilOrSz(PSZ psz);
     Testing validity of an stz or st
 ***************************************************************************/
 bool FValidStz(PSTZ pstz);
-bool FValidSt(PST pst);
+bool FValidSt(PPascalString pst);
 
 /***************************************************************************
     Cch means the number of characters (not including prefix and termination
     bytes) and CchTot means the total number of characters including
     overhead.
 ***************************************************************************/
-long CchSz(PSZ psz);
-inline long CchTotSz(PSZ psz)
+long CchSz(PZString psz);
+inline long CchTotSz(PZString psz)
 {
     return CchSz(psz) + kcchExtraSz;
 }
-inline long CchSt(PST pst)
+inline long CchSt(PPascalString pst)
 {
     AssertSt(pst);
     return (long)(byte)pst[0];
 }
-inline long CchTotSt(PST pst)
+inline long CchTotSt(PPascalString pst)
 {
     AssertSt(pst);
     return (long)(byte)pst[0] + kcchExtraSt;
@@ -167,11 +167,11 @@ inline long CchTotStz(PSTZ pstz)
     return (long)(byte)pstz[0] + kcchExtraStz;
 }
 
-inline achar *PrgchSt(PST pst)
+inline achar *PrgchSt(PPascalString pst)
 {
     return pst + 1;
 }
-inline PSZ PszStz(PSTZ pstz)
+inline PZString PszStz(PSTZ pstz)
 {
     return pstz + 1;
 }
@@ -270,7 +270,7 @@ long CchTranslateRgb(void *pvSrc, long cbSrc, short oskSrc, achar *prgchDst, lon
     koskCur uses.
 ***************************************************************************/
 void TranslateRgch(achar *prgch, long cch, short osk, bool fToCur = fTrue);
-inline void TranslateSt(PST pst, short osk, bool fToCur = fTrue)
+inline void TranslateSt(PPascalString pst, short osk, bool fToCur = fTrue)
 {
     TranslateRgch(pst + 1, CchSt(pst), osk, fToCur);
 }
@@ -278,7 +278,7 @@ inline void TranslateStz(PSTZ pstz, short osk, bool fToCur = fTrue)
 {
     TranslateRgch(pstz + 1, CchStz(pstz), osk, fToCur);
 }
-inline void TranslateSz(PSZ psz, short osk, bool fToCur = fTrue)
+inline void TranslateSz(PZString psz, short osk, bool fToCur = fTrue)
 {
     TranslateRgch(psz, CchSz(psz), osk, fToCur);
 }
@@ -319,8 +319,8 @@ extern const achar vrgchHex[];
 /***************************************************************************
     General string class.
 ***************************************************************************/
-typedef class STN *PSTN;
-class STN
+typedef class String *PString;
+class String
 {
     ASSERT
 
@@ -328,13 +328,13 @@ class STN
     achar _rgch[kcchMaxStn + 2];
 
   public:
-    STN(void)
+    String(void)
     {
         _rgch[0] = _rgch[1] = 0;
         AssertThis(0);
     }
-    STN(STN &stnSrc);
-    STN(PSZ pszSrc);
+    String(String &stnSrc);
+    String(PZString pszSrc);
 
     // pointers to the data - these should be considered readonly!
     achar *Prgch(void)
@@ -342,12 +342,12 @@ class STN
         AssertThis(0);
         return _rgch + 1;
     }
-    PSZ Psz(void)
+    PZString Psz(void)
     {
         AssertThis(0);
         return _rgch + 1;
     }
-    PST Pst(void)
+    PPascalString Pst(void)
     {
         AssertThis(0);
         return _rgch;
@@ -370,11 +370,11 @@ class STN
         _rgch[0] = _rgch[1] = 0;
     }
     void SetRgch(achar *prgchSrc, long cch);
-    void SetSz(PSZ pszSrc)
+    void SetSz(PZString pszSrc)
     {
         SetRgch(pszSrc, CchSz(pszSrc));
     }
-    void SetSt(PST pstSrc)
+    void SetSt(PPascalString pstSrc)
     {
         SetRgch(PrgchSt(pstSrc), CchSt(pstSrc));
     }
@@ -385,8 +385,8 @@ class STN
     void SetSzs(PSZS pszsSrc);
 
     // assignment operators
-    STN &operator=(STN &stnSrc);
-    STN &operator=(PSZ pszSrc)
+    String &operator=(String &stnSrc);
+    String &operator=(PZString pszSrc)
     {
         SetSz(pszSrc);
         return *this;
@@ -398,12 +398,12 @@ class STN
         AssertThis(0);
         CopyPb(Prgch(), prgchDst, Cch() * size(achar));
     }
-    void GetSz(PSZ pszDst)
+    void GetSz(PZString pszDst)
     {
         AssertThis(0);
         CopyPb(Psz(), pszDst, (Cch() + kcchExtraSz) * size(achar));
     }
-    void GetSt(PST pstDst)
+    void GetSt(PPascalString pstDst)
     {
         AssertThis(0);
         CopyPb(Pst(), pstDst, (Cch() + kcchExtraSt) * size(achar));
@@ -426,7 +426,7 @@ class STN
     {
         return FAppendRgch(pszSrc, CchSz(pszSrc));
     }
-    bool FAppendStn(PSTN pstnSrc)
+    bool FAppendStn(PString pstnSrc)
     {
         return FAppendRgch(pstnSrc->Prgch(), pstnSrc->Cch());
     }
@@ -435,37 +435,37 @@ class STN
     {
         return FInsertRgch(ich, &chSrc, 1);
     }
-    bool FInsertStn(long ich, PSTN pstnSrc)
+    bool FInsertStn(long ich, PString pstnSrc)
     {
         return FInsertRgch(ich, pstnSrc->Prgch(), pstnSrc->Cch());
     }
 
     // for testing equality
     bool FEqualRgch(achar *prgch, long cch);
-    bool FEqualSz(PSZ psz)
+    bool FEqualSz(PZString psz)
     {
         return FEqualRgch(psz, CchSz(psz));
     }
-    bool FEqual(PSTN pstn)
+    bool FEqual(PString pstn)
     {
         return FEqualRgch(pstn->Prgch(), pstn->Cch());
     }
     bool FEqualUserRgch(achar *prgch, long cch, ulong grfstn = fstnIgnoreCase);
-    bool FEqualUserSz(PSZ psz, ulong grfstn = fstnIgnoreCase)
+    bool FEqualUserSz(PZString psz, ulong grfstn = fstnIgnoreCase)
     {
         return FEqualUserRgch(psz, CchSz(psz), grfstn);
     }
-    bool FEqualUser(PSTN pstn, ulong grfstn = fstnIgnoreCase)
+    bool FEqualUser(PString pstn, ulong grfstn = fstnIgnoreCase)
     {
         return FEqualUserRgch(pstn->Prgch(), pstn->Cch(), grfstn);
     }
 
     // for sorting
-    ulong FcmpCompare(PSTN pstn)
+    ulong FcmpCompare(PString pstn)
     {
         return ::FcmpCompareRgch(Prgch(), Cch(), pstn->Prgch(), pstn->Cch());
     }
-    ulong FcmpCompareUser(PSTN pstn, ulong grfstn = fstnIgnoreCase)
+    ulong FcmpCompareUser(PString pstn, ulong grfstn = fstnIgnoreCase)
     {
         return ::FcmpCompareUserRgch(Prgch(), Cch(), pstn->Prgch(), pstn->Cch(), grfstn);
     }
@@ -474,12 +474,12 @@ class STN
     long CbData(void);
     void GetData(void *pv);
     bool FSetData(void *pv, long cbMax, long *pcbRead = pvNil);
-    bool FWrite(PBLCK pblck, long ib);
-    bool FRead(PBLCK pblck, long ib, long *pcbRead = pvNil);
+    bool FWrite(PDataBlock pblck, long ib);
+    bool FRead(PDataBlock pblck, long ib, long *pcbRead = pvNil);
 
-    bool FFormat(PSTN pstnFormat, ...);
-    bool FFormatSz(PSZ pszFormat, ...);
-    bool FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prgluData);
+    bool FFormat(PString pstnFormat, ...);
+    bool FFormatSz(PZString pszFormat, ...);
+    bool FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserDataa);
     bool FGetLw(long *plw, long lwBase = 0);
     bool FExpandControls(void);
 };

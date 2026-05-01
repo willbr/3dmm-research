@@ -23,42 +23,42 @@ enum
     fclokNoSlip = 2,
 };
 
-typedef class CLOK *PCLOK;
-#define CLOK_PAR CMH
-#define kclsCLOK 'CLOK'
-class CLOK : public CLOK_PAR
+typedef class Clock *PClock;
+#define Clock_PAR CommandHandler
+#define kclsClock 'CLOK'
+class Clock : public Clock_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(CLOK)
+    CMD_MAP_DEC(Clock)
 
   protected:
     // alarm descriptor
-    struct ALAD
+    struct AlarmDescriptor
     {
-        PCMH pcmh;
+        PCommandHandler pcmh;
         ulong tim;
         long lw;
     };
 
-    static PCLOK _pclokFirst;
+    static PClock _pclokFirst;
 
-    PCLOK _pclokNext;
+    PClock _pclokNext;
     ulong _tsBase;
     ulong _timBase;
     ulong _timCur;    // current time
     ulong _dtimAlarm; // processing alarms up to _timCur + _dtimAlarm
     ulong _timNext;   // next alarm time to process (for speed)
     ulong _grfclok;
-    PGL _pglalad; // the registered alarms
+    PDynamicArray _pglalad; // the registered alarms
 
   public:
-    CLOK(long hid, ulong grfclok = fclokNil);
-    ~CLOK(void);
-    static PCLOK PclokFromHid(long hid);
-    static void BuryCmh(PCMH pcmh);
-    void RemoveCmh(PCMH pcmh);
+    Clock(long hid, ulong grfclok = fclokNil);
+    ~Clock(void);
+    static PClock PclokFromHid(long hid);
+    static void BuryCmh(PCommandHandler pcmh);
+    void RemoveCmh(PCommandHandler pcmh);
 
     void Start(ulong tim);
     void Stop(void);
@@ -68,10 +68,10 @@ class CLOK : public CLOK_PAR
         return _dtimAlarm;
     }
 
-    bool FSetAlarm(long dtim, PCMH pcmhNotify = pvNil, long lwUser = 0, bool fAdjustForDelay = fFalse);
+    bool FSetAlarm(long dtim, PCommandHandler pcmhNotify = pvNil, long lwUser = 0, bool fAdjustForDelay = fFalse);
 
     // idle handling
-    virtual bool FCmdAll(PCMD pcmd);
+    virtual bool FCmdAll(PCommand pcmd);
 
 #ifdef DEBUG
     static void MarkAllCloks(void);

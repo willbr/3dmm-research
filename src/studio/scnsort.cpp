@@ -14,32 +14,32 @@
 
 ASSERTNAME
 
-BEGIN_CMD_MAP(SCRT, GOK)
-ON_CID_ME(cidSceneSortInit, &SCRT::FCmdInit, pvNil)
-ON_CID_ME(cidSceneSortSelect, &SCRT::FCmdSelect, pvNil)
-ON_CID_ME(cidSceneSortInsert, &SCRT::FCmdInsert, pvNil)
-ON_CID_ME(cidSceneSortScroll, &SCRT::FCmdScroll, pvNil)
-ON_CID_ME(cidSceneSortNuke, &SCRT::FCmdNuke, pvNil)
-ON_CID_ME(cidSceneSortOk, &SCRT::FCmdDismiss, pvNil)
-ON_CID_ME(cidSceneSortCancel, &SCRT::FCmdDismiss, pvNil)
-ON_CID_ME(cidSceneSortPortfolio, &SCRT::FCmdPortfolio, pvNil)
-ON_CID_ME(cidSceneSortTransition, &SCRT::FCmdTransition, pvNil)
+BEGIN_CMD_MAP(SceneSorter, KidspaceGraphicObject)
+ON_CID_ME(cidSceneSortInit, &SceneSorter::FCmdInit, pvNil)
+ON_CID_ME(cidSceneSortSelect, &SceneSorter::FCmdSelect, pvNil)
+ON_CID_ME(cidSceneSortInsert, &SceneSorter::FCmdInsert, pvNil)
+ON_CID_ME(cidSceneSortScroll, &SceneSorter::FCmdScroll, pvNil)
+ON_CID_ME(cidSceneSortNuke, &SceneSorter::FCmdNuke, pvNil)
+ON_CID_ME(cidSceneSortOk, &SceneSorter::FCmdDismiss, pvNil)
+ON_CID_ME(cidSceneSortCancel, &SceneSorter::FCmdDismiss, pvNil)
+ON_CID_ME(cidSceneSortPortfolio, &SceneSorter::FCmdPortfolio, pvNil)
+ON_CID_ME(cidSceneSortTransition, &SceneSorter::FCmdTransition, pvNil)
 END_CMD_MAP_NIL()
 
-RTCLASS(SCRT)
+RTCLASS(SceneSorter)
 
 #ifdef DEBUG
-void SCRT::AssertValid(ulong grf)
+void SceneSorter::AssertValid(ulong grf)
 {
-    SCRT_PAR::AssertValid(0);
+    SceneSorter_PAR::AssertValid(0);
     if (_iscenMac > 0)
         AssertIn(_iscenCur, 0, _iscenMac);
     else
         Assert(_iscenCur == 0, "Non-zero _iscenCur for empty movie");
     AssertIn(_iscenTop, 0, _iscenMac + 1);
 
-    /* The CMVI has loose rules about the format of its data structures, but
-        it's important to the SCRT that we keep things in the right order. */
+    /* The CompositeMovie has loose rules about the format of its data structures, but
+        it's important to the SceneSorter that we keep things in the right order. */
     if (_cmvi.pglscend != pvNil)
     {
         long imviedMac;
@@ -49,39 +49,39 @@ void SCRT::AssertValid(ulong grf)
         imviedMac = _cmvi.pglmvied->IvMac();
         for (long iscend = 0; iscend < _cmvi.pglscend->IvMac(); iscend++)
         {
-            SCEND scend;
+            SceneDescriptor scend;
 
             _cmvi.pglscend->Get(iscend, &scend);
-            Assert(iscend < _iscenMac ? !scend.fNuked : scend.fNuked, "Bad GL of SCENDs");
+            Assert(iscend < _iscenMac ? !scend.fNuked : scend.fNuked, "Bad DynamicArray of SCENDs");
             Assert(scend.imvied < imviedMac, "Bogus scene entry in pglscend");
         }
     }
 }
 
-void SCRT::MarkMem(void)
+void SceneSorter::MarkMem(void)
 {
     AssertThis(0);
 
-    SCRT_PAR::MarkMem();
+    SceneSorter_PAR::MarkMem();
     MarkMemObj(_pmvie);
     _cmvi.MarkMem();
 }
 #endif /* DEBUG */
 
-SCRT::SCRT(PGCB pgcb) : SCRT_PAR(pgcb)
+SceneSorter::SceneSorter(PGraphicsObjectBlock pgcb) : SceneSorter_PAR(pgcb)
 {
-    Assert(_pmvie == pvNil, "SCRT block not cleared");
-    Assert(_pstdio == pvNil, "SCRT block not cleared");
-    Assert(_cmvi.pglscend == pvNil, "SCRT block not cleared");
-    Assert(_cmvi.pglmvied == pvNil, "SCRT block not cleared");
-    Assert(_fError == fFalse, "SCRT block not cleared");
-    Assert(_fInited == fFalse, "SCRT block not cleared");
-    Assert(_iscenMac == 0, "SCRT block not cleared");
+    Assert(_pmvie == pvNil, "SceneSorter block not cleared");
+    Assert(_pstdio == pvNil, "SceneSorter block not cleared");
+    Assert(_cmvi.pglscend == pvNil, "SceneSorter block not cleared");
+    Assert(_cmvi.pglmvied == pvNil, "SceneSorter block not cleared");
+    Assert(_fError == fFalse, "SceneSorter block not cleared");
+    Assert(_fInited == fFalse, "SceneSorter block not cleared");
+    Assert(_iscenMac == 0, "SceneSorter block not cleared");
 }
 
-SCRT::~SCRT(void)
+SceneSorter::~SceneSorter(void)
 {
-    PGOB pgob;
+    PGraphicsObject pgob;
 
     /* We might get released on Quit without exiting the Scene Sorter. */
     if (_cmvi.pglscend != pvNil || _cmvi.pglmvied != pvNil)
@@ -89,7 +89,7 @@ SCRT::~SCRT(void)
     if (_pmvie != pvNil)
         ReleasePpo(&_pmvie);
 
-    /* Kill the glass GOB (it's not a child of me) */
+    /* Kill the glass GraphicsObject (it's not a child of me) */
     pgob = vpapp->Pkwa()->PgobFromHid(kidGenericDisableGlass);
     ReleasePpo(&pgob);
 
@@ -103,42 +103,42 @@ SCRT::~SCRT(void)
 
 /******************************************************************************
     PscrtNew
-        Allocates and initializes a brand new SCRT.  If any necessary
+        Allocates and initializes a brand new SceneSorter.  If any necessary
         initialization fails, cleans up and returns a nil pointer.
 
     Arguments:
-        long hid -- the command hander ID for the SCRT
+        long hid -- the command hander ID for the SceneSorter
 
-    Returns: the pointer to the new SCRT, pvNil if the routine fails
+    Returns: the pointer to the new SceneSorter, pvNil if the routine fails
 
 ************************************************************ PETED ***********/
-PSCRT SCRT::PscrtNew(long hid, PMVIE pmvie, PSTDIO pstdio, PRCA prca)
+PSceneSorter SceneSorter::PscrtNew(long hid, PMovie pmvie, PStudio pstdio, PResourceCache prca)
 {
     AssertPo(pmvie, 0);
     AssertPo(pstdio, 0);
 
-    PSCRT pscrt = pvNil;
-    PGOB pgobPar;
+    PSceneSorter pscrt = pvNil;
+    PGraphicsObject pgobPar;
     RC rcRel;
-    GCB gcb;
+    GraphicsObjectBlock gcb;
 
     if ((pgobPar = vapp.Pkwa()->PgobFromHid(kidBackground)) == pvNil)
     {
-        Bug("Couldn't find background GOB");
+        Bug("Couldn't find background GraphicsObject");
         goto LFail;
     }
 
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);
 
-    if ((pscrt = NewObj SCRT(&gcb)) == pvNil)
+    if ((pscrt = NewObj SceneSorter(&gcb)) == pvNil)
         goto LFail;
 
     if (!pscrt->_FInit(vpapp->Pkwa(), hid, prca))
         goto LOom;
     if (!pscrt->_FEnterState(ksnoInit))
     {
-        Warn("GOK immediately destroyed!");
+        Warn("KidspaceGraphicObject immediately destroyed!");
         pscrt = pvNil;
         goto LFail;
     }
@@ -165,7 +165,7 @@ LFail:
         Handle an error.  Destroys the easel and enqueues our cancel cid.
 
 ************************************************************ PETED ***********/
-void SCRT::_ErrorExit(void)
+void SceneSorter::_ErrorExit(void)
 {
     /* If someone's already reported an error, don't do any more work */
     if (_fError)
@@ -182,21 +182,21 @@ void SCRT::_ErrorExit(void)
         in kidspace.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
-            rglw[0] -- kid of the first thumbnail frame GOK
-            rglw[1] -- kid of the first scrollbar GOK button (scroll up)
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
+            rglw[0] -- kid of the first thumbnail frame KidspaceGraphicObject
+            rglw[1] -- kid of the first scrollbar KidspaceGraphicObject button (scroll up)
             rglw[2] -- number of GOKs in a single frame
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdInit(PCMD pcmd)
+bool SceneSorter::FCmdInit(PCommand pcmd)
 {
     AssertThis(0);
 
     bool fSuccess = fFalse;
     long kidCur, kidThumb;
-    PGOK pgokFrame;
+    PKidspaceGraphicObject pgokFrame;
 
     /* If I'm already inited, this must be for some other scene sorter */
     if (_fInited)
@@ -213,17 +213,17 @@ bool SCRT::FCmdInit(PCMD pcmd)
     kidThumb = _kidFrameMin - 1;
     kidCur = _kidFrameMin;
 
-    while ((pgokFrame = (PGOK)vpapp->Pkwa()->PgobFromHid(kidCur)) != pvNil)
+    while ((pgokFrame = (PKidspaceGraphicObject)vpapp->Pkwa()->PgobFromHid(kidCur)) != pvNil)
     {
-        PGOMP pgomp;
-        PGOB pgobThumb;
+        PMaskedBitmapGraphicsObject pgomp;
+        PGraphicsObject pgobThumb;
 
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GOB isn't a GOK");
+        Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
 
-        pgobThumb = (PGOK)pgokFrame->PgobFirstChild();
+        pgobThumb = (PKidspaceGraphicObject)pgokFrame->PgobFirstChild();
         Assert(pgobThumb != pvNil, "Frame has no children");
 
-        pgomp = GOMP::PgompNew(pgobThumb, kidThumb--);
+        pgomp = MaskedBitmapGraphicsObject::PgompNew(pgobThumb, kidThumb--);
         if (pgomp == pvNil)
             goto LFail;
         _cfrmPage++;
@@ -247,13 +247,13 @@ LFail:
         Selects the scene corresponding to the given thumbnail frame.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- the kid of the thumbnail frame
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdSelect(PCMD pcmd)
+bool SceneSorter::FCmdSelect(PCommand pcmd)
 {
     AssertThis(0);
     Assert(pcmd->rglw[0] - _kidFrameMin < _cfrmPage * _cgokFrame, "Bogus kid for select");
@@ -266,7 +266,7 @@ bool SCRT::FCmdSelect(PCMD pcmd)
     {
         _iscenCur = iscen;
 
-        /* Fill in thumbnail for selection GOB */
+        /* Fill in thumbnail for selection GraphicsObject */
         if (_FResetThumbnails(fFalse))
             _SetSelectionVis(fTrue);
         else
@@ -284,13 +284,13 @@ bool SCRT::FCmdSelect(PCMD pcmd)
         inserted after the last scene visible on the easel.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- the kid of the frame to insert the scene before
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdInsert(PCMD pcmd)
+bool SceneSorter::FCmdInsert(PCommand pcmd)
 {
     AssertThis(0);
     Assert(pcmd->rglw[0] - _kidFrameMin <= _cfrmPage * _cgokFrame, "Bogus kid for insert");
@@ -322,14 +322,14 @@ bool SCRT::FCmdInsert(PCMD pcmd)
         if we're not drag & drop, or to kstBrowserScrollingSel if we are.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Extra params are as follows:
+        PCommand pcmd -- pointer to the Command data.  Extra params are as follows:
             rglw[0] -- the number of frames to scroll
             rglw[1] -- non-zero if we're scrolling during drag & drop
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdScroll(PCMD pcmd)
+bool SceneSorter::FCmdScroll(PCommand pcmd)
 {
     AssertThis(0);
 
@@ -357,18 +357,18 @@ bool SCRT::FCmdScroll(PCMD pcmd)
         Enables or disables the scrolling buttons, as appropriate.
 
 ************************************************************ PETED ***********/
-void SCRT::_EnableScroll(void)
+void SceneSorter::_EnableScroll(void)
 {
-    PGOK pgok;
+    PKidspaceGraphicObject pgok;
 
     /* Enable or disable scroll up */
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin);
     if (pgok != pvNil)
     {
         long lwState;
 
         lwState = (_iscenTop > 0) ? kstBrowserEnabled : kstBrowserDisabled;
-        Assert(pgok->FIs(kclsGOK), "Scroll up button is not a GOK");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Scroll up button is not a KidspaceGraphicObject");
         if (pgok->Sno() != lwState)
             pgok->FChangeState(lwState);
     }
@@ -376,13 +376,13 @@ void SCRT::_EnableScroll(void)
         Bug("Can't find scroll up button");
 
     /* Enable or disable scroll down */
-    pgok = (PGOK)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin + 1);
+    pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(_kidScbtnsMin + 1);
     if (pgok != pvNil)
     {
         long lwState;
 
         lwState = (_iscenTop + _cfrmPage < _iscenMac) ? kstBrowserEnabled : kstBrowserDisabled;
-        Assert(pgok->FIs(kclsGOK), "Scroll down button is not a GOK");
+        Assert(pgok->FIs(kclsKidspaceGraphicObject), "Scroll down button is not a KidspaceGraphicObject");
         if (pgok->Sno() != lwState)
             pgok->FChangeState(lwState);
     }
@@ -398,17 +398,17 @@ void SCRT::_EnableScroll(void)
         scene is the new currently selected scene.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  No additional parameters.
+        PCommand pcmd -- pointer to the Command data.  No additional parameters.
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdNuke(PCMD pcmd)
+bool SceneSorter::FCmdNuke(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't nuke a scene from an empty movie");
 
-    SCEND scend;
+    SceneDescriptor scend;
 
     _cmvi.pglscend->Get(_iscenCur, &scend);
     Assert(!scend.fNuked, "Nuking an already nuked scene");
@@ -433,16 +433,16 @@ bool SCRT::FCmdNuke(PCMD pcmd)
         to the movie.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  Checks cid to determine ok/cancel
+        PCommand pcmd -- pointer to the Command data.  Checks cid to determine ok/cancel
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdDismiss(PCMD pcmd)
+bool SceneSorter::FCmdDismiss(PCommand pcmd)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
     if (pcmd->cid == cidSceneSortOk)
     {
@@ -459,7 +459,7 @@ bool SCRT::FCmdDismiss(PCMD pcmd)
     }
 
     /* Change to the tool for scenes */
-    pmvu = (PMVU)(_pmvie->PddgActive());
+    pmvu = (PMovieView)(_pmvie->PddgActive());
     AssertPo(pmvu, 0);
     pmvu->SetTool(toolDefault);
     _pstdio->ChangeTool(toolDefault);
@@ -478,25 +478,25 @@ bool SCRT::FCmdDismiss(PCMD pcmd)
         Brings up the portfolio so that the user can append movies from file.
 
     Arguments:
-        PCMD pcmd -- pointer to the CMD data.  No additional parameters.
+        PCommand pcmd -- pointer to the Command data.  No additional parameters.
 
     Returns: fTrue if the command was handled by this routine.
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdPortfolio(PCMD pcmd)
+bool SceneSorter::FCmdPortfolio(PCommand pcmd)
 {
     AssertThis(0);
 
-    FNI fni;
-    MCC mcc(2, 2, 0);
-    PMVIE pmvie = pvNil;
+    Filename fni;
+    MovieClientCallbacks mcc(2, 2, 0);
+    PMovie pmvie = pvNil;
 
     if (!_pstdio->FGetFniMovieOpen(&fni))
         goto LFail;
 
     /* Specific reasons for failures are reported by lower-level routines.
         There should be no reason to display an error here. */
-    pmvie = MVIE::PmvieNew(vpapp->FSlowCPU(), &mcc, &fni, cnoNil);
+    pmvie = Movie::PmvieNew(vpapp->FSlowCPU(), &mcc, &fni, cnoNil);
     if (pmvie == pvNil)
         goto LFail;
 
@@ -517,28 +517,28 @@ LFail:
         Sets the transition for the scene corresponding to the given frame.
 
     Arguments:
-        PCMD pcmd -- pointer to command data.  Extra parms are as follows:
-            rglw[0] -- GOK id of the frame
+        PCommand pcmd -- pointer to command data.  Extra parms are as follows:
+            rglw[0] -- KidspaceGraphicObject id of the frame
             rglw[1] -- which transition to use
 
     Returns: fTrue if the command was handled by this routine
 
 ************************************************************ PETED ***********/
-bool SCRT::FCmdTransition(PCMD pcmd)
+bool SceneSorter::FCmdTransition(PCommand pcmd)
 {
     AssertThis(0);
     Assert(_iscenMac > 0, "Can't set transition when movie is empty");
 
     long iscen = _IscenFromKid(pcmd->rglw[0]);
-    SCEND scend;
-    PGOK pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(pcmd->rglw[0]);
+    SceneDescriptor scend;
+    PKidspaceGraphicObject pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(pcmd->rglw[0]);
 
     if (pgokFrame == pvNil)
     {
         Bug("kid doesn't exist");
         return fTrue;
     }
-    Assert(pgokFrame->FIs(kclsGOK), "kid isn't a GOK");
+    Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "kid isn't a KidspaceGraphicObject");
 
     AssertIn(iscen, 0, _iscenMac);
     _cmvi.pglscend->Get(iscen, &scend);
@@ -563,17 +563,17 @@ bool SCRT::FCmdTransition(PCMD pcmd)
             hilite.
 
 ************************************************************ PETED ***********/
-void SCRT::_SetSelectionVis(bool fShow, bool fHideSel)
+void SceneSorter::_SetSelectionVis(bool fShow, bool fHideSel)
 {
     if (_iscenCur < _iscenMac && FIn(_iscenCur - _iscenTop, 0, _cfrmPage))
     {
-        PGOK pgok = (PGOK)vapp.Pkwa()->PgobFromHid(_KidFromIscen(_iscenCur));
+        PKidspaceGraphicObject pgok = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(_KidFromIscen(_iscenCur));
 
         if (pgok != pvNil)
         {
             long lwState;
 
-            Assert(pgok->FIs(kclsGOK), "Didn't get a GOK GOB");
+            Assert(pgok->FIs(kclsKidspaceGraphicObject), "Didn't get a KidspaceGraphicObject GraphicsObject");
             lwState = fShow ? (fHideSel ? kstBrowserScrollingSel : kstBrowserSelected) : kstBrowserEnabled;
             if (pgok->Sno() != lwState)
                 pgok->FChangeState(lwState);
@@ -595,32 +595,32 @@ void SCRT::_SetSelectionVis(bool fShow, bool fHideSel)
     Returns: fTrue if it was successful in refilling the thumbnails
 
 ************************************************************ PETED ***********/
-bool SCRT::_FResetThumbnails(bool fHideSel)
+bool SceneSorter::_FResetThumbnails(bool fHideSel)
 {
     bool fSuccess = fFalse;
     long kidCur = _kidFrameMin - 1, kidFrameCur = _kidFrameMin;
     long iscen = _iscenTop, cFrame = _cfrmPage;
     long lwSelState = fHideSel ? kstBrowserScrollingSel : kstBrowserSelected;
-    PGOK pgokFrame;
-    PGOMP pgomp;
-    SCEND scend;
+    PKidspaceGraphicObject pgokFrame;
+    PMaskedBitmapGraphicsObject pgomp;
+    SceneDescriptor scend;
 
     while (cFrame--)
     {
         bool fNewTransition;
-        PMBMP pmbmp;
+        PMaskedBitmapMBMP pmbmp;
         RC rc;
 
-        pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameCur);
-        pgomp = GOMP::PgompFromHidScr(kidCur);
+        pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
+        pgomp = MaskedBitmapGraphicsObject::PgompFromHidScr(kidCur);
 
         if (pgokFrame == pvNil || pgomp == pvNil)
         {
             Bug("Couldn't find thumbnail or its frame");
             goto LFail;
         }
-        Assert(pgomp->FIs(kclsGOMP), "Thumbnail GOB isn't a GOMP");
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GOB isn't a GOK");
+        Assert(pgomp->FIs(kclsMaskedBitmapGraphicsObject), "Thumbnail GraphicsObject isn't a MaskedBitmapGraphicsObject");
+        Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
         if (iscen < _iscenMac)
         {
             long lwStateNew;
@@ -658,11 +658,11 @@ bool SCRT::_FResetThumbnails(bool fHideSel)
     if (_iscenMac > 0)
     {
         _cmvi.pglscend->Get(_iscenCur, &scend);
-        pgokFrame = (PGOK)vapp.Pkwa()->PgobFromHid(kidFrameCur);
-        Assert(pgokFrame != pvNil, "Selection GOK is missing");
-        Assert(pgokFrame->FIs(kclsGOK), "Frame GOB isn't a GOK");
-        pgomp = GOMP::PgompFromHidScr(kidCur);
-        Assert(pgomp != pvNil, "Selection GOMP is missing");
+        pgokFrame = (PKidspaceGraphicObject)vapp.Pkwa()->PgobFromHid(kidFrameCur);
+        Assert(pgokFrame != pvNil, "Selection KidspaceGraphicObject is missing");
+        Assert(pgokFrame->FIs(kclsKidspaceGraphicObject), "Frame GraphicsObject isn't a KidspaceGraphicObject");
+        pgomp = MaskedBitmapGraphicsObject::PgompFromHidScr(kidCur);
+        Assert(pgomp != pvNil, "Selection MaskedBitmapGraphicsObject is missing");
         _FResetTransition(pgokFrame, scend.trans);
         pgomp->FSetMbmp(scend.pmbmp);
     }
@@ -675,7 +675,7 @@ LFail:
     return fSuccess;
 }
 
-const TRANS SCRT::_mplwtrans[] = {
+const TRANS SceneSorter::_mplwtrans[] = {
     transCut,
     transDissolve,
     transFadeToBlack,
@@ -688,24 +688,24 @@ const TRANS SCRT::_mplwtrans[] = {
         Updates the transition buttons for a given scene frame.
 
     Arguments:
-        PGOK pgokPar -- the parent scene frame GOK
+        PKidspaceGraphicObject pgokPar -- the parent scene frame KidspaceGraphicObject
         TRANS trans  -- the transition state for this scene
 
     Returns: fTrue if the scene has a new transition and the frame needs
         to be updated
 
 ************************************************************ PETED ***********/
-bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
+bool SceneSorter::_FResetTransition(PKidspaceGraphicObject pgokPar, TRANS trans)
 {
     bool fRedrawTrans = fFalse;
-    PGOK pgokTrans, pgokThumb;
+    PKidspaceGraphicObject pgokTrans, pgokThumb;
     long lwTrans = kctrans, lwThis = _LwFromTrans(trans);
     long lwStateCur, lwStateNew;
 
-    pgokThumb = (PGOK)pgokPar->PgobFirstChild();
-    Assert(pgokThumb->FIs(kclsGOK), "First child wasn't a GOK");
-    pgokTrans = (PGOK)pgokThumb->PgobNextSib();
-    Assert(pgokTrans->FIs(kclsGOK), "Transition GOB isn't a GOK");
+    pgokThumb = (PKidspaceGraphicObject)pgokPar->PgobFirstChild();
+    Assert(pgokThumb->FIs(kclsKidspaceGraphicObject), "First child wasn't a KidspaceGraphicObject");
+    pgokTrans = (PKidspaceGraphicObject)pgokThumb->PgobNextSib();
+    Assert(pgokTrans->FIs(kclsKidspaceGraphicObject), "Transition GraphicsObject isn't a KidspaceGraphicObject");
     while (lwTrans--)
     {
         lwStateCur = pgokTrans->Sno();
@@ -715,8 +715,8 @@ bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
             fRedrawTrans = fTrue;
             pgokTrans->FChangeState(lwStateNew);
         }
-        pgokTrans = (PGOK)pgokTrans->PgobNextSib();
-        Assert(pgokTrans == pvNil || pgokTrans->FIs(kclsGOK), "Transition GOB isn't a GOK");
+        pgokTrans = (PKidspaceGraphicObject)pgokTrans->PgobNextSib();
+        Assert(pgokTrans == pvNil || pgokTrans->FIs(kclsKidspaceGraphicObject), "Transition GraphicsObject isn't a KidspaceGraphicObject");
     }
 
     return fRedrawTrans;
@@ -732,7 +732,7 @@ bool SCRT::_FResetTransition(PGOK pgokPar, TRANS trans)
     Returns: the actual transition
 
 ************************************************************ PETED ***********/
-TRANS SCRT::_TransFromLw(long lwTrans)
+TRANS SceneSorter::_TransFromLw(long lwTrans)
 {
     AssertIn(lwTrans, 0, kctrans);
 
@@ -749,7 +749,7 @@ TRANS SCRT::_TransFromLw(long lwTrans)
     Returns: the scene sorter long
 
 ************************************************************ PETED ***********/
-long SCRT::_LwFromTrans(TRANS trans)
+long SceneSorter::_LwFromTrans(TRANS trans)
 {
     long lw;
 
@@ -768,34 +768,34 @@ long SCRT::_LwFromTrans(TRANS trans)
     return lw;
 }
 
-RTCLASS(GOMP)
+RTCLASS(MaskedBitmapGraphicsObject)
 
 #ifdef DEBUG
-void GOMP::AssertValid(ulong grf)
+void MaskedBitmapGraphicsObject::AssertValid(ulong grf)
 {
-    GOMP_PAR::AssertValid(0);
+    MaskedBitmapGraphicsObject_PAR::AssertValid(0);
     AssertNilOrPo(_pmbmp, 0);
 }
 
-void GOMP::MarkMem(void)
+void MaskedBitmapGraphicsObject::MarkMem(void)
 {
     AssertThis(0);
 
-    GOMP_PAR::MarkMem();
+    MaskedBitmapGraphicsObject_PAR::MarkMem();
     MarkMemObj(_pmbmp);
 }
 #endif /* DEBUG */
 
 /******************************************************************************
-    GOMP
-        Constructor for the GOMP class.
+    MaskedBitmapGraphicsObject
+        Constructor for the MaskedBitmapGraphicsObject class.
 
     Arguments:
-        PGCB pgcb    -- Gob Creation Block to be passed to the parent class
-        PMBMP pmbmp  -- the MBMP to use when drawing this GOMP
+        PGraphicsObjectBlock pgcb    -- Gob Creation Block to be passed to the parent class
+        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to use when drawing this MaskedBitmapGraphicsObject
 
 ************************************************************ PETED ***********/
-GOMP::GOMP(PGCB pgcb) : GOB(pgcb)
+MaskedBitmapGraphicsObject::MaskedBitmapGraphicsObject(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb)
 {
     _pmbmp = pvNil;
     AssertThis(0);
@@ -803,35 +803,35 @@ GOMP::GOMP(PGCB pgcb) : GOB(pgcb)
 
 /******************************************************************************
     PgompNew
-        Creates a GOMP as a child of the given parent.  The new GOMP will
+        Creates a MaskedBitmapGraphicsObject as a child of the given parent.  The new MaskedBitmapGraphicsObject will
         be exactly the same size as the parent, and will have the given hid.
 
     Arguments:
-        PMBMP pmbmp  -- the MBMP to draw as this GOMP
-        PGOB pgobPar -- the parent of this GOMP
-        long hid     -- the hid (kid) of this GOMP
+        PMaskedBitmapMBMP pmbmp  -- the MaskedBitmapMBMP to draw as this MaskedBitmapGraphicsObject
+        PGraphicsObject pgobPar -- the parent of this MaskedBitmapGraphicsObject
+        long hid     -- the hid (kid) of this MaskedBitmapGraphicsObject
 
-    Returns: pointer to the GOMP if it succeeds, pvNil otherwise
+    Returns: pointer to the MaskedBitmapGraphicsObject if it succeeds, pvNil otherwise
 
 ************************************************************ PETED ***********/
-PGOMP GOMP::PgompNew(PGOB pgobPar, long hid)
+PMaskedBitmapGraphicsObject MaskedBitmapGraphicsObject::PgompNew(PGraphicsObject pgobPar, long hid)
 {
     AssertPo(pgobPar, 0);
 
-    PGOMP pgomp = pvNil;
-    GCB gcb;
+    PMaskedBitmapGraphicsObject pgomp = pvNil;
+    GraphicsObjectBlock gcb;
     RC rcRel(0, 0, krelOne, krelOne);
 
     gcb.Set(hid, pgobPar, fgobNil, kginDefault, pvNil, &rcRel);
 
-    pgomp = NewObj GOMP(&gcb);
+    pgomp = NewObj MaskedBitmapGraphicsObject(&gcb);
 
-    if (pgomp != pvNil && pgobPar->FIs(kclsGOK))
+    if (pgomp != pvNil && pgobPar->FIs(kclsKidspaceGraphicObject))
     {
         PT pt;
         RC rcAbs;
 
-        ((GOK *)pgobPar)->GetPtReg(&pt);
+        ((KidspaceGraphicObject *)pgobPar)->GetPtReg(&pt);
         pgomp->GetPos(&rcAbs, &rcRel);
         rcAbs.Offset(-pt.xp, -pt.yp);
         pgomp->SetPos(&rcAbs, &rcRel);
@@ -842,14 +842,14 @@ PGOMP GOMP::PgompNew(PGOB pgobPar, long hid)
 
 /******************************************************************************
     Draw
-        Draws the given GOMP
+        Draws the given MaskedBitmapGraphicsObject
 
     Arguments:
-        PGNV pgnv    -- the graphics environment in which to draw
+        PGraphicsEnvironment pgnv    -- the graphics environment in which to draw
         RC *prcClip  -- the clipping rect; this is ignored
 
 ************************************************************ PETED ***********/
-void GOMP::Draw(PGNV pgnv, RC *prcClip)
+void MaskedBitmapGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -867,15 +867,15 @@ void GOMP::Draw(PGNV pgnv, RC *prcClip)
 
 /******************************************************************************
     FSetMbmp
-        Replaces the MBMP for this GOMP with the given MBMP.
+        Replaces the MaskedBitmapMBMP for this MaskedBitmapGraphicsObject with the given MaskedBitmapMBMP.
 
     Arguments:
-        PMBMP pmbmp -- pointer to the MBMP
+        PMaskedBitmapMBMP pmbmp -- pointer to the MaskedBitmapMBMP
 
-    Returns: fTrue if the new MBMP is different from the old one
+    Returns: fTrue if the new MaskedBitmapMBMP is different from the old one
 
 ************************************************************ PETED ***********/
-bool GOMP::FSetMbmp(PMBMP pmbmp)
+bool MaskedBitmapGraphicsObject::FSetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertNilOrPo(pmbmp, 0);
 
@@ -891,20 +891,20 @@ bool GOMP::FSetMbmp(PMBMP pmbmp)
 
 /******************************************************************************
     PgompFromHidScr
-        Given an HID, return the GOMP with that hid
+        Given an HID, return the MaskedBitmapGraphicsObject with that hid
 
     Arguments:
-        long hid -- the hid of the GOMP to find
+        long hid -- the hid of the MaskedBitmapGraphicsObject to find
 
-    Returns: pointer to the GOMP
+    Returns: pointer to the MaskedBitmapGraphicsObject
 
 ************************************************************ PETED ***********/
-PGOMP GOMP::PgompFromHidScr(long hid)
+PMaskedBitmapGraphicsObject MaskedBitmapGraphicsObject::PgompFromHidScr(long hid)
 {
-    PGOMP pgomp;
+    PMaskedBitmapGraphicsObject pgomp;
 
-    pgomp = (PGOMP)vapp.Pkwa()->PgobFromHid(hid);
+    pgomp = (PMaskedBitmapGraphicsObject)vapp.Pkwa()->PgobFromHid(hid);
     if (pgomp != pvNil)
-        Assert(pgomp->FIs(kclsGOMP), "GOB isn't a GOMP");
+        Assert(pgomp->FIs(kclsMaskedBitmapGraphicsObject), "GraphicsObject isn't a MaskedBitmapGraphicsObject");
     return pgomp;
 }

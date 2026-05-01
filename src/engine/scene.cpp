@@ -15,29 +15,33 @@
 
     Basic scene private classes:
 
-        Scene Chop Undo Object (SUNC)
+        Scene Chop Undo Object (SceneUndoChop)
 
-            BASE ---> UNDB ---> MUNB ---> SUNC
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoChop
 
-        Scene Background Undo Object (SUNK)
+        Scene Background Undo Object (SceneUndoBackground)
 
-            BASE ---> UNDB ---> MUNB ---> SUNK
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoBackground
 
-        Scene Pause Undo Object (SUNP)
+        Scene Pause Undo Object (SceneUndoPause)
 
-            BASE ---> UNDB ---> MUNB ---> SUNP
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoPause
 
-        Scene Text box Undo Object (SUNX)
+        Scene Text box Undo Object (SceneUndoText)
 
-            BASE ---> UNDB ---> MUNB ---> SUNX
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoText
 
-        Scene Sound Undo Object (SUNS)
+        Scene Sound Undo Object (SceneUndoSound)
 
-            BASE ---> UNDB ---> MUNB ---> SUNS
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoSound
 
-        Scene Title Undo Object (SUNT)
+        Scene Title Undo Object (SceneUndoTitle)
 
-            BASE ---> UNDB ---> MUNB ---> SUNT
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoTitle
+
+        Scene Transition Undo Object (SceneUndoTransition)
+
+            BASE ---> UndoBase ---> MovieUndo ---> SceneUndoTransition
 
 ***************************************************************************/
 
@@ -47,10 +51,10 @@ ASSERTNAME
 //
 // Scene event types
 //
-enum SEVT
+enum SceneEventType
 {                   // StartEv	FrmEv	Param
     sevtAddActr,    //    X		  		pactr/chid
-    sevtPlaySnd,    // 	  		  X		SSE (Scene Sound Event)
+    sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
     sevtAddTbox,    // 	  X				ptbox/chid
     sevtChngCamera, // 			  X		icam
     sevtSetBkgd,    // 	  X				Background Tag
@@ -60,11 +64,12 @@ enum SEVT
 //
 // Struct for saving event pause information
 //
-struct SEVP
+struct SceneEventPause
 {
-    WIT wit;
-    long dts;
+    WaitReason wit;
+    int32_t dts;
 };
+static_assert(sizeof(SceneEventPause) == 8, "SceneEventPause on-disk layout drift");
 
 //
 // Scene thumbnails
@@ -76,11 +81,12 @@ const auto kbTransparent = 250;
 //
 // Scene event
 //
-struct SEV
+struct SceneEvent
 {
-    long nfrm; // frame number of the event.
-    SEVT sevt; // event type
+    int32_t nfrm;        // frame number of the event.
+    SceneEventType sevt; // event type
 };
+static_assert(sizeof(SceneEvent) == 8, "SceneEvent on-disk layout drift");
 
 const auto kbomSev = 0xF0000000;
 const auto kbomLong = 0xC0000000;
@@ -88,71 +94,83 @@ const auto kbomLong = 0xC0000000;
 //
 // Header for the scene chunk when on file
 //
-struct SCENH
+struct SceneOnFile
 {
-    short bo;
-    short osk;
-    long nfrmLast;
-    long nfrmFirst;
+    int16_t bo;
+    int16_t osk;
+    int32_t nfrmLast;
+    int32_t nfrmFirst;
     TRANS trans;
 };
+static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
 
 const auto kbomScenh = 0x5FC00000;
 /****************************************
-    TAGC - Tag,Chid combo
+    TagChildPair - Tag,Chid combo
+    Runtime form: embeds full TAG with runtime pcrf. Allowed to grow on x64.
+    Marshalled to/from TagChildPairOnFile at the SceneSoundEvent variable-array
+    I/O boundary (see _PsseFromOnFile / _FInsertSseAsOnFile).
 ****************************************/
-const BOM kbomChid = 0xC0000000;
-const BOM kbomTagc = kbomChid | (kbomTag >> 2);
-typedef struct TAGC *PTAGC;
-struct TAGC
+const ByteOrderMask kbomChid = 0xC0000000;
+const ByteOrderMask kbomTagc = kbomChid | (kbomTag >> 2);
+typedef struct TagChildPair *PTagChildPair;
+struct TagChildPair
 {
-    CHID chid;
+    ChildChunkID chid;
     TAG tag;
 };
 
-/****************************************
-    SSE - scene sound event
-****************************************/
-const BOM kbomSse = 0xFF000000;
-typedef struct SSE *PSSE;
-struct SSE
+// Wire format. Fixed at 20 bytes on every architecture (chid + TAGOnFile).
+struct TagChildPairOnFile
 {
-    long vlm;
-    long sty; // sound type
+    ChildChunkID chid;
+    TAGOnFile tag;
+};
+static_assert(sizeof(TagChildPairOnFile) == 20, "TagChildPairOnFile wire format drift");
+
+/****************************************
+    SceneSoundEvent - scene sound event
+****************************************/
+const ByteOrderMask kbomSse = 0xFF000000;
+typedef struct SceneSoundEvent *PSceneSoundEvent;
+struct SceneSoundEvent
+{
+    int32_t vlm;
+    int32_t sty; // sound type
     bool fLoop;
-    long ctagc;
-    //	TAGC _rgtagcSnd[_ctagc]; // variable array of tagcs follows SSE
+    int32_t ctagc;
+    //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SceneSoundEvent
 
   protected:
     static long _Cb(long ctagc)
     {
-        return size(SSE) + LwMul(ctagc, size(TAGC));
+        return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
     }
-    SSE(void){};
+    SceneSoundEvent(void){};
 
   public:
-    static PSSE PsseNew(long ctagc);
-    static PSSE PsseNew(long vlm, long sty, bool fLoop, long ctagc, TAGC *prgtagc);
-    static PSSE PsseDupFromGg(PGG pgg, long iv, bool fDupTags = fTrue);
+    static PSceneSoundEvent PsseNew(long ctagc);
+    static PSceneSoundEvent PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc);
+    static PSceneSoundEvent PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags = fTrue);
 
     PTAG Ptag(long itagc)
     {
-        PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
         return &(prgtagc[itagc].tag);
     }
-    PTAGC Ptagc(long itagc)
+    PTagChildPair Ptagc(long itagc)
     {
-        PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
         return &(prgtagc[itagc]);
     }
-    CHID *Pchid(long itagc)
+    ChildChunkID *Pchid(long itagc)
     {
-        PTAGC prgtagc = (PTAGC)PvAddBv(this, size(SSE));
+        PTagChildPair prgtagc = (PTagChildPair)PvAddBv(this, size(SceneSoundEvent));
         return &(prgtagc[itagc].chid);
     }
-    PSSE PsseAddTagChid(PTAG ptag, long chid);
-    PSSE PsseDup(void);
-    void PlayAllSounds(PMVIE pmvie, ulong dtsStart = 0);
+    PSceneSoundEvent PsseAddTagChid(PTAG ptag, long chid);
+    PSceneSoundEvent PsseDup(void);
+    void PlayAllSounds(PMovie pmvie, ulong dtsStart = 0);
     void SwapBytes(void)
     {
         long itagc;
@@ -166,49 +184,128 @@ struct SSE
     }
     long Cb(void)
     {
-        return size(SSE) + LwMul(ctagc, size(TAGC));
+        return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair));
     }
 };
-void ReleasePpsse(PSSE *ppsse);
+static_assert(sizeof(SceneSoundEvent) == 16, "SceneSoundEvent on-disk fixed-part layout drift");
+void ReleasePpsse(PSceneSoundEvent *ppsse);
+
+// On-disk byte count for an SSE with ctagc TagChildPairs (16 + ctagc * 20).
+static long _CbSseOnFile(long ctagc)
+{
+    return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPairOnFile));
+}
+
+// Build a runtime PSceneSoundEvent from on-disk bytes (header + TagChildPairOnFile array).
+// Optionally byteswaps the on-disk bytes in place first. Tags' pcrf is left pvNil;
+// caller is responsible for FOpenTag-ing each runtime tag if needed.
+// Returned SSE is allocated via FAllocPv; free with FreePpv (or ReleasePpsse if
+// the tags have been opened).
+static PSceneSoundEvent _PsseFromOnFileBytes(void *pvOnFile, bool fSwapBytes)
+{
+    PSceneSoundEvent psseOnFile = (PSceneSoundEvent)pvOnFile;
+    long ctagc;
+    long itag;
+    PSceneSoundEvent psseRuntime;
+    TagChildPairOnFile *prgtagcOnFile;
+
+    if (fSwapBytes)
+    {
+        SwapBytesBom(psseOnFile, kbomSse);
+        ctagc = psseOnFile->ctagc;
+        prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pvOnFile, size(SceneSoundEvent));
+        for (itag = 0; itag < ctagc; itag++)
+        {
+            SwapBytesBom(&prgtagcOnFile[itag].chid, kbomChid);
+            SwapBytesBom(&prgtagcOnFile[itag].tag, kbomTag);
+        }
+    }
+    ctagc = psseOnFile->ctagc;
+    psseRuntime = SceneSoundEvent::PsseNew(ctagc);
+    if (pvNil == psseRuntime)
+        return pvNil;
+    psseRuntime->vlm = psseOnFile->vlm;
+    psseRuntime->sty = psseOnFile->sty;
+    psseRuntime->fLoop = psseOnFile->fLoop;
+    psseRuntime->ctagc = ctagc;
+    prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pvOnFile, size(SceneSoundEvent));
+    for (itag = 0; itag < ctagc; itag++)
+    {
+        *psseRuntime->Pchid(itag) = prgtagcOnFile[itag].chid;
+        TagFromOnFile(psseRuntime->Ptag(itag), prgtagcOnFile[itag].tag);
+    }
+    return psseRuntime;
+}
+
+// Allocate a buffer of on-disk bytes representing this runtime SSE.
+// Caller frees with FreePpv. *pcb gets the byte count.
+static void *_PvOnFileFromSse(PSceneSoundEvent psseRuntime, long *pcb)
+{
+    long ctagc = psseRuntime->ctagc;
+    long cb = _CbSseOnFile(ctagc);
+    void *pv;
+    PSceneSoundEvent psseOnFile;
+    TagChildPairOnFile *prgtagcOnFile;
+    long itag;
+
+    if (!FAllocPv(&pv, cb, fmemNil, mprNormal))
+    {
+        *pcb = 0;
+        return pvNil;
+    }
+    psseOnFile = (PSceneSoundEvent)pv;
+    psseOnFile->vlm = psseRuntime->vlm;
+    psseOnFile->sty = psseRuntime->sty;
+    psseOnFile->fLoop = psseRuntime->fLoop;
+    psseOnFile->ctagc = ctagc;
+    prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pv, size(SceneSoundEvent));
+    for (itag = 0; itag < ctagc; itag++)
+    {
+        prgtagcOnFile[itag].chid = *psseRuntime->Pchid(itag);
+        prgtagcOnFile[itag].tag.From(*psseRuntime->Ptag(itag));
+    }
+    *pcb = cb;
+    return pv;
+}
 
 //
 // Undo object for chopping operation.
 //
-typedef class SUNC *PSUNC;
+typedef class SceneUndoChop *PSceneUndoChop;
 
-#define SUNC_PAR MUNB
-#define kclsSUNC 'SUNC'
-class SUNC : public SUNC_PAR
+#define SceneUndoChop_PAR MovieUndo
+#define kclsSceneUndoChop 'SUNC'
+class SceneUndoChop : public SceneUndoChop_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    CNO _cno;
-    PCRF _pcrf;
-    SUNC(void)
+    ChunkNumber _cno;
+    PChunkyResourceFile _pcrf;
+    SceneUndoChop(void)
     {
     }
 
   public:
-    static PSUNC PsuncNew(void);
-    ~SUNC(void);
+    static PSceneUndoChop PsuncNew(void);
+    ~SceneUndoChop(void);
 
-    bool FSave(PSCEN pscen);
+    bool FSave(PScene pscen);
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
 // Undo object for background operations
 //
-typedef class SUNK *PSUNK;
+typedef class SceneUndoBackground *PSceneUndoBackground;
 
-#define SUNK_PAR MUNB
-#define kclsSUNK 'SUNK'
-class SUNK : public SUNK_PAR
+#define SceneUndoBackground_PAR MovieUndo
+#define kclsSceneUndoBackground 'SUNK'
+class SceneUndoBackground : public SceneUndoBackground_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -218,13 +315,13 @@ class SUNK : public SUNK_PAR
     TAG _tag;
     long _icam;
     bool _fSetBkgd;
-    SUNK(void)
+    SceneUndoBackground(void)
     {
     }
 
   public:
-    static PSUNK PsunkNew(void);
-    ~SUNK(void);
+    static PSceneUndoBackground PsunkNew(void);
+    ~SceneUndoBackground(void);
 
     void SetTag(PTAG ptag)
     {
@@ -239,18 +336,18 @@ class SUNK : public SUNK_PAR
         _fSetBkgd = fSetBkgd;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
 // Undo object for transition operations
 //
-typedef class SUNR *PSUNR;
+typedef class SceneUndoTransition *PSceneUndoTransition;
 
-#define SUNR_PAR MUNB
-#define kclsSUNR 'SUNR'
-class SUNR : public SUNR_PAR
+#define SceneUndoTransition_PAR MovieUndo
+#define kclsSceneUndoTransition 'SUNR'
+class SceneUndoTransition : public SceneUndoTransition_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -258,49 +355,49 @@ class SUNR : public SUNR_PAR
 
   protected:
     TRANS _trans;
-    SUNR(void)
+    SceneUndoTransition(void)
     {
     }
 
   public:
-    static PSUNR PsunrNew(void);
-    ~SUNR(void);
+    static PSceneUndoTransition PsunrNew(void);
+    ~SceneUndoTransition(void);
 
     void SetTrans(TRANS trans)
     {
         _trans = trans;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
 // Undo object for pause operations
 //
-typedef class SUNP *PSUNP;
+typedef class SceneUndoPause *PSceneUndoPause;
 
-#define SUNP_PAR MUNB
-#define kclsSUNP 'SUNP'
-class SUNP : public SUNP_PAR
+#define SceneUndoPause_PAR MovieUndo
+#define kclsSceneUndoPause 'SUNP'
+class SceneUndoPause : public SceneUndoPause_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    WIT _wit;
+    WaitReason _wit;
     long _dts;
     bool _fAdd;
-    SUNP(void)
+    SceneUndoPause(void)
     {
     }
 
   public:
-    static PSUNP PsunpNew(void);
-    ~SUNP(void);
+    static PSceneUndoPause PsunpNew(void);
+    ~SceneUndoPause(void);
 
-    void SetWit(WIT wit)
+    void SetWit(WaitReason wit)
     {
         _wit = wit;
     }
@@ -313,18 +410,18 @@ class SUNP : public SUNP_PAR
         _fAdd = fAdd;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
 // Undo object for text box operations
 //
-typedef class SUNX *PSUNX;
+typedef class SceneUndoText *PSceneUndoText;
 
-#define SUNX_PAR MUNB
-#define kclsSUNX 'SUNX'
-class SUNX : public SUNX_PAR
+#define SceneUndoText_PAR MovieUndo
+#define kclsSceneUndoText 'SUNX'
+class SceneUndoText : public SceneUndoText_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -336,13 +433,13 @@ class SUNX : public SUNX_PAR
     long _itbox;
     long _nfrmFirst;
     long _nfrmLast;
-    SUNX(void)
+    SceneUndoText(void)
     {
     }
 
   public:
-    static PSUNX PsunxNew(void);
-    ~SUNX(void);
+    static PSceneUndoText PsunxNew(void);
+    ~SceneUndoText(void);
 
     void SetNfrmFirst(long nfrm)
     {
@@ -365,38 +462,38 @@ class SUNX : public SUNX_PAR
         _fAdd = fAdd;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
 // Undo object for sound operations
 //
-typedef class SUNS *PSUNS;
+typedef class SceneUndoSound *PSceneUndoSound;
 
-#define SUNS_PAR MUNB
-#define kclsSUNS 'SUNS'
-class SUNS : public SUNS_PAR
+#define SceneUndoSound_PAR MovieUndo
+#define kclsSceneUndoSound 'SUNS'
+class SceneUndoSound : public SceneUndoSound_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    PSSE _psse; // may be pvNil
+    PSceneSoundEvent _psse; // may be pvNil
     long _sty;  // sty to use if _psse is pvNil
 
-    SUNS(void)
+    SceneUndoSound(void)
     {
     }
 
   public:
-    static PSUNS PsunsNew(void);
-    ~SUNS(void);
+    static PSceneUndoSound PsunsNew(void);
+    ~SceneUndoSound(void);
 
-    bool FSetSnd(PSSE psse)
+    bool FSetSnd(PSceneSoundEvent psse)
     {
-        PSSE psseDup = psse->PsseDup();
+        PSceneSoundEvent psseDup = psse->PsseDup();
         if (psseDup == pvNil)
             return fFalse;
         ReleasePpsse(&_psse);
@@ -409,52 +506,52 @@ class SUNS : public SUNS_PAR
         _sty = sty;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
 //
 // Undo object for title operations
 //
-typedef class SUNT *PSUNT;
+typedef class SceneUndoTitle *PSceneUndoTitle;
 
-#define SUNT_PAR MUNB
-#define kclsSUNT 'SUNT'
-class SUNT : public SUNT_PAR
+#define SceneUndoTitle_PAR MovieUndo
+#define kclsSceneUndoTitle 'SUNT'
+class SceneUndoTitle : public SceneUndoTitle_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    STN _stn;
-    SUNT(void)
+    String _stn;
+    SceneUndoTitle(void)
     {
     }
 
   public:
-    static PSUNT PsuntNew(void);
-    ~SUNT(void);
+    static PSceneUndoTitle PsuntNew(void);
+    ~SceneUndoTitle(void);
 
-    void SetName(PSTN pstn)
+    void SetName(PString pstn)
     {
         AssertPo(pstn, 0);
         _stn = *pstn;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(SCEN)
-RTCLASS(SUNT)
-RTCLASS(SUNS)
-RTCLASS(SUNA)
-RTCLASS(SUNK)
-RTCLASS(SUNP)
-RTCLASS(SUNX)
-RTCLASS(SUNC)
-RTCLASS(SUNR)
+RTCLASS(Scene)
+RTCLASS(SceneUndoTitle)
+RTCLASS(SceneUndoSound)
+RTCLASS(SceneActorUndo)
+RTCLASS(SceneUndoBackground)
+RTCLASS(SceneUndoPause)
+RTCLASS(SceneUndoText)
+RTCLASS(SceneUndoChop)
+RTCLASS(SceneUndoTransition)
 
 /****************************************************
  *
@@ -468,7 +565,7 @@ RTCLASS(SUNR)
  *  None.
  *
  ****************************************************/
-SCEN::SCEN(PMVIE pmvie)
+Scene::Scene(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
@@ -476,7 +573,8 @@ SCEN::SCEN(PMVIE pmvie)
     _nfrmCur = 1;
     _nfrmLast = 1;
     _nfrmFirst = 1;
-    _trans = transDissolve; // default transition
+    _trans = transCut; // default transition
+    _pglpactrSelExtra = pvNil;
 
     //
     // By default we disable pauses in the studio
@@ -493,19 +591,19 @@ SCEN::SCEN(PMVIE pmvie)
  *
  *
  * Returns:
- *  pvNil, on failure, else a pointer to an allocated SCEN object.
+ *  pvNil, on failure, else a pointer to an allocated Scene object.
  *
  ****************************************************/
-PSCEN SCEN::PscenNew(PMVIE pmvie)
+PScene Scene::PscenNew(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
 
-    PSCEN pscen;
+    PScene pscen;
 
     //
     // Create the object
     //
-    pscen = NewObj SCEN(pmvie);
+    pscen = NewObj Scene(pmvie);
     if (pscen == pvNil)
     {
         goto LFail;
@@ -514,26 +612,26 @@ PSCEN SCEN::PscenNew(PMVIE pmvie)
     //
     // Initialize event list
     //
-    pscen->_pggsevFrm = GG::PggNew(size(SEV));
+    pscen->_pggsevFrm = GeneralGroup::PggNew(size(SceneEvent));
     if (pscen->_pggsevFrm == pvNil)
     {
         goto LFail;
     }
     pscen->_isevFrmLim = 0;
 
-    pscen->_pggsevStart = GG::PggNew(size(SEV));
+    pscen->_pggsevStart = GeneralGroup::PggNew(size(SceneEvent));
     if (pscen->_pggsevStart == pvNil)
     {
         goto LFail;
     }
 
-    pscen->_pglpactr = GL::PglNew(size(PACTR), 0);
+    pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail;
     }
 
-    pscen->_pglptbox = GL::PglNew(size(PTBOX), 0);
+    pscen->_pglptbox = DynamicArray::PglNew(size(PTBOX), 0);
     if (pscen->_pglptbox == pvNil)
     {
         goto LFail;
@@ -564,14 +662,14 @@ LFail:
  *  None.
  *
  ****************************************************/
-SCEN::~SCEN(void)
+Scene::~Scene(void)
 {
     AssertBaseThis(0);
 
     long isev;
     PSEV qsev;
     PTBOX ptbox;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Remove starting events
@@ -635,12 +733,12 @@ SCEN::~SCEN(void)
                 break;
 
             case sevtPlaySnd: {
-                PSSE psse;
+                PSceneSoundEvent psse;
                 long itagc;
-                psse = (PSSE)_pggsevFrm->QvGet(isev);
+                psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
                 for (itagc = 0; itagc < psse->ctagc; itagc++)
                 {
-                    TAGM::CloseTag(psse->Ptag(itagc));
+                    TagManager::CloseTag(psse->Ptag(itagc));
                 }
                 break;
             }
@@ -661,18 +759,23 @@ SCEN::~SCEN(void)
     ReleasePpo(&_pggsevFrm);
 
     //
-    // Remove the GL of actors.  We do not Release the actors
+    // Remove the DynamicArray of actors.  We do not Release the actors
     // themselves as our reference was released above in the
     // the _pggsevStart.
     //
     ReleasePpo(&_pglpactr);
 
     //
-    // Remove the GL of tboxes.  We do not Release the tboxes
+    // Remove the DynamicArray of tboxes.  We do not Release the tboxes
     // themselves as our reference was released above in the
     // the _pggsevStart.
     //
     ReleasePpo(&_pglptbox);
+
+    //
+    // Release the multi-selection extras list (the actors are owned elsewhere).
+    //
+    ReleasePpo(&_pglpactrSelExtra);
 
     //
     // Release the background
@@ -706,7 +809,7 @@ SCEN::~SCEN(void)
  *
  ****************************************************/
 
-void SCEN::Close(PSCEN *ppscen)
+void Scene::Close(PScene *ppscen)
 {
     AssertPo(*ppscen, 0);
 
@@ -722,7 +825,7 @@ void SCEN::Close(PSCEN *ppscen)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the SCEN
+ * Mark memory used by the Scene
  *
  * Parameters:
  * 	None.
@@ -731,21 +834,22 @@ void SCEN::Close(PSCEN *ppscen)
  *  None.
  *
  ****************************************************/
-void SCEN::MarkMem(void)
+void Scene::MarkMem(void)
 {
     AssertThis(0);
 
     long iactr;
     long itbox;
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
 
-    SCEN_PAR::MarkMem();
+    Scene_PAR::MarkMem();
 
     MarkMemObj(_pggsevStart);
     MarkMemObj(_pggsevFrm);
     MarkMemObj(_pglpactr);
     MarkMemObj(_pglptbox);
+    MarkMemObj(_pglpactrSelExtra);
     MarkMemObj(_pmbmp);
 
     for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
@@ -765,17 +869,27 @@ void SCEN::MarkMem(void)
 }
 
 /***************************************************************************
-    Assert the validity of the SCEN.
+    Assert the validity of the Scene.
 ***************************************************************************/
-void SCEN::AssertValid(ulong grf)
+void Scene::AssertValid(ulong grf)
 {
     long isev;
-    SEV sev;
+    SceneEvent sev;
 
-    SCEN_PAR::AssertValid(fobjAllocated);
+    Scene_PAR::AssertValid(fobjAllocated);
 
     AssertPo(&_stnName, 0);
     AssertNilOrPo(_pactrSelected, 0);
+    AssertNilOrPo(_pglpactrSelExtra, 0);
+    if (_pglpactrSelExtra != pvNil)
+    {
+        for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+        {
+            PActor pactrEntry;
+            _pglpactrSelExtra->Get(iactr, &pactrEntry);
+            AssertPo(pactrEntry, 0);
+        }
+    }
     AssertNilOrPo(_pbkgd, 0);
     AssertNilOrPo(_pmbmp, 0);
     AssertPo(_pglpactr, 0);
@@ -826,13 +940,13 @@ void SCEN::AssertValid(ulong grf)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetTransition(TRANS trans)
+bool Scene::FSetTransition(TRANS trans)
 {
     AssertThis(0);
 
-    PSUNR psunr;
+    PSceneUndoTransition psunr;
 
-    psunr = SUNR::PsunrNew();
+    psunr = SceneUndoTransition::PsunrNew();
 
     if (psunr == pvNil)
     {
@@ -862,14 +976,14 @@ bool SCEN::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetName(PSTN pstn)
+bool Scene::FSetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    PSUNT psunt;
+    PSceneUndoTitle psunt;
 
-    psunt = SUNT::PsuntNew();
+    psunt = SceneUndoTitle::PsuntNew();
 
     if (psunt != pvNil)
     {
@@ -906,13 +1020,13 @@ bool SCEN::FSetName(PSTN pstn)
  *
  ****************************************************/
 
-bool SCEN::FGotoFrm(long nfrm)
+bool Scene::FGotoFrm(long nfrm)
 {
     AssertThis(0);
 
     bool fSoundInFrame = fFalse, fUpdateSndFrame = nfrm != _nfrmCur;
-    SEV sev;
-    PMVU pmvu;
+    SceneEvent sev;
+    PMovieView pmvu;
     void *qvVar;
     long isev;
     long nfrmOld = _nfrmCur;
@@ -981,7 +1095,7 @@ bool SCEN::FGotoFrm(long nfrm)
     else if (nfrm > _nfrmCur)
     {
 
-        pmvu = (PMVU)Pmvie()->PddgGet(0);
+        pmvu = (PMovieView)Pmvie()->PddgGet(0);
         AssertNilOrPo(pmvu, 0);
 
         if ((pmvu != pvNil) && (pmvu->Tool() == toolRecordSameAction))
@@ -1058,7 +1172,7 @@ bool SCEN::FGotoFrm(long nfrm)
  * actors are unchanging before the next camera change.  If
  * there are, we hide the changing actors (so only the unchanging
  * ones are visible), then "take a snapshot" of the world with
- * the unchanging actors (via BWLD::Prerender()), and use the
+ * the unchanging actors (via World::Prerender()), and use the
  * snapshot as the background RGB and Z buffer until the next
  * camera view change.  We only prerender if the movie is
  * playing.
@@ -1074,15 +1188,15 @@ bool SCEN::FGotoFrm(long nfrm)
  *  none
  *
  ****************************************************/
-void SCEN::_DoPrerenderingWork(bool fStartNow)
+void Scene::_DoPrerenderingWork(bool fStartNow)
 {
     AssertThis(0);
 
     long isev;
-    SEV sev;
+    SceneEvent sev;
     long nfrmNextChange;
     long ipactr;
-    PACTR pactr;
+    PActor pactr;
     long cactrPrerendered;
 
     //
@@ -1185,7 +1299,7 @@ void SCEN::_DoPrerenderingWork(bool fStartNow)
 /****************************************************
  *
  * 	Ends any current prerendering by restoring the background
- *  RGB and Z buffers of the BWLD, showing all previously
+ *  RGB and Z buffers of the World, showing all previously
  *  hidden actors, and marking all actors as not prerendered.
  *
  * Parameters:
@@ -1195,12 +1309,12 @@ void SCEN::_DoPrerenderingWork(bool fStartNow)
  *  none
  *
  ****************************************************/
-void SCEN::_EndPrerendering(void)
+void Scene::_EndPrerendering(void)
 {
     AssertThis(0);
 
     long ipactr;
-    PACTR pactr;
+    PActor pactr;
 
     // Show all the actors that were being prerendered
     Pmvie()->Pbwld()->Unprerender();
@@ -1227,15 +1341,15 @@ void SCEN::_EndPrerendering(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FReplayFrm(ulong grfscen)
+bool Scene::FReplayFrm(ulong grfscen)
 {
     AssertThis(0);
 
-    SEV sev;
+    SceneEvent sev;
     void *qvVar;
     long isev, iactr;
     long nfrmOld = _nfrmCur;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Play events in this frame
@@ -1285,11 +1399,11 @@ bool SCEN::FReplayFrm(ulong grfscen)
  *	None.
  *
  ****************************************************/
-void SCEN::InvalFrmRange(void)
+void Scene::InvalFrmRange(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
     long ipo;
     long nfrmStart, nfrmLast;
@@ -1349,28 +1463,28 @@ void SCEN::InvalFrmRange(void)
  *	fTrue if the event was played, fFalse in the case of failure.
  *
  ****************************************************/
-bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
+bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 {
     AssertThis(0);
     AssertVarMem(psev);
 
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
-    PBKGD pbkgd;
+    PBackground pbkgd;
     TAG tag;
-    WIT wit;
+    WaitReason wit;
     long dts;
 
     switch (psev->sevt)
     {
     case sevtPlaySnd:
-        PSSE psse;
+        PSceneSoundEvent psse;
 
-        psse = (PSSE)qvVar;
+        psse = (PSceneSoundEvent)qvVar;
         // If it's midi, copy it to _psseBkgd
         if (psse->sty == styMidi)
         {
-            PSSE psseDup;
+            PSceneSoundEvent psseDup;
             psseDup = psse->PsseDup();
             if (psseDup == pvNil)
                 return fFalse;
@@ -1388,7 +1502,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
     case sevtSetBkgd:
 
         tag = *(PTAG)qvVar;
-        pbkgd = (PBKGD)vptagm->PbacoFetch(&tag, BKGD::FReadBkgd);
+        pbkgd = (PBackground)vptagm->PbacoFetch(&tag, Background::FReadBkgd);
         if (pvNil == pbkgd)
         {
             return fFalse;
@@ -1414,7 +1528,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
         //
         // Add the actor to the roll call.
         //
-        pactr = *(PACTR *)qvVar;
+        pactr = *(PActor *)qvVar;
 
         AssertPo(pactr, 0);
 
@@ -1438,7 +1552,7 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
 
     case sevtPause:
 
-        wit = (WIT)(*(long *)qvVar);
+        wit = (WaitReason)(*(long *)qvVar);
         Pmvie()->Pmcc()->PauseType(wit);
 
         if (grfscen & fscenPauses)
@@ -1514,12 +1628,12 @@ bool SCEN::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
  *	fTrue if the unplay worked, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FUnPlaySev(PSEV psev, void *qvVar)
+bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
 {
     AssertThis(0);
     AssertVarMem(psev);
 
-    SEV sev;
+    SceneEvent sev;
     long isev;
     PSEV qsevTmp;
 
@@ -1601,13 +1715,13 @@ bool SCEN::_FUnPlaySev(PSEV psev, void *qvVar)
  *	None.
  *
  ****************************************************/
-void SCEN::_MoveBackFirstFrame(long nfrm)
+void Scene::_MoveBackFirstFrame(long nfrm)
 {
     AssertThis(0);
     Assert(nfrm < _nfrmFirst, "Can only be called to extend scene back.");
 
     long isev;
-    SEV sev;
+    SceneEvent sev;
 
     //
     // Move back all events that must persist in the
@@ -1650,14 +1764,14 @@ void SCEN::_MoveBackFirstFrame(long nfrm)
  *  vlm - volume to play this sound at
  *  sty - sound type (midi, speech, or SFX)
  *  ctag - number of sounds
- *  prgtag - array of MSND tags
+ *  prgtag - array of MovieSoundMSND tags
  *
  *
  * Returns:
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, PTAG prgtag)
+bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, PTAG prgtag)
 {
     AssertThis(0);
     AssertPvCb(prgtag, LwMul(ctag, size(TAG)));
@@ -1665,14 +1779,14 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
 
-    SEV sev;
-    PSSE psseOld;
-    PSSE psseNew;
+    SceneEvent sev;
+    PSceneSoundEvent psseOld;
+    PSceneSoundEvent psseNew;
     long isev;
-    CHID chid;
+    ChildChunkID chid;
     long isevSnd = ivNil;
     PTAG ptag;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long itag, itagBase;
 
     //
@@ -1685,7 +1799,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
             break;
         if (sev.sevt == sevtPlaySnd)
         {
-            psseOld = (PSSE)_pggsevFrm->QvGet(isev);
+            psseOld = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
             if (psseOld->sty == sty)
             {
                 // Found a match, which we will either add to or replace
@@ -1705,10 +1819,10 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
 
     if (!fQueue)
     {
-        PTAGC prgtagc;
+        PTagChildPair prgtagc;
         long itagc;
 
-        if (!FAllocPv((void **)&prgtagc, LwMul(size(TAGC), ctag), fmemClear, mprNormal))
+        if (!FAllocPv((void **)&prgtagc, LwMul(size(TagChildPair), ctag), fmemClear, mprNormal))
             return fFalse;
         for (itagc = 0; itagc < ctag; itagc++)
         {
@@ -1729,7 +1843,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
         }
         // Create new event, replace any old event of same sty
         itagBase = 0;
-        psseNew = SSE::PsseNew(vlm, sty, fLoop, ctag, prgtagc);
+        psseNew = SceneSoundEvent::PsseNew(vlm, sty, fLoop, ctag, prgtagc);
         FreePpv((void **)&prgtagc);
         if (pvNil == psseNew)
         {
@@ -1743,12 +1857,12 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
         if (isevSnd != ivNil)
         {
             // Delete old event, if any
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itagc;
-            psse = (PSSE)_pggsevFrm->QvGet(isevSnd);
+            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isevSnd);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
-                TAGM::CloseTag(psse->Ptag(itagc));
+                TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isevSnd);
             _isevFrmLim--;
@@ -1757,7 +1871,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
     else // we're queueing
     {
         // Add this sound to isevSnd
-        psseOld = SSE::PsseDupFromGg(_pggsevFrm, isevSnd);
+        psseOld = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isevSnd);
         if (pvNil == psseOld)
         {
             return fFalse;
@@ -1802,7 +1916,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
                 continue;
         }
 
-        pmsnd = (PMSND)vptagm->PbacoFetch(ptag, MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(ptag, MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             continue;
 
@@ -1817,7 +1931,7 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
     {
         // non-fatal error...ignore it
     }
-    FreePpv((void **)&psseNew); // don't ReleasePpsse because GG got the tags
+    FreePpv((void **)&psseNew); // don't ReleasePpsse because GeneralGroup got the tags
 
     _MarkMovieDirty();
     Pmvie()->Pmcc()->SetSndFrame(fTrue);
@@ -1835,24 +1949,24 @@ bool SCEN::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, P
  *  vlm - volume to play this sound at
  *  sty - sound type (midi, speech, or SFX)
  *  ctag - number of sounds
- *  prgtagc - array of MSND tags
+ *  prgtagc - array of MovieSoundMSND tags
  *
  *
  * Returns:
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTAGC prgtagc)
+bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTagChildPair prgtagc)
 {
     AssertThis(0);
-    AssertPvCb(prgtagc, LwMul(ctagc, size(TAGC)));
+    AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
     Assert(!fQueue || (ctagc == 1), "if fQueue'ing, you should only be adding one sound");
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
 
-    SEV sev;
-    PSSE psseOld;
-    PSSE psseNew;
+    SceneEvent sev;
+    PSceneSoundEvent psseOld;
+    PSceneSoundEvent psseNew;
     long isev;
     long isevSnd = ivNil;
 
@@ -1866,7 +1980,7 @@ bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long cta
             break;
         if (sev.sevt == sevtPlaySnd)
         {
-            psseOld = (PSSE)_pggsevFrm->QvGet(isev);
+            psseOld = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
             if (psseOld->sty == sty)
             {
                 // Found a match, which we will either add to or replace
@@ -1887,7 +2001,7 @@ bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long cta
     if (!fQueue)
     {
         // Create new event, replace any old event of same sty
-        psseNew = SSE::PsseNew(vlm, sty, fLoop, ctagc, prgtagc);
+        psseNew = SceneSoundEvent::PsseNew(vlm, sty, fLoop, ctagc, prgtagc);
         if (pvNil == psseNew)
             return fFalse;
         if (!_FAddSev(&sev, psseNew->Cb(), psseNew))
@@ -1898,12 +2012,12 @@ bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long cta
         if (isevSnd != ivNil)
         {
             // Delete old event, if any
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itagc;
-            psse = (PSSE)_pggsevFrm->QvGet(isevSnd);
+            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isevSnd);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
-                TAGM::CloseTag(psse->Ptag(itagc));
+                TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isevSnd);
             _isevFrmLim--;
@@ -1919,7 +2033,7 @@ bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long cta
         // non-fatal error...ignore it
     }
 
-    FreePpv((void **)&psseNew); // don't ReleasePpsse because GG got the tags
+    FreePpv((void **)&psseNew); // don't ReleasePpsse because GeneralGroup got the tags
     _MarkMovieDirty();
     Pmvie()->Pmcc()->SetSndFrame(fTrue);
     return fTrue;
@@ -1941,19 +2055,19 @@ bool SCEN::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long cta
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
+bool Scene::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
 
-    PSUNS psuns;
-    PSSE psse;
+    PSceneUndoSound psuns;
+    PSceneSoundEvent psse;
     bool fFound;
 
-    // Create a SUNS with nil _psse
-    psuns = SUNS::PsunsNew();
+    // Create a SceneUndoSound with nil _psse
+    psuns = SceneUndoSound::PsunsNew();
 
     if (psuns == pvNil)
     {
@@ -2007,7 +2121,7 @@ bool SCEN::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
  *  None
  *
  ****************************************************/
-void SCEN::RemSndCore(long sty)
+void Scene::RemSndCore(long sty)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2028,17 +2142,17 @@ void SCEN::RemSndCore(long sty)
             return;
         }
 
-        if ((qsev->sevt == sevtPlaySnd) && ((PSSE)_pggsevFrm->QvGet(isev))->sty == sty)
+        if ((qsev->sevt == sevtPlaySnd) && ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty == sty)
         {
             //
             // Remove it
             //
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itagc;
-            psse = (PSSE)_pggsevFrm->QvGet(isev);
+            psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
             for (itagc = 0; itagc < psse->ctagc; itagc++)
             {
-                TAGM::CloseTag(psse->Ptag(itagc));
+                TagManager::CloseTag(psse->Ptag(itagc));
             }
             _pggsevFrm->Delete(isev);
             _isevFrmLim--;
@@ -2071,17 +2185,17 @@ void SCEN::RemSndCore(long sty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemSnd(long sty)
+bool Scene::FRemSnd(long sty)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
 
-    PSUNS psuns;
-    PSSE psse = pvNil;
+    PSceneUndoSound psuns;
+    PSceneSoundEvent psse = pvNil;
     long isev;
     PSEV qsev;
 
-    psuns = SUNS::PsunsNew();
+    psuns = SceneUndoSound::PsunsNew();
 
     if (psuns == pvNil)
     {
@@ -2101,9 +2215,9 @@ bool SCEN::FRemSnd(long sty)
             return fTrue;
         }
 
-        if ((qsev->sevt == sevtPlaySnd) && ((PSSE)_pggsevFrm->QvGet(isev))->sty == sty)
+        if ((qsev->sevt == sevtPlaySnd) && ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty == sty)
         {
-            psse = SSE::PsseDupFromGg(_pggsevFrm, isev);
+            psse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isev);
             if (psse == pvNil)
             {
                 return fFalse;
@@ -2137,13 +2251,13 @@ bool SCEN::FRemSnd(long sty)
  * Parameters:
  *	sty - sound type to search for
  *  pfFound - set to fTrue if a sound is found, else fFalse
- *  ppsse - gets a pointer to the SSE if it is found
+ *  ppsse - gets a pointer to the SceneSoundEvent if it is found
  *
  * Returns:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
+bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2167,9 +2281,9 @@ bool SCEN::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
 
         if (qsev->sevt == sevtPlaySnd)
         {
-            if (sty == ((PSSE)_pggsevFrm->QvGet(isev))->sty)
+            if (sty == ((PSceneSoundEvent)_pggsevFrm->QvGet(isev))->sty)
             {
-                *ppsse = SSE::PsseDupFromGg(_pggsevFrm, isev);
+                *ppsse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isev);
                 if (*ppsse == pvNil)
                 {
                     return fFalse; // memory error
@@ -2200,7 +2314,7 @@ bool SCEN::FGetSnd(long sty, bool *pfFound, PSSE *ppsse)
  *  none
  *
  ****************************************************/
-void SCEN::PlayBkgdSnd(void)
+void Scene::PlayBkgdSnd(void)
 {
     AssertThis(0);
 
@@ -2228,14 +2342,14 @@ void SCEN::PlayBkgdSnd(void)
  *  fFalse if an error occurs
  *
  ****************************************************/
-bool SCEN::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
+bool Scene::FQuerySnd(long sty, PDynamicArray *ppgltagSnd, long *pvlm, bool *pfLoop)
 {
     AssertThis(0);
     AssertVarMem(ppgltagSnd);
     AssertVarMem(pvlm);
     AssertVarMem(pfLoop);
 
-    PSSE psse;
+    PSceneSoundEvent psse;
     bool fFound;
     long itag;
 
@@ -2249,7 +2363,7 @@ bool SCEN::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
     {
         return fTrue; // no sounds (*ppglTagSnd is nil)
     }
-    *ppgltagSnd = GL::PglNew(size(TAG), psse->ctagc);
+    *ppgltagSnd = DynamicArray::PglNew(size(TAG), psse->ctagc);
     if (pvNil == *ppgltagSnd)
     {
         ReleasePpsse(&psse);
@@ -2280,7 +2394,7 @@ bool SCEN::FQuerySnd(long sty, PGL *ppgltagSnd, long *pvlm, bool *pfLoop)
  *  none
  *
  ****************************************************/
-void SCEN::SetSndVlmCore(long sty, long vlmNew)
+void Scene::SetSndVlmCore(long sty, long vlmNew)
 {
     AssertThis(0);
     AssertIn(sty, 0, styLim);
@@ -2288,7 +2402,7 @@ void SCEN::SetSndVlmCore(long sty, long vlmNew)
 
     PSEV qsev;
     long isev;
-    PSSE psse;
+    PSceneSoundEvent psse;
 
     //
     // Check event list.
@@ -2305,7 +2419,7 @@ void SCEN::SetSndVlmCore(long sty, long vlmNew)
 
         if (qsev->sevt == sevtPlaySnd)
         {
-            psse = ((PSSE)_pggsevFrm->QvGet(isev));
+            psse = ((PSceneSoundEvent)_pggsevFrm->QvGet(isev));
             if (sty == psse->sty)
             {
                 psse->vlm = vlmNew;
@@ -2325,10 +2439,10 @@ void SCEN::SetSndVlmCore(long sty, long vlmNew)
     UpdateSndFrame
         Enumerates all scene events for the current frame, and asks all actors
         to enumerate all of their actor events for the current frame, looking
-        for a sound event.  Has the movie's MCC update the frame-sound state
+        for a sound event.  Has the movie's MovieClientCallbacks update the frame-sound state
         based on the results of the search.
 ************************************************************ PETED ***********/
-void SCEN::UpdateSndFrame(void)
+void Scene::UpdateSndFrame(void)
 {
     bool fSoundInFrame = fFalse;
     long iv = _isevFrmLim;
@@ -2352,7 +2466,7 @@ void SCEN::UpdateSndFrame(void)
 
     while (++iv < _pglpactr->IvMac())
     {
-        PACTR pactr;
+        PActor pactr;
 
         _pglpactr->Get(iv, &pactr);
         AssertPo(pactr, 0);
@@ -2381,7 +2495,7 @@ LDone:
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FAddSev(PSEV psev, long cbVar, void *pvVar)
+bool Scene::_FAddSev(PSEV psev, long cbVar, void *pvVar)
 {
     AssertThis(0);
     AssertVarMem(psev);
@@ -2416,14 +2530,14 @@ bool SCEN::_FAddSev(PSEV psev, long cbVar, void *pvVar)
  *	None
  *
  ****************************************************/
-void SCEN::SelectActr(ACTR *pactr)
+void Scene::SelectActr(Actor *pactr)
 {
     AssertThis(0);
     AssertNilOrPo(pactr, 0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
     AssertNilOrPo(pmvu, 0);
 
     if ((pmvu != pvNil) && !pmvu->FTextMode())
@@ -2431,6 +2545,21 @@ void SCEN::SelectActr(ACTR *pactr)
         if (pvNil != _pactrSelected)
         {
             _pactrSelected->Unhilite();
+        }
+
+        // Clear any extras and unhilite each.
+        if (pvNil != _pglpactrSelExtra)
+        {
+            for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+            {
+                PActor pactrExtra;
+                _pglpactrSelExtra->Get(iactr, &pactrExtra);
+                if (pvNil != pactrExtra)
+                {
+                    pactrExtra->Unhilite();
+                }
+            }
+            _pglpactrSelExtra->FSetIvMac(0); // Empty the list but keep the storage.
         }
 
         if (pvNil != pactr)
@@ -2452,6 +2581,437 @@ void SCEN::SelectActr(ACTR *pactr)
 
 /****************************************************
  *
+ * Clears the entire selection (primary and extras).
+ *
+ ****************************************************/
+void Scene::ClearSelection(void)
+{
+    AssertThis(0);
+    SelectActr(pvNil);
+}
+
+/****************************************************
+ *
+ * Selects every actor in the current scene's actor list.
+ * The first actor becomes the primary; the rest are added
+ * as extras. Empty scene clears any existing selection.
+ *
+ * Returns fFalse if a mid-add allocation fails (selection
+ * may end up partial in that case).
+ *
+ ****************************************************/
+bool Scene::FSelectAllActrs(void)
+{
+    AssertThis(0);
+
+    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
+    long iactr;
+    PActor pactr;
+
+    if (cactr == 0)
+    {
+        // No actors: drop any existing selection (primary, extras, tbox).
+        ClearSelection();
+        return fTrue;
+    }
+
+    // Make the first actor primary; SelectActr drops extras and tbox sel.
+    _pglpactr->Get(0, &pactr);
+    SelectActr(pactr);
+
+    // Add the rest as extras. After SelectActr only the primary is selected,
+    // so each toggle here is an add (not a remove).
+    for (iactr = 1; iactr < cactr; iactr++)
+    {
+        _pglpactr->Get(iactr, &pactr);
+        if (!FToggleActrSelected(pactr))
+        {
+            return fFalse;
+        }
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Tag-name helpers (file-local).
+ *
+ * A tag is a '#' immediately followed by one or more characters in the set
+ * [A-Za-z0-9_], terminated by whitespace, end-of-string, or another '#'.
+ * Parsing is ASCII-only and case-insensitive.
+ *
+ ****************************************************/
+static bool _FIsTagChar(achar ch)
+{
+    return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+           (ch >= '0' && ch <= '9') || ch == '_';
+}
+
+static achar _ChLower(achar ch)
+{
+    return (ch >= 'A' && ch <= 'Z') ? (achar)(ch + ('a' - 'A')) : ch;
+}
+
+// Returns fTrue iff the substring at `prgch[ich+1..]` matches `pszTag`
+// case-insensitively as a whole tag token (i.e., terminated by end-of-
+// range or a non-tag char). `ich` points at the '#'.
+static bool _FTagAt(achar *prgch, long cch, long ich, PZString pszTag, long cchTag)
+{
+    long jch;
+    if (ich + 1 + cchTag > cch)
+        return fFalse;
+    for (jch = 0; jch < cchTag; jch++)
+    {
+        if (_ChLower(prgch[ich + 1 + jch]) != _ChLower(pszTag[jch]))
+            return fFalse;
+    }
+    long ichAfter = ich + 1 + cchTag;
+    if (ichAfter < cch && _FIsTagChar(prgch[ichAfter]))
+        return fFalse; // longer tag, not a match
+    return fTrue;
+}
+
+static bool _FNameContainsTag(PString pstn, PZString pszTag)
+{
+    long cch = pstn->Cch();
+    achar *prgch = pstn->Prgch();
+    long cchTag = CchSz(pszTag);
+    if (cchTag == 0)
+        return fFalse;
+    for (long ich = 0; ich < cch; ich++)
+    {
+        if (prgch[ich] == '#' && _FTagAt(prgch, cch, ich, pszTag, cchTag))
+            return fTrue;
+    }
+    return fFalse;
+}
+
+// Returns fTrue iff pstnA and pstnB have at least one tag token in common
+// (case-insensitive). Tag = '#' followed by [A-Za-z0-9_]+, terminated by
+// whitespace / EOS / another '#'.
+static bool _FNamesShareAnyTag(PString pstnA, PString pstnB)
+{
+    achar *prgchA = pstnA->Prgch();
+    long cchA = pstnA->Cch();
+
+    for (long ich = 0; ich < cchA; ich++)
+    {
+        if (prgchA[ich] != '#')
+            continue;
+        // Walk the run of tag chars after '#'.
+        long jch = ich + 1;
+        while (jch < cchA && _FIsTagChar(prgchA[jch]))
+            jch++;
+        long cchTag = jch - ich - 1;
+        if (cchTag == 0)
+            continue;
+        // Build a zero-terminated copy of the tag for _FNameContainsTag.
+        achar rgch[64];
+        if (cchTag > 63)
+            cchTag = 63;
+        for (long k = 0; k < cchTag; k++)
+            rgch[k] = prgchA[ich + 1 + k];
+        rgch[cchTag] = (achar)0;
+        if (_FNameContainsTag(pstnB, rgch))
+            return fTrue;
+    }
+    return fFalse;
+}
+
+/****************************************************
+ *
+ * Select pactrSeed and every other scene actor that shares any #tag
+ * with it. If pactrSeed has no tags, this is just SelectActr(pactrSeed).
+ *
+ ****************************************************/
+bool Scene::FSelectActrsSharingTagsWith(PActor pactrSeed)
+{
+    AssertThis(0);
+    AssertPo(pactrSeed, 0);
+
+    String stnSeed;
+    pactrSeed->GetName(&stnSeed);
+
+    // Quick scan: does the seed have any tags at all?
+    achar *prgch = stnSeed.Prgch();
+    long cch = stnSeed.Cch();
+    bool fHasTag = fFalse;
+    for (long ich = 0; ich < cch && !fHasTag; ich++)
+    {
+        if (prgch[ich] == '#' && ich + 1 < cch && _FIsTagChar(prgch[ich + 1]))
+            fHasTag = fTrue;
+    }
+
+    SelectActr(pactrSeed);
+    if (!fHasTag)
+        return fTrue;
+
+    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
+    String stnOther;
+    for (long iactr = 0; iactr < cactr; iactr++)
+    {
+        PActor pactr;
+        _pglpactr->Get(iactr, &pactr);
+        if (pactr == pvNil || pactr == pactrSeed)
+            continue;
+        pactr->GetName(&stnOther);
+        if (_FNamesShareAnyTag(&stnSeed, &stnOther))
+        {
+            if (!FToggleActrSelected(pactr))
+                return fFalse;
+        }
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Replace the current selection with every actor in the current scene
+ * whose display name contains '#pszTag' as a whole tag token.
+ *
+ ****************************************************/
+bool Scene::FSelectActrsByTag(PZString pszTag)
+{
+    AssertThis(0);
+
+    long cactr = (_pglpactr == pvNil) ? 0 : _pglpactr->IvMac();
+    PActor pactr;
+    String stnName;
+    bool fAny = fFalse;
+
+    ClearSelection();
+
+    for (long iactr = 0; iactr < cactr; iactr++)
+    {
+        _pglpactr->Get(iactr, &pactr);
+        if (pactr == pvNil)
+            continue;
+        pactr->GetName(&stnName);
+        if (!_FNameContainsTag(&stnName, pszTag))
+            continue;
+        if (!fAny)
+        {
+            SelectActr(pactr);
+            fAny = fTrue;
+        }
+        else if (!FToggleActrSelected(pactr))
+        {
+            return fFalse;
+        }
+    }
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Mean of currently-visible selected actors' world positions.
+ * Group rotate / scale tools freeze this at mousedown as the
+ * pivot. Skips actors that aren't FIsInView() at the current
+ * frame so a stale offstage position can't drag the pivot
+ * away from what the user sees.
+ *
+ * Returns fFalse (and leaves outputs untouched) if no selected
+ * actor is currently visible.
+ *
+ ****************************************************/
+bool Scene::FXyzSelectionCentroid(BRS *pxr, BRS *pyr, BRS *pzr)
+{
+    AssertThis(0);
+    AssertVarMem(pxr);
+    AssertVarMem(pyr);
+    AssertVarMem(pzr);
+
+    long cactrSel = CactrSelected();
+    long cactrLive = 0;
+    BRS xrSum = rZero, yrSum = rZero, zrSum = rZero;
+
+    for (long iactr = 0; iactr < cactrSel; iactr++)
+    {
+        PActor pactr = PactrSelectedAt(iactr);
+        if (pactr == pvNil || pactr->Pbody() == pvNil || !pactr->FIsInView())
+        {
+            continue;
+        }
+        BRS xr, yr, zr;
+        pactr->Pbody()->GetPosition(&xr, &yr, &zr);
+        xrSum = BrsAdd(xrSum, xr);
+        yrSum = BrsAdd(yrSum, yr);
+        zrSum = BrsAdd(zrSum, zr);
+        cactrLive++;
+    }
+
+    if (cactrLive == 0)
+    {
+        return fFalse;
+    }
+
+    BRS rCount = BrIntToScalar(cactrLive);
+    *pxr = BrsDiv(xrSum, rCount);
+    *pyr = BrsDiv(yrSum, rCount);
+    *pzr = BrsDiv(zrSum, rCount);
+    return fTrue;
+}
+
+/****************************************************
+ *
+ * Returns the total number of selected actors:
+ * 0 if primary is pvNil, else 1 + extras count.
+ *
+ ****************************************************/
+long Scene::CactrSelected(void)
+{
+    AssertThis(0);
+    if (_pactrSelected == pvNil)
+    {
+        return 0;
+    }
+    return 1 + (_pglpactrSelExtra == pvNil ? 0 : _pglpactrSelExtra->IvMac());
+}
+
+/****************************************************
+ *
+ * Returns the iactr-th selected actor: 0 = primary,
+ * 1..N = extras in insertion order.
+ *
+ ****************************************************/
+PActor Scene::PactrSelectedAt(long iactr)
+{
+    AssertThis(0);
+    AssertIn(iactr, 0, CactrSelected());
+    if (iactr == 0)
+    {
+        return _pactrSelected;
+    }
+    PActor pactr;
+    _pglpactrSelExtra->Get(iactr - 1, &pactr);
+    return pactr;
+}
+
+/****************************************************
+ *
+ * Returns fTrue if pactr is the primary or in the extras list.
+ *
+ ****************************************************/
+bool Scene::FIsActrSelected(PActor pactr)
+{
+    AssertThis(0);
+    AssertNilOrPo(pactr, 0);
+    if (pactr == pvNil)
+    {
+        return fFalse;
+    }
+    if (pactr == _pactrSelected)
+    {
+        return fTrue;
+    }
+    if (_pglpactrSelExtra == pvNil)
+    {
+        return fFalse;
+    }
+    for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+    {
+        PActor pactrEntry;
+        _pglpactrSelExtra->Get(iactr, &pactrEntry);
+        if (pactrEntry == pactr)
+        {
+            return fTrue;
+        }
+    }
+    return fFalse;
+}
+
+/****************************************************
+ *
+ * Shift-click entry point. Toggles pactr's membership in the
+ * selection set: adds it if absent, removes it if present.
+ * Returns fFalse on allocation failure.
+ *
+ ****************************************************/
+bool Scene::FToggleActrSelected(PActor pactr)
+{
+    AssertThis(0);
+    AssertPo(pactr, 0);
+
+    PMovieView pmvu = (PMovieView)Pmvie()->PddgGet(0);
+    AssertNilOrPo(pmvu, 0);
+    bool fHiliteOk = (pmvu != pvNil) && !pmvu->FTextMode();
+
+    // If toggling the primary: promote first extra to primary, or clear if no extras.
+    if (pactr == _pactrSelected)
+    {
+        if (fHiliteOk)
+        {
+            pactr->Unhilite();
+        }
+        if (_pglpactrSelExtra != pvNil && _pglpactrSelExtra->IvMac() > 0)
+        {
+            PActor pactrPromote;
+            _pglpactrSelExtra->Get(0, &pactrPromote);
+            _pglpactrSelExtra->Delete(0);
+            _pactrSelected = pactrPromote;
+        }
+        else
+        {
+            _pactrSelected = pvNil;
+        }
+        _pmvie->InvalViews();
+        _pmvie->BuildActionMenu();
+        return fTrue;
+    }
+
+    // If toggling an extra: remove it, unhilite.
+    if (_pglpactrSelExtra != pvNil)
+    {
+        for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+        {
+            PActor pactrEntry;
+            _pglpactrSelExtra->Get(iactr, &pactrEntry);
+            if (pactrEntry == pactr)
+            {
+                if (fHiliteOk)
+                {
+                    pactrEntry->Unhilite();
+                }
+                _pglpactrSelExtra->Delete(iactr);
+                _pmvie->InvalViews();
+                _pmvie->BuildActionMenu();
+                return fTrue;
+            }
+        }
+    }
+
+    // Adding a new actor.
+    // If no primary yet, make it primary (matches plain-click semantics).
+    if (_pactrSelected == pvNil)
+    {
+        SelectActr(pactr);
+        return fTrue;
+    }
+
+    // Add as extra. Lazily allocate the list.
+    if (_pglpactrSelExtra == pvNil)
+    {
+        _pglpactrSelExtra = DynamicArray::PglNew(size(PActor));
+        if (_pglpactrSelExtra == pvNil)
+        {
+            return fFalse;
+        }
+    }
+    if (!_pglpactrSelExtra->FAdd(&pactr))
+    {
+        return fFalse;
+    }
+    if (fHiliteOk)
+    {
+        pactr->Hilite();
+    }
+    _pmvie->InvalViews();
+    _pmvie->BuildActionMenu();
+    return fTrue;
+}
+
+/****************************************************
+ *
  * This routine sets the selected text box to the given one.
  *
  * Parameters:
@@ -2462,14 +3022,14 @@ void SCEN::SelectActr(ACTR *pactr)
  *	None
  *
  ****************************************************/
-void SCEN::SelectTbox(PTBOX ptbox)
+void Scene::SelectTbox(PTBOX ptbox)
 {
     AssertThis(0);
     AssertNilOrPo(ptbox, 0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
     AssertNilOrPo(pmvu, 0);
 
     _pmvie->InvalViews();
@@ -2481,6 +3041,21 @@ void SCEN::SelectTbox(PTBOX ptbox)
         {
             _pactrSelected->Unhilite();
             _pmvie->BuildActionMenu();
+        }
+
+        // Clear any extras and unhilite each (parity with SelectActr).
+        if (pvNil != _pglpactrSelExtra)
+        {
+            for (long iactr = 0; iactr < _pglpactrSelExtra->IvMac(); iactr++)
+            {
+                PActor pactrExtra;
+                _pglpactrSelExtra->Get(iactr, &pactrExtra);
+                if (pvNil != pactrExtra)
+                {
+                    pactrExtra->Unhilite();
+                }
+            }
+            _pglpactrSelExtra->FSetIvMac(0);
         }
 
         if ((ptbox == _ptboxSelected) && ((ptbox == pvNil) || ptbox->FSelected()))
@@ -2517,17 +3092,17 @@ void SCEN::SelectTbox(PTBOX ptbox)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActrCore(ACTR *pactr)
+bool Scene::FAddActrCore(Actor *pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
 
     PSEV qsev;
-    SEV sev;
+    SceneEvent sev;
     long isev;
     long ipactr;
-    STN stn;
-    PACTR pactrOld;
+    String stn;
+    PActor pactrOld;
     bool fRetValue;
 
     //
@@ -2594,7 +3169,7 @@ bool SCEN::FAddActrCore(ACTR *pactr)
     // Add actor to inital list of events to do.
     //
     sev.sevt = sevtAddActr;
-    fRetValue = _pggsevStart->FInsert(0, size(PACTR), &pactr, &sev);
+    fRetValue = _pggsevStart->FInsert(0, size(PActor), &pactr, &sev);
 
     if (fRetValue)
     {
@@ -2640,7 +3215,7 @@ bool SCEN::FAddActrCore(ACTR *pactr)
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActr(ACTR *pactr)
+bool Scene::FAddActr(Actor *pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -2659,7 +3234,7 @@ bool SCEN::FAddActr(ACTR *pactr)
     SelectActr(pactr);
 
     //
-    // The MVU creates the undo object for this because of the mouse
+    // The MovieView creates the undo object for this because of the mouse
     // placement.
     //
     return (fTrue);
@@ -2677,12 +3252,12 @@ bool SCEN::FAddActr(ACTR *pactr)
  *  None
  *
  ****************************************************/
-void SCEN::RemActrCore(long arid)
+void Scene::RemActrCore(long arid)
 {
     AssertThis(0);
 
     PSEV qsev;
-    PACTR pactrTmp;
+    PActor pactrTmp;
     long isev;
 
     //
@@ -2727,13 +3302,27 @@ void SCEN::RemActrCore(long arid)
             //
             if (_pactrSelected == pactrTmp)
             {
-                PMVU pmvu;
+                PMovieView pmvu;
 
                 _pactrSelected = pvNil;
-                pmvu = (PMVU)_pmvie->PddgGet(0);
+                pmvu = (PMovieView)_pmvie->PddgGet(0);
                 if (pmvu != pvNil)
                 {
                     pmvu->EndPlaceActor();
+                }
+            }
+
+            // Remove the actor from the multi-selection extras list as well.
+            if (_pglpactrSelExtra != pvNil)
+            {
+                for (long iactr = _pglpactrSelExtra->IvMac() - 1; iactr >= 0; iactr--)
+                {
+                    PActor pactrEntry;
+                    _pglpactrSelExtra->Get(iactr, &pactrEntry);
+                    if (pactrEntry != pvNil && pactrEntry->Arid() == arid)
+                    {
+                        _pglpactrSelExtra->Delete(iactr);
+                    }
                 }
             }
 
@@ -2772,14 +3361,14 @@ void SCEN::RemActrCore(long arid)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemActr(long arid)
+bool Scene::FRemActr(long arid)
 {
     AssertThis(0);
     AssertIn(arid, 0, 500);
 
-    PSUNA psuna;
+    PSceneActorUndo psuna;
     long ipactr;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Find the actor for undo purposes
@@ -2796,7 +3385,7 @@ bool SCEN::FRemActr(long arid)
     AssertPo(pactr, 0);
     pactr->AddRef();
 
-    psuna = SUNA::PsunaNew();
+    psuna = SceneActorUndo::PsunaNew();
 
     if (psuna == pvNil)
     {
@@ -2832,16 +3421,16 @@ bool SCEN::FRemActr(long arid)
  *  Pointer to the actor, pvNil if none.
  *
  ****************************************************/
-ACTR *SCEN::PactrFromPt(long xp, long yp, long *pibset)
+Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
 {
     AssertThis(0);
     AssertVarMem(pibset);
 
-    ACTR *pactr;
-    BODY *pbody;
+    Actor *pactr;
+    Body *pbody;
     long ipactr;
 
-    pbody = BODY::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
+    pbody = Body::PbodyClicked(xp, yp, Pmvie()->Pbwld(), pibset);
     if (pvNil == pbody)
     {
         return pvNil;
@@ -2876,12 +3465,12 @@ ACTR *SCEN::PactrFromPt(long xp, long yp, long *pibset)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddTboxCore(PTBOX ptbox)
+bool Scene::FAddTboxCore(PTBOX ptbox)
 {
     AssertThis(0);
     AssertPo(ptbox, 0);
 
-    SEV sev;
+    SceneEvent sev;
     bool fRetValue;
 
 #ifdef DEBUG
@@ -2941,13 +3530,13 @@ bool SCEN::FAddTboxCore(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddTbox(PTBOX ptbox)
+bool Scene::FAddTbox(PTBOX ptbox)
 {
-    PSUNX psunx;
+    PSceneUndoText psunx;
     long itbox;
     long nfrmFirst, nfrmLast;
 
-    psunx = SUNX::PsunxNew();
+    psunx = SceneUndoText::PsunxNew();
 
     if (psunx == pvNil)
     {
@@ -3002,7 +3591,7 @@ bool SCEN::FAddTbox(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemTboxCore(PTBOX ptbox)
+bool Scene::FRemTboxCore(PTBOX ptbox)
 {
     AssertThis(0);
     AssertPo(ptbox, 0);
@@ -3069,7 +3658,7 @@ bool SCEN::FRemTboxCore(PTBOX ptbox)
                 }
             }
 
-            Bug("Text box not found in GL");
+            Bug("Text box not found in DynamicArray");
             return (fFalse);
         }
     }
@@ -3091,15 +3680,15 @@ bool SCEN::FRemTboxCore(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FRemTbox(PTBOX ptbox)
+bool Scene::FRemTbox(PTBOX ptbox)
 {
     AssertThis(0);
     AssertPo(ptbox, 0);
 
-    PSUNX psunx;
+    PSceneUndoText psunx;
     long nfrmFirst, nfrmLast;
 
-    psunx = SUNX::PsunxNew();
+    psunx = SceneUndoText::PsunxNew();
 
     if (psunx == pvNil)
     {
@@ -3141,7 +3730,7 @@ bool SCEN::FRemTbox(PTBOX ptbox)
  *  Pointer to the text box if itbox is valid, else pvNil.
  *
  ****************************************************/
-TBOX *SCEN::PtboxFromItbox(long itbox)
+TextBox *Scene::PtboxFromItbox(long itbox)
 {
     AssertThis(0);
     Assert(itbox >= 0, "Bad index value");
@@ -3182,17 +3771,17 @@ TBOX *SCEN::PtboxFromItbox(long itbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPauseCore(WIT *pwit, long *pdts)
+bool Scene::FPauseCore(WaitReason *pwit, long *pdts)
 {
     AssertThis(0);
     AssertIn(*pwit, witNil, witLim);
     AssertIn(*pdts, 0, klwMax);
 
-    SEV sev;
+    SceneEvent sev;
     long isev;
     PSEV qsev;
-    SEVP sevp;
-    WIT witOld;
+    SceneEventPause sevp;
+    WaitReason witOld;
     long dtsOld;
 
     //
@@ -3245,7 +3834,7 @@ bool SCEN::FPauseCore(WIT *pwit, long *pdts)
     sev.sevt = sevtPause;
     sevp.wit = *pwit;
     sevp.dts = *pdts;
-    if (!_FAddSev(&sev, size(long) * 2, &sevp))
+    if (!_FAddSev(&sev, size(SceneEventPause), &sevp))
     {
         return (fFalse);
     }
@@ -3269,11 +3858,11 @@ bool SCEN::FPauseCore(WIT *pwit, long *pdts)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPause(WIT wit, long dts)
+bool Scene::FPause(WaitReason wit, long dts)
 {
-    PSUNP psunp;
+    PSceneUndoPause psunp;
 
-    psunp = SUNP::PsunpNew();
+    psunp = SceneUndoPause::PsunpNew();
 
     if (psunp == pvNil)
     {
@@ -3313,18 +3902,18 @@ bool SCEN::FPause(WIT wit, long dts)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
+bool Scene::FSetBkgdCore(PTAG ptag, PTAG ptagOld)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     AssertVarMem(ptagOld);
 
-    SEV sev;
+    SceneEvent sev;
     long isev;
     TAG tag;
     long vlm;
     bool fLoop;
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long sty;
 
     if (_pbkgd != pvNil)
@@ -3401,27 +3990,27 @@ LSuccess:
     _isevFrmLim = 0;
 
     // Add the default sound for the new background, if any
-    _pbkgd->GetDefaultSound(&tag, &vlm, &fLoop);
-    if (tag.sid != ksidInvalid) // new background sound
-    {
-        // Note: since FSetBkgdCore is only called at edit time,
-        // it's okay to call FCacheTag.  The background default
-        // sound is not an intrinsic part of the BKGD...it's more
-        // of a "serving suggestion" that the user can remove
-        // once the background is added.
-        Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
-        if (vptagm->FCacheTagToHD(&tag))
-        {
-            pmsnd = (PMSND)vptagm->PbacoFetch(&tag, MSND::FReadMsnd);
-            if (pvNil != pmsnd)
-            {
-                sty = pmsnd->Sty();
-                ReleasePpo(&pmsnd);
-                // non-destructive if we fail
-                FAddSndCore(fLoop, fFalse, vlm, sty, 1, &tag);
-            }
-        }
-    }
+    // _pbkgd->GetDefaultSound(&tag, &vlm, &fLoop);
+    // if (tag.sid != ksidInvalid) // new background sound
+    // {
+    //     // Note: since FSetBkgdCore is only called at edit time,
+    //     // it's okay to call FCacheTag.  The background default
+    //     // sound is not an intrinsic part of the Background...it's more
+    //     // of a "serving suggestion" that the user can remove
+    //     // once the background is added.
+    //     Assert(!_pmvie->FPlaying(), "Shouldn't cache tags if movie is playing!");
+    //     if (vptagm->FCacheTagToHD(&tag))
+    //     {
+    //         pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    //         if (pvNil != pmsnd)
+    //         {
+    //             sty = pmsnd->Sty();
+    //             ReleasePpo(&pmsnd);
+    //             // non-destructive if we fail
+    //             FAddSndCore(fLoop, fFalse, vlm, sty, 1, &tag);
+    //         }
+    //     }
+    // }
 
     _pmvie->Pmcc()->SceneChange();
 
@@ -3445,13 +4034,13 @@ LSuccess:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FSetBkgd(PTAG ptag)
+bool Scene::FSetBkgd(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
 
     TAG tagOld;
-    PSUNK psunk;
+    PSceneUndoBackground psunk;
     long icam;
 
     if (_pbkgd != pvNil)
@@ -3471,7 +4060,7 @@ bool SCEN::FSetBkgd(PTAG ptag)
     Assert(tagOld.sid != lw, "Use CORE function to set first background");
 #endif
 
-    psunk = SUNK::PsunkNew();
+    psunk = SceneUndoBackground::PsunkNew();
 
     if (psunk == pvNil)
     {
@@ -3516,12 +4105,12 @@ bool SCEN::FSetBkgd(PTAG ptag)
  *    and is only 1 frame long, else fFalse.
  *
  ****************************************************/
-bool SCEN::FIsEmpty(void)
+bool Scene::FIsEmpty(void)
 {
     AssertThis(0);
 
     long isev;
-    SEV sev;
+    SceneEvent sev;
 
     if ((_pggsevStart->IvMac() != 1) || ((_nfrmLast - _nfrmFirst) > 0))
     {
@@ -3546,22 +4135,23 @@ bool SCEN::FIsEmpty(void)
  * This routine changes the camera view point at this frame.
  *
  * Parameters:
- *  icam - The camera number in the BKGD to switch to.
+ *  icam - The camera number in the Background to switch to.
  *
  *
  * Returns:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FChangeCamCore(long icam, long *picamOld)
+bool Scene::FChangeCamCore(long icam, long *picamOld)
 {
     AssertThis(0);
     AssertIn(icam, 0, 500);
     AssertVarMem(picamOld);
 
     PSEV qsev, qsevOld;
-    SEV sev;
+    SceneEvent sev;
     long isev, isevCam;
+    int32_t icam32 = (int32_t)icam; // on-disk slot is 4 bytes
 
     //
     // Check for a current camera change.
@@ -3588,7 +4178,9 @@ bool SCEN::FChangeCamCore(long icam, long *picamOld)
                     qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isevCam);
                     if (qsevOld->sevt == sevtChngCamera)
                     {
-                        _pggsevFrm->Get(isevCam, picamOld);
+                        int32_t icamScratch;
+                        _pggsevFrm->Get(isevCam, &icamScratch);
+                        *picamOld = icamScratch;
                         break;
                     }
                 }
@@ -3599,8 +4191,10 @@ bool SCEN::FChangeCamCore(long icam, long *picamOld)
                 //
                 if (*picamOld == icam)
                 {
+                    int32_t icamScratch;
                     qsevOld = (PSEV)_pggsevFrm->QvFixedGet(isev);
-                    _pggsevFrm->Get(isev, picamOld);
+                    _pggsevFrm->Get(isev, &icamScratch);
+                    *picamOld = icamScratch;
                     if (_FPlaySev(qsevOld, &icam, _grfscen))
                     {
                         _pggsevFrm->Delete(isev);
@@ -3614,8 +4208,12 @@ bool SCEN::FChangeCamCore(long icam, long *picamOld)
                 //
                 // Change it
                 //
-                _pggsevFrm->Get(isev, picamOld);
-                _pggsevFrm->Put(isev, &icam);
+                {
+                    int32_t icamScratch;
+                    _pggsevFrm->Get(isev, &icamScratch);
+                    *picamOld = icamScratch;
+                    _pggsevFrm->Put(isev, &icam32);
+                }
                 _MarkMovieDirty();
                 if (_FPlaySev(qsev, &icam, _grfscen))
                 {
@@ -3625,7 +4223,9 @@ bool SCEN::FChangeCamCore(long icam, long *picamOld)
             }
             else
             {
-                _pggsevFrm->Get(isev, picamOld);
+                int32_t icamScratch;
+                _pggsevFrm->Get(isev, &icamScratch);
+                *picamOld = icamScratch;
                 break;
             }
         }
@@ -3642,7 +4242,7 @@ bool SCEN::FChangeCamCore(long icam, long *picamOld)
     sev.nfrm = _nfrmCur;
     sev.sevt = sevtChngCamera;
 
-    if (_FAddSev(&sev, size(long), &icam))
+    if (_FAddSev(&sev, size(int32_t), &icam32))
     {
         if (_FPlaySev(&sev, &icam, _grfscen))
         {
@@ -3663,7 +4263,7 @@ LSuccess:
     //
     for (isev = _isevFrmLim; isev < _pggsevFrm->IvMac(); isev++)
     {
-        long icamNext;
+        int32_t icamNext;
         qsev = (PSEV)_pggsevFrm->QvFixedGet(isev);
         if (qsev->sevt == sevtChngCamera)
         {
@@ -3686,17 +4286,17 @@ LSuccess:
  * and creates an undo object for the action.
  *
  * Parameters:
- *  icam - The camera number in the BKGD to switch to.
+ *  icam - The camera number in the Background to switch to.
  *
  *
  * Returns:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FChangeCam(long icam)
+bool Scene::FChangeCam(long icam)
 {
     long icamOld;
-    PSUNK psunk;
+    PSceneUndoBackground psunk;
     TAG tagCam;
 
     if (!vptagm->FBuildChildTag(&_tagBkgd, icam, kctgCam, &tagCam))
@@ -3714,7 +4314,7 @@ bool SCEN::FChangeCam(long icam)
         return (fFalse);
     }
 
-    psunk = SUNK::PsunkNew();
+    psunk = SceneUndoBackground::PsunkNew();
 
     if (psunk == pvNil)
     {
@@ -3757,32 +4357,32 @@ bool SCEN::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
+Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
 
-    PSCEN pscen = pvNil;
-    BLCK blck;
-    KID kid;
+    PScene pscen = pvNil;
+    DataBlock blck;
+    ChildChunkIdentification kid;
     long isevFrm = 0;
     long isevStart = 0;
-    SEV sev;
+    SceneEvent sev;
     PSEV qsev;
     short bo;
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
-    CHID chid;
-    SCENH scenh;
-    PCFL pcfl;
+    ChildChunkID chid;
+    SceneOnFile scenh;
+    PChunkyFile pcfl;
 
     pcfl = pcrf->Pcfl();
 
     //
     // Find the chunk and read in the header.
     //
-    if (!pcfl->FFind(kctgScen, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(SCENH)) ||
-        !blck.FReadRgb(&scenh, size(SCENH), 0))
+    if (!pcfl->FFind(kctgScen, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(SceneOnFile)) ||
+        !blck.FReadRgb(&scenh, size(SceneOnFile), 0))
     {
         goto LFail0;
     }
@@ -3802,7 +4402,7 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
     //
     // Create our scene object.
     //
-    pscen = NewObj SCEN(pmvie);
+    pscen = NewObj Scene(pmvie);
 
     if (pscen == pvNil)
     {
@@ -3814,7 +4414,7 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
     //
     // Initialize roll call	for actors
     //
-    pscen->_pglpactr = GL::PglNew(size(PACTR), 0);
+    pscen->_pglpactr = DynamicArray::PglNew(size(PActor), 0);
     if (pscen->_pglpactr == pvNil)
     {
         goto LFail0;
@@ -3823,7 +4423,7 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
     //
     // Initialize roll call	for text boxes
     //
-    pscen->_pglptbox = GL::PglNew(size(PTBOX), 0);
+    pscen->_pglptbox = DynamicArray::PglNew(size(PTBOX), 0);
     if (pscen->_pglptbox == pvNil)
     {
         goto LFail0;
@@ -3842,85 +4442,94 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
     //
     if (pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgThumbMbmp, &kid) && pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
-        pscen->_pmbmp = MBMP::PmbmpRead(&blck);
+        pscen->_pmbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
     }
 
     //
-    // Read in GG of Frame events
+    // Read in GeneralGroup of Frame events
     //
     if (!pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgFrmGg, &kid) || !pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck))
     {
         goto LFail0;
     }
 
-    pscen->_pggsevFrm = GG::PggRead(&blck, &bo);
-    if (pscen->_pggsevFrm == pvNil)
     {
-        goto LFail0;
-    }
-
-    Assert(pscen->_pggsevFrm->CbFixed() == size(SEV), "Bad GG read for event");
-
-    //
-    // Convert all open tags to pointers.
-    //
-    for (; isevFrm < pscen->_pggsevFrm->IvMac(); isevFrm++)
-    {
-        qsev = (PSEV)pscen->_pggsevFrm->QvFixedGet(isevFrm);
-
-        //
-        // Swap byte ordering of entry
-        //
-        if (bo == kboOther)
+        // Read the wire-format GG (variable parts hold on-disk-stride SSEs
+        // for sevtPlaySnd, sized using TagChildPairOnFile = 16 bytes), then
+        // marshal entry-by-entry into the runtime _pggsevFrm (sevtPlaySnd
+        // entries get re-emitted with TagChildPair = sizeof(TAG)+chid stride,
+        // wider on x64).
+        PGeneralGroup pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+        if (pvNil == pggOnFile)
+            goto LFail0;
+        Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
+        pscen->_pggsevFrm = GeneralGroup::PggNew(size(SceneEvent));
+        if (pvNil == pscen->_pggsevFrm)
         {
-            SwapBytesBom((void *)qsev, kbomSev);
+            ReleasePpo(&pggOnFile);
+            goto LFail0;
         }
-
-        //
-        // Open all tags
-        //
-        switch (qsev->sevt)
+        for (isevFrm = 0; isevFrm < pggOnFile->IvMac(); isevFrm++)
         {
-        case sevtPlaySnd:
-
-            PSSE psse;
-            long itag;
-
-            psse = SSE::PsseDupFromGg(pscen->_pggsevFrm, isevFrm, fFalse);
-            if (pvNil == psse)
-                goto LFail1;
-
+            qsev = (PSEV)pggOnFile->QvFixedGet(isevFrm);
             if (bo == kboOther)
-            {
-                psse->SwapBytes();
-            }
+                SwapBytesBom((void *)qsev, kbomSev);
 
-            for (itag = 0; itag < psse->ctagc; itag++)
+            switch (qsev->sevt)
             {
-                if (!TAGM::FOpenTag(psse->Ptag(itag), pcrf, pcfl))
+            case sevtPlaySnd: {
+                PSceneSoundEvent psse;
+                long itag;
+
+                // Marshal on-disk SSE bytes -> runtime SSE (TagChildPairOnFile -> TagChildPair).
+                psse = _PsseFromOnFileBytes(pggOnFile->QvGet(isevFrm), bo == kboOther);
+                if (pvNil == psse)
                 {
-                    while (itag-- > 0)
-                        TAGM::CloseTag(psse->Ptag(itag));
-                    FreePpv((void **)&psse); // don't ReleasePpsse...tags are already closed
+                    ReleasePpo(&pggOnFile);
                     goto LFail1;
                 }
+                for (itag = 0; itag < psse->ctagc; itag++)
+                {
+                    if (!TagManager::FOpenTag(psse->Ptag(itag), pcrf, pcfl))
+                    {
+                        while (itag-- > 0)
+                            TagManager::CloseTag(psse->Ptag(itag));
+                        FreePpv((void **)&psse);
+                        ReleasePpo(&pggOnFile);
+                        goto LFail1;
+                    }
+                }
+                if (!pscen->_pggsevFrm->FInsert(isevFrm, psse->Cb(), psse, qsev))
+                {
+                    while (itag-- > 0)
+                        TagManager::CloseTag(psse->Ptag(itag));
+                    FreePpv((void **)&psse);
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                FreePpv((void **)&psse);
+                break;
             }
-            // Put SSE with opened tags back in GG
-            pscen->_pggsevFrm->Put(isevFrm, psse);
-            FreePpv((void **)&psse); // don't ReleasePpsse because GG keeps the tags
-            break;
 
-        case sevtChngCamera:
-        case sevtPause:
-            break;
+            case sevtChngCamera:
+            case sevtPause:
+                // No TAG embed; pass variable bytes through unchanged.
+                if (!pscen->_pggsevFrm->FInsert(isevFrm, pggOnFile->Cb(isevFrm), pggOnFile->QvGet(isevFrm), qsev))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
 
-        case sevtAddActr:
-        case sevtSetBkgd:
-        case sevtAddTbox:
-        default:
-            Assert(0, "Bad event in frame event list");
-            break;
+            case sevtAddActr:
+            case sevtSetBkgd:
+            case sevtAddTbox:
+            default:
+                Assert(0, "Bad event in frame event list");
+                break;
+            }
         }
+        ReleasePpo(&pggOnFile);
     }
 
     //
@@ -3933,93 +4542,115 @@ SCEN *SCEN::PscenRead(PMVIE pmvie, PCRF pcrf, CNO cno)
         goto LFail1;
     }
 
-    pscen->_pggsevStart = GG::PggRead(&blck, &bo);
-
-    if (pscen->_pggsevStart == pvNil)
     {
-        goto LFail1;
-    }
-
-    Assert(pscen->_pggsevStart->CbFixed() == size(SEV), "Bad GG read for event");
-
-    //
-    // Convert all open tags to pointers.
-    //
-    for (; isevStart < pscen->_pggsevStart->IvMac(); isevStart++)
-    {
-        qsev = (PSEV)pscen->_pggsevStart->QvFixedGet(isevStart);
-
-        //
-        // Swap byte ordering of entry
-        //
-        if (bo == kboOther)
+        // Read the wire-format start-event GG and marshal each entry into a
+        // fresh runtime _pggsevStart. sevtSetBkgd's variable widens from
+        // TAGOnFile (16) to runtime TAG (sizeof(TAG)); sevtAddActr/sevtAddTbox
+        // replace their on-disk chid with a runtime pointer (PActor/PTBOX),
+        // which on Win64 is 8 bytes vs. the 4-byte chid slot the existing
+        // in-place Put would have overrun.
+        PGeneralGroup pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+        if (pvNil == pggOnFile)
+            goto LFail1;
+        Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
+        pscen->_pggsevStart = GeneralGroup::PggNew(size(SceneEvent));
+        if (pvNil == pscen->_pggsevStart)
         {
-            SwapBytesBom((void *)qsev, kbomSev);
+            ReleasePpo(&pggOnFile);
+            goto LFail1;
         }
-
-        //
-        // Convert CHIDs to pointers
-        //
-        switch (qsev->sevt)
+        for (isevStart = 0; isevStart < pggOnFile->IvMac(); isevStart++)
         {
-        case sevtAddActr:
-
-            pscen->_pggsevStart->Get(isevStart, &chid);
+            qsev = (PSEV)pggOnFile->QvFixedGet(isevStart);
             if (bo == kboOther)
+                SwapBytesBom((void *)qsev, kbomSev);
+
+            switch (qsev->sevt)
             {
-                SwapBytesBom((void *)&chid, kbomLong);
+            case sevtAddActr: {
+                pggOnFile->Get(isevStart, &chid);
+                if (bo == kboOther)
+                    SwapBytesBom((void *)&chid, kbomLong);
+                if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                pactr = Actor::PactrRead(pcrf, kid.cki.cno);
+                AssertNilOrPo(pactr, 0);
+                if (pactr == pvNil)
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                if (!pscen->_pggsevStart->FInsert(isevStart, size(PActor), &pactr, qsev))
+                {
+                    ReleasePpo(&pactr);
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
             }
 
-            if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
-            {
-                goto LFail1;
+            case sevtAddTbox: {
+                pggOnFile->Get(isevStart, &chid);
+                if (bo == kboOther)
+                    SwapBytesBom((void *)&chid, kbomLong);
+                if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgTbox, &kid))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                ptbox = TextBox::PtboxRead(pcrf, kid.cki.cno, pscen);
+                AssertNilOrPo(ptbox, 0);
+                if (ptbox == pvNil)
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                if (!pscen->_pggsevStart->FInsert(isevStart, size(PTBOX), &ptbox, qsev))
+                {
+                    ReleasePpo(&ptbox);
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
             }
 
-            pactr = ACTR::PactrRead(pcrf, kid.cki.cno);
-            AssertNilOrPo(pactr, 0);
-
-            if (pactr == pvNil)
-            {
-                goto LFail1;
+            case sevtSetBkgd: {
+                // Variable is TAGOnFile (16 bytes) on disk; widens to runtime TAG.
+                TAGOnFile tagOnFile;
+                TAG tagRuntime;
+                Assert(pggOnFile->Cb(isevStart) == size(TAGOnFile), "bad sevtSetBkgd size");
+                pggOnFile->Get(isevStart, &tagOnFile);
+                if (bo == kboOther)
+                    SwapBytesBom(&tagOnFile, kbomTag);
+                TagFromOnFile(&tagRuntime, tagOnFile);
+                if (!pscen->_pggsevStart->FInsert(isevStart, size(TAG), &tagRuntime, qsev))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
             }
 
-            pscen->_pggsevStart->Put(isevStart, &pactr);
-            break;
+            case sevtChngCamera:
+                // No TAG, no pointer; pass variable bytes through.
+                if (!pscen->_pggsevStart->FInsert(isevStart, pggOnFile->Cb(isevStart), pggOnFile->QvGet(isevStart), qsev))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
 
-        case sevtAddTbox:
-
-            pscen->_pggsevStart->Get(isevStart, &chid);
-            if (bo == kboOther)
-            {
-                SwapBytesBom((void *)&chid, kbomLong);
+            case sevtPause:
+            case sevtPlaySnd:
+            default:
+                Bug("Bad event in start event list");
+                break;
             }
-
-            if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgTbox, &kid))
-            {
-                goto LFail1;
-            }
-
-            ptbox = TBOX::PtboxRead(pcrf, kid.cki.cno, pscen);
-            AssertNilOrPo(ptbox, 0);
-
-            if (ptbox == pvNil)
-            {
-                goto LFail1;
-            }
-
-            pscen->_pggsevStart->Put(isevStart, &ptbox);
-            break;
-
-        case sevtSetBkgd:
-        case sevtChngCamera:
-            break;
-
-        case sevtPause:
-        case sevtPlaySnd:
-        default:
-            Bug("Bad event in start event list");
-            break;
         }
+        ReleasePpo(&pggOnFile);
     }
 
     //
@@ -4072,13 +4703,13 @@ LFail1:
             break;
 
         case sevtPlaySnd:
-            PSSE qsse;
+            PSceneSoundEvent qsse;
             long itag;
 
-            qsse = (PSSE)pscen->_pggsevFrm->QvGet(isevFrm);
+            qsse = (PSceneSoundEvent)pscen->_pggsevFrm->QvGet(isevFrm);
             if (qsse->Cb() != (pscen->_pggsevFrm->CbFixed() + pscen->_pggsevFrm->Cb(isevFrm)))
             {
-                Bug("Wrong size for SSE in GG");
+                Bug("Wrong size for SceneSoundEvent in GeneralGroup");
                 continue;
             }
 
@@ -4088,8 +4719,8 @@ LFail1:
                 can be safe-not-sorry.  */
             for (itag = 0; itag < qsse->ctagc; itag++)
             {
-                qsse = (PSSE)pscen->_pggsevFrm->QvGet(isevFrm);
-                TAGM::CloseTag(qsse->Ptag(itag));
+                qsse = (PSceneSoundEvent)pscen->_pggsevFrm->QvGet(isevFrm);
+                TagManager::CloseTag(qsse->Ptag(itag));
             }
             break;
 
@@ -4117,7 +4748,7 @@ LFail0:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPlayStartEvents(bool fActorsOnly)
+bool Scene::FPlayStartEvents(bool fActorsOnly)
 {
     AssertThis(0);
 
@@ -4128,7 +4759,7 @@ bool SCEN::FPlayStartEvents(bool fActorsOnly)
     //
     for (isev = 0; isev < _pggsevStart->IvMac(); isev++)
     {
-        SEV sev;
+        SceneEvent sev;
 
         _pggsevStart->GetFixed(isev, &sev);
         if (fActorsOnly && sev.sevt != sevtAddActr)
@@ -4148,12 +4779,12 @@ bool SCEN::FPlayStartEvents(bool fActorsOnly)
  * This routine returns the bkgd tag in *ptag
  *
  ****************************************************/
-bool SCEN::FGetTagBkgd(PTAG ptag)
+bool Scene::FGetTagBkgd(PTAG ptag)
 {
     AssertThis(0);
     AssertVarMem(ptag);
 
-    SEV sev;
+    SceneEvent sev;
     long isevStart;
 
     for (isevStart = 0; isevStart < _pggsevStart->IvMac(); isevStart++)
@@ -4180,22 +4811,22 @@ bool SCEN::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
-bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
+bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
 
-    PGG pggFrmTemp = pvNil;
-    PGG pggStartTemp = pvNil;
-    SEV sev;
-    CHID chidActr, chidTbox;
-    CNO cnoChild, cnoFrmEvent, cnoStartEvent;
-    SCENH scenh;
+    PGeneralGroup pggFrmTemp = pvNil;
+    PGeneralGroup pggStartTemp = pvNil;
+    SceneEvent sev;
+    ChildChunkID chidActr, chidTbox;
+    ChunkNumber cnoChild, cnoFrmEvent, cnoStartEvent;
+    SceneOnFile scenh;
     long isevFrm = -1;
     long isevStart = -1;
     long cb;
-    BLCK blck;
-    PCFL pcfl;
+    DataBlock blck;
+    PChunkyFile pcfl;
 
     chidActr = chidTbox = 0;
 
@@ -4204,7 +4835,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     *pcno = cnoNil;
 
     //
-    // Get a new CNO for this chunk
+    // Get a new ChunkNumber for this chunk
     //
     if (!pcfl->FAdd(0, kctgScen, pcno))
     {
@@ -4212,9 +4843,9 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     }
 
     //
-    // Copy frame event GG to temporary GG
+    // Copy frame event GeneralGroup to temporary GeneralGroup
     //
-    pggFrmTemp = GG::PggNew(size(SEV));
+    pggFrmTemp = GeneralGroup::PggNew(size(SceneEvent));
 
     if (pggFrmTemp == pvNil)
     {
@@ -4226,17 +4857,17 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
         sev = *(PSEV)_pggsevFrm->QvFixedGet(isevFrm);
 
         //
-        // Convert pointers in the GG to CHIDs
+        // Convert pointers in the GeneralGroup to CHIDs
         //
         switch (sev.sevt)
         {
         case sevtPlaySnd: {
             bool fSuccess = fFalse;
-            PSSE psse;
+            PSceneSoundEvent psse;
             long itag;
-            KID kid;
+            ChildChunkIdentification kid;
 
-            psse = SSE::PsseDupFromGg(_pggsevFrm, isevFrm);
+            psse = SceneSoundEvent::PsseDupFromGg(_pggsevFrm, isevFrm);
             if (pvNil == psse)
             {
                 goto LFail;
@@ -4264,9 +4895,16 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
                 }
             }
 
-            if (pggFrmTemp->FInsert(isevFrm, psse->Cb(), psse, &sev))
+            // Marshal runtime SSE -> on-disk bytes (TagChildPair -> TagChildPairOnFile).
             {
-                fSuccess = fTrue;
+                long cbOnFile;
+                void *pvOnFile = _PvOnFileFromSse(psse, &cbOnFile);
+                if (pvNil != pvOnFile)
+                {
+                    if (pggFrmTemp->FInsert(isevFrm, cbOnFile, pvOnFile, &sev))
+                        fSuccess = fTrue;
+                    FreePpv(&pvOnFile);
+                }
             }
         LEndPlaySnd:
             ReleasePpsse(&psse);
@@ -4278,14 +4916,14 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
         }
 
         case sevtChngCamera:
-            if (!pggFrmTemp->FInsert(isevFrm, size(long), _pggsevFrm->QvGet(isevFrm), &sev))
+            if (!pggFrmTemp->FInsert(isevFrm, size(int32_t), _pggsevFrm->QvGet(isevFrm), &sev))
             {
                 goto LFail;
             }
             break;
 
         case sevtPause:
-            if (!pggFrmTemp->FInsert(isevFrm, size(SEVP), _pggsevFrm->QvGet(isevFrm), &sev))
+            if (!pggFrmTemp->FInsert(isevFrm, size(SceneEventPause), _pggsevFrm->QvGet(isevFrm), &sev))
             {
                 goto LFail;
             }
@@ -4301,9 +4939,9 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     }
 
     //
-    // Copy start event GG to temporary GG
+    // Copy start event GeneralGroup to temporary GeneralGroup
     //
-    pggStartTemp = GG::PggNew(size(SEV));
+    pggStartTemp = GeneralGroup::PggNew(size(SceneEvent));
 
     if (pggStartTemp == pvNil)
     {
@@ -4314,7 +4952,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
     {
         sev = *(PSEV)_pggsevStart->QvFixedGet(isevStart);
         //
-        // Convert pointers in the GG to CHIDs
+        // Convert pointers in the GeneralGroup to CHIDs
         //
         switch (sev.sevt)
         {
@@ -4325,12 +4963,12 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
                 goto LFail;
             }
 
-            if (!(*(PACTR *)_pggsevStart->QvGet(isevStart))->FWrite(pcfl, cnoChild, *pcno))
+            if (!(*(PActor *)_pggsevStart->QvGet(isevStart))->FWrite(pcfl, cnoChild, *pcno))
             {
                 goto LFail;
             }
 
-            if (!pggStartTemp->FInsert(isevStart, size(CHID), &chidActr, &sev))
+            if (!pggStartTemp->FInsert(isevStart, size(ChildChunkID), &chidActr, &sev))
             {
                 goto LFail;
             }
@@ -4338,20 +4976,24 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
             chidActr++;
             break;
 
-        case sevtSetBkgd:
-            if (!TAGM::FSaveTag((PTAG)_pggsevStart->QvGet(isevStart), pcrf, fFalse))
+        case sevtSetBkgd: {
+            // Variable holds runtime TAG; marshal to TAGOnFile for the wire form.
+            PTAG ptagRuntime = (PTAG)_pggsevStart->QvGet(isevStart);
+            TAGOnFile tagOnFile;
+            if (!TagManager::FSaveTag(ptagRuntime, pcrf, fFalse))
             {
                 goto LFail;
             }
-
-            if (!pggStartTemp->FInsert(isevStart, size(TAG), _pggsevStart->QvGet(isevStart), &sev))
+            tagOnFile.From(*ptagRuntime);
+            if (!pggStartTemp->FInsert(isevStart, size(TAGOnFile), &tagOnFile, &sev))
             {
                 goto LFail;
             }
             break;
+        }
 
         case sevtChngCamera:
-            if (!pggStartTemp->FInsert(isevStart, size(long), _pggsevStart->QvGet(isevStart), &sev))
+            if (!pggStartTemp->FInsert(isevStart, size(int32_t), _pggsevStart->QvGet(isevStart), &sev))
             {
                 goto LFail;
             }
@@ -4368,7 +5010,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
                 goto LFail;
             }
 
-            if (!pggStartTemp->FInsert(isevStart, size(CHID), &chidTbox, &sev))
+            if (!pggStartTemp->FInsert(isevStart, size(ChildChunkID), &chidTbox, &sev))
             {
                 goto LFail;
             }
@@ -4469,7 +5111,7 @@ bool SCEN::FWrite(PCRF pcrf, CNO *pcno)
         goto LFail;
     }
 
-    if (!pcfl->FPutPv((void *)&scenh, size(SCENH), kctgScen, *pcno))
+    if (!pcfl->FPutPv((void *)&scenh, size(SceneOnFile), kctgScen, *pcno))
     {
         goto LFail;
     }
@@ -4505,7 +5147,7 @@ LFail:
  *  None
  *
  ****************************************************/
-bool SCEN::FResolveAllSndTags(CNO cnoScen)
+bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
 
@@ -4516,7 +5158,7 @@ bool SCEN::FResolveAllSndTags(CNO cnoScen)
     ipactrMac = _pglpactr->IvMac();
     for (ipactr = 0; ipactr < ipactrMac; ipactr++)
     {
-        PACTR pactr;
+        PActor pactr;
 
         _pglpactr->Get(ipactr, &pactr);
         if (!pactr->FResolveAllSndTags(cnoScen))
@@ -4528,14 +5170,14 @@ bool SCEN::FResolveAllSndTags(CNO cnoScen)
     for (isev = 0; isev < isevMac; isev++)
     {
         long itag;
-        PSSE psse;
-        SEV sev;
+        PSceneSoundEvent psse;
+        SceneEvent sev;
 
         sev = *(PSEV)_pggsevFrm->QvFixedGet(isev);
         if (sev.sevt != sevtPlaySnd)
             continue;
 
-        psse = (PSSE)_pggsevFrm->QvGet(isev);
+        psse = (PSceneSoundEvent)_pggsevFrm->QvGet(isev);
         for (itag = 0; itag < psse->ctagc; itag++)
         {
             if (psse->Ptag(itag)->sid == ksidUseCrf)
@@ -4566,11 +5208,11 @@ LFail:
  *  None
  *
  ****************************************************/
-void SCEN::RemActrsFromRollCall(bool fDelIfOnlyRef)
+void Scene::RemActrsFromRollCall(bool fDelIfOnlyRef)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
@@ -4591,13 +5233,13 @@ void SCEN::RemActrsFromRollCall(bool fDelIfOnlyRef)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FAddActrsToRollCall(void)
+bool Scene::FAddActrsToRollCall(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
-    STN stn;
+    String stn;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
     {
@@ -4634,7 +5276,7 @@ bool SCEN::FAddActrsToRollCall(void)
  *  None
  *
  ****************************************************/
-PMBMP SCEN::PmbmpThumbnail(void)
+PMaskedBitmapMBMP Scene::PmbmpThumbnail(void)
 {
     AssertThis(0);
 
@@ -4654,15 +5296,15 @@ PMBMP SCEN::PmbmpThumbnail(void)
  *  None
  *
  ****************************************************/
-void SCEN::_UpdateThumbnail(void)
+void Scene::_UpdateThumbnail(void)
 {
     AssertThis(0);
 
     long nfrmCur;
-    PGPT pgpt, pgptThumb;
-    PMVU pmvu;
+    PGraphicsPort pgpt, pgptThumb;
+    PMovieView pmvu;
     PTBOX ptbox = PtboxSelected();
-    PACTR pactr = PactrSelected();
+    PActor pactr = PactrSelected();
     RC rc, rcThumb;
     long grfscenSave;
     long dtimSnd;
@@ -4670,7 +5312,7 @@ void SCEN::_UpdateThumbnail(void)
     dtimSnd = Pmvie()->Pmsq()->DtimSnd();
     Pmvie()->Pmsq()->SndOff();
 
-    pmvu = (PMVU)Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)Pmvie()->PddgGet(0);
     if ((_pbkgd == pvNil) || (pmvu == pvNil))
     {
         goto LEnd;
@@ -4683,7 +5325,7 @@ void SCEN::_UpdateThumbnail(void)
     }
 
     rc.Set(0, 0, Pmvie()->Pmcc()->Dxp(), Pmvie()->Pmcc()->Dyp());
-    pgpt = GPT::PgptNewOffscreen(&rc, 8);
+    pgpt = GraphicsPort::PgptNewOffscreen(&rc, 8);
 
     if (pgpt == pvNil)
     {
@@ -4693,7 +5335,7 @@ void SCEN::_UpdateThumbnail(void)
     AssertPo(pgpt, 0);
 
     rcThumb.Set(0, 0, kdxpThumbnail, kdypThumbnail);
-    pgptThumb = GPT::PgptNewOffscreen(&rcThumb, 8);
+    pgptThumb = GraphicsPort::PgptNewOffscreen(&rcThumb, 8);
 
     if (pgptThumb == pvNil)
     {
@@ -4737,13 +5379,13 @@ void SCEN::_UpdateThumbnail(void)
 
     BLOCK
     {
-        GNV gnv(pgpt);
-        GNV gnvThumb(pgptThumb);
+        GraphicsEnvironment gnv(pgpt);
+        GraphicsEnvironment gnvThumb(pgptThumb);
         gnvThumb.CopyPixels(&gnv, &rc, &rcThumb);
 
         ReleasePpo(&_pmbmp);
 
-        _pmbmp = MBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
+        _pmbmp = MaskedBitmapMBMP::PmbmpNew(pgptThumb->PrgbLockPixels(), pgptThumb->CbRow(), kdypThumbnail, &rcThumb, 0, 0,
                                 kbTransparent);
         pgptThumb->Unlock();
 
@@ -4774,7 +5416,7 @@ LEnd:
  *  None
  *
  ****************************************************/
-void SCEN::MarkDirty(bool fDirty)
+void Scene::MarkDirty(bool fDirty)
 {
     AssertThis(0);
     if (fDirty)
@@ -4794,7 +5436,7 @@ void SCEN::MarkDirty(bool fDirty)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPasteActrCore(PACTR pactr)
+bool Scene::FPasteActrCore(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4845,7 +5487,7 @@ bool SCEN::FPasteActrCore(PACTR pactr)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::FPasteActr(PACTR pactr)
+bool Scene::FPasteActr(PActor pactr)
 {
     AssertThis(0);
     AssertPo(pactr, 0);
@@ -4869,12 +5511,12 @@ bool SCEN::FPasteActr(PACTR pactr)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
+bool Scene::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
 
-    PACTR pactr;
+    PActor pactr;
     long iactr;
 
     for (iactr = 0; iactr < _pglpactr->IvMac(); iactr++)
@@ -4902,7 +5544,7 @@ bool SCEN::_FForceActorsToFrm(long nfrm, bool *pfSoundInFrame)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SCEN::_FForceTboxesToFrm(long nfrm)
+bool Scene::_FForceTboxesToFrm(long nfrm)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
@@ -4935,7 +5577,7 @@ bool SCEN::_FForceTboxesToFrm(long nfrm)
  *  None.
  *
  ****************************************************/
-void SCEN::HideTboxes(void)
+void Scene::HideTboxes(void)
 {
     AssertThis(0);
 
@@ -4964,11 +5606,11 @@ void SCEN::HideTboxes(void)
  *  None.
  *
  ****************************************************/
-void SCEN::HideActors(void)
+void Scene::HideActors(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
@@ -4989,11 +5631,11 @@ void SCEN::HideActors(void)
  *  None.
  *
  ****************************************************/
-void SCEN::ShowActors(void)
+void Scene::ShowActors(void)
 {
     AssertThis(0);
 
-    PACTR pactr;
+    PActor pactr;
     long ipactr;
 
     for (ipactr = 0; ipactr < _pglpactr->IvMac(); ipactr++)
@@ -5015,7 +5657,7 @@ void SCEN::ShowActors(void)
  *  None.
  *
  ****************************************************/
-void SCEN::_MarkMovieDirty()
+void Scene::_MarkMovieDirty()
 {
     AssertThis(0);
 
@@ -5036,7 +5678,7 @@ void SCEN::_MarkMovieDirty()
  *  None.
  *
  ****************************************************/
-void SCEN::SetMvie(PMVIE pmvie)
+void Scene::SetMvie(PMovie pmvie)
 {
     AssertThis(0);
     AssertPo(pmvie, 0);
@@ -5058,23 +5700,23 @@ void SCEN::SetMvie(PMVIE pmvie)
  *  fFalse if an error occurred, else fTrue
  *
  ****************************************************/
-bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
+bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
 {
     AssertPo(pcfl, 0);
     AssertPo(ptagl, 0);
 
-    BLCK blck;
-    KID kid;
+    DataBlock blck;
+    ChildChunkIdentification kid;
     long isev;
     PSEV qsev;
     short bo;
-    PGG pggsev;
+    PGeneralGroup pggsev;
     TAG tag;
     TAG tagBkgd;
-    PGL pgltagSrc;
+    PDynamicArray pgltagSrc;
     TAG tagSrc;
     long itagSrc;
-    CHID chid;
+    ChildChunkID chid;
 
     tagBkgd.sid = ksidInvalid;
 
@@ -5091,14 +5733,14 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
         return fFalse;
     }
 
-    pggsev = GG::PggRead(&blck, &bo);
+    pggsev = GeneralGroup::PggRead(&blck, &bo);
 
     if (pggsev == pvNil)
     {
         return fFalse;
     }
 
-    Assert(pggsev->CbFixed() == size(SEV), "Bad GG read for event");
+    Assert(pggsev->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
 
     //
     // Find all tags in starting events
@@ -5136,7 +5778,7 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
             else
             {
                 bool fError;
-                pgltagSrc = ACTR::PgltagFetch(pcfl, kid.cki.cno, &fError);
+                pgltagSrc = Actor::PgltagFetch(pcfl, kid.cki.cno, &fError);
 
                 if (fError)
                 {
@@ -5164,21 +5806,22 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
             }
             break;
 
-        case sevtSetBkgd:
-            pggsev->Get(isev, &tag);
+        case sevtSetBkgd: {
+            // Variable on disk is TAGOnFile (16 bytes); marshal to runtime TAG.
+            TAGOnFile tagOnFile;
+            Assert(pggsev->Cb(isev) == size(TAGOnFile), "bad sevtSetBkgd size");
+            pggsev->Get(isev, &tagOnFile);
             if (bo == kboOther)
-            {
-                SwapBytesBom((void *)&tag, kbomTag);
-            }
-
-            if (!BKGD::FAddTagsToTagl(&tag, ptagl))
+                SwapBytesBom(&tagOnFile, kbomTag);
+            TagFromOnFile(&tag, tagOnFile);
+            if (!Background::FAddTagsToTagl(&tag, ptagl))
             {
                 ReleasePpo(&pggsev);
                 return fFalse;
             }
             tagBkgd = tag;
-
             break;
+        }
 
         case sevtAddTbox:
             break;
@@ -5195,7 +5838,7 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
     ReleasePpo(&pggsev);
 
     //
-    // Read in GG of Frame events
+    // Read in GeneralGroup of Frame events
     //
     if (!pcfl->FGetKidChidCtg(kctgScen, cno, 0, kctgFrmGg, &kid))
     {
@@ -5207,14 +5850,14 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
         return fFalse;
     }
 
-    pggsev = GG::PggRead(&blck, &bo);
+    pggsev = GeneralGroup::PggRead(&blck, &bo);
 
     if (pggsev == pvNil)
     {
         return fFalse;
     }
 
-    Assert(pggsev->CbFixed() == size(SEV), "Bad GG read for event");
+    Assert(pggsev->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
 
     //
     // Look in all events for tags
@@ -5258,36 +5901,30 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
         case sevtPause:
             break;
 
-        case sevtPlaySnd:
-
-            PSSE psse;
+        case sevtPlaySnd: {
+            PSceneSoundEvent psse;
             long itag;
 
-            psse = SSE::PsseDupFromGg(pggsev, isev, fFalse);
+            // pggsev came directly from PggRead — variable parts are on-disk
+            // bytes (TagChildPairOnFile stride). Marshal to runtime form.
+            psse = _PsseFromOnFileBytes(pggsev->QvGet(isev), bo == kboOther);
             if (pvNil == psse)
             {
                 ReleasePpo(&pggsev);
                 return fFalse;
             }
-            if (bo == kboOther)
-            {
-                psse->SwapBytes();
-            }
-
-            //
-            // Insert the tags in order
-            //
             for (itag = 0; itag < psse->ctagc; itag++)
             {
                 if (!ptagl->FInsertTag(psse->Ptag(itag)))
                 {
-                    ReleasePpsse(&psse);
+                    FreePpv((void **)&psse); // tags' pcrf is pvNil; no CloseTag needed
                     ReleasePpo(&pggsev);
                     return fFalse;
                 }
             }
-            ReleasePpsse(&psse);
+            FreePpv((void **)&psse); // pcrf was never set; no CloseTag needed
             break;
+        }
 
         case sevtAddActr:
         case sevtSetBkgd:
@@ -5315,13 +5952,13 @@ bool SCEN::FAddTagsToTagl(PCFL pcfl, CNO cno, PTAGL ptagl)
  *   pvNil if failure, else the actor.
  *
  ****************************************************/
-PACTR SCEN::PactrFromArid(long arid)
+PActor Scene::PactrFromArid(long arid)
 {
     AssertThis(0);
     Assert(arid != aridNil, "Bad long");
 
     long iactr;
-    PACTR pactr;
+    PActor pactr;
 
     //
     // Search current scene for the actor.
@@ -5350,12 +5987,12 @@ PACTR SCEN::PactrFromArid(long arid)
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChopCore()
+bool Scene::FChopCore()
 {
     AssertThis(0);
 
     PTBOX ptbox;
-    PACTR pactr;
+    PActor pactr;
     bool fAlive;
     long ipo;
     long nfrmStart, nfrmLast;
@@ -5452,9 +6089,9 @@ bool SCEN::FChopCore()
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChop()
+bool Scene::FChop()
 {
-    PSUNC psunc;
+    PSceneUndoChop psunc;
     bool fValid;
 
     if (_nfrmCur == _nfrmLast)
@@ -5462,7 +6099,7 @@ bool SCEN::FChop()
         return (fTrue);
     }
 
-    psunc = SUNC::PsuncNew();
+    psunc = SceneUndoChop::PsuncNew();
     if (psunc != pvNil)
     {
         fValid = psunc->FSave(this);
@@ -5500,13 +6137,13 @@ bool SCEN::FChop()
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChopBackCore()
+bool Scene::FChopBackCore()
 {
     AssertThis(0);
 
     PTBOX ptbox;
-    PACTR pactr;
-    SEV sev;
+    PActor pactr;
+    SceneEvent sev;
     bool fAlive;
     bool fCopyCam;
     long ipo;
@@ -5637,9 +6274,9 @@ bool SCEN::FChopBackCore()
  *   fTrue is successful, else fFalse if failure.
  *
  ****************************************************/
-bool SCEN::FChopBack()
+bool Scene::FChopBack()
 {
-    PSUNC psunc;
+    PSceneUndoChop psunc;
     bool fValid;
 
     if (_nfrmCur == _nfrmFirst)
@@ -5647,7 +6284,7 @@ bool SCEN::FChopBack()
         return (fTrue);
     }
 
-    psunc = SUNC::PsuncNew();
+    psunc = SceneUndoChop::PsuncNew();
     if (psunc != pvNil)
     {
         fValid = psunc->FSave(this);
@@ -5685,14 +6322,14 @@ bool SCEN::FChopBack()
  *   None.
  *
  ****************************************************/
-bool SCEN::FStartPlaying()
+bool Scene::FStartPlaying()
 {
     AssertThis(0);
 
     long ipactr, iptbox;
-    PACTR pactr;
+    PActor pactr;
     PTBOX ptbox;
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     long nfrmFirst, nfrmLast;
 
     //
@@ -5713,7 +6350,7 @@ bool SCEN::FStartPlaying()
         if ((ptbox->FStory() && ptbox->FIsVisible()) ||
             (!ptbox->FStory() && ptbox->FGetLifetime(&nfrmFirst, &nfrmLast) && (nfrmFirst == _nfrmCur)))
         {
-            ptbxg = (PTBXG)ptbox->PddgGet(0);
+            ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
             ptbxg->Scroll(scaNil);
         }
     }
@@ -5737,7 +6374,7 @@ bool SCEN::FStartPlaying()
  *   None.
  *
  ****************************************************/
-void SCEN::StopPlaying()
+void Scene::StopPlaying()
 {
     AssertThis(0);
 
@@ -5756,30 +6393,30 @@ void SCEN::StopPlaying()
 
 /******************************************************************************
     FTransOnFile
-        For a given SCEN chunk on a given CRF, get the scene transition
+        For a given Scene chunk on a given ChunkyResourceFile, get the scene transition
         state for the scene.
 
     Arguments:
-        PCRF pcrf     -- the chunky resource file the SCEN lives on
-        CNO cno       -- the CNO of the SCEN chunk
+        PChunkyResourceFile pcrf     -- the chunky resource file the Scene lives on
+        ChunkNumber cno       -- the ChunkNumber of the Scene chunk
         TRANS *ptrans -- pointer to memory to take the transition setting
 
     Returns: fTrue if it was able to set *ptrans, fFalse if something failed
 
 ************************************************************ PETED ***********/
-bool SCEN::FTransOnFile(PCRF pcrf, CNO cno, TRANS *ptrans)
+bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
-    BLCK blck;
-    SCENH scenh;
-    PCFL pcfl = pcrf->Pcfl();
+    DataBlock blck;
+    SceneOnFile scenh;
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     TrashVar(ptrans);
 
     if (!pcfl->FFind(kctgScen, cno, &blck))
         goto LFail;
-    if (!blck.FUnpackData() || blck.Cb() != size(SCENH))
+    if (!blck.FUnpackData() || blck.Cb() != size(SceneOnFile))
         goto LFail;
-    if (!blck.FReadRgb(&scenh, size(SCENH), 0))
+    if (!blck.FReadRgb(&scenh, size(SceneOnFile), 0))
         goto LFail;
 
     *ptrans = scenh.trans;
@@ -5790,34 +6427,34 @@ LFail:
 
 /******************************************************************************
     FSetTransOnFile
-        For a given SCEN chunk on a given CRF, set the scene transition
+        For a given Scene chunk on a given ChunkyResourceFile, set the scene transition
         state for the scene.
 
     Arguments:
-        PCRF pcrf   -- the chunky resource file the SCEN lives on
-        CNO cno     -- the CNO of the SCEN chunk
+        PChunkyResourceFile pcrf   -- the chunky resource file the Scene lives on
+        ChunkNumber cno     -- the ChunkNumber of the Scene chunk
         TRANS trans -- the transition state to use
 
     Returns: fTrue if the routine could guarantee that the scene has the
         given transition state.
 
 ************************************************************ PETED ***********/
-bool SCEN::FSetTransOnFile(PCRF pcrf, CNO cno, TRANS trans)
+bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
-    BLCK blck;
-    SCENH scenh;
-    PCFL pcfl = pcrf->Pcfl();
+    DataBlock blck;
+    SceneOnFile scenh;
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     if (!pcfl->FFind(kctgScen, cno, &blck))
         goto LFail;
-    if (!blck.FUnpackData() || blck.Cb() != size(SCENH))
+    if (!blck.FUnpackData() || blck.Cb() != size(SceneOnFile))
         goto LFail;
-    if (!blck.FReadRgb(&scenh, size(SCENH), 0))
+    if (!blck.FReadRgb(&scenh, size(SceneOnFile), 0))
         goto LFail;
     if (scenh.trans != trans)
     {
         scenh.trans = trans;
-        if (!pcfl->FPutPv(&scenh, size(SCENH), kctgScen, cno))
+        if (!pcfl->FPutPv(&scenh, size(SceneOnFile), kctgScen, cno))
             goto LFail;
     }
 
@@ -5846,10 +6483,10 @@ LFail:
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNT SUNT::PsuntNew()
+PSceneUndoTitle SceneUndoTitle::PsuntNew()
 {
-    PSUNT psunt;
-    psunt = NewObj SUNT();
+    PSceneUndoTitle psunt;
+    psunt = NewObj SceneUndoTitle();
     return (psunt);
 }
 
@@ -5858,7 +6495,7 @@ PSUNT SUNT::PsuntNew()
  * Destructor for scene naming undo objects
  *
  ****************************************************/
-SUNT::~SUNT(void)
+SceneUndoTitle::~SceneUndoTitle(void)
 {
     AssertBaseThis(0);
 }
@@ -5874,11 +6511,11 @@ SUNT::~SUNT(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNT::FDo(PDOCB pdocb)
+bool SceneUndoTitle::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    STN stn;
+    String stn;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -5907,7 +6544,7 @@ bool SUNT::FDo(PDOCB pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNT::FUndo(PDOCB pdocb)
+bool SceneUndoTitle::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -5916,7 +6553,7 @@ bool SUNT::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNT
+ * Mark memory used by the SceneUndoTitle
  *
  * Parameters:
  * 	None.
@@ -5925,16 +6562,16 @@ bool SUNT::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void SUNT::MarkMem(void)
+void SceneUndoTitle::MarkMem(void)
 {
     AssertThis(0);
-    SUNT_PAR::MarkMem();
+    SceneUndoTitle_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNT.
+    Assert the validity of the SceneUndoTitle.
 ***************************************************************************/
-void SUNT::AssertValid(ulong grf)
+void SceneUndoTitle::AssertValid(ulong grf)
 {
 }
 #endif
@@ -5951,10 +6588,10 @@ void SUNT::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNS SUNS::PsunsNew()
+PSceneUndoSound SceneUndoSound::PsunsNew()
 {
-    PSUNS psuns;
-    psuns = NewObj SUNS();
+    PSceneUndoSound psuns;
+    psuns = NewObj SceneUndoSound();
     return (psuns);
 }
 
@@ -5963,7 +6600,7 @@ PSUNS SUNS::PsunsNew()
  * Destructor for scene sound undo objects
  *
  ****************************************************/
-SUNS::~SUNS(void)
+SceneUndoSound::~SceneUndoSound(void)
 {
     AssertBaseThis(0);
     ReleasePpsse(&_psse);
@@ -5980,14 +6617,14 @@ SUNS::~SUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNS::FDo(PDOCB pdocb)
+bool SceneUndoSound::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
 
     long isevSnd = ivNil;
     bool fFound;
-    PSSE psseOld = pvNil;
+    PSceneSoundEvent psseOld = pvNil;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -6073,7 +6710,7 @@ bool SUNS::FDo(PDOCB pdocb)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNS::FUndo(PDOCB pdocb)
+bool SceneUndoSound::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -6083,7 +6720,7 @@ bool SUNS::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNS
+ * Mark memory used by the SceneUndoSound
  *
  * Parameters:
  * 	None.
@@ -6092,23 +6729,23 @@ bool SUNS::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void SUNS::MarkMem(void)
+void SceneUndoSound::MarkMem(void)
 {
     AssertThis(0);
-    SUNS_PAR::MarkMem();
+    SceneUndoSound_PAR::MarkMem();
     if (_psse != pvNil)
         MarkPv(_psse);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNS.
+    Assert the validity of the SceneUndoSound.
 ***************************************************************************/
-void SUNS::AssertValid(ulong grf)
+void SceneUndoSound::AssertValid(ulong grf)
 {
-    SUNS_PAR::AssertValid(grf);
+    SceneUndoSound_PAR::AssertValid(grf);
     if (_psse != pvNil)
     {
-        AssertPvCb(_psse, size(SSE));
+        AssertPvCb(_psse, size(SceneSoundEvent));
         AssertPvCb(_psse, _psse->Cb());
         Assert(_sty == _psse->sty, "sty's don't match");
     }
@@ -6127,10 +6764,10 @@ void SUNS::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNA SUNA::PsunaNew()
+PSceneActorUndo SceneActorUndo::PsunaNew()
 {
-    PSUNA psuna;
-    psuna = NewObj SUNA();
+    PSceneActorUndo psuna;
+    psuna = NewObj SceneActorUndo();
     return (psuna);
 }
 
@@ -6139,7 +6776,7 @@ PSUNA SUNA::PsunaNew()
  * Destructor for scene actor undo objects
  *
  ****************************************************/
-SUNA::~SUNA(void)
+SceneActorUndo::~SceneActorUndo(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pactr);
@@ -6156,11 +6793,11 @@ SUNA::~SUNA(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNA::FDo(PDOCB pdocb)
+bool SceneActorUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    PACTR pactr, pactrDup;
+    PActor pactr, pactrDup;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -6240,11 +6877,11 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNA::FUndo(PDOCB pdocb)
+bool SceneActorUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    PACTR pactr, pactrDup;
+    PActor pactr, pactrDup;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -6316,7 +6953,7 @@ LFail:
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNA
+ * Mark memory used by the SceneActorUndo
  *
  * Parameters:
  * 	None.
@@ -6325,17 +6962,17 @@ LFail:
  *  None.
  *
  ****************************************************/
-void SUNA::MarkMem(void)
+void SceneActorUndo::MarkMem(void)
 {
     AssertThis(0);
-    SUNA_PAR::MarkMem();
+    SceneActorUndo_PAR::MarkMem();
     MarkMemObj(_pactr);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNA.
+    Assert the validity of the SceneActorUndo.
 ***************************************************************************/
-void SUNA::AssertValid(ulong grf)
+void SceneActorUndo::AssertValid(ulong grf)
 {
     AssertPo(_pactr, 0);
 }
@@ -6353,10 +6990,10 @@ void SUNA::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNX SUNX::PsunxNew()
+PSceneUndoText SceneUndoText::PsunxNew()
 {
-    PSUNX psunx;
-    psunx = NewObj SUNX();
+    PSceneUndoText psunx;
+    psunx = NewObj SceneUndoText();
     return (psunx);
 }
 
@@ -6365,7 +7002,7 @@ PSUNX SUNX::PsunxNew()
  * Destructor for scene text box undo objects
  *
  ****************************************************/
-SUNX::~SUNX(void)
+SceneUndoText::~SceneUndoText(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_ptbox);
@@ -6382,7 +7019,7 @@ SUNX::~SUNX(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNX::FDo(PDOCB pdocb)
+bool SceneUndoText::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6474,7 +7111,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNX::FUndo(PDOCB pdocb)
+bool SceneUndoText::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6555,7 +7192,7 @@ LFail:
 }
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNX
+ * Mark memory used by the SceneUndoText
  *
  * Parameters:
  * 	None.
@@ -6564,17 +7201,17 @@ LFail:
  *  None.
  *
  ****************************************************/
-void SUNX::MarkMem(void)
+void SceneUndoText::MarkMem(void)
 {
     AssertThis(0);
-    SUNX_PAR::MarkMem();
+    SceneUndoText_PAR::MarkMem();
     MarkMemObj(_ptbox);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNX.
+    Assert the validity of the SceneUndoText.
 ***************************************************************************/
-void SUNX::AssertValid(ulong grf)
+void SceneUndoText::AssertValid(ulong grf)
 {
     AssertPo(_ptbox, 0);
 }
@@ -6592,10 +7229,10 @@ void SUNX::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNR SUNR::PsunrNew()
+PSceneUndoTransition SceneUndoTransition::PsunrNew()
 {
-    PSUNR psunr;
-    psunr = NewObj SUNR();
+    PSceneUndoTransition psunr;
+    psunr = NewObj SceneUndoTransition();
     return (psunr);
 }
 
@@ -6604,7 +7241,7 @@ PSUNR SUNR::PsunrNew()
  * Destructor for scene transition undo objects
  *
  ****************************************************/
-SUNR::~SUNR(void)
+SceneUndoTransition::~SceneUndoTransition(void)
 {
     AssertBaseThis(0);
 }
@@ -6620,7 +7257,7 @@ SUNR::~SUNR(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNR::FDo(PDOCB pdocb)
+bool SceneUndoTransition::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6661,7 +7298,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNR::FUndo(PDOCB pdocb)
+bool SceneUndoTransition::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -6669,7 +7306,7 @@ bool SUNR::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNR
+ * Mark memory used by the SceneUndoTransition
  *
  * Parameters:
  * 	None.
@@ -6678,16 +7315,16 @@ bool SUNR::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void SUNR::MarkMem(void)
+void SceneUndoTransition::MarkMem(void)
 {
     AssertThis(0);
-    SUNR_PAR::MarkMem();
+    SceneUndoTransition_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNR.
+    Assert the validity of the SceneUndoTransition.
 ***************************************************************************/
-void SUNR::AssertValid(ulong grf)
+void SceneUndoTransition::AssertValid(ulong grf)
 {
 }
 #endif
@@ -6704,10 +7341,10 @@ void SUNR::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNP SUNP::PsunpNew()
+PSceneUndoPause SceneUndoPause::PsunpNew()
 {
-    PSUNP psunp;
-    psunp = NewObj SUNP();
+    PSceneUndoPause psunp;
+    psunp = NewObj SceneUndoPause();
     return (psunp);
 }
 
@@ -6716,7 +7353,7 @@ PSUNP SUNP::PsunpNew()
  * Destructor for scene pause undo objects
  *
  ****************************************************/
-SUNP::~SUNP(void)
+SceneUndoPause::~SceneUndoPause(void)
 {
     AssertBaseThis(0);
 }
@@ -6732,11 +7369,11 @@ SUNP::~SUNP(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNP::FDo(PDOCB pdocb)
+bool SceneUndoPause::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    WIT wit = _wit;
+    WaitReason wit = _wit;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -6775,14 +7412,14 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNP::FUndo(PDOCB pdocb)
+bool SceneUndoPause::FUndo(PDocumentBase pdocb)
 {
     return (FDo(pdocb));
 }
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNP
+ * Mark memory used by the SceneUndoPause
  *
  * Parameters:
  * 	None.
@@ -6791,16 +7428,16 @@ bool SUNP::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void SUNP::MarkMem(void)
+void SceneUndoPause::MarkMem(void)
 {
     AssertThis(0);
-    SUNP_PAR::MarkMem();
+    SceneUndoPause_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNP.
+    Assert the validity of the SceneUndoPause.
 ***************************************************************************/
-void SUNP::AssertValid(ulong grf)
+void SceneUndoPause::AssertValid(ulong grf)
 {
 }
 #endif
@@ -6817,10 +7454,10 @@ void SUNP::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNK SUNK::PsunkNew()
+PSceneUndoBackground SceneUndoBackground::PsunkNew()
 {
-    PSUNK psunk;
-    psunk = NewObj SUNK();
+    PSceneUndoBackground psunk;
+    psunk = NewObj SceneUndoBackground();
     return (psunk);
 }
 
@@ -6829,7 +7466,7 @@ PSUNK SUNK::PsunkNew()
  * Destructor for scene background undo objects
  *
  ****************************************************/
-SUNK::~SUNK(void)
+SceneUndoBackground::~SceneUndoBackground(void)
 {
     AssertBaseThis(0);
 }
@@ -6845,7 +7482,7 @@ SUNK::~SUNK(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNK::FDo(PDOCB pdocb)
+bool SceneUndoBackground::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
@@ -6915,7 +7552,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNK::FUndo(PDOCB pdocb)
+bool SceneUndoBackground::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -6923,7 +7560,7 @@ bool SUNK::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNK
+ * Mark memory used by the SceneUndoBackground
  *
  * Parameters:
  * 	None.
@@ -6932,16 +7569,16 @@ bool SUNK::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void SUNK::MarkMem(void)
+void SceneUndoBackground::MarkMem(void)
 {
     AssertThis(0);
-    SUNK_PAR::MarkMem();
+    SceneUndoBackground_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the SUNK.
+    Assert the validity of the SceneUndoBackground.
 ***************************************************************************/
-void SUNK::AssertValid(ulong grf)
+void SceneUndoBackground::AssertValid(ulong grf)
 {
 }
 #endif
@@ -6958,10 +7595,10 @@ void SUNK::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PSUNC SUNC::PsuncNew()
+PSceneUndoChop SceneUndoChop::PsuncNew()
 {
-    PSUNC psunc;
-    psunc = NewObj SUNC();
+    PSceneUndoChop psunc;
+    psunc = NewObj SceneUndoChop();
     return (psunc);
 }
 
@@ -6970,7 +7607,7 @@ PSUNC SUNC::PsuncNew()
  * Destructor for scene pause undo objects
  *
  ****************************************************/
-SUNC::~SUNC(void)
+SceneUndoChop::~SceneUndoChop(void)
 {
     AssertBaseThis(0);
     ReleasePpo(&_pcrf);
@@ -6987,18 +7624,18 @@ SUNC::~SUNC(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FSave(PSCEN pscen)
+bool SceneUndoChop::FSave(PScene pscen)
 {
-    PCFL pcfl;
+    PChunkyFile pcfl;
     bool fRet;
 
-    pcfl = CFL::PcflCreateTemp();
+    pcfl = ChunkyFile::PcflCreateTemp();
     if (pcfl == pvNil)
     {
         return (fFalse);
     }
 
-    _pcrf = CRF::PcrfNew(pcfl, 0);
+    _pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
     if (_pcrf == pvNil)
     {
         ReleasePpo(&pcfl);
@@ -7024,16 +7661,16 @@ bool SUNC::FSave(PSCEN pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FDo(PDOCB pdocb)
+bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
 
-    PSCEN pscen;
-    PSCEN pscenSave;
+    PScene pscen;
+    PScene pscenSave;
 
     vpappb->BeginLongOp();
 
-    pscen = SCEN::PscenRead(_pmvie, _pcrf, _cno);
+    pscen = Scene::PscenRead(_pmvie, _pcrf, _cno);
 
     if (pscen == pvNil)
     {
@@ -7042,13 +7679,13 @@ bool SUNC::FDo(PDOCB pdocb)
 
     if (!pscen->FPlayStartEvents())
     {
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         goto LFail;
     }
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         goto LFail;
     }
 
@@ -7058,22 +7695,22 @@ bool SUNC::FDo(PDOCB pdocb)
     if (!_pmvie->FInsScenCore(_iscen, pscen))
     {
         ReleasePpo(&pscenSave);
-        SCEN::Close(&pscen);
+        Scene::Close(&pscen);
         goto LFail;
     }
 
-    SCEN::Close(&pscen);
+    Scene::Close(&pscen);
 
     _pcrf->Pcfl()->Delete(kctgScen, _cno);
     pscenSave->SetNfrmCur(pscenSave->NfrmFirst() - 1);
     if (!pscenSave->FWrite(_pcrf, &_cno))
     {
         _pmvie->FRemScenCore(_iscen + 1);
-        SCEN::Close(&pscenSave);
+        Scene::Close(&pscenSave);
         goto LFail;
     }
 
-    SCEN::Close(&pscenSave);
+    Scene::Close(&pscenSave);
 
     if (!_pmvie->FRemScenCore(_iscen + 1))
     {
@@ -7111,7 +7748,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool SUNC::FUndo(PDOCB pdocb)
+bool SceneUndoChop::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     return (FDo(pdocb));
@@ -7119,7 +7756,7 @@ bool SUNC::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the SUNC
+ * Mark memory used by the SceneUndoChop
  *
  * Parameters:
  * 	None.
@@ -7128,30 +7765,30 @@ bool SUNC::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void SUNC::MarkMem(void)
+void SceneUndoChop::MarkMem(void)
 {
     AssertThis(0);
-    SUNC_PAR::MarkMem();
+    SceneUndoChop_PAR::MarkMem();
     MarkMemObj(_pcrf);
 }
 
 /***************************************************************************
-    Assert the validity of the SUNC.
+    Assert the validity of the SceneUndoChop.
 ***************************************************************************/
-void SUNC::AssertValid(ulong grf)
+void SceneUndoChop::AssertValid(ulong grf)
 {
     AssertNilOrPo(_pcrf, grf);
 }
 #endif
 
 /***************************************************************************
-    Static function to allocate a SSE with room for ctag TAGs.
+    Static function to allocate a SceneSoundEvent with room for ctag TAGs.
 ***************************************************************************/
-PSSE SSE::PsseNew(long ctag)
+PSceneSoundEvent SceneSoundEvent::PsseNew(long ctag)
 {
     Assert(ctag > 0, 0);
 
-    PSSE psse;
+    PSceneSoundEvent psse;
 
     if (!FAllocPv((void **)&psse, _Cb(ctag), fmemNil, mprNormal))
         return pvNil;
@@ -7159,13 +7796,13 @@ PSSE SSE::PsseNew(long ctag)
 }
 
 /***************************************************************************
-    Creates a new SSE
+    Creates a new SceneSoundEvent
 ***************************************************************************/
-PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TAGC *prgtagc)
+PSceneSoundEvent SceneSoundEvent::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc)
 {
     Assert(ctagc > 0, 0);
-    AssertPvCb(prgtagc, LwMul(ctagc, size(TAGC)));
-    PSSE psse;
+    AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
+    PSceneSoundEvent psse;
     long itagc;
 
     psse = PsseNew(ctagc);
@@ -7178,22 +7815,22 @@ PSSE SSE::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TAGC *prgtagc)
     for (itagc = 0; itagc < ctagc; itagc++)
     {
         *psse->Ptagc(itagc) = prgtagc[itagc];
-        TAGM::DupTag(psse->Ptag(itagc));
+        TagManager::DupTag(psse->Ptag(itagc));
     }
     return psse;
 }
 
 /***************************************************************************
-    Properly cleans up and frees a SSE
+    Properly cleans up and frees a SceneSoundEvent
 ***************************************************************************/
-void ReleasePpsse(PSSE *ppsse)
+void ReleasePpsse(PSceneSoundEvent *ppsse)
 {
     AssertVarMem(ppsse);
 
     if (*ppsse == pvNil)
         return;
 
-    PSSE psse = *ppsse;
+    PSceneSoundEvent psse = *ppsse;
     long itagc;
 
     AssertIn(psse->ctagc, 0, 1000); // sanity check on ctagc
@@ -7202,28 +7839,28 @@ void ReleasePpsse(PSSE *ppsse)
     for (itagc = 0; itagc < psse->ctagc; itagc++)
     {
         if (psse->Ptag(itagc)->pcrf != pvNil)
-            TAGM::CloseTag(psse->Ptag(itagc));
+            TagManager::CloseTag(psse->Ptag(itagc));
     }
 
     FreePpv((void **)ppsse);
 }
 
 /***************************************************************************
-    Static function to allocate and read a SSE from a GG.  This is tricky
-    because I can't do a pgg->Get() since the SSE is variable-sized, and
+    Static function to allocate and read a SceneSoundEvent from a GeneralGroup.  This is tricky
+    because I can't do a pgg->Get() since the SceneSoundEvent is variable-sized, and
     I need to do QvGet twice since I'm allocating memory in this function.
 ***************************************************************************/
-PSSE SSE::PsseDupFromGg(PGG pgg, long iv, bool fDupTags)
+PSceneSoundEvent SceneSoundEvent::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
 {
     AssertPo(pgg, 0);
     AssertIn(iv, 0, pgg->IvMac());
-    Assert(pgg->Cb(iv) >= size(SSE), "variable part too small");
+    Assert(pgg->Cb(iv) >= size(SceneSoundEvent), "variable part too small");
 
     long ctagc;
-    PSSE psse;
+    PSceneSoundEvent psse;
     long itagc;
 
-    ctagc = ((PSSE)pgg->QvGet(iv))->ctagc;
+    ctagc = ((PSceneSoundEvent)pgg->QvGet(iv))->ctagc;
 
     psse = PsseNew(ctagc);
     CopyPb(pgg->QvGet(iv), psse, _Cb(ctagc));
@@ -7235,7 +7872,7 @@ PSSE SSE::PsseDupFromGg(PGG pgg, long iv, bool fDupTags)
             if (psse->Ptag(itagc)->sid == ksidUseCrf)
             {
                 AssertPo(psse->Ptag(itagc)->pcrf, 0);
-                TAGM::DupTag(psse->Ptag(itagc));
+                TagManager::DupTag(psse->Ptag(itagc));
             }
         }
         else
@@ -7249,53 +7886,53 @@ PSSE SSE::PsseDupFromGg(PGG pgg, long iv, bool fDupTags)
 }
 
 /***************************************************************************
-    Returns a PSSE just like this SSE except with ptag & chid added
+    Returns a PSceneSoundEvent just like this SceneSoundEvent except with ptag & chid added
 ***************************************************************************/
-PSSE SSE::PsseAddTagChid(PTAG ptag, long chid)
+PSceneSoundEvent SceneSoundEvent::PsseAddTagChid(PTAG ptag, long chid)
 {
     AssertVarMem(ptag);
 
-    PSSE psseNew;
-    TAGC tagc;
+    PSceneSoundEvent psseNew;
+    TagChildPair tagc;
 
     tagc.tag = *ptag;
     tagc.chid = chid;
 
-    psseNew = SSE::PsseNew(ctagc + 1);
+    psseNew = SceneSoundEvent::PsseNew(ctagc + 1);
     if (pvNil == psseNew)
         return pvNil;
 
     CopyPb(this, psseNew, Cb());
     *psseNew->Ptagc(psseNew->ctagc) = tagc;
     psseNew->ctagc++;
-    TAGM::DupTag(ptag);
+    TagManager::DupTag(ptag);
     return psseNew;
 }
 
 /***************************************************************************
-    Return a duplicate of this SSE
+    Return a duplicate of this SceneSoundEvent
 ***************************************************************************/
-PSSE SSE::PsseDup(void)
+PSceneSoundEvent SceneSoundEvent::PsseDup(void)
 {
-    PSSE psse;
+    PSceneSoundEvent psse;
     long itagc;
 
-    if (!FAllocPv((void **)&psse, size(SSE) + LwMul(ctagc, size(TAGC)), fmemNil, mprNormal))
+    if (!FAllocPv((void **)&psse, size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair)), fmemNil, mprNormal))
     {
         return pvNil;
     }
-    CopyPb(this, psse, size(SSE) + LwMul(ctagc, size(TAGC)));
+    CopyPb(this, psse, size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPair)));
     for (itagc = 0; itagc < psse->ctagc; itagc++)
-        TAGM::DupTag(psse->Ptag(itagc));
+        TagManager::DupTag(psse->Ptag(itagc));
     return psse;
 }
 
 /***************************************************************************
-    Play all sounds in this SSE	-> Enqueue the sounds in the SSE
+    Play all sounds in this SceneSoundEvent	-> Enqueue the sounds in the SceneSoundEvent
 ***************************************************************************/
-void SSE::PlayAllSounds(PMVIE pmvie, ulong dtsStart)
+void SceneSoundEvent::PlayAllSounds(PMovie pmvie, ulong dtsStart)
 {
-    PMSND pmsnd;
+    PMovieSoundMSND pmsnd;
     long itag;
     long tool = fLoop ? toolLooper : toolSounder;
 
@@ -7306,7 +7943,7 @@ void SSE::PlayAllSounds(PMVIE pmvie, ulong dtsStart)
             if (!pmvie->FResolveSndTag(Ptag(itag), *Pchid(itag)))
                 continue;
         }
-        pmsnd = (PMSND)vptagm->PbacoFetch(Ptag(itag), MSND::FReadMsnd);
+        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(Ptag(itag), MovieSoundMSND::FReadMsnd);
         if (pvNil == pmsnd)
             return;
 

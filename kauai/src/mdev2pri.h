@@ -50,27 +50,27 @@ typedef HMIDIOUT HMS;
 /***************************************************************************
     This is the midi stream cached object.
 ***************************************************************************/
-typedef class MDWS *PMDWS;
-#define MDWS_PAR BACO
-#define kclsMDWS 'MDWS'
-class MDWS : public MDWS_PAR
+typedef class MidiStreamCached *PMidiStreamCached;
+#define MidiStreamCached_PAR BaseCacheableObject
+#define kclsMidiStreamCached 'MDWS'
+class MidiStreamCached : public MidiStreamCached_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PGL _pglmev;
+    PDynamicArray _pglmev;
     ulong _dts;
 
-    MDWS(void);
-    bool _FInit(PMIDS pmids);
+    MidiStreamCached(void);
+    bool _FInit(PMidiStream pmids);
 
   public:
-    static bool FReadMdws(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    static PMDWS PmdwsRead(PBLCK pblck);
+    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static PMidiStreamCached PmdwsRead(PDataBlock pblck);
 
-    ~MDWS(void);
+    ~MidiStreamCached(void);
 
     ulong Dts(void)
     {
@@ -81,52 +81,52 @@ class MDWS : public MDWS_PAR
 };
 
 // forward declaration
-typedef class MSMIX *PMSMIX;
-typedef class MISI *PMISI;
+typedef class MidiStreamMixer *PMidiStreamMixer;
+typedef class MidiStreamInterface *PMidiStreamInterface;
 
 /***************************************************************************
     Midi stream queue.
 ***************************************************************************/
-typedef class MSQUE *PMSQUE;
-#define MSQUE_PAR SNQUE
-#define kclsMSQUE 'msqu'
-class MSQUE : public MSQUE_PAR
+typedef class MidiStreamQueue *PMidiStreamQueue;
+#define MidiStreamQueue_PAR SoundQueue
+#define kclsMidiStreamQueue 'msqu'
+class MidiStreamQueue : public MidiStreamQueue_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    MUTX _mutx;     // restricts access to member variables
+    Mutex _mutx;     // restricts access to member variables
     ulong _tsStart; // when we started the current sound
-    PMSMIX _pmsmix;
+    PMidiStreamMixer _pmsmix;
 
-    MSQUE(void);
+    MidiStreamQueue(void);
 
     virtual void _Enter(void);
     virtual void _Leave(void);
 
-    virtual bool _FInit(PMSMIX pmsmix);
-    virtual PBACO _PbacoFetch(PRCA prca, CTG ctg, CNO cno);
+    virtual bool _FInit(PMidiStreamMixer pmsmix);
+    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);
 
   public:
-    static PMSQUE PmsqueNew(PMSMIX pmsmix);
-    ~MSQUE(void);
+    static PMidiStreamQueue PmsqueNew(PMidiStreamMixer pmsmix);
+    ~MidiStreamQueue(void);
 
-    void Notify(PMDWS pmdws);
+    void Notify(PMidiStreamCached pmdws);
 };
 
 /***************************************************************************
     Midi Stream "mixer". It really just chooses which midi stream to play
     (based on the (spr, sii) priority).
 ***************************************************************************/
-typedef class MSMIX *PMSMIX;
-#define MSMIX_PAR BASE
-#define kclsMSMIX 'msmx'
-class MSMIX : public MSMIX_PAR
+typedef class MidiStreamMixer *PMidiStreamMixer;
+#define MidiStreamMixer_PAR BASE
+#define kclsMidiStreamMixer 'msmx'
+class MidiStreamMixer : public MidiStreamMixer_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -135,8 +135,8 @@ class MSMIX : public MSMIX_PAR
   protected:
     struct MSOS
     {
-        PMSQUE pmsque;  // the "channel" or queue that the sound is on
-        PMDWS pmdws;    // the sound
+        PMidiStreamQueue pmsque;  // the "channel" or queue that the sound is on
+        PMidiStreamCached pmdws;    // the sound
         long sii;       // its sound id (for a priority tie breaker)
         long spr;       // its priority
         long cactPlay;  // how many times to play the sound
@@ -147,15 +147,15 @@ class MSMIX : public MSMIX_PAR
     };
 
     // Mutex to protect our member variables
-    MUTX _mutx;
+    Mutex _mutx;
     HN _hevt; // to notify the thread that the sound list changed
     HN _hth;  // thread to terminate non-playing sounds
 
-    PMISI _pmisi; // the midi stream interface
-    PGL _pglmsos; // the list of current sounds, in priority order
+    PMidiStreamInterface _pmisi; // the midi stream interface
+    PDynamicArray _pglmsos; // the list of current sounds, in priority order
     long _cpvOut; // number of buffers submitted (0, 1, or 2)
 
-    PGL _pglmevKey;     // to accumulate state events for seeking
+    PDynamicArray _pglmevKey;     // to accumulate state events for seeking
     bool _fPlaying : 1; // whether we're currently playing the first stream
     bool _fWaiting : 1; // we're waiting for our buffers to get returned
     bool _fDone : 1;    // tells the aux thread to terminate
@@ -163,25 +163,25 @@ class MSMIX : public MSMIX_PAR
     long _vlmBase;  // the base device volume
     long _vlmSound; // the volume for the current sound
 
-    MSMIX(void);
+    MidiStreamMixer(void);
     bool _FInit(void);
     void _StopStream(void);
-    bool _FGetKeyEvents(PMDWS pmdws, ulong dtsSeek, long *pcbSkip);
+    bool _FGetKeyEvents(PMidiStreamCached pmdws, ulong dtsSeek, long *pcbSkip);
     void _Restart(bool fNew = fFalse);
     void _WaitForBuffers(void);
     void _SubmitBuffers(ulong tsCur);
 
-    static void _MidiProc(ulong luUser, void *pvData, ulong luData);
-    void _Notify(void *pvData, PMDWS pmdws);
+    static void _MidiProc(ulong luUser, void *pvData, ulong lUserDataa);
+    void _Notify(void *pvData, PMidiStreamCached pmdws);
 
     static ulong __stdcall _ThreadProc(void *pv);
     ulong _LuThread(void);
 
   public:
-    static PMSMIX PmsmixNew(void);
-    ~MSMIX(void);
+    static PMidiStreamMixer PmsmixNew(void);
+    ~MidiStreamMixer(void);
 
-    bool FPlay(PMSQUE pmsque, PMDWS pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
+    bool FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws = pvNil, long sii = siiNil, long spr = 0, long cactPlay = 1,
                ulong dtsStart = 0, long vlm = kvlmFull);
 
     void Suspend(bool fSuspend);
@@ -202,12 +202,12 @@ class MSMIX : public MSMIX_PAR
 /***************************************************************************
     The midi stream interface.
 ***************************************************************************/
-typedef void (*PFNMIDI)(ulong luUser, void *pvData, ulong luData);
+typedef void (*PFNMIDI)(ulong luUser, void *pvData, ulong lUserDataa);
 
-typedef class MISI *PMISI;
-#define MISI_PAR BASE
-#define kclsMISI 'MISI'
-class MISI : public MISI_PAR
+typedef class MidiStreamInterface *PMidiStreamInterface;
+#define MidiStreamInterface_PAR BASE
+#define kclsMidiStreamInterface 'MISI'
+class MidiStreamInterface : public MidiStreamInterface_PAR
 {
     RTCLASS_DEC
 
@@ -222,7 +222,7 @@ class MISI : public MISI_PAR
     ulong _luVolSys;
     long _vlmBase; // our current volume relative to _luVolSys.
 
-    MISI(PFNMIDI pfn, ulong luUser);
+    MidiStreamInterface(PFNMIDI pfn, ulong luUser);
 
     virtual bool _FOpen(void) = 0;
     virtual bool _FClose(void) = 0;
@@ -239,7 +239,7 @@ class MISI : public MISI_PAR
     virtual bool FActive(void);
     virtual bool FActivate(bool fActivate);
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData) = 0;
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa) = 0;
     virtual void StopPlaying(void) = 0;
 };
 
@@ -257,10 +257,10 @@ class MISI : public MISI_PAR
 /***************************************************************************
     The real midi stream interface.
 ***************************************************************************/
-typedef class WMS *PWMS;
-#define WMS_PAR MISI
-#define kclsWMS 'WMS'
-class WMS : public WMS_PAR
+typedef class WindowsMidiStream *PWindowsMidiStream;
+#define WindowsMidiStream_PAR MidiStreamInterface
+#define kclsWindowsMidiStream 'WMS'
+class WindowsMidiStream : public WindowsMidiStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -273,7 +273,7 @@ class WMS : public WMS_PAR
         void *pvData;
         long cb;
         long cactPlay;
-        ulong luData;
+        ulong lUserDataa;
         long ibNext;
 
         MH rgmh[kcmhMsir];
@@ -281,9 +281,9 @@ class WMS : public WMS_PAR
     };
     typedef MSIR *PMSIR;
 
-    MUTX _mutx;
+    Mutex _mutx;
     HINSTANCE _hlib;
-    PGL _pglpmsir;
+    PDynamicArray _pglpmsir;
     long _ipmsirCur;
     long _cmhOut;
 
@@ -305,7 +305,7 @@ class WMS : public WMS_PAR
     MMRESULT(WINAPI *_pfnRestart)(HMS hms);
     MMRESULT(WINAPI *_pfnStop)(HMS hms);
 
-    WMS(PFNMIDI pfn, ulong luUser);
+    WindowsMidiStream(PFNMIDI pfn, ulong luUser);
     bool _FInit(void);
 
     virtual bool _FOpen(void);
@@ -323,25 +323,25 @@ class WMS : public WMS_PAR
     ulong _LuThread(void);
 
   public:
-    static PWMS PwmsNew(PFNMIDI pfn, ulong luUser);
-    ~WMS(void);
+    static PWindowsMidiStream PwmsNew(PFNMIDI pfn, ulong luUser);
+    ~WindowsMidiStream(void);
 
 #ifdef STREAM_BUG
     virtual bool FActive(void);
     virtual bool FActivate(bool fActivate);
 #endif // STREAM_BUG
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData);
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
     virtual void StopPlaying(void);
 };
 
 /***************************************************************************
     Our fake midi stream class.
 ***************************************************************************/
-typedef class OMS *POMS;
-#define OMS_PAR MISI
-#define kclsOMS 'OMS'
-class OMS : public OMS_PAR
+typedef class OurMidiStream *POurMidiStream;
+#define OurMidiStream_PAR MidiStreamInterface
+#define kclsOurMidiStream 'OMS'
+class OurMidiStream : public OurMidiStream_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -355,10 +355,10 @@ class OMS : public OMS_PAR
         long ibStart;
         long cactPlay;
 
-        ulong luData;
+        ulong lUserDataa;
     };
 
-    MUTX _mutx;
+    Mutex _mutx;
     HN _hevt; // event to notify the thread that the stream data has changed
     HN _hth;  // thread to play the stream data
 
@@ -367,12 +367,12 @@ class OMS : public OMS_PAR
     bool _fDone : 1;    // tells the aux thread to return
 
     long _imsbCur;
-    PGL _pglmsb;
+    PDynamicArray _pglmsb;
     PMEV _pmev;
     PMEV _pmevLim;
     ulong _tsCur;
 
-    OMS(PFNMIDI pfn, ulong luUser);
+    OurMidiStream(PFNMIDI pfn, ulong luUser);
     bool _FInit(void);
 
     virtual bool _FOpen(void);
@@ -383,10 +383,10 @@ class OMS : public OMS_PAR
     void _ReleaseBuffers(void);
 
   public:
-    static POMS PomsNew(PFNMIDI pfn, ulong luUser);
-    ~OMS(void);
+    static POurMidiStream PomsNew(PFNMIDI pfn, ulong luUser);
+    ~OurMidiStream(void);
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong luData);
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
     virtual void StopPlaying(void);
 };
 

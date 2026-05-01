@@ -15,10 +15,10 @@
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TBOX)
-RTCLASS(TBXG)
-RTCLASS(TBXB)
-RTCLASS(TCLP)
+RTCLASS(TextBox)
+RTCLASS(TextBoxGobject)
+RTCLASS(TextBoxBase)
+RTCLASS(TextBoxClipboard)
 
 //
 // How many pixels a scrolling text box scrolls by
@@ -34,11 +34,11 @@ RTCLASS(TCLP)
 //
 // Undoes changing textbox type operations
 //
-typedef class TUNT *PTUNT;
+typedef class TextBoxUndoType *PTextBoxUndoType;
 
-#define TUNT_PAR MUNB
-#define kclsTUNT 'TUNT'
-class TUNT : public TUNT_PAR
+#define TextBoxUndoType_PAR MovieUndo
+#define kclsTextBoxUndoType 'TUNT'
+class TextBoxUndoType : public TextBoxUndoType_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -47,13 +47,13 @@ class TUNT : public TUNT_PAR
   protected:
     long _itbox;
     bool _fStory;
-    TUNT(void)
+    TextBoxUndoType(void)
     {
     }
 
   public:
-    static PTUNT PtuntNew(void);
-    ~TUNT(void);
+    static PTextBoxUndoType PtuntNew(void);
+    ~TextBoxUndoType(void);
 
     void SetType(bool fStory)
     {
@@ -64,20 +64,20 @@ class TUNT : public TUNT_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNT)
+RTCLASS(TextBoxUndoType)
 
 //
 // Undoes sizing operations
 //
-typedef class TUNS *PTUNS;
+typedef class TextBoxUndoSize *PTextBoxUndoSize;
 
-#define TUNS_PAR MUNB
-#define kclsTUNS 'TUNS'
-class TUNS : public TUNS_PAR
+#define TextBoxUndoSize_PAR MovieUndo
+#define kclsTextBoxUndoSize 'TUNS'
+class TextBoxUndoSize : public TextBoxUndoSize_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -86,13 +86,13 @@ class TUNS : public TUNS_PAR
   protected:
     long _itbox;
     RC _rc;
-    TUNS(void)
+    TextBoxUndoSize(void)
     {
     }
 
   public:
-    static PTUNS PtunsNew(void);
-    ~TUNS(void);
+    static PTextBoxUndoSize PtunsNew(void);
+    ~TextBoxUndoSize(void);
 
     void SetRc(RC *prc)
     {
@@ -103,20 +103,20 @@ class TUNS : public TUNS_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNS)
+RTCLASS(TextBoxUndoSize)
 
 //
 // Undoes hiding/showing operations
 //
-typedef class TUNH *PTUNH;
+typedef class TextBoxUndoHide *PTextBoxUndoHide;
 
-#define TUNH_PAR MUNB
-#define kclsTUNH 'TUNH'
-class TUNH : public TUNH_PAR
+#define TextBoxUndoHide_PAR MovieUndo
+#define kclsTextBoxUndoHide 'TUNH'
+class TextBoxUndoHide : public TextBoxUndoHide_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -127,13 +127,13 @@ class TUNH : public TUNH_PAR
     long _nfrmFirst;
     long _nfrmMax;
 
-    TUNH(void)
+    TextBoxUndoHide(void)
     {
     }
 
   public:
-    static PTUNH PtunhNew(void);
-    ~TUNH(void);
+    static PTextBoxUndoHide PtunhNew(void);
+    ~TextBoxUndoHide(void);
 
     void SetFrmFirst(long nfrmFirst)
     {
@@ -148,55 +148,55 @@ class TUNH : public TUNH_PAR
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNH)
+RTCLASS(TextBoxUndoHide)
 
 //
 // Undoes all editing operations
 //
-typedef class TUND *PTUND;
+typedef class TextBoxUndoEdit *PTextBoxUndoEdit;
 
-#define TUND_PAR MUNB
-#define kclsTUND 'TUND'
-class TUND : public TUND_PAR
+#define TextBoxUndoEdit_PAR MovieUndo
+#define kclsTextBoxUndoEdit 'TUND'
+class TextBoxUndoEdit : public TextBoxUndoEdit_PAR
 {
     RTCLASS_DEC
     MARKMEM
     ASSERT
 
   protected:
-    PUNDB _pundb;
+    PUndoBase _pundb;
     long _itbox;
-    TUND(void)
+    TextBoxUndoEdit(void)
     {
     }
 
   public:
-    static PTUND PtundNew(PUNDB pundb);
-    ~TUND(void);
+    static PTextBoxUndoEdit PtundNew(PUndoBase pundb);
+    ~TextBoxUndoEdit(void);
 
     void SetItbox(long itbox)
     {
         _itbox = itbox;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUND)
+RTCLASS(TextBoxUndoEdit)
 
 //
 // Undoes coloring background operations
 //
-typedef class TUNC *PTUNC;
+typedef class TextBoxUndoColor *PTextBoxUndoColor;
 
-#define TUNC_PAR MUNB
-#define kclsTUNC 'TUNC'
-class TUNC : public TUNC_PAR
+#define TextBoxUndoColor_PAR MovieUndo
+#define kclsTextBoxUndoColor 'TUNC'
+class TextBoxUndoColor : public TextBoxUndoColor_PAR
 {
     RTCLASS_DEC
     MARKMEM
@@ -204,33 +204,33 @@ class TUNC : public TUNC_PAR
 
   protected:
     long _itbox;
-    ACR _acr;
-    TUNC(void)
+    AbstractColor _acr;
+    TextBoxUndoColor(void)
     {
     }
 
   public:
-    static PTUNC PtuncNew(void);
-    ~TUNC(void);
+    static PTextBoxUndoColor PtuncNew(void);
+    ~TextBoxUndoColor(void);
 
     void SetItbox(long itbox)
     {
         _itbox = itbox;
     }
-    void SetAcrBack(ACR acr)
+    void SetAcrBack(AbstractColor acr)
     {
         _acr = acr;
     }
 
-    virtual bool FDo(PDOCB pdocb);
-    virtual bool FUndo(PDOCB pdocb);
+    virtual bool FDo(PDocumentBase pdocb);
+    virtual bool FUndo(PDocumentBase pdocb);
 };
 
-RTCLASS(TUNC)
+RTCLASS(TextBoxUndoColor)
 
 //
 //
-// BEGIN TBXB and TBXG
+// BEGIN TextBoxBase and TextBoxGobject
 //
 //
 /****************************************************
@@ -245,32 +245,32 @@ RTCLASS(TUNC)
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
+PTextBoxBase TextBoxBase::PtbxbNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
 {
     AssertPo(ptbox, 0);
-    AssertPvCb(pgcb, size(GCB));
+    AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
-    PTBXB ptbxb;
-    PTBXG ptbxg;
+    PTextBoxBase ptbxb;
+    PTextBoxGobject ptbxg;
     RC rcRel, rcAbs;
-    ACR acr;
+    AbstractColor acr;
 
     //
     // Create the border
     //
-    ptbxb = NewObj TBXB(ptbox, pgcb);
+    ptbxb = NewObj TextBoxBase(ptbox, pgcb);
     if (ptbxb == pvNil)
     {
         return (pvNil);
     }
 
     //
-    // Now create the DDG area for the text
+    // Now create the DocumentDisplayGraphicsObject area for the text
     //
     rcAbs.Set(kdzpBorderTbox, kdzpBorderTbox, -kdzpBorderTbox, -kdzpBorderTbox);
     rcRel.Set(krelZero, krelZero, krelOne, krelOne);
     pgcb->Set(pgcb->_hid, ptbxb, pgcb->_grfgob, pgcb->_gin, &rcAbs, &rcRel);
-    if (pvNil == (ptbxg = (PTBXG)ptbox->PddgNew(pgcb)))
+    if (pvNil == (ptbxg = (PTextBoxGobject)ptbox->PddgNew(pgcb)))
     {
         ReleasePpo(&ptbxb);
         return (pvNil);
@@ -293,7 +293,7 @@ PTBXB TBXB::PtbxbNew(PTBOX ptbox, PGCB pgcb)
  *  None.
  *
  ****************************************************/
-void TBXB::Draw(PGNV pgnv, RC *prcClip)
+void TextBoxBase::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -303,7 +303,7 @@ void TBXB::Draw(PGNV pgnv, RC *prcClip)
     RC rcClip;
     long lwSave;
 
-    Assert(_ptbox->FIsVisible(), "DDG existing for invisible tbox");
+    Assert(_ptbox->FIsVisible(), "DocumentDisplayGraphicsObject existing for invisible tbox");
 
     if (!_ptbox->FSelected())
     {
@@ -432,18 +432,18 @@ void TBXB::Draw(PGNV pgnv, RC *prcClip)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TextBoxBase::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PT pt;
     RC rc, rcOld;
     RC rcBound(0, 0, _ptbox->Pscen()->Pmvie()->Pmcc()->Dxp(), _ptbox->Pscen()->Pmvie()->Pmcc()->Dyp());
     static long itbox = ivNil;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     pt.xp = pcmd->xp;
@@ -534,7 +534,7 @@ bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
 
             if (!(pcmd->grfcust & fcustMouse))
             {
-                PTBXG ptbxg = (PTBXG)_ptbox->PddgGet(0);
+                PTextBoxGobject ptbxg = (PTextBoxGobject)_ptbox->PddgGet(0);
                 AssertPo(ptbxg, 0);
                 ptbxg->_FDoClip(pmvu->Tool());
                 vpcex->EndMouseTracking();
@@ -628,9 +628,9 @@ bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
             GetRc(&rc, cooLocal);
             if (_rcOrig != rc)
             {
-                PTUNS ptuns;
+                PTextBoxUndoSize ptuns;
 
-                ptuns = TUNS::PtunsNew();
+                ptuns = TextBoxUndoSize::PtunsNew();
                 if (ptuns == pvNil)
                 {
                     PushErc(ercSocNotUndoable);
@@ -671,14 +671,14 @@ bool TBXB::FCmdTrackMouse(PCMD_MOUSE pcmd)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXB::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool TextBoxBase::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -733,7 +733,7 @@ bool TBXB::FCmdMouseMove(PCMD_MOUSE pcmd)
  *  Anchor point number.
  *
  **************************************************************************/
-TBXT TBXB::_TbxtAnchor(long xp, long yp)
+TBXT TextBoxBase::_TbxtAnchor(long xp, long yp)
 {
     AssertThis(0);
 
@@ -826,9 +826,9 @@ TBXT TBXB::_TbxtAnchor(long xp, long yp)
  *  None.
  *
  **************************************************************************/
-void TBXB::Activate(bool fActive)
+void TextBoxBase::Activate(bool fActive)
 {
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
 
     pddg = _ptbox->PddgGet(0);
     AssertPo(pddg, 0);
@@ -852,13 +852,13 @@ void TBXB::Activate(bool fActive)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXB::FPtIn(long xp, long yp)
+bool TextBoxBase::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -873,7 +873,7 @@ bool TBXB::FPtIn(long xp, long yp)
         return (fFalse);
     }
 
-    return (TBXB_PAR::FPtIn(xp, yp));
+    return (TextBoxBase_PAR::FPtIn(xp, yp));
 }
 
 /****************************************************
@@ -886,14 +886,14 @@ bool TBXB::FPtIn(long xp, long yp)
  *  None.
  *
  ****************************************************/
-void TBXB::AttachToMouse(void)
+void TextBoxBase::AttachToMouse(void)
 {
     AssertThis(0);
 
-    PMVU pmvu;
+    PMovieView pmvu;
     PT pt;
 
-    pmvu = (PMVU)_ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)_ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     _fTrackingMouse = fTrue;
@@ -914,7 +914,7 @@ void TBXB::AttachToMouse(void)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TBXB
+ * Mark memory used by the TextBoxBase
  *
  * Parameters:
  * 	None.
@@ -923,15 +923,15 @@ void TBXB::AttachToMouse(void)
  *  None.
  *
  ****************************************************/
-void TBXB::MarkMem(void)
+void TextBoxBase::MarkMem(void)
 {
     AssertThis(0);
-    TBXB_PAR::MarkMem();
+    TextBoxBase_PAR::MarkMem();
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TBXB.
+ * Assert the validity of the TextBoxBase.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -940,9 +940,9 @@ void TBXB::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TBXB::AssertValid(ulong grf)
+void TextBoxBase::AssertValid(ulong grf)
 {
-    TBXB_PAR::AssertValid(fobjAllocated);
+    TextBoxBase_PAR::AssertValid(fobjAllocated);
 }
 
 #endif
@@ -951,18 +951,18 @@ void TBXB::AssertValid(ulong grf)
 // Disable the some default rich text functionality,
 // and then intercept other commands.
 //
-BEGIN_CMD_MAP(TBXG, DDG)
+BEGIN_CMD_MAP(TextBoxGobject, DocumentDisplayGraphicsObject)
 ON_CID_GEN(cidSave, pvNil, pvNil)
 ON_CID_GEN(cidClose, pvNil, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 ON_CID_GEN(cidSaveAs, pvNil, pvNil)
 ON_CID_GEN(cidSaveCopy, pvNil, pvNil)
-ON_CID_GEN(cidCutTool, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidCopyTool, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidPasteTool, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidPaste, &TBXG::FCmdClip, &TBXG::FEnableDdgCmd)
-ON_CID_GEN(cidCut, &TBXG::FCmdClip, pvNil)
-ON_CID_GEN(cidCopy, &TBXG::FCmdClip, pvNil)
+ON_CID_GEN(cidCutTool, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidCopyTool, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidPasteTool, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidPaste, &TextBoxGobject::FCmdClip, &TextBoxGobject::FEnableDdgCmd)
+ON_CID_GEN(cidCut, &TextBoxGobject::FCmdClip, pvNil)
+ON_CID_GEN(cidCopy, &TextBoxGobject::FCmdClip, pvNil)
 ON_CID_GEN(cidUndo, pvNil, pvNil)
 ON_CID_GEN(cidRedo, pvNil, pvNil)
 END_CMD_MAP_NIL()
@@ -972,7 +972,7 @@ END_CMD_MAP_NIL()
  * Destructor for text box DDGs.
  *
  ****************************************************/
-TBXG::~TBXG()
+TextBoxGobject::~TextBoxGobject()
 {
 }
 
@@ -988,14 +988,14 @@ TBXG::~TBXG()
  *  A pointer to the view, else pvNil.
  *
  ****************************************************/
-PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGCB pgcb)
+PTextBoxGobject TextBoxGobject::PtbxgNew(PTBOX ptbox, PGraphicsObjectBlock pgcb)
 {
     AssertPo(ptbox, 0);
-    AssertPvCb(pgcb, size(GCB));
+    AssertPvCb(pgcb, size(GraphicsObjectBlock));
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
-    if (pvNil == (ptbxg = NewObj TBXG(ptbox, pgcb)))
+    if (pvNil == (ptbxg = NewObj TextBoxGobject(ptbox, pgcb)))
     {
         return (pvNil);
     }
@@ -1022,7 +1022,7 @@ PTBXG TBXG::PtbxgNew(PTBOX ptbox, PGCB pgcb)
  *  None.
  *
  ****************************************************/
-void TBXG::Draw(PGNV pgnv, RC *prcClip)
+void TextBoxGobject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
@@ -1032,12 +1032,12 @@ void TBXG::Draw(PGNV pgnv, RC *prcClip)
 
     //
     // In order to do scrolling text boxex, the easiest
-    // way to get the text to scroll is to grow the DDG
+    // way to get the text to scroll is to grow the DocumentDisplayGraphicsObject
     // upward (to the top of the screen), but then clip
     // the drawing to within the border.
     //
-    // The DDG will automatically be clipped to within
-    // the border GOB, but the drawn border (dashes and
+    // The DocumentDisplayGraphicsObject will automatically be clipped to within
+    // the border GraphicsObject, but the drawn border (dashes and
     // anchors) must then be subtracted.
     //
     GetRc(&rc, cooParent);
@@ -1046,7 +1046,7 @@ void TBXG::Draw(PGNV pgnv, RC *prcClip)
     rc.FIntersect(prcClip);
     pgnv->ClipRc(&rc);
 
-    TBXG_PAR::Draw(pgnv, &rc);
+    TextBoxGobject_PAR::Draw(pgnv, &rc);
 }
 
 /***************************************************************************
@@ -1060,14 +1060,14 @@ void TBXG::Draw(PGNV pgnv, RC *prcClip)
  *  None.
  *
  **************************************************************************/
-void TBXG::Activate(bool fActive)
+void TextBoxGobject::Activate(bool fActive)
 {
     AssertThis(0);
 
     PTBOX ptbox = (PTBOX)_pdocb;
     AssertPo(ptbox, 0);
 
-    TBXG_PAR::Activate(fActive);
+    TextBoxGobject_PAR::Activate(fActive);
     ptbox->Select(fActive);
 }
 
@@ -1084,13 +1084,13 @@ void TBXG::Activate(bool fActive)
  *  None.
  *
  **************************************************************************/
-void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
+void TextBoxGobject::InvalCp(long cp, long ccpIns, long ccpDel)
 {
-    PMVU pmvu;
+    PMovieView pmvu;
     PTBOX ptbox = (PTBOX)_pdocb;
     AssertPo(ptbox, 0);
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     if (((pmvu->Tool() == toolTboxPaintText) || (pmvu->Tool() == toolTboxFont) || (pmvu->Tool() == toolTboxSize) ||
@@ -1101,7 +1101,7 @@ void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
         ptbox->Pscen()->Pmvie()->Pmcc()->ChangeTool(toolTboxMove);
     }
 
-    TBXG_PAR::InvalCp(cp, ccpIns, ccpDel);
+    TextBoxGobject_PAR::InvalCp(cp, ccpIns, ccpDel);
 }
 
 /***************************************************************************
@@ -1115,15 +1115,15 @@ void TBXG::InvalCp(long cp, long ccpIns, long ccpDel)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdMouseMove(PCMD_MOUSE pcmd)
+bool TextBoxGobject::FCmdMouseMove(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -1171,19 +1171,19 @@ bool TBXG::FCmdMouseMove(PCMD_MOUSE pcmd)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
+bool TextBoxGobject::FCmdTrackMouse(PCMD_MOUSE pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
     CHP chpNew, chpDiff;
 
     chpNew.Clear();
     chpDiff.Clear();
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -1206,7 +1206,7 @@ bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
     //
     if ((pmvu->Tool() != toolTboxFillBkgd) && (pmvu->Tool() != toolTboxStory) && (pmvu->Tool() != toolTboxCredit))
     {
-        TBXG_PAR::FCmdTrackMouse(pcmd);
+        TextBoxGobject_PAR::FCmdTrackMouse(pcmd);
     }
 
     if ((pcmd->cid == cidMouseDown) && (pcmd->grfcust & fcustMouse))
@@ -1299,16 +1299,16 @@ bool TBXG::FCmdTrackMouse(PCMD_MOUSE pcmd)
  *  fTrue if it handles the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FPtIn(long xp, long yp)
+bool TextBoxGobject::FPtIn(long xp, long yp)
 {
     AssertThis(0);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PMVU pmvu;
+    PMovieView pmvu;
 
     AssertPo(ptbox, 0);
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     //
@@ -1321,7 +1321,7 @@ bool TBXG::FPtIn(long xp, long yp)
         return (fFalse);
     }
 
-    return (TBXG_PAR::FPtIn(xp, yp));
+    return (TextBoxGobject_PAR::FPtIn(xp, yp));
 }
 
 /***************************************************************************
@@ -1339,7 +1339,7 @@ bool TBXG::FPtIn(long xp, long yp)
  *	Width in pixels.
  *
  **************************************************************************/
-long TBXG::_DxpDoc()
+long TextBoxGobject::_DxpDoc()
 {
     AssertBaseThis(0);
 
@@ -1361,7 +1361,7 @@ long TBXG::_DxpDoc()
  * 	None.
  *
  **************************************************************************/
-void TBXG::_NewRc(void)
+void TextBoxGobject::_NewRc(void)
 {
     AssertBaseThis(0);
 
@@ -1379,7 +1379,7 @@ void TBXG::_NewRc(void)
 
     _rcOld = rc;
 
-    TBXG_PAR::_NewRc();
+    TextBoxGobject_PAR::_NewRc();
 
     long cpLim = _ptxtb->CpMac() - 1;
 
@@ -1397,32 +1397,32 @@ void TBXG::_NewRc(void)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FCmdClip(PCMD pcmd)
+bool TextBoxGobject::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
     PTBOX ptbox = (PTBOX)_pdocb;
-    PDOCB pdocb;
-    PMVU pmvu;
+    PDocumentBase pdocb;
+    PMovieView pmvu;
 
-    pmvu = (PMVU)ptbox->Pscen()->Pmvie()->PddgGet(0);
+    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
     AssertPo(pmvu, 0);
 
     Assert(pmvu->FTextMode(), "Bad mode");
 
-    if (((pcmd->cid == cidPaste) || (pcmd->cid == cidPasteTool)) && vpclip->FGetFormat(kclsACLP, &pdocb))
+    if (((pcmd->cid == cidPaste) || (pcmd->cid == cidPasteTool)) && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
     {
-        CMD cmd;
+        Command cmd;
 
-        if (((PACLP)pdocb)->FRouteOnly())
+        if (((PActorClipboard)pdocb)->FRouteOnly())
         {
             PushErc(ercSocCannotPasteThatHere);
             ReleasePpo(&pdocb);
             return (fTrue);
         }
         //
-        // Pass this onto the MVU for pasting
+        // Pass this onto the MovieView for pasting
         //
 
         cmd = *pcmd;
@@ -1437,7 +1437,7 @@ bool TBXG::FCmdClip(PCMD pcmd)
     {
 
     case cidPaste:
-        _FDoClip(vpclip->FGetFormat(kclsTCLP) ? toolPasteObject : toolPasteText);
+        _FDoClip(vpclip->FGetFormat(kclsTextBoxClipboard) ? toolPasteObject : toolPasteText);
         break;
 
     case cidCut:
@@ -1466,7 +1466,7 @@ bool TBXG::FCmdClip(PCMD pcmd)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
+bool TextBoxGobject::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -1497,14 +1497,14 @@ bool TBXG::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
         //
         // Now check if clipboard is a text box.
         //
-        if (!vpclip->FGetFormat(kclsTCLP))
+        if (!vpclip->FGetFormat(kclsTextBoxClipboard))
         {
             *pgrfeds = fedsDisable;
         }
         break;
 
     default:
-        return (TBXG_PAR::FEnableDdgCmd(pcmd, pgrfeds));
+        return (TextBoxGobject_PAR::FEnableDdgCmd(pcmd, pgrfeds));
     }
 
     return (fTrue);
@@ -1521,14 +1521,14 @@ bool TBXG::FEnableDdgCmd(PCMD pcmd, ulong *pgrfeds)
  * 	fTrue if it handled the command, else fFalse.
  *
  **************************************************************************/
-bool TBXG::_FDoClip(long tool)
+bool TextBoxGobject::_FDoClip(long tool)
 {
     AssertThis(0);
 
     PTBOX ptbox = (PTBOX)_pdocb;
     PTBOX ptboxDup;
-    PTCLP ptclp;
-    CMD cmd;
+    PTextBoxClipboard ptclp;
+    Command cmd;
 
     AssertPo(ptbox, 0);
 
@@ -1539,10 +1539,10 @@ bool TBXG::_FDoClip(long tool)
 
         if (FTextSelected())
         {
-            ClearPb(&cmd, size(CMD));
+            ClearPb(&cmd, size(Command));
             cmd.cid = (tool == toolCutText) ? cidCut : cidCopy;
             ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            if (!TBXG_PAR::FCmdClip(&cmd))
+            if (!TextBoxGobject_PAR::FCmdClip(&cmd))
             {
                 return (fFalse);
             }
@@ -1552,12 +1552,12 @@ bool TBXG::_FDoClip(long tool)
 
     case toolPasteText:
 
-        if (!vpclip->FGetFormat(kclsACLP) && !vpclip->FGetFormat(kclsTCLP))
+        if (!vpclip->FGetFormat(kclsActorClipboard) && !vpclip->FGetFormat(kclsTextBoxClipboard))
         {
-            ClearPb(&cmd, size(CMD));
+            ClearPb(&cmd, size(Command));
             cmd.cid = cidPaste;
             ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            return (TBXG_PAR::FCmdClip(&cmd));
+            return (TextBoxGobject_PAR::FCmdClip(&cmd));
         }
         else
         {
@@ -1580,7 +1580,7 @@ bool TBXG::_FDoClip(long tool)
         //
         // Create the clip board object
         //
-        ptclp = TCLP::PtclpNew(ptboxDup);
+        ptclp = TextBoxClipboard::PtclpNew(ptboxDup);
         AssertNilOrPo(ptclp, 0);
         if (ptclp == pvNil)
         {
@@ -1608,7 +1608,7 @@ bool TBXG::_FDoClip(long tool)
 
     case toolPasteObject:
 
-        if (vpclip->FGetFormat(kclsTCLP, (PDOCB *)&ptclp))
+        if (vpclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
         {
             AssertPo(ptclp, 0);
             bool fRet;
@@ -1642,7 +1642,7 @@ bool TBXG::_FDoClip(long tool)
  *  fTrue if yes, else fFalse.
  *
  ****************************************************/
-bool TBXG::FNeedToScroll()
+bool TextBoxGobject::FNeedToScroll()
 {
     AssertThis(0);
 
@@ -1674,7 +1674,7 @@ bool TBXG::FNeedToScroll()
  *  None.
  *
  ****************************************************/
-void TBXG::Scroll(long scaVert)
+void TextBoxGobject::Scroll(long scaVert)
 {
     AssertThis(0);
 
@@ -1703,7 +1703,7 @@ void TBXG::Scroll(long scaVert)
  *  None.
  *
  ****************************************************/
-bool TBXG::FTextSelected(void)
+bool TextBoxGobject::FTextSelected(void)
 {
     AssertThis(0);
     return (_cpAnchor != _cpOther);
@@ -1723,9 +1723,9 @@ bool TBXG::FTextSelected(void)
  * 	None.
  *
  ****************************************************/
-void TBXG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
+void TextBoxGobject::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 {
-    TBXG_PAR::_FetchChp(cp, pchp, pcpMin, pcpLim);
+    TextBoxGobject_PAR::_FetchChp(cp, pchp, pcpMin, pcpLim);
 
     if (pchp->acrFore == kacrBlack)
     {
@@ -1736,7 +1736,7 @@ void TBXG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TBXG
+ * Mark memory used by the TextBoxGobject
  *
  * Parameters:
  * 	None.
@@ -1745,16 +1745,16 @@ void TBXG::_FetchChp(long cp, PCHP pchp, long *pcpMin, long *pcpLim)
  *  None.
  *
  ****************************************************/
-void TBXG::MarkMem(void)
+void TextBoxGobject::MarkMem(void)
 {
     AssertThis(0);
-    TBXG_PAR::MarkMem();
+    TextBoxGobject_PAR::MarkMem();
     MarkMemObj(_ptbxb);
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TBXG.
+ * Assert the validity of the TextBoxGobject.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -1763,9 +1763,9 @@ void TBXG::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TBXG::AssertValid(ulong grf)
+void TextBoxGobject::AssertValid(ulong grf)
 {
-    TBXG_PAR::AssertValid(fobjAllocated);
+    TextBoxGobject_PAR::AssertValid(fobjAllocated);
     AssertPo(_ptbxb, 0);
 }
 
@@ -1773,7 +1773,7 @@ void TBXG::AssertValid(ulong grf)
 
 //
 //
-// BEGIN TBOX
+// BEGIN TextBox
 //
 //
 
@@ -1782,19 +1782,20 @@ void TBXG::AssertValid(ulong grf)
 //
 // header information for saving text boxes to a file
 //
-struct TBOXH
+struct TextBoxOnFile
 {
-    short bo;
-    short osk;
-    long nfrmFirst;
-    long nfrmMax;
-    long xpLeft;
-    long xpRight;
-    long ypTop;
-    long ypBottom;
-    CHID chid;
+    int16_t bo;
+    int16_t osk;
+    int32_t nfrmFirst;
+    int32_t nfrmMax;
+    int32_t xpLeft;
+    int32_t xpRight;
+    int32_t ypTop;
+    int32_t ypBottom;
+    ChildChunkID chid;
     bool fStory;
 };
+static_assert(sizeof(TextBoxOnFile) == 36, "TextBoxOnFile on-disk layout drift");
 
 /****************************************************
  *
@@ -1802,22 +1803,22 @@ struct TBOXH
  *
  * Parameters:
  *	pscen - Scene which owns this textbox.
- *	prcRel - The bounding rectangle of the DDG for the text box within the
- *		the owning MVU.
+ *	prcRel - The bounding rectangle of the DocumentDisplayGraphicsObject for the text box within the
+ *		the owning MovieView.
  *	fStory - Is this a story text box?
  *
  * Returns:
  *  None.
  *
  ****************************************************/
-PTBOX TBOX::PtboxNew(PSCEN pscen, RC *prcRel, bool fStory)
+PTBOX TextBox::PtboxNew(PScene pscen, RC *prcRel, bool fStory)
 {
     AssertNilOrPo(pscen, 0);
     AssertPvCb(prcRel, size(RC));
 
     PTBOX ptbox;
 
-    ptbox = NewObj TBOX;
+    ptbox = NewObj TextBox;
     if (ptbox == pvNil)
     {
         return (pvNil);
@@ -1838,7 +1839,7 @@ PTBOX TBOX::PtboxNew(PSCEN pscen, RC *prcRel, bool fStory)
     ptbox->_pscen = pscen;
     ptbox->_fStory = fStory;
     ptbox->SetAcrBack(kacrClear, fdocNil);
-    Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TUND assumes there is one level of undo!");
+    Assert(pscen == pvNil || pscen->Pmvie()->CundbMax() == 1, "TextBoxUndoEdit assumes there is one level of undo!");
     ptbox->SetCundbMax(1);
 
     return ptbox;
@@ -1855,7 +1856,7 @@ PTBOX TBOX::PtboxNew(PSCEN pscen, RC *prcRel, bool fStory)
  *  None.
  *
  ****************************************************/
-void TBOX::SetDirty(bool fDirty)
+void TextBox::SetDirty(bool fDirty)
 {
     AssertThis(0);
 
@@ -1878,22 +1879,22 @@ void TBOX::SetDirty(bool fDirty)
  *  Pointer to a new tbox, else pvNil.
  *
  ****************************************************/
-PTBOX TBOX::PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen)
+PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
 {
     AssertPo(pcrf, 0);
     AssertNilOrPo(pscen, 0);
 
     PTBOX ptbox;
-    BLCK blck;
-    TBOXH tboxh;
-    KID kid;
-    PCFL pcfl = pcrf->Pcfl();
+    DataBlock blck;
+    TextBoxOnFile tboxh;
+    ChildChunkIdentification kid;
+    PChunkyFile pcfl = pcrf->Pcfl();
 
     //
     // Find the chunk and read in the header.
     //
-    if (!pcfl->FFind(kctgTbox, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(TBOXH)) ||
-        !blck.FReadRgb(&tboxh, size(TBOXH), 0))
+    if (!pcfl->FFind(kctgTbox, cno, &blck) || !blck.FUnpackData() || (blck.Cb() != size(TextBoxOnFile)) ||
+        !blck.FReadRgb(&tboxh, size(TextBoxOnFile), 0))
     {
         PushErc(ercSocBadFile);
         return (pvNil);
@@ -1916,7 +1917,7 @@ PTBOX TBOX::PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen)
         return (pvNil);
     }
 
-    ptbox = NewObj TBOX;
+    ptbox = NewObj TextBox;
     if (ptbox == pvNil)
     {
         return (pvNil);
@@ -1951,13 +1952,13 @@ PTBOX TBOX::PtboxRead(PCRF pcrf, CNO cno, PSCEN pscen)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FWrite(PCFL pcfl, CNO cno)
+bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
 
-    TBOXH tboxh;
-    CKI cki;
+    TextBoxOnFile tboxh;
+    ChunkIdentification cki;
 
     tboxh.bo = kboCur;
     tboxh.osk = koskCur;
@@ -1983,7 +1984,7 @@ bool TBOX::FWrite(PCFL pcfl, CNO cno)
         return (fFalse);
     }
 
-    if (!pcfl->FPutPv((void *)&tboxh, size(TBOXH), kctgTbox, cno))
+    if (!pcfl->FPutPv((void *)&tboxh, size(TextBoxOnFile), kctgTbox, cno))
     {
         pcfl->DeleteChild(kctgTbox, cno, cki.ctg, cki.cno, 0);
         return (fFalse);
@@ -2003,7 +2004,7 @@ bool TBOX::FWrite(PCFL pcfl, CNO cno)
  *  None.
  *
  ****************************************************/
-void TBOX::SetScen(PSCEN pscen)
+void TextBox::SetScen(PScene pscen)
 {
     AssertThis(0);
     AssertPo(pscen, 0);
@@ -2026,14 +2027,14 @@ void TBOX::SetScen(PSCEN pscen)
  *  None.
  *
  ****************************************************/
-void TBOX::SetTypeCore(bool fStory)
+void TextBox::SetTypeCore(bool fStory)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     _fStory = fStory;
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
     if (ptbxg == pvNil)
@@ -2055,13 +2056,13 @@ void TBOX::SetTypeCore(bool fStory)
  *  None.
  *
  ****************************************************/
-void TBOX::AttachToMouse(void)
+void TextBox::AttachToMouse(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
     if (ptbxg == pvNil)
@@ -2084,18 +2085,18 @@ void TBOX::AttachToMouse(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetType(bool fStory)
+bool TextBox::FSetType(bool fStory)
 {
     AssertThis(0);
 
-    PTUNT ptunt;
+    PTextBoxUndoType ptunt;
 
     if (_fStory == fStory)
     {
         return (fTrue);
     }
 
-    ptunt = TUNT::PtuntNew();
+    ptunt = TextBoxUndoType::PtuntNew();
 
     if (ptunt == pvNil)
     {
@@ -2127,7 +2128,7 @@ bool TBOX::FSetType(bool fStory)
  *  None.
  *
  ****************************************************/
-void TBOX::SetRc(RC *prc)
+void TextBox::SetRc(RC *prc)
 {
     AssertThis(0);
     AssertPvCb(prc, size(RC));
@@ -2154,7 +2155,7 @@ void TBOX::SetRc(RC *prc)
  *  fTrue if visible, else fFalse.
  *
  ****************************************************/
-bool TBOX::FIsVisible(void)
+bool TextBox::FIsVisible(void)
 {
     AssertThis(0);
     return ((_nfrmCur >= _nfrmFirst) && (_nfrmCur < _nfrmMax));
@@ -2172,7 +2173,7 @@ bool TBOX::FIsVisible(void)
  *  fTrue if the lifetime is valid, else fFalse.
  *
  **************************************************************************/
-bool TBOX::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
+bool TextBox::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
 {
     AssertThis(0);
     AssertVarMem(pnfrmStart);
@@ -2209,11 +2210,11 @@ bool TBOX::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
  *  None.
  *
  ****************************************************/
-void TBOX::Select(bool fSel)
+void TextBox::Select(bool fSel)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     if (fSel == _fSel)
     {
@@ -2225,7 +2226,7 @@ void TBOX::Select(bool fSel)
     if (Cddg() > 0)
     {
         Assert(Cddg() == 1, "Multiple views on text boxes not allowed");
-        ptbxg = (PTBXG)PddgGet(0);
+        ptbxg = (PTextBoxGobject)PddgGet(0);
         AssertPo(ptbxg, 0);
         ptbxg->Ptbxb()->Activate(fSel);
         ptbxg->Ptbxb()->InvalRc(pvNil);
@@ -2243,13 +2244,13 @@ void TBOX::Select(bool fSel)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FGotoFrame(long nfrm)
+bool TextBox::FGotoFrame(long nfrm)
 {
     AssertThis(0);
 
-    GCB gcb;
-    PTBXG ptbxg;
-    PTBXB ptbxb;
+    GraphicsObjectBlock gcb;
+    PTextBoxGobject ptbxg;
+    PTextBoxBase ptbxb;
 
     if (Cddg() == 0)
     {
@@ -2257,7 +2258,7 @@ bool TBOX::FGotoFrame(long nfrm)
     }
     else
     {
-        ptbxg = (PTBXG)PddgGet(0);
+        ptbxg = (PTextBoxGobject)PddgGet(0);
     }
     AssertNilOrPo(ptbxg, 0);
 
@@ -2270,10 +2271,10 @@ bool TBOX::FGotoFrame(long nfrm)
         {
 
             //
-            // Create a GOB for this text box
+            // Create a GraphicsObject for this text box
             //
             gcb.Set(khidDdg, Pscen()->Pmvie()->PddgActive(), fgobNil, kginMark, &_rc, pvNil);
-            ptbxb = TBXB::PtbxbNew(this, &gcb);
+            ptbxb = TextBoxBase::PtbxbNew(this, &gcb);
             if (ptbxb == pvNil)
             {
                 return (fFalse);
@@ -2289,7 +2290,7 @@ bool TBOX::FGotoFrame(long nfrm)
     if (!FIsVisible() && (ptbxg != pvNil))
     {
         //
-        // Release the GOB for the text box.
+        // Release the GraphicsObject for the text box.
         //
         ptbxb = ptbxg->Ptbxb();
         ReleasePpo(&ptbxb);
@@ -2309,7 +2310,7 @@ bool TBOX::FGotoFrame(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FShowCore(void)
+bool TextBox::FShowCore(void)
 {
     AssertThis(0);
 
@@ -2338,13 +2339,13 @@ bool TBOX::FShowCore(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FShow(void)
+bool TextBox::FShow(void)
 {
     AssertThis(0);
 
-    PTUNH ptunh;
+    PTextBoxUndoHide ptunh;
 
-    ptunh = TUNH::PtunhNew();
+    ptunh = TextBoxUndoHide::PtunhNew();
     if (ptunh == pvNil)
     {
         return (fFalse);
@@ -2382,7 +2383,7 @@ bool TBOX::FShow(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-void TBOX::HideCore(void)
+void TextBox::HideCore(void)
 {
     AssertThis(0);
 
@@ -2407,18 +2408,18 @@ void TBOX::HideCore(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FHide(void)
+bool TextBox::FHide(void)
 {
     AssertThis(0);
 
-    PTUNH ptunh;
+    PTextBoxUndoHide ptunh;
 
     if (_nfrmCur <= _nfrmFirst)
     {
         return (Pscen()->FRemTbox(this));
     }
 
-    ptunh = TUNH::PtunhNew();
+    ptunh = TextBoxUndoHide::PtunhNew();
     if (ptunh == pvNil)
     {
         return (fFalse);
@@ -2452,10 +2453,10 @@ bool TBOX::FHide(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FDup(PTBOX *pptbox)
+bool TextBox::FDup(PTBOX *pptbox)
 {
     AssertThis(0);
-    *pptbox = TBOX::PtboxNew(pvNil, &_rc);
+    *pptbox = TextBox::PtboxNew(pvNil, &_rc);
     AssertNilOrPo(*pptbox, 0);
 
     if (*pptbox == pvNil)
@@ -2489,13 +2490,13 @@ bool TBOX::FDup(PTBOX *pptbox)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetAcrBack(ACR acr)
+bool TextBox::FSetAcrBack(AbstractColor acr)
 {
     AssertThis(0);
 
-    PTUNC ptunc;
+    PTextBoxUndoColor ptunc;
 
-    ptunc = TUNC::PtuncNew();
+    ptunc = TextBoxUndoColor::PtuncNew();
 
     if (ptunc == pvNil)
     {
@@ -2530,14 +2531,14 @@ bool TBOX::FSetAcrBack(ACR acr)
  *  fTrue if possible, else fFalse.
  *
  ****************************************************/
-bool TBOX::FSetAcrText(ACR acr)
+bool TextBox::FSetAcrText(AbstractColor acr)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertNilOrPo(ptbxg, 0);
 
     if (ptbxg == pvNil)
@@ -2562,18 +2563,18 @@ bool TBOX::FSetAcrText(ACR acr)
     Returns:  fTrue if it succeeds
 
 ************************************************************ PETED ***********/
-bool TBOX::FSetDypFontText(long dypFont)
+bool TextBox::FSetDypFontText(long dypFont)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DDG isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2592,18 +2593,18 @@ bool TBOX::FSetDypFontText(long dypFont)
     Returns:  fTrue if it succeeds
 
 ************************************************************ PETED ***********/
-bool TBOX::FSetStyleText(ulong grfont)
+bool TextBox::FSetStyleText(ulong grfont)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DDG isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2622,18 +2623,18 @@ bool TBOX::FSetStyleText(ulong grfont)
     Returns:  fTrue if it succeeds
 
 ************************************************************ PETED ***********/
-bool TBOX::FSetOnnText(long onn)
+bool TextBox::FSetOnnText(long onn)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     CHP chpNew, chpDiff;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     if (ptbxg == pvNil)
         return fFalse;
     AssertPo(ptbxg, 0);
-    Assert(ptbxg->FIs(kclsTBXG), "DDG isn't a TBXG");
+    Assert(ptbxg->FIs(kclsTextBoxGobject), "DocumentDisplayGraphicsObject isn't a TextBoxGobject");
 
     chpNew.Clear();
     chpDiff.Clear();
@@ -2645,7 +2646,7 @@ bool TBOX::FSetOnnText(long onn)
 /******************************************************************************
     FetchChpSel
         Gets the character formatting for the current selection of the active
-        DDG for this TBOX.  Returns the formatting of the first character of
+        DocumentDisplayGraphicsObject for this TextBox.  Returns the formatting of the first character of
         the selection in the CHP, and sets the corresponding bit in *pgrfchp
         if that particular formatting holds for the entire selection.
 
@@ -2654,7 +2655,7 @@ bool TBOX::FSetOnnText(long onn)
         ulong *pgrfchp  --  bitfield that indicates which formatting attributes
             hold for the entire selection.
 ************************************************************ PETED ***********/
-void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
+void TextBox::FetchChpSel(PCHP pchp, ulong *pgrfchp)
 {
     AssertVarMem(pchp);
     AssertVarMem(pgrfchp);
@@ -2662,14 +2663,14 @@ void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
     long cpMin, cpMac;
     long cpMinChp, cpMacChp;
     CHP chp;
-    PTXTG ptxtg;
+    PTextDocumentGraphicsObject ptxtg;
 
-    ptxtg = (PTXTG)PddgActive();
+    ptxtg = (PTextDocumentGraphicsObject)PddgActive();
     if (ptxtg == pvNil)
         goto LFail;
-    if (!ptxtg->FIs(kclsTXTG))
+    if (!ptxtg->FIs(kclsTextDocumentGraphicsObject))
     {
-        Bug("DDG isn't a TXTG");
+        Bug("DocumentDisplayGraphicsObject isn't a TextDocumentGraphicsObject");
     LFail:
         *pgrfchp = 0;
         return;
@@ -2709,15 +2710,15 @@ void TBOX::FetchChpSel(PCHP pchp, ulong *pgrfchp)
  *  fTrue if yes, else fFalse.
  *
  ****************************************************/
-bool TBOX::FNeedToScroll(void)
+bool TextBox::FNeedToScroll(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     if ((_nfrmCur == _nfrmFirst) && !_fStory)
     {
-        ptbxg = (PTBXG)PddgGet(0);
+        ptbxg = (PTextBoxGobject)PddgGet(0);
         AssertPo(ptbxg, 0);
         return (ptbxg->FNeedToScroll());
     }
@@ -2735,13 +2736,13 @@ bool TBOX::FNeedToScroll(void)
  *  None.
  *
  ****************************************************/
-void TBOX::Scroll(void)
+void TextBox::Scroll(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertPo(ptbxg, 0);
     ptbxg->Scroll(scaLineDown);
 }
@@ -2757,18 +2758,18 @@ void TBOX::Scroll(void)
  *  None.
  *
  ****************************************************/
-bool TBOX::FTextSelected(void)
+bool TextBox::FTextSelected(void)
 {
     AssertThis(0);
 
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
 
     if (!FIsVisible())
     {
         return (fFalse);
     }
 
-    ptbxg = (PTBXG)PddgGet(0);
+    ptbxg = (PTextBoxGobject)PddgGet(0);
     AssertPo(ptbxg, 0);
     return (ptbxg->FTextSelected());
 }
@@ -2784,7 +2785,7 @@ bool TBOX::FTextSelected(void)
  *  None.
  *
  ****************************************************/
-void TBOX::SetStartFrame(long nfrm)
+void TextBox::SetStartFrame(long nfrm)
 {
     AssertThis(0);
     _nfrmFirst = nfrm;
@@ -2801,14 +2802,14 @@ void TBOX::SetStartFrame(long nfrm)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TBOX::FAddUndo(PUNDB pundb)
+bool TextBox::FAddUndo(PUndoBase pundb)
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
 
-    PTUND ptund;
+    PTextBoxUndoEdit ptund;
 
-    ptund = TUND::PtundNew(pundb);
+    ptund = TextBoxUndoEdit::PtundNew(pundb);
 
     if (ptund == pvNil)
     {
@@ -2826,7 +2827,7 @@ bool TBOX::FAddUndo(PUNDB pundb)
         return (fFalse);
     }
 
-    if (!TBOX_PAR::FAddUndo(pundb))
+    if (!TextBox_PAR::FAddUndo(pundb))
     {
         ReleasePpo(&ptund);
         return (fFalse);
@@ -2847,17 +2848,17 @@ bool TBOX::FAddUndo(PUNDB pundb)
  *  None.
  *
  ****************************************************/
-void TBOX::ClearUndo()
+void TextBox::ClearUndo()
 {
     AssertThis(0);
     AssertPo(Pscen(), 0);
-    TBOX_PAR::ClearUndo();
+    TextBox_PAR::ClearUndo();
     Pscen()->Pmvie()->ClearUndo();
 }
 
 /****************************************************
  *
- * Ensure that the DDG for this tbox is the proper size,
+ * Ensure that the DocumentDisplayGraphicsObject for this tbox is the proper size,
  * used for cleaning after a playback.
  *
  * Parameters:
@@ -2867,11 +2868,11 @@ void TBOX::ClearUndo()
  *  None.
  *
  ****************************************************/
-void TBOX::CleanDdg(void)
+void TextBox::CleanDdg(void)
 {
     AssertThis(0);
 
-    PDDG pddg;
+    PDocumentDisplayGraphicsObject pddg;
     RC rcAbs, rcRel;
 
     pddg = PddgGet(0);
@@ -2898,7 +2899,7 @@ void TBOX::CleanDdg(void)
  *  Itbox.
  *
  ****************************************************/
-long TBOX::Itbox(void)
+long TextBox::Itbox(void)
 {
     AssertThis(0);
 
@@ -2918,7 +2919,7 @@ long TBOX::Itbox(void)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TBOX
+ * Mark memory used by the TextBox
  *
  * Parameters:
  * 	None.
@@ -2927,15 +2928,15 @@ long TBOX::Itbox(void)
  *  None.
  *
  ****************************************************/
-void TBOX::MarkMem(void)
+void TextBox::MarkMem(void)
 {
     AssertThis(0);
-    TBOX_PAR::MarkMem();
+    TextBox_PAR::MarkMem();
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TBOX.
+ * Assert the validity of the TextBox.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -2944,9 +2945,9 @@ void TBOX::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TBOX::AssertValid(ulong grf)
+void TextBox::AssertValid(ulong grf)
 {
-    TBOX_PAR::AssertValid(fobjAllocated);
+    TextBox_PAR::AssertValid(fobjAllocated);
     if (PddgGet(0) != pvNil)
     {
         AssertPo(PddgGet(0), 0);
@@ -2974,10 +2975,10 @@ void TBOX::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNT TUNT::PtuntNew()
+PTextBoxUndoType TextBoxUndoType::PtuntNew()
 {
-    PTUNT ptunt;
-    ptunt = NewObj TUNT();
+    PTextBoxUndoType ptunt;
+    ptunt = NewObj TextBoxUndoType();
     return (ptunt);
 }
 
@@ -2986,7 +2987,7 @@ PTUNT TUNT::PtuntNew()
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNT::~TUNT(void)
+TextBoxUndoType::~TextBoxUndoType(void)
 {
 }
 
@@ -3001,7 +3002,7 @@ TUNT::~TUNT(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNT::FDo(PDOCB pdocb)
+bool TextBoxUndoType::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3051,7 +3052,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNT::FUndo(PDOCB pdocb)
+bool TextBoxUndoType::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3061,7 +3062,7 @@ bool TUNT::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNT
+ * Mark memory used by the TextBoxUndoType
  *
  * Parameters:
  * 	None.
@@ -3070,18 +3071,18 @@ bool TUNT::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void TUNT::MarkMem(void)
+void TextBoxUndoType::MarkMem(void)
 {
     AssertThis(0);
-    TUNT_PAR::MarkMem();
+    TextBoxUndoType_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNT.
+    Assert the validity of the TextBoxUndoType.
 ***************************************************************************/
-void TUNT::AssertValid(ulong grf)
+void TextBoxUndoType::AssertValid(ulong grf)
 {
-    TUNT_PAR::AssertValid(fobjAllocated);
+    TextBoxUndoType_PAR::AssertValid(fobjAllocated);
 }
 #endif
 
@@ -3096,10 +3097,10 @@ void TUNT::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNS TUNS::PtunsNew()
+PTextBoxUndoSize TextBoxUndoSize::PtunsNew()
 {
-    PTUNS ptuns;
-    ptuns = NewObj TUNS();
+    PTextBoxUndoSize ptuns;
+    ptuns = NewObj TextBoxUndoSize();
     return (ptuns);
 }
 
@@ -3108,7 +3109,7 @@ PTUNS TUNS::PtunsNew()
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNS::~TUNS(void)
+TextBoxUndoSize::~TextBoxUndoSize(void)
 {
 }
 
@@ -3123,13 +3124,13 @@ TUNS::~TUNS(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNS::FDo(PDOCB pdocb)
+bool TextBoxUndoSize::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
 
     PTBOX ptbox;
-    PTBXG ptbxg;
+    PTextBoxGobject ptbxg;
     RC rc;
 
     if (!_pmvie->FSwitchScen(_iscen))
@@ -3153,7 +3154,7 @@ bool TUNS::FDo(PDOCB pdocb)
     ptbox->GetRc(&rc);
     ptbox->SetRc(&_rc);
 
-    ptbxg = (PTBXG)ptbox->PddgGet(0);
+    ptbxg = (PTextBoxGobject)ptbox->PddgGet(0);
     AssertPo(ptbxg, 0);
     ptbxg->Ptbxb()->SetPos(&_rc);
     _pmvie->Pscen()->SelectTbox(ptbox);
@@ -3178,7 +3179,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNS::FUndo(PDOCB pdocb)
+bool TextBoxUndoSize::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3188,7 +3189,7 @@ bool TUNS::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNS
+ * Mark memory used by the TextBoxUndoSize
  *
  * Parameters:
  * 	None.
@@ -3197,18 +3198,18 @@ bool TUNS::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void TUNS::MarkMem(void)
+void TextBoxUndoSize::MarkMem(void)
 {
     AssertThis(0);
-    TUNS_PAR::MarkMem();
+    TextBoxUndoSize_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNS.
+    Assert the validity of the TextBoxUndoSize.
 ***************************************************************************/
-void TUNS::AssertValid(ulong grf)
+void TextBoxUndoSize::AssertValid(ulong grf)
 {
-    TUNS_PAR::AssertValid(fobjAllocated);
+    TextBoxUndoSize_PAR::AssertValid(fobjAllocated);
 }
 #endif
 
@@ -3223,10 +3224,10 @@ void TUNS::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNH TUNH::PtunhNew()
+PTextBoxUndoHide TextBoxUndoHide::PtunhNew()
 {
-    PTUNH ptunh;
-    ptunh = NewObj TUNH();
+    PTextBoxUndoHide ptunh;
+    ptunh = NewObj TextBoxUndoHide();
     return (ptunh);
 }
 
@@ -3235,7 +3236,7 @@ PTUNH TUNH::PtunhNew()
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNH::~TUNH(void)
+TextBoxUndoHide::~TextBoxUndoHide(void)
 {
     AssertBaseThis(0);
 }
@@ -3251,7 +3252,7 @@ TUNH::~TUNH(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNH::FDo(PDOCB pdocb)
+bool TextBoxUndoHide::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3321,7 +3322,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNH::FUndo(PDOCB pdocb)
+bool TextBoxUndoHide::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3331,7 +3332,7 @@ bool TUNH::FUndo(PDOCB pdocb)
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNH
+ * Mark memory used by the TextBoxUndoHide
  *
  * Parameters:
  * 	None.
@@ -3340,18 +3341,18 @@ bool TUNH::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void TUNH::MarkMem(void)
+void TextBoxUndoHide::MarkMem(void)
 {
     AssertThis(0);
-    TUNH_PAR::MarkMem();
+    TextBoxUndoHide_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNH.
+    Assert the validity of the TextBoxUndoHide.
 ***************************************************************************/
-void TUNH::AssertValid(ulong grf)
+void TextBoxUndoHide::AssertValid(ulong grf)
 {
-    TUNH_PAR::AssertValid(fobjAllocated);
+    TextBoxUndoHide_PAR::AssertValid(fobjAllocated);
 }
 #endif
 
@@ -3367,12 +3368,12 @@ void TUNH::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUND TUND::PtundNew(PUNDB pundb)
+PTextBoxUndoEdit TextBoxUndoEdit::PtundNew(PUndoBase pundb)
 {
     AssertPo(pundb, 0);
 
-    PTUND ptund;
-    ptund = NewObj TUND();
+    PTextBoxUndoEdit ptund;
+    ptund = NewObj TextBoxUndoEdit();
     if (ptund != pvNil)
     {
         ptund->_pundb = pundb;
@@ -3387,7 +3388,7 @@ PTUND TUND::PtundNew(PUNDB pundb)
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUND::~TUND(void)
+TextBoxUndoEdit::~TextBoxUndoEdit(void)
 {
     AssertBaseThis(0);
 
@@ -3421,7 +3422,7 @@ TUND::~TUND(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUND::FDo(PDOCB pdocb)
+bool TextBoxUndoEdit::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3467,7 +3468,7 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUND::FUndo(PDOCB pdocb)
+bool TextBoxUndoEdit::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
@@ -3504,7 +3505,7 @@ LFail:
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUND
+ * Mark memory used by the TextBoxUndoEdit
  *
  * Parameters:
  * 	None.
@@ -3513,17 +3514,17 @@ LFail:
  *  None.
  *
  ****************************************************/
-void TUND::MarkMem(void)
+void TextBoxUndoEdit::MarkMem(void)
 {
     AssertThis(0);
-    TUND_PAR::MarkMem();
+    TextBoxUndoEdit_PAR::MarkMem();
     MarkMemObj(_pundb);
 }
 
 /***************************************************************************
-    Assert the validity of the TUND.
+    Assert the validity of the TextBoxUndoEdit.
 ***************************************************************************/
-void TUND::AssertValid(ulong grf)
+void TextBoxUndoEdit::AssertValid(ulong grf)
 {
     AssertBaseThis(0);
 }
@@ -3541,11 +3542,11 @@ void TUND::AssertValid(ulong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-PTUNC TUNC::PtuncNew(void)
+PTextBoxUndoColor TextBoxUndoColor::PtuncNew(void)
 {
-    PTUNC ptunc;
+    PTextBoxUndoColor ptunc;
 
-    ptunc = NewObj TUNC();
+    ptunc = NewObj TextBoxUndoColor();
     return (ptunc);
 }
 
@@ -3554,7 +3555,7 @@ PTUNC TUNC::PtuncNew(void)
  * Destructor for text box undo objects
  *
  ****************************************************/
-TUNC::~TUNC(void)
+TextBoxUndoColor::~TextBoxUndoColor(void)
 {
     AssertBaseThis(0);
 }
@@ -3570,13 +3571,13 @@ TUNC::~TUNC(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNC::FDo(PDOCB pdocb)
+bool TextBoxUndoColor::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     AssertPo(pdocb, 0);
 
     PTBOX ptbox;
-    ACR acr;
+    AbstractColor acr;
 
     if (!_pmvie->FSwitchScen(_iscen))
     {
@@ -3620,14 +3621,14 @@ LFail:
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-bool TUNC::FUndo(PDOCB pdocb)
+bool TextBoxUndoColor::FUndo(PDocumentBase pdocb)
 {
     return (FDo(pdocb));
 }
 
 #ifdef DEBUG
 /****************************************************
- * Mark memory used by the TUNC
+ * Mark memory used by the TextBoxUndoColor
  *
  * Parameters:
  * 	None.
@@ -3636,16 +3637,16 @@ bool TUNC::FUndo(PDOCB pdocb)
  *  None.
  *
  ****************************************************/
-void TUNC::MarkMem(void)
+void TextBoxUndoColor::MarkMem(void)
 {
     AssertThis(0);
-    TUNC_PAR::MarkMem();
+    TextBoxUndoColor_PAR::MarkMem();
 }
 
 /***************************************************************************
-    Assert the validity of the TUNC.
+    Assert the validity of the TextBoxUndoColor.
 ***************************************************************************/
-void TUNC::AssertValid(ulong grf)
+void TextBoxUndoColor::AssertValid(ulong grf)
 {
     AssertBaseThis(0);
 }
@@ -3655,7 +3656,7 @@ void TUNC::AssertValid(ulong grf)
 //
 //
 //
-// BEGIN TCLP
+// BEGIN TextBoxClipboard
 //
 //
 //
@@ -3666,7 +3667,7 @@ void TUNC::AssertValid(ulong grf)
  * Destructor for text box clipboard documents
  *
  **************************************************************************/
-TCLP::~TCLP(void)
+TextBoxClipboard::~TextBoxClipboard(void)
 {
     ReleasePpo(&_ptbox);
 }
@@ -3682,13 +3683,13 @@ TCLP::~TCLP(void)
  *  Pointer to a clipboard document, or pvNil if failure.
  *
  **************************************************************************/
-PTCLP TCLP::PtclpNew(PTBOX ptbox)
+PTextBoxClipboard TextBoxClipboard::PtclpNew(PTBOX ptbox)
 {
     AssertPo(ptbox, 0);
 
-    PTCLP ptclp;
+    PTextBoxClipboard ptclp;
 
-    ptclp = NewObj TCLP();
+    ptclp = NewObj TextBoxClipboard();
 
     if (ptclp == pvNil)
     {
@@ -3711,7 +3712,7 @@ PTCLP TCLP::PtclpNew(PTBOX ptbox)
  *  fTrue if successful, else fFalse.
  *
  **************************************************************************/
-bool TCLP::FPaste(PSCEN pscen)
+bool TextBoxClipboard::FPaste(PScene pscen)
 {
     AssertThis(0);
     AssertPo(pscen, 0);
@@ -3754,7 +3755,7 @@ bool TCLP::FPaste(PSCEN pscen)
 #ifdef DEBUG
 
 /****************************************************
- * Mark memory used by the TCLP
+ * Mark memory used by the TextBoxClipboard
  *
  * Parameters:
  * 	None.
@@ -3763,16 +3764,16 @@ bool TCLP::FPaste(PSCEN pscen)
  *  None.
  *
  ****************************************************/
-void TCLP::MarkMem(void)
+void TextBoxClipboard::MarkMem(void)
 {
     AssertThis(0);
-    TCLP_PAR::MarkMem();
+    TextBoxClipboard_PAR::MarkMem();
     MarkMemObj(_ptbox);
 }
 
 /***************************************************************************
  *
- * Assert the validity of the TCLP.
+ * Assert the validity of the TextBoxClipboard.
  *
  * Parameters:
  *	grf - Bit field of options
@@ -3781,9 +3782,9 @@ void TCLP::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void TCLP::AssertValid(ulong grf)
+void TextBoxClipboard::AssertValid(ulong grf)
 {
-    TCLP_PAR::AssertValid(fobjAllocated);
+    TextBoxClipboard_PAR::AssertValid(fobjAllocated);
     AssertPo(_ptbox, 0);
 }
 

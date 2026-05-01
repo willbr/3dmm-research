@@ -45,15 +45,15 @@ GOBCHUNK("Sequence Parent", kidSequenceParent, kgokkRectHit)
 	ACTION(fcustNil, fcustNil, fgrfstAll, kcrsArrow, chidNil, cidNil, cnoNil)
 ENDCHUNK
 	// grey out bkgrd in state one, also inits vars
-	REP_FILL(CHID(kst1, krepDefault), "kidSequenceParent", 0, 0, 0, 0, Transparent, Transparent)
+	REP_FILL(ChildChunkID(kst1, krepDefault), "kidSequenceParent", 0, 0, 0, 0, Transparent, Transparent)
 		PATTERN_0
 	ENDCHUNK
 	// background is transparent in state two, tiny object
-	REP_FILL(CHID(kst2, krepDefault), "kidSequenceParent", 0, 0, 0, 0, Transparent, Transparent)
+	REP_FILL(ChildChunkID(kst2, krepDefault), "kidSequenceParent", 0, 0, 0, 0, Transparent, Transparent)
 		PATTERN_0
 	ENDCHUNK
 	// grey out bkgrd in state three
-	REP_FILL(CHID(kst3, krepDefault), "kidSequenceParent", 0, 0, 640, 480, Palette( 73 ), Transparent)
+	REP_FILL(ChildChunkID(kst3, krepDefault), "kidSequenceParent", 0, 0, 640, 480, Palette( 73 ), Transparent)
 		PATTERN_50X
 	ENDCHUNK
 	CREATE_ANIM("Sequence parent created")
@@ -390,7 +390,7 @@ ENDCHUNK
 					.currLine++;
 					Return(.tbReturn);
 				_OpenDoorCovers@								
-					RunScriptGob(.tbID2, CHID(kstClosed, kchidClick)); 
+					RunScriptGob(.tbID2, ChildChunkID(kstClosed, kchidClick)); 
 					.currLine++;
 					Goto(ParseLoop$);
 				_SetSceneAndFrame@
@@ -399,7 +399,7 @@ ENDCHUNK
 					.currLine++;
 					Return(.tbReturn);
 				_SimulateClick@								
-					RunScriptGob(.tbID2, CHID(kstDefault, kchidClick)); 
+					RunScriptGob(.tbID2, ChildChunkID(kstDefault, kchidClick)); 
 					.currLine++;
 					Goto(ParseLoop$);
 			   	_SetBrowserItem@
@@ -564,6 +564,6 @@ ENDCHUNK
 ///////////////////////////////////////////////////////////////
 // The alarm went off
 ///////////////////////////////////////////////////////////////
-	CHILD_SCRIPT("Alarm went off", CHID(kst2, kchidAlarm))
+	CHILD_SCRIPT("Alarm went off", ChildChunkID(kst2, kchidAlarm))
 		EnqueueCid(cidHelpAlarmOff, kidSequenceParent, 0, 0, 0, 0);
 	ENDCHUNK

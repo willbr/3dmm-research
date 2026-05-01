@@ -18,7 +18,7 @@
 
 ASSERTNAME
 
-WIG vwig;
+WindowsAppGlobals vwig;
 
 /***************************************************************************
     WinMain for any frame work app. Sets up vwig and calls FrameMain.
@@ -31,7 +31,7 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR pszs, int wShow)
     vwig.wShow = wShow;
     vwig.lwThreadMain = LwThreadCur();
 #ifdef DEBUG
-    APPB::CreateConsole();
+    ApplicationBase::CreateConsole();
 #endif
     FrameMain();
     return 0;
@@ -40,7 +40,7 @@ int WINAPI WinMain(HINSTANCE hinst, HINSTANCE hinstPrev, LPSTR pszs, int wShow)
 /*
  * Create debug console window and wire up std streams
  */
-void APPB::CreateConsole()
+void ApplicationBase::CreateConsole()
 {
     if (!AllocConsole())
     {
@@ -60,7 +60,7 @@ void APPB::CreateConsole()
 /***************************************************************************
     Shutdown immediately.
 ***************************************************************************/
-void APPB::Abort(void)
+void ApplicationBase::Abort(void)
 {
     _ShutDownViewer();
     FatalAppExit(0, PszLit("Fatal Error Termination"));
@@ -69,11 +69,11 @@ void APPB::Abort(void)
 /***************************************************************************
     Do OS specific initialization.
 ***************************************************************************/
-bool APPB::_FInitOS(void)
+bool ApplicationBase::_FInitOS(void)
 {
     AssertThis(0);
-    STN stnApp;
-    PSZ pszAppWndCls = PszLit("APP");
+    String stnApp;
+    PZString pszAppWndCls = PszLit("Application");
 
     // get the app name
     GetStnAppName(&stnApp);
@@ -124,7 +124,7 @@ bool APPB::_FInitOS(void)
     Get the next event from the OS event queue. Return true iff it's a
     real event (not just an idle type event).
 ***************************************************************************/
-bool APPB::_FGetNextEvt(PEVT pevt)
+bool ApplicationBase::_FGetNextEvt(PEVT pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -147,19 +147,19 @@ bool APPB::_FGetNextEvt(PEVT pevt)
 }
 
 /***************************************************************************
-    The given GOB is tracking the mouse. See if there are any relevant
+    The given GraphicsObject is tracking the mouse. See if there are any relevant
     mouse events in the system event queue. Fill in *ppt with the location
     of the mouse relative to pgob. Also ensure that GrfcustCur() will
     return the correct mouse state.
 ***************************************************************************/
-void APPB::TrackMouse(PGOB pgob, PT *ppt)
+void ApplicationBase::TrackMouse(PGraphicsObject pgob, PT *ppt)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
     AssertVarMem(ppt);
 
     EVT evt;
-    PTS pts;
+    SystemPoint pts;
 
     for (;;)
     {
@@ -191,12 +191,12 @@ void APPB::TrackMouse(PGOB pgob, PT *ppt)
 /***************************************************************************
     Dispatch an OS level event to someone that knows what to do with it.
 ***************************************************************************/
-void APPB::_DispatchEvt(PEVT pevt)
+void ApplicationBase::_DispatchEvt(PEVT pevt)
 {
     AssertThis(0);
     AssertVarMem(pevt);
 
-    CMD cmd;
+    Command cmd;
 
     if (hNil != vwig.hwndClient && TranslateMDISysAccel(vwig.hwndClient, pevt) ||
         hNil != vwig.haccel && TranslateAccelerator(vwig.hwndApp, vwig.haccel, pevt))
@@ -229,10 +229,10 @@ void APPB::_DispatchEvt(PEVT pevt)
 }
 
 /***************************************************************************
-    Translate an OS level key down event to a CMD. This returns false if
+    Translate an OS level key down event to a Command. This returns false if
     the key maps to a menu item.
 ***************************************************************************/
-bool APPB::_FTranslateKeyEvt(PEVT pevt, PCMD_KEY pcmd)
+bool ApplicationBase::_FTranslateKeyEvt(PEVT pevt, PCMD_KEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pevt);
@@ -271,7 +271,7 @@ bool APPB::_FTranslateKeyEvt(PEVT pevt, PCMD_KEY pcmd)
     Look at the next system event and if it's a key, fill in the *pcmd with
     the relevant info.
 ***************************************************************************/
-bool APPB::FGetNextKeyFromOsQueue(PCMD_KEY pcmd)
+bool ApplicationBase::FGetNextKeyFromOsQueue(PCMD_KEY pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
@@ -315,7 +315,7 @@ LFail:
 /***************************************************************************
     Flush user generated events from the system event queue.
 ***************************************************************************/
-void APPB::FlushUserEvents(ulong grfevt)
+void ApplicationBase::FlushUserEvents(ulong grfevt)
 {
     AssertThis(0);
     EVT evt;
@@ -329,7 +329,7 @@ void APPB::FlushUserEvents(ulong grfevt)
 /***************************************************************************
     Get our app window out of the clipboard viewer chain.
 ***************************************************************************/
-void APPB::_ShutDownViewer(void)
+void ApplicationBase::_ShutDownViewer(void)
 {
     if (vwig.hwndApp != hNil)
         ChangeClipboardChain(vwig.hwndApp, vwig.hwndNextViewer);
@@ -339,7 +339,7 @@ void APPB::_ShutDownViewer(void)
 /***************************************************************************
     Main window procedure (a static method).
 ***************************************************************************/
-LRESULT CALLBACK APPB::_LuWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
+LRESULT CALLBACK ApplicationBase::_LuWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
 {
     AssertNilOrPo(vpappb, 0);
     long lwRet;
@@ -356,12 +356,12 @@ LRESULT CALLBACK APPB::_LuWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
     Handle Windows messages for the main app window. Return true iff the
     default window proc should _NOT_ be called.
 ***************************************************************************/
-bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     RC rc;
     PT pt;
     long xp, yp;
@@ -425,7 +425,7 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
             return fTrue;
         // fall thru
     case WM_QUERYNEWPALETTE:
-        *plwRet = GPT::CclrSetPalette(hwnd, fTrue) > 0;
+        *plwRet = GraphicsPort::CclrSetPalette(hwnd, fTrue) > 0;
         return fTrue;
 
     case WM_GETMINMAXINFO:
@@ -485,13 +485,13 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
 
     // these are for automated testing support...
     case WM_GOB_STATE:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)))
             *plwRet = pgob->LwState();
         return fTrue;
 
     case WM_GOB_LOCATION:
         *plwRet = -1;
-        if (pvNil == (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil == (pgob = GraphicsObject::PgobFromHidScr(lw)))
             return fTrue;
 
         pgob->GetRcVis(&rc, cooLocal);
@@ -505,11 +505,11 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
             {
                 for (xp = rc.xpLeft + (lwT >> 4); xp < rc.xpRight; xp += 16)
                 {
-                    if (pgob->FPtIn(xp, yp) && pgob == GOB::PgobFromPtGlobal(xp + pt.xp, yp + pt.yp))
+                    if (pgob->FPtIn(xp, yp) && pgob == GraphicsObject::PgobFromPtGlobal(xp + pt.xp, yp + pt.yp))
                     {
                         pt.xp += xp;
                         pt.yp += yp;
-                        GOB::PgobScreen()->MapPt(&pt, cooGlobal, cooLocal);
+                        GraphicsObject::PgobScreen()->MapPt(&pt, cooGlobal, cooLocal);
                         *plwRet = LwHighLow((short)pt.xp, (short)pt.yp);
                         return fTrue;
                     }
@@ -542,39 +542,39 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
     case WM_GOB_FROM_PT:
         pt.xp = wParam;
         pt.yp = lw;
-        GOB::PgobScreen()->MapPt(&pt, cooLocal, cooGlobal);
-        if (pvNil != (pgob = GOB::PgobFromPtGlobal(pt.xp, pt.yp)))
+        GraphicsObject::PgobScreen()->MapPt(&pt, cooLocal, cooGlobal);
+        if (pvNil != (pgob = GraphicsObject::PgobFromPtGlobal(pt.xp, pt.yp)))
             *plwRet = pgob->Hid();
         return fTrue;
 
     case WM_FIRST_CHILD:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobFirstChild()))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobFirstChild()))
         {
             *plwRet = pgob->Hid();
         }
         return fTrue;
 
     case WM_NEXT_SIB:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobNextSib()))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobNextSib()))
         {
             *plwRet = pgob->Hid();
         }
         return fTrue;
 
     case WM_PARENT:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobPar()))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)) && pvNil != (pgob = pgob->PgobPar()))
         {
             *plwRet = pgob->Hid();
         }
         return fTrue;
 
     case WM_GOB_TYPE:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)))
             *plwRet = pgob->Cls();
         return fTrue;
 
     case WM_IS_GOB:
-        if (pvNil != (pgob = GOB::PgobFromHidScr(lw)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHidScr(lw)))
             *plwRet = pgob->FIs(wParam);
         return fTrue;
     }
@@ -585,7 +585,7 @@ bool APPB::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *pl
 /***************************************************************************
     MDI window proc (a static method).
 ***************************************************************************/
-LRESULT CALLBACK APPB::_LuMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
+LRESULT CALLBACK ApplicationBase::_LuMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
 {
     AssertNilOrPo(vpappb, 0);
     long lwRet;
@@ -602,12 +602,12 @@ LRESULT CALLBACK APPB::_LuMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
     Handle MDI window messages. Returns true iff the default window proc
     should _NOT_ be called.
 ***************************************************************************/
-bool APPB::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool ApplicationBase::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     long lwT;
 
     *plwRet = 0;
@@ -622,12 +622,12 @@ bool APPB::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwR
         return fTrue;
 
     case WM_CLOSE:
-        if ((pgob = GOB::PgobFromHwnd(hwnd)) != pvNil)
+        if ((pgob = GraphicsObject::PgobFromHwnd(hwnd)) != pvNil)
             vpcex->EnqueueCid(cidCloseWnd, pgob);
         return fTrue;
 
     case WM_MDIACTIVATE:
-        GOB::ActivateHwnd(hwnd, GET_WM_MDIACTIVATE_FACTIVATE(hwnd, wParam, lw));
+        GraphicsObject::ActivateHwnd(hwnd, GET_WM_MDIACTIVATE_FACTIVATE(hwnd, wParam, lw));
         break;
     }
 
@@ -638,14 +638,14 @@ bool APPB::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwR
     Common stuff between the two window procs. Returns true if the default
     window proc should _NOT_ be called.
 ***************************************************************************/
-bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
 
-    PGOB pgob;
+    PGraphicsObject pgob;
     PT pt;
-    PSCB pscb;
+    PScrollBar pscb;
     RC rc;
     HDC hdc;
     PAINTSTRUCT ps;
@@ -661,7 +661,7 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
         // make sure the palette is selected and realized....
         // theoretically, we shouldn't have to do this, but because
         // of past and present Win bugs, we do it to be safe.
-        GPT::CclrSetPalette(hwnd, fFalse);
+        GraphicsPort::CclrSetPalette(hwnd, fFalse);
 
         // invalidate stuff that we have marked internally (may as well
         // draw everything that needs drawn).
@@ -706,7 +706,7 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
         break;
 
     case WM_GETMINMAXINFO:
-        if (pvNil != (pgob = GOB::PgobFromHwnd(hwnd)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
         {
             MINMAXINFO *pmmi = (MINMAXINFO far *)lw;
 
@@ -719,14 +719,14 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
         return fTrue;
 
     case WM_SIZE:
-        if (pvNil != (pgob = GOB::PgobFromHwnd(hwnd)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(hwnd)))
             pgob->SetRcFromHwnd();
         break;
 
     case WM_LBUTTONDOWN:
     case WM_LBUTTONDBLCLK:
         ResetToolTip();
-        if (pvNil != (pgob = GOB::PgobFromHwnd(hwnd)) && pvNil != (pgob = pgob->PgobFromPt(SwLow(lw), SwHigh(lw), &pt)))
+        if (pvNil != (pgob = GraphicsObject::PgobFromHwnd(hwnd)) && pvNil != (pgob = pgob->PgobFromPt(SwLow(lw), SwHigh(lw), &pt)))
         {
             long ts;
 
@@ -772,8 +772,8 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
 
     case WM_HSCROLL:
     case WM_VSCROLL:
-        pscb = (PSCB)CTL::PctlFromHctl(GET_WM_HSCROLL_HWND(wParam, lw));
-        if (pvNil != pscb && pscb->FIs(kclsSCB))
+        pscb = (PScrollBar)Control::PctlFromHctl(GET_WM_HSCROLL_HWND(wParam, lw));
+        if (pvNil != pscb && pscb->FIs(kclsScrollBar))
         {
             pscb->TrackScroll(GET_WM_HSCROLL_CODE(wParam, lw), GET_WM_HSCROLL_POS(wParam, lw));
         }
@@ -791,14 +791,14 @@ bool APPB::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *p
 /***************************************************************************
     Debug initialization.
 ***************************************************************************/
-bool APPB::_FInitDebug(void)
+bool ApplicationBase::_FInitDebug(void)
 {
     AssertThis(0);
     return fTrue;
 }
 
 // passes the strings to the assert dialog proc
-STN *_rgpstn[3];
+String *_rgpstn[3];
 
 /***************************************************************************
     Dialog proc for assert.
@@ -830,17 +830,17 @@ BOOL CALLBACK _FDlgAssert(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
     return fFalse;
 }
 
-MUTX _mutxAssert;
+Mutex _mutxAssert;
 
 /***************************************************************************
     The assert proc. Returning true breaks into the debugger.
 ***************************************************************************/
-bool APPB::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, long cb)
+bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, long cb)
 {
     const long kclwChain = 10;
-    STN stn0, stn1, stn2;
+    String stn0, stn1, stn2;
     int tmc;
-    PSZ psz;
+    PZString psz;
     long cact;
     long *plw;
     long ilw;
@@ -899,7 +899,7 @@ bool APPB::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, lo
             long cbT = cb;
             long ilw;
             long lw;
-            STN stnT;
+            String stnT;
 
             stn2.SetNil();
             for (ilw = 0; ilw < 20 && cb >= 4; cb -= 4, pb += 4, ++ilw)
@@ -999,7 +999,7 @@ bool APPB::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, void *pv, lo
     Put an alert up. Return which button was hit. Returns tYes for yes
     or ok; tNo for no; tMaybe for cancel.
 ***************************************************************************/
-tribool APPB::TGiveAlertSz(PSZ psz, long bk, long cok)
+tribool ApplicationBase::TGiveAlertSz(PZString psz, long bk, long cok)
 {
     AssertThis(0);
     AssertSz(psz);

@@ -7,7 +7,7 @@
 
         The Studio
 
-                STDIO 	--->   	GOB
+                Studio 	--->   	GraphicsObject
 
 ***************************************************************************/
 
@@ -35,97 +35,98 @@
 #include "helpbook.h"
 #include "helptops.h"
 
-typedef class SMCC *PSMCC;
+typedef class StudioClientCallbacks *PSMCC;
 
 const long kcmhlStudio = 0x10000; // nice medium level for the Studio
 
-extern APP vapp;
+extern Application vapp;
 
 //
 // Studio class
 //
-#define STDIO_PAR GOB
-#define kclsSTDIO 'stio'
-class STDIO : public STDIO_PAR
+#define Studio_PAR GraphicsObject
+#define kclsStudio 'stio'
+class Studio : public Studio_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(STDIO)
+    CMD_MAP_DEC(Studio)
 
   protected:
-    PCRM _pcrm;
-    PGST _pgstMisc;
-    PMVIE _pmvie;
+    PChunkyResourceManager _pcrm;
+    PStringTable_GST _pgstMisc;
+    PMovie _pmvie;
     PSMCC _psmcc;
-    PGL _pglpbrcn;
+    PDynamicArray _pglpbrcn;
     long _aridSelected;
-    PBRWR _pbrwrActr;
-    PBRWR _pbrwrProp;
-    PGL _pglcmg;        // Cno map tmpl->gokd for rollcall
-    PGL _pglclr;        // Color table for common palette
+    PBrowserRollCall _pbrwrActr;
+    PBrowserRollCall _pbrwrProp;
+    PDynamicArray _pglcmg;        // Cno map tmpl->gokd for rollcall
+    PDynamicArray _pglclr;        // Color table for common palette
     bool _fDisplayCast; // Display movie's cast
 
-    CMD _cmd;
+    Command _cmd;
     long _dtimToolTipDelay;
     bool _fStopUISound;
-    PTGOB _ptgobTitle;
+    PTextGraphicsObject _ptgobTitle;
     bool _fStartedSoonerLater;
 
-    STDIO(PGCB pgcb) : GOB(pgcb){};
+    Studio(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb){};
     bool _FOpenStudio(bool fPaletteFade);
     void _SetToolStates(void);
-    bool _FBuildMenuCidCtg(long cid, CTG ctg, PGL pgl, ulong grfHotKey, ulong grfNum, bool fNew);
-    PBRCN _PbrcnFromBrwdid(long brwdid);
+    bool _FBuildMenuCidCtg(long cid, ChunkTagOrType ctg, PDynamicArray pgl, ulong grfHotKey, ulong grfNum, bool fNew);
+    PBrowserContext _PbrcnFromBrwdid(long brwdid);
 #ifdef BUG1959
-    bool _FLoadMovie(PFNI pfni, CNO cno, bool *pfClosedOld);
+    bool _FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld);
 #endif // BUG1959
 
   public:
     //
     // Create and destroy functions
     //
-    static PSTDIO PstdioNew(long hid, PCRM pcrmStudio, PFNI pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
+    static PStudio PstdioNew(long hid, PChunkyResourceManager pcrmStudio, PFilename pfniUserDoc = pvNil, bool fFailIfDocOpenFailed = fTrue);
     void ReleaseBrcn(void);
-    ~STDIO(void);
+    ~Studio(void);
 
     //
     // Command functions for getting from scripts to here.
     //
-    bool FCmdXYAxis(PCMD pcmd);
-    bool FCmdXZAxis(PCMD pcmd);
-    bool FCmdRecordPath(PCMD pcmd);
-    bool FCmdRerecordPath(PCMD pcmd);
-    bool FCmdSetTool(PCMD pcmd);
-    bool FCmdPlay(PCMD pcmd);
-    bool FCmdNewScene(PCMD pcmd);
-    bool FCmdRespectGround(PCMD pcmd);
-    bool FCmdPause(PCMD pcmd);
-    bool FCmdOpen(PCMD pcmb);
-    bool FCmdBrowserReady(PCMD pcmd);
-    bool FCmdScroll(PCMD pcmd);
-    bool FCmdSooner(PCMD pcmd);
-    bool FCmdLater(PCMD pcmd);
-    bool FCmdNewSpletter(PCMD pcmd);
-    bool FCmdCreatePopup(PCMD pcmd);
-    bool FCmdTextSetColor(PCMD pcmd);
-    bool FCmdTextSetBkgdColor(PCMD pcmd);
-    bool FCmdTextSetFont(PCMD pcmd);
-    bool FCmdTextSetStyle(PCMD pcmd);
-    bool FCmdTextSetSize(PCMD pcmd);
-    bool FCmdOpenSoundRecord(PCMD pcmd);
+    bool FCmdXYAxis(PCommand pcmd);
+    bool FCmdXZAxis(PCommand pcmd);
+    bool FCmdRecordPath(PCommand pcmd);
+    bool FCmdRerecordPath(PCommand pcmd);
+    bool FCmdSetTool(PCommand pcmd);
+    bool FCmdPlay(PCommand pcmd);
+    bool FCmdNewScene(PCommand pcmd);
+    bool FCmdRespectGround(PCommand pcmd);
+    bool FCmdPause(PCommand pcmd);
+    bool FCmdOpen(PCommand pcmb);
+    bool FCmdBrowserReady(PCommand pcmd);
+    bool FCmdScroll(PCommand pcmd);
+    bool FCmdSooner(PCommand pcmd);
+    bool FCmdLater(PCommand pcmd);
+    bool FCmdNewSpletter(PCommand pcmd);
+    bool FCmdCreatePopup(PCommand pcmd);
+    bool FCmdTextSetColor(PCommand pcmd);
+    bool FCmdTextSetBkgdColor(PCommand pcmd);
+    bool FCmdTextSetFont(PCommand pcmd);
+    bool FCmdTextSetStyle(PCommand pcmd);
+    bool FCmdTextSetSize(PCommand pcmd);
+    bool FCmdOpenSoundRecord(PCommand pcmd);
     bool FBuildActorMenu(void);
-    bool FCmdToggleXY(PCMD pcmd);
-    bool FCmdHelpBook(PCMD pcmd);
-    bool FCmdMovieGoto(PCMD pcmd);
-    bool FCmdLoadProjectMovie(PCMD pcmd);
-    bool FCmdSoundsEnabled(PCMD pcmd);
-    bool FCmdCreateTbox(PCMD pcmd);
-    bool FCmdActorEaselOpen(PCMD pcmd);
-    bool FCmdListenerEaselOpen(PCMD pcmd);
+    bool FCmdToggleXY(PCommand pcmd);
+    bool FCmdHelpBook(PCommand pcmd);
+    bool FCmdMovieGoto(PCommand pcmd);
+    bool FCmdLoadProjectMovie(PCommand pcmd);
+    bool FCmdSoundsEnabled(PCommand pcmd);
+    bool FCmdCreateTbox(PCommand pcmd);
+    bool FCmdActorEaselOpen(PCommand pcmd);
+    bool FCmdListenerEaselOpen(PCommand pcmd);
 
 #ifdef DEBUG
-    bool FCmdWriteBmps(PCMD pcmd);
+    bool FCmdWriteBmps(PCommand pcmd);
+    bool FCmdWriteBmpHires(PCommand pcmd);
 #endif // DEBUG
 
     //
@@ -143,7 +144,7 @@ class STDIO : public STDIO_PAR
     void SetCurs(long tool);
     void ActorEasel(bool *pfActrChanged);
     void SceneChange(void);
-    void PauseType(WIT wit);
+    void PauseType(WaitReason wit);
     void Recording(bool fRecording, bool fRecord);
     void StartSoonerLater(void);
     void EndSoonerLater(void);
@@ -152,9 +153,9 @@ class STDIO : public STDIO_PAR
     void StartListenerEasel(void);
     void PlayUISound(long tool, long grfcust);
     void StopUISound(void);
-    void UpdateTitle(PSTN pstnTitle);
+    void UpdateTitle(PString pstnTitle);
 
-    bool FEdit3DText(PSTN pstn, long *ptdts);
+    bool FEdit3DText(PString pstn, long *ptdts);
     void SetAridSelected(long arid)
     {
         _aridSelected = arid;
@@ -163,16 +164,16 @@ class STDIO : public STDIO_PAR
     {
         return _aridSelected;
     }
-    PBRWR PbrwrActr(void)
+    PBrowserRollCall PbrwrActr(void)
     {
         return _pbrwrActr;
     }
-    PBRWR PbrwrProp(void)
+    PBrowserRollCall PbrwrProp(void)
     {
         return _pbrwrProp;
     }
-    bool FAddCmg(CNO cnoTmpl, CNO cnoGokd);
-    CNO CnoGokdFromCnoTmpl(CNO cnoTmpl);
+    bool FAddCmg(ChunkNumber cnoTmpl, ChunkNumber cnoGokd);
+    ChunkNumber CnoGokdFromCnoTmpl(ChunkNumber cnoTmpl);
     void SetDisplayCast(bool fDisplayCast)
     {
         _fDisplayCast = fDisplayCast;
@@ -185,18 +186,18 @@ class STDIO : public STDIO_PAR
     static void ResumeActionButton(void);
 
     // Misc Studio strings
-    void GetStnMisc(long ids, PSTN pstn);
+    void GetStnMisc(long ids, PString pstn);
 
     //
     // Movie changing
     //
-    bool FLoadMovie(PFNI pfni = pvNil, CNO cno = cnoNil);
-    bool FSetMovie(PMVIE pmvie);
-    PMVIE Pmvie()
+    bool FLoadMovie(PFilename pfni = pvNil, ChunkNumber cno = cnoNil);
+    bool FSetMovie(PMovie pmvie);
+    PMovie Pmvie()
     {
         return _pmvie;
     };
-    bool FGetFniMovieOpen(PFNI pfni)
+    bool FGetFniMovieOpen(PFilename pfni)
     {
         return FPortDisplayWithIds(pfni, fTrue, idsPortfMovieFilterLabel, idsPortfMovieFilterExt,
                                    idsPortfOpenMovieTitle, pvNil, pvNil, pvNil, fpfPortPrevMovie, kwavPortOpenMovie);
@@ -207,25 +208,25 @@ class STDIO : public STDIO_PAR
     }
 };
 
-#define SMCC_PAR MCC
-#define kclsSMCC 'SMCC'
-class SMCC : public SMCC_PAR
+#define StudioClientCallbacks_PAR MovieClientCallbacks
+#define kclsStudioClientCallbacks 'SMCC'
+class StudioClientCallbacks : public StudioClientCallbacks_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   private:
-    PSSCB _psscb;
-    PSTDIO _pstdio;
+    PStudioScrollbars _psscb;
+    PStudio _pstdio;
     long _dypTextTbox;
 
   public:
-    ~SMCC(void)
+    ~StudioClientCallbacks(void)
     {
         ReleasePpo(&_psscb);
     }
-    SMCC(long dxp, long dyp, long cbCache, PSSCB psscb, PSTDIO pstdio);
+    StudioClientCallbacks(long dxp, long dyp, long cbCache, PStudioScrollbars psscb, PStudio pstdio);
 
     virtual long Dxp(void)
     {
@@ -239,7 +240,7 @@ class SMCC : public SMCC_PAR
     {
         return _cbCache;
     }
-    virtual PSSCB Psscb(void)
+    virtual PStudioScrollbars Psscb(void)
     {
         return _psscb;
     }
@@ -261,7 +262,7 @@ class SMCC : public SMCC_PAR
         if (pvNil != _psscb)
             _psscb->Update();
     }
-    virtual void SetSscb(PSSCB psscb)
+    virtual void SetSscb(PStudioScrollbars psscb)
     {
         AssertNilOrPo(psscb, 0);
         ReleasePpo(&_psscb);
@@ -314,7 +315,7 @@ class SMCC : public SMCC_PAR
     {
         _pstdio->SceneChange();
     }
-    virtual void PauseType(WIT wit)
+    virtual void PauseType(WaitReason wit)
     {
         _pstdio->PauseType(wit);
     }
@@ -342,8 +343,8 @@ class SMCC : public SMCC_PAR
     {
         _pstdio->StartListenerEasel();
     }
-    virtual bool GetFniSave(FNI *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
-                            PSTN pstnDefFileName)
+    virtual bool GetFniSave(Filename *pfni, long lFilterLabel, long lFilterExt, long lTitle, LPTSTR lpstrDefExt,
+                            PString pstnDefFileName)
     {
         return (FPortDisplayWithIds(pfni, fFalse, lFilterLabel, lFilterExt, lTitle, lpstrDefExt, pstnDefFileName, pvNil,
                                     fpfPortPrevMovie, kwavPortSaveMovie));
@@ -356,7 +357,7 @@ class SMCC : public SMCC_PAR
     {
         _pstdio->StopUISound();
     }
-    virtual void UpdateTitle(PSTN pstnTitle)
+    virtual void UpdateTitle(PString pstnTitle)
     {
         _pstdio->UpdateTitle(pstnTitle);
     }
@@ -368,7 +369,7 @@ class SMCC : public SMCC_PAR
     {
         vpapp->DisableAccel();
     }
-    virtual void GetStn(long ids, PSTN pstn)
+    virtual void GetStn(long ids, PString pstn)
     {
         vpapp->FGetStnApp(ids, pstn);
     }

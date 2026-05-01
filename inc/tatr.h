@@ -8,13 +8,13 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> CMH ---> TATR
+    BASE ---> BaseCacheableObject ---> CommandHandler ---> Theater
 
 ***************************************************************************/
 #ifndef TATR_H
 #define TATR_H
 
-#ifdef DEBUG // Flags for TATR::AssertValid()
+#ifdef DEBUG // Flags for Theater::AssertValid()
 enum
 {
     ftatrNil = 0x0000,
@@ -25,36 +25,36 @@ enum
 /****************************************
     The theater class
 ****************************************/
-typedef class TATR *PTATR;
-#define TATR_PAR CMH
-#define kclsTATR 'TATR'
-class TATR : public TATR_PAR
+typedef class Theater *PTheater;
+#define Theater_PAR CommandHandler
+#define kclsTheater 'TATR'
+class Theater : public Theater_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(TATR)
+    CMD_MAP_DEC(Theater)
 
   protected:
-    long _kidParent; // ID of gob parent of MVU
-    PMVIE _pmvie;    // Currently loaded movie
+    long _kidParent; // ID of gob parent of MovieView
+    PMovie _pmvie;    // Currently loaded movie
 
   protected:
-    TATR(long hid) : CMH(hid)
+    Theater(long hid) : CommandHandler(hid)
     {
     }
     bool _FInit(long kidParent);
 
   public:
-    static PTATR PtatrNew(long kidParent);
-    ~TATR(void);
+    static PTheater PtatrNew(long kidParent);
+    ~Theater(void);
 
-    bool FCmdLoad(PCMD pcmd);
-    bool FCmdPlay(PCMD pcmd);
-    bool FCmdStop(PCMD pcmd);
-    bool FCmdRewind(PCMD pcmd);
+    bool FCmdLoad(PCommand pcmd);
+    bool FCmdPlay(PCommand pcmd);
+    bool FCmdStop(PCommand pcmd);
+    bool FCmdRewind(PCommand pcmd);
 
-    PMVIE Pmvie(void)
+    PMovie Pmvie(void)
     {
         return _pmvie;
     }

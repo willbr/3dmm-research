@@ -16,7 +16,7 @@ ASSERTNAME
 /***************************************************************************
     Constructor for a picture.
 ***************************************************************************/
-PIC::PIC(void)
+Picture::Picture(void)
 {
     _hpic = hNil;
     _rc.Zero();
@@ -25,7 +25,7 @@ PIC::PIC(void)
 /***************************************************************************
     Destructor for a picture.
 ***************************************************************************/
-PIC::~PIC(void)
+Picture::~Picture(void)
 {
     AssertBaseThis(0);
     if (hNil != _hpic)
@@ -36,11 +36,11 @@ PIC::~PIC(void)
     Read a picture from a chunky file.  This routine only reads or converts
     OS specific representations with the given chid value.
 ***************************************************************************/
-PPIC PIC::PpicFetch(PCFL pcfl, CTG ctg, CNO cno, CHID chid)
+PPicture Picture::PpicFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid)
 {
     AssertPo(pcfl, 0);
-    BLCK blck;
-    KID kid;
+    DataBlock blck;
+    ChildChunkIdentification kid;
 
     if (!pcfl->FFind(ctg, cno))
         return pvNil;
@@ -57,13 +57,13 @@ PPIC PIC::PpicFetch(PCFL pcfl, CTG ctg, CNO cno, CHID chid)
     Read a picture from a chunky file.  This routine only reads a system
     specific pict (Mac PICT or Windows MetaFile) and its header.
 ***************************************************************************/
-PPIC PIC::PpicRead(PBLCK pblck)
+PPicture Picture::PpicRead(PDataBlock pblck)
 {
     AssertPo(pblck, fblckReadable);
     HPIC hpic;
     HQ hq;
     PICH *ppich;
-    PPIC ppic;
+    PPicture ppic;
     RC rc;
     long cb;
 
@@ -88,7 +88,7 @@ PPIC PIC::PpicRead(PBLCK pblck)
     if (hNil == hpic)
         return pvNil;
 
-    if (pvNil == (ppic = NewObj PIC))
+    if (pvNil == (ppic = NewObj Picture))
     {
         DeleteEnhMetaFile(hpic);
         return pvNil;
@@ -103,16 +103,16 @@ PPIC PIC::PpicRead(PBLCK pblck)
 /***************************************************************************
     Return the total size on file.
 ***************************************************************************/
-long PIC::CbOnFile(void)
+long Picture::CbOnFile(void)
 {
     AssertThis(0);
     return GetEnhMetaFileBits(_hpic, 0, pvNil) + size(PICH);
 }
 
 /***************************************************************************
-    Write the meta file (and its header) to the given BLCK.
+    Write the meta file (and its header) to the given DataBlock.
 ***************************************************************************/
-bool PIC::FWrite(PBLCK pblck)
+bool Picture::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -136,14 +136,14 @@ bool PIC::FWrite(PBLCK pblck)
 /***************************************************************************
     Static method to read the file as a native picture (EMF or WMF file).
 ***************************************************************************/
-PPIC PIC::PpicReadNative(FNI *pfni)
+PPicture Picture::PpicReadNative(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     HPIC hpic;
-    PPIC ppic;
+    PPicture ppic;
     RC rc;
     ENHMETAHEADER emh;
-    STN stn;
+    String stn;
 
     switch (pfni->Ftg())
     {
@@ -163,7 +163,7 @@ PPIC PIC::PpicReadNative(FNI *pfni)
     if (hNil == hpic)
         return pvNil;
 
-    if (pvNil == (ppic = NewObj PIC))
+    if (pvNil == (ppic = NewObj Picture))
     {
         DeleteEnhMetaFile(hpic);
         return pvNil;
@@ -199,22 +199,22 @@ typedef struct _MEFH
 /***************************************************************************
     Static method to read an old style WMF file.
 ***************************************************************************/
-HPIC PIC::_HpicReadWmf(FNI *pfni)
+HPIC Picture::_HpicReadWmf(Filename *pfni)
 {
     MEFH mefh;
     METAHEADER mh;
     HPIC hpic;
     long lw;
     long cb;
-    PFIL pfil;
+    PFileObject pfil;
     void *pv;
     bool fT;
-    FP fp;
+    FilePosition fp;
 
     const long kcbMefh = 22;
     const long kcbMetaHeader = 18;
 
-    if (pvNil == (pfil = FIL::PfilOpen(pfni)))
+    if (pvNil == (pfil = FileObject::PfilOpen(pfni)))
         return hNil;
 
     // check for type of meta file

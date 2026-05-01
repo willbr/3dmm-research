@@ -1,7 +1,9 @@
 {
     "files.associations": {
+        "*.cht": "c",
         "W95INST.C": "cpp",
         "STDFILE.C": "cpp",
-        "STDMEM.C": "cpp"
+        "STDMEM.C": "cpp",
+        "*.chh": "cpp"
     }
 }

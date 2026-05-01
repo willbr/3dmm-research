@@ -217,7 +217,7 @@ REP_MBMPREG(CHID1(krepDefault), __szPath, __xpreg, __ypreg)
 		ACTION(fcustNil, fcustNil, fgrfstAll, kcrsHand, CHID1(krepDrop), cidNil, cnoNil) \
 	ENDCHUNK \
 	REP_MBMP(CHID1(krepDefault), __szPath) \
-	REP_MBMP(CHID(kst2, krepDefault), __szPathSnd) \
+	REP_MBMP(ChildChunkID(kst2, krepDefault), __szPathSnd) \
 	REP_ANIM(CHID1(krepMouseDnOn), "Pressed") \
 		xpSav = XThis(); \
 		ypSav = YThis(); \
@@ -278,15 +278,15 @@ REP_MBMPREG(CHID1(krepDefault), __szPath, __xpreg, __ypreg)
 			End; \
 		End; \
 	ENDCHUNK \
-	ADOPT_ANIM(LAST_ANIM, CHID(kst2, krepMouseDnOn)) \
+	ADOPT_ANIM(LAST_ANIM, ChildChunkID(kst2, krepMouseDnOn)) \
 	REP_ANIM(CHID1(krepClicked), "Released") \
 		If(.fSnap == 0); \
 			EnqueueCid(__cid, 0, chttThumb, .click, 1, 0); \
 		End; \
 	ENDCHUNK \
 	ADOPT_ANIM(LAST_ANIM, CHID1(krepDrop)) \
-	ADOPT_ANIM(LAST_ANIM, CHID(kst2, krepClicked)) \
-	ADOPT_ANIM(LAST_ANIM, CHID(kst2, krepDrop))
+	ADOPT_ANIM(LAST_ANIM, ChildChunkID(kst2, krepClicked)) \
+	ADOPT_ANIM(LAST_ANIM, ChildChunkID(kst2, krepDrop))
 
 
 /*****************************************************************************\
@@ -311,7 +311,7 @@ ENDCHUNK
 
 BUTTONONCEGOB("Frame Button FW End", kidFrameFWEnd, kxpFrameFWEnd, kypFrameFWEnd, kxpregFrameFWEnd, kypregFrameFWEnd,
               "studio\bmp\ffwe.bmp", "studio\bmp\ffwes.bmp", cidFrameScrollbar, chttButtonFWEnd, kttFForwardEnd)
-ADOPT_WAVE(kcnoGoLastFWav, CHID(kstDefault, krepClicked))
+ADOPT_WAVE(kcnoGoLastFWav, ChildChunkID(kstDefault, krepClicked))
 BUTTONHOLDGOB("Frame Button RW", kidFrameRW, kxpFrameRW, kypFrameRW, kxpregFrameRW, kypregFrameRW,
 			  "studio\bmp\frw.bmp", "studio\bmp\frws.bmp", cidFrameScrollbar, chttFButtonRW, kttRewind)
 REP_ANIM(CHID1(krepDragOff), "Pressed")
@@ -325,7 +325,7 @@ ENDCHUNK
 
 BUTTONONCEGOB("Frame Button RW End", kidFrameRWEnd, kxpFrameRWEnd, kypFrameRWEnd, kxpregFrameRWEnd, kypregFrameRWEnd,
 			  "studio\bmp\frwe.bmp", "studio\bmp\frwes.bmp", cidFrameScrollbar, chttButtonRWEnd, kttRewindEnd)
-ADOPT_WAVE(kcnoGoFrstFWav, CHID(kstDefault, krepClicked))
+ADOPT_WAVE(kcnoGoFrstFWav, ChildChunkID(kstDefault, krepClicked))
 
 SCROLLBARGOB("Frame Scrollbar", kidFrameScrollbar, kidFrameThumb, kxpFrameScrollbar, kypFrameScrollbar,
 	kypregFrameScrollbar, kypregFrameScrollbar, "studio\bmp\fscl.bmp", cidFrameScrollbar, kttFrameSlider)
@@ -349,12 +349,12 @@ BUTTONONCEGOB("Scene Button FW", kidSceneFW, kxpSceneFW, kypSceneFW, kxpregScene
 			  "studio\bmp\sfw.bmp", "studio\bmp\sfws.bmp", cidSceneScrollbar, chttSButtonFW, kttNextScene)
 BUTTONONCEGOB("Scene Button FW End", kidSceneFWEnd, kxpSceneFWEnd, kypSceneFWEnd, kxpregSceneFWEnd, kypregSceneFWEnd,
 		      "studio\bmp\sfwe.bmp", "studio\bmp\sfwes.bmp", cidSceneScrollbar, chttButtonFWEnd, kttLastScene)
-ADOPT_WAVE(kcnoGoLastSWav, CHID(kstDefault, krepClicked))
+ADOPT_WAVE(kcnoGoLastSWav, ChildChunkID(kstDefault, krepClicked))
 BUTTONONCEGOB("Scene Button RW", kidSceneRW, kxpSceneRW, kypSceneRW, kxpregSceneRW, kypregSceneRW,
 			  "studio\bmp\srw.bmp", "studio\bmp\srws.bmp", cidSceneScrollbar, chttSButtonRW, kttPrevScene)
 BUTTONONCEGOB("Scene Button RW End", kidSceneRWEnd, kxpSceneRWEnd, kypSceneRWEnd, kxpregSceneRWEnd, kypregSceneRWEnd,
 			  "studio\bmp\srwe.bmp", "studio\bmp\srwes.bmp", cidSceneScrollbar, chttButtonRWEnd, kttFirstScene)
-ADOPT_WAVE(kcnoGoFrstSWav, CHID(kstDefault, krepClicked))
+ADOPT_WAVE(kcnoGoFrstSWav, ChildChunkID(kstDefault, krepClicked))
 
 SCROLLBARGOB("Scene Scrollbar", kidSceneScrollbar, kidSceneThumb, kxpSceneScrollbar, kypSceneScrollbar,
 		kxpregSceneScrollbar, kypregSceneScrollbar, "studio\bmp\sscl.bmp", cidSceneScrollbar, kttSceneSlider)

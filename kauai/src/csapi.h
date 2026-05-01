@@ -191,7 +191,7 @@ typedef SC_PATH *LPSC_PATH;
 #define ksclidPolish 0x0415         /* "PL" Polish             */
 #define ksclidTurkish 0x041f        /* "TR" Turkish            */
 /* African languages */
-#define ksclidSutu 0x0430      /* "ST" Sutu               */
+#define ksclidSutu 0x0430      /* "PascalString" Sutu               */
 #define ksclidTsonga 0x0431    /* "TS" Tsonga             */
 #define ksclidTswana 0x0432    /* "TN" Tswana             */
 #define ksclidVenda 0x0433     /* "VE" Venda			   */

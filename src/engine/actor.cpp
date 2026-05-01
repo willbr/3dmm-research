@@ -103,7 +103,7 @@
     FComputeLifetime() guarantees these for all frames, but FComputeLifetime()
     can fail -> the code should not rely on future nfrm values.
 
-    The route is translated by _dxyzFullRte in class ACTR.
+    The route is translated by _dxyzFullRte in class Actor.
     Each subroute is additionally translated by _dxyzSubRte.
     _dxyzRte combines the overall actor translation for efficiency only.
 
@@ -113,14 +113,16 @@
 
 ASSERTNAME
 
-RTCLASS(ACTR)
+using namespace ActorEvent;
+
+RTCLASS(Actor)
 
 /***************************************************************************
 
-    Constructor for ACTR - private.
+    Constructor for Actor - private.
 
 ***************************************************************************/
-ACTR::ACTR(void)
+Actor::Actor(void)
 {
     _arid = aridNil;
     _tagTmpl.sid = ksidInvalid;
@@ -132,10 +134,10 @@ ACTR::ACTR(void)
 
 /***************************************************************************
 
-    Destructor for an ACTR
+    Destructor for an Actor
 
 ***************************************************************************/
-ACTR::~ACTR(void)
+Actor::~Actor(void)
 {
     AssertBaseThis(0);
 
@@ -153,18 +155,18 @@ ACTR::~ACTR(void)
     The actor will not yet be grounded to any initial scene frame.
 
 ***************************************************************************/
-bool ACTR::_FInit(TAG *ptagTmpl)
+bool Actor::_FInit(TAG *ptagTmpl)
 {
     AssertBaseThis(0);
     AssertVarMem(ptagTmpl);
 
-    _ptmpl = (PTMPL)vptagm->PbacoFetch(ptagTmpl, TMPL::FReadTmpl);
+    _ptmpl = (PTemplate)vptagm->PbacoFetch(ptagTmpl, Template::FReadTmpl);
     if (pvNil == _ptmpl)
         return fFalse;
 
     AssertPo(_ptmpl, 0);
     _tagTmpl = *ptagTmpl;
-    TAGM::DupTag(&_tagTmpl);
+    TagManager::DupTag(&_tagTmpl);
 
     if (!_FCreateGroups())
         return fFalse;
@@ -182,7 +184,7 @@ bool ACTR::_FInit(TAG *ptagTmpl)
     (Sets the absolute scale = 1, and use the rest orientation)
 
 ***************************************************************************/
-void ACTR::_InitXfrm(void)
+void Actor::_InitXfrm(void)
 {
     AssertThis(0);
 
@@ -204,7 +206,7 @@ void ACTR::_InitXfrm(void)
     user rotations can be with respect to the actor's coordinate system
 
 ***************************************************************************/
-void ACTR::_InitXfrmRot(BMAT34 *pbmat34)
+void Actor::_InitXfrmRot(BMAT34 *pbmat34)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -220,13 +222,13 @@ void ACTR::_InitXfrmRot(BMAT34 *pbmat34)
     grounded in time (_nfrmFirst) nor space (_dxyzFullRte).
 
 ***************************************************************************/
-PACTR ACTR::PactrNew(TAG *ptagTmpl)
+PActor Actor::PactrNew(TAG *ptagTmpl)
 {
     AssertVarMem(ptagTmpl);
 
-    PACTR pactr;
+    PActor pactr;
 
-    if ((pactr = NewObj ACTR()) == pvNil)
+    if ((pactr = NewObj Actor()) == pvNil)
         return pvNil;
 
     if (!pactr->_FInit(ptagTmpl))
@@ -243,18 +245,18 @@ PACTR ACTR::PactrNew(TAG *ptagTmpl)
     Create the groups _pggaev, _pglrpt and _pglsmm
 
 ***************************************************************************/
-bool ACTR::_FCreateGroups(void)
+bool Actor::_FCreateGroups(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pggaev = GG::PggNew(size(AEV), kcaevInit, kcbVarAdd)))
+    if (pvNil == (_pggaev = GeneralGroup::PggNew(size(Base), kcaevInit, kcbVarAdd)))
         return fFalse;
 
-    if (pvNil == (_pglrpt = GL::PglNew(size(RPT), kcrptGrow)))
+    if (pvNil == (_pglrpt = DynamicArray::PglNew(size(RouteDistancePoint), kcrptGrow)))
         return fFalse;
     _pglrpt->SetMinGrow(kcrptGrow);
 
-    if (pvNil == (_pglsmm = GL::PglNew(size(SMM), kcsmmGrow)))
+    if (pvNil == (_pglsmm = DynamicArray::PglNew(size(SoundMotionMatch), kcsmmGrow)))
         return fFalse;
     _pglsmm->SetMinGrow(kcsmmGrow);
 
@@ -266,7 +268,7 @@ bool ACTR::_FCreateGroups(void)
     Set the owning scene and the brender world for the body.
 
 ***************************************************************************/
-void ACTR::SetPscen(SCEN *pscen)
+void Actor::SetPscen(Scene *pscen)
 {
     AssertBaseThis(0);
 
@@ -294,7 +296,7 @@ void ACTR::SetPscen(SCEN *pscen)
     Hide the Actor and initialize the Actor State Variables
 
 ***************************************************************************/
-void ACTR::_InitState(void)
+void Actor::_InitState(void)
 {
     AssertBaseThis(0);
 
@@ -310,7 +312,7 @@ void ACTR::_InitState(void)
     Set the actor state variables to the rewound position
 
 ***************************************************************************/
-void ACTR::_SetStateRewound(void)
+void Actor::_SetStateRewound(void)
 {
     AssertBaseThis(0);
 
@@ -322,7 +324,7 @@ void ACTR::_SetStateRewound(void)
     _rtelCur.dnfrm = -1;
     if (_pglrpt->IvMac() > 0)
     {
-        RPT rpt;
+        RouteDistancePoint rpt;
         _pglrpt->Get(0, &rpt);
         _xyzCur = rpt.xyz;
     }
@@ -348,7 +350,7 @@ void ACTR::_SetStateRewound(void)
     Note: The scope of fPosition dirty spans multiple calls to _FDoFrm
 
 ***************************************************************************/
-bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
+bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
@@ -359,7 +361,7 @@ bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     bool fQuickMethodValid;
     long iaevT = -1;
     long iaev;
-    AEV *paev;
+    Base *paev;
 
     if (nfrm == _nfrmCur)
         return fTrue;
@@ -378,7 +380,7 @@ bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
         {
             Assert(0 < _iaevCur, "Invalid state variables in FGotoFrame()");
             // Optimize if there are no events in the current frame
-            paev = (AEV *)_pggaev->QvFixedGet(_iaevCur - 1);
+            paev = (Base *)_pggaev->QvFixedGet(_iaevCur - 1);
             if (paev->nfrm < nfrm)
             {
                 if (!_FQuickBackupToFrm(nfrm, &fQuickMethodValid))
@@ -396,7 +398,7 @@ bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
         {
             for (iaev = _iaevCur - 1; iaev >= 0; iaev--)
             {
-                paev = (AEV *)_pggaev->QvFixedGet(iaev);
+                paev = (Base *)_pggaev->QvFixedGet(iaev);
                 if (paev->aet == aetAdd && paev->nfrm <= nfrm)
                 {
                     iaevT = iaev;
@@ -409,7 +411,7 @@ bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
         {
             AssertIn(iaevT, 0, _pggaev->IvMac());
             _iaevFrmMin = _iaevCur = _iaevAddCur = iaevT;
-            paev = (AEV *)_pggaev->QvFixedGet(_iaevCur);
+            paev = (Base *)_pggaev->QvFixedGet(_iaevCur);
             _rtelCur = paev->rtel;
             _nfrmCur = paev->nfrm;
             Assert(paev->aet == aetAdd, "Illegal _iaevAddCur state var");
@@ -463,21 +465,21 @@ bool ACTR::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     Return *pfQuickMethodValid fFalse to if this method invalid here.
 
 ***************************************************************************/
-bool ACTR::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
+bool Actor::_FQuickBackupToFrm(long nfrm, bool *pfQuickMethodValid)
 {
     AssertThis(0);
     AssertVarMem(pfQuickMethodValid);
     Assert(nfrm < _nfrmCur, "Illegal call to _FBackupToFrm");
 
     long ifrm;
-    RTEL rtelT;
-    XYZ xyzOld = _xyzCur;
-    XYZ xyzT;
+    RouteLocation rtelT;
+    RoutePoint xyzOld = _xyzCur;
+    RoutePoint xyzT;
     long dnfrm = _nfrmCur - nfrm;
 
 #ifdef DEBUG
-    AEV *paev;
-    paev = (AEV *)_pggaev->QvFixedGet(_iaevCur - 1);
+    Base *paev;
+    paev = (Base *)_pggaev->QvFixedGet(_iaevCur - 1);
     Assert(paev->nfrm < nfrm, "Invalid Call to _FQuickBackupToFrm()");
 #endif // DEBUG
 
@@ -553,20 +555,20 @@ LFail:
     state variables
 
 ***************************************************************************/
-bool ACTR::_FGetRtelBack(RTEL *prtel, bool fUpdateStateVar)
+bool Actor::_FGetRtelBack(RouteLocation *prtel, bool fUpdateStateVar)
 {
     AssertThis(0);
     AssertVarMem(prtel);
 
     long celnSav = _celnCur;
     long nfrmSav = _nfrmCur;
-    RTEL rtelSav = _rtelCur;
-    AEV *paev;
+    RouteLocation rtelSav = _rtelCur;
+    Base *paev;
     BRS dwrStep;
-    RTEL rtelAdd;
+    RouteLocation rtelAdd;
     BRS dwrT;
 
-    paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+    paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
     rtelAdd = paev->rtel;
 
     if (!_fFrozen)
@@ -588,7 +590,7 @@ bool ACTR::_FGetRtelBack(RTEL *prtel, bool fUpdateStateVar)
         _rtelCur.dwrOffset = dwrT;
     else
     {
-        RPT rpt;
+        RouteDistancePoint rpt;
         while (dwrT < rZero)
         {
             if (_rtelCur.irpt <= 0)
@@ -638,17 +640,17 @@ LFail:
     Note: The scope of *pfPositionDirty spans multiple _FDoFrm calls
 
 ***************************************************************************/
-bool ACTR::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame)
+bool Actor::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertVarMem(pfPositionDirty);
 
-    AEV aev;
+    Base aev;
     BRS dwr;
     long iaev;
     long iaevAdd;
     bool fEndRoute;
-    XYZ xyzOld = _xyzCur;
+    RoutePoint xyzOld = _xyzCur;
     bool fFreezeThisCel = _fFrozen;
     bool fEndSubEvents = fFalse;
     bool fSuccess = fTrue;
@@ -736,7 +738,7 @@ bool ACTR::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFra
             {
                 // Motion match sounds must be entered in the smm
                 // whether this is the final frame or not
-                AEVSND aevsnd;
+                Sound aevsnd;
                 _pggaev->Get(iaev, &aevsnd);
                 if (aevsnd.celn != smmNil)
                 {
@@ -803,11 +805,11 @@ bool ACTR::_FDoFrm(bool fPositionBody, bool *pfPositionDirty, bool *pfSoundInFra
     grfscen - Things that are supposed to be played right now.
 
 ***************************************************************************/
-bool ACTR::FReplayFrame(long grfscen)
+bool Actor::FReplayFrame(long grfscen)
 {
     AssertThis(0);
 
-    AEV aev;
+    Base aev;
     long iaev;
 
     // Check if there is anything to do
@@ -834,7 +836,7 @@ bool ACTR::FReplayFrame(long grfscen)
     Returns the bool value in *pfStatic
 
 ***************************************************************************/
-bool ACTR::_FGetStatic(long anid, bool *pfStatic)
+bool Actor::_FGetStatic(long anid, bool *pfStatic)
 {
     AssertThis(0);
     AssertIn(anid, 0, klwMax);
@@ -860,12 +862,12 @@ bool ACTR::_FGetStatic(long anid, bool *pfStatic)
     Is the actor in the last active frame of the subroute?
 
 ***************************************************************************/
-bool ACTR::_FIsDoneAevSub(long iaev, RTEL rtel)
+bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac() + 1);
 
-    AEV aev;
+    Base aev;
     if (iaev == _pggaev->IvMac())
         return fTrue;
 
@@ -888,12 +890,12 @@ bool ACTR::_FIsDoneAevSub(long iaev, RTEL rtel)
     Is the actor at an AddOnStage event which can be applied now?
 
 ***************************************************************************/
-bool ACTR::_FIsAddNow(long iaev)
+bool Actor::_FIsAddNow(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
 
-    AEV *paev;
+    Base *paev;
 
     if (_fLifeDirty)
     {
@@ -902,8 +904,8 @@ bool ACTR::_FIsAddNow(long iaev)
             return fFalse;
     }
 
-    Assert(_pggaev->Cb(iaev) == size(AEVADD), "Corrupt event list");
-    paev = (AEV *)_pggaev->QvFixedGet(iaev);
+    Assert(_pggaev->Cb(iaev) == size(Add), "Corrupt event list");
+    paev = (Base *)_pggaev->QvFixedGet(iaev);
 
     if (paev->nfrm <= _nfrmCur)
         return fTrue;
@@ -917,7 +919,7 @@ bool ACTR::_FIsAddNow(long iaev)
     Zero is a valid return value
 
 ***************************************************************************/
-bool ACTR::_FGetDwrPlay(BRS *pdwr)
+bool Actor::_FGetDwrPlay(BRS *pdwr)
 {
     AssertBaseThis(0);
     AssertVarMem(pdwr);
@@ -945,7 +947,7 @@ bool ACTR::_FGetDwrPlay(BRS *pdwr)
     The returned size is expected to be authored > 0
 
 ***************************************************************************/
-bool ACTR::_FGetDwrRecord(BRS *pdwr)
+bool Actor::_FGetDwrRecord(BRS *pdwr)
 {
     AssertBaseThis(0);
     AssertVarMem(pdwr);
@@ -966,7 +968,7 @@ bool ACTR::_FGetDwrRecord(BRS *pdwr)
     State Variables are updated.
 
 ***************************************************************************/
-bool ACTR::_FDoAevCur(void)
+bool Actor::_FDoAevCur(void)
 {
     AssertBaseThis(0);
 
@@ -984,13 +986,13 @@ bool ACTR::_FDoAevCur(void)
     Execute the event iaev.
 
 ***************************************************************************/
-bool ACTR::_FDoAevCore(long iaev)
+bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
 
-    AEV aev;
-    COST cost;
+    Base aev;
+    BodyCostume cost;
 
     _pggaev->GetFixed(iaev, &aev);
     if (aev.nfrm != _nfrmCur)
@@ -1003,7 +1005,7 @@ bool ACTR::_FDoAevCore(long iaev)
     switch (aev.aet)
     {
     case aetActn:
-        AEVACTN aevactn;
+        Action aevactn;
         ulong grfactn;
 
         _pggaev->Get(iaev, &aevactn);
@@ -1034,8 +1036,8 @@ bool ACTR::_FDoAevCore(long iaev)
         break;
 
     case aetAdd:
-        AEVADD aevadd;
-        RPT rpt;
+        Add aevadd;
+        RouteDistancePoint rpt;
         // Save old costume in case of error
         if (!cost.FGet(_pbody))
             return fFalse;
@@ -1081,11 +1083,11 @@ bool ACTR::_FDoAevCore(long iaev)
         break;
 
     case aetCost:
-        AEVCOST aevcost;
+        Costume aevcost;
         _pggaev->Get(iaev, &aevcost);
         if (aevcost.fCmtl)
         {
-            PCMTL pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid);
+            PCustomMaterial_CMTL pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid);
             if (pvNil == pcmtl)
                 return fFalse;
             _pbody->SetPartSetCmtl(pcmtl);
@@ -1093,8 +1095,8 @@ bool ACTR::_FDoAevCore(long iaev)
         }
         else
         {
-            PMTRL pmtrl;
-            pmtrl = (PMTRL)vptagm->PbacoFetch(&aevcost.tag, MTRL::FReadMtrl);
+            PMaterial_MTRL pmtrl;
+            pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl);
             if (pvNil == pmtrl)
                 return fFalse;
             _pbody->SetPartSetMtrl(aevcost.ibset, pmtrl);
@@ -1136,7 +1138,7 @@ bool ACTR::_FDoAevCore(long iaev)
         break;
 
     case aetFreeze:
-        long fFrozen; //_fFrozen is a bit
+        int32_t fFrozen; //_fFrozen is a bit
         _pggaev->Get(iaev, &fFrozen);
         _fFrozen = FPure(fFrozen);
         break;
@@ -1154,7 +1156,7 @@ bool ACTR::_FDoAevCore(long iaev)
         break;
 
     case aetMove:
-        XYZ dxyz;
+        RoutePoint dxyz;
         _pggaev->Get(iaev, &dxyz);
         _dxyzSubRte.dxr = BrsAdd(dxyz.dxr, _dxyzSubRte.dxr);
         _dxyzSubRte.dyr = BrsAdd(dxyz.dyr, _dxyzSubRte.dyr);
@@ -1180,7 +1182,7 @@ bool ACTR::_FDoAevCore(long iaev)
     repositioning the actor based on a past Set Action.
 
 ***************************************************************************/
-bool ACTR::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
+bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 {
     AssertBaseThis(0);
     AssertIn(aetNew, 0, aetLim);
@@ -1188,7 +1190,7 @@ bool ACTR::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
     AssertPvCb(pvVar, cbNew);
     Assert(_fOnStage || aetNew == aetAdd, "Error!  Beginning subroute with no Add Onstage event");
 
-    AEV aev;
+    Base aev;
     long iaevNew;
     // Setup fixed part of the gg
     aev.aet = aetNew;
@@ -1213,9 +1215,9 @@ bool ACTR::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
         // any existing same frame translaton to be added
         // to the state	variables twice.
         // Instead, adjust state var translation here.
-        _dxyzSubRte.dxr = BrsAdd(((XYZ *)pvVar)->dxr, _dxyzSubRte.dxr);
-        _dxyzSubRte.dyr = BrsAdd(((XYZ *)pvVar)->dyr, _dxyzSubRte.dyr);
-        _dxyzSubRte.dzr = BrsAdd(((XYZ *)pvVar)->dzr, _dxyzSubRte.dzr);
+        _dxyzSubRte.dxr = BrsAdd(((RoutePoint *)pvVar)->dxr, _dxyzSubRte.dxr);
+        _dxyzSubRte.dyr = BrsAdd(((RoutePoint *)pvVar)->dyr, _dxyzSubRte.dyr);
+        _dxyzSubRte.dzr = BrsAdd(((RoutePoint *)pvVar)->dzr, _dxyzSubRte.dzr);
     }
     else if (!_FDoAevCore(iaevNew))
         return fFalse;
@@ -1258,15 +1260,15 @@ bool ACTR::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
     NOTE:  Add events (only) are not merged.
 
 ***************************************************************************/
-void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
+void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
 {
     AssertBaseThis(0);
     AssertIn(iaevFirst, 0, _pggaev->IvMac());
     AssertIn(iaevNew, iaevFirst, _pggaev->IvMac());
     AssertNilOrVarMem(piaevRtn);
 
-    AEV aev;
-    AEV aevNew;
+    Base aev;
+    Base aevNew;
     void *pvVar;
     long cbVar;
     long iaev;
@@ -1310,8 +1312,8 @@ void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             break;
 
         case aetMove: // Move is accumulation of previous moves
-            XYZ dxyz;
-            XYZ dxyzNew;
+            RoutePoint dxyz;
+            RoutePoint dxyzNew;
             _pggaev->Get(iaev, &dxyz);
             _pggaev->Get(iaevNew, &dxyzNew);
             // Note: Merging moves should not alter state variables!
@@ -1329,8 +1331,8 @@ void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             break;
 
         case aetCost:
-            AEVCOST aevcost;
-            AEVCOST aevcostNew;
+            Costume aevcost;
+            Costume aevcostNew;
 
             // Check that the body parts match
             _pggaev->Get(iaev, &aevcost);
@@ -1346,14 +1348,14 @@ void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             break;
 
         case aetSnd:
-            AEVSND aevsnd;
-            AEVSND aevsndNew;
+            Sound aevsnd;
+            Sound aevsndNew;
             long ismm;
-            SMM *psmm;
+            SoundMotionMatch *psmm;
             // Check that the sound types match
             _pggaev->Get(iaev, &aevsnd);
             _pggaev->Get(iaevNew, &aevsndNew);
-            if (MSND::SqnActr(aevsnd.sty, _arid) != MSND::SqnActr(aevsndNew.sty, _arid))
+            if (MovieSoundMSND::SqnActr(aevsnd.sty, _arid) != MovieSoundMSND::SqnActr(aevsndNew.sty, _arid))
                 continue;
             // Queued sounds need to have multiple events reside in a single frame
             if (aevsndNew.fQueue)
@@ -1362,7 +1364,7 @@ void ACTR::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
             // First, the _pggsmm needs to be updated
             for (ismm = 0; ismm < _pglsmm->IvMac(); ismm++)
             {
-                psmm = (SMM *)_pglsmm->QvGet(ismm);
+                psmm = (SoundMotionMatch *)_pglsmm->QvGet(ismm);
                 if (psmm->aevsnd.sty == aevsnd.sty && aevsnd.celn == psmm->aevsnd.celn)
                 {
                     _pglsmm->Delete(ismm);
@@ -1443,7 +1445,7 @@ LDeleteOld:
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FSetActionCore(long anid, long celn, bool fFreeze)
+bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 {
     AssertThis(0);
     AssertIn(anid, 0, klwMax);
@@ -1451,7 +1453,7 @@ bool ACTR::FSetActionCore(long anid, long celn, bool fFreeze)
 
     bool fStatic;
     bool fNewAction = fFalse;
-    AEVACTN aevactn;
+    Action aevactn;
     long anidPrev = _anidCur;
     long iaevMin;
 
@@ -1527,7 +1529,7 @@ bool ACTR::FSetActionCore(long anid, long celn, bool fFreeze)
     NOTE: This is a low level API and has no effect on the event list
 
 ***************************************************************************/
-void ACTR::_Hide(void)
+void Actor::_Hide(void)
 {
     AssertBaseThis(0);
 
@@ -1547,13 +1549,13 @@ void ACTR::_Hide(void)
         dwrPrior is the distance from the previous node to the new one.
 
 ***************************************************************************/
-bool ACTR::_FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior)
+bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
 {
     AssertBaseThis(0);
     AssertIn(irpt, 0, _pglrpt->IvMac() + 1);
     AssertNilOrVarMem(prpt);
 
-    RPT rpt;
+    RouteDistancePoint rpt;
     BRS dwrTotal = rZero; // Dist from prev node to node after the inserted node
 
     if (!_pglrpt->FInsert(irpt, prpt))
@@ -1606,7 +1608,7 @@ bool ACTR::_FInsertGgRpt(long irpt, RPT *prpt, BRS dwrPrior)
     Note that this is orthogonal and independent of freezing an actor
 
 ***************************************************************************/
-bool ACTR::FSetStep(BRS dwrStep)
+bool Actor::FSetStep(BRS dwrStep)
 {
     AssertThis(0);
     Assert(kdwrNil == dwrStep || rZero <= dwrStep, "Invalid dwrStep argument");
@@ -1624,7 +1626,7 @@ bool ACTR::FSetStep(BRS dwrStep)
     at Y = 1.0 meters.
 
 ***************************************************************************/
-void ACTR::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
+void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertVarMem(pxr);
@@ -1668,7 +1670,7 @@ void ACTR::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
     Add the initialization events for costumes, xforms, etc from the
     preceding or subsequent subroute.
 ***************************************************************************/
-bool ACTR::FAddOnStageCore(void)
+bool Actor::FAddOnStageCore(void)
 {
     AssertThis(0);
 
@@ -1676,7 +1678,7 @@ bool ACTR::FAddOnStageCore(void)
     BRS yr;
     BRS zr;
     long cbVar;
-    AEVADD aevadd;
+    Add aevadd;
     bool fUpdateFrmRange = fFalse;
 
     cbVar = kcbVarAdd + kcbVarActn + kcbVarStep + kcbVarFreeze;
@@ -1715,7 +1717,7 @@ bool ACTR::FAddOnStageCore(void)
         _nfrmLast = _nfrmCur;
     }
 
-    RPT rptNil = {rZero, rZero, rZero, rZero};
+    RouteDistancePoint rptNil = {rZero, rZero, rZero, rZero};
 
     if (_fOnStage) // May have walked offstage
     {
@@ -1782,14 +1784,14 @@ bool ACTR::FAddOnStageCore(void)
     NOTE: This is optimized to add only the latest event of each given type.
 
 ***************************************************************************/
-bool ACTR::_FAddAevFromPrev(long iaevLim, ulong grfaet)
+bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
     AssertBaseThis(0);
     AssertIn(iaevLim, 0, _pggaev->IvMac() + 1);
 
-    AEV aev;
-    AEV *paev;
-    AEV aevCur;
+    Base aev;
+    Base *paev;
+    Base aevCur;
     long cb;
     long iaev;
     long iaevAdd;
@@ -1876,7 +1878,7 @@ bool ACTR::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 
     // May need to delete entire previous subroute
     // if the prev Add occurred at the same frame
-    paev = (AEV *)_pggaev->QvFixedGet(iaevAdd);
+    paev = (Base *)_pggaev->QvFixedGet(iaevAdd);
     if (_nfrmCur == paev->nfrm)
     {
         // Deleting the entire subroute
@@ -1887,7 +1889,7 @@ bool ACTR::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     // May need to prune out same-frame events from prev subrte
     for (iaev = _iaevAddCur - 1; iaev >= iaevAdd; iaev--)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (_nfrmCur == paev->nfrm)
         {
             fPrunedPrevSubrte = fTrue;
@@ -1915,14 +1917,14 @@ bool ACTR::_FAddAevFromPrev(long iaevLim, ulong grfaet)
     them at the	current event index, _iaevCur.
 
 ***************************************************************************/
-bool ACTR::_FAddAevFromLater(void)
+bool Actor::_FAddAevFromLater(void)
 {
     AssertBaseThis(0);
 
-    AEV aev;
+    Base aev;
     long iaev;
     long iaevStart = -1;
-    RTEL rtelAdd;
+    RouteLocation rtelAdd;
     bool fPositionBody = fFalse;
 
     Assert(1 == _iaevCur, "_FAddAevFromLater logic error");
@@ -1990,14 +1992,14 @@ LEnd:
     Return true if found, with its index in *piaevAdd
 
 ***************************************************************************/
-bool ACTR::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
+bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0);
     AssertIn(aet, 0, aetLim);
     AssertIn(iaevCur, 0, _pggaev->IvMac());
     AssertVarMem(piaevAdd);
 
-    AEV aev;
+    Base aev;
 
     iaevCur--;
     for (; iaevCur >= 0; iaevCur--)
@@ -2020,18 +2022,18 @@ bool ACTR::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
     Return true if one is found, with its index in *piaevAdd
 
 ***************************************************************************/
-bool ACTR::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
+bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0);
     AssertIn(aet, 0, aetLim);
     AssertIn(iaevCur, 0, _pggaev->IvMac() + 1);
     AssertVarMem(piaevAdd);
 
-    AEV *paev;
+    Base *paev;
 
     for (; iaevCur < _pggaev->IvMac(); iaevCur++)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaevCur);
+        paev = (Base *)_pggaev->QvFixedGet(iaevCur);
         if (paev->aet == aet)
         {
             *piaevAdd = iaevCur;
@@ -2054,7 +2056,7 @@ bool ACTR::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
     Return its index in *piaevAdd
 
 ***************************************************************************/
-void ACTR::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
+void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 {
     AssertBaseThis(0);
     AssertIn(iaevAdd, 0, _pggaev->IvMac());
@@ -2062,7 +2064,7 @@ void ACTR::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
         AssertIn(iaevLim, 0, _pggaev->IvMac() + 1);
     AssertVarMem(piaevLast);
 
-    AEV aev;
+    Base aev;
 
     if (iaevLim == ivNil)
         iaevLim = _pggaev->IvMac();
@@ -2084,10 +2086,10 @@ void ACTR::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FRemFromStageCore(void)
+bool Actor::FRemFromStageCore(void)
 {
     AssertThis(0);
-    AEV *paev;
+    Base *paev;
 
     if (!_fOnStage)
         return fTrue;
@@ -2096,7 +2098,7 @@ bool ACTR::FRemFromStageCore(void)
         return fFalse;
 
     AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
-    paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+    paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
     if (_nfrmCur == paev->nfrm)
     {
         if (!_FDeleteEntireSubrte())
@@ -2114,13 +2116,13 @@ bool ACTR::FRemFromStageCore(void)
     Based on current state variables
 
 ***************************************************************************/
-bool ACTR::_FDeleteEntireSubrte(void)
+bool Actor::_FDeleteEntireSubrte(void)
 {
     AssertThis(0);
-    AEV *paev;
+    Base *paev;
     long nfrmSav;
 
-    paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+    paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
     Assert(paev->nfrm == _nfrmCur, "Logic error: trying to delete whole route from the middle");
 
     // Delete forward from here	(exclusive of current point)
@@ -2139,7 +2141,7 @@ bool ACTR::_FDeleteEntireSubrte(void)
     _nfrmCur = knfrmInvalid;
     if (_pggaev->IvMac() > 0)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(0);
+        paev = (Base *)_pggaev->QvFixedGet(0);
         Assert(paev->aet == aetAdd, "Corrupt event list");
         _nfrmFirst = paev->nfrm;
         return FGotoFrame(nfrmSav);
@@ -2153,16 +2155,16 @@ bool ACTR::_FDeleteEntireSubrte(void)
     Delete the events and point corresponding to a single point subroute
 
 ***************************************************************************/
-void ACTR::_DelAddFrame(long iaevAdd, long iaevLim)
+void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 {
     AssertThis(0);
     long iaev;
     long irptAdd;
-    AEV *paev;
+    Base *paev;
 
     AssertIn(iaevAdd, 0, iaevLim);
 
-    paev = (AEV *)_pggaev->QvFixedGet(iaevAdd);
+    paev = (Base *)_pggaev->QvFixedGet(iaevAdd);
     irptAdd = paev->rtel.irpt;
 
     // Delete events in current frame of subroute
@@ -2174,7 +2176,7 @@ void ACTR::_DelAddFrame(long iaevAdd, long iaevLim)
     // Delete current point	if unused
     if (iaevAdd > 0)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaevAdd - 1);
+        paev = (Base *)_pggaev->QvFixedGet(iaevAdd - 1);
         if (paev->rtel.irpt == irptAdd || (paev->rtel.irpt == (irptAdd - 1) && paev->rtel.dwrOffset > rZero))
         {
             return;
@@ -2194,18 +2196,18 @@ void ACTR::_DelAddFrame(long iaevAdd, long iaevLim)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmtl)
+bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmtl)
 {
     AssertThis(0);
     Assert(fCmtl || ibsetClicked >= 0, "Invalid ibsetClicked argument");
     AssertVarMem(ptag);
 
-    AEVCOST aevcost;
-    PCMTL pcmtl;
+    Costume aevcost;
+    PCustomMaterial_CMTL pcmtl;
     long ibsetApply;
 
-    // For custom materials, the ibset is a property of the CMTL itself,
-    // so read it from the CMTL rather than using the clicked ibset.
+    // For custom materials, the ibset is a property of the CustomMaterial_CMTL itself,
+    // so read it from the CustomMaterial_CMTL rather than using the clicked ibset.
     if (fCmtl)
     {
         pcmtl = _ptmpl->PcmtlFetch(cmid);
@@ -2240,11 +2242,11 @@ bool ACTR::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCmt
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::_FFreeze(void)
+bool Actor::_FFreeze(void)
 {
     AssertThis(0);
 
-    long faevfrz = (long)fTrue;
+    int32_t faevfrz = (int32_t)fTrue;
     return _FAddDoAev(aetFreeze, kcbVarFreeze, &faevfrz);
 }
 
@@ -2254,10 +2256,10 @@ bool ACTR::_FFreeze(void)
     Add the event to the event list
 
 ***************************************************************************/
-bool ACTR::_FUnfreeze(void)
+bool Actor::_FUnfreeze(void)
 {
     AssertThis(0);
-    long faevfrz = (long)fFalse;
+    int32_t faevfrz = (int32_t)fFalse;
     return _FAddDoAev(aetFreeze, kcbVarFreeze, &faevfrz);
 }
 
@@ -2274,12 +2276,12 @@ bool ACTR::_FUnfreeze(void)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
-void ACTR::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz)
+void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz)
 {
     AssertThis(0);
     AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
 
-    AEVADD aevadd;
+    Add aevadd;
 
     _pggaev->Get(_iaevAddCur, &aevadd);
 
@@ -2319,7 +2321,7 @@ void ACTR::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, XYZ *pdxyz)
     rw1 is the weighting for a1
 
 ***************************************************************************/
-BRA ACTR::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
+BRA Actor::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
 {
     AssertBaseThis(0);
     AssertIn(rw1, rZero, rOne + rEps);
@@ -2365,7 +2367,7 @@ BRA ACTR::_BraAvgAngle(BRA a1, BRA a2, BRS rw1)
     If ordering other than this is desired, separate calls must be made.
 
 ***************************************************************************/
-bool ACTR::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
+bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
 
@@ -2429,12 +2431,108 @@ bool ACTR::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 
 /***************************************************************************
 
+    Apply a world-axis rotation. FRotate treats (xa,ya,za) as rotations
+    around the actor's LOCAL axes (after the rest orientation TS is applied
+    at render time pbmat = TS * bmat34Cur). For multi-actor rigid group
+    rotation we want every selected actor's body to tilt around the SAME
+    world axis -- otherwise actors with different rest orientations tilt
+    around different world axes and the group rotation looks chaotic.
+
+    The fix is the similarity transform: applying R_world = TS * R_local * TS^-1
+    to the world matrix is equivalent to applying R_local := TS^-1 * R_world * TS
+    to the local-frame bmat34. We build R_world from the input Euler angles,
+    conjugate it through the actor's TS, and PreRotate bmat34 with the
+    resulting matrix using BrMatrix34Pre.
+
+    For a fresh actor whose template has no rest orientation, TS == identity
+    and this collapses to the same matrix FRotate would build via successive
+    PreRotateX/Y/Z calls.
+
+***************************************************************************/
+bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
+{
+    AssertThis(0);
+
+    // No rotation requested -> no-op. Without this guard the rotation calls
+    // below would still apply identity transforms via BrMatrix34Post*, and
+    // accumulated FP error across many ticks (when the user holds the mouse
+    // button without moving) would visibly drift the actor's matrix toward
+    // a contraction.
+    if (xa == aZero && ya == aZero && za == aZero)
+        return fTrue;
+
+    BMAT34 *pbmat34;
+    long aet;
+
+    if (!_pggaev->FEnsureSpace(1, kcbVarRot, fgrpNil))
+        return fFalse;
+
+    if (fFromHereFwd)
+    {
+        aet = aetRotF;
+        pbmat34 = &_xfrm.bmat34Fwd;
+        if (_fUseBmat34Cur)
+        {
+            BrMatrix34Copy(pbmat34, &_xfrm.bmat34Cur);
+            if (_xfrm.zaPath != aZero)
+                BrMatrix34PostRotateZ(pbmat34, -_xfrm.zaPath);
+            if (_xfrm.yaPath != aZero)
+                BrMatrix34PostRotateY(pbmat34, -_xfrm.yaPath);
+            if (_xfrm.xaPath != aZero)
+                BrMatrix34PostRotateX(pbmat34, -_xfrm.xaPath);
+        }
+    }
+    else
+    {
+        aet = aetRotH;
+        pbmat34 = &_xfrm.bmat34Cur;
+    }
+
+    // BRender uses row-vector convention. PostRotate (right-multiply) of
+    // bmat34 by R applies R as a world-frame rotation to the rendered
+    // matrix pbmat = TS * bmat34. That gives a rigid-body group rotation
+    // when paired with the world-axis orbit translation in MovieView.
+    //
+    // The user's tool labels reference the actor-canonical frame (after TS
+    // is applied -- for the typical face-camera TS = Ry(90deg), "rotateX"
+    // means tip around the actor's right axis = world Z; "rotateZ" means
+    // lay around the actor's forward axis = world X). The world-frame
+    // PostRotate above doesn't know about TS, so we swap X and Z here to
+    // match what the tool icons claim to do. This is correct only for
+    // actors with the canonical face-camera rest orientation, but that's
+    // the overwhelming common case in 3DMM movies.
+    if (za != aZero)
+        BrMatrix34PostRotateX(pbmat34, za);
+    if (ya != aZero)
+        BrMatrix34PostRotateY(pbmat34, ya);
+    if (xa != aZero)
+        BrMatrix34PostRotateZ(pbmat34, xa);
+
+    // Re-orthonormalise. Each PostRotate composes one matrix multiplication
+    // worth of FP error; across hundreds of drag ticks that drifts the
+    // rotation part of bmat34 away from length-preserving, which the user
+    // sees as the group slowly shrinking. LPNormalise restores the rows to
+    // unit length.
+    BMAT34 bmatNorm;
+    BrMatrix34LPNormalise(&bmatNorm, pbmat34);
+    *pbmat34 = bmatNorm;
+
+    if (fFromHereFwd)
+        _PrepXfrmFill(aetRotF, pbmat34, kcbVarRot, _iaevCur, ivNil, faetNil);
+    AssertDo(_FAddDoAev(aet, kcbVarRot, pbmat34), "Ensure space insufficient");
+
+    _PositionBody(&_xyzCur);
+    return fTrue;
+}
+
+/***************************************************************************
+
     "Normalize" the actor
     The revert tool
     Insert normalize transformation events into the event list
 
 ***************************************************************************/
-bool ACTR::FNormalizeCore(ulong grfnorm)
+bool Actor::FNormalizeCore(ulong grfnorm)
 {
     AssertThis(0);
     long rScaleStepOld = _xfrm.rScaleStep;
@@ -2494,7 +2592,7 @@ bool ACTR::FNormalizeCore(ulong grfnorm)
     with the attendent specified tweak etc modifications.
 
 ***************************************************************************/
-bool ACTR::FScale(BRS rScale)
+bool Actor::FScale(BRS rScale)
 {
     AssertThis(0);
 
@@ -2539,12 +2637,12 @@ bool ACTR::FScale(BRS rScale)
     NOTE** Drag this subroute only -> sliding other subroutes in time
 
 ***************************************************************************/
-bool ACTR::FSoonerLater(long dnfrm)
+bool Actor::FSoonerLater(long dnfrm)
 {
     AssertThis(0);
 
-    AEV aev;
-    AEV *paevPrev;
+    Base aev;
+    Base *paevPrev;
     long nfrmSav;
     long iaev;
     long fSuccess;
@@ -2579,7 +2677,7 @@ bool ACTR::FSoonerLater(long dnfrm)
             }
 
             // Account for subroute gaps
-            paevPrev = (AEV *)_pggaev->QvFixedGet(iaev - 1);
+            paevPrev = (Base *)_pggaev->QvFixedGet(iaev - 1);
             dnfrmSub = aev.nfrm - (paevPrev->nfrm);
             aev.nfrm -= dnfrmT;
             _pggaev->PutFixed(iaev, &aev);
@@ -2634,7 +2732,7 @@ bool ACTR::FSoonerLater(long dnfrm)
     Bound the allowable scaling.
 
 ***************************************************************************/
-bool ACTR::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
+bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 {
     AssertThis(0);
 
@@ -2677,11 +2775,11 @@ bool ACTR::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
     location (set by GoToFrame, ie, determined by _rtelCur).
 
 ***************************************************************************/
-bool ACTR::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
+bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 {
     AssertThis(0);
 
-    XYZ xyz;
+    RoutePoint xyz;
 
     if (!_pggaev->FEnsureSpace(1, kcbVarTweak, fgrpNil))
         return fFalse;
@@ -2708,7 +2806,7 @@ bool ACTR::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
     Update xyzRte from the overall origin & the subroute translation
 
 ***************************************************************************/
-void ACTR::_UpdateXyzRte(void)
+void Actor::_UpdateXyzRte(void)
 {
     AssertBaseThis(0);
 
@@ -2735,17 +2833,17 @@ void ACTR::_UpdateXyzRte(void)
     Return *pfmoved indicating whether or not the path moved.
 
 ***************************************************************************/
-bool ACTR::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
+bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfMoved);
 
-    AEVADD aevadd;
-    AEV *paev;
+    Add aevadd;
+    Base *paev;
     long iaev;
     bool fMoved;
     ulong grfbra;
-    XYZ dxyz;
+    RoutePoint dxyz;
     BRS yrCurOld;
     BRA xa;
     BRA ya;
@@ -2794,8 +2892,8 @@ bool ACTR::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
             BRS ra1, ra2;
 #ifdef DEBUG
             {
-                AEV *paev;
-                paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+                Base *paev;
+                paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
                 Assert(_nfrmCur == paev->nfrm, "Unsupported use of fmafOrient");
             }
 #endif // DEBUG
@@ -2856,7 +2954,7 @@ bool ACTR::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
         // Update any type of rotate event in this frame
         for (iaev = _iaevAddCur + 1; iaev < _iaevCur; iaev++)
         {
-            paev = (AEV *)_pggaev->QvFixedGet(iaev);
+            paev = (Base *)_pggaev->QvFixedGet(iaev);
             if (aetRotH == paev->aet)
                 _pggaev->Put(iaev, &_xfrm.bmat34Cur);
             if (aetRotF == paev->aet)
@@ -2931,7 +3029,7 @@ bool ACTR::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
     Load starting point orientation into state variable _xfrm
 
 ***************************************************************************/
-void ACTR::_LoadAddOrien(AEVADD *paevadd, bool fNoReset)
+void Actor::_LoadAddOrien(Add *paevadd, bool fNoReset)
 {
     AssertThis(0);
 
@@ -2968,7 +3066,7 @@ void ACTR::_LoadAddOrien(AEVADD *paevadd, bool fNoReset)
         grfaet == faetNil or types of events to nuke along the way
 
 ***************************************************************************/
-void ACTR::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp, ulong grfaet)
+void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long iaevCmp, ulong grfaet)
 {
     AssertBaseThis(0);
     Assert(aet == aetSize || aet == aetRotF || aet == aetPull, "Illegal argument aet");
@@ -2979,7 +3077,7 @@ void ACTR::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long i
     Assert(aet != aetActn && aet != aetCost, "Illegal aet argument");
 
     long iaev;
-    AEV aev;
+    Base aev;
     bool fReplacePrev = fTrue;
     void *pvVarCmp = pvNil;
     long cb;
@@ -3095,14 +3193,14 @@ LEnd:
     Since _pggaev is getting a copy of a tag, a call to DupTag is required
 
 ***************************************************************************/
-bool ACTR::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
+bool Actor::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpdateState)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac() + 1);
     AssertIn(cbNew, 0, 100); // approximate bound
     if (pvNil != pvVar)
         AssertPvCb(pvVar, cbNew);
-    AssertPvCb(paev, size(AEV));
+    AssertPvCb(paev, size(Base));
 
     PTAG ptag;
 
@@ -3115,7 +3213,7 @@ bool ACTR::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpd
         // Increment tag count
         _pggaev->Lock();
         if (_FIsIaevTag(_pggaev, iaev, &ptag))
-            TAGM::DupTag(ptag);
+            TagManager::DupTag(ptag);
         _pggaev->Unlock();
 
         if (fUpdateState)
@@ -3139,19 +3237,19 @@ bool ACTR::_FInsertAev(long iaev, long cbNew, void *pvVar, void *paev, bool fUpd
     Remove Aev.  Update state variables
 
 ***************************************************************************/
-void ACTR::_RemoveAev(long iaev, bool fUpdateState)
+void Actor::_RemoveAev(long iaev, bool fUpdateState)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, _pggaev->IvMac());
 
     bool fUpdateSndFrame;
     PTAG ptag;
-    PAEV qaev;
+    PBase qaev;
 
     // First, close tags
     _pggaev->Lock();
     if (_FIsIaevTag(_pggaev, iaev, &ptag, &qaev))
-        TAGM::CloseTag(ptag);
+        TagManager::CloseTag(ptag);
 
     /* Don't bother updating the frame sound indicator if we didn't change
         an event in the scene's current frame */
@@ -3190,12 +3288,12 @@ void ACTR::_RemoveAev(long iaev, bool fUpdateState)
     regardless of the value of the celn.
 
 ***************************************************************************/
-void ACTR::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
+void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet)
 {
     AssertBaseThis(0);
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
 
-    AEV aev;
+    Base aev;
     long iaev;
     long anid = anidPrev;
 
@@ -3209,7 +3307,7 @@ void ACTR::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet
 
         if (aetActn == aev.aet)
         {
-            AEVACTN aevactn;
+            Action aevactn;
             _pggaev->Get(iaev, &aevactn);
 
             if (!(grfaet & faetActn))
@@ -3264,21 +3362,21 @@ void ACTR::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfaet
             costume being inserted
 
 ***************************************************************************/
-void ACTR::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
+void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 {
     AssertBaseThis(0);
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
     AssertVarMem(paevcost);
 
     long iaev;
-    AEV aev;
-    AEVCOST aevcost;
+    Base aev;
+    Costume aevcost;
     bool fMtrl;
     bool fCmtl;
-    MTRL *pmtrlCmp;
-    CMTL *pcmtlCmp;
-    MTRL *pmtrl = pvNil;
-    CMTL *pcmtl = pvNil;
+    Material_MTRL *pmtrlCmp;
+    CustomMaterial_CMTL *pcmtlCmp;
+    Material_MTRL *pmtrl = pvNil;
+    CustomMaterial_CMTL *pcmtl = pvNil;
     bool fReplacePrev = fTrue;
 
     // Locate the most current costume for this body part
@@ -3304,7 +3402,7 @@ void ACTR::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
         {
             // Delete the event if the costumes are the same
             if ((fCmtl == aevcost.fCmtl) &&
-                ((!fCmtl && (pmtrlCmp == (pmtrl = (PMTRL)vptagm->PbacoFetch(&aevcost.tag, MTRL::FReadMtrl)))) ||
+                ((!fCmtl && (pmtrlCmp == (pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl)))) ||
                  (fCmtl && (pcmtlCmp == (pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid))))))
             {
                 goto LDelete;
@@ -3315,7 +3413,7 @@ void ACTR::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
             fReplacePrev = fFalse;
             if (!paevcost->fCmtl)
             {
-                pmtrlCmp = (PMTRL)vptagm->PbacoFetch(&paevcost->tag, MTRL::FReadMtrl);
+                pmtrlCmp = (PMaterial_MTRL)vptagm->PbacoFetch(&paevcost->tag, Material_MTRL::FReadMtrl);
                 pcmtlCmp = pvNil;
             }
             else
@@ -3329,7 +3427,7 @@ void ACTR::_PrepCostFill(long iaevMin, AEVCOST *paevcost)
         ReleasePpo(&pmtrl);
         Assert(!fReplacePrev, "Logic error");
         if (paevcost->fCmtl != aevcost.fCmtl ||
-            (!aevcost.fCmtl && (pmtrlCmp != (pmtrl = (PMTRL)vptagm->PbacoFetch(&aevcost.tag, MTRL::FReadMtrl)))) ||
+            (!aevcost.fCmtl && (pmtrlCmp != (pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&aevcost.tag, Material_MTRL::FReadMtrl)))) ||
             (aevcost.fCmtl && (pcmtlCmp != (pcmtl = _ptmpl->PcmtlFetch(aevcost.cmid)))))
         {
             // If the costumes differ
@@ -3357,7 +3455,7 @@ LEnd:
     adjust the rtel's of the subsequent affected events
 
 ***************************************************************************/
-void ACTR::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
+void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0);
     long irptMac = _pglrpt->IvMac();
@@ -3365,8 +3463,8 @@ void ACTR::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
 
     long iaev;
-    AEV aev;
-    RPT rptBack, rptAdjust;
+    Base aev;
+    RouteDistancePoint rptBack, rptAdjust;
     BRS dwrBack;
 
     if (irptAdjust > 0)
@@ -3410,7 +3508,7 @@ void ACTR::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
     adjust the rtel's of the affected events
 
 ***************************************************************************/
-void ACTR::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
+void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0);
     long irptMac = _pglrpt->IvMac();
@@ -3418,8 +3516,8 @@ void ACTR::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
     AssertIn(iaevMin, 0, _pggaev->IvMac() + 1);
 
     long iaev;
-    AEV aev;
-    RPT rptBack, rptAdjust;
+    Base aev;
+    RouteDistancePoint rptBack, rptAdjust;
     BRS dwrBack, dwrFwd;
 
     if (0 == irptAdjust)
@@ -3470,7 +3568,7 @@ void ACTR::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
     state variables.
     Spec: The end of a subroute is <always> reached in a moving action.
 ***************************************************************************/
-void ACTR::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
+void Actor::_AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
@@ -3479,7 +3577,7 @@ void ACTR::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bo
     BRS dwrT;
     bool fEndRoute = fFalse;
     long iaev;
-    AEV aev;
+    Base aev;
 
     // If at start of path
     // Note: _nfrmFirst is independent with respect to the current frame
@@ -3499,7 +3597,7 @@ void ACTR::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bo
     }
 
     // Move to the correct path segment
-    dwrT = ((RPT *)_pglrpt->QvGet(prtel->irpt))->dwr;
+    dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
     dwrT = BrsSub(dwrT, prtel->dwrOffset);
     if (rZero == dwrT)
     {
@@ -3521,10 +3619,10 @@ void ACTR::_AdvanceRtel(BRS dwrStep, RTEL *prtel, long iaevCur, long nfrmCur, bo
         AssertIn(prtel->irpt, 1, _pglrpt->IvMac());
         prtel->dwrOffset = rZero;
         dwrStep = BrsSub(dwrStep, dwrT);
-        dwrT = ((RPT *)_pglrpt->QvGet(prtel->irpt))->dwr;
+        dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
     }
 
-    dwrT = ((RPT *)_pglrpt->QvGet(prtel->irpt))->dwr;
+    dwrT = ((RouteDistancePoint *)_pglrpt->QvGet(prtel->irpt))->dwr;
     prtel->dwrOffset = BrsAdd(prtel->dwrOffset, dwrStep);
 
 LDoneMove:
@@ -3560,15 +3658,15 @@ LDone:
     Convert a route location (rtel) to an xyz point (in *pxyz)
 
 ***************************************************************************/
-void ACTR::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
+void Actor::_GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(prtel);
     AssertVarMem(pxyz);
 
-    RPT rpt;
-    RPT rptFirst;
-    RPT rptSecond;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptFirst;
+    RouteDistancePoint rptSecond;
     BRS rFract;
 
     if (rZero == prtel->dwrOffset || (prtel->irpt) + 1 == _pglrpt->IvMac())
@@ -3592,7 +3690,7 @@ void ACTR::_GetXyzFromRtel(RTEL *prtel, PXYZ pxyz)
     Store in *pxyz
 
 ***************************************************************************/
-void ACTR::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz)
+void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFract, PRoutePoint pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyzFirst);
@@ -3619,11 +3717,11 @@ void ACTR::_GetXyzOnLine(PXYZ pxyzFirst, PXYZ pxyzSecond, BRS rFract, PXYZ pxyz)
     Post-impose a rotation looking forward along the route
 
 ***************************************************************************/
-void ACTR::_PositionBody(XYZ *pxyz)
+void Actor::_PositionBody(RoutePoint *pxyz)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyz);
-    XYZ xyz;
+    RoutePoint xyz;
     BMAT34 bmat34; // Final orientation matrix
 
     _MatrixRotUpdate(pxyz, &bmat34);
@@ -3640,18 +3738,18 @@ void ACTR::_PositionBody(XYZ *pxyz)
     _xfrm.bmat34Cur must be kept current
 
 ***************************************************************************/
-void ACTR::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
+void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
 {
     AssertBaseThis(0);
     AssertVarMem(pxyz);
     AssertVarMem(pbmat34);
 
-    RPT rpt;
+    RouteDistancePoint rpt;
     BRA xa, ya, za;
     BMAT34 bmat34TS; // Scaling matrix
     BMAT34 bmat34TR; // Rotation matrix
     bool fStretchSize;
-    AEV *paev;
+    Base *paev;
 
     _xyzCur = *pxyz;
     fStretchSize = (rOne != _xfrm.aevpull.rScaleX || rOne != _xfrm.aevpull.rScaleY || rOne != _xfrm.aevpull.rScaleZ ||
@@ -3693,7 +3791,7 @@ void ACTR::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
 
         // Post apply the path orientation
         AssertIn(_iaevAddCur, 0, _pggaev->IvMac());
-        paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
         _pglrpt->Get(paev->rtel.irpt, &rpt);
 #ifdef BUG1899
         if (_ptmpl->FIsTdt() || (_rtelCur.irpt == paev->rtel.irpt && _rtelCur.dwrOffset == rZero))
@@ -3703,7 +3801,7 @@ void ACTR::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
         {
             // Single point	subroute ->
             // Post apply single point orientation to event rotations
-            AEVADD aevadd;
+            Add aevadd;
             _pggaev->Get(_iaevAddCur, &aevadd);
             BrMatrix34PostRotateX(&bmat34TR, aevadd.xa);
             BrMatrix34PostRotateY(&bmat34TR, aevadd.ya);
@@ -3736,7 +3834,7 @@ void ACTR::_MatrixRotUpdate(XYZ *pxyz, BMAT34 *pbmat34)
     NOTE: *pbmat34 is not pre-initialized
 
 ***************************************************************************/
-void ACTR::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
+void Actor::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pbmat34);
@@ -3746,9 +3844,9 @@ void ACTR::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *
 
     long irptPrev;
     long irptAdd;
-    XYZ xyz;
-    AEV aev;
-    RPT rpt;
+    RoutePoint xyz;
+    Base aev;
+    RouteDistancePoint rpt;
 
     if (pvNil != pxa)
         *pxa = aZero;
@@ -3807,12 +3905,12 @@ void ACTR::_CalcRteOrient(BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *
     Optimized for movie PLAYing
 
 ***************************************************************************/
-void ACTR::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
+void Actor::_UpdateXyzTan(RoutePoint *pxyz, long irpt, long rw)
 {
     AssertBaseThis(0);
 
-    RPT rpt1;
-    RPT rpt2;
+    RouteDistancePoint rpt1;
+    RouteDistancePoint rpt2;
     BRS dwr, dxr, dyr, dzr;
 
     Assert(irpt + 1 < _pglrpt->IvMac(), "irpt out of range");
@@ -3871,7 +3969,7 @@ void ACTR::_UpdateXyzTan(XYZ *pxyz, long irpt, long rw)
     which can be done using additional arguments.
 
 ***************************************************************************/
-void ACTR::_ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
+void Actor::_ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, ulong *pgrfbra)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pbmat34);
@@ -3952,7 +4050,7 @@ void ACTR::_ApplyRotFromVec(XYZ *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA 
     pnfrmLast may be pvNil
 
 ***************************************************************************/
-bool ACTR::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
+bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
 {
     AssertThis(0);
     AssertNilOrVarMem(pnfrmFirst);
@@ -4004,7 +4102,7 @@ bool ACTR::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
     as by spec, motion fill now inherits the original movement along the path.
 
 ***************************************************************************/
-bool ACTR::_FComputeLifetime(long *pnfrmLast)
+bool Actor::_FComputeLifetime(long *pnfrmLast)
 {
     AssertBaseThis(0);
     AssertNilOrVarMem(pnfrmLast);
@@ -4012,9 +4110,9 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
     long iaev;
     long iaevAdd;
     BRS dwr;
-    AEV aev;
-    AEV *paev;
-    RTEL rtel;
+    Base aev;
+    Base *paev;
+    RouteLocation rtel;
     bool fFreezeThisCel;
     long anid = 0;
     long celn = 0;
@@ -4041,7 +4139,7 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
     // REVIEW *****(SeanSe): Why not start at the end and go backwards?
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (aetAdd == paev->aet)
             iaevAdd = iaev;
     }
@@ -4058,7 +4156,7 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
     // Loop through each frame
     long fFrozen = fFalse;
     long iaevNew = 0;
-    RTEL rtelOld = rtel;
+    RouteLocation rtelOld = rtel;
     rtelOld.dnfrm = rtel.dnfrm - 1;
     for (_nfrmLast = _nfrmFirst; ((rtel.irpt != _pglrpt->IvMac()) || (iaevNew != _pggaev->IvMac())); _nfrmLast++)
     {
@@ -4122,7 +4220,7 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
                 break;
 
             case aetFreeze:
-                long ffriz;
+                int32_t ffriz;
                 _pggaev->Get(iaev, &ffriz);
                 fFrozen = FPure(ffriz);
                 break;
@@ -4133,7 +4231,7 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
                 break;
 
             case aetActn:
-                AEVACTN aevactn;
+                Action aevactn;
 
                 _pggaev->Get(iaev, &aevactn);
                 anid = aevactn.anid;
@@ -4231,13 +4329,13 @@ bool ACTR::_FComputeLifetime(long *pnfrmLast)
     Return fFalse if not stalled.
     If stalled, return the last active event.
 ***************************************************************************/
-bool ACTR::_FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast)
+bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
 {
     AssertBaseThis(0);
     AssertIn(iaevFirst, 0, _pggaev->IvMac());
     AssertNilOrVarMem(piaevLast);
 
-    AEV aev;
+    Base aev;
     long iaev;
 
     for (iaev = iaevFirst; iaev < _pggaev->IvMac(); iaev++)
@@ -4279,7 +4377,7 @@ bool ACTR::_FIsStalled(long iaevFirst, RTEL *prtel, long *piaevLast)
     down to initialize the timing of the recording session
 
 ***************************************************************************/
-bool ACTR::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
+bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
 {
     AssertThis(0);
 
@@ -4305,13 +4403,13 @@ bool ACTR::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
     On failure, actor is restored from pactrRestore
 
 ***************************************************************************/
-bool ACTR::FBeginRecord(ulong tsCurrent, bool fReplace, PACTR pactrRestore)
+bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
     Assert(tsCurrent >= 0, "Invalid type");
 
-    RPT rpt;
-    AEV aev;
+    RouteDistancePoint rpt;
+    Base aev;
     long iaev;
     long nfrmAdd;
     long nfrmPrev;
@@ -4325,7 +4423,7 @@ bool ACTR::FBeginRecord(ulong tsCurrent, bool fReplace, PACTR pactrRestore)
     if (_fRejoin)
     {
         long iaev;
-        AEV aev;
+        Base aev;
 
         long irptNext = _rtelCur.irpt + 1;
 
@@ -4417,18 +4515,18 @@ LFail:
     NOTE: On failure, actor is restored from pactrRestore
 
 ***************************************************************************/
-bool ACTR::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfStepFrm, bool *pfStepRte,
-                       PACTR pactrRestore)
+bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfStepFrm, bool *pfStepRte,
+                       PActor pactrRestore)
 {
     AssertThis(0);
     AssertVarMem(pfStepFrm);
     AssertVarMem(pfStepRte);
 
-    RPT rptCur;
-    XYZ xyzMouse;
-    XYZ dxyzT;
+    RouteDistancePoint rptCur;
+    RoutePoint xyzMouse;
+    RoutePoint dxyzT;
     BRS dwrCur;
-    RPT rptNew;
+    RouteDistancePoint rptNew;
     BRS rFractMoved;
     BRS dwrMouse;
 
@@ -4574,19 +4672,19 @@ LFail:
 // REVIEW *****(*****): Ver 2.0 As motion fill is self sufficient,
 // 		FEndRecord() should be able to exit immediately on !_fModeRecord.
 //   	Also, pactrRestore should be state var _pactrRecordRestore.
-bool ACTR::FEndRecord(bool fReplace, PACTR pactrRestore)
+bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
 
-    AEV aev;
+    Base aev;
     BRS dwr;
     long iaev;
     long irpt;
-    RPT rpt;
-    RPT rptJoin;
-    RPT rptCur;
+    RouteDistancePoint rpt;
+    RouteDistancePoint rptJoin;
+    RouteDistancePoint rptCur;
     BRS dwrMin = kdwrMax;
-    RTEL rtelJoin = _rtelCur;
+    RouteLocation rtelJoin = _rtelCur;
     bool fJoin = fFalse;
     long irptLim = _pglrpt->IvMac();
     long iaevJoinFirst = _iaevCur;
@@ -4779,13 +4877,13 @@ LFail:
     Insert a Freeze event to terminate the truncated event list
 
 ***************************************************************************/
-void ACTR::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
+void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 {
     AssertThis(0);
 
     bool fAlive;
     long iaev;
-    AEV aev;
+    Base aev;
 
     _DeleteFwdCore(fDeleteAll, &fAlive, iaevCur);
 
@@ -4854,15 +4952,15 @@ LEnd:
     have been deleted
 
 ***************************************************************************/
-void ACTR::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
+void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 {
     AssertThis(0);
 
     long iaev, iaevDelLim;
     long irpt, irptDelLim;
     long irptDelFirst;
-    RPT rpt;
-    AEV *paev;
+    RouteDistancePoint rpt;
+    Base *paev;
 
     if (ivNil == iaevCur)
         iaevCur = _iaevCur;
@@ -4875,7 +4973,7 @@ void ACTR::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
     {
         // If we are reducing the current subroute to a single point,
         // it is necessary to store the current orientation for wysiwyg
-        paev = (AEV *)_pggaev->QvFixedGet(_iaevAddCur);
+        paev = (Base *)_pggaev->QvFixedGet(_iaevAddCur);
         if (paev->nfrm == _nfrmCur)
             _SaveCurPathOrien();
     }
@@ -4889,7 +4987,7 @@ void ACTR::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
         fDeleteAll = fTrue;
         for (iaev = iaevCur; iaev < _pggaev->IvMac(); iaev++)
         {
-            paev = (AEV *)_pggaev->QvFixedGet(iaev);
+            paev = (Base *)_pggaev->QvFixedGet(iaev);
             if (aetAdd == paev->aet)
             {
                 fDeleteAll = fFalse;
@@ -4968,9 +5066,9 @@ LDone:
         }
         else if (_pggaev->IvMac() > 0)
         {
-            paev = (AEV *)_pggaev->QvFixedGet(0);
+            paev = (Base *)_pggaev->QvFixedGet(0);
             _nfrmFirst = paev->nfrm;
-            Assert(aetAdd == paev->aet, "Bug in ACTR::DeleteFwdCore");
+            Assert(aetAdd == paev->aet, "Bug in Actor::DeleteFwdCore");
         }
     }
 
@@ -4985,12 +5083,12 @@ LDone:
     Save the path specific part of the current orientation
 
 ***************************************************************************/
-void ACTR::_SaveCurPathOrien(void)
+void Actor::_SaveCurPathOrien(void)
 {
     AssertBaseThis(0);
 
-    RPT rpt;
-    AEV aev;
+    RouteDistancePoint rpt;
+    Base aev;
     ulong grfbra = 0;
 
     if (_iaevAddCur >= 0 && !_ptmpl->FIsTdt())
@@ -5011,18 +5109,18 @@ void ACTR::_SaveCurPathOrien(void)
     Delete the path and events prior to this frame
 
 ***************************************************************************/
-void ACTR::DeleteBackCore(bool *pfAlive)
+void Actor::DeleteBackCore(bool *pfAlive)
 {
     AssertThis(0);
     AssertNilOrVarMem(pfAlive);
 
     long iaev;
     long iaevNew;
-    AEV aev;
+    Base aev;
     BRS dwrOffsetT;
     BRS dwrNew;
     BRS dwrOld;
-    RPT rptOld;
+    RouteDistancePoint rptOld;
     long dnrpt;
 
     // Nop if not yet at first frame
@@ -5138,7 +5236,7 @@ void ACTR::DeleteBackCore(bool *pfAlive)
             break;
 
         case aetActn:
-            AEVACTN aevactn;
+            Action aevactn;
             _pggaev->Get(iaev, &aevactn);
             aevactn.celn = _celnCur;
             _pggaev->Put(iaev, &aevactn);
@@ -5231,14 +5329,14 @@ void ACTR::DeleteBackCore(bool *pfAlive)
     Note:  This truncates the route only, not the event list.
 
 ***************************************************************************/
-void ACTR::_TruncateSubRte(long irptDelLim)
+void Actor::_TruncateSubRte(long irptDelLim)
 {
     AssertBaseThis(0);
 
-    AEV aev;
+    Base aev;
     long iaev;
-    RPT rptNode1;
-    RPT rptNode2;
+    RouteDistancePoint rptNode1;
+    RouteDistancePoint rptNode2;
     long iaevLim = _iaevCur;
     long irpt = _rtelCur.irpt;
 
@@ -5289,7 +5387,7 @@ void ACTR::_TruncateSubRte(long irptDelLim)
     Is the mouse point within this actor.
 
 ***************************************************************************/
-bool ACTR::FPtIn(long xp, long yp, long *pibset)
+bool Actor::FPtIn(long xp, long yp, long *pibset)
 {
     AssertThis(0);
     AssertVarMem(pibset);
@@ -5305,13 +5403,13 @@ bool ACTR::FPtIn(long xp, long yp, long *pibset)
     Otherwise returns fTrue.
 
 ***************************************************************************/
-bool ACTR::FMustRender(long nfrmRenderLast)
+bool Actor::FMustRender(long nfrmRenderLast)
 {
     AssertThis(0);
     Assert(nfrmRenderLast >= _nfrmCur, "Invalid argument to FMustRender");
     Assert(!_fLifeDirty, "FMustRender was called when nfrm values were invalid");
 
-    AEV *paev;
+    Base *paev;
     long iaev;
 
     if (nfrmRenderLast == _nfrmCur)
@@ -5326,12 +5424,12 @@ bool ACTR::FMustRender(long nfrmRenderLast)
     // Intervening events?	Sounds don't affect rendering.
     if (_iaevCur < _pggaev->IvMac())
     {
-        paev = (AEV *)_pggaev->QvFixedGet(_iaevCur);
+        paev = (Base *)_pggaev->QvFixedGet(_iaevCur);
         if (paev->nfrm <= nfrmRenderLast)
         {
             for (iaev = _iaevCur; iaev < _pggaev->IvMac(); iaev++)
             {
-                paev = (AEV *)_pggaev->QvFixedGet(iaev);
+                paev = (Base *)_pggaev->QvFixedGet(iaev);
                 if (paev->nfrm > nfrmRenderLast)
                     break;
                 if (aetSnd == paev->aet)
@@ -5363,7 +5461,7 @@ LStill:
     Get actor name
 
 ***************************************************************************/
-void ACTR::GetName(PSTN pstn)
+void Actor::GetName(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
@@ -5379,14 +5477,14 @@ void ACTR::GetName(PSTN pstn)
     Get actor world coordinates
 
 ***************************************************************************/
-void ACTR::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
+void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
 {
     AssertThis(0);
     AssertNilOrVarMem(pxr);
     AssertNilOrVarMem(pyr);
     AssertNilOrVarMem(pzr);
 
-    XYZ xyz;
+    RoutePoint xyz;
 
     _GetXyzFromRtel(&_rtelCur, &xyz);
 
@@ -5403,11 +5501,11 @@ void ACTR::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
     Hilite the actor
 
 ***************************************************************************/
-void ACTR::Hilite(void)
+void Actor::Hilite(void)
 {
     AssertThis(0);
 
-    BODY::SetHiliteColor(_fTimeFrozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
+    Body::SetHiliteColor(_fTimeFrozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
     _pbody->Hilite();
 }
 
@@ -5422,23 +5520,23 @@ void ACTR::Hilite(void)
     deleted.
 
 ***************************************************************************/
-bool ACTR::FChangeTagTmpl(TAG *ptagTmplNew)
+bool Actor::FChangeTagTmpl(TAG *ptagTmplNew)
 {
     AssertThis(0);
     AssertVarMem(ptagTmplNew);
 
-    PTMPL ptmpl;
+    PTemplate ptmpl;
     long cbsetNew;
     long iaev;
-    AEV aev;
-    AEVCOST aevcost;
+    Base aev;
+    Costume aevcost;
 
-    ptmpl = (PTMPL)vptagm->PbacoFetch(ptagTmplNew, TMPL::FReadTmpl);
+    ptmpl = (PTemplate)vptagm->PbacoFetch(ptagTmplNew, Template::FReadTmpl);
     if (pvNil == ptmpl)
         return fFalse;
     if (ptmpl->FIsTdt())
     {
-        if (!((PTDT)ptmpl)->FAdjustBody(_pbody))
+        if (!((PThreeDText)ptmpl)->FAdjustBody(_pbody))
         {
             ReleasePpo(&ptmpl);
             return fFalse;
@@ -5449,19 +5547,19 @@ bool ACTR::FChangeTagTmpl(TAG *ptagTmplNew)
     _PositionBody(&_xyzCur);
     ReleasePpo(&_ptmpl);
     _ptmpl = ptmpl;
-    TAGM::CloseTag(&_tagTmpl);
+    TagManager::CloseTag(&_tagTmpl);
     _tagTmpl = *ptagTmplNew;
-    TAGM::DupTag(ptagTmplNew);
+    TagManager::DupTag(ptagTmplNew);
 
-    // If the new TMPL is not a TDT, we're done...although currently this
-    // function should only be called with ptagTmplNew being a TDT
+    // If the new Template is not a ThreeDText, we're done...although currently this
+    // function should only be called with ptagTmplNew being a ThreeDText
     if (!ptmpl->FIsTdt())
         return fTrue;
 
     cbsetNew = _pbody->Cbset();
     // Need to remove any costume events acting on ibset >= cbsetNew
     // Loop backwards to prevent indexing problems since we are deleting
-    // events in this GG as we go
+    // events in this GeneralGroup as we go
     for (iaev = _pggaev->IvMac() - 1; iaev >= 0; iaev--)
     {
         _pggaev->GetFixed(iaev, &aev);
@@ -5480,13 +5578,13 @@ bool ACTR::FChangeTagTmpl(TAG *ptagTmplNew)
 #ifdef DEBUG
 /***************************************************************************
 
-    Assert the validity of the ACTR.
+    Assert the validity of the Actor.
 
 ***************************************************************************/
-void ACTR::AssertValid(ulong grfobj)
+void Actor::AssertValid(ulong grfobj)
 {
 
-    ACTR_PAR::AssertValid(fobjAllocated);
+    Actor_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(_pbody, 0);
     AssertNilOrPo(_ptmpl, 0);
     AssertPo(_pggaev, 0);
@@ -5507,12 +5605,12 @@ void ACTR::AssertValid(ulong grfobj)
 
     if (fTracing)
     {
-        RPT rpt;
+        RouteDistancePoint rpt;
         long irpt;
         long iaev;
-        AEV aev;
+        Base aev;
         bool mpaetfSeen[aetLim];
-        RTEL rtel;
+        RouteLocation rtel;
 
         ClearPb(mpaetfSeen, size(mpaetfSeen));
 
@@ -5567,13 +5665,13 @@ void ACTR::AssertValid(ulong grfobj)
             switch (aev.aet)
             {
             case aetAdd: {
-                AEVADD aevadd;
+                Add aevadd;
                 Assert(_pggaev->Cb(iaev) == kcbVarAdd, "Corrupt size in event list");
                 _pggaev->Get(iaev, &aevadd);
                 break;
             }
             case aetActn: {
-                AEVACTN aevactn;
+                Action aevactn;
                 _pggaev->Get(iaev, &aevactn);
                 Assert(_pggaev->Cb(iaev) == kcbVarActn, "Corrupt size in event list");
                 break;
@@ -5594,7 +5692,7 @@ void ACTR::AssertValid(ulong grfobj)
             case aetSnd:
                 break;
             case aetFreeze: {
-                long faevfrz;
+                int32_t faevfrz;
                 _pggaev->Get(iaev, &faevfrz);
                 Assert(_pggaev->Cb(iaev) == kcbVarFreeze, "Corrupt size in event list");
                 break;
@@ -5622,23 +5720,23 @@ void ACTR::AssertValid(ulong grfobj)
 
 /***************************************************************************
 
-    Mark memory used by the ACTR
+    Mark memory used by the Actor
 
 ***************************************************************************/
-void ACTR::MarkMem(void)
+void Actor::MarkMem(void)
 {
     AssertThis(0);
     long iaev;
-    AEV *paev;
-    AEVSND *paevsnd;
+    Base *paev;
+    Sound *paevsnd;
 
-    ACTR_PAR::MarkMem();
+    Actor_PAR::MarkMem();
     for (iaev = 0; iaev < _pggaev->IvMac(); iaev++)
     {
-        paev = (AEV *)_pggaev->QvFixedGet(iaev);
+        paev = (Base *)_pggaev->QvFixedGet(iaev);
         if (aetSnd == paev->aet)
         {
-            paevsnd = (AEVSND *)_pggaev->QvGet(iaev);
+            paevsnd = (Sound *)_pggaev->QvGet(iaev);
             if (paevsnd->tag.sid == ksidUseCrf)
                 paevsnd->tag.MarkMem();
         }

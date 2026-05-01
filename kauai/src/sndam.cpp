@@ -23,7 +23,7 @@ ASSERTNAME
 #define CHECK_AUDIO_DEVCAPS
 
 // Initialize the maximum mem footprint of wave sounds.
-long SDAM::vcbMaxMemWave = 40 * 1024;
+long AudioManSoundDevice::vcbMaxMemWave = 40 * 1024;
 
 static IAMMixer *_pamix; // the audioman mixer
 static ulong _luGroup;   // the group number
@@ -33,18 +33,18 @@ static long _cactGroup;  // group nesting count
 static ulong _luFormat;    // format mixer is in
 static ulong _luCacheTime; // buffer size for mixer
 
-RTCLASS(SDAM)
-RTCLASS(CAMS)
-RTCLASS(AMQUE)
+RTCLASS(AudioManSoundDevice)
+RTCLASS(CachedAudioManSound)
+RTCLASS(AudioManQueue)
 
 /***************************************************************************
     Constructor for a streamed block.
 ***************************************************************************/
-STBL::STBL(void)
+DataBlockStream::DataBlockStream(void)
 {
     AssertThisMem();
 
-    // WARNING: this is not allocated using our NewObj because STBL is not
+    // WARNING: this is not allocated using our NewObj because DataBlockStream is not
     // based on BASE. So fields are not automatically initialized to 0.
     _cactRef = 1;
     _ib = 0;
@@ -53,15 +53,15 @@ STBL::STBL(void)
 /***************************************************************************
     Destructor for a streamed block.
 ***************************************************************************/
-STBL::~STBL(void)
+DataBlockStream::~DataBlockStream(void)
 {
     AssertThisMem();
 }
 
 /***************************************************************************
-    QueryInterface for STBL.
+    QueryInterface for DataBlockStream.
 ***************************************************************************/
-STDMETHODIMP STBL::QueryInterface(REFIID riid, void **ppv)
+STDMETHODIMP DataBlockStream::QueryInterface(REFIID riid, void **ppv)
 {
     AssertThis(0);
 
@@ -79,7 +79,7 @@ STDMETHODIMP STBL::QueryInterface(REFIID riid, void **ppv)
 /***************************************************************************
     Increment the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) STBL::AddRef(void)
+STDMETHODIMP_(ULONG) DataBlockStream::AddRef(void)
 {
     AssertThis(0);
     return ++_cactRef;
@@ -88,7 +88,7 @@ STDMETHODIMP_(ULONG) STBL::AddRef(void)
 /***************************************************************************
     Decrement the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) STBL::Release(void)
+STDMETHODIMP_(ULONG) DataBlockStream::Release(void)
 {
     AssertThis(0);
     long cactRef;
@@ -101,7 +101,7 @@ STDMETHODIMP_(ULONG) STBL::Release(void)
 /***************************************************************************
     Read some stuff.
 ***************************************************************************/
-STDMETHODIMP STBL::Read(void *pv, ULONG cb, ULONG *pcb)
+STDMETHODIMP DataBlockStream::Read(void *pv, ULONG cb, ULONG *pcb)
 {
     AssertThis(0);
     AssertPvCb(pv, cb);
@@ -124,7 +124,7 @@ STDMETHODIMP STBL::Read(void *pv, ULONG cb, ULONG *pcb)
 /***************************************************************************
     Seek to a place.
 ***************************************************************************/
-STDMETHODIMP STBL::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *plibNewPosition)
+STDMETHODIMP DataBlockStream::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *plibNewPosition)
 {
     AssertThis(0);
     AssertNilOrVarMem(plibNewPosition);
@@ -159,14 +159,14 @@ STDMETHODIMP STBL::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARGE_INTEGER *
 /***************************************************************************
     Static method to create a new stream wrapper around a flo.
 ***************************************************************************/
-PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
+PDataBlockStream DataBlockStream::PstblNew(FileLocation *pflo, bool fPacked)
 {
     AssertPo(pflo, ffloReadable);
-    PSTBL pstbl;
-    BLCK blck;
-    PBLCK pblck;
+    PDataBlockStream pstbl;
+    DataBlock blck;
+    PDataBlock pblck;
 
-    if (pvNil == (pstbl = new STBL))
+    if (pvNil == (pstbl = new DataBlockStream))
         return pvNil;
 
     pblck = &pstbl->_blck;
@@ -181,7 +181,7 @@ PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
         }
 
         // see if it's too big to keep in memory
-        if (pstbl->CbMem() > SDAM::vcbMaxMemWave)
+        if (pstbl->CbMem() > AudioManSoundDevice::vcbMaxMemWave)
         {
             // try to put the sound on disk
             HQ hq = pblck->HqFree();
@@ -198,15 +198,15 @@ PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
     else
     {
         // see if it's on a removeable disk
-        FNI fni;
+        Filename fni;
 
         pflo->pfil->GetFni(&fni);
         if (fni.Grfvk() & (fvkFloppy | fvkCD | fvkRemovable))
         {
             // cache to the hard drive or memory, depending on the size
-            BLCK blck(pflo);
+            DataBlock blck(pflo);
 
-            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(STBL) > SDAM::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
+            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > AudioManSoundDevice::vcbMaxMemWave) || !blck.FWriteToBlck(pblck))
             {
                 delete pstbl;
                 return pvNil;
@@ -222,9 +222,9 @@ PSTBL STBL::PstblNew(FLO *pflo, bool fPacked)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a STBL.
+    Assert the validity of a DataBlockStream.
 ***************************************************************************/
-void STBL::AssertValid(ulong grf)
+void DataBlockStream::AssertValid(ulong grf)
 {
     AssertThisMem();
     AssertPo(&_blck, 0);
@@ -232,9 +232,9 @@ void STBL::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the STBL.
+    Mark memory for the DataBlockStream.
 ***************************************************************************/
-void STBL::MarkMem(void)
+void DataBlockStream::MarkMem(void)
 {
     AssertValid(0);
     MarkMemObj(&_blck);
@@ -244,7 +244,7 @@ void STBL::MarkMem(void)
 /***************************************************************************
     Constructor for a cached AudioMan sound.
 ***************************************************************************/
-CAMS::CAMS(void)
+CachedAudioManSound::CachedAudioManSound(void)
 {
     AssertBaseThis(fobjAllocated);
 }
@@ -252,7 +252,7 @@ CAMS::CAMS(void)
 /***************************************************************************
     Destructor for a cached AudioMan sound.
 ***************************************************************************/
-CAMS::~CAMS(void)
+CachedAudioManSound::~CachedAudioManSound(void)
 {
     AssertBaseThis(fobjAllocated);
     ReleasePpo(&psnd);
@@ -260,20 +260,20 @@ CAMS::~CAMS(void)
 }
 
 /***************************************************************************
-    Static BACO reader method to put together a Cached AudioMan sound.
+    Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CAMS::FReadCams(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, 0);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    FLO flo;
+    FileLocation flo;
     bool fPacked;
-    PCAMS pcams = pvNil;
-    PSTBL pstbl = pvNil;
+    PCachedAudioManSound pcams = pvNil;
+    PDataBlockStream pstbl = pvNil;
 
-    *pcb = size(CAMS) + size(STBL);
+    *pcb = size(CachedAudioManSound) + size(DataBlockStream);
     if (pvNil == ppbaco)
         return fTrue;
 
@@ -282,11 +282,11 @@ bool CAMS::FReadCams(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
         return fFalse;
 
     fPacked = pcrf->Pcfl()->FPacked(ctg, cno);
-    if (pvNil == (pstbl = STBL::PstblNew(&flo, fPacked)))
+    if (pvNil == (pstbl = DataBlockStream::PstblNew(&flo, fPacked)))
         return fFalse;
 
-    *pcb = size(CAMS) + pstbl->CbMem();
-    if (pvNil == (pcams = NewObj CAMS) || FAILED(AllocSoundFromStream(&pcams->psnd, pstbl, fTrue, pvNil)))
+    *pcb = size(CachedAudioManSound) + pstbl->CbMem();
+    if (pvNil == (pcams = NewObj CachedAudioManSound) || FAILED(AllocSoundFromStream(&pcams->psnd, pstbl, fTrue, pvNil)))
     {
         ReleasePpo(&pcams);
     }
@@ -303,15 +303,15 @@ bool CAMS::FReadCams(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 }
 
 /***************************************************************************
-    Static BACO reader method to put together a Cached AudioMan sound.
+    Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-PCAMS CAMS::PcamsNewLoop(PCAMS pcamsSrc, long cactPlay)
+PCachedAudioManSound CachedAudioManSound::PcamsNewLoop(PCachedAudioManSound pcamsSrc, long cactPlay)
 {
     AssertPo(pcamsSrc, 0);
     Assert(cactPlay != 1, "bad loop count");
-    PCAMS pcams = pvNil;
+    PCachedAudioManSound pcams = pvNil;
 
-    if (pvNil == (pcams = NewObj CAMS) || FAILED(AllocLoopFilter(&pcams->psnd, pcamsSrc->psnd, cactPlay - 1)))
+    if (pvNil == (pcams = NewObj CachedAudioManSound) || FAILED(AllocLoopFilter(&pcams->psnd, pcamsSrc->psnd, cactPlay - 1)))
     {
         ReleasePpo(&pcams);
     }
@@ -328,22 +328,22 @@ PCAMS CAMS::PcamsNewLoop(PCAMS pcamsSrc, long cactPlay)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CAMS.
+    Assert the validity of a CachedAudioManSound.
 ***************************************************************************/
-void CAMS::AssertValid(ulong grf)
+void CachedAudioManSound::AssertValid(ulong grf)
 {
-    CAMS_PAR::AssertValid(0);
+    CachedAudioManSound_PAR::AssertValid(0);
     AssertPo(_pstbl, 0);
     Assert(psnd != pvNil, 0);
 }
 
 /***************************************************************************
-    Mark memory for the CAMS.
+    Mark memory for the CachedAudioManSound.
 ***************************************************************************/
-void CAMS::MarkMem(void)
+void CachedAudioManSound::MarkMem(void)
 {
     AssertValid(0);
-    CAMS_PAR::MarkMem();
+    CachedAudioManSound_PAR::MarkMem();
     if (pvNil != _pstbl)
         _pstbl->MarkMem();
 }
@@ -352,16 +352,16 @@ void CAMS::MarkMem(void)
 /***************************************************************************
     Constructor for our notify sink.
 ***************************************************************************/
-AMNOT::AMNOT(void)
+AudioManNotifySink::AudioManNotifySink(void)
 {
     _cactRef = 1;
     _pamque = pvNil;
 }
 
 /***************************************************************************
-    Set the AMQUE that we're to notify.
+    Set the AudioManQueue that we're to notify.
 ***************************************************************************/
-void AMNOT::Set(PAMQUE pamque)
+void AudioManNotifySink::Set(PAudioManQueue pamque)
 {
     AssertNilOrVarMem(pamque);
     _pamque = pamque;
@@ -369,9 +369,9 @@ void AMNOT::Set(PAMQUE pamque)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a AMNOT.
+    Assert the validity of a AudioManNotifySink.
 ***************************************************************************/
-void AMNOT::AssertValid(ulong grf)
+void AudioManNotifySink::AssertValid(ulong grf)
 {
     AssertThisMem();
     AssertNilOrVarMem(_pamque);
@@ -379,9 +379,9 @@ void AMNOT::AssertValid(ulong grf)
 #endif // DEBUG
 
 /***************************************************************************
-    QueryInterface for AMNOT.
+    QueryInterface for AudioManNotifySink.
 ***************************************************************************/
-STDMETHODIMP AMNOT::QueryInterface(REFIID riid, void **ppv)
+STDMETHODIMP AudioManNotifySink::QueryInterface(REFIID riid, void **ppv)
 {
     AssertThis(0);
 
@@ -399,7 +399,7 @@ STDMETHODIMP AMNOT::QueryInterface(REFIID riid, void **ppv)
 /***************************************************************************
     Increment the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) AMNOT::AddRef(void)
+STDMETHODIMP_(ULONG) AudioManNotifySink::AddRef(void)
 {
     AssertThis(0);
     return ++_cactRef;
@@ -408,7 +408,7 @@ STDMETHODIMP_(ULONG) AMNOT::AddRef(void)
 /***************************************************************************
     Decrement the reference count.
 ***************************************************************************/
-STDMETHODIMP_(ULONG) AMNOT::Release(void)
+STDMETHODIMP_(ULONG) AudioManNotifySink::Release(void)
 {
     AssertThis(0);
     long cactRef;
@@ -419,9 +419,9 @@ STDMETHODIMP_(ULONG) AMNOT::Release(void)
 }
 
 /***************************************************************************
-    The indicated sound is done. Just tell the AMQUE that we got a notify.
+    The indicated sound is done. Just tell the AudioManQueue that we got a notify.
 ***************************************************************************/
-STDMETHODIMP_(void) AMNOT::OnCompletion(LPSOUND pSound, DWORD dwPosition)
+STDMETHODIMP_(void) AudioManNotifySink::OnCompletion(LPSOUND pSound, DWORD dwPosition)
 {
     AssertThis(0);
 
@@ -432,14 +432,14 @@ STDMETHODIMP_(void) AMNOT::OnCompletion(LPSOUND pSound, DWORD dwPosition)
 /***************************************************************************
     Constructor for an audioman queue.
 ***************************************************************************/
-AMQUE::AMQUE(void)
+AudioManQueue::AudioManQueue(void)
 {
 }
 
 /***************************************************************************
     Destructor for an audioman queue.
 ***************************************************************************/
-AMQUE::~AMQUE(void)
+AudioManQueue::~AudioManQueue(void)
 {
     if (pvNil != _pchan)
         StopAll();
@@ -448,11 +448,11 @@ AMQUE::~AMQUE(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a AMQUE.
+    Assert the validity of a AudioManQueue.
 ***************************************************************************/
-void AMQUE::AssertValid(ulong grf)
+void AudioManQueue::AssertValid(ulong grf)
 {
-    AMQUE_PAR::AssertValid(0);
+    AudioManQueue_PAR::AssertValid(0);
     Assert(pvNil != _pchan, 0);
 }
 #endif // DEBUG
@@ -460,11 +460,11 @@ void AMQUE::AssertValid(ulong grf)
 /***************************************************************************
     Static method to create a new audioman queue.
 ***************************************************************************/
-PAMQUE AMQUE::PamqueNew(void)
+PAudioManQueue AudioManQueue::PamqueNew(void)
 {
-    PAMQUE pamque;
+    PAudioManQueue pamque;
 
-    if (pvNil == (pamque = NewObj AMQUE))
+    if (pvNil == (pamque = NewObj AudioManQueue))
         return pvNil;
 
     if (!pamque->_FInit())
@@ -478,11 +478,11 @@ PAMQUE AMQUE::PamqueNew(void)
     Initialize the audioman queue. Allocate the audioman channel and the
     _pglsndin.
 ***************************************************************************/
-bool AMQUE::_FInit(void)
+bool AudioManQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (!AMQUE_PAR::_FInit())
+    if (!AudioManQueue_PAR::_FInit())
         return fFalse;
 
     if (FAILED(_pamix->AllocChannel(&_pchan)))
@@ -507,7 +507,7 @@ bool AMQUE::_FInit(void)
 /***************************************************************************
     Enter the critical section protecting member variables.
 ***************************************************************************/
-void AMQUE::_Enter(void)
+void AudioManQueue::_Enter(void)
 {
     _mutx.Enter();
 }
@@ -515,26 +515,26 @@ void AMQUE::_Enter(void)
 /***************************************************************************
     Leave the critical section protecting member variables.
 ***************************************************************************/
-void AMQUE::_Leave(void)
+void AudioManQueue::_Leave(void)
 {
     _mutx.Leave();
 }
 
 /***************************************************************************
-    Fetch the given sound chunk as a CAMS.
+    Fetch the given sound chunk as a CachedAudioManSound.
 ***************************************************************************/
-PBACO AMQUE::_PbacoFetch(PRCA prca, CTG ctg, CNO cno)
+PBaseCacheableObject AudioManQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return prca->PbacoFetch(ctg, cno, &CAMS::FReadCams);
+    return prca->PbacoFetch(ctg, cno, &CachedAudioManSound::FReadCams);
 }
 
 /***************************************************************************
     An item was added to or deleted from the queue.
 ***************************************************************************/
-void AMQUE::_Queue(long isndinMin)
+void AudioManQueue::_Queue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -544,7 +544,7 @@ void AMQUE::_Queue(long isndinMin)
 
     if (pvNil != _pglsndin)
     {
-        PCAMS pcams;
+        PCachedAudioManSound pcams;
 
         for (isndin = isndinMin; isndin < _pglsndin->IvMac(); isndin++)
         {
@@ -554,7 +554,7 @@ void AMQUE::_Queue(long isndinMin)
                 continue;
 
             // put a loop filter around it to get seamless sample based looping
-            if (pvNil != (pcams = CAMS::PcamsNewLoop((PCAMS)sndin.pbaco, sndin.cactPlay)))
+            if (pvNil != (pcams = CachedAudioManSound::PcamsNewLoop((PCachedAudioManSound)sndin.pbaco, sndin.cactPlay)))
             {
                 sndin.cactPlay = 1; // now it's just one sound
                 ReleasePpo(&sndin.pbaco);
@@ -582,10 +582,10 @@ void AMQUE::_Queue(long isndinMin)
             _pchan->SetVolume(LuVolScale((ulong)(-1), sndin.vlm));
 
             // if the sound is in memory
-            if (((PCAMS)sndin.pbaco)->FInMemory())
+            if (((PCachedAudioManSound)sndin.pbaco)->FInMemory())
             {
                 // set the sound source, with no cache (Since it's in memory)
-                _pchan->SetSoundSrc(((PCAMS)sndin.pbaco)->psnd);
+                _pchan->SetSoundSrc(((PCachedAudioManSound)sndin.pbaco)->psnd);
             }
             else
             {
@@ -597,7 +597,7 @@ void AMQUE::_Queue(long isndinMin)
                 cc.dwCacheTime = 2 * _luCacheTime;
 
                 // set the sound src, using cache cause it's not in memory
-                _pchan->SetCachedSrc(((PCAMS)sndin.pbaco)->psnd, &cc);
+                _pchan->SetCachedSrc(((PCachedAudioManSound)sndin.pbaco)->psnd, &cc);
             }
 
             // if there is a starting offset, apply it
@@ -625,7 +625,7 @@ void AMQUE::_Queue(long isndinMin)
 /***************************************************************************
     One or more items in the queue were paused.
 ***************************************************************************/
-void AMQUE::_PauseQueue(long isndinMin)
+void AudioManQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -647,7 +647,7 @@ void AMQUE::_PauseQueue(long isndinMin)
 /***************************************************************************
     One or more items in the queue were resumed.
 ***************************************************************************/
-void AMQUE::_ResumeQueue(long isndinMin)
+void AudioManQueue::_ResumeQueue(long isndinMin)
 {
     AssertThis(0);
 
@@ -658,7 +658,7 @@ void AMQUE::_ResumeQueue(long isndinMin)
     Called by our notify sink to tell us that the indicated sound is done.
     WARNING: this is called in an auxillary thread.
 ***************************************************************************/
-void AMQUE::Notify(LPSOUND psnd)
+void AudioManQueue::Notify(LPSOUND psnd)
 {
     AssertThis(0);
     SNDIN sndin;
@@ -668,7 +668,7 @@ void AMQUE::Notify(LPSOUND psnd)
     if (pvNil != _pglsndin && _pglsndin->IvMac() > _isndinCur)
     {
         _pglsndin->Get(_isndinCur, &sndin);
-        if (psnd == ((PCAMS)sndin.pbaco)->psnd)
+        if (psnd == ((PCachedAudioManSound)sndin.pbaco)->psnd)
         {
             if (--sndin.cactPlay == 0)
             {
@@ -679,7 +679,7 @@ void AMQUE::Notify(LPSOUND psnd)
             {
                 // play the sound again
                 _pglsndin->Put(_isndinCur, &sndin);
-                _pchan->SetSoundSrc(((PCAMS)sndin.pbaco)->psnd);
+                _pchan->SetSoundSrc(((PCachedAudioManSound)sndin.pbaco)->psnd);
                 _tsStart = TsCurrentSystem();
             }
         }
@@ -691,7 +691,7 @@ void AMQUE::Notify(LPSOUND psnd)
 /***************************************************************************
     Constructor for the audioman device.
 ***************************************************************************/
-SDAM::SDAM(void)
+AudioManSoundDevice::AudioManSoundDevice(void)
 {
     _vlm = kvlmFull;
     _luVolSys = (ulong)(-1);
@@ -700,7 +700,7 @@ SDAM::SDAM(void)
 /***************************************************************************
     Destructor for the audioman device.
 ***************************************************************************/
-SDAM::~SDAM(void)
+AudioManSoundDevice::~AudioManSoundDevice(void)
 {
     AssertBaseThis(0);
 
@@ -710,11 +710,11 @@ SDAM::~SDAM(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a SDAM.
+    Assert the validity of a AudioManSoundDevice.
 ***************************************************************************/
-void SDAM::AssertValid(ulong grf)
+void AudioManSoundDevice::AssertValid(ulong grf)
 {
-    SDAM_PAR::AssertValid(0);
+    AudioManSoundDevice_PAR::AssertValid(0);
     Assert(_pamix != pvNil, 0);
 }
 #endif // DEBUG
@@ -722,11 +722,11 @@ void SDAM::AssertValid(ulong grf)
 /***************************************************************************
     Static method to create the audioman device.
 ***************************************************************************/
-PSDAM SDAM::PsdamNew(long wav)
+PAudioManSoundDevice AudioManSoundDevice::PsdamNew(long wav)
 {
-    PSDAM psdam;
+    PAudioManSoundDevice psdam;
 
-    if (pvNil == (psdam = NewObj SDAM))
+    if (pvNil == (psdam = NewObj AudioManSoundDevice))
         return pvNil;
 
     if (!psdam->_FInit(wav))
@@ -792,13 +792,13 @@ bool FHaveWaveDevice(DWORD dwReqFormats)
 /***************************************************************************
     Initialize the audioman device.
 ***************************************************************************/
-bool SDAM::_FInit(long wav)
+bool AudioManSoundDevice::_FInit(long wav)
 {
     AssertBaseThis(0);
     MIXERCONFIG mixc;
     ADVMIXCONFIG amxc;
 
-    if (!SDAM_PAR::_FInit())
+    if (!AudioManSoundDevice_PAR::_FInit())
         return fFalse;
 
     // get IAMMixer interface
@@ -872,17 +872,17 @@ bool SDAM::_FInit(long wav)
 /***************************************************************************
     Allocate a new audioman queue.
 ***************************************************************************/
-PSNQUE SDAM::_PsnqueNew(void)
+PSoundQueue AudioManSoundDevice::_PsnqueNew(void)
 {
     AssertThis(0);
 
-    return AMQUE::PamqueNew();
+    return AudioManQueue::PamqueNew();
 }
 
 /***************************************************************************
     Activate or deactivate audioman.
 ***************************************************************************/
-void SDAM::_Suspend(bool fSuspend)
+void AudioManSoundDevice::_Suspend(bool fSuspend)
 {
     AssertThis(0);
 
@@ -903,7 +903,7 @@ void SDAM::_Suspend(bool fSuspend)
 /***************************************************************************
     Set the volume.
 ***************************************************************************/
-void SDAM::SetVlm(long vlm)
+void AudioManSoundDevice::SetVlm(long vlm)
 {
     AssertThis(0);
 
@@ -918,7 +918,7 @@ void SDAM::SetVlm(long vlm)
 /***************************************************************************
     Get the current volume.
 ***************************************************************************/
-long SDAM::VlmCur(void)
+long AudioManSoundDevice::VlmCur(void)
 {
     AssertThis(0);
 
@@ -928,7 +928,7 @@ long SDAM::VlmCur(void)
 /***************************************************************************
     Begin a synchronization group.
 ***************************************************************************/
-void SDAM::BeginSynch(void)
+void AudioManSoundDevice::BeginSynch(void)
 {
     AssertThis(0);
 
@@ -939,7 +939,7 @@ void SDAM::BeginSynch(void)
 /***************************************************************************
     End a synchronization group.
 ***************************************************************************/
-void SDAM::EndSynch(void)
+void AudioManSoundDevice::EndSynch(void)
 {
     AssertThis(0);
 

@@ -5,7 +5,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    To improve performance, BWLD can render into a reduced area, then
+    To improve performance, World can render into a reduced area, then
     enlarge the resulting image	at display time.  _fHalfX reduces the
     horizontal resolution by half, and _fHalfY reduces the vertical
     resolution by half.  Both modes can be used together to render 1/4 as
@@ -23,7 +23,9 @@
 
 ASSERTNAME
 
-RTCLASS(BWLD)
+namespace BRender {
+
+RTCLASS(World)
 
 const long kcbitPixelRGB = 8; // RGB buffers are 8 bits deep
 const long kcbPixelRGB = 1;
@@ -31,21 +33,103 @@ const long kcbPixelRGB = 1;
 const long kcbitPixelZ = 16; // Z buffers are 16 bits deep
 const long kcbPixelZ = 2;
 
-bool BWLD::_fBRenderInited = fFalse;
+bool World::_fBRenderInited = fFalse;
+bool World::_fRenderWireframe = fFalse;
+bool World::_fNoTexture = fFalse;
+
+/***************************************************************************
+    No-texture mode: walk every BRender material, save its colour_map, and
+    clear it (so models render in their flat base color).  Restoring requires
+    remembering the original pixmap pointer per material -- we keep that in
+    a side-table that is rebuilt on every enable.
+***************************************************************************/
+struct _STexBackup
+{
+    BMTL *pbmtl;
+    BPMP *pbpmp;
+};
+static _STexBackup *_prgtexbk = pvNil;
+static long _ctexbk = 0;
+
+static br_uint_32 BR_CALLBACK _ClearTextureCb(br_material *pbmtl, void *)
+{
+    if (pvNil == pbmtl->colour_map)
+        return 0;
+    _prgtexbk[_ctexbk].pbmtl = pbmtl;
+    _prgtexbk[_ctexbk].pbpmp = pbmtl->colour_map;
+    _ctexbk++;
+    pbmtl->colour_map = pvNil;
+    BrMaterialUpdate(pbmtl, BR_MATU_COLOURMAP);
+    return 0;
+}
+
+void World::SetNoTexture(bool fOn)
+{
+    if (_fNoTexture == fOn)
+        return;
+    _fNoTexture = fOn;
+    if (fOn)
+    {
+        long cmtl = BrMaterialCount(pvNil);
+        if (cmtl <= 0)
+            return;
+        if (pvNil != _prgtexbk)
+            FreePpv((void **)&_prgtexbk);
+        _ctexbk = 0;
+        if (!FAllocPv((void **)&_prgtexbk, LwMul(cmtl, size(_STexBackup)), fmemNil, mprNormal))
+            return;
+        BrMaterialEnum(pvNil, _ClearTextureCb, pvNil);
+    }
+    else
+    {
+        long i;
+        for (i = 0; i < _ctexbk; i++)
+        {
+            _prgtexbk[i].pbmtl->colour_map = _prgtexbk[i].pbpmp;
+            BrMaterialUpdate(_prgtexbk[i].pbmtl, BR_MATU_COLOURMAP);
+        }
+        _ctexbk = 0;
+        if (pvNil != _prgtexbk)
+            FreePpv((void **)&_prgtexbk);
+    }
+}
+
+/***************************************************************************
+    Recursively force a render style on every BR_ACTOR_MODEL descendant.
+    Used by the wireframe override: setting only the world root is not
+    sufficient because body parts assign their own non-default render_style
+    (BR_RSTYLE_FACES), which BRender treats as overriding the inherited one.
+***************************************************************************/
+static void _SetModelRenderStyleRec(BACT *pbact, br_uint_8 style)
+{
+    BACT *pchild;
+    for (pchild = pbact->children; pvNil != pchild; pchild = pchild->next)
+    {
+        // Don't touch hilite (selection) actors which use BR_RSTYLE_BOUNDING_EDGES
+        // to draw a wireframe bounding box around selected bodies, or any other
+        // bounding-style actor.
+        if (pchild->type == BR_ACTOR_MODEL && pchild->render_style != BR_RSTYLE_BOUNDING_POINTS &&
+            pchild->render_style != BR_RSTYLE_BOUNDING_EDGES && pchild->render_style != BR_RSTYLE_BOUNDING_FACES)
+        {
+            pchild->render_style = style;
+        }
+        _SetModelRenderStyleRec(pchild, style);
+    }
+}
 
 /***************************************************************************
     Allocate a new BRender world
 ***************************************************************************/
-PBWLD BWLD::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
+PWorld World::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
 {
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
     AssertIn(dyp, 1, ksuMax);
     Assert(dxp % 2 == 0, "dxp should be even");
     Assert(dyp % 2 == 0, "dyp should be even");
 
-    PBWLD pbwld;
+    PWorld pbwld;
 
-    pbwld = NewObj BWLD;
+    pbwld = NewObj World;
 
     if (pbwld == pvNil || !pbwld->_FInit(dxp, dyp, fHalfX, fHalfY))
     {
@@ -58,9 +142,9 @@ PBWLD BWLD::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
 }
 
 /***************************************************************************
-    Initialize the BWLD
+    Initialize the World
 ***************************************************************************/
-bool BWLD::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
+bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
 {
     AssertBaseThis(0);
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
@@ -94,10 +178,10 @@ bool BWLD::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
     BrActorAdd(&_bactWorld, &_bactCamera);
 
     // Set up dirty region stuff
-    _pregnDirtyWorking = REGN::PregnNew(&_rcBuffer);
+    _pregnDirtyWorking = Region::PregnNew(&_rcBuffer);
     if (pvNil == _pregnDirtyWorking)
         return fFalse;
-    _pregnDirtyScreen = REGN::PregnNew(pvNil);
+    _pregnDirtyScreen = Region::PregnNew(pvNil);
     if (pvNil == _pregnDirtyScreen)
         return fFalse;
 
@@ -111,7 +195,7 @@ bool BWLD::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
     and _fHalfY.  This function gets called by _FInit, and again every time
     FSetHalfMode is called.
 ***************************************************************************/
-bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
+bool World::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
 {
     AssertBaseThis(0);
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
@@ -147,7 +231,7 @@ bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
 
     // Set up background RGB buffer
     ReleasePpo(&_pgptBackground);
-    _pgptBackground = GPT::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
+    _pgptBackground = GraphicsPort::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
     if (pvNil == _pgptBackground)
         return fFalse;
 
@@ -157,7 +241,7 @@ bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
         _pgptWorking->Unlock();
         ReleasePpo(&_pgptWorking);
     }
-    _pgptWorking = GPT::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
+    _pgptWorking = GraphicsPort::PgptNewOffscreen(&_rcBuffer, kcbitPixelRGB);
     if (pvNil == _pgptWorking)
         return fFalse;
     Assert(kcbitPixelRGB == 8, "change _bpmpRGB.type");
@@ -174,7 +258,7 @@ bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
     ReleasePpo(&_pgptStretch);
     if (!_fHalfX && _fHalfY)
     {
-        _pgptStretch = GPT::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
+        _pgptStretch = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
         if (pvNil == _pgptStretch)
             return fFalse;
     }
@@ -183,9 +267,9 @@ bool BWLD::_FInitBuffers(long dxp, long dyp, bool fHalfX, bool fHalfY)
 }
 
 /***************************************************************************
-    Destructor for BWLD
+    Destructor for World
 ***************************************************************************/
-BWLD::~BWLD(void)
+World::~World(void)
 {
     AssertBaseThis(0);
 
@@ -206,7 +290,7 @@ BWLD::~BWLD(void)
 /***************************************************************************
     Change reduced rendering mode
 ***************************************************************************/
-bool BWLD::FSetHalfMode(bool fHalfX, bool fHalfY)
+bool World::FSetHalfMode(bool fHalfX, bool fHalfY)
 {
     AssertThis(0);
 
@@ -216,9 +300,9 @@ bool BWLD::FSetHalfMode(bool fHalfX, bool fHalfY)
     bool fHalfXSave = _fHalfX;
     bool fHalfYSave = _fHalfY;
     RC rcBufferSave = _rcBuffer;
-    PGPT pgptWorkingSave = _pgptWorking;
-    PGPT pgptStretchSave = _pgptStretch;
-    PGPT pgptBackgroundSave = _pgptBackground;
+    PGraphicsPort pgptWorkingSave = _pgptWorking;
+    PGraphicsPort pgptStretchSave = _pgptStretch;
+    PGraphicsPort pgptBackgroundSave = _pgptBackground;
     BPMP bpmpRGBSave = _bpmpRGB;
     PZBMP pzbmpWorkingSave = _pzbmpWorking;
     PZBMP pzbmpBackgroundSave = _pzbmpBackground;
@@ -286,7 +370,7 @@ LFail:
     Completely close BRender, freeing all data structures that BRender
     knows about.  This invalidates all MODLs and MTRLs in existence.
 ***************************************************************************/
-void BWLD::CloseBRender(void)
+void World::CloseBRender(void)
 {
     if (_fBRenderInited)
     {
@@ -294,6 +378,9 @@ void BWLD::CloseBRender(void)
         BrEnd();
         _fBRenderInited = fFalse;
     }
+    if (pvNil != _prgtexbk)
+        FreePpv((void **)&_prgtexbk);
+    _ctexbk = 0;
 }
 
 /***************************************************************************
@@ -323,15 +410,15 @@ inline void SqueezePb(void *pvSrc, void *pvDst, long cbSrc)
     Load bitmaps from the given chunks into _pgptBackground and
     _pzbmpBackground.
 ***************************************************************************/
-bool BWLD::FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ)
+bool World::FSetBackground(PChunkyResourceFile pcrf, ChunkTagOrType ctgRGB, ChunkNumber cnoRGB, ChunkTagOrType ctgZ, ChunkNumber cnoZ)
 {
     AssertThis(0);
     AssertPo(pcrf, 0);
 
-    PMBMP pmbmpNew;
+    PMaskedBitmapMBMP pmbmpNew;
     PZBMP pzbmpNew;
 
-    pmbmpNew = (PMBMP)pcrf->PbacoFetch(ctgRGB, cnoRGB, MBMP::FReadMbmp);
+    pmbmpNew = (PMaskedBitmapMBMP)pcrf->PbacoFetch(ctgRGB, cnoRGB, MaskedBitmapMBMP::FReadMbmp);
     if (pvNil == pmbmpNew)
         return fFalse;
 
@@ -355,21 +442,21 @@ bool BWLD::FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ)
         // and _pzbmpBackground.  For pmbmpNew, it is drawn into a
         // full-size buffer, then reduced with CopyPixels.  For the
         // ZBMP, it is necessary to reduce it in code here.
-        PGPT pgptFull;
+        PGraphicsPort pgptFull;
         long yp;
         byte *pbSrc;
         byte *pbDst;
         long cbRowSrc;
         long cbRowDst;
-        pgptFull = GPT::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
+        pgptFull = GraphicsPort::PgptNewOffscreen(&_rcView, kcbitPixelRGB);
         if (pvNil == _pgptBackground)
         {
             ReleasePpo(&pmbmpNew);
             ReleasePpo(&pzbmpNew);
             return fFalse;
         }
-        GNV gnvFull(pgptFull);
-        GNV gnvHalf(_pgptBackground);
+        GraphicsEnvironment gnvFull(pgptFull);
+        GraphicsEnvironment gnvHalf(_pgptBackground);
 
         gnvFull.DrawMbmp(pmbmpNew, 0, 0);
         ReleasePpo(&pmbmpNew);
@@ -396,7 +483,7 @@ bool BWLD::FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ)
     }
     else // not in half mode
     {
-        GNV gnv(_pgptBackground);
+        GraphicsEnvironment gnv(_pgptBackground);
         gnv.DrawMbmp(pmbmpNew, 0, 0);
         ReleasePpo(&pmbmpNew);
 
@@ -424,7 +511,7 @@ bool BWLD::FSetBackground(PCRF pcrf, CTG ctgRGB, CNO cnoRGB, CTG ctgZ, CNO cnoZ)
 /***************************************************************************
     Change the camera matrix
 ***************************************************************************/
-void BWLD::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
+void World::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -442,7 +529,7 @@ void BWLD::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
 /***************************************************************************
     Get the camera matrix
 ***************************************************************************/
-void BWLD::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
+void World::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -460,12 +547,12 @@ void BWLD::GetCamera(BMAT34 *pbmat34, BRS *pzrHither, BRS *pzrYon, BRA *paFov)
 }
 
 /***************************************************************************
-    Render the world.  First, notify all BODYs that we're about to render,
+    Render the world.  First, notify all Bodys that we're about to render,
     so they can clear their _pregn's.  Then clean the RGB and Z working
     buffers, since they're probably dirty from the last render.  Update
     some regions, and render everything.
 ***************************************************************************/
-void BWLD::Render(void)
+void World::Render(void)
 {
     AssertThis(0);
 
@@ -476,12 +563,12 @@ void BWLD::Render(void)
         return;
 
     // Note that we only call pfnbeginrend on immediate children of
-    // the world, because that will hit all the BODYs in Socrates.
+    // the world, because that will hit all the Bodys in Socrates.
     if (pvNil != _pfnbeginrend)
     {
         for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
         {
-            // BODY roots are BR_ACTOR_NONE
+            // Body roots are BR_ACTOR_NONE
             if (pbact->type == BR_ACTOR_NONE)
                 _pfnbeginrend(pbact);
         }
@@ -501,12 +588,18 @@ void BWLD::Render(void)
     _pregnDirtyScreen->FUnion(_pregnDirtyWorking);
     _pregnDirtyWorking->SetRc(pvNil);
 
+    // Apply user-selected render style override (wireframe).  Each BR_ACTOR_MODEL
+    // body part has its own non-default render_style (BR_RSTYLE_FACES) which
+    // overrides any inherited setting, so we walk the tree and force every model
+    // actor to the desired style.
+    _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
+
     // Render the scene.  This will add stuff to _pregnDirtyWorking
     BrZbSceneRender(&_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
 
     for (pbact = _bactWorld.children; pvNil != pbact; pbact = pbact->next)
     {
-        // BODY roots are BR_ACTOR_NONE
+        // Body roots are BR_ACTOR_NONE
         if (pbact->type == BR_ACTOR_NONE && pvNil != _pfngetrect)
         {
             _pfngetrect(pbact, &rc);
@@ -524,19 +617,19 @@ void BWLD::Render(void)
     "Prerender" the world.  That is, render the world, then copy it into
     the background buffers
 ***************************************************************************/
-void BWLD::Prerender(void)
+void World::Prerender(void)
 {
     AssertThis(0);
 
-    GNV gnvBackground(_pgptBackground);
-    GNV gnvWorking(_pgptWorking);
+    GraphicsEnvironment gnvBackground(_pgptBackground);
+    GraphicsEnvironment gnvWorking(_pgptWorking);
 
     Render();
 
     _pzbmpWorking->Draw((byte *)_pzbmpBackground->Prgb(), _pzbmpBackground->CbRow(), _rcBuffer.Dyp(), 0, 0, &_rcBuffer,
                         pvNil);
 
-    // Need to detach _pzbmpBackground from the CRF so when we unprerender,
+    // Need to detach _pzbmpBackground from the ChunkyResourceFile so when we unprerender,
     // a fresh copy of the ZBMP is fetched
     _pzbmpBackground->Detach();
 
@@ -544,14 +637,14 @@ void BWLD::Prerender(void)
 
     // Need to ensure that the current contents of _pgptWorking (just the
     // prerenderable actors) go into _pgptBackground
-    GPT::Flush();
+    GraphicsPort::Flush();
 }
 
 /***************************************************************************
     "Un-Prerender" the world.  That is, restore the background bitmaps to
     the way they were before prerendering any actors
 ***************************************************************************/
-void BWLD::Unprerender(void)
+void World::Unprerender(void)
 {
     AssertThis(0);
 
@@ -564,11 +657,11 @@ void BWLD::Unprerender(void)
     Copy _pregnDirtyWorking from background Z and RGB buffers to working
     Z and RGB buffers.
 ***************************************************************************/
-void BWLD::_CleanWorkingBuffers(void)
+void World::_CleanWorkingBuffers(void)
 {
     AssertThis(0);
 
-    REGSC regsc;
+    RegionScanner regsc;
     long yp;
     long xpLeft;
     RC rcRegnBounds;
@@ -616,18 +709,18 @@ void BWLD::_CleanWorkingBuffers(void)
     Callback for when a BACT is rendered.  Need to union with dirty
     region.
 ***************************************************************************/
-void BWLD::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle, br_matrix4 *pbmat4ModelToScreen,
+void World::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle, br_matrix4 *pbmat4ModelToScreen,
                           br_int_32 bounds[4])
 {
     AssertVarMem(pbact);
 
     PBACT pbactT = pbact;
-    PBWLD pbwld;
+    PWorld pbwld;
     RC rc(bounds[0], bounds[1], bounds[2] + 1, bounds[3] + 1);
 
     while (pbactT->parent != pvNil)
         pbactT = pbactT->parent;
-    pbwld = (PBWLD)pbactT->identifier;
+    pbwld = (PWorld)pbactT->identifier;
     AssertPo(pbwld, 0);
     if (pvNil != pbwld->_pfnbactrend)
         pbwld->_pfnbactrend(pbact, &rc); // call client callback
@@ -637,7 +730,7 @@ void BWLD::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyl
     Mark the region that has been rendered (and needs to be copied to the
     screen)
 ***************************************************************************/
-void BWLD::MarkRenderedRegn(PGOB pgob, long dxp, long dyp)
+void World::MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -649,18 +742,18 @@ void BWLD::MarkRenderedRegn(PGOB pgob, long dxp, long dyp)
 }
 
 /***************************************************************************
-    Draw the BWLD's working RGB buffer into pgnv.  The movie engine should
-    have called BWLD::MarkRenderedRegn before calling this, so only
+    Draw the World's working RGB buffer into pgnv.  The movie engine should
+    have called World::MarkRenderedRegn before calling this, so only
     _pregnDirtyScreen's bits will be copied.
 ***************************************************************************/
-void BWLD::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
+void World::Draw(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp)
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prcClip);
 
     RC rc;
-    GNV gnvTemp(_pgptWorking);
+    GraphicsEnvironment gnvTemp(_pgptWorking);
 
     rc.OffsetCopy(&_rcView, -dxp, -dyp);
     pgnv->CopyPixels(&gnvTemp, &_rcBuffer, &rc);
@@ -669,7 +762,7 @@ void BWLD::Draw(PGNV pgnv, RC *prcClip, long dxp, long dyp)
 /***************************************************************************
     Add an actor to the world
 ***************************************************************************/
-void BWLD::AddActor(BACT *pbact)
+void World::AddActor(BACT *pbact)
 {
     AssertThis(0);
     AssertVarMem(pbact);
@@ -681,14 +774,14 @@ void BWLD::AddActor(BACT *pbact)
     Filter callback proc for FClickedActor().  Saves pbact if it's the
     closest one hit so far.
 ***************************************************************************/
-int BWLD::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir, BRS dzpNear,
+int World::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir, BRS dzpNear,
                    BRS dzpFar, void *pvData)
 {
     AssertVarMem(pbact);
     AssertVarMem(pbvec3RayPos);
     AssertVarMem(pbvec3RayDir);
 
-    PBWLD pbwld = (PBWLD)pvData;
+    PWorld pbwld = (PWorld)pvData;
     AssertPo(pbwld, 0);
 
     if (dzpNear < pbwld->_dzpClosestClicked)
@@ -703,7 +796,7 @@ int BWLD::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, B
 /***************************************************************************
     Call pfnCallback for each actor under the point (xp, yp)
 ***************************************************************************/
-void BWLD::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, long yp)
+void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, long yp)
 {
     AssertThis(0);
 
@@ -722,7 +815,7 @@ void BWLD::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, 
    If an actor is under (xp, yp), function returns fTrue and **pbact is the
    actor. If no actor is under (xp, yp), function returns fFalse.
 ***************************************************************************/
-bool BWLD::FClickedActor(long xp, long yp, BACT **ppbact)
+bool World::FClickedActor(long xp, long yp, BACT **ppbact)
 {
     AssertThis(0);
     AssertVarMem(ppbact);
@@ -730,7 +823,7 @@ bool BWLD::FClickedActor(long xp, long yp, BACT **ppbact)
     _pbactClosestClicked = pvNil;
     _dzpClosestClicked = BR_SCALAR_MAX;
 
-    IterateActorsInPt(BWLD::_FFilter, this, xp, yp);
+    IterateActorsInPt(World::_FFilter, this, xp, yp);
 
     if (pvNil != _pbactClosestClicked)
     {
@@ -745,11 +838,11 @@ bool BWLD::FClickedActor(long xp, long yp, BACT **ppbact)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the BWLD.
+    Assert the validity of the World.
 ***************************************************************************/
-void BWLD::AssertValid(ulong grf)
+void World::AssertValid(ulong grf)
 {
-    BWLD_PAR::AssertValid(fobjAllocated);
+    World_PAR::AssertValid(fobjAllocated);
     AssertPo(_pgptWorking, 0);
     AssertPo(_pgptBackground, 0);
     AssertPo(_pzbmpWorking, 0);
@@ -764,12 +857,12 @@ void BWLD::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the BWLD
+    Mark memory used by the World
 ***************************************************************************/
-void BWLD::MarkMem(void)
+void World::MarkMem(void)
 {
     AssertThis(0);
-    BWLD_PAR::MarkMem();
+    World_PAR::MarkMem();
     MarkMemObj(_pgptWorking);
     MarkMemObj(_pgptBackground);
     MarkMemObj(_pzbmpWorking);
@@ -778,6 +871,8 @@ void BWLD::MarkMem(void)
     MarkMemObj(_pregnDirtyScreen);
     MarkMemObj(_pcrf);
     MarkMemObj(_pgptStretch);
+    if (pvNil != _prgtexbk)
+        MarkPv(_prgtexbk);
 }
 
 /******************************************************************************
@@ -785,22 +880,216 @@ void BWLD::MarkMem(void)
         Writes the current rendered buffer out to the given file
 
     Arguments:
-        PFNI pfni -- the name of the file
+        PFilename pfni -- the name of the file
 
     Returns: fTrue if the file could be written successfully
 
 ************************************************************ PETED ***********/
-bool BWLD::FWriteBmp(PFNI pfni)
+bool World::FWriteBmp(PFilename pfni)
 {
     AssertPo(pfni, 0);
 
     bool fRet;
     RC rc;
 
-    fRet = FWriteBitmap(pfni, _pgptWorking->PrgbLockPixels(&rc), GPT::PglclrGetPalette(), _rcBuffer.Dxp(),
+    fRet = FWriteBitmap(pfni, _pgptWorking->PrgbLockPixels(&rc), GraphicsPort::PglclrGetPalette(), _rcBuffer.Dxp(),
                         _rcBuffer.Dyp());
     _pgptWorking->Unlock();
     return fRet;
 }
 
+/******************************************************************************
+    _FFillHiResBackground
+        Fetch the current background MBMP+ZBMP at native (rcView) resolution
+        and nearest-neighbor upscale into pgptDst / pzbmpDst, which must be
+        sized scale*_rcView.Dxp() x scale*_rcView.Dyp().
+        Used by FWriteBmpScaled.
+******************************************************************************/
+bool World::_FFillHiResBackground(PGraphicsPort pgptDst, PZBMP pzbmpDst, long scale)
+{
+    AssertThis(0);
+    AssertPo(pgptDst, 0);
+    AssertPo(pzbmpDst, 0);
+    AssertIn(scale, 1, 17);
+
+    if (pvNil == _pcrf)
+        return fTrue; // no background loaded; leave dst with default fill (0xff Z, 0 RGB)
+
+    PMaskedBitmapMBMP pmbmp = pvNil;
+    PZBMP pzbmpSrc = pvNil;
+    PGraphicsPort pgptFull = pvNil;
+    bool fRet = fFalse;
+    RC rcView = _rcView;
+    RC rcHi(0, 0, LwMul(rcView.Dxp(), scale), LwMul(rcView.Dyp(), scale));
+
+    pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctgRGB, _cnoRGB, MaskedBitmapMBMP::FReadMbmp);
+    if (pvNil == pmbmp)
+        goto LFail;
+    pzbmpSrc = (PZBMP)_pcrf->PbacoFetch(_ctgZ, _cnoZ, ZBMP::FReadZbmp);
+    if (pvNil == pzbmpSrc)
+        goto LFail;
+
+    // Render the MBMP into a full-resolution intermediate, then stretch into the
+    // hi-res destination via CopyPixels (which handles indexed-8 stretching).
+    pgptFull = GraphicsPort::PgptNewOffscreen(&rcView, kcbitPixelRGB);
+    if (pvNil == pgptFull)
+        goto LFail;
+    {
+        GraphicsEnvironment gnvFull(pgptFull);
+        GraphicsEnvironment gnvHi(pgptDst);
+        gnvFull.DrawMbmp(pmbmp, 0, 0);
+        gnvHi.CopyPixels(&gnvFull, &rcView, &rcHi);
+    }
+
+    // Nearest-neighbor upscale the Z buffer. Bilinear would create halfway Z
+    // values that don't represent real surface depths and would cause artifacts
+    // at silhouettes, so we replicate each Z value scale*scale times.
+    {
+        Assert(kcbPixelZ == 2, "Z upscale assumes 16-bit Z");
+        long dxpSrc = rcView.Dxp();
+        long dypSrc = rcView.Dyp();
+        long cbRowSrc = pzbmpSrc->CbRow();
+        long cbRowDst = pzbmpDst->CbRow();
+        Assert(cbRowSrc == LwMul(dxpSrc, kcbPixelZ), "unexpected src Z stride");
+        Assert(cbRowDst == LwMul(LwMul(dxpSrc, scale), kcbPixelZ), "unexpected dst Z stride");
+        byte *pbSrcRow = pzbmpSrc->Prgb();
+        byte *pbDstRow = pzbmpDst->Prgb();
+        for (long ypSrc = 0; ypSrc < dypSrc; ypSrc++)
+        {
+            ushort *psuSrc = (ushort *)pbSrcRow;
+            ushort *psuDst = (ushort *)pbDstRow;
+            for (long xpSrc = 0; xpSrc < dxpSrc; xpSrc++)
+            {
+                ushort suZ = *psuSrc++;
+                for (long i = 0; i < scale; i++)
+                    *psuDst++ = suZ;
+            }
+            // Replicate the row scale-1 more times.
+            byte *pbRowFirst = pbDstRow;
+            for (long i = 1; i < scale; i++)
+            {
+                pbDstRow += cbRowDst;
+                CopyPb(pbRowFirst, pbDstRow, cbRowDst);
+            }
+            pbDstRow += cbRowDst;
+            pbSrcRow += cbRowSrc;
+        }
+    }
+
+    fRet = fTrue;
+
+LFail:
+    ReleasePpo(&pmbmp);
+    ReleasePpo(&pzbmpSrc);
+    ReleasePpo(&pgptFull);
+    return fRet;
+}
+
+/******************************************************************************
+    FWriteBmpScaled
+        Render the current scene into a temporary supersampled buffer
+        (scale x scale times the size of _rcView), then write it as a BMP.
+        Camera, actors, render style and palette match the live render; only
+        the rasterization resolution differs. The live working buffers are
+        untouched, so this can be called at any time.
+
+        BRender's rasterizer is resolution-independent for a given camera
+        (aspect = rcView.Dxp()/rcView.Dyp()), so feeding it scale-sized BPMPs
+        produces a true higher-resolution render of foreground actors. The
+        background bitmap chunk is at native resolution, so we fetch it and
+        nearest-neighbor upscale it as both the seed RGB and the seed Z so
+        actors composite correctly against it.
+
+        Half-mode is ignored: the screenshot always uses _rcView dimensions
+        as the basis (scale=4 yields 4x of the on-screen viewport, not 4x of
+        the half-mode reduced buffer).
+******************************************************************************/
+bool World::FWriteBmpScaled(PFilename pfni, long scale)
+{
+    AssertThis(0);
+    AssertPo(pfni, 0);
+    AssertIn(scale, 1, 17);
+
+    // BRender's Z-buffered scene renderer caps a single BPMP at roughly 1024
+    // pixels on the wide axis (the shipped rasterizer is named PIZ2TP1024)
+    // and emits a "pixelmap is too big" fatal otherwise. Tiling can't save us
+    // either: BR_CAMERA_PERSPECTIVE_FOV always projects camera-space (0,0) to
+    // the BPMP center, and bpmp.origin_x/y is for 2D primitive placement, not
+    // 3D projection -- there's no native off-axis sub-frustum to hook. So
+    // `scale` is treated as a ceiling: we render at the largest in-spec scale
+    // and ignore anything above that.
+    const long kdxpRenderMax = 2048;
+
+    long scaleRender = scale;
+    while (scaleRender > 1 &&
+           (LwMul(_rcView.Dxp(), scaleRender) > kdxpRenderMax || LwMul(_rcView.Dyp(), scaleRender) > kdxpRenderMax))
+    {
+        scaleRender--;
+    }
+
+    bool fRet = fFalse;
+    PGraphicsPort pgptRender = pvNil;
+    PZBMP pzbmpRender = pvNil;
+    long dxpRender = LwMul(_rcView.Dxp(), scaleRender);
+    long dypRender = LwMul(_rcView.Dyp(), scaleRender);
+    RC rcRender(0, 0, dxpRender, dypRender);
+    // Zero-init: BRender reads base_x / base_y / flags / map / context that
+    // the live engine leaves at zero (its class-member BPMPs are value-init).
+    BPMP bpmpRGB = {};
+    BPMP bpmpZ = {};
+    RC rcLock;
+
+    pgptRender = GraphicsPort::PgptNewOffscreen(&rcRender, kcbitPixelRGB);
+    if (pvNil == pgptRender)
+        goto LFail;
+    pzbmpRender = ZBMP::PzbmpNew(dxpRender, dypRender);
+    if (pvNil == pzbmpRender)
+        goto LFail;
+
+    if (!_FFillHiResBackground(pgptRender, pzbmpRender, scaleRender))
+        goto LFail;
+
+    // Match Render()'s wireframe override.
+    _SetModelRenderStyleRec(&_bactWorld, _fRenderWireframe ? BR_RSTYLE_EDGES : BR_RSTYLE_FACES);
+
+    bpmpRGB.type = BR_PMT_INDEX_8;
+    bpmpRGB.row_bytes = (short)LwMul(dxpRender, kcbPixelRGB);
+    bpmpRGB.width = (ushort)dxpRender;
+    bpmpRGB.height = (ushort)dypRender;
+    bpmpRGB.origin_x = (short)(dxpRender / 2);
+    bpmpRGB.origin_y = (short)(dypRender / 2);
+    bpmpRGB.pixels = pgptRender->PrgbLockPixels();
+
+    bpmpZ.type = BR_PMT_DEPTH_16;
+    bpmpZ.row_bytes = (short)LwMul(dxpRender, kcbPixelZ);
+    bpmpZ.width = (ushort)dxpRender;
+    bpmpZ.height = (ushort)dypRender;
+    bpmpZ.origin_x = bpmpRGB.origin_x;
+    bpmpZ.origin_y = bpmpRGB.origin_y;
+    bpmpZ.pixels = pzbmpRender->Prgb();
+
+    BrZbSceneRender(&_bactWorld, &_bactCamera, &bpmpRGB, &bpmpZ);
+    GraphicsPort::Flush();
+    pgptRender->Unlock();
+
+    {
+        // PglclrGetPalette() allocates a fresh palette copy that the caller
+        // owns -- FWriteBitmap doesn't release it. (FWriteBmp above leaks for
+        // the same reason; left untouched here.)
+        PDynamicArray pglclr = GraphicsPort::PglclrGetPalette();
+        fRet = FWriteBitmap(pfni, pgptRender->PrgbLockPixels(&rcLock), pglclr, dxpRender, dypRender);
+        pgptRender->Unlock();
+        ReleasePpo(&pglclr);
+    }
+
+LFail:
+    // Lock/Unlock pairs are balanced on every success path. The only goto
+    // LFail jumps happen before any Lock, so we just release here.
+    ReleasePpo(&pgptRender);
+    ReleasePpo(&pzbmpRender);
+    return fRet;
+}
+
 #endif // DEBUG
+
+} // end of namespace BRender

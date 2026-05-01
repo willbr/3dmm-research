@@ -22,10 +22,10 @@
 const ulong kdtsSecond = MacWin(60, 1000);
 const ulong kluTimeScaleNormal = 0x00010000;
 
-typedef class USAC *PUSAC;
-#define USAC_PAR BASE
-#define kclsUSAC 'USAC'
-class USAC : public USAC_PAR
+typedef class UniversalScalableApplicationClock *PUniversalScalableApplicationClock;
+#define UniversalScalableApplicationClock_PAR BASE
+#define kclsUniversalScalableApplicationClock 'USAC'
+class UniversalScalableApplicationClock : public UniversalScalableApplicationClock_PAR
 {
     RTCLASS_DEC
 
@@ -35,7 +35,7 @@ class USAC : public USAC_PAR
     ulong _luScale;
 
   public:
-    USAC(void);
+    UniversalScalableApplicationClock(void);
 
     ulong TsCur(void);
     void Scale(ulong luScale);
@@ -49,7 +49,7 @@ class USAC : public USAC_PAR
     }
 };
 
-extern PUSAC vpusac;
+extern PUniversalScalableApplicationClock vpusac;
 
 inline ulong TsCurrent(void)
 {
@@ -69,31 +69,31 @@ inline ulong DtsCaret(void)
     Mutexes to protect various global linked lists, etc.
 ***************************************************************************/
 #ifdef DEBUG
-extern MUTX vmutxBase;
+extern Mutex vmutxBase;
 #endif // DEBUG
-extern MUTX vmutxMem;
+extern Mutex vmutxMem;
 
 /***************************************************************************
     Global random number generator and shuffler. These are used by the
     script interpreter.
 ***************************************************************************/
-extern SFL vsflUtil;
-extern RND vrndUtil;
+extern Shuffler vsflUtil;
+extern Random vrndUtil;
 
 /***************************************************************************
     Global standard Kauai codec, compression manager, and pointer to
     a compression manager. The blck-level compression uses vpcodmUtil.
     Clients are free to redirect this to their own compression manager.
 ***************************************************************************/
-extern KCDC vkcdcUtil;
-extern CODM vcodmUtil;
-extern PCODM vpcodmUtil;
+extern KauaiCodec vkcdcUtil;
+extern CodecManager vcodmUtil;
+extern PCodecManager vpcodmUtil;
 
 /***************************************************************************
     Debug memory globals
 ***************************************************************************/
 #ifdef DEBUG
-extern DMGLOB vdmglob;
+extern DebugMemoryGlobals vdmglob;
 #endif // DEBUG
 
 #endif //! UTILGLOB_H

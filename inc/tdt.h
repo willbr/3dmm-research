@@ -8,11 +8,11 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> TMPL ---> TDT  (Three-D Text)
+    BASE ---> BaseCacheableObject ---> Template ---> ThreeDText  (Three-D Text)
 
 ***************************************************************************/
-#ifndef TDT_H
-#define TDT_H
+#ifndef ThreeDText_H
+#define ThreeDText_H
 
 // 3-D Text Shapes - the positions and orientations of the letters
 enum
@@ -57,58 +57,58 @@ enum
 /****************************************
     3-D Text class
 ****************************************/
-typedef class TDT *PTDT;
-#define TDT_PAR TMPL
-#define kclsTDT 'TDT'
-class TDT : public TDT_PAR
+typedef class ThreeDText *PThreeDText;
+#define ThreeDText_PAR Template
+#define kclsThreeDText 'TDT'
+class ThreeDText : public ThreeDText_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    static PGST _pgstAction; // Action names
+    static PStringTable_GST _pgstAction; // Action names
 
-    long _tdts;          // TDT shape
+    long _tdts;          // ThreeDText shape
     TAG _tagTdf;         // Tag to Three-D Font
-    PMTRL _pmtrlDefault; // MTRL for TDT's default costume
-    PACTN _pactnCache;   // Last-used action
+    PMaterial_MTRL _pmtrlDefault; // Material_MTRL for ThreeDText's default costume
+    PActionDefinition _pactnCache;   // Last-used action
     long _tdaCache;      // Action in pactnCache
 
   protected:
-    virtual bool _FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl);
+    virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
     bool _FInitLists(void);
-    PGL _PglibactParBuild(void);
-    PGL _PglibsetBuild(void);
-    PGG _PggcmidBuild(void);
-    PGL _Pglbmat34Build(long tda);
-    PGG _PggcelBuild(long tda);
-    virtual PACTN _PactnFetch(long tda);
-    PACTN _PactnBuild(long tda);
-    virtual PMODL _PmodlFetch(CHID chidModl);
+    PDynamicArray _PglibactParBuild(void);
+    PDynamicArray _PglibsetBuild(void);
+    PGeneralGroup _PggcmidBuild(void);
+    PDynamicArray _Pglbmat34Build(long tda);
+    PGeneralGroup _PggcelBuild(long tda);
+    virtual PActionDefinition _PactnFetch(long tda);
+    PActionDefinition _PactnBuild(long tda);
+    virtual PModel _PmodlFetch(ChildChunkID chidModl);
     long _CcelOfTda(long tda);
     void _ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS pdxrText);
     void _ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
                      BRS dyrTotal);
 
   public:
-    static bool FSetActionNames(PGST pgstAction);
+    static bool FSetActionNames(PStringTable_GST pgstAction);
 #ifdef DEBUG
     static void MarkActionNames(void);
 #endif
 
-    static PTDT PtdtNew(PSTN pstn, long tdts, PTAG ptagTdf);
-    ~TDT(void);
-    static PGL PgltagFetch(PCFL pcfl, CTG ctg, CNO cno, bool *pfError);
-    PTDT PtdtDup(void);
+    static PThreeDText PtdtNew(PString pstn, long tdts, PTAG ptagTdf);
+    ~ThreeDText(void);
+    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
+    PThreeDText PtdtDup(void);
 
-    void GetInfo(PSTN pstn, long *ptdts, PTAG ptagTdf);
-    bool FChange(PSTN pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
-    bool FWrite(PCFL pcfl, CTG ctg, CNO *pcno);
-    bool FAdjustBody(PBODY pbody);
-    virtual bool FSetDefaultCost(PBODY pbody);
-    virtual PCMTL PcmtlFetch(long cmid);
-    virtual bool FGetActnName(long anid, PSTN pstn);
+    void GetInfo(PString pstn, long *ptdts, PTAG ptagTdf);
+    bool FChange(PString pstn, long tdts = tdtsNil, PTAG ptagTdf = pvNil);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
+    bool FAdjustBody(PBody pbody);
+    virtual bool FSetDefaultCost(PBody pbody);
+    virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
+    virtual bool FGetActnName(long anid, PString pstn);
 };
 
-#endif // TDT_H
+#endif // ThreeDText_H

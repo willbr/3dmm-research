@@ -5,11 +5,13 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> ZBMP
+    BASE ---> BaseCacheableObject ---> ZBMP
 
 *************************************************************************/
 #ifndef ZBMP_H
 #define ZBMP_H
+
+namespace BRender {
 
 #define kcbPixelZbmp 2 // Z-buffers are 2 bytes per pixel (16 bit)
 
@@ -30,7 +32,7 @@ const ulong kbomZbmpf = 0x55500000;
     ZBMP class
 ****************************************/
 typedef class ZBMP *PZBMP;
-#define ZBMP_PAR BACO
+#define ZBMP_PAR BaseCacheableObject
 #define kclsZBMP 'ZBMP'
 class ZBMP : public ZBMP_PAR
 {
@@ -50,8 +52,8 @@ class ZBMP : public ZBMP_PAR
   public:
     static PZBMP PzbmpNew(long dxp, long dyp);
     static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
-    static PZBMP PzbmpRead(PBLCK pblck);
-    static bool FReadZbmp(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
+    static PZBMP PzbmpRead(PDataBlock pblck);
+    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
     ~ZBMP(void);
 
     byte *Prgb(void)
@@ -64,11 +66,13 @@ class ZBMP : public ZBMP_PAR
     }
 
     void Draw(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
-              PREGN pregnClip = pvNil);
+              PRegion pregnClip = pvNil);
     void DrawHalf(byte *prgbPixels, long cbRow, long dyp, long xpRef, long ypRef, RC *prcClip = pvNil,
-                  PREGN pregnClip = pvNil);
+                  PRegion pregnClip = pvNil);
 
-    bool FWrite(PCFL pcfl, CTG ctg, CNO *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 };
+
+} // end of namespace BRender
 
 #endif ZBMP_H

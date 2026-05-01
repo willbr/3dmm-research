@@ -14,16 +14,18 @@
 #include "kidframe.h"
 ASSERTNAME
 
-RTCLASS(GOKD)
-RTCLASS(GKDS)
-RTCLASS(WOKS)
+using GraphicalObjectRepresentation::PKidspaceGraphicObject;
+
+RTCLASS(KidspaceGraphicObjectDescriptor)
+RTCLASS(KidspaceGraphicObjectDescriptorLocation)
+RTCLASS(WorldOfKidspace)
 
 /***************************************************************************
-    Static method to read a GKDS from the CRF. This is a CRF object reader.
+    Static method to read a KidspaceGraphicObjectDescriptorLocation from the ChunkyResourceFile. This is a ChunkyResourceFile object reader.
 ***************************************************************************/
-bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool KidspaceGraphicObjectDescriptorLocation::FReadGkds(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
-    PGKDS pgkds;
+    PKidspaceGraphicObjectDescriptorLocation pgkds;
     GOKDF gokdf;
     HQ hq;
     LOP *qlop;
@@ -39,7 +41,7 @@ bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 
     if (*pcb < size(GOKDF) + size(LOP) || CbRoundToLong(*pcb) != *pcb)
     {
-        Bug("Bad GOKD");
+        Bug("Bad KidspaceGraphicObjectDescriptor");
         return fFalse;
     }
 
@@ -49,7 +51,7 @@ bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
         SwapBytesBom(&gokdf, kbomGokdf);
     else if (gokdf.bo != kboCur)
     {
-        Bug("Bad GOKD 2");
+        Bug("Bad KidspaceGraphicObjectDescriptor 2");
         return fFalse;
     }
 
@@ -60,7 +62,7 @@ bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
         return fFalse;
     cb = CbOfHq(hq);
 
-    if (pvNil == (pgkds = NewObj GKDS))
+    if (pvNil == (pgkds = NewObj KidspaceGraphicObjectDescriptorLocation))
     {
         FreePhq(&hq);
         return fFalse;
@@ -75,7 +77,7 @@ bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
     {
         if (cb < size(LOP))
         {
-            Bug("Bad LOP list in GOKD");
+            Bug("Bad LOP list in KidspaceGraphicObjectDescriptor");
             ReleasePpo(&pgkds);
             return fFalse;
         }
@@ -84,77 +86,77 @@ bool GKDS::FReadGkds(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
         if (hidNil == qlop->hidPar)
             break;
     }
-    if ((cb % size(CUME)) != 0)
+    if ((cb % size(CursorMapEntry)) != 0)
     {
-        Bug("Bad CUME list in GOKD");
+        Bug("Bad CursorMapEntry list in KidspaceGraphicObjectDescriptor");
         ReleasePpo(&pgkds);
         return fFalse;
     }
-    pgkds->_ccume = cb / size(CUME);
+    pgkds->_ccume = cb / size(CursorMapEntry);
     *ppbaco = pgkds;
     return fTrue;
 }
 
 /***************************************************************************
-    Destructor for a GKDS object.
+    Destructor for a KidspaceGraphicObjectDescriptorLocation object.
 ***************************************************************************/
-GKDS::~GKDS(void)
+KidspaceGraphicObjectDescriptorLocation::~KidspaceGraphicObjectDescriptorLocation(void)
 {
     FreePhq(&_hqData);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a GKDS.
+    Assert the validity of a KidspaceGraphicObjectDescriptorLocation.
 ***************************************************************************/
-void GKDS::AssertValid(ulong grf)
+void KidspaceGraphicObjectDescriptorLocation::AssertValid(ulong grf)
 {
     LOP *qrglop;
 
-    GKDS_PAR::AssertValid(0);
+    KidspaceGraphicObjectDescriptorLocation_PAR::AssertValid(0);
     AssertHq(_hqData);
     AssertIn(_clop, 0, kcbMax);
     AssertIn(_ccume, 0, kcbMax);
-    Assert(LwMul(_clop, size(LOP)) + LwMul(_ccume, size(CUME)) == CbOfHq(_hqData), "GKDS _hqData wrong size");
+    Assert(LwMul(_clop, size(LOP)) + LwMul(_ccume, size(CursorMapEntry)) == CbOfHq(_hqData), "KidspaceGraphicObjectDescriptorLocation _hqData wrong size");
     qrglop = (LOP *)QvFromHq(_hqData);
-    Assert(qrglop[_clop - 1].hidPar == hidNil, "bad rglop in GKDS");
+    Assert(qrglop[_clop - 1].hidPar == hidNil, "bad rglop in KidspaceGraphicObjectDescriptorLocation");
 }
 
 /***************************************************************************
-    Mark memory for the GKDS.
+    Mark memory for the KidspaceGraphicObjectDescriptorLocation.
 ***************************************************************************/
-void GKDS::MarkMem(void)
+void KidspaceGraphicObjectDescriptorLocation::MarkMem(void)
 {
     AssertValid(0);
-    GKDS_PAR::MarkMem();
+    KidspaceGraphicObjectDescriptorLocation_PAR::MarkMem();
     MarkHq(_hqData);
 }
 #endif // DEBUG
 
 /***************************************************************************
-    Return the GOK kind id.
+    Return the KidspaceGraphicObject kind id.
 ***************************************************************************/
-long GKDS::Gokk(void)
+long KidspaceGraphicObjectDescriptorLocation::Gokk(void)
 {
     AssertThis(0);
     return _gokk;
 }
 
 /***************************************************************************
-    Look for a cursor map entry in this GKDS.
+    Look for a cursor map entry in this KidspaceGraphicObjectDescriptorLocation.
 ***************************************************************************/
-bool GKDS::FGetCume(ulong grfcust, long sno, CUME *pcume)
+bool KidspaceGraphicObjectDescriptorLocation::FGetCume(ulong grfcust, long sno, CursorMapEntry *pcume)
 {
     AssertThis(0);
     AssertVarMem(pcume);
-    CUME *qcume;
+    CursorMapEntry *qcume;
     long ccume;
     ulong fbitSno = (1L << (sno & 0x1F));
 
     if (0 == _ccume)
         return fFalse;
 
-    qcume = (CUME *)PvAddBv(QvFromHq(_hqData), LwMul(_clop, size(LOP)));
+    qcume = (CursorMapEntry *)PvAddBv(QvFromHq(_hqData), LwMul(_clop, size(LOP)));
     for (ccume = _ccume; ccume > 0; ccume--, qcume++)
     {
         if ((qcume->grfbitSno & fbitSno) && (qcume->grfcustMask & grfcust) == qcume->grfcust)
@@ -170,7 +172,7 @@ bool GKDS::FGetCume(ulong grfcust, long sno, CUME *pcume)
 /***************************************************************************
     Get the location map entry from the parent id.
 ***************************************************************************/
-void GKDS::GetLop(long hidPar, LOP *plop)
+void KidspaceGraphicObjectDescriptorLocation::GetLop(long hidPar, LOP *plop)
 {
     AssertThis(0);
     AssertVarMem(plop);
@@ -185,11 +187,11 @@ void GKDS::GetLop(long hidPar, LOP *plop)
 }
 
 /***************************************************************************
-    Constructor for a World of Kidspace GOB.
+    Constructor for a World of Kidspace GraphicsObject.
 ***************************************************************************/
-WOKS::WOKS(GCB *pgcb, PSTRG pstrg)
-    : WOKS_PAR(pgcb), _clokAnim(CMH::HidUnique()), _clokNoSlip(CMH::HidUnique(), fclokNoSlip),
-      _clokGen(CMH::HidUnique()), _clokReset(CMH::HidUnique(), fclokReset)
+WorldOfKidspace::WorldOfKidspace(GraphicsObjectBlock *pgcb, PStringRegistry pstrg)
+    : WorldOfKidspace_PAR(pgcb), _clokAnim(CommandHandler::HidUnique()), _clokNoSlip(CommandHandler::HidUnique(), fclokNoSlip),
+      _clokGen(CommandHandler::HidUnique()), _clokReset(CommandHandler::HidUnique(), fclokReset)
 {
     AssertThis(0);
     AssertNilOrPo(pstrg, 0);
@@ -208,36 +210,36 @@ WOKS::WOKS(GCB *pgcb, PSTRG pstrg)
 /***************************************************************************
     Destructor for a kidspace world.
 ***************************************************************************/
-WOKS::~WOKS(void)
+WorldOfKidspace::~WorldOfKidspace(void)
 {
     ReleasePpo(&_pstrg);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a WOKS.
+    Assert the validity of a WorldOfKidspace.
 ***************************************************************************/
-void WOKS::AssertValid(ulong grf)
+void WorldOfKidspace::AssertValid(ulong grf)
 {
-    WOKS_PAR::AssertValid(0);
+    WorldOfKidspace_PAR::AssertValid(0);
     AssertPo(&_strg, 0);
 }
 
 /***************************************************************************
-    Mark memory for the WOKS.
+    Mark memory for the WorldOfKidspace.
 ***************************************************************************/
-void WOKS::MarkMem(void)
+void WorldOfKidspace::MarkMem(void)
 {
     AssertValid(0);
-    WOKS_PAR::MarkMem();
+    WorldOfKidspace_PAR::MarkMem();
     MarkMemObj(&_strg);
 }
 #endif // DEBUG
 
 /***************************************************************************
-    Return whether the GOB is in this kidspace world.
+    Return whether the GraphicsObject is in this kidspace world.
 ***************************************************************************/
-bool WOKS::FGobIn(PGOB pgob)
+bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -252,25 +254,25 @@ bool WOKS::FGobIn(PGOB pgob)
 }
 
 /***************************************************************************
-    Get a GOKD from the given chunk.
+    Get a KidspaceGraphicObjectDescriptor from the given chunk.
 ***************************************************************************/
-PGOKD WOKS::PgokdFetch(CTG ctg, CNO cno, PRCA prca)
+PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return (PGOKD)prca->PbacoFetch(ctg, cno, GKDS::FReadGkds);
+    return (PKidspaceGraphicObjectDescriptor)prca->PbacoFetch(ctg, cno, KidspaceGraphicObjectDescriptorLocation::FReadGkds);
 }
 
 /***************************************************************************
     Create a new gob in this kidspace world.
 ***************************************************************************/
-PGOK WOKS::PgokNew(PGOB pgobPar, long hid, CNO cnoGokd, PRCA prca)
+PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cnoGokd, PResourceCache prca)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
-    PGOKD pgokd;
-    PGOK pgok;
+    PKidspaceGraphicObjectDescriptor pgokd;
+    PKidspaceGraphicObject pgok;
 
     if (pgobPar == pvNil)
         pgobPar = this;
@@ -282,7 +284,7 @@ PGOK WOKS::PgokNew(PGOB pgobPar, long hid, CNO cnoGokd, PRCA prca)
     }
 
     if (hidNil == hid)
-        hid = CMH::HidUnique();
+        hid = CommandHandler::HidUnique();
     else if (pvNil != PcmhFromHid(hid))
     {
         BugVar("command handler with this ID already exists", &hid);
@@ -292,7 +294,7 @@ PGOK WOKS::PgokNew(PGOB pgobPar, long hid, CNO cnoGokd, PRCA prca)
     if (pvNil == (pgokd = PgokdFetch(kctgGokd, cnoGokd, prca)))
         return pvNil;
 
-    pgok = GOK::PgokNew(this, pgobPar, hid, pgokd, prca);
+    pgok = KidspaceGraphicObject::PgokNew(this, pgobPar, hid, pgokd, prca);
     ReleasePpo(&pgokd);
 
     return pgok;
@@ -301,19 +303,19 @@ PGOK WOKS::PgokNew(PGOB pgobPar, long hid, CNO cnoGokd, PRCA prca)
 /***************************************************************************
     Create a new script interpreter for this kidspace world.
 ***************************************************************************/
-PSCEG WOKS::PscegNew(PRCA prca, PGOB pgob)
+PGraphicsObjectInterpreter WorldOfKidspace::PscegNew(PResourceCache prca, PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(prca, 0);
     AssertPo(pgob, 0);
 
-    return NewObj SCEG(this, prca, pgob);
+    return NewObj GraphicsObjectInterpreter(this, prca, pgob);
 }
 
 /***************************************************************************
     Create a new help balloon.
 ***************************************************************************/
-PHBAL WOKS::PhbalNew(PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
+PBalloon WorldOfKidspace::PhbalNew(PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, PTopic phtop)
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
@@ -329,16 +331,16 @@ PHBAL WOKS::PhbalNew(PGOB pgobPar, PRCA prca, CNO cnoTopic, PHTOP phtop)
         return pvNil;
     }
 
-    return HBAL::PhbalCreate(this, pgobPar, prca, cnoTopic, phtop);
+    return Balloon::PhbalCreate(this, pgobPar, prca, cnoTopic, phtop);
 }
 
 /***************************************************************************
     Get the command handler for this hid.
 ***************************************************************************/
-PCMH WOKS::PcmhFromHid(long hid)
+PCommandHandler WorldOfKidspace::PcmhFromHid(long hid)
 {
     AssertThis(0);
-    PCMH pcmh;
+    PCommandHandler pcmh;
 
     switch (hid)
     {
@@ -357,7 +359,7 @@ PCMH WOKS::PcmhFromHid(long hid)
 /***************************************************************************
     Get the clock having the given hid.
 ***************************************************************************/
-PCLOK WOKS::PclokFromHid(long hid)
+PClock WorldOfKidspace::PclokFromHid(long hid)
 {
     AssertThis(0);
 
@@ -366,14 +368,14 @@ PCLOK WOKS::PclokFromHid(long hid)
     if (khidClokGokReset == hid)
         return &_clokReset;
 
-    return CLOK::PclokFromHid(hid);
+    return Clock::PclokFromHid(hid);
 }
 
 /***************************************************************************
     Get the parent gob of the given gob. This is here so a kidspace world
     can limit what scripts can get to.
 ***************************************************************************/
-PGOB WOKS::PgobParGob(PGOB pgob)
+PGraphicsObject WorldOfKidspace::PgobParGob(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertPo(pgob, 0);
@@ -387,7 +389,7 @@ PGOB WOKS::PgobParGob(PGOB pgob)
 /***************************************************************************
     Find a file given a string.
 ***************************************************************************/
-bool WOKS::FFindFile(PSTN pstnSrc, PFNI pfni)
+bool WorldOfKidspace::FFindFile(PString pstnSrc, PFilename pfni)
 {
     AssertThis(0);
     AssertPo(pstnSrc, 0);
@@ -399,7 +401,7 @@ bool WOKS::FFindFile(PSTN pstnSrc, PFNI pfni)
 /***************************************************************************
     Put up an alert (and don't return until it is dismissed).
 ***************************************************************************/
-tribool WOKS::TGiveAlert(PSTN pstn, long bk, long cok)
+tribool WorldOfKidspace::TGiveAlert(PString pstn, long bk, long cok)
 {
     AssertThis(0);
 
@@ -409,12 +411,12 @@ tribool WOKS::TGiveAlert(PSTN pstn, long bk, long cok)
 /***************************************************************************
     Put up an alert (and don't return until it is dismissed).
 ***************************************************************************/
-void WOKS::Print(PSTN pstn)
+void WorldOfKidspace::Print(PString pstn)
 {
     AssertThis(0);
     AssertPo(pstn, 0);
 
-    // REVIEW shonk: implement WOKS::Print better
+    // REVIEW shonk: implement WorldOfKidspace::Print better
 #ifdef WIN
     OutputDebugString(pstn->Psz());
     OutputDebugString(PszLit("\n"));
@@ -425,7 +427,7 @@ void WOKS::Print(PSTN pstn)
     Return the current cursor state. This takes the frame cursor state from
     vpappb and the rest from this kidspace world.
 ***************************************************************************/
-ulong WOKS::GrfcustCur(bool fAsynch)
+ulong WorldOfKidspace::GrfcustCur(bool fAsynch)
 {
     AssertThis(0);
 
@@ -436,7 +438,7 @@ ulong WOKS::GrfcustCur(bool fAsynch)
     Modify the current cursor state. This sets the frame values in vpappb
     and the rest in this kidspace world.
 ***************************************************************************/
-void WOKS::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
+void WorldOfKidspace::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
 {
     AssertThis(0);
 
@@ -451,7 +453,7 @@ void WOKS::ModifyGrfcust(ulong grfcustOr, ulong grfcustXor)
     Adjust the given grfcust (take the Frame bits from it and combine with
     our other bits).
 ***************************************************************************/
-ulong WOKS::GrfcustAdjust(ulong grfcust)
+ulong WorldOfKidspace::GrfcustAdjust(ulong grfcust)
 {
     AssertThis(0);
 
@@ -463,34 +465,34 @@ ulong WOKS::GrfcustAdjust(ulong grfcust)
 /***************************************************************************
     Do a modal help topic.
 ***************************************************************************/
-bool WOKS::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
+bool WorldOfKidspace::FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwRet)
 {
     AssertThis(0);
     AssertPo(prca, 0);
     AssertVarMem(plwRet);
 
-    GCB gcb;
-    PWOKS pwoksModal;
-    GTE gte;
-    PGOB pgob;
+    GraphicsObjectBlock gcb;
+    PWorldOfKidspace pwoksModal;
+    GraphicsObjectTreeEnumerator gte;
+    PGraphicsObject pgob;
     ulong grfgte;
     bool fRet = fFalse;
 
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Suspend();
+        ((PKidspaceGraphicObject)pgob)->Suspend();
     }
 
     if (vpappb->FPushModal())
     {
-        gcb.Set(CMH::HidUnique(), this, fgobNil, kginMark);
+        gcb.Set(CommandHandler::HidUnique(), this, fgobNil, kginMark);
         gcb._rcRel.Set(0, 0, krelOne, krelOne);
 
-        if (pvNil != (pwoksModal = NewObj WOKS(&gcb, _pstrg)))
+        if (pvNil != (pwoksModal = NewObj WorldOfKidspace(&gcb, _pstrg)))
         {
             vpsndm->PauseAll();
             vpcex->SetModalGob(pwoksModal);
@@ -507,10 +509,10 @@ bool WOKS::FModalTopic(PRCA prca, CNO cnoTopic, long *plwRet)
     gte.Init(this, fgteNil);
     while (gte.FNextGob(&pgob, &grfgte, fgteNil))
     {
-        if (!(grfgte & fgtePre) || !pgob->FIs(kclsGOK))
+        if (!(grfgte & fgtePre) || !pgob->FIs(kclsKidspaceGraphicObject))
             continue;
 
-        ((PGOK)pgob)->Resume();
+        ((PKidspaceGraphicObject)pgob)->Resume();
     }
 
     return fRet;

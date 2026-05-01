@@ -16,6 +16,11 @@
 #ifndef SCRCOM_H
 #define SCRCOM_H
 
+namespace ScriptCompiler {
+
+using namespace ScriptInterpreter;
+using namespace Group;
+
 /***************************************************************************
     Opcodes for scripts - these are the opcodes that can actually exist in
     script.  They don't necessarily map directly to the compiler's notion of
@@ -122,17 +127,17 @@ enum
 };
 
 // structure to map a string to an opcode (post-fix)
-struct SZOP
+struct StringOpcodeMap
 {
     long op;
-    PSZ psz;
+    PZString psz;
 };
 
 // structure to map a string to an opcode and argument information (in-fix)
-struct AROP
+struct StringOpcodeArgumentMap
 {
     long op;
-    PSZ psz;
+    PZString psz;
     long clwFixed;   // number of fixed arguments
     long clwVar;     // number of arguments per variable group
     long cactMinVar; // minimum number of variable groups
@@ -154,22 +159,22 @@ const byte kbLabel = 0xCC;
     2 bytes of lu1, so clients can store the info in 6 bytes. The high
     2 bytes of lu1 are used for array subscripts.
 ***************************************************************************/
-struct RTVN
+struct RuntimeVariableName
 {
     ulong lu1;
     ulong lu2;
 
-    void SetFromStn(PSTN pstn);
-    void GetStn(PSTN pstn);
+    void SetFromStn(PString pstn);
+    void GetStn(PString pstn);
 };
 
 /***************************************************************************
     The script compiler base class.
 ***************************************************************************/
-typedef class SCCB *PSCCB;
-#define SCCB_PAR BASE
-#define kclsSCCB 'SCCB'
-class SCCB : public SCCB_PAR
+typedef class CompilerBase *PCompilerBase;
+#define CompilerBase_PAR BASE
+#define kclsCompilerBase 'SCCB'
+class CompilerBase : public CompilerBase_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -183,14 +188,14 @@ class SCCB : public SCCB_PAR
         fsccTop = 2
     };
 
-    PLEXB _plexb;       // the lexer
-    PSCPT _pscpt;       // the script we're building
-    PGL _pgletnTree;    // expression tree (in-fix only)
-    PGL _pgletnStack;   // token stack for building expression tree (in-fix only)
-    PGL _pglcstd;       // control structure stack (in-fix only)
-    PGST _pgstNames;    // encountered names (in-fix only)
-    PGST _pgstLabel;    // encountered labels, sorted, extra long is label value
-    PGST _pgstReq;      // label references, extra long is address of reference
+    PLexerBase _plexb;       // the lexer
+    PScript _pscpt;       // the script we're building
+    PDynamicArray _pgletnTree;    // expression tree (in-fix only)
+    PDynamicArray _pgletnStack;   // token stack for building expression tree (in-fix only)
+    PDynamicArray _pglcstd;       // control structure stack (in-fix only)
+    PStringTable_GST _pgstNames;    // encountered names (in-fix only)
+    PStringTable_GST _pgstLabel;    // encountered labels, sorted, extra long is label value
+    PStringTable_GST _pgstReq;      // label references, extra long is address of reference
     long _ilwOpLast;    // address of the last opcode
     long _lwLastLabel;  // for internal temporary labels
     bool _fError : 1;   // whether an error has occured during compiling
@@ -200,51 +205,51 @@ class SCCB : public SCCB_PAR
     long _ttEnd;        // stop compiling when we see this
     PMSNK _pmsnk;       // the message sink - for error reporting when compiling
 
-    bool _FInit(PLEXB plexb, bool fInFix, PMSNK pmsnk);
+    bool _FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk);
     void _Free(void);
 
     // general compilation methods
     void _PushLw(long lw);
-    void _PushString(PSTN pstn);
+    void _PushString(PString pstn);
     void _PushOp(long op);
     void _EndOp(void);
-    void _PushVarOp(long op, RTVN *prtvn);
-    bool _FFindLabel(PSTN pstn, long *plwLoc);
-    void _AddLabel(PSTN pstn);
-    void _PushLabelRequest(PSTN pstn);
+    void _PushVarOp(long op, RuntimeVariableName *prtvn);
+    bool _FFindLabel(PString pstn, long *plwLoc);
+    void _AddLabel(PString pstn);
+    void _PushLabelRequest(PString pstn);
     void _AddLabelLw(long lw);
     void _PushLabelRequestLw(long lw);
 
-    virtual void _ReportError(PSZ psz);
+    virtual void _ReportError(PZString psz);
     virtual short _SwCur(void);
     virtual short _SwBack(void);
     virtual short _SwMin(void);
 
-    virtual bool _FGetTok(PTOK ptok);
+    virtual bool _FGetTok(PToken ptok);
 
     // post-fix compiler routines
     virtual void _CompilePost(void);
-    long _OpFromStnRgszop(PSTN pstn, SZOP *prgszop);
-    virtual long _OpFromStn(PSTN pstn);
-    bool _FGetStnFromOpRgszop(long op, PSTN pstn, SZOP *prgszop);
-    virtual bool _FGetStnFromOp(long op, PSTN pstn);
+    long _OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop);
+    virtual long _OpFromStn(PString pstn);
+    bool _FGetStnFromOpRgszop(long op, PString pstn, StringOpcodeMap *prgszop);
+    virtual bool _FGetStnFromOp(long op, PString pstn);
 
     // in-fix compiler routines
     virtual void _CompileIn(void);
     bool _FResolveToOpl(long opl, long oplMin, long *pietn);
     void _EmitCode(long ietnTop, ulong grfscc, long *pclwArg);
-    void _EmitVarAccess(long ietn, RTVN *prtvn, long *popPush, long *popPop, long *pclwStack);
-    virtual bool _FGetOpFromName(PSTN pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
-    bool _FGetArop(PSTN pstn, AROP *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
+    void _EmitVarAccess(long ietn, RuntimeVariableName *prtvn, long *popPush, long *popPop, long *pclwStack);
+    virtual bool _FGetOpFromName(PString pstn, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar, bool *pfVoid);
+    bool _FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, long *pop, long *pclwFixed, long *pclwVar, long *pcactMinVar,
                    bool *pfVoid);
     void _PushLabelRequestIetn(long ietn);
     void _AddLabelIetn(long ietn);
     void _PushOpFromName(long ietn, ulong grfscc, long clwArg);
     void _GetIstnNameFromIetn(long ietn, long *pistn);
-    void _GetRtvnFromName(long istn, RTVN *prtvn);
-    bool _FKeyWord(PSTN pstn);
-    void _GetStnFromIstn(long istn, PSTN pstn);
-    void _AddNameRef(PSTN pstn, long *pistn);
+    void _GetRtvnFromName(long istn, RuntimeVariableName *prtvn);
+    bool _FKeyWord(PString pstn);
+    void _GetStnFromIstn(long istn, PString pstn);
+    void _AddNameRef(PString pstn, long *pistn);
     long _CstFromName(long ietn);
     void _BeginCst(long cst, long ietn);
     bool _FHandleCst(long ietn);
@@ -255,13 +260,15 @@ class SCCB : public SCCB_PAR
     void _PushStringIstn(long istn);
 
   public:
-    SCCB(void);
-    ~SCCB(void);
+    CompilerBase(void);
+    ~CompilerBase(void);
 
-    virtual PSCPT PscptCompileLex(PLEXB plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
-    virtual PSCPT PscptCompileFil(PFIL pfil, bool fInFix, PMSNK pmsnk);
-    virtual PSCPT PscptCompileFni(FNI *pfni, bool fInFix, PMSNK pmsnk);
-    virtual bool FDisassemble(PSCPT pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);
+    virtual PScript PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk, long ttEnd = ttNil);
+    virtual PScript PscptCompileFil(PFileObject pfil, bool fInFix, PMSNK pmsnk);
+    virtual PScript PscptCompileFni(Filename *pfni, bool fInFix, PMSNK pmsnk);
+    virtual bool FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError = pvNil);
 };
+
+} // end of namespace ScriptCompiler
 
 #endif //! SCRCOM_H

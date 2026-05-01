@@ -8,82 +8,82 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> CMH ---> GOB ---> APE
+    BASE ---> CommandHandler ---> GraphicsObject ---> ActorPreviewEntity
 
 ***************************************************************************/
 #ifndef APE_H
 #define APE_H
 
-// APE tool types
+// ActorPreviewEntity tool types
 enum
 {
     aptNil = 0,
-    aptIncCmtl,      // Increment CMTL
+    aptIncCmtl,      // Increment CustomMaterial_CMTL
     aptIncAccessory, // Increment Accessory
-    aptGms,          // Material (MTRL or CMTL)
+    aptGms,          // Material (Material_MTRL or CustomMaterial_CMTL)
     aptLim
 };
 
 // Generic material spec
-struct GMS
+struct GeneralMaterialSpec
 {
-    bool fValid; // if fFalse, ignore this GMS
+    bool fValid; // if fFalse, ignore this GeneralMaterialSpec
     bool fMtrl;  // if fMtrl is fTrue, tagMtrl is valid.  Else cmid is valid
     long cmid;
     TAG tagMtrl;
 };
 
 // Actor preview entity tool
-struct APET
+struct ActorPreviewEntityTool
 {
     long apt;
-    GMS gms;
+    GeneralMaterialSpec gms;
 };
 
 /****************************************
     Actor preview entity class
 ****************************************/
-typedef class APE *PAPE;
-#define APE_PAR GOB
-#define kclsAPE 'APE'
-class APE : public APE_PAR
+typedef class ActorPreviewEntity *PActorPreviewEntity;
+#define ActorPreviewEntity_PAR GraphicsObject
+#define kclsActorPreviewEntity 'APE'
+class ActorPreviewEntity : public ActorPreviewEntity_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
-    CMD_MAP_DEC(APE)
+    CMD_MAP_DEC(ActorPreviewEntity)
 
   protected:
-    PBWLD _pbwld;       // BRender world to draw actor in
-    PTMPL _ptmpl;       // Template (or TDT) of the actor being previewed
-    PBODY _pbody;       // Body of the actor being previewed
-    APET _apet;         // Currently selected tool
-    PGL _pglgms;        // What materials are attached to what body part sets
+    PWorld _pbwld;       // BRender world to draw actor in
+    PTemplate _ptmpl;       // Template (or ThreeDText) of the actor being previewed
+    PBody _pbody;       // Body of the actor being previewed
+    ActorPreviewEntityTool _apet;         // Currently selected tool
+    PDynamicArray _pglgms;        // What materials are attached to what body part sets
     long _celn;         // Current cel of action
-    CLOK _clok;         // To time cel cycling
+    Clock _clok;         // To time cel cycling
     BLIT _blit;         // BRender light data
     BACT _bact;         // BRender light actor
     long _anid;         // Current action ID
     long _iview;        // Current camera view
     bool _fCycleCels;   // If cycling cels
-    PRCA _prca;         // resource source (for cursors)
+    PResourceCache _prca;         // resource source (for cursors)
     long _ibsetOnlyAcc; // ibset of accessory, if only one (else ivNil)
 
   protected:
-    APE(PGCB pgcb) : GOB(pgcb), _clok(CMH::HidUnique())
+    ActorPreviewEntity(PGraphicsObjectBlock pgcb) : GraphicsObject(pgcb), _clok(CommandHandler::HidUnique())
     {
     }
-    bool _FInit(PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca);
+    bool _FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca);
     void _InitView(void);
     void _SetScale(void);
     void _UpdateView(void);
-    bool _FApplyGms(GMS *pgms, long ibset);
-    bool _FIncCmtl(GMS *pgms, long ibset, bool fNextAccessory);
+    bool _FApplyGms(GeneralMaterialSpec *pgms, long ibset);
+    bool _FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool fNextAccessory);
     long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
-    static PAPE PapeNew(PGCB pgcb, PTMPL ptmpl, PCOST pcost, long anid, bool fCycleCels, PRCA prca = pvNil);
-    ~APE();
+    static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
+    ~ActorPreviewEntity();
 
     void SetToolMtrl(PTAG ptagMtrl);
     void SetToolCmtl(long cmid);
@@ -91,19 +91,19 @@ class APE : public APE_PAR
     void SetToolIncAccessory(void);
 
     bool FSetAction(long anid);
-    bool FCmdNextCel(PCMD pcmd);
+    bool FCmdNextCel(PCommand pcmd);
 
     void SetCustomView(BRA xa, BRA ya, BRA za);
     void ChangeView(void);
-    virtual void Draw(PGNV pgnv, RC *prcClip);
+    virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FCmdMouseMove(PCMD_MOUSE pcmd);
     virtual bool FCmdTrackMouse(PCMD_MOUSE pcmd);
 
-    bool FChangeTdt(PSTN pstn, long tdts, PTAG ptagTdf);
+    bool FChangeTdt(PString pstn, long tdts, PTAG ptagTdf);
     bool FSetTdtMtrl(PTAG ptagMtrl);
-    bool FGetTdtMtrlCno(CNO *pcno);
+    bool FGetTdtMtrlCno(ChunkNumber *pcno);
 
-    void GetTdtInfo(PSTN pstn, long *ptdts, PTAG ptagTdf);
+    void GetTdtInfo(PString pstn, long *ptdts, PTAG ptagTdf);
     long Anid(void)
     {
         return _anid;

@@ -8,7 +8,7 @@
     Primary Author: ****** (based on ***** original srec)
     Review Status: reviewed
 
-    BASE ---> SREC
+    BASE ---> SoundRecorder
 
 ***************************************************************************/
 #ifndef SREC_H
@@ -17,7 +17,7 @@
 #include "audioman.h"
 
 /****************************************
-    RIFF Header helper class
+    RiffHeader helper class
 ****************************************/
 #ifdef MAC
 #define RIFF_TAG 'RIFF'
@@ -36,7 +36,7 @@
 #pragma pack(push, _SOCPACK_)
 #pragma pack(1)
 
-class RIFF
+class RiffHeader
 {
   private:
     DWORD _dwRiffTag;
@@ -52,7 +52,7 @@ class RIFF
     void Set(long cchan, long csampSec, long cbSample, DWORD dwLength)
     {
         _dwRiffTag = RIFF_TAG;
-        _dwRiffLength = sizeof(RIFF) + dwLength;
+        _dwRiffLength = sizeof(RiffHeader) + dwLength;
         _dwWaveTag = WAVE_TAG;
         _dwFmtTag = FMT__TAG;
         _dwFmtLength = sizeof(WAVEFORMATEX);
@@ -74,7 +74,7 @@ class RIFF
 
     DWORD Cb()
     {
-        return sizeof(RIFF) + _dwDataLength;
+        return sizeof(RiffHeader) + _dwDataLength;
     };
 };
 #pragma pack(pop, _SOCPACK_)
@@ -82,10 +82,10 @@ class RIFF
 /****************************************
     The sound recording class
 ****************************************/
-typedef class SREC *PSREC;
-#define SREC_PAR BASE
-#define kclsSREC 'SREC'
-class SREC : public SREC_PAR
+typedef class SoundRecorder *PSoundRecorder;
+#define SoundRecorder_PAR BASE
+#define kclsSoundRecorder 'SREC'
+class SoundRecorder : public SoundRecorder_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -107,7 +107,7 @@ class SREC : public SREC_PAR
     LPMIXER _pmixer;     // pointer to Audioman Mixer
     LPCHANNEL _pchannel; // pointer to Audioman Channel
     LPSOUND _psnd;       // psnd for current sound
-    RIFF *_priff;        // pointer to riff in memory
+    RiffHeader *_priff;        // pointer to riff in memory
 
     bool _FOpenRecord();
     bool _FCloseRecord();
@@ -118,15 +118,15 @@ class SREC : public SREC_PAR
     void _UpdateStatus(void);
 
   public:
-    static PSREC PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax);
-    ~SREC(void);
+    static PSoundRecorder PsrecNew(long csampSec, long cchan, long cbSample, ulong dtsMax);
+    ~SoundRecorder(void);
 
     bool FStart(void);
     bool FStop(void);
     bool FPlay(void);
     bool FRecording(void);
     bool FPlaying(void);
-    bool FSave(PFNI pfni);
+    bool FSave(PFilename pfni);
     bool FHaveSound(void)
     {
         return _fHaveSound;

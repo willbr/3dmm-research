@@ -8,67 +8,75 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BACO ---> ACTN
-    BASE ---> BACO ---> TMPL
+    BASE ---> BaseCacheableObject ---> ActionDefinition
+    BASE ---> BaseCacheableObject ---> Template
 
-    A TMPL encapsulates all the data that distinguishes one actor
+    A Template encapsulates all the data that distinguishes one actor
     "species" from another, including the species' models, actions,
-    and custom texture maps.  One or more BODY classes are created based
-    on a TMPL, and the TMPL attaches models and materials to the body
+    and custom texture maps.  One or more Body classes are created based
+    on a Template, and the Template attaches models and materials to the body
     based on more abstract concepts like actions and costumes.
 
 *************************************************************************/
-#ifndef TMPL_H
-#define TMPL_H
+#ifndef Template_H
+#define Template_H
+
+#include <cstdint>
+
+using namespace BRender;
 
 /****************************************
     Cel part spec: tells what model and
     xfrm to apply to a body part for
     one cel
 ****************************************/
-struct CPS
+struct CelPartSpec
 {
-    short chidModl; // CHID (under TMPL chunk) of model for this body part
-    short imat34;   // index into ACTN's GL of transforms
+    int16_t chidModl; // ChildChunkID (under Template chunk) of model for this body part
+    int16_t imat34;   // index into ActionDefinition's DynamicArray of transforms
 };
-const BOM kbomCps = 0x50000000;
+static_assert(sizeof(CelPartSpec) == 4, "CelPartSpec on-disk layout drift");
+const ByteOrderMask kbomCps = 0x50000000;
 
 /****************************************
-    Cel: tells what CPS's to apply to an
+    Cel: tells what CelPartSpec's to apply to an
     actor for one cel.  It also tells
     what sound to play (if any), and how
     far the actor should move from the
     previous cel (dwr).
 ****************************************/
-struct CEL
+struct AnimationCel
 {
-    CHID chidSnd; // sound to play at this cel (CHID under ACTN chunk)
+    ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ActionDefinition chunk)
     BRS dwr;      // distance from previous cel
-                  //	CPS rgcps[];	// list of cel part specs (variable part of pggcel)
+                  //	CelPartSpec rgcps[];	// list of cel part specs (variable part of pggcel)
 };
-const BOM kbomCel = 0xf0000000;
+static_assert(sizeof(AnimationCel) == 8, "AnimationCel on-disk layout drift");
+const ByteOrderMask kbomCel = 0xf0000000;
 
 // template on file
-struct TMPLF
+struct TemplateOnFile
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     BRA xaRest; // reminder: BRAs are shorts
     BRA yaRest;
     BRA zaRest;
-    short swPad; // so grftmpl (and the whole TMPLF) is long-aligned
-    ulong grftmpl;
+    int16_t swPad; // so grftmpl (and the whole TemplateOnFile) is long-aligned
+    uint32_t grftmpl;
 };
+static_assert(sizeof(TemplateOnFile) == 16, "TemplateOnFile on-disk layout drift");
 #define kbomTmplf 0x554c0000
 
 // action chunk on file
-struct ACTNF
+struct ActionChunkOnFile
 {
-    short bo;
-    short osk;
-    long grfactn;
+    int16_t bo;
+    int16_t osk;
+    uint32_t grfactn;
 };
-const ulong kbomActnf = 0x5c000000;
+static_assert(sizeof(ActionChunkOnFile) == 8, "ActionChunkOnFile on-disk layout drift");
+const ByteOrderMask kbomActnf = 0x5c000000;
 
 // grfactn flags
 enum
@@ -80,34 +88,34 @@ enum
 };
 
 /****************************************
-    ACTN (action): all the information
+    ActionDefinition (action): all the information
     for an action like 'rest' or 'walk'.
 ****************************************/
-typedef class ACTN *PACTN;
-#define ACTN_PAR BACO
-#define kclsACTN 'ACTN'
-class ACTN : public ACTN_PAR
+typedef class ActionDefinition *PActionDefinition;
+#define ActionDefinition_PAR BaseCacheableObject
+#define kclsActionDefinition 'ACTN'
+class ActionDefinition : public ActionDefinition_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PGG _pggcel;    // GG of CELs; variable part is a rgcps[]
-    PGL _pglbmat34; // GL of transformation matrices used in this action
-    PGL _pgltagSnd; // GL of motion-match sounds for this action
+    PGeneralGroup _pggcel;    // GeneralGroup of CELs; variable part is a rgcps[]
+    PDynamicArray _pglbmat34; // DynamicArray of transformation matrices used in this action
+    PDynamicArray _pgltagSnd; // DynamicArray of motion-match sounds for this action
     ulong _grfactn; // various flags for this action
 
   protected:
-    ACTN(void)
+    ActionDefinition(void)
     {
     } // can't instantiate directly; must use FReadActn
-    bool _FInit(PCFL pcfl, CTG ctg, CNO cno);
+    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static PACTN PactnNew(PGG pggcel, PGL pglbmat34, ulong grfactn);
-    static bool FReadActn(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    ~ACTN(void);
+    static PActionDefinition PactnNew(PGeneralGroup pggcel, PDynamicArray pglbmat34, ulong grfactn);
+    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    ~ActionDefinition(void);
 
     ulong Grfactn(void)
     {
@@ -118,8 +126,8 @@ class ACTN : public ACTN_PAR
     {
         return _pggcel->IvMac();
     }
-    void GetCel(long icel, CEL *pcel);
-    void GetCps(long icel, long icps, CPS *pcps);
+    void GetCel(long icel, AnimationCel *pcel);
+    void GetCps(long icel, long icps, CelPartSpec *pcps);
     void GetMatrix(long imat34, BMAT34 *pbmat34);
     void GetSnd(long icel, PTAG ptagSnd);
 };
@@ -133,15 +141,15 @@ enum
 };
 
 /****************************************
-    TMPL: The template class.
+    Template: The template class.
     anid is an action ID.
     cmid is a costume ID.
     celn is a cel number.
 ****************************************/
-typedef class TMPL *PTMPL;
-#define TMPL_PAR BACO
-#define kclsTMPL 'TMPL'
-class TMPL : public TMPL_PAR
+typedef class Template *PTemplate;
+#define Template_PAR BaseCacheableObject
+#define kclsTemplate 'TMPL'
+class Template : public Template_PAR
 {
     RTCLASS_DEC
     ASSERT
@@ -152,32 +160,32 @@ class TMPL : public TMPL_PAR
     BRA _yaRest;
     BRA _zaRest;
     ulong _grftmpl;
-    PGL _pglibactPar; // GL of parent IDs (shorts) to build BODY
-    PGL _pglibset;    // GL of body-part-set IDs to build BODY
-    PGG _pggcmid;     // List of costumes for each body part set
+    PDynamicArray _pglibactPar; // DynamicArray of parent IDs (shorts) to build Body
+    PDynamicArray _pglibset;    // DynamicArray of body-part-set IDs to build Body
+    PGeneralGroup _pggcmid;     // List of costumes for each body part set
     long _ccmid;      // Count of custom costumes
     long _cbset;      // Count of body part sets
     long _cactn;      // Count of actions
-    STN _stn;         // Template name
+    String _stn;         // Template name
 
   protected:
-    TMPL(void)
+    Template(void)
     {
     } // can't instantiate directly; must use FReadTmpl
-    bool _FReadTmplf(PCFL pcfl, CTG ctg, CNO cno);
-    virtual bool _FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl);
-    virtual PACTN _PactnFetch(long anid);
-    virtual PMODL _PmodlFetch(CHID chidModl);
-    bool _FWriteTmplf(PCFL pcfl, CTG ctg, CNO *pcno);
+    bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
+    virtual PActionDefinition _PactnFetch(long anid);
+    virtual PModel _PmodlFetch(ChildChunkID chidModl);
+    bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
   public:
-    static bool FReadTmpl(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb);
-    ~TMPL(void);
-    static PGL PgltagFetch(PCFL pcfl, CTG ctg, CNO cno, bool *pfError);
+    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    ~Template(void);
+    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
 
-    // TMPL / BODY stuff
-    void GetName(PSTN pstn); // default name of actor or text of the TDT
-    PBODY PbodyCreate(void); // Creates a body based on this TMPL
+    // Template / Body stuff
+    void GetName(PString pstn); // default name of actor or text of the ThreeDText
+    PBody PbodyCreate(void); // Creates a body based on this Template
     void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
     bool FIsTdt(void)
     {
@@ -193,16 +201,16 @@ class TMPL : public TMPL_PAR
     {
         return _cactn;
     } // count of actions
-    virtual bool FGetActnName(long anid, PSTN pstn);
-    bool FSetActnCel(PBODY pbody, long anid, long celn, BRS *pdwr = pvNil);
+    virtual bool FGetActnName(long anid, PString pstn);
+    bool FSetActnCel(PBody pbody, long anid, long celn, BRS *pdwr = pvNil);
     bool FGetGrfactn(long anid, ulong *pgrfactn);
     bool FGetDwrActnCel(long anid, long celn, BRS *pdwr);
     bool FGetCcelActn(long anid, long *pccel);
     bool FGetSndActnCel(long anid, long celn, bool *pfSoundExists, PTAG ptag);
 
     // Costume stuff
-    virtual bool FSetDefaultCost(PBODY pbody); // applies default costume
-    virtual PCMTL PcmtlFetch(long cmid);
+    virtual bool FSetDefaultCost(PBody pbody); // applies default costume
+    virtual PCustomMaterial_CMTL PcmtlFetch(long cmid);
     long CcmidOfBset(long ibset);
     long CmidOfBset(long ibset, long icmid);
     bool FBsetIsAccessory(long ibset); // whether ibset holds accessories
@@ -210,4 +218,4 @@ class TMPL : public TMPL_PAR
     bool FSameAccCmids(long cmid1, long cmid2);
 };
 
-#endif TMPL_H
+#endif Template_H

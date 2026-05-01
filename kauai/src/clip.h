@@ -19,17 +19,17 @@
 /***************************************************************************
     Clipboard object.
 ***************************************************************************/
-typedef class CLIP *PCLIP;
-#define CLIP_PAR BASE
-#define kclsCLIP 'CLIP'
-class CLIP : public CLIP_PAR
+typedef class ClipboardObject *PClipboardObject;
+#define ClipboardObject_PAR BASE
+#define kclsClipboardObject 'CLIP'
+class ClipboardObject : public ClipboardObject_PAR
 {
     RTCLASS_DEC
     ASSERT
     MARKMEM
 
   protected:
-    PDOCB _pdocb;
+    PDocumentBase _pdocb;
 
     bool _fDocCurrent : 1;
     bool _fExporting : 1;
@@ -43,16 +43,16 @@ class CLIP : public CLIP_PAR
     void _EnsureDoc();
     void _ExportCur(void);
     void _ImportCur(void);
-    bool _FImportFormat(long clfm, void *pv = pvNil, long cb = 0, PDOCB *ppdocb = pvNil, bool *pfDelay = pvNil);
+    bool _FImportFormat(long clfm, void *pv = pvNil, long cb = 0, PDocumentBase *ppdocb = pvNil, bool *pfDelay = pvNil);
 
   public:
-    CLIP(void);
+    ClipboardObject(void);
 
-    bool FDocIsClip(PDOCB pdocb);
+    bool FDocIsClip(PDocumentBase pdocb);
     void Show(void);
 
-    void Set(PDOCB pdocb = pvNil, bool fExport = fTrue);
-    bool FGetFormat(long cls, PDOCB *pdocb = pvNil);
+    void Set(PDocumentBase pdocb = pvNil, bool fExport = fTrue);
+    bool FGetFormat(long cls, PDocumentBase *pdocb = pvNil);
 
     bool FInitExport(void);
     void *PvExport(long cb, long clfm);
@@ -61,7 +61,7 @@ class CLIP : public CLIP_PAR
     void Import(void);
 };
 
-extern PCLIP vpclip;
+extern PClipboardObject vpclip;
 
 const long clfmNil = 0;
 // REVIEW shonk: Mac unicode

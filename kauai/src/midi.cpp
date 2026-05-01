@@ -12,13 +12,13 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(MSTP)
-RTCLASS(MIDS)
+RTCLASS(MidiStreamParser)
+RTCLASS(MidiStream)
 
 /***************************************************************************
     Constructor for a midi stream parser.
 ***************************************************************************/
-MSTP::MSTP(void)
+MidiStreamParser::MidiStreamParser(void)
 {
     AssertBaseThis(0);
     _pmids = pvNil;
@@ -27,7 +27,7 @@ MSTP::MSTP(void)
 /***************************************************************************
     Destructor for a midi stream parser.
 ***************************************************************************/
-MSTP::~MSTP(void)
+MidiStreamParser::~MidiStreamParser(void)
 {
     AssertThis(0);
 
@@ -40,7 +40,7 @@ MSTP::~MSTP(void)
     Initialize this midi stream parser to the given midi stream and use the
     given time as the start time.
 ***************************************************************************/
-void MSTP::Init(PMIDS pmids, ulong tsStart, long lwTempo)
+void MidiStreamParser::Init(PMidiStream pmids, ulong tsStart, long lwTempo)
 {
     AssertThis(0);
     AssertNilOrPo(pmids, 0);
@@ -74,7 +74,7 @@ void MSTP::Init(PMIDS pmids, ulong tsStart, long lwTempo)
     Get the next midi event. If fAdvance is true, advance to the next event
     after getting this one.
 ***************************************************************************/
-bool MSTP::FGetEvent(PMIDEV pmidev, bool fAdvance)
+bool MidiStreamParser::FGetEvent(PMIDEV pmidev, bool fAdvance)
 {
     AssertThis(0);
     AssertNilOrVarMem(pmidev);
@@ -229,7 +229,7 @@ LFail:
 /***************************************************************************
     Read a variable length quantity.
 ***************************************************************************/
-bool MSTP::_FReadVar(byte **ppbCur, long *plw)
+bool MidiStreamParser::_FReadVar(byte **ppbCur, long *plw)
 {
     AssertThis(0);
     AssertVarMem(ppbCur);
@@ -249,11 +249,11 @@ bool MSTP::_FReadVar(byte **ppbCur, long *plw)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MSTP.
+    Assert the validity of a MidiStreamParser.
 ***************************************************************************/
-void MSTP::AssertValid(ulong grf)
+void MidiStreamParser::AssertValid(ulong grf)
 {
-    MSTP_PAR::AssertValid(0);
+    MidiStreamParser_PAR::AssertValid(0);
     if (pvNil == _pmids)
         return;
 
@@ -264,12 +264,12 @@ void MSTP::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory for the MSTP.
+    Mark memory for the MidiStreamParser.
 ***************************************************************************/
-void MSTP::MarkMem(void)
+void MidiStreamParser::MarkMem(void)
 {
     AssertValid(0);
-    MSTP_PAR::MarkMem();
+    MidiStreamParser_PAR::MarkMem();
     MarkMemObj(_pmids);
 }
 #endif // DEBUG
@@ -277,35 +277,35 @@ void MSTP::MarkMem(void)
 /***************************************************************************
     Constructor for a midi stream object.
 ***************************************************************************/
-MIDS::MIDS(void)
+MidiStream::MidiStream(void)
 {
 }
 
 /***************************************************************************
     Destructor for a midi stream object.
 ***************************************************************************/
-MIDS::~MIDS(void)
+MidiStream::~MidiStream(void)
 {
     FreePhq(&_hqrgb);
 }
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a MIDS.
+    Assert the validity of a MidiStream.
 ***************************************************************************/
-void MIDS::AssertValid(ulong grf)
+void MidiStream::AssertValid(ulong grf)
 {
-    MIDS_PAR::AssertValid(0);
+    MidiStream_PAR::AssertValid(0);
     AssertHq(_hqrgb);
 }
 
 /***************************************************************************
-    Mark memory for the MIDS.
+    Mark memory for the MidiStream.
 ***************************************************************************/
-void MIDS::MarkMem(void)
+void MidiStream::MarkMem(void)
 {
     AssertValid(0);
-    MIDS_PAR::MarkMem();
+    MidiStream_PAR::MarkMem();
     MarkHq(_hqrgb);
 }
 #endif // DEBUG
@@ -313,13 +313,13 @@ void MIDS::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MIDS::FReadMids(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, long *pcb)
+bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb)
 {
     AssertPo(pcrf, 0);
     AssertPo(pblck, fblckReadable);
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
-    PMIDS pmids;
+    PMidiStream pmids;
 
     *pcb = pblck->Cb(fTrue);
     if (pvNil == ppbaco)
@@ -343,13 +343,13 @@ bool MIDS::FReadMids(PCRF pcrf, CTG ctg, CNO cno, PBLCK pblck, PBACO *ppbaco, lo
 /***************************************************************************
     Read a midi stream from the given block.
 ***************************************************************************/
-PMIDS MIDS::PmidsRead(PBLCK pblck)
+PMidiStream MidiStream::PmidsRead(PDataBlock pblck)
 {
     AssertPo(pblck, 0);
 
-    PMIDS pmids;
+    PMidiStream pmids;
 
-    if (pvNil == (pmids = NewObj MIDS))
+    if (pvNil == (pmids = NewObj MidiStream))
         return pvNil;
 
     if (!pblck->FUnpackData() || !pblck->FReadHq(&pmids->_hqrgb))
@@ -362,7 +362,7 @@ PMIDS MIDS::PmidsRead(PBLCK pblck)
 /***************************************************************************
     Read a native standard midi file and create a midi stream from it.
 ***************************************************************************/
-PMIDS MIDS::PmidsReadNative(FNI *pfni)
+PMidiStream MidiStream::PmidsReadNative(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
 
@@ -388,17 +388,17 @@ PMIDS MIDS::PmidsReadNative(FNI *pfni)
 
     struct MIDTR
     {
-        PMSTP pmstp;
+        PMidiStreamParser pmstp;
         MIDEV midevCur;
     };
 
-    FLO flo;
-    FP fp;
+    FileLocation flo;
+    FilePosition fp;
     MIDHED midhed;
     MIDCHD midchd;
     MIDTR midtr;
     bool fSmpte;
-    BSM bsm;
+    MemoryByteStream bsm;
     RAT ratTempo;
     ulong tsTempo, tsRawTempo, tsLast, ts, dts;
     byte rgbT[5];
@@ -406,11 +406,11 @@ PMIDS MIDS::PmidsReadNative(FNI *pfni)
     bool fSeq;
     long imidtr, imidtrMin;
     ulong tsMin;
-    PMIDS pmids = pvNil;
-    PGL pglmidtr = pvNil;
+    PMidiStream pmids = pvNil;
+    PDynamicArray pglmidtr = pvNil;
 
     // open the file and set up the source flo
-    if (pvNil == (flo.pfil = FIL::PfilOpen(pfni)))
+    if (pvNil == (flo.pfil = FileObject::PfilOpen(pfni)))
         return pvNil;
     flo.fp = 0;
     flo.cb = flo.pfil->FpMac();
@@ -431,7 +431,7 @@ PMIDS MIDS::PmidsReadNative(FNI *pfni)
     }
 
     // allocate the list of tracks to parse
-    if (pvNil == (pglmidtr = GL::PglNew(size(MIDTR))))
+    if (pvNil == (pglmidtr = DynamicArray::PglNew(size(MIDTR))))
         goto LFail;
 
     // build the track list...
@@ -460,14 +460,14 @@ PMIDS MIDS::PmidsReadNative(FNI *pfni)
         }
 
         // wrap a midi stream object around the track data
-        if (pvNil == (pmids = NewObj MIDS) || !flo.FReadHq(&pmids->_hqrgb, midchd.cb, fp))
+        if (pvNil == (pmids = NewObj MidiStream) || !flo.FReadHq(&pmids->_hqrgb, midchd.cb, fp))
         {
             goto LFail;
         }
         fp += midchd.cb;
 
         // create the midi stream parser for this stream
-        if (pvNil == (midtr.pmstp = NewObj MSTP))
+        if (pvNil == (midtr.pmstp = NewObj MidiStreamParser))
             goto LFail;
         midtr.pmstp->Init(pmids, 0, 500000 /* microseconds per beat */);
         ReleasePpo(&pmids);
@@ -613,7 +613,7 @@ PMIDS MIDS::PmidsReadNative(FNI *pfni)
         }
     }
 
-    if (pvNil != (pmids = NewObj MIDS) && FAllocHq(&pmids->_hqrgb, bsm.IbMac(), fmemNil, mprNormal))
+    if (pvNil != (pmids = NewObj MidiStream) && FAllocHq(&pmids->_hqrgb, bsm.IbMac(), fmemNil, mprNormal))
     {
         bsm.FetchRgb(0, bsm.IbMac(), PvLockHq(pmids->_hqrgb));
         UnlockHq(pmids->_hqrgb);
@@ -641,7 +641,7 @@ PMIDS MIDS::PmidsReadNative(FNI *pfni)
     Static method to convert a long to its midi file variable length
     equivalent.
 ***************************************************************************/
-long MIDS::_CbEncodeLu(ulong lu, byte *prgb)
+long MidiStream::_CbEncodeLu(ulong lu, byte *prgb)
 {
     AssertNilOrVarMem(prgb);
 
@@ -662,7 +662,7 @@ long MIDS::_CbEncodeLu(ulong lu, byte *prgb)
 /***************************************************************************
     Write a midi stream to the given block.
 ***************************************************************************/
-bool MIDS::FWrite(PBLCK pblck)
+bool MidiStream::FWrite(PDataBlock pblck)
 {
     AssertThis(0);
     AssertPo(pblck, 0);
@@ -673,7 +673,7 @@ bool MIDS::FWrite(PBLCK pblck)
 /***************************************************************************
     Return the length of this midi stream on file.
 ***************************************************************************/
-long MIDS::CbOnFile(void)
+long MidiStream::CbOnFile(void)
 {
     AssertThis(0);
 

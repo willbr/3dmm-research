@@ -8,52 +8,52 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    TDT, the 3-D Text class, is a derived class of TMPL.  Most clients
-    (ACTR, MVIE, etc) can treat TDTs like regular TMPLs.  But they have
+    ThreeDText, the 3-D Text class, is a derived class of Template.  Most clients
+    (Actor, Movie, etc) can treat ThreeDTexts like regular Templates.  But they have
     some extra functionality and work internally very differently from
-    TMPLs.  Chunkwise, all the information for a TDT is in the TMPL
-    chunk or the single TDT child chunk:
+    Templates.  Chunkwise, all the information for a ThreeDText is in the Template
+    chunk or the single ThreeDText child chunk:
 
-    TMPL // template info
+    Template // template info
      |
      |
-     +---TDT  (chid 0) // TDT-specific info (shape and tag to TDF)
+     +---ThreeDText  (chid 0) // ThreeDText-specific info (shape and tag to ThreeDFont)
 
-    In addition to the usual TMPL fields, TDTs have a _tagTdf and a _tdts.
-    _tagTdf tells what font to use for the TDT, and _tdts tells what shape
-    to draw the TDT in.  TDTs on file are very small, so it is practical to
+    In addition to the usual Template fields, ThreeDTexts have a _tagTdf and a _tdts.
+    _tagTdf tells what font to use for the ThreeDText, and _tdts tells what shape
+    to draw the ThreeDText in.  ThreeDTexts on file are very small, so it is practical to
     store them in the user's document.
 
-    Rather than fetching ACTNs and the default costume from child chunks
-    of the TMPL, TDTs generate them in memory and store them in _pactnCache
+    Rather than fetching ActionDefinitions and the default costume from child chunks
+    of the Template, ThreeDTexts generate them in memory and store them in _pactnCache
     and _pmtrlDefault.  _pactnCache keeps a copy of the last requested
     action so that it doesn't have to be continuously recomputed.
 
-    The user can change a TDT's text, shape, and/or font with FChange().
-    When this happens, all the internal lists affecting the TDT's shape,
-    costume, etc., are changed via _FInitLists().  After changing a TDT,
-    you should call FAdjustBody on any BODYs based on that TDT.  In
-    Socrates, there should only be one BODY per TDT, so this shouldn't be
+    The user can change a ThreeDText's text, shape, and/or font with FChange().
+    When this happens, all the internal lists affecting the ThreeDText's shape,
+    costume, etc., are changed via _FInitLists().  After changing a ThreeDText,
+    you should call FAdjustBody on any Bodys based on that ThreeDText.  In
+    Socrates, there should only be one Body per ThreeDText, so this shouldn't be
     a problem.
 
 ***************************************************************************/
 #include "soc.h"
 ASSERTNAME
 
-RTCLASS(TDT)
+RTCLASS(ThreeDText)
 
-const CHID kchidTdt = 0; // CHID of TDT under TMPL chunk
+const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under Template chunk
 
 // All actions have a step size of kdwrStep, except tdaWalk
 const BRS kdwrStepWalk = BR_SCALAR(1.0); // step size for walk action
 const BRS kdwrStep = BR_SCALAR(5.0);     // step size for all other actions
 
-PGST TDT::_pgstAction = pvNil;
+PStringTable_GST ThreeDText::_pgstAction = pvNil;
 
 /***************************************************************************
-    Set the GST of action names for TDTs
+    Set the StringTable_GST of action names for ThreeDTexts
 ***************************************************************************/
-bool TDT::FSetActionNames(PGST pgstAction)
+bool ThreeDText::FSetActionNames(PStringTable_GST pgstAction)
 {
     AssertPo(pgstAction, 0);
     Assert(pvNil == _pgstAction, "you already set the action names");
@@ -65,38 +65,39 @@ bool TDT::FSetActionNames(PGST pgstAction)
 
 /****************************************
     3-D Text On File...this gets put in
-    a child chunk of a TMPL
+    a child chunk of a Template
 ****************************************/
-struct TDTF
+struct ThreeDTextF
 {
-    short bo;
-    short osk;
-    long tdts;
-    TAG tagTdf;
+    int16_t bo;
+    int16_t osk;
+    int32_t tdts;
+    TAGOnFile tagTdf;
 };
-const BOM kbomTdtf = (0x5C000000 | kbomTag >> 6);
+static_assert(sizeof(ThreeDTextF) == 24, "ThreeDTextF on-disk layout drift");
+const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
 
 /***************************************************************************
-    Return a list of all tags embedded in this TDT.  Note that a
+    Return a list of all tags embedded in this ThreeDText.  Note that a
     return value of pvNil does not mean an error occurred, but simply that
-    this TDT has no embedded tags.
+    this ThreeDText has no embedded tags.
 
     Actually, as currently implemented, this function only returns pvNil
     if an error occurs.  The point is, look at *pfError, not the return
     value.
 ***************************************************************************/
-PGL TDT::PgltagFetch(PCFL pcfl, CTG ctg, CNO cno, bool *pfError)
+PDynamicArray ThreeDText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0);
     AssertVarMem(pfError);
 
-    PGL pgltag;
-    KID kid;
-    BLCK blck;
-    TDTF tdtf;
+    PDynamicArray pgltag;
+    ChildChunkIdentification kid;
+    DataBlock blck;
+    ThreeDTextF tdtf;
 
     *pfError = fFalse;
-    pgltag = GL::PglNew(size(TAG));
+    pgltag = DynamicArray::PglNew(size(TAG));
     if (pvNil == pgltag)
         goto LFail;
     if (!pcfl->FGetKidChidCtg(ctg, cno, kchidTdt, kctgTdt, &kid))
@@ -105,15 +106,19 @@ PGL TDT::PgltagFetch(PCFL pcfl, CTG ctg, CNO cno, bool *pfError)
         goto LFail;
     if (!blck.FUnpackData())
         goto LFail;
-    if (blck.Cb() < size(TDTF))
+    if (blck.Cb() < size(ThreeDTextF))
         goto LFail;
-    if (!blck.FReadRgb(&tdtf, size(TDTF), 0))
+    if (!blck.FReadRgb(&tdtf, size(ThreeDTextF), 0))
         goto LFail;
     if (kboCur != tdtf.bo)
         SwapBytesBom(&tdtf, kbomTdtf);
-    Assert(kboCur == tdtf.bo, "bad TDTF");
-    if (!pgltag->FAdd(&tdtf.tagTdf))
-        goto LFail;
+    Assert(kboCur == tdtf.bo, "bad ThreeDTextF");
+    {
+        TAG tagTdf;
+        TagFromOnFile(&tagTdf, tdtf.tagTdf);
+        if (!pgltag->FAdd(&tagTdf))
+            goto LFail;
+    }
     return pgltag;
 LFail:
     *pfError = fTrue;
@@ -122,24 +127,24 @@ LFail:
 }
 
 /***************************************************************************
-    Create a new TDT
+    Create a new ThreeDText
 ***************************************************************************/
-PTDT TDT::PtdtNew(PSTN pstn, long tdts, PTAG ptagTdf)
+PThreeDText ThreeDText::PtdtNew(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertPo(pstn, 0);
     AssertIn(tdts, 0, tdtsLim);
     AssertVarMem(ptagTdf);
 
-    PTDT ptdt;
+    PThreeDText ptdt;
 
-    ptdt = NewObj TDT;
+    ptdt = NewObj ThreeDText;
     if (pvNil == ptdt)
         return pvNil;
     ptdt->_stn = *pstn;
 
     // This is a bit of a hack, but it makes life easier.  Without it,
     // the code would have to deal with body part sets with no body
-    // parts in them, and TMPL and BODY would have problems with that
+    // parts in them, and Template and Body would have problems with that
     // (for one thing, they would compute _cbset incorrectly).
     if (ptdt->_stn.Cch() == 0)
     {
@@ -160,17 +165,17 @@ PTDT TDT::PtdtNew(PSTN pstn, long tdts, PTAG ptagTdf)
 }
 
 /***************************************************************************
-    Read the generic TMPL info and the TDT-specific info (tdts and tagTdf),
-    then call _FInitLists to build the rest of the TDT.
+    Read the generic Template info and the ThreeDText-specific info (tdts and tagTdf),
+    then call _FInitLists to build the rest of the ThreeDText.
 ***************************************************************************/
-bool TDT::_FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl)
+bool ThreeDText::_FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl)
 {
     AssertBaseThis(0);
     AssertPo(pcfl, 0);
 
-    KID kid;
-    BLCK blck;
-    TDTF tdtf;
+    ChildChunkIdentification kid;
+    DataBlock blck;
+    ThreeDTextF tdtf;
 
     if (!_FReadTmplf(pcfl, ctgTmpl, cnoTmpl))
         return fFalse;
@@ -180,14 +185,14 @@ bool TDT::_FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl)
         return fFalse;
     if (!blck.FUnpackData())
         return fFalse;
-    if (blck.Cb() < size(TDTF))
+    if (blck.Cb() < size(ThreeDTextF))
         return fFalse;
-    if (!blck.FReadRgb(&tdtf, size(TDTF), 0))
+    if (!blck.FReadRgb(&tdtf, size(ThreeDTextF), 0))
         return fFalse;
     if (kboCur != tdtf.bo)
         SwapBytesBom(&tdtf, kbomTdtf);
-    Assert(kboCur == tdtf.bo, "bad TDTF");
-    _tagTdf = tdtf.tagTdf;
+    Assert(kboCur == tdtf.bo, "bad ThreeDTextF");
+    TagFromOnFile(&_tagTdf, tdtf.tagTdf);
     _tdts = tdtf.tdts;
 
     if (!_FInitLists())
@@ -197,21 +202,21 @@ bool TDT::_FInit(PCFL pcfl, CTG ctgTmpl, CNO cnoTmpl)
 }
 
 /***************************************************************************
-    Initialize or reinitialize the TDT data structures, using the current
+    Initialize or reinitialize the ThreeDText data structures, using the current
     _stn and _tdts.  This function unwinds completely on failure (the
-    TDT's members are untouched).
+    ThreeDText's members are untouched).
 ***************************************************************************/
-bool TDT::_FInitLists(void)
+bool ThreeDText::_FInitLists(void)
 {
     AssertBaseThis(0);
     AssertPo(&_stn, 0);
     AssertIn(_tdts, 0, tdtsLim);
 
     long cch;
-    PGL pglibactParNew = pvNil;
-    PGL pglibsetNew = pvNil;
-    PGG pggcmidNew = pvNil;
-    PMTRL pmtrlDefaultNew = pvNil;
+    PDynamicArray pglibactParNew = pvNil;
+    PDynamicArray pglibsetNew = pvNil;
+    PGeneralGroup pggcmidNew = pvNil;
+    PMaterial_MTRL pmtrlDefaultNew = pvNil;
 
     pglibactParNew = _PglibactParBuild();
     if (pvNil == pglibactParNew)
@@ -225,7 +230,7 @@ bool TDT::_FInitLists(void)
     cch = _stn.Cch();
     if (pvNil == _pmtrlDefault)
     {
-        pmtrlDefaultNew = MTRL::PmtrlNew(); // get default solid-color material
+        pmtrlDefaultNew = Material_MTRL::PmtrlNew(); // get default solid-color material
     }
     else
     {
@@ -264,7 +269,7 @@ LFail:
     Get the given action.  If we've built it before, use the cached copy.
     Else build the action, cache it, and return it.
 ***************************************************************************/
-PACTN TDT::_PactnFetch(long tda)
+PActionDefinition ThreeDText::_PactnFetch(long tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
@@ -286,14 +291,14 @@ PACTN TDT::_PactnFetch(long tda)
 /***************************************************************************
     Build the given action
 ***************************************************************************/
-PACTN TDT::_PactnBuild(long tda)
+PActionDefinition ThreeDText::_PactnBuild(long tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
 
-    PACTN pactn;
-    PGG pggcel;
-    PGL pglbmat34 = pvNil;
+    PActionDefinition pactn;
+    PGeneralGroup pggcel;
+    PDynamicArray pglbmat34 = pvNil;
     ulong grfactn;
 
     pggcel = _PggcelBuild(tda);
@@ -303,7 +308,7 @@ PACTN TDT::_PactnBuild(long tda)
     if (pvNil == pglbmat34)
         goto LFail;
     grfactn = factnStatic | factnRotateY;
-    pactn = ACTN::PactnNew(pggcel, pglbmat34, grfactn);
+    pactn = ActionDefinition::PactnNew(pggcel, pglbmat34, grfactn);
     if (pvNil == pactn)
         goto LFail;
     ReleasePpo(&pggcel);
@@ -318,7 +323,7 @@ LFail:
 /***************************************************************************
     Get the name of the given action
 ***************************************************************************/
-bool TDT::FGetActnName(long anid, PSTN pstn)
+bool ThreeDText::FGetActnName(long anid, PString pstn)
 {
     AssertThis(0);
     AssertIn(anid, 0, tdaLim);
@@ -342,17 +347,17 @@ bool TDT::FGetActnName(long anid, PSTN pstn)
 }
 
 /***************************************************************************
-    Fetch the given model for this TDT (use the TDT's current font)
+    Fetch the given model for this ThreeDText (use the ThreeDText's current font)
 ***************************************************************************/
-PMODL TDT::_PmodlFetch(CHID chidModl)
+PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
     AssertIn(chidModl, 0, _stn.Cch());
 
-    PTDF ptdf;
-    PMODL pmodl;
+    PThreeDFont ptdf;
+    PModel pmodl;
 
-    ptdf = (PTDF)vptagm->PbacoFetch(&_tagTdf, TDF::FReadTdf);
+    ptdf = (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
     if (pvNil == ptdf)
         return pvNil;
     pmodl = ptdf->PmodlFetch((uchar)_stn.Psz()[chidModl]);
@@ -361,19 +366,19 @@ PMODL TDT::_PmodlFetch(CHID chidModl)
 }
 
 /***************************************************************************
-    Build the BACT tree GL for BODY creation.  TDTs all have the same
+    Build the BACT tree DynamicArray for Body creation.  ThreeDTexts all have the same
     body part tree: every part is a child of the root.
 ***************************************************************************/
-PGL TDT::_PglibactParBuild(void)
+PDynamicArray ThreeDText::_PglibactParBuild(void)
 {
     AssertBaseThis(0);
 
     long cch = _stn.Cch();
     long ich;
     short ibactPar = ivNil;
-    PGL pglibactPar;
+    PDynamicArray pglibactPar;
 
-    pglibactPar = GL::PglNew(size(short), cch); // ibacts are shorts
+    pglibactPar = DynamicArray::PglNew(size(short), cch); // ibacts are shorts
     if (pvNil == pglibactPar)
         return pvNil;
     AssertDo(pglibactPar->FSetIvMac(cch), "PglNew should have ensured space!");
@@ -383,19 +388,19 @@ PGL TDT::_PglibactParBuild(void)
 }
 
 /***************************************************************************
-    Build the body part set GL for BODY creation.  For TDTs, all body parts
+    Build the body part set DynamicArray for Body creation.  For ThreeDTexts, all body parts
     belong to a single body part set
 ***************************************************************************/
-PGL TDT::_PglibsetBuild(void)
+PDynamicArray ThreeDText::_PglibsetBuild(void)
 {
     AssertBaseThis(0);
 
     long cch = _stn.Cch();
     long ich;
     short ibset = 0;
-    PGL pglibset;
+    PDynamicArray pglibset;
 
-    pglibset = GL::PglNew(size(short), cch);
+    pglibset = DynamicArray::PglNew(size(short), cch);
     if (pvNil == pglibset)
         return pvNil;
     AssertDo(pglibset->FSetIvMac(cch), "PglNew should have ensured space!");
@@ -405,19 +410,19 @@ PGL TDT::_PglibsetBuild(void)
 }
 
 /***************************************************************************
-    Build the costume GG for TMPL creation.  For TDTs, the costume is
+    Build the costume GeneralGroup for Template creation.  For ThreeDTexts, the costume is
     simple: all body part sets get cmid 0.
 ***************************************************************************/
-PGG TDT::_PggcmidBuild(void)
+PGeneralGroup ThreeDText::_PggcmidBuild(void)
 {
     AssertBaseThis(0);
 
     long cch = _stn.Cch();
     long lwOne = 1;
-    PGG pggcmid;
+    PGeneralGroup pggcmid;
     long cmid = 0;
 
-    pggcmid = GG::PggNew(size(long), 1, size(long));
+    pggcmid = GeneralGroup::PggNew(size(long), 1, size(long));
     if (pvNil == pggcmid)
         return pvNil;
     if (!pggcmid->FAdd(size(long), pvNil, &cmid, &lwOne))
@@ -429,18 +434,18 @@ PGG TDT::_PggcmidBuild(void)
 }
 
 /***************************************************************************
-    Build a GL of matrices for the action
+    Build a DynamicArray of matrices for the action
 ***************************************************************************/
-PGL TDT::_Pglbmat34Build(long tda)
+PDynamicArray ThreeDText::_Pglbmat34Build(long tda)
 {
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
 
-    PTDF ptdf;
+    PThreeDFont ptdf;
     long cch = _stn.Cch();
     long ich;
     BMAT34 bmat34;
-    PGL pglbmat34 = pvNil;
+    PDynamicArray pglbmat34 = pvNil;
     BRS dxrTotal;     // width of string (before scaling)
     BRS dxrTotal2;    // width of string (after scaling)
     BRS dxrHalf;      // half width of string (before scaling)
@@ -454,13 +459,13 @@ PGL TDT::_Pglbmat34Build(long tda)
     BRS dyrHalf;  // half of height of string, if vertical shape
     BRS yrChar;   // position of char in string
 
-    ptdf = (PTDF)vptagm->PbacoFetch(&_tagTdf, TDF::FReadTdf);
+    ptdf = (PThreeDFont)vptagm->PbacoFetch(&_tagTdf, ThreeDFont::FReadTdf);
     if (pvNil == ptdf)
         goto LFail;
 
     ccel = _CcelOfTda(tda);
 
-    pglbmat34 = GL::PglNew(size(BMAT34), LwMul(ccel, cch));
+    pglbmat34 = DynamicArray::PglNew(size(BMAT34), LwMul(ccel, cch));
     if (pvNil == pglbmat34)
         goto LFail;
     AssertDo(pglbmat34->FSetIvMac(LwMul(ccel, cch)), "PglNew should have ensured space!");
@@ -535,28 +540,28 @@ LFail:
 }
 
 /***************************************************************************
-    Build a GG of cels for the action
+    Build a GeneralGroup of cels for the action
 ***************************************************************************/
-PGG TDT::_PggcelBuild(long tda)
+PGeneralGroup ThreeDText::_PggcelBuild(long tda)
 {
     AssertBaseThis(0);
     AssertIn(tda, 0, tdaLim);
 
     long cch = _stn.Cch();
     long ich;
-    PGG pggcel;
-    CEL cel;
-    CPS *prgcps = pvNil;
+    PGeneralGroup pggcel;
+    AnimationCel cel;
+    CelPartSpec *prgcps = pvNil;
     long iv;
     long ccel;
     long icel;
 
     ccel = _CcelOfTda(tda);
 
-    pggcel = GG::PggNew(size(CEL));
+    pggcel = GeneralGroup::PggNew(size(AnimationCel));
     if (pvNil == pggcel)
         goto LFail;
-    if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CPS)), fmemClear, mprNormal))
+    if (!FAllocPv((void **)&prgcps, LwMul(cch, size(CelPartSpec)), fmemClear, mprNormal))
     {
         goto LFail;
     }
@@ -569,7 +574,7 @@ PGG TDT::_PggcelBuild(long tda)
             prgcps[ich].chidModl = (short)ich;
             prgcps[ich].imat34 = (short)(LwMul(icel, cch) + ich);
         }
-        if (!pggcel->FAdd(LwMul(cch, size(CPS)), &iv, prgcps, &cel))
+        if (!pggcel->FAdd(LwMul(cch, size(CelPartSpec)), &iv, prgcps, &cel))
             goto LFail;
     }
     FreePpv((void **)&prgcps);
@@ -581,9 +586,9 @@ LFail:
 }
 
 /***************************************************************************
-    Destruct the TDT
+    Destruct the ThreeDText
 ***************************************************************************/
-TDT::~TDT(void)
+ThreeDText::~ThreeDText(void)
 {
     AssertBaseThis(0);
 
@@ -592,24 +597,24 @@ TDT::~TDT(void)
 }
 
 /***************************************************************************
-    Return a duplicate of this TDT
+    Return a duplicate of this ThreeDText
 ***************************************************************************/
-PTDT TDT::PtdtDup(void)
+PThreeDText ThreeDText::PtdtDup(void)
 {
     AssertThis(0);
 
-    PTDT ptdtDup;
+    PThreeDText ptdtDup;
 
-    ptdtDup = TDT::PtdtNew(&_stn, _tdts, &_tagTdf);
+    ptdtDup = ThreeDText::PtdtNew(&_stn, _tdts, &_tagTdf);
     AssertNilOrPo(ptdtDup, 0);
 
     return ptdtDup;
 }
 
 /***************************************************************************
-    Change the text, shape, and/or font of the TDT
+    Change the text, shape, and/or font of the ThreeDText
 ***************************************************************************/
-bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
+bool ThreeDText::FChange(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -617,7 +622,7 @@ bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
         AssertIn(tdts, 0, tdtsLim);
     AssertNilOrVarMem(ptagTdf);
 
-    STN stnSave;
+    String stnSave;
     long tdtsSave;
     TAG tagTdfSave;
 
@@ -634,7 +639,7 @@ bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
 
     // This is a bit of a hack, but it makes life easier.  Without it,
     // the code would have to deal with body part sets with no body
-    // parts in them, and TMPL and BODY would have problems with that
+    // parts in them, and Template and Body would have problems with that
     // (for one thing, they would compute _cbset incorrectly).
     if (_stn.Cch() == 0)
     {
@@ -654,9 +659,9 @@ bool TDT::FChange(PSTN pstn, long tdts, PTAG ptagTdf)
 }
 
 /***************************************************************************
-    Get stats of this TDT
+    Get stats of this ThreeDText
 ***************************************************************************/
-void TDT::GetInfo(PSTN pstn, long *ptdts, PTAG ptagTdf)
+void ThreeDText::GetInfo(PString pstn, long *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
     AssertNilOrPo(pstn, 0);
@@ -672,9 +677,9 @@ void TDT::GetInfo(PSTN pstn, long *ptdts, PTAG ptagTdf)
 }
 
 /***************************************************************************
-    Adjust the given body's shape, since its owning TDT has changed
+    Adjust the given body's shape, since its owning ThreeDText has changed
 ***************************************************************************/
-bool TDT::FAdjustBody(PBODY pbody)
+bool ThreeDText::FAdjustBody(PBody pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -685,10 +690,10 @@ bool TDT::FAdjustBody(PBODY pbody)
 }
 
 /***************************************************************************
-    Set the default costume.  This always succeeds for TDTs because they
-    keep the PMTRL in memory.
+    Set the default costume.  This always succeeds for ThreeDTexts because they
+    keep the PMaterial_MTRL in memory.
 ***************************************************************************/
-bool TDT::FSetDefaultCost(PBODY pbody)
+bool ThreeDText::FSetDefaultCost(PBody pbody)
 {
     AssertThis(0);
     AssertPo(pbody, 0);
@@ -700,38 +705,38 @@ bool TDT::FSetDefaultCost(PBODY pbody)
 /***************************************************************************
     Get a custom material
 ***************************************************************************/
-PCMTL TDT::PcmtlFetch(long cmid)
+PCustomMaterial_CMTL ThreeDText::PcmtlFetch(long cmid)
 {
     AssertThis(0);
     AssertIn(cmid, 0, _ccmid);
 
-    Bug("Shouldn't fetch CMTLs from a TDT");
+    Bug("Shouldn't fetch CMTLs from a ThreeDText");
     return pvNil;
 }
 
 /***************************************************************************
-    Write the TDT out as a TMPL hierarchy.
+    Write the ThreeDText out as a Template hierarchy.
 ***************************************************************************/
-bool TDT::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
+bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
     AssertVarMem(pcno);
 
-    TDTF tdtf;
-    CNO cnoTdt;
-    BLCK blck;
+    ThreeDTextF tdtf;
+    ChunkNumber cnoTdt;
+    DataBlock blck;
 
     if (!_FWriteTmplf(pcfl, ctg, pcno))
         return fFalse;
 
-    // Add TDT chunk
+    // Add ThreeDText chunk
     tdtf.bo = kboCur;
     tdtf.osk = koskCur;
     tdtf.tdts = _tdts;
-    tdtf.tagTdf = _tagTdf;
+    tdtf.tagTdf.From(_tagTdf);
 
-    if (!pcfl->FAddChild(ctg, *pcno, kchidTdt, size(TDTF), kctgTdt, &cnoTdt, &blck))
+    if (!pcfl->FAddChild(ctg, *pcno, kchidTdt, size(ThreeDTextF), kctgTdt, &cnoTdt, &blck))
     {
         return fFalse;
     }
@@ -746,7 +751,7 @@ bool TDT::FWrite(PCFL pcfl, CTG ctg, CNO *pcno)
 /***************************************************************************
     Return the number of cels in the given action
 ***************************************************************************/
-long TDT::_CcelOfTda(long tda)
+long ThreeDText::_CcelOfTda(long tda)
 {
     AssertThis(0);
     AssertIn(tda, 0, tdaLim);
@@ -789,7 +794,7 @@ long TDT::_CcelOfTda(long tda)
     transformation matrix is returned in pbmat34.  Some transformations are
     pre-applied and some are post-applied, depending on the desired effect.
 ***************************************************************************/
-void TDT::_ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS dxrText)
+void ThreeDText::_ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel, BRS xrChar, BRS dxrText)
 {
     AssertThis(0);
     AssertVarMem(pbmat34);
@@ -960,13 +965,13 @@ void TDT::_ApplyAction(BMAT34 *pbmat34, long tda, long ich, long ccel, long icel
 
 /***************************************************************************
     Shape the text based on the given tdts. This function is called once
-    per character in the TDT.  pbmat34 receives the transformation matrix
+    per character in the ThreeDText.  pbmat34 receives the transformation matrix
     for the character.  xrChar is the position of the current character
     (you could also think of this as the distance of the center of this
-    character from the origin of the TDT).	dxrText is the width of the
+    character from the origin of the ThreeDText).	dxrText is the width of the
     entire string.  dyr is the height of the font.
 ***************************************************************************/
-void TDT::_ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
+void ThreeDText::_ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
                       BRS dyrTotal)
 {
     AssertThis(0);
@@ -1033,13 +1038,13 @@ void TDT::_ApplyShape(BMAT34 *pbmat34, long tdts, long cch, long ich, BRS xrChar
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the TDT.
+    Assert the validity of the ThreeDText.
 ***************************************************************************/
-void TDT::AssertValid(ulong grf)
+void ThreeDText::AssertValid(ulong grf)
 {
-    TDT_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pgstAction, 0); // must set _pgstAction before creating TDTs
-    Assert(_tagTdf.ctg != ctgNil, "TDT has bad _tagTdf");
+    ThreeDText_PAR::AssertValid(fobjAllocated);
+    AssertPo(_pgstAction, 0); // must set _pgstAction before creating ThreeDTexts
+    Assert(_tagTdf.ctg != ctgNil, "ThreeDText has bad _tagTdf");
     AssertPo(_pmtrlDefault, 0);
     if (tdaNil != _tdaCache)
     {
@@ -1054,13 +1059,13 @@ void TDT::AssertValid(ulong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the TDT
+    Mark memory used by the ThreeDText
 ***************************************************************************/
-void TDT::MarkMem(void)
+void ThreeDText::MarkMem(void)
 {
     AssertThis(0);
 
-    TDT_PAR::MarkMem();
+    ThreeDText_PAR::MarkMem();
 
     MarkMemObj(_pmtrlDefault);
     if (tdaNil != _tdaCache)
@@ -1068,9 +1073,9 @@ void TDT::MarkMem(void)
 }
 
 /***************************************************************************
-    Mark memory used by the TDT action GST
+    Mark memory used by the ThreeDText action StringTable_GST
 ***************************************************************************/
-void TDT::MarkActionNames(void)
+void ThreeDText::MarkActionNames(void)
 {
     MarkMemObj(_pgstAction);
 }

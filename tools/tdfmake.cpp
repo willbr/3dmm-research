@@ -8,39 +8,39 @@
     Primary Author: ******
     Review Status: Not yet reviewed
 
-    TDFmake is a command-line tool for building 3-D Font files from a
+    ThreeDFontmake is a command-line tool for building 3-D Font files from a
     set of models.
 
     Usage:
         tdfmake <fontdir1> <fontdir2> ... <destChunkFile>
 
     All the DAT files for a given font should be in a directory.  The
-    directory name becomes the name of the TDF chunk.  The DAT file names
-    should contain a number, which becomes the CHID of the model chunk
-    under the TDF.
+    directory name becomes the name of the ThreeDFont chunk.  The DAT file names
+    should contain a number, which becomes the ChildChunkID of the model chunk
+    under the ThreeDFont.
 
 ***************************************************************************/
 #include "soc.h"
 #include "tdfmake.h"
 ASSERTNAME
 
-const CTG kctgTdfMake = 'TDFM';
+const ChunkTagOrType kctgTdfMake = 'TDFM';
 
-bool FMakeTdf(PFNI pfniSrc, PCFL pcflDst);
+bool FMakeTdf(PFilename pfniSrc, PChunkyFile pcflDst);
 
 /***************************************************************************
     Main routine.  Returns non-zero	if there's an error.
 ***************************************************************************/
 int __cdecl main(int cpsz, achar *prgpsz[])
 {
-    STN stnDst;
-    STN stnSrc;
-    FNI fniSrcDir;
-    FNI fniDst;
-    PCFL pcflDst;
+    String stnDst;
+    String stnSrc;
+    Filename fniSrcDir;
+    Filename fniDst;
+    PChunkyFile pcflDst;
     long ifniSrc;
 
-    fprintf(stderr, "\nMicrosoft (R) TDF Maker\n");
+    fprintf(stderr, "\nMicrosoft (R) ThreeDFont Maker\n");
     fprintf(stderr, "Copyright (C) Microsoft Corp 1995. All rights reserved.\n\n");
 
     BrBegin();
@@ -59,7 +59,7 @@ int __cdecl main(int cpsz, achar *prgpsz[])
         goto LFail;
     }
     fniDst.GetStnPath(&stnDst);
-    pcflDst = CFL::PcflCreate(&fniDst, fcflWriteEnable);
+    pcflDst = ChunkyFile::PcflCreate(&fniDst, fcflWriteEnable);
     if (pvNil == pcflDst)
     {
         fprintf(stderr, "Couldn't create destination chunky file %s\n\n", stnDst.Psz());
@@ -93,42 +93,42 @@ int __cdecl main(int cpsz, achar *prgpsz[])
     return 0; // no error
 LFail:
     BrEnd();
-    fprintf(stderr, "TDF Maker failed.\n\n");
+    fprintf(stderr, "ThreeDFont Maker failed.\n\n");
     return 1; // error
 }
 
 /***************************************************************************
-    Writes a TDF chunk and child BMDL chunks based on all DAT files in
+    Writes a ThreeDFont chunk and child BMDL chunks based on all DAT files in
     pfniSrcDir to the destination file pcflDst.
 ***************************************************************************/
-bool FMakeTdf(PFNI pfniSrcDir, PCFL pcflDst)
+bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
 {
     AssertPo(pfniSrcDir, ffniDir);
     AssertPo(pcflDst, 0);
 
-    FTG ftgDat = MacWin('bdat', 'DAT');
-    FNE fne;
-    FNI fni;
-    STN stn;
-    STN stn2;
-    CHID chid;
-    CHID chidMax = 0;
-    PMODL pmodl;
-    CNO cnoModl;
-    PCRF pcrf;
-    PSZ psz;
+    FileType ftgDat = MacWin('bdat', 'DAT');
+    FileNameEnumerator fne;
+    Filename fni;
+    String stn;
+    String stn2;
+    ChildChunkID chid;
+    ChildChunkID chidMax = 0;
+    PModel pmodl;
+    ChunkNumber cnoModl;
+    PChunkyResourceFile pcrf;
+    PZString psz;
     long cch;
     long lw;
-    PGL pglkid;
-    KID kid;
+    PDynamicArray pglkid;
+    ChildChunkIdentification kid;
     bool fFoundSpace = fFalse;  // 0x20
     bool fFoundSpace2 = fFalse; // 0xa0
     long cmodl = 0;
 
-    pglkid = GL::PglNew(size(KID));
+    pglkid = DynamicArray::PglNew(size(ChildChunkIdentification));
     if (pglkid == pvNil)
         goto LFail;
-    pcrf = CRF::PcrfNew(pcflDst, 0);
+    pcrf = ChunkyResourceFile::PcrfNew(pcflDst, 0);
     if (pvNil == pcrf)
         goto LFail;
     // get directory name (don't actually move up a dir)
@@ -159,11 +159,11 @@ bool FMakeTdf(PFNI pfniSrcDir, PCFL pcflDst)
         chid = lw;
         if (chid > chidMax)
             chidMax = chid;
-        if (chid == (CHID)ChLit(' '))
+        if (chid == (ChildChunkID)ChLit(' '))
             fFoundSpace = fTrue;
         if (chid == 0xa0) // nonbreaking space
             fFoundSpace2 = fTrue;
-        pmodl = MODL::PmodlReadFromDat(&fni);
+        pmodl = Model::PmodlReadFromDat(&fni);
         if (pvNil == pmodl)
             return fFalse;
         pmodl->AdjustTdfCharacter();
@@ -185,14 +185,14 @@ bool FMakeTdf(PFNI pfniSrcDir, PCFL pcflDst)
     // Hack to insert a space character if none specified
     if (!fFoundSpace)
     {
-        pmodl = MODL::PmodlNew(0, pvNil, 0, pvNil);
+        pmodl = Model::PmodlNew(0, pvNil, 0, pvNil);
         if (pvNil == pmodl)
             return fFalse;
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
             goto LFail;
         if (!pmodl->FWrite(pcflDst, kctgBmdl, cnoModl))
             goto LFail;
-        kid.chid = (CHID)ChLit(' ');
+        kid.chid = (ChildChunkID)ChLit(' ');
         kid.cki.ctg = kctgBmdl;
         kid.cki.cno = cnoModl;
         if (!pglkid->FAdd(&kid))
@@ -202,7 +202,7 @@ bool FMakeTdf(PFNI pfniSrcDir, PCFL pcflDst)
     // Hack to insert a nonbreaking space character if none specified
     if (!fFoundSpace2)
     {
-        pmodl = MODL::PmodlNew(0, pvNil, 0, pvNil);
+        pmodl = Model::PmodlNew(0, pvNil, 0, pvNil);
         if (pvNil == pmodl)
             return fFalse;
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
@@ -216,7 +216,7 @@ bool FMakeTdf(PFNI pfniSrcDir, PCFL pcflDst)
             goto LFail;
         fprintf(stderr, "Added a nonbreaking space character\n");
     }
-    if (!TDF::FCreate(pcrf, pglkid, &stn2))
+    if (!ThreeDFont::FCreate(pcrf, pglkid, &stn2))
         goto LFail;
 
     ReleasePpo(&pcrf);
@@ -234,7 +234,7 @@ bool _fEnableWarnings = fTrue;
 /***************************************************************************
     Warning proc called by Warn() macro
 ***************************************************************************/
-void WarnProc(PSZ pszFile, long lwLine, PSZ pszMessage)
+void WarnProc(PZString pszFile, long lwLine, PZString pszMessage)
 {
     if (_fEnableWarnings)
     {
@@ -250,7 +250,7 @@ void WarnProc(PSZ pszFile, long lwLine, PSZ pszMessage)
 /***************************************************************************
     Returning true breaks into the debugger.
 ***************************************************************************/
-bool FAssertProc(PSZ pszFile, long lwLine, PSZ pszMessage, void *pv, long cb)
+bool FAssertProc(PZString pszFile, long lwLine, PZString pszMessage, void *pv, long cb)
 {
     fprintf(stderr, "An assert occurred: \n");
     if (pszMessage != pvNil)

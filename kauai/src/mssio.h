@@ -9,7 +9,7 @@
     Project: Kauai
     Copyright (c) Microsoft Corporation
 
-    A message sink (MSNK) wrapper around a stdio file.
+    A message sink (MessageSink) wrapper around a stdio file.
     Include <stdio.h> before including this file.
 
 ***************************************************************************/
@@ -19,16 +19,16 @@
 /***************************************************************************
     Standard i/o message sink.
 ***************************************************************************/
-typedef class MSSIO *PMSSIO;
-#define MSSIO_PAR MSNK
-class MSSIO : public MSSIO_PAR
+typedef class MessageSinkIO *PMessageSinkIO;
+#define MessageSinkIO_PAR MessageSink
+class MessageSinkIO : public MessageSinkIO_PAR
 {
   protected:
     bool _fError;
     FILE *_pfile;
 
   public:
-    MSSIO(FILE *pfile);
+    MessageSinkIO(FILE *pfile);
     virtual void ReportLine(PSTZ pstz);
     virtual void Report(PSTZ pstz);
     virtual bool FError(void);

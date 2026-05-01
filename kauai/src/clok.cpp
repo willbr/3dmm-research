@@ -9,9 +9,9 @@
 
     Clock class. Clocks provide timing and alarm functionality. Clocks get
     CPU time by inserting themselves in the command handler list (attached
-    to the CEX). This causes CLOK::FCmdAll to be called every time a command
-    comes through the CEX. The time of a clock is updated only when
-    CLOK::FCmdAll is called. So the following code will not time the operation:
+    to the CommandExecutionManager). This causes Clock::FCmdAll to be called every time a command
+    comes through the CommandExecutionManager. The time of a clock is updated only when
+    Clock::FCmdAll is called. So the following code will not time the operation:
 
         dtim = vclok.TimCur();
         for (...)
@@ -20,7 +20,7 @@
             }
         dtim = vlok.TimCur() - dtim;
 
-    At the end of this, dtim will always be zero (unless CLOK::FCmdAll is
+    At the end of this, dtim will always be zero (unless Clock::FCmdAll is
     somehow called in the loop - in which case dtim still won't be the exact
     timing of the loop). To do this type of timing use TsCurrent() or
     TsCurrentSystem(). Clocks use TsCurrent(), so scaling the application
@@ -56,7 +56,7 @@
     now, does some work that takes 1/2 second (we're running on a slow
     machine), then enqueues a command "cidFoo" to another object "B".
     Assuming the command queue was empty, the next command processed by the
-    CEX is cidFoo. This causes the alarm to go off again (remember that alarms
+    CommandExecutionManager is cidFoo. This causes the alarm to go off again (remember that alarms
     go off during the FCmdAll call). And the whole process repeats. The
     command queue is never empty in the main app loop, so we never check the
     system event queue, so the user can sit there and hit the keyboard or play
@@ -73,20 +73,20 @@
 #include "frame.h"
 ASSERTNAME
 
-RTCLASS(CLOK)
+RTCLASS(Clock)
 
-BEGIN_CMD_MAP_BASE(CLOK)
-END_CMD_MAP(&CLOK::FCmdAll, pvNil, kgrfcmmAll)
+BEGIN_CMD_MAP_BASE(Clock)
+END_CMD_MAP(&Clock::FCmdAll, pvNil, kgrfcmmAll)
 
 const long kcmhlClok = kswMin; // put clocks at the head of the list
-PCLOK CLOK::_pclokFirst;
+PClock Clock::_pclokFirst;
 
 /***************************************************************************
     Constructor for the clock - just zeros the time.  fclokReset specifies
     that this clock should reset itself to zero on key or mouse input.
     fclokNoSlip specifies that the clok should not let time slip.
 ***************************************************************************/
-CLOK::CLOK(long hid, ulong grfclok) : CMH(hid)
+Clock::Clock(long hid, ulong grfclok) : CommandHandler(hid)
 {
     _pclokNext = _pclokFirst;
     _pclokFirst = this;
@@ -99,11 +99,11 @@ CLOK::CLOK(long hid, ulong grfclok) : CMH(hid)
 }
 
 /***************************************************************************
-    Destructor for a CLOK - remove it from the linked list of clocks.
+    Destructor for a Clock - remove it from the linked list of clocks.
 ***************************************************************************/
-CLOK::~CLOK(void)
+Clock::~Clock(void)
 {
-    PCLOK *ppclok;
+    PClock *ppclok;
 
     for (ppclok = &_pclokFirst; *ppclok != pvNil && *ppclok != this; ppclok = &(*ppclok)->_pclokNext)
     {
@@ -119,9 +119,9 @@ CLOK::~CLOK(void)
 /***************************************************************************
     Static method to find the first clok with the given id.
 ***************************************************************************/
-PCLOK CLOK::PclokFromHid(long hid)
+PClock Clock::PclokFromHid(long hid)
 {
-    PCLOK pclok;
+    PClock pclok;
 
     for (pclok = _pclokFirst; pvNil != pclok; pclok = pclok->_pclokNext)
     {
@@ -133,24 +133,24 @@ PCLOK CLOK::PclokFromHid(long hid)
 }
 
 /***************************************************************************
-    Static method to remove all references to the given CMH from the clok
-    ALAD lists.
+    Static method to remove all references to the given CommandHandler from the clok
+    AlarmDescriptor lists.
 ***************************************************************************/
-void CLOK::BuryCmh(PCMH pcmh)
+void Clock::BuryCmh(PCommandHandler pcmh)
 {
-    PCLOK pclok;
+    PClock pclok;
 
     for (pclok = _pclokFirst; pvNil != pclok; pclok = pclok->_pclokNext)
         pclok->RemoveCmh(pcmh);
 }
 
 /***************************************************************************
-    Remove any alarms set by the given CMH.
+    Remove any alarms set by the given CommandHandler.
 ***************************************************************************/
-void CLOK::RemoveCmh(PCMH pcmh)
+void Clock::RemoveCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
-    ALAD *qalad;
+    AlarmDescriptor *qalad;
     long ialad;
 
     if (pvNil == _pglalad)
@@ -158,7 +158,7 @@ void CLOK::RemoveCmh(PCMH pcmh)
 
     for (ialad = _pglalad->IvMac(); ialad-- > 0;)
     {
-        qalad = (ALAD *)_pglalad->QvGet(ialad);
+        qalad = (AlarmDescriptor *)_pglalad->QvGet(ialad);
         if (qalad->pcmh == pcmh)
             _pglalad->Delete(ialad);
     }
@@ -167,7 +167,7 @@ void CLOK::RemoveCmh(PCMH pcmh)
 /***************************************************************************
     Start the clock.
 ***************************************************************************/
-void CLOK::Start(ulong tim)
+void Clock::Start(ulong tim)
 {
     AssertThis(0);
     _timBase = _timCur = tim;
@@ -180,7 +180,7 @@ void CLOK::Start(ulong tim)
 /***************************************************************************
     Stop the clock. The time will no longer advance on this clock.
 ***************************************************************************/
-void CLOK::Stop(void)
+void Clock::Stop(void)
 {
     AssertThis(0);
     vpcex->RemoveCmh(this, kcmhlClok);
@@ -194,7 +194,7 @@ void CLOK::Stop(void)
     last computed time value is returned, otherwise the time is computed
     from the current application time.
 ***************************************************************************/
-ulong CLOK::TimCur(bool fAdjustForDelay)
+ulong Clock::TimCur(bool fAdjustForDelay)
 {
     AssertThis(0);
 
@@ -208,24 +208,24 @@ ulong CLOK::TimCur(bool fAdjustForDelay)
     Set an alarm for the given time and for the given command handler.
     Alarms are sorted in _decreasing_ order.
 ***************************************************************************/
-bool CLOK::FSetAlarm(long dtim, PCMH pcmhNotify, long lwUser, bool fAdjustForDelay)
+bool Clock::FSetAlarm(long dtim, PCommandHandler pcmhNotify, long lwUser, bool fAdjustForDelay)
 {
     AssertThis(0);
     AssertIn(dtim, 0, kcbMax);
     AssertNilOrPo(pcmhNotify, 0);
-    ALAD alad;
-    ALAD *qalad;
+    AlarmDescriptor alad;
+    AlarmDescriptor *qalad;
     long ialad, ialadMin, ialadLim;
 
     alad.pcmh = pcmhNotify;
     alad.tim = TimCur(fAdjustForDelay) + LwMax(dtim, 1);
     alad.lw = lwUser;
-    if (pvNil == _pglalad && pvNil == (_pglalad = GL::PglNew(size(ALAD), 1)))
+    if (pvNil == _pglalad && pvNil == (_pglalad = DynamicArray::PglNew(size(AlarmDescriptor), 1)))
         return fFalse;
     for (ialadMin = 0, ialadLim = _pglalad->IvMac(); ialadMin < ialadLim;)
     {
         ialad = (ialadMin + ialadLim) / 2;
-        qalad = (ALAD *)_pglalad->QvGet(ialad);
+        qalad = (AlarmDescriptor *)_pglalad->QvGet(ialad);
         if (qalad->tim < alad.tim)
             ialadLim = ialad;
         else
@@ -242,14 +242,14 @@ bool CLOK::FSetAlarm(long dtim, PCMH pcmhNotify, long lwUser, bool fAdjustForDel
     Advance the clock and sound an alarm if one is due to go off.  This
     actually gets called every time through the command loop.
 ***************************************************************************/
-bool CLOK::FCmdAll(PCMD pcmd)
+bool Clock::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    CMD cmd;
+    Command cmd;
     long ialad;
-    ALAD alad;
+    AlarmDescriptor alad;
     ulong tsCur, timCur;
 
     _dtimAlarm = 0;
@@ -313,7 +313,7 @@ bool CLOK::FCmdAll(PCMD pcmd)
         }
 
         // send the alarm
-        ClearPb(&cmd, size(CMD));
+        ClearPb(&cmd, size(Command));
         cmd.cid = cidAlarm;
         cmd.pcmh = alad.pcmh;
         cmd.rglw[0] = Hid();
@@ -322,7 +322,7 @@ bool CLOK::FCmdAll(PCMD pcmd)
 
         if (pvNil != alad.pcmh)
         {
-            // tell the CMH that the alarm went off
+            // tell the CommandHandler that the alarm went off
             AddRef();
             Assert(_cactRef > 1, 0);
             _dtimAlarm = timCur - _timCur;
@@ -345,32 +345,32 @@ bool CLOK::FCmdAll(PCMD pcmd)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of a CLOK.
+    Assert the validity of a Clock.
 ***************************************************************************/
-void CLOK::AssertValid(ulong grf)
+void Clock::AssertValid(ulong grf)
 {
-    CLOK_PAR::AssertValid(0);
+    Clock_PAR::AssertValid(0);
     AssertNilOrPo(_pglalad, 0);
     Assert(_timCur <= _timNext, "_timNext too small");
     Assert((_grfclok & fclokNoSlip) || _dtimAlarm == 0, "_dtimAlarm should be 0");
 }
 
 /***************************************************************************
-    Mark memory for the CLOK.
+    Mark memory for the Clock.
 ***************************************************************************/
-void CLOK::MarkMem(void)
+void Clock::MarkMem(void)
 {
     AssertValid(0);
-    CLOK_PAR::MarkMem();
+    Clock_PAR::MarkMem();
     MarkMemObj(_pglalad);
 }
 
 /***************************************************************************
     Static method to mark all the CLOKs
 ***************************************************************************/
-void CLOK::MarkAllCloks(void)
+void Clock::MarkAllCloks(void)
 {
-    PCLOK pclok;
+    PClock pclok;
 
     for (pclok = _pclokFirst; pvNil != pclok; pclok = pclok->_pclokNext)
     {
