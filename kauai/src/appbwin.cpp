@@ -342,7 +342,7 @@ void ApplicationBase::_ShutDownViewer(void)
 LRESULT CALLBACK ApplicationBase::_LuWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
 {
     AssertNilOrPo(vpappb, 0);
-    long lwRet;
+    LRESULT lwRet;
 
     if (pvNil != vpappb && vpappb->_FFrameWndProc(hwnd, wm, wParam, lw, &lwRet))
     {
@@ -356,7 +356,7 @@ LRESULT CALLBACK ApplicationBase::_LuWndProc(HWND hwnd, uint wm, WPARAM wParam, 
     Handle Windows messages for the main app window. Return true iff the
     default window proc should _NOT_ be called.
 ***************************************************************************/
-bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
@@ -436,17 +436,22 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
 
             pmmi = (MINMAXINFO *)lw;
 
-            *plwRet = DefFrameProc(hwnd, vwig.hwndClient, wm, wParam, (long)pmmi);
+            *plwRet = DefFrameProc(hwnd, vwig.hwndClient, wm, wParam, (LPARAM)pmmi);
             dypFrame = GetSystemMetrics(SM_CYFRAME);
             dypScreen = GetSystemMetrics(SM_CYSCREEN);
             dypExtra = 0;
 
-            FGetProp(kpridFullScreen, &lw);
-            if (lw)
+            // FGetProp's out param is `long *`; lw is LPARAM (pointer-sized).
+            // Use a temp so the narrowing happens explicitly here, not at the
+            // pointer level (which on x64 would write past lw's 32-bit slot).
+            long lwFullScreen = 0;
+            FGetProp(kpridFullScreen, &lwFullScreen);
+            if (lwFullScreen)
                 dypExtra = GetSystemMetrics(SM_CYCAPTION);
             pmmi->ptMaxPosition.y = -dypFrame - dypExtra;
             pmmi->ptMaxSize.y = pmmi->ptMaxTrackSize.y = dypScreen + 2 * dypFrame + dypExtra;
-            _FCommonWndProc(hwnd, wm, wParam, (long)pmmi, &lw);
+            LRESULT lwUnused;
+            _FCommonWndProc(hwnd, wm, wParam, (LPARAM)pmmi, &lwUnused);
         }
         return fTrue;
 
@@ -529,10 +534,16 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
             *plwRet = cnoNil;
         return fTrue;
 
-    case WM_GET_PROP:
-        if (!FGetProp(lw, plwRet))
+    case WM_GET_PROP: {
+        // FGetProp's out param is `long *`; *plwRet is LRESULT (pointer-sized
+        // on x64). Use a temp so the narrowing happens explicitly here.
+        long lwProp = 0;
+        if (!FGetProp((long)lw, &lwProp))
             *plwRet = wParam;
+        else
+            *plwRet = lwProp;
         return fTrue;
+    }
 
     case WM_SCALE_TIME:
         *plwRet = vpusac->LuScale();
@@ -588,7 +599,7 @@ bool ApplicationBase::_FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM l
 LRESULT CALLBACK ApplicationBase::_LuMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw)
 {
     AssertNilOrPo(vpappb, 0);
-    long lwRet;
+    LRESULT lwRet;
 
     if (pvNil != vpappb && vpappb->_FMdiWndProc(hwnd, wm, wParam, lw, &lwRet))
     {
@@ -602,13 +613,13 @@ LRESULT CALLBACK ApplicationBase::_LuMdiWndProc(HWND hwnd, uint wm, WPARAM wPara
     Handle MDI window messages. Returns true iff the default window proc
     should _NOT_ be called.
 ***************************************************************************/
-bool ApplicationBase::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool ApplicationBase::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
 
     PGraphicsObject pgob;
-    long lwT;
+    LRESULT lwT;
 
     *plwRet = 0;
     switch (wm)
@@ -638,7 +649,7 @@ bool ApplicationBase::_FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw,
     Common stuff between the two window procs. Returns true if the default
     window proc should _NOT_ be called.
 ***************************************************************************/
-bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet)
+bool ApplicationBase::_FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet)
 {
     AssertThis(0);
     AssertVarMem(plwRet);
@@ -803,7 +814,10 @@ String *_rgpstn[3];
 /***************************************************************************
     Dialog proc for assert.
 ***************************************************************************/
-BOOL CALLBACK _FDlgAssert(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
+// Win32 DLGPROC is INT_PTR-returning, not BOOL — they happen to coincide
+// at 4 bytes on x86 but INT_PTR widens to 8 bytes on Win64 (LONG_PTR). The
+// signature mismatch only fires at the DialogBoxParam call site under x64.
+INT_PTR CALLBACK _FDlgAssert(HWND hdlg, UINT msg, WPARAM w, LPARAM lw)
 {
     switch (msg)
     {
