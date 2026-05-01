@@ -217,24 +217,24 @@ BR_ONE_SUF		EQU		000000100h
 ;  *
 ;  * One of these must be defined and the appropriate libraries must be used
 ;  
-BASED_FIXED		EQU		0t
+BASED_FIXED		EQU		1t
 ; *
 ;  ** Basic types - either fixed or float
 ;  *
-; 
+;
 ;  * Reference an external symbol to make sure
 ;  * the right library is linked
-;  
-EXTERNDEF		C _BR_Floating_Point_Scalar:SDWORD
+;
+EXTERNDEF		C _BR_Fixed_Point_Scalar:SDWORD
 
-; 
-; 	 * Floating point base types
-; 	 
-br_scalar		TYPEDEF		REAL4
+;
+; 	 * Fixed point base types (15.16 / 0.15 / 0.16)
+;
+br_scalar		TYPEDEF		SDWORD
 
-br_fraction		TYPEDEF		REAL4
+br_fraction		TYPEDEF		SWORD
 
-br_ufraction		TYPEDEF		REAL4
+br_ufraction		TYPEDEF		WORD
 
 ; 
 ;  * Macros for static initialisation

@@ -189,18 +189,21 @@ target_compile_definitions(brender_zb PRIVATE
 )
 
 if (BREN_X86)
+  # t_piza2.asm is missing from ZB/MAKEFILE OBJS_ASM but provides the NT-suffix
+  # TrapezoidRenderPIZ2TIANT symbol that awtmz.c references -- adding it here.
   target_sources(brender_zb PRIVATE
     zb/mesh386.asm
     zb/safediv.asm
     zb/sar16.asm
     zb/t_piza.asm
+    zb/t_piza2.asm
     zb/ti8_piz.asm
     zb/ti8_pizp.asm
     zb/tt15_piz.asm
     zb/tt24_piz.asm
   )
   set_source_files_properties(
-    zb/mesh386.asm zb/safediv.asm zb/sar16.asm zb/t_piza.asm
+    zb/mesh386.asm zb/safediv.asm zb/sar16.asm zb/t_piza.asm zb/t_piza2.asm
     zb/ti8_piz.asm zb/ti8_pizp.asm zb/tt15_piz.asm zb/tt24_piz.asm
     PROPERTIES COMPILE_OPTIONS "/Cp;/DDOS386;/D__VISUALC__=1;/DBASED_FIXED=1"
   )
