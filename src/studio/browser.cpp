@@ -1654,20 +1654,20 @@ bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkId
     ChildChunkIdentification kid;
     ThumbnailDescriptor thd;
     DataBlock blck;
-    TFC tfc;
+    BrowserThumbEntry tfc;
 
     // Read the Par chunk to find the cno of the CD content
     if (!pcfl->FFind(cki.ctg, cki.cno, &blck) || !blck.FUnpackData())
     {
         goto LFail;
     }
-    if (blck.Cb() != size(TFC))
+    if (blck.Cb() != size(BrowserThumbEntry))
         goto LFail;
-    if (!blck.FReadRgb(&tfc, size(TFC), 0))
+    if (!blck.FReadRgb(&tfc, size(BrowserThumbEntry), 0))
         goto LFail;
     if (kboCur != tfc.bo)
         SwapBytesBom(&tfc, kbomTfc);
-    Assert(kboCur == tfc.bo, "bad TFC");
+    Assert(kboCur == tfc.bo, "bad BrowserThumbEntry");
     if (!_fDescend)
     {
         thd.tag.cno = tfc.cno;
@@ -3005,7 +3005,7 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
     long ccki;
     long icki;
     ChunkIdentification cki;
-    TFC tfc;
+    BrowserThumbEntry tfc;
     ChildChunkIdentification kid;
     ThumbnailFileEnumerator fnet;
     Filename fniThd;
@@ -3049,13 +3049,13 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
             {
                 goto LFail;
             }
-            if (blck.Cb() != size(TFC))
+            if (blck.Cb() != size(BrowserThumbEntry))
                 goto LFail;
-            if (!blck.FReadRgb(&tfc, size(TFC), 0))
+            if (!blck.FReadRgb(&tfc, size(BrowserThumbEntry), 0))
                 goto LFail;
             if (kboCur != tfc.bo)
                 SwapBytesBom(&tfc, kbomTfc);
-            Assert(kboCur == tfc.bo, "bad TFC");
+            Assert(kboCur == tfc.bo, "bad BrowserThumbEntry");
 
             if (!pcfl->FGetKidChidCtg(ctgTmplThum, cki.cno, 0, kctgGokd, &kid))
             {
