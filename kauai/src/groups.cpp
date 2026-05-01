@@ -461,14 +461,17 @@ PDynamicArray DynamicArray::PglDup(void)
     return pgl;
 }
 
-// List on file
+// List on file. Fixed 12-byte wire format on every architecture; bare `long`
+// would silently widen on LP64 (Linux/Mac x64) and break the 1995 .3MM format
+// for every DynamicArray ever written by kauai.
 struct DynamicArrayOnFile
 {
-    short bo;
-    short osk;
-    long cbEntry;
-    long ivMac;
+    int16_t bo;
+    int16_t osk;
+    int32_t cbEntry;
+    int32_t ivMac;
 };
+static_assert(sizeof(DynamicArrayOnFile) == 12, "DynamicArrayOnFile wire format drift");
 const ByteOrderMask kbomGlf = 0x5F000000L;
 
 /***************************************************************************
@@ -811,15 +814,16 @@ PAllocatedArray AllocatedArray::PalDup(void)
     return pal;
 }
 
-// Allocated list on file
+// Allocated list on file. Fixed 16-byte wire format on every architecture.
 struct AllocatedArrayOnFile
 {
-    short bo;
-    short osk;
-    long cbEntry;
-    long ivMac;
-    long cvFree;
+    int16_t bo;
+    int16_t osk;
+    int32_t cbEntry;
+    int32_t ivMac;
+    int32_t cvFree;
 };
+static_assert(sizeof(AllocatedArrayOnFile) == 16, "AllocatedArrayOnFile wire format drift");
 const ByteOrderMask kbomAlf = 0x5FC00000L;
 
 /***************************************************************************
@@ -1110,16 +1114,17 @@ bool VirtualGroup::_FDup(PVirtualGroup pggbDst)
     return fTrue;
 }
 
-// group on file
+// group on file. Fixed 20-byte wire format on every architecture.
 struct GeneralGroupOnFile
 {
-    short bo;
-    short osk;
-    long ilocMac;
-    long bvMac;
-    long clocFree;
-    long cbFixed;
+    int16_t bo;
+    int16_t osk;
+    int32_t ilocMac;
+    int32_t bvMac;
+    int32_t clocFree;
+    int32_t cbFixed;
 };
+static_assert(sizeof(GeneralGroupOnFile) == 20, "GeneralGroupOnFile wire format drift");
 const ByteOrderMask kbomGgf = 0x5FF00000L;
 
 /***************************************************************************
@@ -1151,20 +1156,22 @@ bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
     ggf.bvMac = _bvMac;
     ggf.clocFree = _clocFree;
     ggf.cbFixed = _cbFixed;
-    AssertBomRglw(kbomLoc, size(LogicalOffsetAndCount));
+    AssertBomRglw(kbomLoc, size(int32_t) * 2); // kbomLoc swaps 2 int32 fields per LogicalOffsetAndCount
     if (kboOther == bo)
     {
         // swap the stuff
         SwapBytesBom(&ggf, kbomGgf);
         Assert(ggf.bo == bo, "wrong bo");
         Assert(ggf.osk == osk, "osk not invariant under byte swapping");
-        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LogicalOffsetAndCount), size(long)));
+        // SwapBytesRglw counts 4-byte words; LogicalOffsetAndCount has 2 such per entry.
+        SwapBytesRglw(_Qb2(0), LwMul(_ivMac, 2));
     }
     fRet = _FWrite(pblck, &ggf, size(ggf), _bvMac, LwMul(_ivMac, size(LogicalOffsetAndCount)));
     if (kboOther == bo)
     {
         // swap the rgloc back
-        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LogicalOffsetAndCount), size(long)));
+        // SwapBytesRglw counts 4-byte words; LogicalOffsetAndCount has 2 such per entry.
+        SwapBytesRglw(_Qb2(0), LwMul(_ivMac, 2));
     }
     return fRet;
 }
@@ -1219,11 +1226,12 @@ bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
     _clocFree = ggf.clocFree;
     _cbFixed = ggf.cbFixed;
     fRet = _FReadData(pblck, cb - cbT, cbT, size(ggf));
-    AssertBomRglw(kbomLoc, size(LogicalOffsetAndCount));
+    AssertBomRglw(kbomLoc, size(int32_t) * 2); // kbomLoc swaps 2 int32 fields per LogicalOffsetAndCount
     if (bo == kboOther && fRet)
     {
         // adjust the byte order on the loc's.
-        SwapBytesRglw(_Qb2(0), LwMulDiv(_ivMac, size(LogicalOffsetAndCount), size(long)));
+        // SwapBytesRglw counts 4-byte words; LogicalOffsetAndCount has 2 such per entry.
+        SwapBytesRglw(_Qb2(0), LwMul(_ivMac, 2));
     }
 
 LFail:
