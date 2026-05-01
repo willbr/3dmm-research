@@ -912,7 +912,15 @@ bool KauaiCodec::_FDecode2(void *pvSrc, long cbSrc, void *pvDst, long cbDst, lon
             }
             else
             {
-                dib = (luCur >> (ibit + 4)) & ((1 << kcbitKcd2_3) - 1) + kdibMinKcd2_3;
+                // Outer parens around `(luCur>>shift) & mask` matter: `&` has
+                // lower precedence than `+`, so without them this parses as
+                // `(...) & (mask + offset)` -- AND'ing with the wrong value
+                // and producing nonsense offsets that fail the SAFETY bounds
+                // check. The three sibling branches above (kcbitKcd2_0/1/2)
+                // are correctly parenthesised; this 4th-branch case was the
+                // odd one out. Pre-existing bug, only exercised on non-x86
+                // builds since x86 uses the asm decoder.
+                dib = ((luCur >> (ibit + 4)) & ((1 << kcbitKcd2_3) - 1)) + kdibMinKcd2_3;
                 ibit += 4 + kcbitKcd2_3;
                 cb++;
             }
