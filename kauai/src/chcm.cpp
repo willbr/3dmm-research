@@ -2139,7 +2139,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
 /***************************************************************************
     Keyword-tokentype mappings
 ***************************************************************************/
-static KEYTT _rgkeytt[] = {
+static LexerKeywordEntry _rgkeytt[] = {
     PszLit("ITEM"),      ttItem,      PszLit("FREE"),       ttFree,       PszLit("VAR"),     ttVar,
     PszLit("BYTE"),      ttModeByte,  PszLit("SHORT"),      ttModeShort,  PszLit("LONG"),    ttModeLong,
     PszLit("CHUNK"),     ttChunk,     PszLit("ENDCHUNK"),   ttEndChunk,   PszLit("ADOPT"),   ttAdopt,
