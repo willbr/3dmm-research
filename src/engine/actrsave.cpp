@@ -28,13 +28,13 @@ const ChildChunkID kchidGgae = 0;
 
 struct ActorChunkOnFile // Actor chunk on file
 {
-    short bo;        // Byte order
-    short osk;       // OS kind
+    int16_t bo;             // Byte order
+    int16_t osk;            // OS kind
     RoutePoint dxyzFullRte; // Translation of the route
-    long arid;       // Unique id assigned to this actor.
-    long nfrmFirst;  // First frame in this actor's stage life
-    long nfrmLast;   // Last frame in this actor's stage life
-    TAGOnFile tagTmpl; // Tag to actor's template (16-byte wire format; convert with From / TagFromOnFile)
+    int32_t arid;           // Unique id assigned to this actor.
+    int32_t nfrmFirst;      // First frame in this actor's stage life
+    int32_t nfrmLast;       // Last frame in this actor's stage life
+    TAGOnFile tagTmpl;      // Tag to actor's template (16-byte wire format; convert with From / TagFromOnFile)
 };
 static_assert(sizeof(ActorChunkOnFile) == 44, "ActorChunkOnFile on-disk layout drift");
 const ByteOrderMask kbomActf = 0x5ffc0000 | kbomTag;
