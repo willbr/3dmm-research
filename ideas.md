@@ -14,3 +14,6 @@ use zig build?  or just a batch file?
 write some docs about the codebase
 
 fix all virtual store problems
+
+make variable names more verbose, same idea as the struct renames
+
