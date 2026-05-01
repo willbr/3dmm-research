@@ -4,6 +4,8 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 
+#include <cstdarg>
+
 /***************************************************************************
     Author: ShonK
     Project: Kauai
@@ -479,7 +481,7 @@ class String
 
     bool FFormat(PString pstnFormat, ...);
     bool FFormatSz(PZString pszFormat, ...);
-    bool FFormatRgch(achar *prgchFormat, long cchFormat, ulong *prglUserDataa);
+    bool FFormatRgch(achar *prgchFormat, long cchFormat, va_list va);
     bool FGetLw(long *plw, long lwBase = 0);
     bool FExpandControls(void);
 };

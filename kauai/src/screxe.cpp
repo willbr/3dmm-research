@@ -751,7 +751,16 @@ void Interpreter::_WarnSz(PZString psz, ...)
     String stn1, stn2;
     SZS szs;
 
-    stn1.FFormatRgch(psz, CchSz(psz), (ulong *)(&psz + 1));
+    {
+        // Build a transient va_list from the trailing varargs of this fn.
+        // The old `(ulong *)(&psz + 1)` trick assumes contiguous 4-byte
+        // stack args -- broken on Win64 where the first 4 args are in
+        // registers and stack slots are 8 bytes.
+        va_list va;
+        va_start(va, psz);
+        stn1.FFormatRgch(psz, CchSz(psz), va);
+        va_end(va);
+    }
     stn2.FFormatSz(PszLit("Script ('%f', 0x%x, %d): %s"), _pscpt->Ctg(), _pscpt->Cno(), _ilwCur, &stn1);
     stn2.GetSzs(szs);
     Warn(szs);
