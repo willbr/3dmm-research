@@ -85,47 +85,6 @@ void FrameMain(void)
 }
 
 /******************************************************************************
-    Append a category-tagged message to %TEMP%\3dmmforever-crash.txt so that
-    diagnostic output (unhandled exceptions, "3D Movie Maker error" dialogs,
-    and "can't find file" dialogs) is captured on disk for later inspection
-    -- without requiring the operator to OCR the modal dialog. Each entry is
-    framed by a timestamped header for easy `tail -n` consumption.
-
-    Category is a short tag like "ABNORMAL_EXIT" / "GENERIC_ERROR" /
-    "CANT_FIND_FILE" so the entries can be grepped by class.
-
-    Best-effort -- silently swallows any I/O failure since we're already in
-    an error path and don't want a logging failure to mask the original.
-******************************************************************************/
-static void _AppendCrashLog(const char *pszCategory, const char *pszBody)
-{
-    char szTempDir[MAX_PATH];
-    DWORD cchTemp = GetTempPathA(MAX_PATH, szTempDir);
-    if (cchTemp == 0 || cchTemp >= MAX_PATH)
-        return;
-    char szPath[MAX_PATH];
-    wsprintfA(szPath, "%s3dmmforever-crash.txt", szTempDir);
-    HANDLE hFile = CreateFileA(szPath, FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS,
-                               FILE_ATTRIBUTE_NORMAL, NULL);
-    if (hFile == INVALID_HANDLE_VALUE)
-        return;
-    SYSTEMTIME st;
-    GetLocalTime(&st);
-    char szHeader[160];
-    wsprintfA(szHeader,
-              "\r\n========================================\r\n"
-              "%04d-%02d-%02d %02d:%02d:%02d (PID %lu) %s\r\n"
-              "========================================\r\n",
-              st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
-              GetCurrentProcessId(), pszCategory);
-    DWORD cbWritten;
-    WriteFile(hFile, szHeader, (DWORD)lstrlenA(szHeader), &cbWritten, NULL);
-    if (pszBody && *pszBody)
-        WriteFile(hFile, (LPCVOID)pszBody, (DWORD)lstrlenA((LPSTR)pszBody), &cbWritten, NULL);
-    CloseHandle(hFile);
-}
-
-/******************************************************************************
     Run
         Overridden ApplicationBase::Run method, so that we can attempt to recover
         gracefully from a crash.
@@ -259,7 +218,7 @@ void Application::Run(ulong grfapp, ulong grfgob, long ginDef)
 
         // Mirror the diagnostic to %TEMP%\3dmmforever-crash.txt so it can be
         // read programmatically without OCR'ing the dialog.
-        _AppendCrashLog("ABNORMAL_EXIT", szMsg);
+        AppendCrashLog("ABNORMAL_EXIT", szMsg);
 
         char szTempDir[MAX_PATH];
         DWORD cchTemp = GetTempPathA(MAX_PATH, szTempDir);
@@ -1288,7 +1247,7 @@ bool Application::_FCantFindFileDialog(PString pstnFile)
     {
         char szPath[kcchMaxStz];
         pstnFile->GetSzs(szPath);
-        _AppendCrashLog("CANT_FIND_FILE", szPath);
+        AppendCrashLog("CANT_FIND_FILE", szPath);
     }
 
     pdlg = Dialog::PdlgNew(dlidCantFindFile, pvNil, pvNil);
@@ -1337,7 +1296,7 @@ bool Application::_FGenericError(PString message)
     {
         char szBody[kcchMaxStz];
         message->GetSzs(szBody);
-        _AppendCrashLog("GENERIC_ERROR", szBody);
+        AppendCrashLog("GENERIC_ERROR", szBody);
     }
 
     pdlg = Dialog::PdlgNew(dlidGenericErrorBox, pvNil, pvNil);
