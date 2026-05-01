@@ -61,15 +61,13 @@ struct TAG
     ChunkNumber cno;   // ChunkNumber of chunk
 };
 const ByteOrderMask kbomTag = 0xFF000000;
-// Layout pinned for x86 only: TAG embeds a runtime PChunkyResourceFile pointer
-// that's 4 bytes here but 8 bytes on x64. To stay 1995-format-compatible
-// without wrapping every TAG in a runtime/on-disk shim, on-disk struct
-// embeds use TAGOnFile (below) and convert at the I/O boundary. See
+// TAG embeds a runtime PChunkyResourceFile pointer that's 4 bytes on x86 and
+// 8 bytes on x64. Runtime TAG is allowed to grow on x64; nothing on disk
+// embeds it. On-disk structs and kauai containers store TAGOnFile (below) at
+// the wire-format size and convert at the I/O boundary. See
 // docs/superpowers/specs/2026-05-01-sized-types-audit.md.
-#if !defined(IN_80386)
-static_assert(sizeof(TAG) == 16, "TAG layout pinned only on x86; use TAGOnFile for serialization");
-#else
-static_assert(sizeof(TAG) == 16, "TAG on-disk layout drift on x86");
+#if defined(IN_80386)
+static_assert(sizeof(TAG) == 16, "TAG x86 layout drift");
 #endif
 
 /****************************************
