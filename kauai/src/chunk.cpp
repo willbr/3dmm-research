@@ -112,31 +112,35 @@ const auto kcvnMinForest = 5;
 
 const long klwMagicChunky = BigLittle('CHN2', '2NHC'); // chunky file signature
 
-// chunky file prefix
+// chunky file prefix. Fixed 128-byte wire format on every architecture.
+// FilePosition fields and trailing reserved array are pinned to int32_t so
+// LP64 doesn't silently widen the file header.
 struct ChunkyFilePrefix
 {
-    long lwMagic;   // identifies this as a chunky file
+    int32_t lwMagic;           // identifies this as a chunky file
     ChunkTagOrType ctgCreator; // program that created this file
-    DataVersion dver;      // chunky file version
-    short bo;       // byte order
-    short osk;      // which system wrote this
+    DataVersion dver;          // chunky file version
+    int16_t bo;                // byte order
+    int16_t osk;               // which system wrote this
 
-    FilePosition fpMac;     // logical end of file
-    FilePosition fpIndex;   // location of chunky index
-    long cbIndex; // size of chunky index
-    FilePosition fpMap;     // location of free space map
-    long cbMap;   // size of free space map (may be 0)
+    int32_t fpMac;             // logical end of file
+    int32_t fpIndex;           // location of chunky index
+    int32_t cbIndex;           // size of chunky index
+    int32_t fpMap;             // location of free space map
+    int32_t cbMap;             // size of free space map (may be 0)
 
-    long rglwReserved[23]; // reserved for future use - should be zero
+    int32_t rglwReserved[23];  // reserved for future use - should be zero
 };
+static_assert(sizeof(ChunkyFilePrefix) == 128, "ChunkyFilePrefix wire format drift");
 const ByteOrderMask kbomCfp = 0xB55FFC00L;
 
-// free space map entry
+// free space map entry. Fixed 8-byte wire format on every architecture.
 struct FreeSpaceMap
 {
-    FilePosition fp;
-    long cb;
+    int32_t fp;
+    int32_t cb;
 };
+static_assert(sizeof(FreeSpaceMap) == 8, "FreeSpaceMap wire format drift");
 const ByteOrderMask kbomFsm = 0xF0000000L;
 
 enum
@@ -571,16 +575,18 @@ PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
     ChunkyFile::PcflReadForestFromFlo reads a CF from a flo and creates a ChunkyFile
     around the data.
 ***************************************************************************/
+// Embedded chunk descriptor. Fixed 24-byte wire format on every architecture.
 struct EmbeddedChunkDescriptorOnFile
 {
-    short bo;
-    short osk;
+    int16_t bo;
+    int16_t osk;
     ChunkTagOrType ctg;
     ChildChunkID chid;
-    long cb;
-    long ckid;
-    ulong grfcrp;
+    int32_t cb;
+    int32_t ckid;
+    uint32_t grfcrp;
 };
+static_assert(sizeof(EmbeddedChunkDescriptorOnFile) == 24, "EmbeddedChunkDescriptorOnFile wire format drift");
 const ByteOrderMask kbomEcdf = 0x5FFC0000L;
 
 /***************************************************************************
