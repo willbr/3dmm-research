@@ -67,7 +67,7 @@ enum SceneEventType
 struct SceneEventPause
 {
     WaitReason wit;
-    long dts;
+    int32_t dts;
 };
 static_assert(sizeof(SceneEventPause) == 8, "SceneEventPause on-disk layout drift");
 
@@ -83,7 +83,7 @@ const auto kbTransparent = 250;
 //
 struct SceneEvent
 {
-    long nfrm; // frame number of the event.
+    int32_t nfrm;        // frame number of the event.
     SceneEventType sevt; // event type
 };
 static_assert(sizeof(SceneEvent) == 8, "SceneEvent on-disk layout drift");
@@ -96,10 +96,10 @@ const auto kbomLong = 0xC0000000;
 //
 struct SceneOnFile
 {
-    short bo;
-    short osk;
-    long nfrmLast;
-    long nfrmFirst;
+    int16_t bo;
+    int16_t osk;
+    int32_t nfrmLast;
+    int32_t nfrmFirst;
     TRANS trans;
 };
 static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
@@ -135,10 +135,10 @@ const ByteOrderMask kbomSse = 0xFF000000;
 typedef struct SceneSoundEvent *PSceneSoundEvent;
 struct SceneSoundEvent
 {
-    long vlm;
-    long sty; // sound type
+    int32_t vlm;
+    int32_t sty; // sound type
     bool fLoop;
-    long ctagc;
+    int32_t ctagc;
     //	TagChildPair _rgtagcSnd[_ctagc]; // variable array of tagcs follows SceneSoundEvent
 
   protected:
