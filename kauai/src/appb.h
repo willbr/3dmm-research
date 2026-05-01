@@ -192,9 +192,12 @@ class ApplicationBase : public ApplicationBase_PAR
     static LRESULT CALLBACK _LuWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK _LuMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lParam);
 
-    virtual bool _FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet);
-    virtual bool _FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet);
-    virtual bool _FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, long *plwRet);
+    // plwRet is the message-result slot returned to Win32 as LRESULT.
+    // Was `long *` historically — correct on x86 (LRESULT == long) but
+    // 4 bytes too narrow on Win64 (LRESULT == LONG_PTR == __int64).
+    virtual bool _FFrameWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
+    virtual bool _FMdiWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
+    virtual bool _FCommonWndProc(HWND hwnd, uint wm, WPARAM wParam, LPARAM lw, LRESULT *plwRet);
 
     // remove ourself from the clipboard viewer chain
     void _ShutDownViewer(void);
