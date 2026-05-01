@@ -302,7 +302,45 @@ Build stays clean on x86; 33/33 geometry tests pass after each commit.
   `PggNew(size(long))` creator and `CbFixed() == size(long)` assertion +
   variable-array length math to `int32_t` — same commit.
 
-### Still out of scope (pass 4 territory if anyone goes there)
+### Pass 3.5: x64 configure probe (2026-05-01)
+
+Removed the bren_zb x64 FATAL_ERROR temporarily and ran `cmake -G Ninja`
+under an `-TargetArch AMD64` vcvars. Configure succeeded immediately —
+the audit work landed cleanly. Compile of `kauai.lib` then surfaced two
+distinct blocker classes:
+
+1. **Inline `__asm` sites without IN_80386 gates** — fixed in this pass.
+   Three sites: `debug.h:22` (Debugger() int 3 — replaced with
+   `__debugbreak()` intrinsic on x64), `base.cpp:230` and `utilmem.cpp:209`
+   (debug-mode allocation stack-trace EBP walks — gated to IN_80386,
+   stub-zeroed on x64; `appbwin.cpp:878` (assertion stack-trace EBP walk
+   — same treatment). All four are debug instrumentation, not load-bearing;
+   `CaptureStackBackTrace` would be the proper Win32 replacement when
+   someone wants the diagnostic back on x64.
+
+2. **Win32 LP64 type drift** — *not yet fixed; flagged for pass 4*. Two
+   patterns:
+   - `LPARAM *` ↔ `long *` mismatch (`appbwin.cpp:444,449`). On x86 LPARAM
+     is `long` (4 bytes); on x64 LPARAM is `LONG_PTR` = `long long` (8
+     bytes) but `long` stays 4 (LLP64). Many `_FCommonWndProc(..., long *)`
+     and `FGetProp(long, long *)` signatures take what should be `LRESULT *`.
+   - `DLGPROC` signature drift. Win32 declares `DLGPROC` as
+     `INT_PTR (CALLBACK *)(...)`. Kauai's dialog procs return `BOOL`. On
+     x86 INT_PTR == int == BOOL = compatible; on x64 INT_PTR is 8 bytes,
+     BOOL is 4. Fails `cannot convert ... to DLGPROC` at every
+     `DialogBoxParamA` call (`dlgwin.cpp:387`, `appbwin.cpp:975`).
+
+   These two together touch every dialog and every window procedure in the
+   `*win.cpp` files. Conversion is mechanical (change `BOOL` → `INT_PTR`
+   in dialog proc signatures; change `long` → `LRESULT` in WndProc-adjacent
+   message-result params) but covers ~20 files, including all consumer
+   code that holds dialog-proc pointers.
+
+3. **BRender ZB asm fastpaths** — separate concern, covered by the
+   existing `2026-05-01-brender-x64-enablement.md` spec. The configure
+   probe used the temporary FATAL_ERROR-to-WARNING patch; reverted after.
+
+### Still out of scope (pass 4 territory)
 
 - `FilePosition` runtime typedef stays `long` (8 bytes on LP64). On-disk
   fields are pinned to int32_t already (pass 2). Audit any remaining

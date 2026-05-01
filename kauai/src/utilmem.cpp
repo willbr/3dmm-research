@@ -202,7 +202,8 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
     pmbh->lwThread = LwThreadCur();
 
 #ifdef WIN
-    // follow the EBP chain....
+#ifdef IN_80386
+    // follow the EBP chain to capture a debug-mode allocation stack trace.
     long *plw;
     long ilw;
 
@@ -220,6 +221,11 @@ bool FAllocPv(void **ppv, long cb, ulong grfmem, long mpr)
             plw = (long *)*plw;
         }
     }
+#else
+    // x64: inline asm not allowed. Optional debug instrumentation; leave empty.
+    for (long ilw = 0; ilw < kclwStackMbh; ilw++)
+        pmbh->rglwStack[ilw] = 0;
+#endif // IN_80386
 #endif // WIN
 
     // write the footer
