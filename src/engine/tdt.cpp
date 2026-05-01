@@ -74,6 +74,7 @@ struct ThreeDTextF
     long tdts;
     TAG tagTdf;
 };
+static_assert(sizeof(ThreeDTextF) == 24, "ThreeDTextF on-disk layout drift");
 const ByteOrderMask kbomTdtf = (0x5C000000 | kbomTag >> 6);
 
 /***************************************************************************

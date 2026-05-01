@@ -1795,6 +1795,7 @@ struct TBOXH
     ChildChunkID chid;
     bool fStory;
 };
+static_assert(sizeof(TBOXH) == 36, "TBOXH on-disk layout drift");
 
 /****************************************************
  *
