@@ -1652,7 +1652,7 @@ void ZbMeshRender(br_actor *actor,
 
 		if((int_bounds[0] <= int_bounds[2]) &&
 		   (int_bounds[1] <= int_bounds[3]) ) {
-			zb.bounds_call(actor, model, material, NULL, style, &fw.model_to_screen,
+			zb.bounds_call(actor, model, material, style, &fw.model_to_screen,
 				int_bounds);
 		}
 	}
