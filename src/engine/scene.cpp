@@ -107,6 +107,9 @@ static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
 const auto kbomScenh = 0x5FC00000;
 /****************************************
     TagChildPair - Tag,Chid combo
+    Runtime form: embeds full TAG with runtime pcrf. Allowed to grow on x64.
+    Marshalled to/from TagChildPairOnFile at the SceneSoundEvent variable-array
+    I/O boundary (see _PsseFromOnFile / _FInsertSseAsOnFile).
 ****************************************/
 const ByteOrderMask kbomChid = 0xC0000000;
 const ByteOrderMask kbomTagc = kbomChid | (kbomTag >> 2);
@@ -116,7 +119,14 @@ struct TagChildPair
     ChildChunkID chid;
     TAG tag;
 };
-static_assert(sizeof(TagChildPair) == 20, "TagChildPair on-disk layout drift");
+
+// Wire format. Fixed at 20 bytes on every architecture (chid + TAGOnFile).
+struct TagChildPairOnFile
+{
+    ChildChunkID chid;
+    TAGOnFile tag;
+};
+static_assert(sizeof(TagChildPairOnFile) == 20, "TagChildPairOnFile wire format drift");
 
 /****************************************
     SceneSoundEvent - scene sound event
@@ -179,6 +189,84 @@ struct SceneSoundEvent
 };
 static_assert(sizeof(SceneSoundEvent) == 16, "SceneSoundEvent on-disk fixed-part layout drift");
 void ReleasePpsse(PSceneSoundEvent *ppsse);
+
+// On-disk byte count for an SSE with ctagc TagChildPairs (16 + ctagc * 20).
+static long _CbSseOnFile(long ctagc)
+{
+    return size(SceneSoundEvent) + LwMul(ctagc, size(TagChildPairOnFile));
+}
+
+// Build a runtime PSceneSoundEvent from on-disk bytes (header + TagChildPairOnFile array).
+// Optionally byteswaps the on-disk bytes in place first. Tags' pcrf is left pvNil;
+// caller is responsible for FOpenTag-ing each runtime tag if needed.
+// Returned SSE is allocated via FAllocPv; free with FreePpv (or ReleasePpsse if
+// the tags have been opened).
+static PSceneSoundEvent _PsseFromOnFileBytes(void *pvOnFile, bool fSwapBytes)
+{
+    PSceneSoundEvent psseOnFile = (PSceneSoundEvent)pvOnFile;
+    long ctagc;
+    long itag;
+    PSceneSoundEvent psseRuntime;
+    TagChildPairOnFile *prgtagcOnFile;
+
+    if (fSwapBytes)
+    {
+        SwapBytesBom(psseOnFile, kbomSse);
+        ctagc = psseOnFile->ctagc;
+        prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pvOnFile, size(SceneSoundEvent));
+        for (itag = 0; itag < ctagc; itag++)
+        {
+            SwapBytesBom(&prgtagcOnFile[itag].chid, kbomChid);
+            SwapBytesBom(&prgtagcOnFile[itag].tag, kbomTag);
+        }
+    }
+    ctagc = psseOnFile->ctagc;
+    psseRuntime = SceneSoundEvent::PsseNew(ctagc);
+    if (pvNil == psseRuntime)
+        return pvNil;
+    psseRuntime->vlm = psseOnFile->vlm;
+    psseRuntime->sty = psseOnFile->sty;
+    psseRuntime->fLoop = psseOnFile->fLoop;
+    psseRuntime->ctagc = ctagc;
+    prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pvOnFile, size(SceneSoundEvent));
+    for (itag = 0; itag < ctagc; itag++)
+    {
+        *psseRuntime->Pchid(itag) = prgtagcOnFile[itag].chid;
+        TagFromOnFile(psseRuntime->Ptag(itag), prgtagcOnFile[itag].tag);
+    }
+    return psseRuntime;
+}
+
+// Allocate a buffer of on-disk bytes representing this runtime SSE.
+// Caller frees with FreePpv. *pcb gets the byte count.
+static void *_PvOnFileFromSse(PSceneSoundEvent psseRuntime, long *pcb)
+{
+    long ctagc = psseRuntime->ctagc;
+    long cb = _CbSseOnFile(ctagc);
+    void *pv;
+    PSceneSoundEvent psseOnFile;
+    TagChildPairOnFile *prgtagcOnFile;
+    long itag;
+
+    if (!FAllocPv(&pv, cb, fmemNil, mprNormal))
+    {
+        *pcb = 0;
+        return pvNil;
+    }
+    psseOnFile = (PSceneSoundEvent)pv;
+    psseOnFile->vlm = psseRuntime->vlm;
+    psseOnFile->sty = psseRuntime->sty;
+    psseOnFile->fLoop = psseRuntime->fLoop;
+    psseOnFile->ctagc = ctagc;
+    prgtagcOnFile = (TagChildPairOnFile *)PvAddBv(pv, size(SceneSoundEvent));
+    for (itag = 0; itag < ctagc; itag++)
+    {
+        prgtagcOnFile[itag].chid = *psseRuntime->Pchid(itag);
+        prgtagcOnFile[itag].tag.From(*psseRuntime->Ptag(itag));
+    }
+    *pcb = cb;
+    return pv;
+}
 
 //
 // Undo object for chopping operation.
@@ -4354,74 +4442,83 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         goto LFail0;
     }
 
-    pscen->_pggsevFrm = GeneralGroup::PggRead(&blck, &bo);
-    if (pscen->_pggsevFrm == pvNil)
     {
-        goto LFail0;
-    }
-
-    Assert(pscen->_pggsevFrm->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
-
-    //
-    // Convert all open tags to pointers.
-    //
-    for (; isevFrm < pscen->_pggsevFrm->IvMac(); isevFrm++)
-    {
-        qsev = (PSEV)pscen->_pggsevFrm->QvFixedGet(isevFrm);
-
-        //
-        // Swap byte ordering of entry
-        //
-        if (bo == kboOther)
+        // Read the wire-format GG (variable parts hold on-disk-stride SSEs
+        // for sevtPlaySnd, sized using TagChildPairOnFile = 16 bytes), then
+        // marshal entry-by-entry into the runtime _pggsevFrm (sevtPlaySnd
+        // entries get re-emitted with TagChildPair = sizeof(TAG)+chid stride,
+        // wider on x64).
+        PGeneralGroup pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+        if (pvNil == pggOnFile)
+            goto LFail0;
+        Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
+        pscen->_pggsevFrm = GeneralGroup::PggNew(size(SceneEvent));
+        if (pvNil == pscen->_pggsevFrm)
         {
-            SwapBytesBom((void *)qsev, kbomSev);
+            ReleasePpo(&pggOnFile);
+            goto LFail0;
         }
-
-        //
-        // Open all tags
-        //
-        switch (qsev->sevt)
+        for (isevFrm = 0; isevFrm < pggOnFile->IvMac(); isevFrm++)
         {
-        case sevtPlaySnd:
-
-            PSceneSoundEvent psse;
-            long itag;
-
-            psse = SceneSoundEvent::PsseDupFromGg(pscen->_pggsevFrm, isevFrm, fFalse);
-            if (pvNil == psse)
-                goto LFail1;
-
+            qsev = (PSEV)pggOnFile->QvFixedGet(isevFrm);
             if (bo == kboOther)
-            {
-                psse->SwapBytes();
-            }
+                SwapBytesBom((void *)qsev, kbomSev);
 
-            for (itag = 0; itag < psse->ctagc; itag++)
+            switch (qsev->sevt)
             {
-                if (!TagManager::FOpenTag(psse->Ptag(itag), pcrf, pcfl))
+            case sevtPlaySnd: {
+                PSceneSoundEvent psse;
+                long itag;
+
+                // Marshal on-disk SSE bytes -> runtime SSE (TagChildPairOnFile -> TagChildPair).
+                psse = _PsseFromOnFileBytes(pggOnFile->QvGet(isevFrm), bo == kboOther);
+                if (pvNil == psse)
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                for (itag = 0; itag < psse->ctagc; itag++)
+                {
+                    if (!TagManager::FOpenTag(psse->Ptag(itag), pcrf, pcfl))
+                    {
+                        while (itag-- > 0)
+                            TagManager::CloseTag(psse->Ptag(itag));
+                        FreePpv((void **)&psse);
+                        ReleasePpo(&pggOnFile);
+                        goto LFail1;
+                    }
+                }
+                if (!pscen->_pggsevFrm->FInsert(isevFrm, psse->Cb(), psse, qsev))
                 {
                     while (itag-- > 0)
                         TagManager::CloseTag(psse->Ptag(itag));
-                    FreePpv((void **)&psse); // don't ReleasePpsse...tags are already closed
+                    FreePpv((void **)&psse);
+                    ReleasePpo(&pggOnFile);
                     goto LFail1;
                 }
+                FreePpv((void **)&psse);
+                break;
             }
-            // Put SceneSoundEvent with opened tags back in GeneralGroup
-            pscen->_pggsevFrm->Put(isevFrm, psse);
-            FreePpv((void **)&psse); // don't ReleasePpsse because GeneralGroup keeps the tags
-            break;
 
-        case sevtChngCamera:
-        case sevtPause:
-            break;
+            case sevtChngCamera:
+            case sevtPause:
+                // No TAG embed; pass variable bytes through unchanged.
+                if (!pscen->_pggsevFrm->FInsert(isevFrm, pggOnFile->Cb(isevFrm), pggOnFile->QvGet(isevFrm), qsev))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
 
-        case sevtAddActr:
-        case sevtSetBkgd:
-        case sevtAddTbox:
-        default:
-            Assert(0, "Bad event in frame event list");
-            break;
+            case sevtAddActr:
+            case sevtSetBkgd:
+            case sevtAddTbox:
+            default:
+                Assert(0, "Bad event in frame event list");
+                break;
+            }
         }
+        ReleasePpo(&pggOnFile);
     }
 
     //
@@ -4434,93 +4531,115 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno)
         goto LFail1;
     }
 
-    pscen->_pggsevStart = GeneralGroup::PggRead(&blck, &bo);
-
-    if (pscen->_pggsevStart == pvNil)
     {
-        goto LFail1;
-    }
-
-    Assert(pscen->_pggsevStart->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
-
-    //
-    // Convert all open tags to pointers.
-    //
-    for (; isevStart < pscen->_pggsevStart->IvMac(); isevStart++)
-    {
-        qsev = (PSEV)pscen->_pggsevStart->QvFixedGet(isevStart);
-
-        //
-        // Swap byte ordering of entry
-        //
-        if (bo == kboOther)
+        // Read the wire-format start-event GG and marshal each entry into a
+        // fresh runtime _pggsevStart. sevtSetBkgd's variable widens from
+        // TAGOnFile (16) to runtime TAG (sizeof(TAG)); sevtAddActr/sevtAddTbox
+        // replace their on-disk chid with a runtime pointer (PActor/PTBOX),
+        // which on Win64 is 8 bytes vs. the 4-byte chid slot the existing
+        // in-place Put would have overrun.
+        PGeneralGroup pggOnFile = GeneralGroup::PggRead(&blck, &bo);
+        if (pvNil == pggOnFile)
+            goto LFail1;
+        Assert(pggOnFile->CbFixed() == size(SceneEvent), "Bad GeneralGroup read for event");
+        pscen->_pggsevStart = GeneralGroup::PggNew(size(SceneEvent));
+        if (pvNil == pscen->_pggsevStart)
         {
-            SwapBytesBom((void *)qsev, kbomSev);
+            ReleasePpo(&pggOnFile);
+            goto LFail1;
         }
-
-        //
-        // Convert CHIDs to pointers
-        //
-        switch (qsev->sevt)
+        for (isevStart = 0; isevStart < pggOnFile->IvMac(); isevStart++)
         {
-        case sevtAddActr:
-
-            pscen->_pggsevStart->Get(isevStart, &chid);
+            qsev = (PSEV)pggOnFile->QvFixedGet(isevStart);
             if (bo == kboOther)
+                SwapBytesBom((void *)qsev, kbomSev);
+
+            switch (qsev->sevt)
             {
-                SwapBytesBom((void *)&chid, kbomLong);
+            case sevtAddActr: {
+                pggOnFile->Get(isevStart, &chid);
+                if (bo == kboOther)
+                    SwapBytesBom((void *)&chid, kbomLong);
+                if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                pactr = Actor::PactrRead(pcrf, kid.cki.cno);
+                AssertNilOrPo(pactr, 0);
+                if (pactr == pvNil)
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                if (!pscen->_pggsevStart->FInsert(isevStart, size(PActor), &pactr, qsev))
+                {
+                    ReleasePpo(&pactr);
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
             }
 
-            if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgActr, &kid))
-            {
-                goto LFail1;
+            case sevtAddTbox: {
+                pggOnFile->Get(isevStart, &chid);
+                if (bo == kboOther)
+                    SwapBytesBom((void *)&chid, kbomLong);
+                if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgTbox, &kid))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                ptbox = TextBox::PtboxRead(pcrf, kid.cki.cno, pscen);
+                AssertNilOrPo(ptbox, 0);
+                if (ptbox == pvNil)
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                if (!pscen->_pggsevStart->FInsert(isevStart, size(PTBOX), &ptbox, qsev))
+                {
+                    ReleasePpo(&ptbox);
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
             }
 
-            pactr = Actor::PactrRead(pcrf, kid.cki.cno);
-            AssertNilOrPo(pactr, 0);
-
-            if (pactr == pvNil)
-            {
-                goto LFail1;
+            case sevtSetBkgd: {
+                // Variable is TAGOnFile (16 bytes) on disk; widens to runtime TAG.
+                TAGOnFile tagOnFile;
+                TAG tagRuntime;
+                Assert(pggOnFile->Cb(isevStart) == size(TAGOnFile), "bad sevtSetBkgd size");
+                pggOnFile->Get(isevStart, &tagOnFile);
+                if (bo == kboOther)
+                    SwapBytesBom(&tagOnFile, kbomTag);
+                TagFromOnFile(&tagRuntime, tagOnFile);
+                if (!pscen->_pggsevStart->FInsert(isevStart, size(TAG), &tagRuntime, qsev))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
             }
 
-            pscen->_pggsevStart->Put(isevStart, &pactr);
-            break;
+            case sevtChngCamera:
+                // No TAG, no pointer; pass variable bytes through.
+                if (!pscen->_pggsevStart->FInsert(isevStart, pggOnFile->Cb(isevStart), pggOnFile->QvGet(isevStart), qsev))
+                {
+                    ReleasePpo(&pggOnFile);
+                    goto LFail1;
+                }
+                break;
 
-        case sevtAddTbox:
-
-            pscen->_pggsevStart->Get(isevStart, &chid);
-            if (bo == kboOther)
-            {
-                SwapBytesBom((void *)&chid, kbomLong);
+            case sevtPause:
+            case sevtPlaySnd:
+            default:
+                Bug("Bad event in start event list");
+                break;
             }
-
-            if (!pcfl->FGetKidChidCtg(kctgScen, cno, chid, kctgTbox, &kid))
-            {
-                goto LFail1;
-            }
-
-            ptbox = TextBox::PtboxRead(pcrf, kid.cki.cno, pscen);
-            AssertNilOrPo(ptbox, 0);
-
-            if (ptbox == pvNil)
-            {
-                goto LFail1;
-            }
-
-            pscen->_pggsevStart->Put(isevStart, &ptbox);
-            break;
-
-        case sevtSetBkgd:
-        case sevtChngCamera:
-            break;
-
-        case sevtPause:
-        case sevtPlaySnd:
-        default:
-            Bug("Bad event in start event list");
-            break;
         }
+        ReleasePpo(&pggOnFile);
     }
 
     //
@@ -4765,9 +4884,16 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
                 }
             }
 
-            if (pggFrmTemp->FInsert(isevFrm, psse->Cb(), psse, &sev))
+            // Marshal runtime SSE -> on-disk bytes (TagChildPair -> TagChildPairOnFile).
             {
-                fSuccess = fTrue;
+                long cbOnFile;
+                void *pvOnFile = _PvOnFileFromSse(psse, &cbOnFile);
+                if (pvNil != pvOnFile)
+                {
+                    if (pggFrmTemp->FInsert(isevFrm, cbOnFile, pvOnFile, &sev))
+                        fSuccess = fTrue;
+                    FreePpv(&pvOnFile);
+                }
             }
         LEndPlaySnd:
             ReleasePpsse(&psse);
@@ -4839,17 +4965,21 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
             chidActr++;
             break;
 
-        case sevtSetBkgd:
-            if (!TagManager::FSaveTag((PTAG)_pggsevStart->QvGet(isevStart), pcrf, fFalse))
+        case sevtSetBkgd: {
+            // Variable holds runtime TAG; marshal to TAGOnFile for the wire form.
+            PTAG ptagRuntime = (PTAG)_pggsevStart->QvGet(isevStart);
+            TAGOnFile tagOnFile;
+            if (!TagManager::FSaveTag(ptagRuntime, pcrf, fFalse))
             {
                 goto LFail;
             }
-
-            if (!pggStartTemp->FInsert(isevStart, size(TAG), _pggsevStart->QvGet(isevStart), &sev))
+            tagOnFile.From(*ptagRuntime);
+            if (!pggStartTemp->FInsert(isevStart, size(TAGOnFile), &tagOnFile, &sev))
             {
                 goto LFail;
             }
             break;
+        }
 
         case sevtChngCamera:
             if (!pggStartTemp->FInsert(isevStart, size(long), _pggsevStart->QvGet(isevStart), &sev))
@@ -5665,21 +5795,22 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
             }
             break;
 
-        case sevtSetBkgd:
-            pggsev->Get(isev, &tag);
+        case sevtSetBkgd: {
+            // Variable on disk is TAGOnFile (16 bytes); marshal to runtime TAG.
+            TAGOnFile tagOnFile;
+            Assert(pggsev->Cb(isev) == size(TAGOnFile), "bad sevtSetBkgd size");
+            pggsev->Get(isev, &tagOnFile);
             if (bo == kboOther)
-            {
-                SwapBytesBom((void *)&tag, kbomTag);
-            }
-
+                SwapBytesBom(&tagOnFile, kbomTag);
+            TagFromOnFile(&tag, tagOnFile);
             if (!Background::FAddTagsToTagl(&tag, ptagl))
             {
                 ReleasePpo(&pggsev);
                 return fFalse;
             }
             tagBkgd = tag;
-
             break;
+        }
 
         case sevtAddTbox:
             break;
@@ -5759,36 +5890,30 @@ bool Scene::FAddTagsToTagl(PChunkyFile pcfl, ChunkNumber cno, PTagList ptagl)
         case sevtPause:
             break;
 
-        case sevtPlaySnd:
-
+        case sevtPlaySnd: {
             PSceneSoundEvent psse;
             long itag;
 
-            psse = SceneSoundEvent::PsseDupFromGg(pggsev, isev, fFalse);
+            // pggsev came directly from PggRead — variable parts are on-disk
+            // bytes (TagChildPairOnFile stride). Marshal to runtime form.
+            psse = _PsseFromOnFileBytes(pggsev->QvGet(isev), bo == kboOther);
             if (pvNil == psse)
             {
                 ReleasePpo(&pggsev);
                 return fFalse;
             }
-            if (bo == kboOther)
-            {
-                psse->SwapBytes();
-            }
-
-            //
-            // Insert the tags in order
-            //
             for (itag = 0; itag < psse->ctagc; itag++)
             {
                 if (!ptagl->FInsertTag(psse->Ptag(itag)))
                 {
-                    ReleasePpsse(&psse);
+                    FreePpv((void **)&psse); // tags' pcrf is pvNil; no CloseTag needed
                     ReleasePpo(&pggsev);
                     return fFalse;
                 }
             }
-            ReleasePpsse(&psse);
+            FreePpv((void **)&psse); // pcrf was never set; no CloseTag needed
             break;
+        }
 
         case sevtAddActr:
         case sevtSetBkgd:
