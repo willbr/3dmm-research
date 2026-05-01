@@ -2121,7 +2121,7 @@ bool Studio::FAddCmg(ChunkNumber cnoTmpl, ChunkNumber cnoGokd)
 {
     AssertThis(0);
 
-    CMG cmg;
+    GokdCnoMap cmg;
 
 #ifdef DEBUG
     long icmg;
@@ -2149,7 +2149,7 @@ ChunkNumber Studio::CnoGokdFromCnoTmpl(ChunkNumber cnoTmpl)
     AssertThis(0);
 
     long icmg;
-    CMG cmg;
+    GokdCnoMap cmg;
 
     for (icmg = 0; icmg < _pglcmg->IvMac(); icmg++)
     {

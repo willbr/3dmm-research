@@ -70,7 +70,7 @@ class BrowserContext : public BrowserContext_PAR
    Browser ThumbFile Cki Struct
 
 *************************************/
-struct TFC
+struct BrowserThumbEntry
 {
     short bo;
     short osk;
@@ -804,7 +804,7 @@ class BrowserRollCall : public BrowserRollCall_PAR
 };
 
 const long kglcmgGrow = 8;
-struct CMG // Gokd Cno Map
+struct GokdCnoMap // Gokd Cno Map
 {
     ChunkNumber cnoTmpl; // Content cno
     ChunkNumber cnoGokd; // Thumbnail gokd cno
