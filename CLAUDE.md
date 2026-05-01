@@ -40,7 +40,7 @@ Three static libraries feed the `studio` executable (renamed at link to `3dmovie
 
 - **`audioman`** (`audioman/`) — thin wrapper over the legacy Windows AudioMan API; provides `3DMMForever::AudioMan`.
 - **`kauai`** (`kauai/src/`) — Microsoft's in-house application framework, originally cross-platform between Windows and Mac. Provides graphical objects (`gob`), document model (`docb`), graphics (`gfx`), files (`file`/`fni`), text rendering (`rtxt`), MIDI/sound (`midi`/`sndm`/`sndam`), the **chunky file format** (`chunk`/`chcm`/`chse`/`crf`), an embedded scripting/compilation layer (`scrcom`/`screxe`/`lex`), and the **kidspace** UI runtime (`kidspace`/`kidworld`/`kidhelp`). Cross-platform sources are bare `.cpp`; platform implementations live in `*win.cpp`/`*mac.cpp` (the Mac variants are present but not built today).
-- **`brender`** (`bren/`) — wrapper over the BRender 3D engine (the BRender static libs themselves live in `elib/wind|wins/bren.lib` and are pulled via `find_package(BRender)`).
+- **`brender`** (`bren/`) — wrapper over the BRender 3D engine. The BRender source itself lives vendored under `bren/lib/` (Argonaut BRender 1.1.2, MIT-licensed via the foone/Hanselman 2022 release). It builds as the `brender_fw` and `brender_zb` static libraries, exposed as `BRender::Libraries` for backward compatibility with the original `elib/`-based build.
 - **`engine`** (`src/engine/`, headers in `inc/`) — the movie engine proper: actors, scenes, movies, bodies/models/materials, templates, text boxes, 3D text, sound records, tag manager (content references across CDs).
 - **`studio`** (`src/studio/`) — the application: tool palettes, browsers, easels, kidspace screens, portfolio, splot machine, scene sorter, etc. Output: `3dmovie.exe`.
 
