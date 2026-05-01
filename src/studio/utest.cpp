@@ -103,20 +103,162 @@ void Application::Run(ulong grfapp, ulong grfgob, long ginDef)
 
     _CleanupTemp();
 
+    // SEH context captured by the filter; used by the handler body below for
+    // a diagnostic dialog. Lifetime extends through __except by being a local
+    // of Run(), not the filter expression.
+    DWORD lastExceptionCode = 0;
+    void *lastExceptionAddr = pvNil;
+
+    // Stack trace: capture the call frames as soon as the exception fires,
+    // before SEH unwinds. Done inside the filter expression so the trace
+    // reflects the faulting context, not the handler.
+    const int kcStackFrames = 16;
+    void *rgpvStack[kcStackFrames];
+    USHORT cStackFrames = 0;
+
     __try
     {
         Application_PAR::Run(grfapp, grfgob, ginDef);
     }
-    __except (UnhandledExceptionFilter(GetExceptionInformation()))
+    __except ((lastExceptionCode = GetExceptionInformation()->ExceptionRecord->ExceptionCode,
+               lastExceptionAddr = GetExceptionInformation()->ExceptionRecord->ExceptionAddress,
+               cStackFrames = CaptureStackBackTrace(0, kcStackFrames, rgpvStack, NULL),
+               UnhandledExceptionFilter(GetExceptionInformation())))
     {
-        PDialog pdlg;
-
-        pdlg = Dialog::PdlgNew(dlidAbnormalExit, pvNil, pvNil);
-        if (pdlg != pvNil)
+        // Stash a diagnostic message describing what actually faulted, instead
+        // of the bare "ended unexpectedly" dialog. Use MessageBox directly:
+        // the kauai dialog plumbing might itself be in a bad state inside an
+        // SEH handler.
+        char szMsg[3072]; // header + ~16 stack frames at ~80 chars each
+        const char *pszName = "unhandled exception";
+        switch (lastExceptionCode)
         {
-            pdlg->IditDo();
-            ReleasePpo(&pdlg);
+        case EXCEPTION_ACCESS_VIOLATION:        pszName = "ACCESS VIOLATION (read/write to bad memory)"; break;
+        case EXCEPTION_DATATYPE_MISALIGNMENT:   pszName = "datatype misalignment"; break;
+        case EXCEPTION_BREAKPOINT:              pszName = "breakpoint (debug check)"; break;
+        case EXCEPTION_SINGLE_STEP:             pszName = "single step"; break;
+        case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:   pszName = "array bounds exceeded"; break;
+        case EXCEPTION_FLT_DIVIDE_BY_ZERO:      pszName = "float divide by zero"; break;
+        case EXCEPTION_FLT_INVALID_OPERATION:   pszName = "float invalid operation"; break;
+        case EXCEPTION_FLT_OVERFLOW:            pszName = "float overflow"; break;
+        case EXCEPTION_FLT_STACK_CHECK:         pszName = "float stack check"; break;
+        case EXCEPTION_FLT_UNDERFLOW:           pszName = "float underflow"; break;
+        case EXCEPTION_INT_DIVIDE_BY_ZERO:      pszName = "integer divide by zero"; break;
+        case EXCEPTION_INT_OVERFLOW:            pszName = "integer overflow"; break;
+        case EXCEPTION_PRIV_INSTRUCTION:        pszName = "privileged instruction"; break;
+        case EXCEPTION_IN_PAGE_ERROR:           pszName = "in-page error"; break;
+        case EXCEPTION_ILLEGAL_INSTRUCTION:     pszName = "illegal instruction"; break;
+        case EXCEPTION_NONCONTINUABLE_EXCEPTION:pszName = "noncontinuable exception"; break;
+        case EXCEPTION_STACK_OVERFLOW:          pszName = "STACK OVERFLOW"; break;
+        case EXCEPTION_INVALID_DISPOSITION:     pszName = "invalid disposition"; break;
         }
+        // Resolve the module containing the fault address so the user can
+        // tell whether it's our code, a system DLL, or a third-party
+        // component without needing a debugger.
+        char szModule[MAX_PATH] = "<unknown>";
+        size_t moduleOffset = 0;
+        HMODULE hModFault = NULL;
+        if (lastExceptionAddr != pvNil &&
+            GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCSTR)lastExceptionAddr, &hModFault) &&
+            hModFault != NULL)
+        {
+            char szPath[MAX_PATH];
+            if (GetModuleFileNameA(hModFault, szPath, MAX_PATH) > 0)
+            {
+                // Strip directory; show the leaf name only.
+                const char *pszLeaf = szPath;
+                for (const char *p = szPath; *p; p++)
+                    if (*p == '\\' || *p == '/')
+                        pszLeaf = p + 1;
+                lstrcpynA(szModule, (LPSTR)pszLeaf, sizeof(szModule));
+            }
+            moduleOffset = (size_t)((BYTE *)lastExceptionAddr - (BYTE *)hModFault);
+        }
+
+        wsprintfA(szMsg,
+                  "3D Movie Maker hit an %s and is shutting down.\r\n\r\n"
+                  "Exception code: 0x%08lX\r\n"
+                  "Address:        0x%p\r\n"
+                  "Module:         %s + 0x%IX\r\n",
+                  pszName, lastExceptionCode, lastExceptionAddr, szModule, moduleOffset);
+
+        // Append a module-resolved stack trace. Each frame is "module+0x<offset>";
+        // combined with a .map file, that's enough to locate the calling function.
+        char szStack[2048];
+        szStack[0] = 0;
+        lstrcatA(szStack, (LPSTR)"\r\nStack:\r\n");
+        for (int i = 0; i < cStackFrames; i++)
+        {
+            char szFrame[MAX_PATH + 64];
+            char szFrameModule[MAX_PATH] = "<unknown>";
+            size_t frameOffset = 0;
+            HMODULE hModFrame = NULL;
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                   (LPCSTR)rgpvStack[i], &hModFrame) &&
+                hModFrame != NULL)
+            {
+                char szPath[MAX_PATH];
+                if (GetModuleFileNameA(hModFrame, szPath, MAX_PATH) > 0)
+                {
+                    const char *pszLeaf = szPath;
+                    for (const char *p = szPath; *p; p++)
+                        if (*p == '\\' || *p == '/')
+                            pszLeaf = p + 1;
+                    lstrcpynA(szFrameModule, (LPSTR)pszLeaf, sizeof(szFrameModule));
+                }
+                frameOffset = (size_t)((BYTE *)rgpvStack[i] - (BYTE *)hModFrame);
+            }
+            wsprintfA(szFrame, "  %2d. %s+0x%IX  (0x%p)\r\n", i, szFrameModule, frameOffset, rgpvStack[i]);
+            // Cap total stack-trace text so we don't blow the szStack buffer.
+            if (lstrlenA(szStack) + lstrlenA(szFrame) + 1 < (int)sizeof(szStack))
+                lstrcatA(szStack, szFrame);
+        }
+        lstrcatA(szMsg, szStack);
+
+        // Mirror the diagnostic to %TEMP%\3dmmforever-crash.txt so it can be
+        // grepped programmatically without OCR'ing the dialog. Append (not
+        // overwrite) so multiple back-to-back runs accumulate. Each entry is
+        // prefixed with the current timestamp.
+        char szCrashLog[MAX_PATH] = "";
+        char szTempDir[MAX_PATH];
+        DWORD cchTemp = GetTempPathA(MAX_PATH, szTempDir);
+        if (cchTemp > 0 && cchTemp < MAX_PATH)
+        {
+            wsprintfA(szCrashLog, "%s3dmmforever-crash.txt", szTempDir);
+            HANDLE hFile = CreateFileA(szCrashLog, FILE_APPEND_DATA, FILE_SHARE_READ, NULL,
+                                       OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+            if (hFile != INVALID_HANDLE_VALUE)
+            {
+                SYSTEMTIME st;
+                GetLocalTime(&st);
+                char szHeader[128];
+                wsprintfA(szHeader,
+                          "\r\n========================================\r\n"
+                          "%04d-%02d-%02d %02d:%02d:%02d (PID %lu)\r\n"
+                          "========================================\r\n",
+                          st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+                          GetCurrentProcessId());
+                DWORD cbWritten;
+                WriteFile(hFile, szHeader, lstrlenA(szHeader), &cbWritten, NULL);
+                WriteFile(hFile, szMsg, lstrlenA(szMsg), &cbWritten, NULL);
+                CloseHandle(hFile);
+            }
+        }
+
+        // Append the file path to the on-screen dialog so the user (or a tool
+        // reading the dialog) can find the on-disk copy.
+        char szTrailer[MAX_PATH + 64];
+        if (szCrashLog[0])
+            wsprintfA(szTrailer, "\r\n\r\nWritten to: %s\r\n\r\nIf this is reproducible, please report it with the above (and any steps).", szCrashLog);
+        else
+            lstrcpynA(szTrailer, (LPSTR)"\r\n\r\nIf this is reproducible, please report it with the above (and any steps).", sizeof(szTrailer));
+        lstrcatA(szMsg, szTrailer);
+
+        MessageBoxA(NULL, szMsg, "3D Movie Maker - Unexpected Exit", MB_ICONERROR | MB_OK);
+#ifdef DEBUG
+        OutputDebugStringA(szMsg);
+#endif
 
         _fQuit = fTrue;
         MovieView::RestoreKeyboardRepeat();

@@ -171,7 +171,7 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     void _WaitForBuffers(void);
     void _SubmitBuffers(ulong tsCur);
 
-    static void _MidiProc(ulong luUser, void *pvData, ulong lUserDataa);
+    static void _MidiProc(DWORD_PTR luUser, void *pvData, DWORD_PTR lUserDataa);
     void _Notify(void *pvData, PMidiStreamCached pmdws);
 
     static ulong __stdcall _ThreadProc(void *pv);
@@ -202,7 +202,10 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
 /***************************************************************************
     The midi stream interface.
 ***************************************************************************/
-typedef void (*PFNMIDI)(ulong luUser, void *pvData, ulong lUserDataa);
+// luUser/lUserDataa are pointer-sized: PwmsNew callers pass `this` to round-trip
+// through Win32 midiStreamOpen's dwInstance slot, which is DWORD_PTR (8 bytes
+// on Win64). bare `ulong` (4 bytes on Win64 LLP64) silently truncates pointers.
+typedef void (*PFNMIDI)(DWORD_PTR luUser, void *pvData, DWORD_PTR lUserDataa);
 
 typedef class MidiStreamInterface *PMidiStreamInterface;
 #define MidiStreamInterface_PAR BASE
@@ -214,7 +217,7 @@ class MidiStreamInterface : public MidiStreamInterface_PAR
   protected:
     HMS _hms;         // the midi stream handle
     PFNMIDI _pfnCall; // call back function
-    ulong _luUser;    // user data to send back
+    DWORD_PTR _luUser; // user data to send back (pointer-sized; holds `this`)
 
     // system volume level - to be saved and restored. The volume we set
     // is always relative to this
@@ -222,7 +225,7 @@ class MidiStreamInterface : public MidiStreamInterface_PAR
     ulong _luVolSys;
     long _vlmBase; // our current volume relative to _luVolSys.
 
-    MidiStreamInterface(PFNMIDI pfn, ulong luUser);
+    MidiStreamInterface(PFNMIDI pfn, DWORD_PTR luUser);
 
     virtual bool _FOpen(void) = 0;
     virtual bool _FClose(void) = 0;
@@ -239,7 +242,7 @@ class MidiStreamInterface : public MidiStreamInterface_PAR
     virtual bool FActive(void);
     virtual bool FActivate(bool fActivate);
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa) = 0;
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa) = 0;
     virtual void StopPlaying(void) = 0;
 };
 
@@ -273,7 +276,7 @@ class WindowsMidiStream : public WindowsMidiStream_PAR
         void *pvData;
         long cb;
         long cactPlay;
-        ulong lUserDataa;
+        DWORD_PTR lUserDataa;
         long ibNext;
 
         MH rgmh[kcmhMsir];
@@ -295,8 +298,13 @@ class WindowsMidiStream : public WindowsMidiStream_PAR
 #endif               // STREAM_BUG
     bool _fDone : 1; // tells the aux thread to terminate
 
+    // Win32 midiStreamOpen takes DWORD_PTR (pointer-sized) for the callback +
+    // instance slots, not DWORD. Was 4 bytes everywhere on x86; on Win64 the
+    // callback function pointer and our `this` user-instance are both 8 bytes.
+    // Storing them in a 4-byte DWORD silently truncates and crashes WINMM the
+    // moment it tries to invoke the half-pointer.
     MMRESULT(WINAPI *_pfnOpen)
-    (HMS *phms, LPUINT puDeviceID, DWORD cMidi, DWORD dwCallback, DWORD dwInstance, DWORD fdwOpen);
+    (HMS *phms, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
     MMRESULT(WINAPI *_pfnClose)(HMS hms);
     MMRESULT(WINAPI *_pfnProperty)(HMS hms, LPBYTE lpb, DWORD dwProperty);
     MMRESULT(WINAPI *_pfnPosition)(HMS hms, LPMMTIME lpmmt, UINT cbmmt);
@@ -305,7 +313,7 @@ class WindowsMidiStream : public WindowsMidiStream_PAR
     MMRESULT(WINAPI *_pfnRestart)(HMS hms);
     MMRESULT(WINAPI *_pfnStop)(HMS hms);
 
-    WindowsMidiStream(PFNMIDI pfn, ulong luUser);
+    WindowsMidiStream(PFNMIDI pfn, DWORD_PTR luUser);
     bool _FInit(void);
 
     virtual bool _FOpen(void);
@@ -316,14 +324,17 @@ class WindowsMidiStream : public WindowsMidiStream_PAR
     long _CmhSubmitBuffers(void);
     void _ResetStream(void);
 
-    static void __stdcall _MidiProc(HMS hms, ulong msg, ulong luUser, ulong lu1, ulong lu2);
+    // The callback signature must match Win32 midiOutProc: dwInstance/dwParam1/
+    // dwParam2 are DWORD_PTR (pointer-sized) so the user-data round-trips
+    // intact on Win64.
+    static void __stdcall _MidiProc(HMS hms, UINT msg, DWORD_PTR luUser, DWORD_PTR lu1, DWORD_PTR lu2);
     void _Notify(HMS hms, PMH pmh);
 
     static ulong __stdcall _ThreadProc(void *pv);
     ulong _LuThread(void);
 
   public:
-    static PWindowsMidiStream PwmsNew(PFNMIDI pfn, ulong luUser);
+    static PWindowsMidiStream PwmsNew(PFNMIDI pfn, DWORD_PTR luUser);
     ~WindowsMidiStream(void);
 
 #ifdef STREAM_BUG
@@ -331,7 +342,7 @@ class WindowsMidiStream : public WindowsMidiStream_PAR
     virtual bool FActivate(bool fActivate);
 #endif // STREAM_BUG
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa);
     virtual void StopPlaying(void);
 };
 
@@ -355,7 +366,7 @@ class OurMidiStream : public OurMidiStream_PAR
         long ibStart;
         long cactPlay;
 
-        ulong lUserDataa;
+        DWORD_PTR lUserDataa;
     };
 
     Mutex _mutx;
@@ -372,7 +383,7 @@ class OurMidiStream : public OurMidiStream_PAR
     PMEV _pmevLim;
     ulong _tsCur;
 
-    OurMidiStream(PFNMIDI pfn, ulong luUser);
+    OurMidiStream(PFNMIDI pfn, DWORD_PTR luUser);
     bool _FInit(void);
 
     virtual bool _FOpen(void);
@@ -383,10 +394,10 @@ class OurMidiStream : public OurMidiStream_PAR
     void _ReleaseBuffers(void);
 
   public:
-    static POurMidiStream PomsNew(PFNMIDI pfn, ulong luUser);
+    static POurMidiStream PomsNew(PFNMIDI pfn, DWORD_PTR luUser);
     ~OurMidiStream(void);
 
-    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, ulong lUserDataa);
+    virtual bool FQueueBuffer(void *pvData, long cb, long ibStart, long cactPlay, DWORD_PTR lUserDataa);
     virtual void StopPlaying(void);
 };
 
