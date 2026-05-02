@@ -44,10 +44,7 @@ bool FAssertProc(schar *f, long l, schar *m, void *, long)
 PTagManager vptagm = pvNil;
 PApplicationBase vpappb = pvNil;
 extern "C" void AppendCrashLog_C(schar *) {}
-bool FReadBitmap(Filename *, uint8_t **, PDynamicArray *, long *, long *, bool *, uint8_t)
-{
-    return fFalse;
-}
+/* FReadBitmap is now in kauai-core (mbmp.cpp). */
 namespace BRender {
 void World::AssertValid(unsigned long) {}
 void World::AddActor(struct br_actor *) {}
