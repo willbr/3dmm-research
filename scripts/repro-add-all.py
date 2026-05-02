@@ -69,16 +69,20 @@ def main():
                 call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"})
             return True
         return False
-    def click_gob(hid, label):
-        g = find(hid)
-        if not g.get("found"):
-            p(f"  gob {hex(hid)} NOT FOUND ({label})"); return False
-        p(f"  click {label} hid={hex(hid)} center=({g['center_x']},{g['center_y']})")
-        call("click", {"x": g["center_x"], "y": g["center_y"], "button":"left"}, timeout=4.0)
-        # Poll dialogs first (worker-direct, works during modals). If a modal
-        # came up from the click, dismiss it before trying wait_ms (which goes
-        # through Drain and would hang while a modal is up).
-        for _ in range(6):
+    def click_gob(hid, label, wait_target=None, wait_mode="visible", wait_timeout_ms=4000, click_mode="positioned"):
+        # Use find_gob (single shot) instead of wait_for_gob here. The pre-
+        # click polling pump cycle interferes with foreground state and the
+        # subsequent SendInput goes nowhere -- empirically the browser only
+        # opens when find_gob is called once before the click, not repeatedly.
+        g = json.loads(text(call("find_gob", {"hid": hid})))
+        if not g.get("found") or g.get("w",0) == 0:
+            p(f"  gob {hex(hid)} NOT READY ({label}): {g}"); return False
+        cx, cy = g["center_x"], g["center_y"]
+        p(f"  click {label} hid={hex(hid)} center=({cx},{cy})")
+        call("click", {"x": cx, "y": cy, "button":"left"}, timeout=4.0)
+        # Catch modals (worker-direct: works even while the GUI thread is
+        # in a modal MessageBox).
+        for _ in range(4):
             d = json.loads(text(call("list_dialogs", timeout=3.0)))
             if d.get("count", 0):
                 p(f"  === DIALOG @ click({label}) ===")
@@ -91,7 +95,18 @@ def main():
                 time.sleep(0.5)
             else:
                 break
-        call("wait_ms", {"ms": 1500}, timeout=4.0)
+        if wait_target is not None:
+            # Give the studio a chunk of wallclock time to process the click's
+            # downstream commands before our Drain-bound wait_for_gob starts
+            # blocking the main loop.
+            time.sleep(2.0)
+            r = json.loads(text(call("wait_for_gob",
+                {"hid": wait_target, "timeout_ms": wait_timeout_ms, "mode": wait_mode})))
+            p(f"  wait_for_gob {hex(wait_target)} mode={wait_mode}: "
+              f"found={r.get('found',False)} visible={r.get('visible',False)} "
+              f"waited={r.get('waited_ms',0)}ms")
+        else:
+            time.sleep(0.8)
         return True
     def key(vk):
         call("key", {"vk": vk})
@@ -104,20 +119,29 @@ def main():
     dialogs("startup")
     shot("00-start")
 
+    # Open the scene browser, then wait for the first browser frame to be
+    # laid out before trying to click it.
+    # Wait targets: kidBrwsBackground=0x2003E (visible when scene browser
+    # opens). After thumbnail pick the browser releases itself; we then wait
+    # for the actors button to be visible again (it always is, but waiting
+    # gives the browser teardown a beat to finish).
     p("\n[1] Scene Choices")
-    if not click_gob(0x20042, "scene-choices"): return
+    if not click_gob(0x20042, "scene-choices", wait_target=0x2003E, wait_mode="visible"): return
     dialogs("after-scene-choices"); shot("01-scene-browser")
 
     p("\n[2] pick first scene thumbnail")
-    if not click_gob(0x21120, "scene-thumb-0"): return
+    # Browser frame uses positioned mode -- rcCur is set after MoveAbsGob
+    # but rcVis only updates on next paint.
+    if not click_gob(0x21120, "scene-thumb-0", click_mode="positioned",
+                     wait_target=0x20075, wait_mode="visible", wait_timeout_ms=6000): return
     dialogs("after-scene-thumb"); shot("02-after-scene-pick")
 
     p("\n[3] Actors")
-    if not click_gob(0x20075, "actors"): return
+    if not click_gob(0x20075, "actors", wait_target=0x2003F, wait_mode="visible"): return
     dialogs("after-actors"); shot("03-actor-browser")
 
     p("\n[4] pick first actor thumbnail")
-    if not click_gob(0x21120, "actor-thumb-0"): return
+    if not click_gob(0x21120, "actor-thumb-0", click_mode="positioned"): return
     dialogs("after-actor-thumb"); shot("04-after-actor-pick")
 
     p("\n[5] 3D Text (Spletters)")
@@ -129,19 +153,19 @@ def main():
     dialogs("after-escape"); shot("06-after-escape")
 
     p("\n[7] Props")
-    if not click_gob(0x20076, "props"): return
+    if not click_gob(0x20076, "props", wait_target=0x20040, wait_mode="visible"): return
     dialogs("after-props"); shot("07-prop-browser")
 
     p("\n[8] pick first prop thumbnail")
-    if not click_gob(0x21120, "prop-thumb-0"): return
+    if not click_gob(0x21120, "prop-thumb-0", click_mode="positioned"): return
     dialogs("after-prop-thumb"); shot("08-after-prop-pick")
 
     p("\n[9] Sound Effects")
-    if not click_gob(0x20078, "sfx"): return
+    if not click_gob(0x20078, "sfx", wait_target=0x20044, wait_mode="visible"): return
     dialogs("after-sfx"); shot("09-sfx-browser")
 
     p("\n[10] pick first sfx thumbnail")
-    if not click_gob(0x21120, "sfx-thumb-0"): return
+    if not click_gob(0x21120, "sfx-thumb-0", click_mode="positioned"): return
     dialogs("after-sfx-thumb"); shot("10-after-sfx-pick")
 
     p("\n[done; killing]")

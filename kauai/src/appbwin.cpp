@@ -53,6 +53,14 @@ void AppendCrashLog(const char *pszCategory, const char *pszBody)
     CloseHandle(hFile);
 }
 
+// C-linkage shim so C-only translation units (e.g. bren/stderr.c) can mirror
+// diagnostic text into the same crash log without seeing the C++-mangled
+// AppendCrashLog symbol. Used by BRender's BrStdioError handler.
+extern "C" void AppendCrashLog_C(const char *pszCategory, const char *pszBody)
+{
+    AppendCrashLog(pszCategory, pszBody);
+}
+
 /***************************************************************************
     WinMain for any frame work app. Sets up vwig and calls FrameMain.
 ***************************************************************************/
