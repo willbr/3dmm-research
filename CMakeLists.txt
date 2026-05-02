@@ -185,6 +185,20 @@ target_link_options(extract-bmdl
   BEFORE PRIVATE
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
 
+# inspect-chunks: generic reflection / debug walker for 3DMM chunky
+# files. Lists chunks, walks the parent->child graph, dumps unpacked
+# bytes by (ctg, cno). Used to map TMPL graphs before writing actor
+# loaders. Same kauai-bootstrap setup as extract-bmdl.
+add_executable(inspect-chunks EXCLUDE_FROM_ALL)
+target_sources(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/inspect_chunks.cpp")
+target_include_directories(inspect-chunks
+  PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
+  "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(inspect-chunks PRIVATE engine)
+target_link_options(inspect-chunks
+  BEFORE PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+
 
 # Chunk Editor
 add_executable(ched WIN32 EXCLUDE_FROM_ALL)
