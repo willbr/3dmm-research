@@ -192,18 +192,84 @@ br_fixed_ls BrFixedRLength4(br_fixed_ls a, br_fixed_ls b, br_fixed_ls c, br_fixe
     return (br_fixed_ls)((double)((int64_t)BR_FIXED_ONE * BR_FIXED_ONE) / len);
 }
 
-/* Trig: BAM angles wrap at 0x10000 = 2*PI. The asm uses a precomputed sine
- * table; the portable version uses libm sin/cos. */
+/* Sin/cos via the same lookup table the asm uses (extracted byte-for-byte
+ * from fw/fixed386.asm's `sin_table` / `cos_table` data block, which is
+ * one contiguous 322-entry int16 array; sin_table starts at offset 0,
+ * cos_table at offset 64 -- the cos = sin(theta + pi/2) shift).
+ *
+ * Replacing the previous libm-based fallback was load-bearing for x64
+ * actor rendering: the libm version diverged from the asm by a few LSBs
+ * at most angles, which was enough to flip per-pixel z-test ties at
+ * overlap boundaries between separately-transformed actors -- the
+ * "hair over face / arms over body" symptom the user reported. The
+ * tests/golden/props-overlap scene reproduces it (5 intersecting real
+ * 3DMM props in distinct colours; 68 pixels swap colour at the overlap
+ * boundary with libm sin/cos, 0 pixels with this LUT). */
+static const int16_t g_sin_lut[322] = {
+    0x0000, 0x0324, 0x0647, 0x096A, 0x0C8B, 0x0FAB, 0x12C7, 0x15E1, 0x18F8, 0x1C0B, 0x1F19, 0x2223, 0x2527, 0x2826,
+    0x2B1E, 0x2E10, 0x30FB, 0x33DE, 0x36B9, 0x398C, 0x3C56, 0x3F16, 0x41CD, 0x447A, 0x471C, 0x49B3, 0x4C3F, 0x4EBF,
+    0x5133, 0x539A, 0x55F4, 0x5842, 0x5A81, 0x5CB3, 0x5ED6, 0x60EB, 0x62F1, 0x64E7, 0x66CE, 0x68A5, 0x6A6C, 0x6C23,
+    0x6DC9, 0x6F5E, 0x70E1, 0x7254, 0x73B5, 0x7503, 0x7640, 0x776B, 0x7883, 0x7989, 0x7A7C, 0x7B5C, 0x7C29, 0x7CE2,
+    0x7D89, 0x7E1C, 0x7E9C, 0x7F08, 0x7F61, 0x7FA6, 0x7FD7, 0x7FF5, 0x7FFF, 0x7FF5, 0x7FD7, 0x7FA6, 0x7F61, 0x7F08,
+    0x7E9C, 0x7E1C, 0x7D89, 0x7CE2, 0x7C29, 0x7B5C, 0x7A7C, 0x7989, 0x7883, 0x776B, 0x7640, 0x7503, 0x73B5, 0x7254,
+    0x70E1, 0x6F5E, 0x6DC9, 0x6C23, 0x6A6C, 0x68A5, 0x66CE, 0x64E7, 0x62F1, 0x60EB, 0x5ED6, 0x5CB3, 0x5A81, 0x5842,
+    0x55F4, 0x539A, 0x5133, 0x4EBF, 0x4C3F, 0x49B3, 0x471C, 0x447A, 0x41CD, 0x3F16, 0x3C56, 0x398C, 0x36B9, 0x33DE,
+    0x30FB, 0x2E10, 0x2B1E, 0x2826, 0x2527, 0x2223, 0x1F19, 0x1C0B, 0x18F8, 0x15E1, 0x12C7, 0x0FAB, 0x0C8B, 0x096A,
+    0x0647, 0x0324,
+    /* second half (negative) */
+    0x0000, (int16_t)0xFCDC, (int16_t)0xF9B9, (int16_t)0xF696, (int16_t)0xF375, (int16_t)0xF055, (int16_t)0xED39,
+    (int16_t)0xEA1F, (int16_t)0xE708, (int16_t)0xE3F5, (int16_t)0xE0E7, (int16_t)0xDDDD, (int16_t)0xDAD9, (int16_t)0xD7DA,
+    (int16_t)0xD4E2, (int16_t)0xD1F0, (int16_t)0xCF05, (int16_t)0xCC22, (int16_t)0xC947, (int16_t)0xC674, (int16_t)0xC3AA,
+    (int16_t)0xC0EA, (int16_t)0xBE33, (int16_t)0xBB86, (int16_t)0xB8E4, (int16_t)0xB64D, (int16_t)0xB3C1, (int16_t)0xB141,
+    (int16_t)0xAECD, (int16_t)0xAC66, (int16_t)0xAA0C, (int16_t)0xA7BE, (int16_t)0xA57F, (int16_t)0xA34D, (int16_t)0xA12A,
+    (int16_t)0x9F15, (int16_t)0x9D0F, (int16_t)0x9B19, (int16_t)0x9932, (int16_t)0x975B, (int16_t)0x9594, (int16_t)0x93DD,
+    (int16_t)0x9237, (int16_t)0x90A2, (int16_t)0x8F1F, (int16_t)0x8DAC, (int16_t)0x8C4B, (int16_t)0x8AFD, (int16_t)0x89C0,
+    (int16_t)0x8895, (int16_t)0x877D, (int16_t)0x8677, (int16_t)0x8584, (int16_t)0x84A4, (int16_t)0x83D7, (int16_t)0x831E,
+    (int16_t)0x8277, (int16_t)0x81E4, (int16_t)0x8164, (int16_t)0x80F8, (int16_t)0x809F, (int16_t)0x805A, (int16_t)0x8029,
+    (int16_t)0x800B, (int16_t)0x8001, (int16_t)0x800B, (int16_t)0x8029, (int16_t)0x805A, (int16_t)0x809F, (int16_t)0x80F8,
+    (int16_t)0x8164, (int16_t)0x81E4, (int16_t)0x8277, (int16_t)0x831E, (int16_t)0x83D7, (int16_t)0x84A4, (int16_t)0x8584,
+    (int16_t)0x8677, (int16_t)0x877D, (int16_t)0x8895, (int16_t)0x89C0, (int16_t)0x8AFD, (int16_t)0x8C4B, (int16_t)0x8DAC,
+    (int16_t)0x8F1F, (int16_t)0x90A2, (int16_t)0x9237, (int16_t)0x93DD, (int16_t)0x9594, (int16_t)0x975B, (int16_t)0x9932,
+    (int16_t)0x9B19, (int16_t)0x9D0F, (int16_t)0x9F15, (int16_t)0xA12A, (int16_t)0xA34D, (int16_t)0xA57F, (int16_t)0xA7BE,
+    (int16_t)0xAA0C, (int16_t)0xAC66, (int16_t)0xAECD, (int16_t)0xB141, (int16_t)0xB3C1, (int16_t)0xB64D, (int16_t)0xB8E4,
+    (int16_t)0xBB86, (int16_t)0xBE33, (int16_t)0xC0EA, (int16_t)0xC3AA, (int16_t)0xC674, (int16_t)0xC947, (int16_t)0xCC22,
+    (int16_t)0xCF05, (int16_t)0xD1F0, (int16_t)0xD4E2, (int16_t)0xD7DA, (int16_t)0xDAD9, (int16_t)0xDDDD, (int16_t)0xE0E7,
+    (int16_t)0xE3F5, (int16_t)0xE708, (int16_t)0xEA1F, (int16_t)0xED39, (int16_t)0xF055, (int16_t)0xF375, (int16_t)0xF696,
+    (int16_t)0xF9B9, (int16_t)0xFCDC,
+    /* one quarter wave wrapping */
+    0x0000, 0x0324, 0x0647, 0x096A, 0x0C8B, 0x0FAB, 0x12C7, 0x15E1, 0x18F8, 0x1C0B, 0x1F19, 0x2223, 0x2527, 0x2826,
+    0x2B1E, 0x2E10, 0x30FB, 0x33DE, 0x36B9, 0x398C, 0x3C56, 0x3F16, 0x41CD, 0x447A, 0x471C, 0x49B3, 0x4C3F, 0x4EBF,
+    0x5133, 0x539A, 0x55F4, 0x5842, 0x5A81, 0x5CB3, 0x5ED6, 0x60EB, 0x62F1, 0x64E7, 0x66CE, 0x68A5, 0x6A6C, 0x6C23,
+    0x6DC9, 0x6F5E, 0x70E1, 0x7254, 0x73B5, 0x7503, 0x7640, 0x776B, 0x7883, 0x7989, 0x7A7C, 0x7B5C, 0x7C29, 0x7CE2,
+    0x7D89, 0x7E1C, 0x7E9C, 0x7F08, 0x7F61, 0x7FA6, 0x7FD7, 0x7FF5, 0x7FFF, 0x7FFF,
+};
+
+/* Replicates the asm INTERP_FUNCTION sequence on the LUT: high byte of
+ * input is the table index, low byte is the linear-interp fraction. The
+ * raw 16-bit value at the chosen lerp position is sign-extended and
+ * doubled to land in 16.16 fixed (the asm's `cwde; add eax, eax` tail). */
+static br_fixed_ls sincos_lookup(br_angle input, int table_offset)
+{
+    int high = (input >> 8) & 0xFF;
+    int low = input & 0xFF;
+    int idx = high + table_offset;
+    int16_t base = g_sin_lut[idx];
+    int16_t next = g_sin_lut[idx + 1];
+    int16_t delta = (int16_t)(next - base); /* may wrap; matches asm 16-bit sub */
+    int product = low * (int)delta;
+    int16_t interp = (int16_t)(product >> 8); /* asm grabs bits 8..23 of dx:ax */
+    int16_t sum = (int16_t)(base + interp);
+    return ((br_fixed_ls)sum) << 1;
+}
+
 br_fixed_ls BrFixedSin(br_angle input)
 {
-    double rad = (double)input * (2.0 * BR_PI / 65536.0);
-    return (br_fixed_ls)(sin(rad) * BR_FIXED_ONE);
+    return sincos_lookup(input, 0);
 }
 
 br_fixed_ls BrFixedCos(br_angle input)
 {
-    double rad = (double)input * (2.0 * BR_PI / 65536.0);
-    return (br_fixed_ls)(cos(rad) * BR_FIXED_ONE);
+    return sincos_lookup(input, 64); /* cos_table is sin_table shifted 1/4 wave (64 entries) */
 }
 
 br_angle BrFixedASin(br_fixed_ls input)
