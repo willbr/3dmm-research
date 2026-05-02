@@ -263,6 +263,47 @@ static void scene_cube_faces(void)
     TriangleRenderPIZ2TIA(&v[1], &v[2], &v[3]);
 }
 
+/* Single triangle whose vertices have THREE different z values, so the
+ * per-pixel z interpolation actually does something. Previous trapezoid
+ * tests all had constant z per face, leaving per-pixel z interp
+ * unverified. The asm uses pz.grad_x added per pixel and pz.d_carry/
+ * d_nocarry per scanline; if either is mishandled the pgm diverges. */
+static void scene_tri_tilted_z(void)
+{
+    struct temp_vertex_fixed a, b, c;
+    /* Wide z range: near (0x1000) at apex, far (0xE000) at bottom-left,
+     * mid (0x7000) at bottom-right. UVs vary too so the texture sampling
+     * also exercises a slope. */
+    mkv_uv(&a, 128, 32, 0x1000, 220, 0, 0);
+    mkv_uv(&b, 32, 224, 0xE000, 200, 0, (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&c, 224, 224, 0x7000, 120, (br_fixed_ls)TEX_W << 16, (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&a, &b, &c);
+}
+
+/* Two overlapping triangles where the SECOND triangle has a per-pixel
+ * z gradient that crosses the first triangle's constant z at the
+ * overlap region. The z-buffer should split the overlap so pixels
+ * closer than the first show the second, pixels farther stay first.
+ * If z interp is off by even a small amount the split line moves and
+ * the pgm diverges. Mirrors the actor case where hair (varying z) and
+ * face (varying z) overlap. */
+static void scene_tilted_overlap(void)
+{
+    struct temp_vertex_fixed a1, b1, c1;
+    struct temp_vertex_fixed a2, b2, c2;
+    /* First triangle: constant z = 0x6000 (mid-far), full screen. */
+    mkv_uv(&a1, 32, 32, 0x6000, 200, 0, 0);
+    mkv_uv(&b1, 224, 32, 0x6000, 200, (br_fixed_ls)TEX_W << 16, 0);
+    mkv_uv(&c1, 128, 224, 0x6000, 200, (br_fixed_ls)TEX_W / 2 << 16, (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&a1, &b1, &c1);
+    /* Second triangle: tilted z from 0x2000 (closer than #1) at apex to
+     * 0xA000 (farther than #1) at bottom. Crosses #1's z partway down. */
+    mkv_uv(&a2, 128, 64, 0x2000, 100, 0, 0);
+    mkv_uv(&b2, 64, 200, 0xA000, 100, 0, (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&c2, 192, 200, 0xA000, 100, (br_fixed_ls)TEX_W << 16, (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&a2, &b2, &c2);
+}
+
 /* Unit test for BrFixedFMac3 -- the FMac variants are 1.15-fraction *
  * 16.16-fixed accumulators (`movsx + imul + shrd 15` in the asm; the C
  * fallback shifts by 15 too -- a previous off-by-one shift of 16 was
@@ -327,6 +368,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "usage: %s <scene> <output.pgm|.txt>\n", argv[0]);
         fprintf(stderr, "scenes: tri-piz2i, tri-piz2tia, tri-piz2tia-rev,\n"
                         "        quad-cw, quad-ccw, tri-thin-vert, tri-thin-horz, cube-faces,\n"
+                        "        tri-tilted-z, tilted-overlap,\n"
                         "        fmac (writes .txt unit-test output -- not a PGM)\n");
         return 2;
     }
@@ -357,6 +399,10 @@ int main(int argc, char **argv)
         scene_tri_thin_horizontal();
     else if (strcmp(scene, "cube-faces") == 0)
         scene_cube_faces();
+    else if (strcmp(scene, "tri-tilted-z") == 0)
+        scene_tri_tilted_z();
+    else if (strcmp(scene, "tilted-overlap") == 0)
+        scene_tilted_overlap();
     else
     {
         fprintf(stderr, "unknown scene: %s\n", scene);
