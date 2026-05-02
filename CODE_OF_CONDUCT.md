@@ -1,9 +1,17 @@
-# Microsoft Open Source Code of Conduct
+**Personal Code of Ethics**
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+**Principles**
 
-Resources:
+1. Tell the truth, especially to yourself.  
+2. Own your losses. No excuses.  
+3. Do no harm.  
+4. Cut drama, noise, and bullshit.  
+5. Ruthlessly remove complexity and fragility.  
+6. Get stronger under stress.  
+7. Do the work properly — clean and correct.  
+8. Think from first principles. Stay curious.  
+9. Resist power. Stay humble. Question everything.
 
-- [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/)
-- [Microsoft Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
-- Contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with questions or concerns
+**Mandate**  
+Live honorably. Risk for what matters. Speak plainly. Build well.
+
