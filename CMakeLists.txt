@@ -267,6 +267,81 @@ if (SOC_X86)
 endif()
 
 add_compile_options($<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/wd4430>)
+# --- kauai-core: chunky-file/file/utility runtime, no UI dependencies ---
+#
+# The split exists so CLI tools (extract-bmdl, inspect-chunks, future
+# extract-tmpl etc.) and headless test harnesses can link against just
+# the chunk reader/writer + container + util layer without dragging in
+# WinMain bootstrap, Win32 windowing, MIDI, sound, kidspace, etc.
+#
+# Boundary rule: a file goes in kauai-core iff its .cpp does not
+# reference any UI class (GraphicsObject, GraphicsPort, Application,
+# Cursor, Clipboard, MenuBar, DocumentBase, ...) AND can compile
+# without frame.h being available transitively. chcm.cpp (the chunky-
+# source compiler used by the chomp build tool) embeds GUI-typed
+# parsers (GraphicsObjectCompiler, cursor parsing) and stays in the
+# kauai (gui) target.
+#
+# kauai (the GUI lib) PUBLIC-depends on kauai-core, so existing
+# consumers (studio, ched, ft, ut, ...) see every symbol they used
+# to via the same `target_link_libraries(... kauai)` calls.
+add_library(kauai-core)
+target_include_directories(
+  kauai-core
+    PUBLIC
+      "${PROJECT_SOURCE_DIR}/kauai/src"
+      "$<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/generated/kauai/src>")
+
+target_sources(kauai-core
+  PRIVATE
+    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h>
+    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h>
+
+    "${PROJECT_SOURCE_DIR}/kauai/src/base.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/chse.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/chunk.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/codec.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/codkauai.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/crf.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/file.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/groups.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/scrcom.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/screxe.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/stream.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/util.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilcopy.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilerro.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilglob.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilint.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilmem.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilrnd.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/utilstr.cpp"
+
+    # Windows-specific I/O / memory implementations -- still core, just
+    # split per-OS the same way the file-API splits filewin/filemac.
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/filewin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/fniwin.cpp>
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/memwin.cpp>
+
+    # Stubs for Visual C++ 2.1 CRT functions
+    "${PROJECT_SOURCE_DIR}/kauai/src/stub.cpp"
+)
+
+target_compile_definitions(kauai-core PUBLIC
+  _LPCVOID_DEFINED
+  STRICT)
+
+# kauai-core needs Win32 (for filewin/memwin/fniwin) but NOT the multimedia
+# libs (Msacm32/Vfw32/Winmm) -- those are gui-only and stay on the kauai
+# target below.
+target_link_libraries(kauai-core
+  PUBLIC
+    $<$<PLATFORM_ID:Windows>:mpr>)
+
+# --- kauai (gui umbrella): everything else, transitively re-exports core ---
 add_library(kauai)
 target_include_directories(
   kauai
@@ -276,77 +351,46 @@ target_include_directories(
 
 target_sources(kauai
   PRIVATE
-    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcdc_386.h>
-    $<$<BOOL:${SOC_X86}>:${PROJECT_BINARY_DIR}/generated/kauai/src/kcd2_386.h>
-
     "${PROJECT_SOURCE_DIR}/kauai/src/appb.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/base.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/chcm.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/chse.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/chunk.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/clip.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/codec.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/codkauai.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/crf.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/ctl.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/dlg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/docb.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/file.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/frame.rc"
     "${PROJECT_SOURCE_DIR}/kauai/src/gfx.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/gob.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/groups.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidhelp.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidspace.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidworld.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mbmp.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mbmpgui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/pic.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/region.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt2.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/scrcom.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcomg.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/screxe.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxeg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/sndam.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/sndm.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/spell.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/stream.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/textdoc.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/util.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilcopy.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilerro.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilglob.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilint.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilmem.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilrnd.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/utilstr.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/video.cpp"
 
-    # Windows implementations
+    # Windows GUI implementations
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/appbwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/dlgwin.cpp>
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/filewin.cpp>
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/fniwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/gfxwin.cpp>
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/memwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/menuwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/picwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/gobwin.cpp>
-
-    # Stubs for Visual C++ 2.1 CRT functions
-    "${PROJECT_SOURCE_DIR}/kauai/src/stub.cpp"   
 )
 
 target_compile_definitions(kauai PUBLIC
@@ -355,6 +399,7 @@ target_compile_definitions(kauai PUBLIC
 
 target_link_libraries(kauai
   PUBLIC
+    kauai-core
     3DMMForever::AudioMan
     $<$<PLATFORM_ID:Windows>:Msacm32>
     $<$<PLATFORM_ID:Windows>:Vfw32>
