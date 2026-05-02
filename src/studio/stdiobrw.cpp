@@ -420,20 +420,26 @@ void BrowserBackground::_ApplySelection(long thumSelect, long sid)
 {
     AssertThis(0);
 
-    TAG tag;
     Command cmd;
     PMovieView pmvu;
-
-    tag.sid = sid;
-    tag.pcrf = pvNil;
-    tag.ctg = kctgBkgd;
-    tag.cno = (ChunkNumber)thumSelect;
 
     ClearPb(&cmd, size(cmd));
     cmd.cid = cidNewScene;
     cmd.pcmh = _pstdio;
-    Assert(size(TAG) <= size(cmd.rglw), "Insufficient space in rglw");
-    *((PTAG)&cmd.rglw) = tag;
+    // Pack the 16-byte on-disk TAG form into rglw rather than the runtime
+    // TAG. On x64, sizeof(TAG)=24 (pcrf is an 8-byte pointer plus 4 bytes of
+    // alignment padding) which overflows rglw[4]=16 bytes -- the original
+    // *((PTAG)&cmd.rglw) = tag write was clobbering the next stack local
+    // (pmvu). pcrf is always nil on this path, so transmit only sid/ctg/cno
+    // via TAGOnFile; FCmdNewScene reconstructs the runtime TAG with
+    // pcrf=pvNil on receipt.
+    static_assert(sizeof(TAGOnFile) <= sizeof(cmd.rglw), "TAGOnFile must fit in cmd.rglw");
+    TAGOnFile tof;
+    tof.sid = (int32_t)sid;
+    tof._pcrfPad = 0;
+    tof.ctg = (uint32_t)kctgBkgd;
+    tof.cno = (uint32_t)thumSelect;
+    *((TAGOnFile *)&cmd.rglw) = tof;
 
     vpcex->EnqueueCmd(&cmd);
 

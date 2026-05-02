@@ -849,7 +849,13 @@ bool Studio::FCmdNewScene(PCommand pcmd)
 
     vapp.BeginLongOp();
 
-    tag = *((PTAG)(pcmd->rglw));
+    // BrowserBackground::_ApplySelection packs the picked scene's tag as
+    // TAGOnFile (16 bytes) into pcmd->rglw with pcrf elided. Reconstruct the
+    // runtime TAG here. We can't just cast via PTAG because on x64 TAG is 24
+    // bytes (pcrf is an 8-byte pointer plus 4 bytes of alignment padding)
+    // and rglw is only 16 bytes -- the cast would read 8 bytes of garbage
+    // off the end. See stdiobrw.cpp:_ApplySelection for the matching pack.
+    TagFromOnFile(&tag, *(TAGOnFile *)(pcmd->rglw));
 
     if (pvNil != _pmvie)
     {
