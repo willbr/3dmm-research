@@ -131,7 +131,9 @@ add_executable(codec-test EXCLUDE_FROM_ALL)
 target_sources(codec-test PRIVATE
     "${PROJECT_SOURCE_DIR}/tests/codec_test.cpp"
 )
-target_link_libraries(codec-test PRIVATE kauai)
+# Pure unit test (KauaiCodec encode+decode round-trip). Links
+# kauai-core only -- runs on x64 today.
+target_link_libraries(codec-test PRIVATE kauai-core)
 
 # Actor render test that calls the REAL engine loaders (Template::
 # FReadTmpl, PbodyCreate, FSetActnCel) instead of re-implementing
