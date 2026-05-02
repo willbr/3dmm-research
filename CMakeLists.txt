@@ -131,6 +131,28 @@ target_sources(codec-test PRIVATE
 )
 target_link_libraries(codec-test PRIVATE kauai)
 
+# Direct-drive harness for the BRender ZB scan-converters. Calls the
+# asm-only triangle/trapezoid renderers via the global zb state, dumps
+# the colour buffer to a PGM file. On x86 the asm path runs; on x64 the
+# C-fallback path runs. The bitmaps are diff-compared during the
+# 2026-05-01-brender-x64-enablement port. EXCLUDE_FROM_ALL: explicit
+# `cmake --build build --target bren-rasterizer-test`.
+add_executable(bren-rasterizer-test EXCLUDE_FROM_ALL)
+target_sources(bren-rasterizer-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/tests/bren_rasterizer_test.cpp"
+)
+target_include_directories(bren-rasterizer-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/bren/lib/zb"
+    "${PROJECT_SOURCE_DIR}/bren/lib/fw"
+)
+target_link_libraries(bren-rasterizer-test PRIVATE BRender::Libraries)
+target_compile_definitions(bren-rasterizer-test PRIVATE BASED_FIXED=1)
+if (MSVC)
+  # Match brender_zb's /Zp4 packing so struct layouts agree on both x86
+  # and x64. Without this the test sees padding that the lib doesn't.
+  target_compile_options(bren-rasterizer-test PRIVATE /Zp4 /wd4244)
+endif()
+
 add_executable(chomp EXCLUDE_FROM_ALL)
 target_sources(chomp PRIVATE "${PROJECT_SOURCE_DIR}/kauai/tools/chomp.cpp")
 target_include_directories(chomp PRIVATE $<TARGET_PROPERTY:kauai,INCLUDE_DIRECTORIES>)
