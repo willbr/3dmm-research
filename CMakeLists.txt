@@ -133,6 +133,17 @@ target_sources(codec-test PRIVATE
 )
 target_link_libraries(codec-test PRIVATE kauai)
 
+# Actor render test that calls the REAL engine loaders (Template::
+# FReadTmpl, PbodyCreate, FSetActnCel) instead of re-implementing
+# the binding (CelPartSpec, GLBS, GGCM, CMTL graph) by hand. Links
+# engine-core only -- not the full engine playback runtime -- so it
+# can run on x64 once the actor render path is wired in.
+add_executable(actor-render-test EXCLUDE_FROM_ALL)
+target_sources(actor-render-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/tests/actor_render_test.cpp"
+)
+target_link_libraries(actor-render-test PRIVATE engine-core)
+
 # Direct-drive harness for the BRender ZB scan-converters. Calls the
 # asm-only triangle/trapezoid renderers via the global zb state, dumps
 # the colour buffer to a PGM file. On x86 the asm path runs; on x64 the
