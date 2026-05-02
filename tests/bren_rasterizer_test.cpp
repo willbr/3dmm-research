@@ -988,16 +988,17 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
     shade.height = 256;
     BrTableAdd(&shade);
 
-    static const uint8_t part_colours[2] = { 100, 200 };
-    static uint8_t solid_pixels[2];
-    static br_pixelmap solid_pms[2];
+    /* Use the 32x32 checker texture (g_tex / g_tex_pm, set up by
+     * init_material) so the BMDL's UV-mapped sampling actually shows.
+     * Without a real texture, every texel was the (0,0) pixel of a
+     * 1x1 solid pixmap, painting the model a uniform colour blob. */
+    init_material();
+    BrMapAdd(&g_tex_pm);
     static br_material *mats[2];
     for (int i = 0; i < 2; i++)
     {
-        solid_pms[i] = make_solid_pixmap(&solid_pixels[i], part_colours[i]);
-        BrMapAdd(&solid_pms[i]);
         mats[i] = BrMaterialAllocate((char *)"part-mat");
-        mats[i]->colour_map = &solid_pms[i];
+        mats[i]->colour_map = &g_tex_pm;
         mats[i]->index_shade = &shade;
         mats[i]->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
         mats[i]->ka = BR_UFRACTION(0.20);
@@ -1066,16 +1067,13 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
     fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
     fclose(f);
 
-    /* Histogram so the diff is human-readable. */
-    long hist[3] = { 0 };
+    /* The render is now textured, so a per-colour histogram isn't
+     * meaningful. Instead just split background vs lit. */
+    long lit = 0, bg = 0;
     uint8_t *p = (uint8_t *)colour->pixels;
     for (int i = 0; i < WIDTH * HEIGHT; i++)
-    {
-        if (p[i] == 0) { hist[2]++; continue; }
-        if (p[i] == part_colours[0]) hist[0]++;
-        else if (p[i] == part_colours[1]) hist[1]++;
-    }
-    fprintf(stderr, "actor-tmpl1020 histogram: part0=%ld part1=%ld bg=%ld\n", hist[0], hist[1], hist[2]);
+        if (p[i] == 0) bg++; else lit++;
+    fprintf(stderr, "actor-tmpl1020 lit=%ld bg=%ld\n", lit, bg);
 
     BrZbEnd();
     BrEnd();
