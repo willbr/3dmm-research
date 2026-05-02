@@ -316,6 +316,11 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
+    # pic.cpp (Picture wraps Win MetaFile / Mac Pict). pic itself is
+    # platform-agnostic; the platform-specific HENHMETAFILE/HPIC
+    # surface lives in picwin.cpp.
+    "${PROJECT_SOURCE_DIR}/kauai/src/pic.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/picwin.cpp>
     # region.cpp (geometric Region/RegionScanner) + regionwin.cpp
     # (the HRGN GDI-wrapper helpers region.cpp calls into -- extracted
     # from gfxwin.cpp so they don't drag in the rest of the gfx layer).
@@ -390,7 +395,6 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/pic.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcomg.cpp"
@@ -406,7 +410,6 @@ target_sources(kauai
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/dlgwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/gfxwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/menuwin.cpp>
-    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/picwin.cpp>
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/gobwin.cpp>
 )
 
