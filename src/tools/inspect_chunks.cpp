@@ -22,19 +22,21 @@
  * satisfied without dragging in studio/MCP. EXCLUDE_FROM_ALL.
  */
 
-#include "frame.h"
-#include "soc.h"
+#include "kauai_core.h"
 #include <ctype.h>
 
 ASSERTNAME
 
-void __cdecl FrameMain(void)
+/* CLI-only stubs of kauai's assertion callbacks. See extract_bmdl.cpp
+ * for rationale -- print to stderr instead of popping a dialog. */
+void WarnProc(schar *pszsFile, long lwLine, schar *pszsMsg)
 {
+    fprintf(stderr, "WARN %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
 }
-
-extern "C" int Mcp_FEnabledFromCmdLine(const char *)
+bool FAssertProc(schar *pszsFile, long lwLine, schar *pszsMsg, void *, long)
 {
-    return 0;
+    fprintf(stderr, "ASSERT %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+    return false;
 }
 
 /* Pack a 4-char tag string ("TMPL") into a ChunkTagOrType (0x544D504C).
