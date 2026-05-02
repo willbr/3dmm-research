@@ -1140,6 +1140,140 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
     return 0;
 }
 
+/* Generic multi-part actor renderer. Takes a list of BMDL file paths
+ * and one TMAP file path. Renders each BMDL as its own actor, laid
+ * out in a square grid so all parts are visible without overlap. All
+ * parts share the supplied texture as their colour_map -- no per-part
+ * material binding yet (would need to parse the CMTL graph).
+ *
+ * The grid layout puts parts at roughly equal spacing; the camera is
+ * pulled back enough to fit them all. This is a "prove the textured
+ * multi-mesh path works at character scale" test, not a real
+ * rest-pose render. */
+static int run_actor_grid(const char *out_path, const char *tmap_path, int n_bmdls, const char **bmdl_paths)
+{
+    BrBegin();
+
+    br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+    br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+    if (!colour || !depth) { fprintf(stderr, "pixmap alloc failed\n"); return 1; }
+    BrPixelmapFill(colour, 0);
+    BrPixelmapFill(depth, 0xFFFF);
+
+    BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+    static br_pixelmap shade;
+    shade.identifier = (char *)"id-shade";
+    shade.pixels = g_shade_id;
+    shade.row_bytes = 256;
+    shade.type = BR_PMT_INDEX_8;
+    shade.width = 256;
+    shade.height = 256;
+    BrTableAdd(&shade);
+
+    br_pixelmap *tex_pm = load_tmap_from_file(tmap_path);
+    if (!tex_pm) return 1;
+    BrMapAdd(tex_pm);
+
+    br_material *mat = BrMaterialAllocate((char *)"part-mat");
+    mat->colour_map = tex_pm;
+    mat->index_shade = &shade;
+    mat->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
+    mat->ka = BR_UFRACTION(0.20);
+    mat->kd = BR_UFRACTION(0.80);
+    mat->ks = BR_UFRACTION(0.00);
+    mat->opacity = 0xFF;
+    mat->index_base = 0;
+    mat->index_range = 255;
+    BrMaterialAdd(mat);
+
+    /* Load every BMDL and find the largest radius for camera framing. */
+    br_model **parts = (br_model **)calloc(n_bmdls, sizeof(br_model *));
+    float max_radius = 0;
+    int loaded = 0;
+    for (int i = 0; i < n_bmdls; i++)
+    {
+        parts[i] = load_bmdl_from_file(bmdl_paths[i]);
+        if (!parts[i]) continue;
+        BrModelAdd(parts[i]);
+        BrModelUpdate(parts[i], BR_MODU_ALL);
+        float r = BrScalarToFloat(parts[i]->radius);
+        if (r > max_radius) max_radius = r;
+        loaded++;
+    }
+    if (loaded == 0) { fprintf(stderr, "no BMDLs loaded\n"); return 1; }
+    if (max_radius < 0.5f) max_radius = 1.0f;
+    if (max_radius > 100.0f) max_radius = 100.0f;
+    fprintf(stderr, "loaded %d/%d BMDLs, max radius=%.3f\n", loaded, n_bmdls, max_radius);
+
+    /* Square grid: ceil(sqrt(n)) per side. Each cell sized to fit one
+     * radius with a bit of breathing room. */
+    int cells = 1;
+    while (cells * cells < n_bmdls) cells++;
+    float cell_size = max_radius * 2.5f;
+    float total_size = cells * cell_size;
+
+    br_actor *world = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+    static br_camera cam_data;
+    cam_data.identifier = (char *)"cam";
+    cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+    cam_data.field_of_view = BR_ANGLE_DEG(45);
+    cam_data.hither_z = BR_SCALAR(0.1);
+    cam_data.yon_z = BR_SCALAR(1000.0);
+    cam_data.aspect = BR_SCALAR(1.0);
+    br_actor *cam = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+    /* Distance such that total_size fits in the 45deg FoV. */
+    BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(total_size * 1.4));
+
+    static br_light light_data;
+    light_data.identifier = (char *)"l";
+    light_data.type = BR_LIGHT_DIRECT;
+    light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+    light_data.attenuation_c = BR_SCALAR(1);
+    br_actor *light = BrActorAdd(world, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+    BrLightEnable(light);
+
+    /* Place each part at its grid cell, centered on origin. */
+    float origin_offset = -((cells - 1) * cell_size) * 0.5f;
+    int slot = 0;
+    for (int i = 0; i < n_bmdls; i++)
+    {
+        if (!parts[i]) continue;
+        int row = slot / cells;
+        int col = slot % cells;
+        slot++;
+        br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
+        a->model = parts[i];
+        a->material = mat;
+        a->t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Identity(&a->t.t.mat);
+        a->t.t.mat.m[3][0] = BR_SCALAR(origin_offset + col * cell_size);
+        a->t.t.mat.m[3][1] = BR_SCALAR(origin_offset + row * cell_size);
+        a->t.t.mat.m[3][2] = BR_SCALAR(0);
+    }
+
+    BrZbSceneRender(world, cam, colour, depth);
+
+    FILE *f = fopen(out_path, "wb");
+    if (!f) { perror(out_path); return 1; }
+    fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+    fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+    fclose(f);
+
+    long lit = 0;
+    uint8_t *p = (uint8_t *)colour->pixels;
+    for (int i = 0; i < WIDTH * HEIGHT; i++) if (p[i] != 0) lit++;
+    fprintf(stderr, "actor-grid lit=%ld bg=%ld parts=%d\n", lit, (long)WIDTH * HEIGHT - lit, loaded);
+
+    BrZbEnd();
+    BrEnd();
+    free(parts);
+    printf("ok: actor-grid -> %s\n", out_path);
+    return 0;
+}
+
 /* Render the cube N times into a single image, each instance translated
  * to its tile and rotated to a different yaw angle. Output bitmap is
  * the colour buffer. */
@@ -1337,6 +1471,21 @@ int main(int argc, char **argv)
         }
         init_buffers();
         return run_actor_tmpl1020(argv[2], argv[3], argv[4], argc >= 6 ? argv[5] : NULL);
+    }
+
+    /* actor-grid <out> <tmap> <bmdl1> [bmdl2 ...]
+     *   Render N body-part BMDLs in a square grid, all sharing one
+     *   TMAP texture. Visualises an entire character template's
+     *   geometry without needing the CMTL/MTRL/transform graph. */
+    if (strcmp(argv[1], "actor-grid") == 0)
+    {
+        if (argc < 5)
+        {
+            fprintf(stderr, "actor-grid requires <out.pgm> <tmap.bin> <bmdl1.bin> [bmdl2.bin ...]\n");
+            return 2;
+        }
+        init_buffers();
+        return run_actor_grid(argv[2], argv[3], argc - 4, (const char **)&argv[4]);
     }
 
     init_buffers();
