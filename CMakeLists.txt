@@ -330,6 +330,10 @@ target_sources(kauai-core
     # target via the GuiCommandExecutionManager subclass + cmd_hooks
     # seam. See docs/superpowers/plans/2026-05-02-cmd-core-split.md.
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd_core.cpp"
+    # clok: Clock class is a CommandHandler subclass. After the
+    # cmd_core split it has no UI deps; promoted to kauai-core in
+    # Task 5 of the plan.
+    "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/crf.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/file.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/groups.cpp"
@@ -403,7 +407,6 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/appb.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/chcm.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/clip.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd_gui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/ctl.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor.cpp"

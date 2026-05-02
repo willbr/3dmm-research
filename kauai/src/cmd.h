@@ -397,4 +397,10 @@ class GuiCommandExecutionManager : public GuiCommandExecutionManager_PAR
     virtual void SetModalGob(PGraphicsObject pgob) override;
 };
 
+/* The global command dispatcher. Defined in kauai/src/appb.cpp
+   (gui appb._FInit instantiates a GuiCommandExecutionManager and
+   stores it here). Declared in cmd.h so kauai-core consumers
+   (clok, msnd, ...) can see it without pulling appb.h. */
+extern PCommandExecutionManager vpcex;
+
 #endif //! CMD_H
