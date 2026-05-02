@@ -264,23 +264,53 @@ class BrowserListContext : public BrowserListContext_PAR
 //
 const long kglstnGrow = 5;
 const long kglthdGrow = 10;
+// ThumbnailDescriptor's union aliases (grfontMask, grfont) and (ctg, chid)
+// onto (tag.ctg, tag.cno) so font-browser and chid-browser code paths can
+// reuse the same storage as a plain TAG-pointing thumbnail. That alias is
+// load-bearing: BrowserContentList::_FAddGokdToThd writes via tag.{ctg,cno}
+// and reads via grfontMask/grfont, asserting they match.
+//
+// On x86, TAG is 16 bytes ([sid:4][pcrf:4][ctg:4][cno:4]) so two long
+// fillers before grfontMask line up exactly with TAG's tail. On x64, TAG
+// grew to 24 bytes (pcrf is an 8-byte pointer, plus 4 bytes of alignment
+// padding before it), so the original two-long preamble would put
+// grfontMask at offset 8 -- which on x64 is *inside* tag.pcrf. That
+// shifted the alias off TAG's (ctg, cno) and corrupted pcrf as a side
+// effect. The static_asserts below guard the alignment we depend on.
 struct ThumbnailDescriptor
 {
     union {
         TAG tag; // TAG pointing to content
         struct
         {
-            long lwFill1; // sid
-            long lwFill2; // pcrf
-            ulong grfontMask;
-            ulong grfont;
+            long lwFill1; // overlaps tag.sid
+#if defined(_WIN64) || defined(_M_X64)
+            // On x64 the gap before grfontMask must equal sizeof(TAG) - 8
+            // (the (ctg, cno) tail). TAG is 24 bytes so we need 16 bytes of
+            // filler here, not 4. Three more longs cover the padding +
+            // 8-byte pcrf to land grfontMask on tag.ctg's offset (16) and
+            // grfont on tag.cno's offset (20).
+            long lwFill2; // overlaps the 4 bytes of padding before pcrf
+            long lwFill3; // overlaps low half of tag.pcrf
+            long lwFill4; // overlaps high half of tag.pcrf
+#else
+            long lwFill2; // overlaps 4-byte tag.pcrf on x86
+#endif
+            ulong grfontMask; // aliases tag.ctg
+            ulong grfont;     // aliases tag.cno
         };
         struct
         {
-            long lwFill1;
-            long lwFill2;
-            ChunkTagOrType ctg;
-            ChildChunkID chid; // ChildChunkID of CD content
+            long lwFill1c;
+#if defined(_WIN64) || defined(_M_X64)
+            long lwFill2c;
+            long lwFill3c;
+            long lwFill4c;
+#else
+            long lwFill2c;
+#endif
+            ChunkTagOrType ctg;  // aliases tag.ctg
+            ChildChunkID chid;   // aliases tag.cno (= ChildChunkID of CD content)
         };
     };
 
@@ -289,6 +319,15 @@ struct ThumbnailDescriptor
     long ithd;     // Original index for this ThumbnailDescriptor, before sorting (used to
                    // retrieve proper String for the BrowserNamedList-derived browsers)
 };
+// Verify the alias hasn't drifted apart again under future TAG layout changes.
+static_assert(offsetof(ThumbnailDescriptor, grfontMask) == offsetof(TAG, ctg),
+              "grfontMask must alias TAG.ctg");
+static_assert(offsetof(ThumbnailDescriptor, grfont) == offsetof(TAG, cno),
+              "grfont must alias TAG.cno");
+static_assert(offsetof(ThumbnailDescriptor, ctg) == offsetof(TAG, ctg),
+              "chid-variant ctg must alias TAG.ctg");
+static_assert(offsetof(ThumbnailDescriptor, chid) == offsetof(TAG, cno),
+              "chid must alias TAG.cno");
 
 /* Browser Content List Base --  create one of these when you want a list of a
     specific kind of content and you don't care about the names. */
