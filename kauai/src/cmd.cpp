@@ -25,6 +25,7 @@
 
 ***************************************************************************/
 #include "frame.h"
+#include "cmd_hooks.h"
 ASSERTNAME
 
 // command map shared by every command handler
@@ -35,6 +36,35 @@ RTCLASS(CommandHandler)
 RTCLASS(CommandExecutionManager)
 
 long CommandHandler::_hidLast;
+
+/***************************************************************************
+    cmd_hooks.h seam: function pointers installed by the gui-side
+    appb._FInit so cmd.cpp can be moved to kauai-core without dragging
+    in vpappb. Defaults (nil) are correct for headless: PcmhFromHid_Hook
+    returns nil (caller treats as "hid free"), BuryCmh_Hook is a no-op.
+
+    Part 1 of the cmd_core split (see plan
+    docs/superpowers/plans/2026-05-02-cmd-core-split.md).
+***************************************************************************/
+static PFN_PcmhFromHid s_pfnPcmhFromHid = pvNil;
+static PFN_BuryCmh s_pfnBuryCmh = pvNil;
+
+void SetCmdHooks(PFN_PcmhFromHid pfn1, PFN_BuryCmh pfn2)
+{
+    s_pfnPcmhFromHid = pfn1;
+    s_pfnBuryCmh = pfn2;
+}
+
+PCommandHandler PcmhFromHid_Hook(long hid)
+{
+    return (s_pfnPcmhFromHid != pvNil) ? s_pfnPcmhFromHid(hid) : pvNil;
+}
+
+void BuryCmh_Hook(PCommandHandler pcmh)
+{
+    if (s_pfnBuryCmh != pvNil)
+        s_pfnBuryCmh(pcmh);
+}
 
 #ifdef DEBUG
 /***************************************************************************
@@ -75,7 +105,7 @@ long CommandHandler::HidUnique(long ccmh)
             ccmhT = ccmh;
             continue;
         }
-        if (pvNil != vpappb->PcmhFromHid(_hidLast))
+        if (pvNil != PcmhFromHid_Hook(_hidLast))
             ccmhT = ccmh;
     }
 
@@ -99,8 +129,7 @@ CommandHandler::CommandHandler(long hid)
 CommandHandler::~CommandHandler(void)
 {
     AssertThis(0);
-    if (pvNil != vpappb)
-        vpappb->BuryCmh(this);
+    BuryCmh_Hook(this);
 }
 
 #ifdef DEBUG
@@ -542,7 +571,7 @@ bool CommandExecutionManager::_FReadCmd(PCommand pcmd)
 
     ClearPb(pcmd, size(*pcmd));
     pcmd->cid = cmdf.cid;
-    pcmd->pcmh = vpappb->PcmhFromHid(cmdf.hid);
+    pcmd->pcmh = PcmhFromHid_Hook(cmdf.hid);
     pcmd->pgg = pvNil;
     CopyPb(cmdf.rglw, pcmd->rglw, kclwCmd * size(long));
 
