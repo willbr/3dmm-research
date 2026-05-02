@@ -173,6 +173,94 @@ static void scene_tri_piz2tia(void)
     TriangleRenderPIZ2TIA(&a, &b, &c);
 }
 
+/* Same triangle as tri-piz2tia but vertices in reversed (CW vs CCW) order.
+ * Exercises the "direction = false" branch of awtmi.h's setup, which
+ * negates u_grad/v_grad and makes the trapezoid renderer walk pixels
+ * right-to-left. If our backward branch has a bug this scene will diverge
+ * from the asm version. */
+static void scene_tri_piz2tia_reversed(void)
+{
+    struct temp_vertex_fixed a, b, c;
+    mkv_uv(&a, 128, 32, 0x4000, 200, 0, 0);
+    mkv_uv(&b, 224, 224, 0x4000, 200, (br_fixed_ls)TEX_W << 16, (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&c, 32, 224, 0x4000, 200, 0, (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&a, &b, &c);
+}
+
+/* Two triangles forming a textured quad with consistent CCW winding. */
+static void scene_quad_ccw(void)
+{
+    struct temp_vertex_fixed tl, tr, bl, br;
+    mkv_uv(&tl, 32,  32, 0x4000, 200, 0,                          0);
+    mkv_uv(&tr, 224, 32, 0x4000, 200, (br_fixed_ls)TEX_W << 16,   0);
+    mkv_uv(&bl, 32, 224, 0x4000, 200, 0,                          (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&br, 224,224, 0x4000, 200, (br_fixed_ls)TEX_W << 16,   (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&tl, &bl, &tr); /* upper-left tri */
+    TriangleRenderPIZ2TIA(&tr, &bl, &br); /* lower-right tri */
+}
+
+/* Same quad with CW winding (vertex order swapped on each triangle). */
+static void scene_quad_cw(void)
+{
+    struct temp_vertex_fixed tl, tr, bl, br;
+    mkv_uv(&tl, 32,  32, 0x4000, 200, 0,                          0);
+    mkv_uv(&tr, 224, 32, 0x4000, 200, (br_fixed_ls)TEX_W << 16,   0);
+    mkv_uv(&bl, 32, 224, 0x4000, 200, 0,                          (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&br, 224,224, 0x4000, 200, (br_fixed_ls)TEX_W << 16,   (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&tl, &tr, &bl);
+    TriangleRenderPIZ2TIA(&tr, &br, &bl);
+}
+
+/* Tall, thin triangle with a steep long edge. Stresses the X-fraction
+ * carry detection (each scanline advances X by a small fractional amount,
+ * occasionally crossing a pixel boundary). */
+static void scene_tri_thin_vertical(void)
+{
+    struct temp_vertex_fixed a, b, c;
+    mkv_uv(&a, 128, 32, 0x4000, 200, 0, 0);
+    mkv_uv(&b, 124, 224, 0x4000, 200, 0, (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&c, 132, 224, 0x4000, 200, (br_fixed_ls)TEX_W << 16, (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&a, &b, &c);
+}
+
+/* Wide, short triangle with a shallow long edge -- stresses the per-
+ * scanline X delta (large d_i + carry per row). */
+static void scene_tri_thin_horizontal(void)
+{
+    struct temp_vertex_fixed a, b, c;
+    mkv_uv(&a, 128, 124, 0x4000, 200, 0, 0);
+    mkv_uv(&b, 32, 132, 0x4000, 200, 0, (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&c, 224, 132, 0x4000, 200, (br_fixed_ls)TEX_W << 16, (br_fixed_ls)TEX_H << 16);
+    TriangleRenderPIZ2TIA(&a, &b, &c);
+}
+
+/* "Cube faces" -- five quads laid out as the projected faces of a cube
+ * viewed from a 3/4 angle. Vertex positions and UVs hand-computed.
+ * Mimics what the engine produces after model_to_screen transform. */
+static void scene_cube_faces(void)
+{
+    struct temp_vertex_fixed v[8];
+    /* Two "depths" of quads: the front (closer, smaller z) and the back
+     * (further, larger z). z values within 16-bit range. Coordinates are
+     * already in screen space. */
+    /* Front quad (closer): z=0x2000, smaller squares around the centre. */
+    mkv_uv(&v[0], 64,  64, 0x2000, 220, 0,                          0);
+    mkv_uv(&v[1], 192, 64, 0x2000, 220, (br_fixed_ls)TEX_W << 16,   0);
+    mkv_uv(&v[2], 64, 192, 0x2000, 220, 0,                          (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&v[3], 192,192, 0x2000, 220, (br_fixed_ls)TEX_W << 16,   (br_fixed_ls)TEX_H << 16);
+    /* Back quad (further): z=0x6000, larger; offset right and down so it
+     * peeks out from behind the front one. */
+    mkv_uv(&v[4], 96,  96, 0x6000, 120, 0,                          0);
+    mkv_uv(&v[5], 240, 96, 0x6000, 120, (br_fixed_ls)TEX_W << 16,   0);
+    mkv_uv(&v[6], 96, 240, 0x6000, 120, 0,                          (br_fixed_ls)TEX_H << 16);
+    mkv_uv(&v[7], 240,240, 0x6000, 120, (br_fixed_ls)TEX_W << 16,   (br_fixed_ls)TEX_H << 16);
+
+    TriangleRenderPIZ2TIA(&v[4], &v[6], &v[5]); /* back, two tris */
+    TriangleRenderPIZ2TIA(&v[5], &v[6], &v[7]);
+    TriangleRenderPIZ2TIA(&v[0], &v[2], &v[1]); /* front (overlaps back; z-buffer should hide back where they overlap) */
+    TriangleRenderPIZ2TIA(&v[1], &v[2], &v[3]);
+}
+
 static int save_pgm(const char *path)
 {
     FILE *f = fopen(path, "wb");
@@ -194,7 +282,8 @@ int main(int argc, char **argv)
     if (argc < 3)
     {
         fprintf(stderr, "usage: %s <scene> <output.pgm>\n", argv[0]);
-        fprintf(stderr, "scenes: tri-piz2i, tri-piz2tia\n");
+        fprintf(stderr, "scenes: tri-piz2i, tri-piz2tia, tri-piz2tia-rev,\n"
+                        "        quad-cw, quad-ccw, tri-thin-vert, tri-thin-horz, cube-faces\n");
         return 2;
     }
 
@@ -207,6 +296,18 @@ int main(int argc, char **argv)
         scene_tri_piz2i();
     else if (strcmp(scene, "tri-piz2tia") == 0)
         scene_tri_piz2tia();
+    else if (strcmp(scene, "tri-piz2tia-rev") == 0)
+        scene_tri_piz2tia_reversed();
+    else if (strcmp(scene, "quad-cw") == 0)
+        scene_quad_cw();
+    else if (strcmp(scene, "quad-ccw") == 0)
+        scene_quad_ccw();
+    else if (strcmp(scene, "tri-thin-vert") == 0)
+        scene_tri_thin_vertical();
+    else if (strcmp(scene, "tri-thin-horz") == 0)
+        scene_tri_thin_horizontal();
+    else if (strcmp(scene, "cube-faces") == 0)
+        scene_cube_faces();
     else
     {
         fprintf(stderr, "unknown scene: %s\n", scene);
