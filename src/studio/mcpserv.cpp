@@ -38,10 +38,12 @@
 #include <cstdint>
 #include <cstring>
 #include <cctype>
+#include <cstdarg>
 
 #include <windows.h>
 #include <objidl.h> // IStream
 #include <gdiplus.h>
+#include <rtcapi.h> // _RTC_SetErrorFuncW for runtime-check capture
 #pragma comment(lib, "gdiplus.lib")
 
 #include "studio.h"
@@ -447,6 +449,45 @@ static void WriteMessage(const JVal &msg)
     WriteRaw(s.data(), s.size());
 }
 
+// Custom MSVC /RTC error handler. The platform default would just show a
+// modal Debug Error dialog with file/line, but in practice the dialog often
+// shows an empty File: field. Capture the structured error here so we can
+// see exactly which `thd` (or `tag`, etc.) site fired. We log to
+// AppendCrashLog (drains via the existing read_crash_log MCP tool) and then
+// return 1 so the standard dialog still appears, preserving normal behavior
+// for interactive use and so `list_dialogs` can present it to an MCP client.
+static int __cdecl MyRtcErrorFunc(int errType, const wchar_t *file, int line, const wchar_t *module, const wchar_t *format, ...)
+{
+    char body[2048];
+    char filebuf[512] = "(no file)";
+    char modbuf[256] = "";
+    char fmtbuf[512] = "";
+    if (file && *file) WideCharToMultiByte(CP_UTF8, 0, file, -1, filebuf, sizeof(filebuf), NULL, NULL);
+    if (module && *module) WideCharToMultiByte(CP_UTF8, 0, module, -1, modbuf, sizeof(modbuf), NULL, NULL);
+    if (format && *format) WideCharToMultiByte(CP_UTF8, 0, format, -1, fmtbuf, sizeof(fmtbuf), NULL, NULL);
+    char msgbuf[1024] = "";
+    if (format)
+    {
+        va_list ap;
+        va_start(ap, format);
+        // /RTC errors pass plain ASCII args (variable name etc.), so a narrow
+        // vsnprintf with the narrow format works fine here.
+        std::vsnprintf(msgbuf, sizeof(msgbuf), fmtbuf, ap);
+        va_end(ap);
+    }
+    std::snprintf(body, sizeof(body), "errType=%d  module=%s  file=%s:%d\n%s\n", errType, modbuf, filebuf, line,
+                  msgbuf[0] ? msgbuf : fmtbuf);
+    AppendCrashLog("RTC", body);
+    // Return 0 = continue execution silently. The warning is logged so we can
+    // diagnose; downstream code may or may not crash depending on whether
+    // this was a spurious /RTCu (value-init would suffice) or a real
+    // read-before-write bug. If it crashes downstream, that's where the real
+    // bug lives. Returning 1 invokes the debugger (breakpoint exception);
+    // -1 takes default action (modal dialog), but the dialog's File: field
+    // is empty in our environment so it's not more informative than this log.
+    return 0;
+}
+
 static JVal MakeError(const JVal &id, int code, const std::string &message)
 {
     JVal r = JVal::MkObj();
@@ -471,6 +512,9 @@ static JVal MakeResult(const JVal &id, JVal result)
 // ============================================================
 // Reader thread: blocking ReadFile loop with line splitting.
 // ============================================================
+
+// Forward decl; defined after kTools because it walks that table.
+static bool TryDispatchWorkerDirect(const Request &req);
 
 static void ReaderThreadProc()
 {
@@ -515,6 +559,18 @@ static void ReaderThreadProc()
             }
             if (auto pm = msg.Get("method")) req.method = pm->AsStr();
             if (auto pp = msg.Get("params")) req.params = *pp;
+
+            // Worker-direct fast path: tools marked worker_safe (currently
+            // list_dialogs and dismiss_dialog) only touch Win32 APIs that
+            // are safe across threads, so we dispatch them inline from the
+            // reader thread. This is what lets us see and dismiss a modal
+            // dialog (MSVC /RTCu Debug Error, kauai assert) while the main
+            // thread is blocked inside it -- Drain() can't run during a
+            // modal pump.
+            if (TryDispatchWorkerDirect(req))
+            {
+                continue;
+            }
             std::lock_guard<std::mutex> lk(_qMutex);
             _queue.push_back(std::move(req));
         }
@@ -946,6 +1002,209 @@ static JVal Tool_Quit(const JVal &args)
     return ContentText("quit posted");
 }
 
+// --- list_dialogs / dismiss_dialog (worker-thread safe) ------------------
+//
+// Win32 EnumWindows / GetWindowTextW / SendMessage / PostMessage are
+// thread-safe and don't require the GUI thread to be unblocked, so these
+// tools dispatch inline from the worker reader thread (see ReaderThreadProc)
+// instead of going through Drain. Without that we couldn't see or dismiss a
+// modal MessageBox (e.g. an MSVC /RTCu Debug-Error popup), because Drain
+// only runs from kauai's main loop which is suspended while the modal box is
+// up.
+
+namespace
+{
+struct DialogScanContext
+{
+    DWORD pid = 0;
+    JVal *arr = nullptr;
+};
+
+static std::string Utf16ToUtf8(const wchar_t *w)
+{
+    if (!w || !*w) return "";
+    int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0, nullptr, nullptr);
+    if (n <= 1) return "";
+    std::string s((size_t)(n - 1), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w, -1, &s[0], n, nullptr, nullptr);
+    return s;
+}
+
+static BOOL CALLBACK CollectChildText(HWND hwnd, LPARAM lparam)
+{
+    auto *texts = reinterpret_cast<std::vector<std::string> *>(lparam);
+    wchar_t cls[64] = {0};
+    GetClassNameW(hwnd, cls, 64);
+    int len = GetWindowTextLengthW(hwnd);
+    if (len > 0 && len < 4096)
+    {
+        std::wstring wt((size_t)len, L'\0');
+        GetWindowTextW(hwnd, &wt[0], len + 1);
+        std::string t = Utf16ToUtf8(wt.c_str());
+        std::string cs = Utf16ToUtf8(cls);
+        if (!t.empty()) texts->push_back(cs + ": " + t);
+    }
+    return TRUE;
+}
+
+static BOOL CALLBACK CollectDialog(HWND hwnd, LPARAM lparam)
+{
+    auto *ctx = reinterpret_cast<DialogScanContext *>(lparam);
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != ctx->pid) return TRUE;
+    if (!IsWindowVisible(hwnd)) return TRUE;
+    // Skip our own main app window: we already report it via get_state.
+    if (hwnd == vwig.hwndApp) return TRUE;
+
+    wchar_t cls[64] = {0};
+    GetClassNameW(hwnd, cls, 64);
+    wchar_t title[512] = {0};
+    GetWindowTextW(hwnd, title, 512);
+
+    JVal d = JVal::MkObj();
+    d.Set("hwnd", JVal::MkInt((long)(intptr_t)hwnd));
+    d.Set("class", JVal::MkStr(Utf16ToUtf8(cls)));
+    d.Set("title", JVal::MkStr(Utf16ToUtf8(title)));
+    d.Set("enabled", JVal::MkBool(IsWindowEnabled(hwnd) ? true : false));
+    HWND fg = GetForegroundWindow();
+    d.Set("foreground", JVal::MkBool(hwnd == fg));
+
+    std::vector<std::string> child_texts;
+    EnumChildWindows(hwnd, &CollectChildText, reinterpret_cast<LPARAM>(&child_texts));
+    JVal carr = JVal::MkArr();
+    for (auto &s : child_texts) carr.a->push_back(JVal::MkStr(s));
+    d.Set("children", std::move(carr));
+
+    ctx->arr->a->push_back(std::move(d));
+    return TRUE;
+}
+} // namespace
+
+// Returns top-level windows owned by our process other than the main app
+// window: dialog boxes (#32770), MSVC RTC popups, assertion dialogs, etc.
+// Each entry includes hwnd (as integer), class name, title, and the visible
+// text of all child controls (so we can read button labels and the dialog
+// body).
+static JVal Tool_ListDialogs(const JVal &args)
+{
+    JVal arr = JVal::MkArr();
+    DialogScanContext ctx{GetCurrentProcessId(), &arr};
+    EnumWindows(&CollectDialog, reinterpret_cast<LPARAM>(&ctx));
+    JVal r = JVal::MkObj();
+    r.Set("count", JVal::MkInt((long)arr.a->size()));
+    r.Set("dialogs", std::move(arr));
+    // Wrap as content so the caller's JSON-RPC result has the same shape as
+    // other tools.
+    JVal content_arr = JVal::MkArr();
+    JVal item = JVal::MkObj();
+    item.Set("type", JVal::MkStr("text"));
+    std::string s;
+    JWrite(s, r);
+    item.Set("text", JVal::MkStr(s));
+    content_arr.a->push_back(std::move(item));
+    JVal res = JVal::MkObj();
+    res.Set("content", std::move(content_arr));
+    return res;
+}
+
+namespace
+{
+struct FindButtonContext
+{
+    std::string want;     // case-insensitive substring match
+    HWND found = nullptr; // first match wins
+};
+
+static std::string ToLower(std::string s)
+{
+    for (auto &c : s)
+        if (c >= 'A' && c <= 'Z') c = (char)(c + 32);
+    return s;
+}
+
+static BOOL CALLBACK FindButtonByText(HWND hwnd, LPARAM lparam)
+{
+    auto *ctx = reinterpret_cast<FindButtonContext *>(lparam);
+    wchar_t cls[64] = {0};
+    GetClassNameW(hwnd, cls, 64);
+    // Must be a button-like control to BM_CLICK reliably.
+    if (lstrcmpiW(cls, L"Button") != 0) return TRUE;
+    int len = GetWindowTextLengthW(hwnd);
+    if (len <= 0 || len > 256) return TRUE;
+    std::wstring wt((size_t)len, L'\0');
+    GetWindowTextW(hwnd, &wt[0], len + 1);
+    std::string t = ToLower(Utf16ToUtf8(wt.c_str()));
+    // Strip Windows accelerator prefix '&'.
+    std::string filtered;
+    filtered.reserve(t.size());
+    for (char c : t)
+        if (c != '&') filtered.push_back(c);
+    if (filtered.find(ctx->want) != std::string::npos)
+    {
+        ctx->found = hwnd;
+        return FALSE; // stop enum
+    }
+    return TRUE;
+}
+} // namespace
+
+// Dismiss a dialog. Two modes:
+//   1. {"hwnd": ..., "button": "abort|retry|ignore|ok|cancel|yes|no|close"} —
+//      posts WM_COMMAND with the standard MessageBox button id. Works for
+//      regular MessageBox-style dialogs and for the MSVC /RTCu Debug Error
+//      popup (which uses Abort/Retry/Ignore).
+//   2. {"hwnd": ..., "button_text": "Ignore"} — finds the first child Button
+//      whose label contains that text (case-insensitive, '&' accelerator
+//      ignored) and BM_CLICKs it. Use this when the standard ids don't work
+//      (custom dialog procs).
+static JVal Tool_DismissDialog(const JVal &args)
+{
+    long hwnd_lw = args.Get("hwnd") ? (long)args.Get("hwnd")->AsInt(0) : 0;
+    HWND hwnd = (HWND)(intptr_t)hwnd_lw;
+    if (!hwnd || !IsWindow(hwnd)) return ContentError("invalid hwnd");
+
+    if (args.Get("button_text"))
+    {
+        std::string txt = ToLower(args.Get("button_text")->AsStr());
+        FindButtonContext ctx{txt, nullptr};
+        EnumChildWindows(hwnd, &FindButtonByText, reinterpret_cast<LPARAM>(&ctx));
+        if (!ctx.found) return ContentError(std::string("no child button matched: ") + txt);
+        PostMessage(ctx.found, BM_CLICK, 0, 0);
+        char buf[96];
+        std::snprintf(buf, sizeof(buf), "BM_CLICK posted to button hwnd=%lld", (long long)(intptr_t)ctx.found);
+        return ContentText(buf);
+    }
+
+    std::string button = args.Get("button") ? args.Get("button")->AsStr() : "ok";
+    int id = IDOK;
+    if (button == "ok")
+        id = IDOK;
+    else if (button == "cancel")
+        id = IDCANCEL;
+    else if (button == "abort")
+        id = IDABORT;
+    else if (button == "retry")
+        id = IDRETRY;
+    else if (button == "ignore")
+        id = IDIGNORE;
+    else if (button == "yes")
+        id = IDYES;
+    else if (button == "no")
+        id = IDNO;
+    else if (button == "close")
+    {
+        PostMessage(hwnd, WM_CLOSE, 0, 0);
+        return ContentText("posted WM_CLOSE");
+    }
+    else
+        return ContentError(std::string("unknown button: ") + button);
+    PostMessage(hwnd, WM_COMMAND, MAKEWPARAM(id, BN_CLICKED), 0);
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "posted WM_COMMAND id=%d to hwnd=%ld", id, hwnd_lw);
+    return ContentText(buf);
+}
+
 // --- tool registry -------------------------------------------------------
 
 struct ToolDef
@@ -954,6 +1213,7 @@ struct ToolDef
     const char *desc;
     const char *schemaJson; // raw JSON for inputSchema
     JVal (*handler)(const JVal &args);
+    bool worker_safe; // safe to run on the reader thread (no kauai state)
 };
 
 static const ToolDef kTools[] = {
@@ -962,6 +1222,7 @@ static const ToolDef kTools[] = {
         "Capture the 3dmovie main window client area as PNG.",
         "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
         &Tool_Screenshot,
+        false,
     },
     {
         "click",
@@ -973,6 +1234,7 @@ static const ToolDef kTools[] = {
         "\"button\":{\"type\":\"string\",\"enum\":[\"left\",\"right\"]}"
         "},\"required\":[\"x\",\"y\"]}",
         &Tool_Click,
+        false,
     },
     {
         "key",
@@ -981,6 +1243,7 @@ static const ToolDef kTools[] = {
         "\"properties\":{\"vk\":{\"type\":\"integer\"}},"
         "\"required\":[\"vk\"]}",
         &Tool_Key,
+        false,
     },
     {
         "send_command",
@@ -995,6 +1258,7 @@ static const ToolDef kTools[] = {
         "\"lw3\":{\"type\":\"integer\"}"
         "},\"required\":[\"cid\"]}",
         &Tool_SendCommand,
+        false,
     },
     {
         "find_gob",
@@ -1003,12 +1267,14 @@ static const ToolDef kTools[] = {
         "\"properties\":{\"hid\":{\"type\":\"integer\"}},"
         "\"required\":[\"hid\"]}",
         &Tool_FindGob,
+        false,
     },
     {
         "get_state",
         "Report main window state, foreground status, modal dialog (if any), and ErrorStack depth.",
         "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
         &Tool_GetState,
+        false,
     },
     {
         "wait_ms",
@@ -1017,20 +1283,71 @@ static const ToolDef kTools[] = {
         "\"properties\":{\"ms\":{\"type\":\"integer\"}},"
         "\"required\":[\"ms\"]}",
         &Tool_WaitMs,
+        false,
     },
     {
         "read_crash_log",
         "Return the contents of %TEMP%\\3dmmforever-crash.txt.",
         "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
         &Tool_ReadCrashLog,
+        false,
     },
     {
         "quit",
         "Post WM_CLOSE to the main window for graceful shutdown.",
         "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
         &Tool_Quit,
+        false,
+    },
+    {
+        "list_dialogs",
+        "Enumerate top-level windows (other than the main app window) owned by "
+        "this process: dialog boxes, MSVC RTC popups, kauai assertion dialogs, etc. "
+        "Returns hwnd, class name, title, and child-control texts. Runs on the MCP "
+        "worker thread so it works even when the main thread is blocked in a modal box.",
+        "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+        &Tool_ListDialogs,
+        true,
+    },
+    {
+        "dismiss_dialog",
+        "Dismiss a top-level dialog. Pass {\"hwnd\":N,\"button\":\"abort|retry|ignore|ok|cancel|yes|no|close\"} "
+        "to post a standard MessageBox button id, or {\"hwnd\":N,\"button_text\":\"Ignore\"} to find a child "
+        "Button by its label and BM_CLICK it (case-insensitive substring; '&' accelerators ignored). "
+        "Worker-thread safe.",
+        "{\"type\":\"object\","
+        "\"properties\":{"
+        "\"hwnd\":{\"type\":\"integer\"},"
+        "\"button\":{\"type\":\"string\"},"
+        "\"button_text\":{\"type\":\"string\"}"
+        "},\"required\":[\"hwnd\"]}",
+        &Tool_DismissDialog,
+        true,
     },
 };
+
+// Worker-direct dispatch: returns true if the request was handled inline
+// from the reader thread (tools/call against a worker_safe tool); false if
+// the caller should queue it for Drain to handle on the main thread.
+static bool TryDispatchWorkerDirect(const Request &req)
+{
+    if (req.method != "tools/call") return false;
+    auto *pname = req.params.Get("name");
+    if (!pname) return false;
+    std::string tname = pname->AsStr();
+    for (const auto &t : kTools)
+    {
+        if (tname == t.name)
+        {
+            if (!t.worker_safe) return false;
+            auto *pargs = req.params.Get("arguments");
+            JVal targs = pargs ? *pargs : JVal::MkObj();
+            WriteMessage(MakeResult(req.id, t.handler(targs)));
+            return true;
+        }
+    }
+    return false;
+}
 
 static JVal Tool_ListTools()
 {
@@ -1107,6 +1424,14 @@ bool FInit()
 
     Gdiplus::GdiplusStartupInput gsi;
     Gdiplus::GdiplusStartup(&_gdiplusToken, &gsi, NULL);
+
+    // Install our /RTC error handler so we capture which source file:line
+    // tripped the runtime check (e.g. /RTCu uninitialized-variable). The
+    // standard MSVC handler shows the modal Debug Error dialog but the dialog
+    // doesn't always preserve the file path. We log to AppendCrashLog first,
+    // then return 1 so the runtime still shows the dialog (so list_dialogs
+    // can also see it and the user can drive the repro interactively).
+    _RTC_SetErrorFuncW(&MyRtcErrorFunc);
 
     _readerThread = std::thread(ReaderThreadProc);
     _initialized.store(true);
