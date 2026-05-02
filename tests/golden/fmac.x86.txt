@@ -497,6 +497,19 @@ sin   ang=f555                    -> ffffbdbe
 cos   ang=f555                    -> 0000f740
 sin   ang=0000                    -> 00000000
 cos   ang=0000                    -> 0000fffe
+atan2 x=00010000 y=00000000 -> 4000
+atan2 x=00010000 y=00010000 -> 2000
+atan2 x=00008000 y=00010000 -> 12e4
+atan2 x=00010000 y=00008000 -> 2d1c
+atan2 x=00000000 y=00010000 -> 0000
+atan2 x=ffff8000 y=00010000 -> ed1c
+atan2 x=ffff0000 y=00008000 -> d2e4
+atan2 x=ffff0000 y=00000000 -> c000
+atan2 x=ffff0000 y=ffff8000 -> ad1c
+atan2 x=ffff8000 y=ffff0000 -> 92e4
+atan2 x=00000000 y=ffff0000 -> 8000
+atan2 x=00008000 y=ffff0000 -> 6d1c
+atan2 x=00010000 y=ffff8000 -> 52e4
 mac3  a=00010000 b=00010000       -> 00030000
 mac3  a=00010000 b=00018000       -> 00048000
 mac3  a=00010000 b=ffff0000       -> fffd0000

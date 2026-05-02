@@ -402,6 +402,37 @@ static int run_fmac_unit(const char *path)
         fprintf(f, "cos   ang=%04x                    -> %08lx\n", ang, (long)(unsigned long)BrFixedCos(ang));
     }
 
+    /* atan2: critical for actor facing-direction calculation in 3DMM.
+     * The BRender signature is BrFixedATan2(x, y) and semantically
+     * returns the angle of point (x, y) from the +x axis (= libm
+     * atan2(y, x)). Sweep all 8 octants plus axis cases. */
+    {
+        struct
+        {
+            br_fixed_ls x, y;
+        } a2cases[] = {
+            {0x10000, 0x00000},  /* +x axis */
+            {0x10000, 0x10000},  /* +x +y, |x|=|y| */
+            {0x08000, 0x10000},  /* +x +y, |x|<|y| */
+            {0x10000, 0x08000},  /* +x +y, |x|>|y| */
+            {0x00000, 0x10000},  /* +y axis */
+            {-0x08000, 0x10000}, /* -x +y, |x|<|y| */
+            {-0x10000, 0x08000}, /* -x +y, |x|>|y| */
+            {-0x10000, 0x00000}, /* -x axis */
+            {-0x10000, -0x08000},/* -x -y */
+            {-0x08000, -0x10000},/* -x -y */
+            {0x00000, -0x10000}, /* -y axis */
+            {0x08000, -0x10000}, /* +x -y, |x|<|y| */
+            {0x10000, -0x08000}, /* +x -y, |x|>|y| */
+        };
+        for (size_t i = 0; i < sizeof(a2cases) / sizeof(a2cases[0]); i++)
+        {
+            br_angle r = BrFixedATan2(a2cases[i].x, a2cases[i].y);
+            fprintf(f, "atan2 x=%08lx y=%08lx -> %04x\n", (long)(unsigned long)a2cases[i].x,
+                    (long)(unsigned long)a2cases[i].y, r);
+        }
+    }
+
     /* Mac3 (all _F) -- routes through the most-used 3-arg accumulator. */
     for (int i = 0; i < nsam; i++)
     {

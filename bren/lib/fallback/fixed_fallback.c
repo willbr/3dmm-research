@@ -293,11 +293,20 @@ br_angle BrFixedACos(br_fixed_ls input)
 }
 
 /* Note: BRender's asm signature is `BrFixedATan2(_F x, _F y)` -- x then y.
- * The asm body matches the convention atan2(y/x), but takes them swapped at
- * the API level. Mirror the asm signature exactly. */
+ * The asm convention is unusual: BrFixedATan2(a, b) returns the angle of
+ * the point (b, a) -- i.e. its first arg goes into the y slot of libm
+ * atan2 and its second arg goes into the x slot. Verified empirically
+ * via the fmac unit-test sweep; e.g. asm BrFixedATan2(0x10000, 0) returns
+ * 0x4000 (90deg), which is libm atan2(1, 0) (= angle of point (0, 1)).
+ *
+ * 3DMM uses BrFixedATan2 to compute an actor's facing direction from
+ * its (dx, dz) movement vector; an early version of this fallback used
+ * the libm-natural argument order and produced facings 90deg rotated --
+ * "drag in/out, actor faces left/right; drag left/right, actor faces
+ * in/out". Match the asm exactly. */
 br_angle BrFixedATan2(br_fixed_ls x, br_fixed_ls y)
 {
-    return (br_angle)(atan2((double)y, (double)x) * (65536.0 / (2.0 * BR_PI)));
+    return (br_angle)(atan2((double)x, (double)y) * (65536.0 / (2.0 * BR_PI)));
 }
 
 br_angle BrFixedATan2Fast(br_fixed_ls x, br_fixed_ls y)
