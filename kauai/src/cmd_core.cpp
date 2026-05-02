@@ -623,27 +623,13 @@ bool CommandExecutionManager::_FCmhOk(PCommandHandler pcmh)
 }
 
 /***************************************************************************
-    Default modal check: no modal context, so any cmh is reachable. The
-    gui CEM subclass (Task 3 of the cmd_core split) overrides this with
-    the real _pgobModal -> kclsGraphicsObject ancestor walk. Headless and
-    kauai-core consumers that never instantiate a modal gob get this
-    permissive default, which matches the gui semantics when
-    _pgobModal == pvNil.
+    Default modal check: headless / no modal context, so any cmh is
+    reachable. Gui CEM subclass overrides with the _pgobModal ->
+    kclsGraphicsObject ancestor walk (in cmd_gui.cpp).
 ***************************************************************************/
 bool CommandExecutionManager::_FCmhModalOk(PCommandHandler pcmh)
 {
     AssertNilOrPo(pcmh, 0);
-    PGraphicsObject pgob;
-
-    if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGraphicsObject))
-        return fTrue;
-
-    for (pgob = (PGraphicsObject)pcmh; pgob != _pgobModal; pgob = pgob->PgobPar())
-    {
-        if (pvNil == pgob)
-            return fFalse;
-    }
-
     return fTrue;
 }
 
@@ -1222,77 +1208,33 @@ bool CommandExecutionManager::FGetNextKey(PCommand pcmd)
 }
 
 /***************************************************************************
-    The given GraphicsObject wants to track the mouse.
+    Mouse tracking + modal-gob API: no-op defaults on the base CEM.
+    The gui CEM subclass overrides these in cmd_gui.cpp to manipulate
+    Win32 capture state and the gob hierarchy. Headless tests / future
+    kauai-core consumers see no-ops, which is the right semantics for
+    them since they have no mouse and no GraphicsObject hierarchy.
 ***************************************************************************/
 void CommandExecutionManager::TrackMouse(PGraphicsObject pgob)
 {
     AssertThis(0);
-    AssertPo(pgob, 0);
-    Assert(_pgobTrack == pvNil, "some other gob is already tracking the mouse");
-
-    _pgobTrack = pgob;
-#ifdef WIN
-    _hwndCapture = pgob->HwndContainer();
-    SetCapture(_hwndCapture);
-#endif // WIN
 }
-
-/***************************************************************************
-    Stop tracking the mouse.
-***************************************************************************/
 void CommandExecutionManager::EndMouseTracking(void)
 {
     AssertThis(0);
-
-#ifdef WIN
-    if (pvNil != _pgobTrack)
-    {
-        if (hNil != _hwndCapture && GetCapture() == _hwndCapture)
-            ReleaseCapture();
-        _hwndCapture = hNil;
-    }
-#endif // WIN
-    _pgobTrack = pvNil;
 }
-
-/***************************************************************************
-    Return the gob that is tracking the mouse.
-***************************************************************************/
 PGraphicsObject CommandExecutionManager::PgobTracking(void)
 {
     AssertThis(0);
-    return _pgobTrack;
+    return pvNil;
 }
-
-/***************************************************************************
-    Suspend or resume the command dispatcher. All this does is
-    release (capture) the mouse if we're current tracking the mouse and
-    we're being suspended (resumed).
-***************************************************************************/
 void CommandExecutionManager::Suspend(bool fSuspend)
 {
     AssertThis(0);
-
-#ifdef WIN
-    if (pvNil == _pgobTrack || hNil == _hwndCapture)
-        return;
-
-    if (fSuspend && GetCapture() == _hwndCapture)
-        ReleaseCapture();
-    else if (!fSuspend && GetCapture() != _hwndCapture)
-        SetCapture(_hwndCapture);
-#endif // WIN
 }
-
-/***************************************************************************
-    Set the modal GraphicsObject.
-***************************************************************************/
 void CommandExecutionManager::SetModalGob(PGraphicsObject pgob)
 {
     AssertThis(0);
     AssertNilOrPo(pgob, 0);
-
-    _pgobModal = pgob;
 }
 
 #ifdef DEBUG

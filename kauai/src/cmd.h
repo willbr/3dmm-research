@@ -25,6 +25,12 @@
 class CommandHandler;
 typedef CommandHandler *PCommandHandler;
 
+/* GraphicsObject forward decl so cmd.h compiles standalone (gob.h is
+   not included from kauai-core consumers). The full definition lives
+   in gob.h on the gui side; only the gui CEM subclass dereferences. */
+class GraphicsObject;
+typedef GraphicsObject *PGraphicsObject;
+
 // command enable-disable status flags
 enum
 {
@@ -376,8 +382,19 @@ class GuiCommandExecutionManager : public GuiCommandExecutionManager_PAR
     virtual tribool _TGetTrackingMouseCmd(void) override;
     virtual void _BadModalCmd(PCommand pcmd) override;
 
+    /* Real modal walk: _pgobModal -> kclsGraphicsObject ancestor chain. */
+    virtual bool _FCmhModalOk(PCommandHandler pcmh) override;
+
   public:
     static PGuiCommandExecutionManager PgcexNew(long ccmdInit, long ccmhInit);
+
+    /* Gui-side overrides for the mouse/modal API. The base CEM has
+       no-op defaults so kauai-core consumers can link without UI. */
+    virtual void TrackMouse(PGraphicsObject pgob) override;
+    virtual void EndMouseTracking(void) override;
+    virtual PGraphicsObject PgobTracking(void) override;
+    virtual void Suspend(bool fSuspend = fTrue) override;
+    virtual void SetModalGob(PGraphicsObject pgob) override;
 };
 
 #endif //! CMD_H
