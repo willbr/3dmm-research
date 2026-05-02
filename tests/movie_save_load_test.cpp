@@ -84,6 +84,24 @@ int __cdecl main(int argc, char **argv)
     if (papp == pvNil)
         BAIL("new TestApp failed");
 
+    LOG("initializing vpcex (CommandExecutionManager) -- needed by Clock::Stop");
+    /* vpcex is normally created by ApplicationBase::_FInit. Clock::Stop
+     * (called transitively from MovieSoundQueue::~MovieSoundQueue ->
+     * StopAll -> _pclok->Stop) does vpcex->RemoveCmh(this, ...) so we
+     * have to provide a real CommandExecutionManager. */
+    vpcex = CommandExecutionManager::PcexNew(20, 20);
+    if (vpcex == pvNil)
+        BAIL("CommandExecutionManager::PcexNew failed");
+
+    LOG("initializing vpsndm (SoundManager) -- needed by FSwitchScen");
+    /* vpsndm is normally created by ApplicationBase::_FInit. Our test
+     * skips _FInit, so we have to set it up by hand. Movie::FSwitchScen
+     * calls vpsndm->StopAll() unconditionally; without this the scene
+     * insert path null-derefs. */
+    vpsndm = SoundManager::PsndmNew();
+    if (vpsndm == pvNil)
+        BAIL("SoundManager::PsndmNew failed");
+
     LOG("initializing vptagm");
     /* TagManager wants a directory that exists. Use the current
      * directory; on Windows that's wherever the test is invoked
@@ -154,6 +172,8 @@ LDone:
     if (pmcc != pvNil)
         ReleasePpo(&pmcc);
     ReleasePpo(&vptagm);
+    ReleasePpo(&vpsndm);
+    ReleasePpo(&vpcex);
     if (papp != pvNil)
         delete papp;
     /* If save succeeded but the test failed later, leave the file on
