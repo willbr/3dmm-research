@@ -100,6 +100,9 @@ CI enforces `clang-format` v14 against `.clang-format` (Microsoft style,
 
 ## Architecture
 
+> See [`docs/code-map/`](docs/code-map/) for the full per-subsystem
+> map and library-split details.
+
 Static libraries feed the `studio` executable (renamed at link to
 `3dmovie.exe`):
 
@@ -124,11 +127,16 @@ Static libraries feed the `studio` executable (renamed at link to
 ### Chunky files and the chomp build step
 
 3DMM data ships as **chunky files** (`.chk`) — DAGs of typed binary chunks
-identified by a 4-byte type tag and a chunk number. See
-`kauai/doc/chunk.txt` for the format. `.cht` files are chunky source, `.chh`
-are chunky headers; the build runs each `.cht` through the C preprocessor
-and then `chomp.exe` to produce `.chk` artifacts. This is wired up by
-`target_chomp_sources()` in `cmake/TargetChompSources.cmake`.
+identified by a 4-byte type tag and a chunk number. `.cht` files are chunky
+source, `.chh` are chunky headers; the build runs each `.cht` through the C
+preprocessor and then `chomp.exe` to produce `.chk` artifacts. This is wired
+up by `target_chomp_sources()` in `cmake/TargetChompSources.cmake`.
+
+See [`docs/file-formats/`](docs/file-formats/) for the format details
+(chunky files, `.3MM` movies, BMDL models, audio chunks, the full
+chunk-type table) and
+[`docs/kauai-reference/`](docs/kauai-reference/) for the kauai API
+references.
 
 ### MCP server (DEBUG builds)
 
