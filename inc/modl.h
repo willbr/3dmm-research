@@ -33,6 +33,30 @@ static_assert(sizeof(ModelOnFile) == 48, "ModelOnFile on-disk layout drift");
 typedef ModelOnFile *PModelOnFile;
 const ByteOrderMask kbomModlf = 0x55fffff0;
 
+// Wire-format face entry. Mirrors br_face from bren/inc/model.h with one
+// difference: the runtime br_face has a br_material* slot which is 4 bytes
+// on x86 but 8 bytes on x64. The 1995 .CHK chunks store the material slot
+// as a 4-byte placeholder (loaded as nil at runtime), so the on-disk size
+// is fixed at 32 bytes regardless of architecture. Model::_FInit reads
+// this struct from the chunk and expands each entry into a runtime br_face
+// (32 bytes on x86, 36 bytes on x64). Note: br_fraction in the BASED_FIXED
+// build is `short` (2 bytes), not int32 -- so n[3] is 6 bytes, not 12.
+#pragma pack(push, 4)
+struct BrFaceOnFile
+{
+    uint16_t vertices[3];   // br_uint_16 vertices[3]
+    uint16_t edges[3];      // br_uint_16 edges[3]
+    uint32_t material_slot; // 32-bit placeholder for br_material*
+    uint16_t smoothing;     // br_uint_16
+    uint8_t flags;          // br_uint_8
+    uint8_t _pad0;          // br_uint_8
+    int16_t n[3];           // br_fvector3 = 3 * br_fraction (short)
+    // 2 bytes implicit pad here (align d to 4)
+    int32_t d;              // br_scalar (long)
+};
+#pragma pack(pop)
+static_assert(sizeof(BrFaceOnFile) == 32, "BrFaceOnFile on-disk layout drift");
+
 /****************************************
     Model: a wrapper for BRender models
 ****************************************/
