@@ -179,6 +179,79 @@ LDone:
     return rc;
 }
 
+/* For an actor template, emit one line per body part:
+ *   <chid> BMDL=<cno> TMAP=<cno>
+ * resolved by walking TMPL -> CMTL chid=i -> MTRL chid=0 -> TMAP chid=0
+ * (the default-costume material for body part i). BMDL is the TMPL's
+ * child at chid=i with ctg=BMDL. The result is stable enough to use
+ * as a manifest for the bren-rasterizer-test actor-pose scene. */
+static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumber tmpl_cno)
+{
+    long n_kids = pcfl->Ckid(tmpl_ctg, tmpl_cno);
+    int max_chid = -1;
+    for (long i = 0; i < n_kids; i++)
+    {
+        ChildChunkIdentification kid;
+        if (pcfl->FGetKid(tmpl_ctg, tmpl_cno, i, &kid) && (long)kid.chid > max_chid)
+            max_chid = (long)kid.chid;
+    }
+    int n_parts = 0;
+    for (int chid = 0; chid <= max_chid; chid++)
+    {
+        ChildChunkIdentification kid_bmdl, kid_cmtl;
+        ChunkTagOrType ctg_bmdl = 'BMDL';
+        ChunkTagOrType ctg_cmtl = 'CMTL';
+        ChunkTagOrType ctg_mtrl = 'MTRL';
+        ChunkTagOrType ctg_tmap = 'TMAP';
+        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)chid, ctg_bmdl, &kid_bmdl))
+            continue;
+        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)chid, ctg_cmtl, &kid_cmtl))
+        {
+            printf("%d BMDL=0x%08lx TMAP=NONE\n", chid, (unsigned long)kid_bmdl.cki.cno);
+            n_parts++;
+            continue;
+        }
+        ChildChunkIdentification kid_mtrl;
+        if (!pcfl->FGetKidChidCtg(ctg_cmtl, kid_cmtl.cki.cno, 0, ctg_mtrl, &kid_mtrl))
+        {
+            printf("%d BMDL=0x%08lx TMAP=NONE\n", chid, (unsigned long)kid_bmdl.cki.cno);
+            n_parts++;
+            continue;
+        }
+        ChildChunkIdentification kid_tmap;
+        if (!pcfl->FGetKidChidCtg(ctg_mtrl, kid_mtrl.cki.cno, 0, ctg_tmap, &kid_tmap))
+        {
+            printf("%d BMDL=0x%08lx TMAP=NONE\n", chid, (unsigned long)kid_bmdl.cki.cno);
+            n_parts++;
+            continue;
+        }
+        printf("%d BMDL=0x%08lx TMAP=0x%08lx\n", chid, (unsigned long)kid_bmdl.cki.cno,
+               (unsigned long)kid_tmap.cki.cno);
+        n_parts++;
+    }
+    fprintf(stderr, "inspect-chunks: emitted manifest for %d body parts\n", n_parts);
+    return 0;
+}
+
+/* Print the per-chunk name (kauai's chunky-file format stores an
+ * optional UTF8/SBCS name string alongside each chunk). 3DMM uses
+ * these as actor template names, palette names, etc. */
+static int CmdName(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+{
+    String stn;
+    char tag[5];
+    UnpackCtg(ctg, tag);
+    if (!pcfl->FGetName(ctg, cno, &stn))
+    {
+        fprintf(stderr, "inspect-chunks: %s 0x%lx has no name\n", tag, (unsigned long)cno);
+        return 1;
+    }
+    char buf[256] = {0};
+    stn.GetSzs(buf);
+    printf("%s\n", buf);
+    return 0;
+}
+
 /* Recursively walk one chunk's parent->child DAG and dump every reached
  * chunk to <out_dir>/<CTG>_<cno>.bin. Flat directory layout (no nested
  * subdirs): the chunky graph is a DAG, not a tree, so a chunk reached
@@ -317,6 +390,14 @@ int __cdecl main(int argc, char **argv)
     else if (strcmp(cmd, "dump-all") == 0 && argc == 6)
     {
         rc = CmdDumpAll(pcfl, PackCtg(argv[3]), ParseCno(argv[4]), argv[5]);
+    }
+    else if (strcmp(cmd, "name") == 0 && argc == 5)
+    {
+        rc = CmdName(pcfl, PackCtg(argv[3]), ParseCno(argv[4]));
+    }
+    else if (strcmp(cmd, "actor-manifest") == 0 && argc == 5)
+    {
+        rc = CmdActorManifest(pcfl, PackCtg(argv[3]), ParseCno(argv[4]));
     }
     else
     {
