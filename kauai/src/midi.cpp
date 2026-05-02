@@ -9,7 +9,7 @@
     Midi stream and midi stream parser classes.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
 ASSERTNAME
 
 RTCLASS(MidiStreamParser)
