@@ -27,20 +27,35 @@ def main():
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8", bufsize=1)
     next_id = [1]
+    def _abort_comms_dead(reason):
+        # If 3dmovie's pipes break or replies dry up while a dialog might be
+        # sitting modal on screen, killing 3dmovie also takes the dialog down.
+        # Avoids the test "hanging" with a dialog visible after the script
+        # has lost the ability to talk to the server.
+        p(f"  *** comms with 3dmovie dead ({reason}) -- killing process and aborting ***")
+        try: proc.kill()
+        except Exception: pass
+        sys.exit(2)
     def send(method, params=None, *, notification=False, timeout=8.0):
         msg = {"jsonrpc":"2.0","method":method}
         if not notification: msg["id"] = next_id[0]; next_id[0] += 1
         if params is not None: msg["params"] = params
-        proc.stdin.write(json.dumps(msg) + "\n"); proc.stdin.flush()
+        try:
+            proc.stdin.write(json.dumps(msg) + "\n"); proc.stdin.flush()
+        except (OSError, ValueError):
+            _abort_comms_dead("stdin write failed")
         if notification: return None
         deadline = time.time() + timeout
         while time.time() < deadline:
-            line = proc.stdout.readline()
-            if not line: return {"error":"stdout closed"}
+            try:
+                line = proc.stdout.readline()
+            except (OSError, ValueError):
+                _abort_comms_dead("stdout read failed")
+            if not line: _abort_comms_dead("stdout closed")
             try: obj = json.loads(line)
             except Exception: continue
             if obj.get("id") == msg["id"]: return obj
-        return {"error":"timeout"}
+        _abort_comms_dead(f"timeout waiting for {method}")
     def call(name, args=None, timeout=8.0):
         return send("tools/call", {"name":name,"arguments":args or {}}, timeout=timeout).get("result", {})
     def text(r): return (r.get("content") or [{}])[0].get("text", "")
@@ -55,19 +70,28 @@ def main():
             out.parent.mkdir(exist_ok=True); out.write_bytes(data)
             p(f"  shot: {out.name}")
         except Exception as e: p(f"  shot err: {e}")
+    def fatal_dialogs(d, label):
+        # Centralised "we hit an error dialog" handler: log it, dismiss to
+        # release any modal so the process can exit cleanly, then kill 3dmm
+        # and abort the test run. The point of catching the dialog is to
+        # capture the text + crash log entry; once we have that, sitting
+        # around with the dialog up just wastes time.
+        p(f"  === DIALOG @ {label} ===")
+        for dlg in d["dialogs"]:
+            p(f"    title: {dlg.get('title','?')}  hwnd={dlg['hwnd']}")
+            for kid in dlg.get("children", []):
+                p(f"    kid: {kid[:200]}")
+            p(f"    [dismiss ignore on {dlg['hwnd']}]")
+            call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"}, timeout=2.0)
+        time.sleep(0.5)
+        p(f"  *** error dialog detected at {label} -- killing 3dmovie and aborting ***")
+        try: proc.kill()
+        except Exception: pass
+        sys.exit(1)
     def dialogs(label):
         d = json.loads(text(call("list_dialogs")))
         if d.get("count", 0):
-            p(f"  === DIALOG @ {label} ===")
-            for dlg in d["dialogs"]:
-                title = dlg.get("title","?")
-                kids = dlg.get("children", [])
-                p(f"    title: {title}")
-                for kid in kids:
-                    p(f"    kid: {kid[:200]}")
-                p(f"    [dismiss ignore on {dlg['hwnd']}]")
-                call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"})
-            return True
+            fatal_dialogs(d, label)
         return False
     def click_gob(hid, label, wait_target=None, wait_mode="visible", wait_timeout_ms=4000, click_mode="positioned"):
         # Use find_gob (single shot) instead of wait_for_gob here. The pre-
@@ -85,14 +109,7 @@ def main():
         for _ in range(4):
             d = json.loads(text(call("list_dialogs", timeout=3.0)))
             if d.get("count", 0):
-                p(f"  === DIALOG @ click({label}) ===")
-                for dlg in d["dialogs"]:
-                    p(f"    title: {dlg.get('title','?')}")
-                    for kid in dlg.get("children", []):
-                        p(f"    kid: {kid[:200]}")
-                    p(f"    [dismiss ignore on {dlg['hwnd']}]")
-                    call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"}, timeout=3.0)
-                time.sleep(0.5)
+                fatal_dialogs(d, f"click({label})")
             else:
                 break
         if wait_target is not None:
@@ -109,14 +126,7 @@ def main():
                     break
                 d = json.loads(text(call("list_dialogs", timeout=2.0)))
                 if d.get("count", 0):
-                    p(f"  === DIALOG @ wait({label}) after {total_ms}ms ===")
-                    for dlg in d["dialogs"]:
-                        p(f"    title: {dlg.get('title','?')}")
-                        for kid in dlg.get("children", []):
-                            p(f"    kid: {kid[:200]}")
-                        p(f"    [dismiss ignore on {dlg['hwnd']}]")
-                        call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"}, timeout=2.0)
-                    break
+                    fatal_dialogs(d, f"wait({label}) after {total_ms}ms")
             p(f"  wait_for_gob {hex(wait_target)} mode={wait_mode}: "
               f"found={r.get('found',False)} visible={r.get('visible',False)} "
               f"polled={total_ms}ms")
