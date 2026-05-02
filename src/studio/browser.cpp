@@ -1220,8 +1220,8 @@ void BrowserList::_SortThd(void)
     long ithd;
     long jthd;
     long *plwJ, *plwI;
-    ThumbnailDescriptor thdi;
-    ThumbnailDescriptor thdj;
+    ThumbnailDescriptor thdi{};
+    ThumbnailDescriptor thdj{};
     long sid;
     long jthdMin = 0;
     bool fSortBySid;
@@ -1272,7 +1272,7 @@ void BrowserList::_SortThd(void)
             if (*plwJ == *plwI)
             {
                 long ithdT;
-                ThumbnailDescriptor thdT;
+                ThumbnailDescriptor thdT{};
                 if (pvNil != _pgst && thdi.ithd < _pgst->IvMac())
                 {
                     Assert(thdi.ithd == ithd, "Logic error cleaning pgst");
@@ -1315,7 +1315,7 @@ long BrowserList::_IthumFromThum(long thumSelect, long sidSelect)
     AssertThis(0);
 
     long *plw;
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
 
     if (thumSelect == ivNil)
         return ivNil;
@@ -1363,7 +1363,7 @@ bool BrowserList::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
     AssertThis(0);
     AssertPo(pgobPar, 0);
 
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
     PKidspaceGraphicObject pgok;
     RC rcAbs;
     RC rcRel;
@@ -1652,7 +1652,7 @@ bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkId
 
     ChunkIdentification cki = pkid->cki;
     ChildChunkIdentification kid;
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
     DataBlock blck;
     BrowserThumbEntry tfc;
 
@@ -1934,7 +1934,7 @@ bool BrowserNamedList::_FSetThumFrame(long ithd, PGraphicsObject pgobPar)
 
     PTextGraphicsObject ptgob;
     String stnLabel;
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
 
     _pglthd->Get(ithd, &thd);
     _pgst->GetStn(thd.ithd, &stnLabel);
@@ -2038,7 +2038,7 @@ bool BrowserMusic::_FUpdateLists(void)
     AssertThis(0);
 
     String stn;
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
     long ithd;
     long ithdOld;
     long ccki;
@@ -2134,7 +2134,7 @@ bool BrowserMusic::_FSndListed(ChunkNumber cno, long *pithd)
 bool BrowserMusic::_FAddThd(String *pstn, ChunkIdentification *pcki)
 {
     AssertBaseThis(0);
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
 
     if (!_pgst->FAddStn(pstn))
         return fFalse;

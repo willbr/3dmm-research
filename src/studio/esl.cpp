@@ -362,7 +362,7 @@ bool EaselText::FCmdTransmogrify(PCommand pcmd)
     long tdts;
     ChunkIdentification cki;
     long ithd;
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
     TAG tagTdf;
     TAG tagMtrl;
 
