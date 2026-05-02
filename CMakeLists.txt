@@ -480,10 +480,15 @@ target_link_libraries(brender
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/engine/actor.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/srec.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tdf.cpp"
@@ -501,14 +506,9 @@ target_link_libraries(engine-core PUBLIC kauai-core brender-core)
 add_library(engine)
 target_sources(engine
     PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/engine/actor.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/srec.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tbox.cpp"
 )
 target_include_directories(engine PUBLIC
