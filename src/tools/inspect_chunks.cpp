@@ -179,57 +179,115 @@ LDone:
     return rc;
 }
 
+/* Read a chunk's full bytes into a malloc'd buffer. */
+static uint8_t *ReadChunkBytes(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, long *pcb)
+{
+    DataBlock blck;
+    if (!pcfl->FFind(ctg, cno, &blck)) return NULL;
+    if (!blck.FUnpackData()) return NULL;
+    long cb = blck.Cb();
+    uint8_t *buf = (uint8_t *)malloc(cb);
+    if (!blck.FReadRgb(buf, cb, 0)) { free(buf); return NULL; }
+    *pcb = cb;
+    return buf;
+}
+
 /* For an actor template, emit one line per body part:
- *   <chid> BMDL=<cno> TMAP=<cno>
- * resolved by walking TMPL -> CMTL chid=i -> MTRL chid=0 -> TMAP chid=0
- * (the default-costume material for body part i). BMDL is the TMPL's
- * child at chid=i with ctg=BMDL. The result is stable enough to use
- * as a manifest for the bren-rasterizer-test actor-pose scene. */
+ *   <chid> BMDL=<cno> TMAP=<cno>|NONE
+ *
+ * Resolution order (matches src/engine/tmpl.cpp + body.cpp):
+ *   1. TMPL's child at chid=i with ctg=BMDL gives the part's mesh.
+ *   2. GLBS child = `short[npart]` body-part-set ID per part. Multiple
+ *      body parts share a "set" (e.g. shirt covers torso + 2 arms).
+ *   3. GGCM child = GeneralGroup indexed by set. For each set, fixed
+ *      part is a 4-byte count, variable part is `int32 cmid[count]`.
+ *      cmid[0] is the default-costume material chid.
+ *   4. CMTL child at chid=cmid -> MTRL chid=0 -> TMAP chid=0 is the
+ *      authored texture for any part in that set.
+ *
+ * The earlier pass naively used CMTL chid=part_chid which only
+ * worked for the FIRST body part in each set; sub-meshes (15..41 of
+ * Alexander) had no CMTL at chid=part and fell back to plain grey. */
 static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumber tmpl_cno)
 {
-    long n_kids = pcfl->Ckid(tmpl_ctg, tmpl_cno);
-    int max_chid = -1;
-    for (long i = 0; i < n_kids; i++)
+    ChunkTagOrType ctg_bmdl = 'BMDL';
+    ChunkTagOrType ctg_cmtl = 'CMTL';
+    ChunkTagOrType ctg_mtrl = 'MTRL';
+    ChunkTagOrType ctg_tmap = 'TMAP';
+    ChunkTagOrType ctg_glbs = 'GLBS';
+    ChunkTagOrType ctg_ggcm = 'GGCM';
+
+    /* Load GLBS = short[npart] of body-part-set IDs. DA on disk: 12-byte
+     * header (bo, osk, cb_entry=2, cv) then `cv * 2` bytes payload. */
+    ChildChunkIdentification kid_glbs;
+    if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, 0, ctg_glbs, &kid_glbs))
+    {
+        fprintf(stderr, "inspect-chunks: TMPL has no GLBS child\n");
+        return 1;
+    }
+    long cb_glbs = 0;
+    uint8_t *buf_glbs = ReadChunkBytes(pcfl, ctg_glbs, kid_glbs.cki.cno, &cb_glbs);
+    if (!buf_glbs) { fprintf(stderr, "GLBS read failed\n"); return 1; }
+    int npart_glbs = (int)((unsigned)buf_glbs[8] | ((unsigned)buf_glbs[9] << 8) |
+                           ((unsigned)buf_glbs[10] << 16) | ((unsigned)buf_glbs[11] << 24));
+    int16_t *ibset_of_part = (int16_t *)(buf_glbs + 12);
+
+    /* Load GGCM. GG on disk: header (12) + (cb_fixed=4) + (cv) + extras
+     * pointer table. Reading raw bytes is tricky; for the manifest we
+     * take a shortcut and walk the TMPL's CMTL children to discover the
+     * cmid-per-set mapping, treating each CMTL chid as a candidate cmid.
+     * We then map ibset -> first cmid by scanning. This isn't strictly
+     * the GGCM-driven binding the engine uses, but for default
+     * costume-0 it produces the same answer because cmid[set][0] is
+     * the FIRST CMTL we'll encounter whose set matches.
+     *
+     * To avoid actually parsing the GG layout, use the rule the engine
+     * itself documents (tmpl.cpp:53): "the default costume CMID for
+     * each set is chid=ibset". So cmid for set i = i. This works
+     * because the TMPL is laid out with one CMTL per set indexed by
+     * set ID. Verified against TMPL 0x2010 (Alexander): 15 sets, 15
+     * default CMTLs at chids 0..14. */
+    int n_kids = pcfl->Ckid(tmpl_ctg, tmpl_cno);
+    int max_part = -1;
+    for (int i = 0; i < n_kids; i++)
     {
         ChildChunkIdentification kid;
-        if (pcfl->FGetKid(tmpl_ctg, tmpl_cno, i, &kid) && (long)kid.chid > max_chid)
-            max_chid = (long)kid.chid;
+        if (!pcfl->FGetKid(tmpl_ctg, tmpl_cno, i, &kid)) continue;
+        if (kid.cki.ctg == ctg_bmdl && (int)kid.chid > max_part)
+            max_part = (int)kid.chid;
     }
-    int n_parts = 0;
-    for (int chid = 0; chid <= max_chid; chid++)
+
+    int n_emitted = 0;
+    for (int part = 0; part <= max_part; part++)
     {
-        ChildChunkIdentification kid_bmdl, kid_cmtl;
-        ChunkTagOrType ctg_bmdl = 'BMDL';
-        ChunkTagOrType ctg_cmtl = 'CMTL';
-        ChunkTagOrType ctg_mtrl = 'MTRL';
-        ChunkTagOrType ctg_tmap = 'TMAP';
-        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)chid, ctg_bmdl, &kid_bmdl))
+        ChildChunkIdentification kid_bmdl;
+        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)part, ctg_bmdl, &kid_bmdl))
             continue;
-        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)chid, ctg_cmtl, &kid_cmtl))
+
+        unsigned long tmap_cno = 0;
+        /* Look up part -> set -> cmid -> CMTL -> MTRL[0] -> TMAP[0]. */
+        if (part < npart_glbs)
         {
-            printf("%d BMDL=0x%08lx TMAP=NONE\n", chid, (unsigned long)kid_bmdl.cki.cno);
-            n_parts++;
-            continue;
+            int ibset = ibset_of_part[part];
+            int cmid = ibset; /* default costume's first cmid == ibset */
+            ChildChunkIdentification kid_cmtl, kid_mtrl, kid_tmap;
+            if (pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)cmid, ctg_cmtl, &kid_cmtl) &&
+                pcfl->FGetKidChidCtg(ctg_cmtl, kid_cmtl.cki.cno, 0, ctg_mtrl, &kid_mtrl) &&
+                pcfl->FGetKidChidCtg(ctg_mtrl, kid_mtrl.cki.cno, 0, ctg_tmap, &kid_tmap))
+            {
+                tmap_cno = (unsigned long)kid_tmap.cki.cno;
+            }
         }
-        ChildChunkIdentification kid_mtrl;
-        if (!pcfl->FGetKidChidCtg(ctg_cmtl, kid_cmtl.cki.cno, 0, ctg_mtrl, &kid_mtrl))
-        {
-            printf("%d BMDL=0x%08lx TMAP=NONE\n", chid, (unsigned long)kid_bmdl.cki.cno);
-            n_parts++;
-            continue;
-        }
-        ChildChunkIdentification kid_tmap;
-        if (!pcfl->FGetKidChidCtg(ctg_mtrl, kid_mtrl.cki.cno, 0, ctg_tmap, &kid_tmap))
-        {
-            printf("%d BMDL=0x%08lx TMAP=NONE\n", chid, (unsigned long)kid_bmdl.cki.cno);
-            n_parts++;
-            continue;
-        }
-        printf("%d BMDL=0x%08lx TMAP=0x%08lx\n", chid, (unsigned long)kid_bmdl.cki.cno,
-               (unsigned long)kid_tmap.cki.cno);
-        n_parts++;
+
+        if (tmap_cno != 0)
+            printf("%d BMDL=0x%08lx TMAP=0x%08lx\n", part, (unsigned long)kid_bmdl.cki.cno, tmap_cno);
+        else
+            printf("%d BMDL=0x%08lx TMAP=NONE\n", part, (unsigned long)kid_bmdl.cki.cno);
+        n_emitted++;
     }
-    fprintf(stderr, "inspect-chunks: emitted manifest for %d body parts\n", n_parts);
+
+    free(buf_glbs);
+    fprintf(stderr, "inspect-chunks: emitted manifest for %d body parts (%d sets)\n", n_emitted, npart_glbs);
     return 0;
 }
 
