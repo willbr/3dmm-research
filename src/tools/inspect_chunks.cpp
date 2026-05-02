@@ -247,18 +247,13 @@ static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumb
      * because the TMPL is laid out with one CMTL per set indexed by
      * set ID. Verified against TMPL 0x2010 (Alexander): 15 sets, 15
      * default CMTLs at chids 0..14. */
-    int n_kids = pcfl->Ckid(tmpl_ctg, tmpl_cno);
-    int max_part = -1;
-    for (int i = 0; i < n_kids; i++)
-    {
-        ChildChunkIdentification kid;
-        if (!pcfl->FGetKid(tmpl_ctg, tmpl_cno, i, &kid)) continue;
-        if (kid.cki.ctg == ctg_bmdl && (int)kid.chid > max_part)
-            max_part = (int)kid.chid;
-    }
-
+    /* The TMPL contains BMDLs for both the default skeleton parts
+     * (chids 0..npart-1) AND alternate-costume variants (chids
+     * npart..). The pose render only wants the skeleton, so cap the
+     * manifest at npart_glbs -- otherwise downstream renderers paint
+     * the costume options on top as plain extra meshes. */
     int n_emitted = 0;
-    for (int part = 0; part <= max_part; part++)
+    for (int part = 0; part < npart_glbs; part++)
     {
         ChildChunkIdentification kid_bmdl;
         if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)part, ctg_bmdl, &kid_bmdl))
