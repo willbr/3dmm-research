@@ -724,6 +724,175 @@ static int run_prop_render(const char *out_path, const char *bmdl_path, int n_an
     return 0;
 }
 
+/* Multi-prop overlap test. Loads up to two real BMDL chunks and renders
+ * them as several intersecting copies, each in a distinct solid colour
+ * via per-actor material with a 1x1 colour pixmap. Mirrors how 3DMM body
+ * parts overlap in screen space -- pixels in the overlap region must be
+ * resolved by the z-buffer, NOT by render order, so a wrong z value or
+ * a missed face cull shows up as the wrong colour winning. */
+static br_pixelmap make_solid_pixmap(uint8_t *backing, int idx)
+{
+    backing[0] = (uint8_t)idx;
+    br_pixelmap pm = {};
+    pm.identifier = (char *)"solid";
+    pm.pixels = backing;
+    pm.row_bytes = 1;
+    pm.type = BR_PMT_INDEX_8;
+    pm.width = 1;
+    pm.height = 1;
+    return pm;
+}
+static int run_props_overlap(const char *out_path, const char *bmdl_a, const char *bmdl_b)
+{
+    BrBegin();
+
+    br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+    br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+    if (!colour || !depth) { fprintf(stderr, "pixmap alloc failed\n"); return 1; }
+    BrPixelmapFill(colour, 0);
+    BrPixelmapFill(depth, 0xFFFF);
+
+    BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+    /* One identity shade table, used by every material. */
+    static br_pixelmap shade;
+    shade.identifier = (char *)"id-shade";
+    shade.pixels = g_shade_id;
+    shade.row_bytes = 256;
+    shade.type = BR_PMT_INDEX_8;
+    shade.width = 256;
+    shade.height = 256;
+    BrTableAdd(&shade);
+
+    /* Distinct flat colour per prop instance. Palette indices spread
+     * across the range so the differences pop in the bitmap dump. */
+    enum { N_INSTANCES = 5 };
+    static const uint8_t prop_colours[N_INSTANCES] = { 60, 100, 140, 180, 220 };
+
+    static uint8_t solid_pixels[N_INSTANCES];
+    static br_pixelmap solid_pms[N_INSTANCES];
+    static br_material *mats[N_INSTANCES];
+    for (int i = 0; i < N_INSTANCES; i++)
+    {
+        solid_pms[i] = make_solid_pixmap(&solid_pixels[i], prop_colours[i]);
+        BrMapAdd(&solid_pms[i]);
+        mats[i] = BrMaterialAllocate((char *)"solid-mat");
+        mats[i]->colour_map = &solid_pms[i];
+        mats[i]->index_shade = &shade;
+        mats[i]->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
+        mats[i]->ka = BR_UFRACTION(0.20);
+        mats[i]->kd = BR_UFRACTION(0.80);
+        mats[i]->ks = BR_UFRACTION(0.00);
+        mats[i]->opacity = 0xFF;
+        mats[i]->index_base = 0;
+        mats[i]->index_range = 255;
+        BrMaterialAdd(mats[i]);
+    }
+
+    /* Two distinct prop models, alternated across instances so we get
+     * inter-model and intra-model overlap. */
+    br_model *propA = load_bmdl_from_file(bmdl_a);
+    br_model *propB = bmdl_b ? load_bmdl_from_file(bmdl_b) : propA;
+    if (!propA || !propB) { fprintf(stderr, "could not load props\n"); return 1; }
+    fprintf(stderr, "  step: BrModelAdd(propA)\n");
+    BrModelAdd(propA);
+    if (propB != propA) {
+        fprintf(stderr, "  step: BrModelAdd(propB)\n");
+        BrModelAdd(propB);
+    }
+    fprintf(stderr, "  step: BrModelUpdate(propA)\n");
+    BrModelUpdate(propA, BR_MODU_ALL);
+    if (propB != propA) {
+        fprintf(stderr, "  step: BrModelUpdate(propB)\n");
+        BrModelUpdate(propB, BR_MODU_ALL);
+    }
+    fprintf(stderr, "  step: model setup done\n");
+
+    float radiusA = BrScalarToFloat(propA->radius);
+    if (radiusA < 0.5f) radiusA = 1.0f;
+    if (radiusA > 100.0f) radiusA = 100.0f;
+
+    br_actor *world = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+    static br_camera cam_data;
+    cam_data.identifier = (char *)"cam";
+    cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+    cam_data.field_of_view = BR_ANGLE_DEG(45);
+    cam_data.hither_z = BR_SCALAR(0.1);
+    cam_data.yon_z = BR_SCALAR(1000.0);
+    cam_data.aspect = BR_SCALAR(1.0);
+    br_actor *cam = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+    /* Pulled back further than single-prop scene so all 5 fit in view. */
+    BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(radiusA * 4.0));
+
+    static br_light light_data;
+    light_data.identifier = (char *)"l";
+    light_data.type = BR_LIGHT_DIRECT;
+    light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+    light_data.attenuation_c = BR_SCALAR(1);
+    br_actor *light = BrActorAdd(world, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+    BrLightEnable(light);
+
+    /* Five copies of the props in a loose cluster so they overlap and
+     * intersect each other. Each at a different yaw and depth so the
+     * z-buffer has to sort them per pixel. The instances and props
+     * alternate so the overlap region mixes geometry and colour. */
+    static const struct
+    {
+        float x, y, z;
+        long yaw_idx;
+        int prop_idx;
+    } layout[N_INSTANCES] = {
+        { -0.6f,  0.0f,  0.0f, 0, 0 },
+        {  0.6f,  0.0f,  0.0f, 1, 1 },
+        {  0.0f, -0.4f,  0.7f, 2, 0 }, /* in front, between */
+        {  0.0f,  0.4f, -0.5f, 3, 1 }, /* behind, between */
+        {  0.0f,  0.0f,  0.0f, 4, 0 }, /* dead centre, intersects everything */
+    };
+    for (int i = 0; i < N_INSTANCES; i++)
+    {
+        br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
+        a->model = (layout[i].prop_idx == 0) ? propA : propB;
+        a->material = mats[i];
+        a->t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Identity(&a->t.t.mat);
+        BrMatrix34RotateY(&a->t.t.mat, (br_angle)((long)layout[i].yaw_idx * 65536L / N_INSTANCES));
+        a->t.t.mat.m[3][0] = BR_SCALAR(layout[i].x * radiusA);
+        a->t.t.mat.m[3][1] = BR_SCALAR(layout[i].y * radiusA);
+        a->t.t.mat.m[3][2] = BR_SCALAR(layout[i].z * radiusA);
+    }
+
+    fprintf(stderr, "  step: BrZbSceneRender\n");
+    BrZbSceneRender(world, cam, colour, depth);
+    fprintf(stderr, "  step: render done\n");
+
+    FILE *f = fopen(out_path, "wb");
+    if (!f) { perror(out_path); return 1; }
+    fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+    fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+    fclose(f);
+
+    /* Histogram per colour band so the diff is human-readable. Before
+     * BrZbEnd / BrEnd because those free `colour`. */
+    long hist[N_INSTANCES + 1] = { 0 };
+    uint8_t *p = (uint8_t *)colour->pixels;
+    for (int i = 0; i < WIDTH * HEIGHT; i++)
+    {
+        if (p[i] == 0) { hist[N_INSTANCES]++; continue; }
+        for (int c = 0; c < N_INSTANCES; c++) if (p[i] == prop_colours[c]) { hist[c]++; break; }
+    }
+    fprintf(stderr, "props-overlap pixel histogram (lit pixels per colour):\n");
+    for (int c = 0; c < N_INSTANCES; c++)
+        fprintf(stderr, "  colour %3u : %ld\n", prop_colours[c], hist[c]);
+    fprintf(stderr, "  background : %ld\n", hist[N_INSTANCES]);
+
+    BrZbEnd();
+    BrEnd();
+    printf("ok: props-overlap -> %s\n", out_path);
+    return 0;
+}
+
 /* Render the cube N times into a single image, each instance translated
  * to its tile and rotated to a different yaw angle. Output bitmap is
  * the colour buffer. */
@@ -892,6 +1061,19 @@ int main(int argc, char **argv)
         }
         init_buffers();
         return run_prop_render(argv[2], argv[3], atoi(argv[1] + 5));
+    }
+
+    /* props-overlap <out> <bmdl-a> [bmdl-b] -- five intersecting copies
+     * of one or two BMDL chunks, each in a distinct flat colour. */
+    if (strcmp(argv[1], "props-overlap") == 0)
+    {
+        if (argc < 4)
+        {
+            fprintf(stderr, "props-overlap requires <out.pgm> <bmdl-a.bin> [bmdl-b.bin]\n");
+            return 2;
+        }
+        init_buffers();
+        return run_props_overlap(argv[2], argv[3], argc >= 5 ? argv[4] : NULL);
     }
 
     init_buffers();
