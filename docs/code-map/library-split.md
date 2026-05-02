@@ -61,24 +61,16 @@ Linked deps: `mpr`, `Winmm` (timer only).
 Files in `kauai` (per `CMakeLists.txt:423`):
 
 `appb.cpp`, `chcm.cpp`, `clip.cpp`, `cmd_gui.cpp`, `ctl.cpp`,
-`cursor.cpp`, `dlg.cpp` *(also in core — see note below)*, `docb.cpp`,
-`gfx.cpp`, `gob.cpp`, `kidhelp.cpp`, `kidspace.cpp`, `kidworld.cpp`,
-`mbmpgui.cpp`, `mididev.cpp`, `mididev2.cpp`, `rtxt.cpp`, `rtxt2.cpp`,
-`scrcomg.cpp`, `screxeg.cpp`, `sndam.cpp`, `text.cpp`, `textdoc.cpp`,
-`video.cpp`.
+`cursor.cpp`, `docb.cpp`, `gfx.cpp`, `gob.cpp`, `kidhelp.cpp`,
+`kidspace.cpp`, `kidworld.cpp`, `mbmpgui.cpp`, `mididev.cpp`,
+`mididev2.cpp`, `rtxt.cpp`, `rtxt2.cpp`, `scrcomg.cpp`, `screxeg.cpp`,
+`sndam.cpp`, `text.cpp`, `textdoc.cpp`, `video.cpp`.
 
 Plus Win32 implementations: `appbwin.cpp`, `dlgwin.cpp`, `gfxwin.cpp`,
 `menuwin.cpp`, `gobwin.cpp`. Plus `frame.rc` resources.
 
 Linked deps: `kauai-core`, `3DMMForever::AudioMan`, `Msacm32`,
 `Vfw32`, `Winmm`, `mpr`.
-
-> **Note:** `dlg.cpp` appears in both lists in `CMakeLists.txt`. After
-> the dlg promotion in commit `467a1c1`, the gui-side entry should be
-> removed; until then it harmlessly compiles into both libs (the
-> kauai-core copy wins at link time for `kauai`-linked targets through
-> the `PUBLIC` re-export). Cleaning this up is a one-line change to
-> `CMakeLists.txt` line 431.
 
 ## brender-core / brender
 
