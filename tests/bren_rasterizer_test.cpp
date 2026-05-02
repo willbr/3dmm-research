@@ -1243,18 +1243,15 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
     return 0;
 }
 
-/* Generic multi-part actor renderer. Takes a list of BMDL file paths
- * and one TMAP file path. Renders each BMDL as its own actor, laid
- * out in a square grid so all parts are visible without overlap. All
- * parts share the supplied texture as their colour_map -- no per-part
- * material binding yet (would need to parse the CMTL graph).
- *
- * The grid layout puts parts at roughly equal spacing; the camera is
- * pulled back enough to fit them all. This is a "prove the textured
- * multi-mesh path works at character scale" test, not a real
- * rest-pose render. */
-static int run_actor_grid(const char *out_path, const char *tmap_path, const char *palette_path, int n_bmdls,
-                          const char **bmdl_paths)
+/* Forward decl; defined below alongside run_actor_pose. */
+static int parse_manifest_line(const char *line, unsigned long *bmdl_cno, unsigned long *tmap_cno);
+
+/* Manifest-driven multi-part actor renderer. Each body part gets its
+ * OWN texture from the CMTL/MTRL/TMAP chain (resolved by inspect-chunks
+ * actor-manifest), laid out in a square grid so every part is visible
+ * without overlap. Same input format as actor-pose -- the only
+ * difference is grid layout vs GLPI-composed rest pose. */
+static int run_actor_grid(const char *out_path, const char *fixture_dir, const char *manifest_path)
 {
     BrBegin();
 
@@ -1275,45 +1272,87 @@ static int run_actor_grid(const char *out_path, const char *tmap_path, const cha
     shade.height = 256;
     BrTableAdd(&shade);
 
-    br_pixelmap *tex_pm = load_tmap_from_file(tmap_path);
-    if (!tex_pm) return 1;
-    BrMapAdd(tex_pm);
+    /* Read manifest: "<chid> BMDL=0xCNO TMAP=0xCNO|NONE" per line. */
+    enum { kMaxParts = 64 };
+    static unsigned long bmdl_cnos[kMaxParts];
+    static unsigned long tmap_cnos[kMaxParts];
+    int n_manifest = 0;
+    {
+        FILE *mf = fopen(manifest_path, "r");
+        if (!mf) { perror(manifest_path); return 1; }
+        char line[256];
+        while (fgets(line, sizeof(line), mf))
+        {
+            unsigned long bcno = 0, tcno = 0;
+            int chid = parse_manifest_line(line, &bcno, &tcno);
+            if (chid < 0 || chid >= kMaxParts) continue;
+            bmdl_cnos[chid] = bcno;
+            tmap_cnos[chid] = tcno;
+            if (chid + 1 > n_manifest) n_manifest = chid + 1;
+        }
+        fclose(mf);
+    }
+    fprintf(stderr, "manifest: %d body parts (max chid)\n", n_manifest);
 
-    br_material *mat = BrMaterialAllocate((char *)"part-mat");
-    mat->colour_map = tex_pm;
-    mat->index_shade = &shade;
-    mat->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
-    mat->ka = BR_UFRACTION(0.20);
-    mat->kd = BR_UFRACTION(0.80);
-    mat->ks = BR_UFRACTION(0.00);
-    mat->opacity = 0xFF;
-    mat->index_base = 0;
-    mat->index_range = 255;
-    BrMaterialAdd(mat);
+    /* Fallback grey for parts whose CMTL chain didn't yield a TMAP. */
+    static uint8_t fallback_pixel = 128;
+    static br_pixelmap fallback_pm;
+    fallback_pm = make_solid_pixmap(&fallback_pixel, 128);
+    BrMapAdd(&fallback_pm);
 
-    /* Load every BMDL and find the largest radius for camera framing. */
-    br_model **parts = (br_model **)calloc(n_bmdls, sizeof(br_model *));
+    /* Per-part materials, each with its own colour_map. */
+    br_model **parts = (br_model **)calloc(n_manifest, sizeof(br_model *));
+    br_material **mats = (br_material **)calloc(n_manifest, sizeof(br_material *));
     float max_radius = 0;
     int loaded = 0;
-    for (int i = 0; i < n_bmdls; i++)
+    for (int i = 0; i < n_manifest; i++)
     {
-        parts[i] = load_bmdl_from_file(bmdl_paths[i]);
+        if (bmdl_cnos[i] == 0) continue;
+        char bmdl_path[1024];
+        snprintf(bmdl_path, sizeof(bmdl_path), "%s/BMDL_%08lx.bin", fixture_dir, bmdl_cnos[i]);
+        parts[i] = load_bmdl_from_file(bmdl_path);
         if (!parts[i]) continue;
         BrModelAdd(parts[i]);
         BrModelUpdate(parts[i], BR_MODU_ALL);
+
+        br_pixelmap *tex_pm;
+        if (tmap_cnos[i] != 0)
+        {
+            char tmap_path[1024];
+            snprintf(tmap_path, sizeof(tmap_path), "%s/TMAP_%08lx.bin", fixture_dir, tmap_cnos[i]);
+            tex_pm = load_tmap_from_file(tmap_path);
+            if (!tex_pm) tex_pm = &fallback_pm;
+            else BrMapAdd(tex_pm);
+        }
+        else
+        {
+            tex_pm = &fallback_pm;
+        }
+
+        mats[i] = BrMaterialAllocate((char *)"part-mat");
+        mats[i]->colour_map = tex_pm;
+        mats[i]->index_shade = &shade;
+        mats[i]->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
+        mats[i]->ka = BR_UFRACTION(0.20);
+        mats[i]->kd = BR_UFRACTION(0.80);
+        mats[i]->ks = BR_UFRACTION(0.00);
+        mats[i]->opacity = 0xFF;
+        mats[i]->index_base = 0;
+        mats[i]->index_range = 255;
+        BrMaterialAdd(mats[i]);
+
+        loaded++;
         float r = BrScalarToFloat(parts[i]->radius);
         if (r > max_radius) max_radius = r;
-        loaded++;
     }
     if (loaded == 0) { fprintf(stderr, "no BMDLs loaded\n"); return 1; }
     if (max_radius < 0.5f) max_radius = 1.0f;
     if (max_radius > 100.0f) max_radius = 100.0f;
-    fprintf(stderr, "loaded %d/%d BMDLs, max radius=%.3f\n", loaded, n_bmdls, max_radius);
+    fprintf(stderr, "loaded %d/%d body parts, max radius=%.3f\n", loaded, n_manifest, max_radius);
 
-    /* Square grid: ceil(sqrt(n)) per side. Each cell sized to fit one
-     * radius with a bit of breathing room. */
+    /* Square grid: ceil(sqrt(loaded)) per side. */
     int cells = 1;
-    while (cells * cells < n_bmdls) cells++;
+    while (cells * cells < loaded) cells++;
     float cell_size = max_radius * 2.5f;
     float total_size = cells * cell_size;
 
@@ -1328,7 +1367,6 @@ static int run_actor_grid(const char *out_path, const char *tmap_path, const cha
     cam_data.aspect = BR_SCALAR(1.0);
     br_actor *cam = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
     cam->t.type = BR_TRANSFORM_MATRIX34;
-    /* Distance such that total_size fits in the 45deg FoV. */
     BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(total_size * 1.4));
 
     static br_light light_data;
@@ -1339,10 +1377,11 @@ static int run_actor_grid(const char *out_path, const char *tmap_path, const cha
     br_actor *light = BrActorAdd(world, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
     BrLightEnable(light);
 
-    /* Place each part at its grid cell, centered on origin. */
+    /* Place each loaded part at its grid cell, each with its own
+     * material (= its own authored TMAP). */
     float origin_offset = -((cells - 1) * cell_size) * 0.5f;
     int slot = 0;
-    for (int i = 0; i < n_bmdls; i++)
+    for (int i = 0; i < n_manifest; i++)
     {
         if (!parts[i]) continue;
         int row = slot / cells;
@@ -1350,7 +1389,7 @@ static int run_actor_grid(const char *out_path, const char *tmap_path, const cha
         slot++;
         br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
         a->model = parts[i];
-        a->material = mat;
+        a->material = mats[i];
         a->t.type = BR_TRANSFORM_MATRIX34;
         BrMatrix34Identity(&a->t.t.mat);
         a->t.t.mat.m[3][0] = BR_SCALAR(origin_offset + col * cell_size);
@@ -1366,11 +1405,11 @@ static int run_actor_grid(const char *out_path, const char *tmap_path, const cha
     uint8_t *p = (uint8_t *)colour->pixels;
     for (int i = 0; i < WIDTH * HEIGHT; i++) if (p[i] != 0) lit++;
     fprintf(stderr, "actor-grid lit=%ld bg=%ld parts=%d\n", lit, (long)WIDTH * HEIGHT - lit, loaded);
-    (void)palette_path; /* obsolete; centralised PPM via BREN_TEST_PALETTE env */
 
     BrZbEnd();
     BrEnd();
     free(parts);
+    free(mats);
     printf("ok: actor-grid -> %s\n", out_path);
     return 0;
 }
@@ -1837,16 +1876,20 @@ int main(int argc, char **argv)
      *   TMAP texture. If <palette> is "-" no colour PPM is written;
      *   otherwise a sibling .ppm is dumped using the supplied 3DMM
      *   GLCR palette so the indices show as authored colours. */
+    /* actor-grid <out.pgm> <fixture-dir> <manifest>
+     *   Multi-part actor render in square grid layout, with each part
+     *   getting its own TMAP from the CMTL/MTRL chain. Same input
+     *   format as actor-pose, just no GLPI/GLXF (grid-laid instead of
+     *   composed via parent chain). */
     if (strcmp(argv[1], "actor-grid") == 0)
     {
-        if (argc < 6)
+        if (argc < 5)
         {
-            fprintf(stderr, "actor-grid requires <out.pgm> <palette.bin|-> <tmap.bin> <bmdl1.bin> [bmdl2.bin ...]\n");
+            fprintf(stderr, "actor-grid requires <out.pgm> <fixture-dir> <manifest.txt>\n");
             return 2;
         }
         init_buffers();
-        const char *pal = strcmp(argv[3], "-") == 0 ? NULL : argv[3];
-        return run_actor_grid(argv[2], argv[4], pal, argc - 5, (const char **)&argv[5]);
+        return run_actor_grid(argv[2], argv[3], argv[4]);
     }
 
     /* actor-pose <out.pgm> <palette|-> <fixture-dir> <glpi> <glxf> <manifest>
