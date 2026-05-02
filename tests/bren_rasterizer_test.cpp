@@ -1592,6 +1592,19 @@ static int run_actor_pose(const char *out_path, const char *fixture_dir, const c
             BrMatrix34Mul(&world[i], &xforms[xi], &world[p]);
     }
 
+    /* Actors author-face down -X by default; rotate the whole scene
+     * 90 degrees around Y so the actor turns to face the camera (+Z).
+     * For row-vector convention, world_with_rot = world * scene_rot. */
+    {
+        br_matrix34 scene_rot;
+        BrMatrix34RotateY(&scene_rot, BR_ANGLE_DEG(90));
+        for (int i = 0; i < n_parts; i++)
+        {
+            br_matrix34 m = world[i];
+            BrMatrix34Mul(&world[i], &m, &scene_rot);
+        }
+    }
+
     /* Per-part materials. Each body part's TMAP becomes its own
      * material's colour_map. Parts whose manifest entry is TMAP=NONE
      * get a fallback flat-grey single-pixel material. */
