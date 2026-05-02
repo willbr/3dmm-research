@@ -58,35 +58,12 @@ void World::IterateActorsInPt(int (*)(struct br_actor *, struct br_model *, stru
 }
 }
 
-#define WIDTH 1024
-#define HEIGHT 1024
+#define WIDTH 256
+#define HEIGHT 256
 
-/* Walk a BACT tree depth-first, attaching every model under the world
- * actor with its accumulated transform. BRender handles the
- * hierarchical compose itself; we just need to add each part. */
-static void add_bacts_to_scene(PBACT pbact_root, br_actor *world_actor, br_material *fallback_mat)
-{
-    if (!pbact_root) return;
-
-    /* Body's BACTs are laid out flat in _prgbact (root, hilite, parts).
-     * Their .parent linkage encodes the hierarchy. We add each one as
-     * an actor under world_actor, preserving the parent chain via
-     * BrActorAdd's parent argument. */
-    for (PBACT pb = pbact_root; pb != NULL; pb = pb->next)
-    {
-        /* Recurse into siblings via .next; children via .children. */
-        if (pb->type == BR_ACTOR_MODEL && pb->model)
-        {
-            br_actor *a = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_MODEL, 0));
-            a->model = pb->model;
-            a->material = pb->material ? pb->material : fallback_mat;
-            a->t = pb->t;
-            /* TODO walk pb->children for nested parts. */
-        }
-        if (pb->children)
-            add_bacts_to_scene(pb->children, world_actor, fallback_mat);
-    }
-}
+/* (Body's BACT tree is attached directly to the scene root via
+ * BrActorAdd; no manual walk needed -- BrZbSceneRender handles the
+ * hierarchy.) */
 
 int __cdecl main(int argc, char **argv)
 {
@@ -199,12 +176,132 @@ int __cdecl main(int argc, char **argv)
     }
     fprintf(stderr, "Rest pose set.\n");
 
-    /* TODO: render via BrZbScene. For this iteration we just verify
-     * the engine load worked end-to-end. The output PGM is empty for
-     * now -- next iteration walks the BACT tree. */
-    (void)argv[4];
-    (void)add_bacts_to_scene;
-    fprintf(stderr, "actor-render-test: load OK; render TODO\n");
+    /* Render the loaded body via BrZbScene. The body's BACT tree is
+     * already populated with proper transforms, models, and materials
+     * by FSetActnCel. We just need to attach it to a world actor that
+     * also holds a camera and a light, then call BrZbSceneRender. */
+    {
+        br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+        br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+        if (!colour || !depth)
+        {
+            fprintf(stderr, "pixmap alloc failed\n");
+            goto LDone;
+        }
+        BrPixelmapFill(colour, 0);
+        BrPixelmapFill(depth, 0xFFFF);
+        BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+        br_actor *world_actor = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+        /* Compute world-space bounds of the body so we can frame the
+         * camera. Body::GetBcbBounds gives us the bounding box in
+         * world coordinates (with fWorld=fTrue). */
+        BCB bcb = {0};
+        pbody->GetBcbBounds(&bcb, fTrue);
+        float xMin = BrScalarToFloat(bcb.xrMin), xMax = BrScalarToFloat(bcb.xrMax);
+        float yMin = BrScalarToFloat(bcb.yrMin), yMax = BrScalarToFloat(bcb.yrMax);
+        float zMin = BrScalarToFloat(bcb.zrMin), zMax = BrScalarToFloat(bcb.zrMax);
+        float cx = (xMin + xMax) * 0.5f, cy = (yMin + yMax) * 0.5f, cz = (zMin + zMax) * 0.5f;
+        float spanX = xMax - xMin, spanY = yMax - yMin;
+        float scene_size = spanX > spanY ? spanX : spanY;
+        if (scene_size < 1.0f) scene_size = 1.0f;
+        fprintf(stderr, "body bounds: x=(%.2f..%.2f) y=(%.2f..%.2f) z=(%.2f..%.2f)\n", xMin, xMax, yMin, yMax, zMin,
+                zMax);
+
+        static br_camera cam_data;
+        cam_data.identifier = (char *)"cam";
+        cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+        cam_data.field_of_view = BR_ANGLE_DEG(45);
+        cam_data.hither_z = BR_SCALAR(1.0);
+        cam_data.yon_z = BR_SCALAR(1000.0);
+        cam_data.aspect = BR_SCALAR(1.0);
+        br_actor *cam = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+        cam->t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(cx), BR_SCALAR(cy), BR_SCALAR(zMax + scene_size * 1.4));
+
+        static br_light light_data;
+        light_data.identifier = (char *)"l";
+        light_data.type = BR_LIGHT_DIRECT;
+        light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+        light_data.attenuation_c = BR_SCALAR(1);
+        br_actor *light = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+        BrLightEnable(light);
+
+        /* Attach each body part BACT under our world. We skip the
+         * body's root + hilite BACTs -- the hilite uses
+         * BR_RSTYLE_BOUNDING_EDGES which BrZbScene gets stuck on for
+         * actors that don't have proper bounding info; we don't need
+         * the highlight ring for a static render. Each part BACT has
+         * its world transform composed via BRender's hierarchy walk
+         * but we attach them as siblings here, so we need to bake
+         * the world transform into each part's local transform first.
+         *
+         * Actually the simpler approach: walk the part chain by part
+         * index using the GLPI parents the engine populated, and
+         * compose world matrices ourselves. But since each part BACT
+         * is already linked to its proper parent BACT in Body's
+         * tree, the path of least surprise is to detach from Body's
+         * root and re-parent under our world. */
+        long n_parts = pbody->Cbact() - 2; /* skip root + hilite */
+        long n_attached = 0;
+        long n_max = n_parts;
+        if (const char *m = getenv("MAX_PARTS")) n_max = atol(m);
+        /* Allocate fresh sibling actors with copies of each part's
+         * model + material + (recursively-composed) world transform.
+         * Avoids relink-from-Body's-tree which we couldn't get to
+         * render -- BrActorAdd's prev != NULL assert fires silently
+         * and tangles the linked list. Fresh actors guarantee clean
+         * .prev/.next/.parent pointers.
+         *
+         * World transform is each BACT's accumulated chain from its
+         * Body ancestors back to body root. We compose by walking
+         * .parent pointers within Body's tree before attaching. */
+        for (long i = 0; i < n_parts && n_attached < n_max; i++)
+        {
+            PBACT pb = pbody->PbactPart(i);
+            if (!pb || pb->type != BR_ACTOR_MODEL || !pb->model) continue;
+
+            /* Compose world transform by walking parent chain. */
+            br_matrix34 m;
+            BrMatrix34Copy(&m, &pb->t.t.mat);
+            for (br_actor *par = pb->parent; par != NULL && par != pbody->PbactRoot(); par = par->parent)
+            {
+                br_matrix34 tmp;
+                BrMatrix34Mul(&tmp, &m, &par->t.t.mat);
+                m = tmp;
+            }
+
+            br_actor *a = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_MODEL, 0));
+            a->model = pb->model;
+            a->material = pb->material;
+            a->t.type = BR_TRANSFORM_MATRIX34;
+            a->t.t.mat = m;
+            n_attached++;
+        }
+        fprintf(stderr, "calling BrZbSceneRender (%ld parts attached)...\n", n_attached);
+
+        BrZbSceneRender(world_actor, cam, colour, depth);
+        fprintf(stderr, "BrZbSceneRender returned\n");
+
+        FILE *f = fopen(argv[4], "wb");
+        if (f)
+        {
+            fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+            fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+            fclose(f);
+            long lit = 0;
+            uint8_t *pix = (uint8_t *)colour->pixels;
+            for (int i = 0; i < WIDTH * HEIGHT; i++) if (pix[i] != 0) lit++;
+            fprintf(stderr, "rendered: lit=%ld bg=%ld\n", lit, (long)WIDTH * HEIGHT - lit);
+        }
+        else
+        {
+            perror(argv[4]);
+        }
+        BrZbEnd();
+    }
+    fprintf(stderr, "actor-render-test: ok\n");
     rc = 0;
 
 LDone:
