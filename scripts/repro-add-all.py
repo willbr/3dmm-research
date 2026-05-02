@@ -160,6 +160,33 @@ def main():
     def key(vk):
         call("key", {"vk": vk})
         call("wait_ms", {"ms": 800})
+    def place_in_movie_view(label):
+        # After a browser pick that creates a placeable object (actor or
+        # prop), 3DMM enters place-actor mode: ClipCursor confines the
+        # mouse to MovieView and the next click in MovieView commits the
+        # placement (movie.cpp:6533 StartPlaceActor / movie.cpp:8204
+        # _MouseUp toolPlace branch). Until that click happens we cannot
+        # reach any other tool button, and a synthetic click outside the
+        # MovieView rect gets clipped back to MovieView and trips the
+        # "mouse already being tracked!" assert at movie.cpp:6805.
+        # kidWorkspace (0x2005D) is the parent of MovieView and fills the
+        # central 3D viewport area; its centre is always inside MovieView.
+        g = json.loads(text(call("find_gob", {"hid": 0x2005D})))
+        if not g.get("found") or g.get("w",0) == 0:
+            p(f"  could not find kidWorkspace for placement after {label}: {g}")
+            return False
+        cx = g["x"] + g["w"] // 2
+        cy = g["y"] + g["h"] // 2
+        p(f"  place {label}: click workspace centre ({cx},{cy})")
+        call("click", {"x": cx, "y": cy, "button":"left"}, timeout=4.0)
+        time.sleep(0.6)
+        for _ in range(4):
+            d = json.loads(text(call("list_dialogs", timeout=2.0)))
+            if d.get("count", 0):
+                fatal_dialogs(d, f"place({label})")
+                break
+            time.sleep(0.25)
+        return True
 
     p("[wait 3s]"); time.sleep(3)
     send("initialize", {"protocolVersion":"2024-11-05","capabilities":{},
@@ -205,13 +232,30 @@ def main():
     if not click_gob(0x21120, "actor-thumb-0", click_mode="positioned"): return
     dialogs("after-actor-thumb"); shot("04-after-actor-pick")
 
+    # Picking an actor enters place-actor mode (cursor clipped to MovieView).
+    # Click in MovieView to commit before reaching for any other tool button.
+    if not place_in_movie_view("actor"): return
+    shot("04b-actor-placed")
+
     p("\n[5] 3D Text (Spletters)")
     if not click_gob(0x20077, "spletters"): return
     dialogs("after-spletters"); shot("05-spletters")
 
-    p("\n[6] press Escape to close easel")
-    key(0x1B)  # VK_ESCAPE
-    dialogs("after-escape"); shot("06-after-escape")
+    # The Spletters easel opens with default product-name text pre-filled
+    # (Studio::FCmdNewSpletter at studio.cpp:1095 seeds it via
+    # vapp.GetStnProduct). Type a character so the edit field registers a
+    # change, then click OK (kidSpltOk = 0x200A5). The studio commits the
+    # 3D text as a placeable actor, dropping us into place-actor mode --
+    # so we then need a click in MovieView to commit placement, same as
+    # for an actor pick (movie.cpp:6533 StartPlaceActor). Escape alone
+    # cancels the easel without creating the text actor.
+    p("\n[6a] type into Spletters edit field")
+    key(0x41)  # VK_A -- adds an 'A' to the default text
+    p("\n[6b] click OK to commit 3D text")
+    if not click_gob(0x200A5, "splt-ok"): return
+    dialogs("after-splt-ok"); shot("06-after-splt-ok")
+    if not place_in_movie_view("3d-text"): return
+    shot("06b-3d-text-placed")
 
     p("\n[7] Props")
     if not click_gob(0x20076, "props", wait_target=0x20040, wait_mode="visible"): return
@@ -221,7 +265,17 @@ def main():
     if not click_gob(0x21120, "prop-thumb-0", click_mode="positioned"): return
     dialogs("after-prop-thumb"); shot("08-after-prop-pick")
 
-    p("\n[9] Sound Effects")
+    # Props also enter place-actor mode -- commit placement before moving on.
+    if not place_in_movie_view("prop"): return
+    shot("08b-prop-placed")
+
+    # Sounds mode requires its cover click before any sound-browser button
+    # (kidSoundsEfxBrowser etc.) becomes live -- same dance as actors-mode.
+    p("\n[9a] Sounds mode (cover tab)")
+    if not click_gob(0x20007, "sounds-cover"): return
+    time.sleep(0.5); shot("09a-sounds-mode")
+
+    p("\n[9b] Sound Effects")
     if not click_gob(0x20078, "sfx", wait_target=0x20044, wait_mode="visible"): return
     dialogs("after-sfx"); shot("09-sfx-browser")
 
