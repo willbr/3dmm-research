@@ -85,6 +85,12 @@ class Body : public Body_PAR
     static PBody PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset);
     static PBody PbodyFromBact(BACT *pbact, long *pibset = pvNil);
     static PBody PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset = pvNil);
+    /* Public accessors for the BACT tree -- needed by headless test
+     * harnesses that walk the body to render via BrZbScene without
+     * going through the full World/PWorld playback runtime. */
+    PBACT PbactRoot(void) { return _PbactRoot(); }
+    PBACT PbactPart(long ipart) { return _PbactPart(ipart); }
+    long Cbact(void) { return _Cbact(); }
     ~Body(void);
     PBody PbodyDup(void);
     void Restore(PBody pbodyDup);
