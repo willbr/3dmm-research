@@ -940,9 +940,6 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     // call stack - follow the EBP chain....
 #ifdef IN_80386
     __asm { mov plw,ebp }
-#else
-    plw = pvNil; // x64: no inline asm; assertion stack capture disabled
-#endif
     for (ilw = 0; ilw < kclwChain; ilw++)
     {
         if (pvNil == plw || IsBadReadPtr(plw, 2 * size(long)) || *plw <= (long)plw)
@@ -956,6 +953,27 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
             plw = (long *)*plw;
         }
     }
+#else
+    // x64: walk the stack via CaptureStackBackTrace. Skip the top frame
+    // (this function); fold the 64-bit return addresses into the existing
+    // rglw[] (long is 32-bit on Win64) by emitting them as two halves --
+    // hi then lo -- so each frame consumes two slots and the existing
+    // hex-format loop below can render them. Use kclwChain/2 frames.
+    plw = pvNil; // unused on this path
+    {
+        const long kcStack = kclwChain / 2;
+        void *rgpv[kcStack];
+        USHORT cFrames = CaptureStackBackTrace(1, kcStack, rgpv, NULL);
+        for (ilw = 0; ilw < kclwChain; ilw++)
+            rglw[ilw] = 0;
+        for (long iFrame = 0; iFrame < cFrames && (iFrame * 2 + 1) < kclwChain; iFrame++)
+        {
+            uintptr_t addr = (uintptr_t)rgpv[iFrame];
+            rglw[iFrame * 2 + 0] = (long)(addr >> 32);
+            rglw[iFrame * 2 + 1] = (long)(addr & 0xffffffffu);
+        }
+    }
+#endif
 
     for (cact = 0; cact < 2; cact++)
     {
@@ -1012,7 +1030,7 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
     // off-screen later. Uses a transient String buffer to fit the body (msg +
     // optional stn1 + optional stn2) into one log entry.
     {
-        String stnLog;
+        String stnLog, stnT;
         stnLog = stn0;
         if (stn1.Cch() > 0)
         {
@@ -1023,6 +1041,18 @@ bool ApplicationBase::FAssertProcApp(PSZS pszsFile, long lwLine, PSZS pszsMsg, v
         {
             stnLog.FAppendSz(PszLit("\r\n"));
             stnLog.FAppendStn(&stn2);
+        }
+        // Append the EXE load base so the hi/lo-paired addresses above can be
+        // resolved against the .map file. Each "hi lo" 4-byte pair forms a
+        // 64-bit return address; subtracting the base gives the RVA.
+        HMODULE hModExe = GetModuleHandleW(NULL);
+        if (hModExe != NULL)
+        {
+            stnLog.FAppendSz(PszLit("\r\nexe base: "));
+            stnT.FFormatSz(PszLit("%08x %08x"),
+                           (long)((uintptr_t)hModExe >> 32),
+                           (long)((uintptr_t)hModExe & 0xffffffffu));
+            stnLog.FAppendStn(&stnT);
         }
         SZS szsLog;
         stnLog.GetSzs(szsLog);
