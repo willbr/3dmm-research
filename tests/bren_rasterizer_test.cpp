@@ -304,14 +304,13 @@ static void scene_tilted_overlap(void)
     TriangleRenderPIZ2TIA(&a2, &b2, &c2);
 }
 
-/* Unit test for BrFixedFMac3 -- the FMac variants are 1.15-fraction *
- * 16.16-fixed accumulators (`movsx + imul + shrd 15` in the asm; the C
- * fallback shifts by 15 too -- a previous off-by-one shift of 16 was
- * the cause of x64 face-normal dot products coming out at half magnitude
- * and back-face culling rendering models inside-out).
- *
- * Writes one line per case to the supplied file in a deterministic
- * format. x86 (asm path) and x64 (C path) outputs must be byte-identical. */
+/* Comprehensive unit test for the BrFixed* arithmetic functions.
+ * Diff-compares asm (x86) vs C fallback (x64) output for every
+ * function with a non-trivial implementation. A previous shrd-by-15
+ * vs shrd-by-16 off-by-one in the FMac variants was the cause of
+ * x64 face-normal dot products coming out at half magnitude and
+ * back-face culling rendering models inside-out -- this sweep catches
+ * any similar drift in the other ports. */
 static int run_fmac_unit(const char *path)
 {
     /* Each row: a (1.15 fraction), b (16.16 fixed), c, d, e, f */
@@ -341,6 +340,73 @@ static int run_fmac_unit(const char *path)
                 (long)(unsigned long)cases[i].b, (long)(unsigned long)cases[i].c, (long)(unsigned long)cases[i].d,
                 (long)(unsigned long)cases[i].e, (long)(unsigned long)cases[i].f, (long)(unsigned long)r);
     }
+
+    /* Sweep over the rest of the BrFixed surface area. Pick representative
+     * 16.16 fixed-point inputs that include sign changes, fractional values,
+     * and magnitudes that exercise the high half of the 64-bit accumulator. */
+    /* Magnitudes kept moderate so a/b never trips divide-overflow in
+     * idiv (which the asm signals via SIGFPE rather than returning a
+     * sentinel). +eps and most-negative are skipped for the same reason. */
+    static const br_fixed_ls samples[] = {
+        0x00010000,                /* 1.0 */
+        0x00018000,                /* 1.5 */
+        (br_fixed_ls)(int32_t)0xFFFF0000, /* -1.0 */
+        0x00008000,                /* 0.5 */
+        0x00040000,                /* 4.0 */
+        0x00100000,                /* 16.0 */
+        (br_fixed_ls)(int32_t)0xFFFC0000, /* -4.0 */
+    };
+    const int nsam = (int)(sizeof(samples) / sizeof(samples[0]));
+
+    for (int i = 0; i < nsam; i++)
+    {
+        for (int j = 0; j < nsam; j++)
+        {
+            br_fixed_ls a = samples[i], b = samples[j];
+            fprintf(f, "mul   a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                    (long)(unsigned long)BrFixedMul(a, b));
+            if (b != 0)
+                fprintf(f, "div   a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                        (long)(unsigned long)BrFixedDiv(a, b));
+            fprintf(f, "mac2  a=%08lx b=%08lx c=a d=b -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                    (long)(unsigned long)BrFixedMac2(a, b, a, b));
+            fprintf(f, "sqr   a=%08lx                 -> %08lx\n", (long)(unsigned long)a,
+                    (long)(unsigned long)BrFixedSqr(a));
+            fprintf(f, "sqr2  a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                    (long)(unsigned long)BrFixedSqr2(a, b));
+            fprintf(f, "len2  a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                    (long)(unsigned long)BrFixedLength2(a, b));
+            if (a != 0 || b != 0)
+                fprintf(f, "rlen2 a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                        (long)(unsigned long)BrFixedRLength2(a, b));
+            if (b != 0)
+                fprintf(f, "muldv a=%08lx b=%08lx c=One -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                        (long)(unsigned long)BrFixedMulDiv(a, b, 0x10000));
+            if (a != 0)
+                fprintf(f, "rcp   a=%08lx                 -> %08lx\n", (long)(unsigned long)a,
+                        (long)(unsigned long)BrFixedRcp(a));
+        }
+    }
+
+    /* Trig: BAM angles. */
+    for (int deg = 0; deg <= 360; deg += 15)
+    {
+        br_angle ang = (br_angle)(deg * 65536L / 360);
+        fprintf(f, "sin   ang=%04x                    -> %08lx\n", ang, (long)(unsigned long)BrFixedSin(ang));
+        fprintf(f, "cos   ang=%04x                    -> %08lx\n", ang, (long)(unsigned long)BrFixedCos(ang));
+    }
+
+    /* Mac3 (all _F) -- routes through the most-used 3-arg accumulator. */
+    for (int i = 0; i < nsam; i++)
+    {
+        for (int j = 0; j < nsam; j++)
+        {
+            br_fixed_ls a = samples[i], b = samples[j];
+            fprintf(f, "mac3  a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                    (long)(unsigned long)BrFixedMac3(a, b, a, b, a, b));
+        }
+    }
+
     fclose(f);
     return 0;
 }
