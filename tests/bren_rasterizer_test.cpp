@@ -838,7 +838,7 @@ static int run_props_overlap(const char *out_path, const char *bmdl_a, const cha
      * intersect each other. Each at a different yaw and depth so the
      * z-buffer has to sort them per pixel. The instances and props
      * alternate so the overlap region mixes geometry and colour. */
-    static const struct
+    static struct
     {
         float x, y, z;
         long yaw_idx;
@@ -850,8 +850,14 @@ static int run_props_overlap(const char *out_path, const char *bmdl_a, const cha
         {  0.0f,  0.4f, -0.5f, 3, 1 }, /* behind, between */
         {  0.0f,  0.0f,  0.0f, 4, 0 }, /* dead centre, intersects everything */
     };
+    /* PROPS_OVERLAP_MASK env var: bitmask of which instances to render.
+     * Default 0x1f = all 5. Use to bisect divergence. */
+    int mask = 0x1f;
+    if (const char *m = getenv("PROPS_OVERLAP_MASK"))
+        mask = (int)strtol(m, NULL, 0);
     for (int i = 0; i < N_INSTANCES; i++)
     {
+        if (!(mask & (1 << i))) continue;
         br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
         a->model = (layout[i].prop_idx == 0) ? propA : propB;
         a->material = mats[i];

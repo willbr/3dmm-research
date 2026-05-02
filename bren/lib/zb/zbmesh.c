@@ -1168,7 +1168,12 @@ STATIC void ZbOnScreenFindFacesVerts(void)
 #else
 				for(f=0; f < gp->nfaces; f++, fp++, tfp++) {
 
-					if(BrFVector3Dot(&fp->n,&fw.eye_m) < fp->d) {
+					/* Asm ZbOSFFVGroupCulledLit_A in mesh386.asm culls on
+					 * `cmp/jle d`, i.e. visible iff dot > d (strict). The
+					 * C path was `< d` (visible if dot >= d), so x86 (asm)
+					 * and x64 (C) disagreed at the exact-tangent boundary.
+					 * Match the asm so cull decisions agree per-face. */
+					if(BrFVector3Dot(&fp->n,&fw.eye_m) <= fp->d) {
 						tfp->flag = 0;
 					} else {
 						tfp->flag = TFF_VISIBLE;
@@ -1189,7 +1194,9 @@ STATIC void ZbOnScreenFindFacesVerts(void)
 				fp += gp->nfaces;
 #else
 				for(f=0; f < gp->nfaces; f++, fp++, tfp++) {
-					if(BrFVector3Dot(&fp->n,&fw.eye_m) < fp->d) {
+					/* Match asm ZbOSFFVGroupCulled_A's `jle d` (visible
+					 * iff dot > d strict); see twin block above. */
+					if(BrFVector3Dot(&fp->n,&fw.eye_m) <= fp->d) {
 						tfp->flag = 0;
 					} else {
 						tfp->flag = TFF_VISIBLE;
