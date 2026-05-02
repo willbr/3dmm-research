@@ -764,12 +764,16 @@ static JVal Tool_Click(const JVal &args)
     POINT p = {x, y};
     ClientToScreen(hwnd, &p);
 
+    // Force the window foreground so SendInput is delivered to it (not to
+    // whatever the user has focused). We own this hwnd, so SetForegroundWindow
+    // succeeds without UIPI/foreground-gating restrictions. Use a brief
+    // ShowWindow + BringWindowToTop sequence first because foreground stealing
+    // is otherwise blocked when our process didn't generate the last input.
+    ShowWindow(hwnd, SW_SHOW);
+    BringWindowToTop(hwnd);
     SetForegroundWindow(hwnd);
     PumpForMs(50);
 
-    // Use SendInput so the click goes through the real OS hit-testing path
-    // (matters for kidspace, which routes mouse events through Win32 child
-    // windows). Mouse coords are normalized to 0..65535 across the desktop.
     int cxScreen = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     int cyScreen = GetSystemMetrics(SM_CYVIRTUALSCREEN);
     int xVirt = GetSystemMetrics(SM_XVIRTUALSCREEN);
@@ -779,19 +783,36 @@ static JVal Tool_Click(const JVal &args)
     LONG nx = (LONG)((((LONGLONG)(p.x - xVirt)) * 65535) / cxScreen);
     LONG ny = (LONG)((((LONGLONG)(p.y - yVirt)) * 65535) / cyScreen);
 
-    INPUT in[3] = {};
-    in[0].type = INPUT_MOUSE;
-    in[0].mi.dx = nx;
-    in[0].mi.dy = ny;
-    in[0].mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
-    in[1].type = INPUT_MOUSE;
-    in[1].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
-    in[2].type = INPUT_MOUSE;
-    in[2].mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
-    SendInput(3, in, sizeof(INPUT));
-    PumpForMs(50);
+    // Use SendInput so the OS updates VK_LBUTTON state -- kauai's
+    // GrfcustCur() reads GetKeyState(VK_LBUTTON) to set fcustMouse, and
+    // GraphicsObject::MouseDown asserts that flag. PostMessage(WM_LBUTTONDOWN)
+    // alone bypasses the OS state and trips the assertion.
+    //
+    // Move, down, and up are sent in three separate batches with message-pump
+    // cycles between them so kidspace's mouse-state machine has time to
+    // transition through hover -> press -> click. Sending them as one batch
+    // produced only the hover tooltip (down/up never registered as a click).
+    INPUT mv = {};
+    mv.type = INPUT_MOUSE;
+    mv.mi.dx = nx;
+    mv.mi.dy = ny;
+    mv.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+    SendInput(1, &mv, sizeof(INPUT));
+    PumpForMs(40);
 
-    char msg[128];
+    INPUT dn = {};
+    dn.type = INPUT_MOUSE;
+    dn.mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
+    SendInput(1, &dn, sizeof(INPUT));
+    PumpForMs(60);
+
+    INPUT up = {};
+    up.type = INPUT_MOUSE;
+    up.mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
+    SendInput(1, &up, sizeof(INPUT));
+    PumpForMs(100);
+
+    char msg[160];
     std::snprintf(msg, sizeof(msg), "clicked %s at client (%ld,%ld) screen (%ld,%ld)",
                   isRight ? "right" : "left", x, y, p.x, p.y);
     return ContentText(msg);
