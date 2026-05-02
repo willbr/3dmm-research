@@ -26,16 +26,192 @@
  * comment in bren/lib/. */
 #include "../zb/zb.h"
 
-/* Trapezoid scan-converters are called by the auto-generated triangle
- * renderers in awtmz.c. The renderers prepare per-edge interpolation state
- * and then call the trapezoid routine to fill the spans. Without it,
- * textured triangles are silently skipped. */
-void TrapezoidRenderPIZ2TIA(void)
+/* Naive shared body for the textured-trapezoid scan-converters
+ * TrapezoidRenderPIZ2TIA / TrapezoidRenderPIZ2TIANT (zb/t_piza.asm,
+ * t_piza2.asm). The C wrapper in awtmz.c populates zb.{main,top,bot} edge
+ * walkers, zb.p{z,i,u,v} parameter walkers, and zb.awsl pointer state for
+ * the first scanline, then calls us to walk one half of the triangle.
+ *
+ * What we do per scanline:
+ *   - Walk pixels from zb.awsl.start to zb.awsl.end (forward or backward
+ *     depending on the long edge's direction relative to the minor edge).
+ *   - Per pixel: interp z, intensity, u, v from zb.pz/pi/pu/pv .current,
+ *     using grad_x as the per-pixel delta. Wrap (u,v) into the texture
+ *     and sample. If transparent (texel == 0 for BPP=1, transp variant
+ *     only) skip. Z-test against the 16-bit depth buffer; on pass, write
+ *     z and shade_table[intensity*256 + texel].
+ *
+ * What we do per scanline boundary:
+ *   - Long edge: zb.main.f += zb.main.d_f. Detect 32-bit unsigned overflow
+ *     to know whether to use d_carry or d_nocarry on the parameter walkers.
+ *   - Minor edge (zb.awsl.edge): same thing for the trapezoid's minor side.
+ *   - Frame buffer pointer (zb.awsl.start) advances by main.d_i (+1 if
+ *     main carried). End pointer advances by edge->d_i (+1 if edge carried).
+ *     zstart advances by row_width worth of uint16_t (depth_row_width /
+ *     sizeof(uint16_t)).
+ *   - Per-parameter walker advances by d_carry if main carried, else
+ *     d_nocarry.
+ *
+ * Differences from the asm:
+ *   - We don't maintain zb.awsl's incremental u_int_current /
+ *     source_current; we recompute texel position per pixel from
+ *     zb.pu.current / zb.pv.current (slower but trivial to get right).
+ *   - We use C arithmetic for the edge fraction overflow rather than
+ *     CPU carry flags.
+ */
+static void render_trapezoid_tia(int transparent)
 {
+    struct scan_edge *edge = zb.awsl.edge;
+    int count = edge->count;
+    if (count <= 0)
+        return;
+
+    int row_width = zb.row_width;
+    uint8_t *fb_start = (uint8_t *)zb.awsl.start;
+    uint8_t *fb_end = (uint8_t *)zb.awsl.end;
+    uint16_t *zp_start = (uint16_t *)zb.awsl.zstart;
+
+    uint8_t *tex_buf = (uint8_t *)zb.texture_buffer;
+    uint8_t *shade = (uint8_t *)zb.shade_table;
+    int tex_w = zb.awsl.texture_width;
+    int tex_stride = zb.awsl.texture_stride;
+    int tex_h = zb.material->colour_map->height;
+
+    br_fixed_ls dz_x = zb.pz.grad_x;
+    br_fixed_ls di_x = zb.pi.grad_x;
+    br_fixed_ls du_x = zb.pu.grad_x;
+    br_fixed_ls dv_x = zb.pv.grad_x;
+
+    while (count-- > 0)
+    {
+        br_fixed_ls cur_z = zb.pz.current;
+        br_fixed_ls cur_i = zb.pi.current;
+        br_fixed_ls cur_u = zb.pu.current;
+        br_fixed_ls cur_v = zb.pv.current;
+
+        /* Pixel direction. Asm checks (start >= _end) at scanline entry
+         * and chooses a forward or backward inner loop. */
+        if (fb_start < fb_end)
+        {
+            uint8_t *fb = fb_start;
+            uint16_t *zp = zp_start;
+            while (fb < fb_end)
+            {
+                int u = (int)((int32_t)cur_u >> 16);
+                int v = (int)((int32_t)cur_v >> 16);
+                u %= tex_w;
+                if (u < 0)
+                    u += tex_w;
+                v %= tex_h;
+                if (v < 0)
+                    v += tex_h;
+                uint8_t texel = tex_buf[v * tex_stride + u];
+                if (!transparent || texel != 0)
+                {
+                    uint16_t z16 = (uint16_t)((uint32_t)cur_z >> 16);
+                    if (z16 < *zp)
+                    {
+                        *zp = z16;
+                        int intensity = (int)(((uint32_t)cur_i >> 16) & 0xFF);
+                        *fb = shade[intensity * 256 + texel];
+                    }
+                }
+                cur_z += dz_x;
+                cur_i += di_x;
+                cur_u += du_x;
+                cur_v += dv_x;
+                fb++;
+                zp++;
+            }
+        }
+        else
+        {
+            /* Backward: walk from fb_start-1 down to fb_end, taking deltas
+             * with a NEGATIVE sign (the asm `sub edx, ebp` form). */
+            uint8_t *fb = fb_start;
+            uint16_t *zp = zp_start;
+            while (fb > fb_end)
+            {
+                fb--;
+                zp--;
+                cur_z -= dz_x;
+                cur_i -= di_x;
+                cur_u -= du_x;
+                cur_v -= dv_x;
+                int u = (int)((int32_t)cur_u >> 16);
+                int v = (int)((int32_t)cur_v >> 16);
+                u %= tex_w;
+                if (u < 0)
+                    u += tex_w;
+                v %= tex_h;
+                if (v < 0)
+                    v += tex_h;
+                uint8_t texel = tex_buf[v * tex_stride + u];
+                if (!transparent || texel != 0)
+                {
+                    uint16_t z16 = (uint16_t)((uint32_t)cur_z >> 16);
+                    if (z16 < *zp)
+                    {
+                        *zp = z16;
+                        int intensity = (int)(((uint32_t)cur_i >> 16) & 0xFF);
+                        *fb = shade[intensity * 256 + texel];
+                    }
+                }
+            }
+        }
+
+        /* Advance long edge: detect unsigned overflow from f += d_f. The
+         * asm's `add zb.main.f, eax / jc` is exactly this carry test. */
+        uint32_t main_f_old = (uint32_t)zb.main.f;
+        zb.main.f = (br_int_32)(main_f_old + (uint32_t)zb.main.d_f);
+        int main_carry = ((uint32_t)zb.main.f < main_f_old) ? 1 : 0;
+
+        uint32_t edge_f_old = (uint32_t)edge->f;
+        edge->f = (br_int_32)(edge_f_old + (uint32_t)edge->d_f);
+        int edge_carry = ((uint32_t)edge->f < edge_f_old) ? 1 : 0;
+
+        /* Frame buffer start/end advance. main.d_i / edge->d_i already
+         * include row_width baked into them at setup time (see SETUP_PI:
+         * d_i = sar16(grad) + row_width). +1 pixel on carry. */
+        fb_start += zb.main.d_i + main_carry;
+        fb_end += edge->d_i + edge_carry;
+        zp_start += row_width;
+
+        /* Parameter walkers. d_carry is "delta when long edge carried",
+         * d_nocarry the alternative. */
+        if (main_carry)
+        {
+            zb.pz.current += zb.pz.d_carry;
+            zb.pi.current += zb.pi.d_carry;
+            zb.pu.current += zb.pu.d_carry;
+            zb.pv.current += zb.pv.d_carry;
+        }
+        else
+        {
+            zb.pz.current += zb.pz.d_nocarry;
+            zb.pi.current += zb.pi.d_nocarry;
+            zb.pu.current += zb.pu.d_nocarry;
+            zb.pv.current += zb.pv.d_nocarry;
+        }
+    }
+
+    /* Persist running state for the next caller (the awtmz wrapper kicks
+     * off a second TNAME() for the bottom half of the triangle that
+     * continues from where we left off). */
+    zb.awsl.start = (char *)fb_start;
+    zb.awsl.end = (char *)fb_end;
+    zb.awsl.zstart = (char *)zp_start;
+    edge->count = 0; /* asm exits with count == 0; mirror that */
 }
 
-void TrapezoidRenderPIZ2TIANT(void)
+void TrapezoidRenderPIZ2TIA(void) /* transparent */
 {
+    render_trapezoid_tia(1);
+}
+
+void TrapezoidRenderPIZ2TIANT(void) /* non-transparent */
+{
+    render_trapezoid_tia(0);
 }
 
 /* Naive scanline port of TriangleRenderPIZ2I (zb/ti8_piz.asm).
