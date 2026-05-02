@@ -421,19 +421,37 @@ target_link_libraries(kauai
     $<$<PLATFORM_ID:Windows>:Winmm>
     $<$<PLATFORM_ID:Windows>:mpr>)
 
-add_library(brender)
-target_sources(brender
+# brender-core: BRender wrapper minus the World/PWorld gui binding.
+# Provides _BrDefault{Filesystem,Allocator,Diag} + the TextureMap and
+# ZBMP wrappers + the std{file,err,mem} adapters that BRender::Libraries
+# needs at link time. No kauai-gui link dep -- pulls only kauai-core.
+add_library(brender-core)
+target_sources(brender-core
     PRIVATE
-    "${PROJECT_SOURCE_DIR}/bren/bwld.cpp"
     "${PROJECT_SOURCE_DIR}/bren/stderr.c"
     "${PROJECT_SOURCE_DIR}/bren/stdfile.c"
     "${PROJECT_SOURCE_DIR}/bren/stdmem.c"
     "${PROJECT_SOURCE_DIR}/bren/tmap.cpp"
     "${PROJECT_SOURCE_DIR}/bren/zbmp.cpp"
 )
+target_include_directories(brender-core PUBLIC "${PROJECT_SOURCE_DIR}/BREN/INC")
+target_link_libraries(brender-core
+  PUBLIC
+    kauai-core
+    BRender::Libraries)
+
+# brender: full wrapper including bwld.cpp (the World class that
+# wraps a BRender world together with kauai gui bits like
+# PGraphicsPort). PUBLIC re-exports brender-core + kauai gui.
+add_library(brender)
+target_sources(brender
+    PRIVATE
+    "${PROJECT_SOURCE_DIR}/bren/bwld.cpp"
+)
 target_include_directories(brender PUBLIC "${PROJECT_SOURCE_DIR}/BREN/INC")
 target_link_libraries(brender
   PUBLIC
+    brender-core
     kauai
     BRender::Libraries)
 
@@ -464,8 +482,11 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/tmpl.cpp"
 )
 target_include_directories(engine-core PUBLIC
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/INC>)
-target_link_libraries(engine-core PUBLIC kauai-core brender)
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/INC>
+  # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
+  # is NOT linked from engine-core, so we just need the include path.
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/BREN/INC>)
+target_link_libraries(engine-core PUBLIC kauai-core brender-core)
 
 # --- engine: full playback runtime, transitively re-exports core ---
 add_library(engine)
