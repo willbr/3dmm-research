@@ -47,15 +47,21 @@ extern "C" void BR_ASM_CALL TriangleRenderPIZ2TIA(struct temp_vertex_fixed *, st
  * build. They're harmless here. */
 extern "C" {
 static void BR_CALLBACK NullWarning(char *) {}
-static void BR_CALLBACK NullFailure(char *) {}
+static void BR_CALLBACK NullFailure(char *msg)
+{
+    fprintf(stderr, "BRender FATAL: %s\n", msg ? msg : "(null)");
+    exit(11);
+}
 static br_diaghandler g_NullDiag = { (char *)"test-null-diag", NullWarning, NullFailure };
 br_diaghandler *_BrDefaultDiagHandler = &g_NullDiag;
 
-static void *NullAlloc(br_size_t, br_uint_8) { return 0; }
-static void NullFree(void *) {}
-static br_size_t NullInquire(br_uint_8) { return 0; }
-static br_allocator g_NullAllocator = { (char *)"test-null-alloc", NullAlloc, NullFree, NullInquire };
-br_allocator *_BrDefaultAllocator = &g_NullAllocator;
+/* malloc-backed allocator; the rasterizer scenes don't allocate but
+ * BrBegin (used by the actor-render mode) expects a working one. */
+static void *MallocAlloc(br_size_t size, br_uint_8) { return malloc(size); }
+static void MallocFree(void *m) { free(m); }
+static br_size_t MallocInquire(br_uint_8) { return 0; }
+static br_allocator g_MallocAllocator = { (char *)"test-malloc", MallocAlloc, MallocFree, MallocInquire };
+br_allocator *_BrDefaultAllocator = &g_MallocAllocator;
 
 static br_uint_32 NullAttrs(void) { return 0; }
 static br_filesystem g_NullFs = { (char *)"test-null-fs" };
@@ -411,6 +417,207 @@ static int run_fmac_unit(const char *path)
     return 0;
 }
 
+/* ============================================================
+ * Real-pipeline actor-render harness.
+ *
+ * Goes through the full BRender machinery (BrBegin / BrZbBegin /
+ * BrZbSceneRender) to render a hand-built cube model from N camera
+ * angles into one composited bitmap. Mirrors the visible-rendering
+ * path that 3DMM uses for actors -- transform, light, cull, rasterize.
+ *
+ * Used to bisect between "rasterizer is the bug" (already disproven by
+ * the byte-perfect rasterizer scenes) and "transform / cull / lighting
+ * is the bug" (where the user's reported z-order issue is most likely
+ * to live).
+ * ============================================================ */
+
+/* 8 vertices of a unit cube centred at origin. Coordinates are 16.16
+ * fixed via BR_SCALAR. UVs are 0..1 in 16.16 fixed via BR_SCALAR. */
+#define CUBE_HALF BR_SCALAR(0.5)
+
+/* Triangle face winding for a cube viewed from outside (CCW in BRender's
+ * left-handed coords). Each face = 2 triangles = 6 vertex indices. */
+struct CubeFace
+{
+    int v[6];
+};
+static const CubeFace g_cube_faces[6] = {
+    /* +Z (front) */ {{0, 1, 2, 1, 3, 2}},
+    /* -Z (back)  */ {{4, 6, 5, 5, 6, 7}},
+    /* +X (right) */ {{1, 5, 3, 5, 7, 3}},
+    /* -X (left)  */ {{4, 0, 6, 0, 2, 6}},
+    /* +Y (top)   */ {{2, 3, 6, 3, 7, 6}},
+    /* -Y (bot)   */ {{4, 5, 0, 0, 5, 1}},
+};
+
+static br_model *make_cube_model(void)
+{
+    br_model *m = BrModelAllocate((char *)"unit-cube", 8, 12);
+    if (!m)
+        return 0;
+
+    /* Vertex coords: (±0.5, ±0.5, ±0.5). Bit layout (x, y, z) -> index. */
+    for (int i = 0; i < 8; i++)
+    {
+        m->vertices[i].p.v[0] = (i & 1) ? CUBE_HALF : -CUBE_HALF;
+        m->vertices[i].p.v[1] = (i & 2) ? CUBE_HALF : -CUBE_HALF;
+        m->vertices[i].p.v[2] = (i & 4) ? CUBE_HALF : -CUBE_HALF;
+        /* UV: project x,y to 0..1 -- not great per-face mapping but
+         * sufficient for a visual diff between asm and C. */
+        m->vertices[i].map.v[0] = (i & 1) ? BR_SCALAR(1.0) : BR_SCALAR(0.0);
+        m->vertices[i].map.v[1] = (i & 2) ? BR_SCALAR(1.0) : BR_SCALAR(0.0);
+        m->vertices[i].index = 0;
+    }
+
+    /* 12 faces from 6 cube faces × 2 triangles. */
+    for (int f = 0; f < 6; f++)
+    {
+        for (int t = 0; t < 2; t++)
+        {
+            br_face *fp = &m->faces[f * 2 + t];
+            fp->vertices[0] = (br_uint_16)g_cube_faces[f].v[t * 3 + 0];
+            fp->vertices[1] = (br_uint_16)g_cube_faces[f].v[t * 3 + 1];
+            fp->vertices[2] = (br_uint_16)g_cube_faces[f].v[t * 3 + 2];
+            fp->material = 0;
+            fp->smoothing = 0;
+            fp->flags = 0;
+        }
+    }
+
+    m->flags = 0;
+    return m;
+}
+
+/* Lit + textured material with BR_MATF_LIGHT and our checker texture. */
+static br_material *make_test_material(br_pixelmap *colour_map)
+{
+    br_material *mat = BrMaterialAllocate((char *)"cube-mat");
+    if (!mat)
+        return 0;
+    mat->colour_map = colour_map;
+    mat->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
+    mat->index_base = 0;
+    mat->index_range = 255;
+    mat->ka = BR_UFRACTION(0.20);
+    mat->kd = BR_UFRACTION(0.80);
+    mat->ks = BR_UFRACTION(0.00);
+    mat->opacity = 0xFF;
+    return mat;
+}
+
+/* Render the cube N times into a single image, each instance translated
+ * to its tile and rotated to a different yaw angle. Output bitmap is
+ * the colour buffer. */
+static int run_actor_render(const char *path, int n_angles)
+{
+    BrBegin();
+
+    /* 256x256 INDEX_8 colour buffer + matching depth. */
+    br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+    if (!colour)
+    {
+        fprintf(stderr, "BrPixelmapAllocate(colour) failed\n");
+        return 1;
+    }
+    br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+    if (!depth)
+    {
+        fprintf(stderr, "BrPixelmapMatch(depth) failed\n");
+        return 1;
+    }
+    BrPixelmapFill(colour, 0);
+    BrPixelmapFill(depth, 0xFFFF);
+
+    /* Renderer must be initialised BEFORE any Material/Model Add so the
+     * registered backend can populate rptr / per-material state during
+     * BrMaterialUpdate. zbtest.c follows the same order. */
+    BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+    /* Texture pixmap pointing at our static checker buffer. */
+    br_pixelmap tex = {};
+    tex.identifier = (char *)"checker";
+    tex.pixels = g_tex;
+    tex.row_bytes = TEX_W;
+    tex.type = BR_PMT_INDEX_8;
+    tex.width = TEX_W;
+    tex.height = TEX_H;
+    BrMapAdd(&tex);
+
+    /* Identity shade table pointing at our static buffer. */
+    br_pixelmap shade = {};
+    shade.identifier = (char *)"identity-shade";
+    shade.pixels = g_shade_id;
+    shade.row_bytes = 256;
+    shade.type = BR_PMT_INDEX_8;
+    shade.width = 256;
+    shade.height = 256;
+    BrTableAdd(&shade);
+
+    br_material *mat = make_test_material(&tex);
+    mat->index_shade = &shade;
+    BrMaterialAdd(mat);
+
+    br_model *cube = make_cube_model();
+    BrModelAdd(cube);
+
+    /* Build world: camera + N cube actors. */
+    br_actor *world = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+    static br_camera cam_data;
+    cam_data.identifier = (char *)"cam";
+    cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+    cam_data.field_of_view = BR_ANGLE_DEG(45);
+    cam_data.hither_z = BR_SCALAR(0.5);
+    cam_data.yon_z = BR_SCALAR(50.0);
+    cam_data.aspect = BR_SCALAR(1.0);
+    br_actor *cam = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+    BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(8));
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+
+    /* One directional light from +Z. */
+    static br_light light_data;
+    light_data.identifier = (char *)"l";
+    light_data.type = BR_LIGHT_DIRECT;
+    light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+    light_data.attenuation_c = BR_SCALAR(1);
+    br_actor *light = BrActorAdd(world, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+    BrLightEnable(light);
+
+    /* N cube actors arranged horizontally, each at a different yaw. */
+    int cols = n_angles;
+    float spacing = 2.5f;
+    for (int i = 0; i < n_angles; i++)
+    {
+        br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
+        a->model = cube;
+        a->material = mat;
+        a->t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Identity(&a->t.t.mat);
+        BrMatrix34RotateY(&a->t.t.mat, (br_angle)((long)i * 65536L / n_angles));
+        float xoff = (i - (cols - 1) * 0.5f) * spacing;
+        a->t.t.mat.m[3][0] = BR_SCALAR(xoff);
+        a->t.t.mat.m[3][2] = BR_SCALAR(0);
+    }
+
+    BrZbSceneRender(world, cam, colour, depth);
+
+    /* Save colour buffer as PGM. */
+    FILE *f = fopen(path, "wb");
+    if (!f)
+    {
+        perror(path);
+        return 1;
+    }
+    fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+    fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+    fclose(f);
+
+    BrZbEnd();
+    BrEnd();
+    printf("ok: actor-render -> %s\n", path);
+    return 0;
+}
+
 static int save_pgm(const char *path)
 {
     FILE *f = fopen(path, "wb");
@@ -435,6 +642,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "scenes: tri-piz2i, tri-piz2tia, tri-piz2tia-rev,\n"
                         "        quad-cw, quad-ccw, tri-thin-vert, tri-thin-horz, cube-faces,\n"
                         "        tri-tilted-z, tilted-overlap,\n"
+                        "        actor-cube-1, actor-cube-4 (full BrZbScene)\n"
                         "        fmac (writes .txt unit-test output -- not a PGM)\n");
         return 2;
     }
@@ -443,6 +651,16 @@ int main(int argc, char **argv)
      * setting up zb state and writing PGM. */
     if (strcmp(argv[1], "fmac") == 0)
         return run_fmac_unit(argv[2]);
+
+    /* actor-* modes go through the full BrZbScene pipeline. They need
+     * their own buffers (allocated by BrPixelmapAllocate), not our
+     * static rasterizer buffers, so short-circuit here too. The texture
+     * + shade table are reused from the static globals via init_buffers. */
+    if (strncmp(argv[1], "actor-cube-", 11) == 0)
+    {
+        init_buffers();
+        return run_actor_render(argv[2], atoi(argv[1] + 11));
+    }
 
     init_buffers();
     init_material();
