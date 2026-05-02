@@ -27,6 +27,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 /* These are declared in BRender's internal zbiproto.h with BR_ASM_CALL.
@@ -36,6 +37,7 @@ extern "C" void BR_ASM_CALL TriangleRenderPIZ2I(struct temp_vertex_fixed *, stru
                                                 struct temp_vertex_fixed *);
 extern "C" void BR_ASM_CALL TriangleRenderPIZ2TIA(struct temp_vertex_fixed *, struct temp_vertex_fixed *,
                                                   struct temp_vertex_fixed *);
+/* BrFixedFMac3 is declared in fwproto.h (pulled in by brender.h above). */
 
 /* fwsetup.c references these globals through extern declarations and the
  * studio build pulls them from bren/std{err,file,mem}.c which depend on
@@ -261,6 +263,47 @@ static void scene_cube_faces(void)
     TriangleRenderPIZ2TIA(&v[1], &v[2], &v[3]);
 }
 
+/* Unit test for BrFixedFMac3 -- the FMac variants are 1.15-fraction *
+ * 16.16-fixed accumulators (`movsx + imul + shrd 15` in the asm; the C
+ * fallback shifts by 15 too -- a previous off-by-one shift of 16 was
+ * the cause of x64 face-normal dot products coming out at half magnitude
+ * and back-face culling rendering models inside-out).
+ *
+ * Writes one line per case to the supplied file in a deterministic
+ * format. x86 (asm path) and x64 (C path) outputs must be byte-identical. */
+static int run_fmac_unit(const char *path)
+{
+    /* Each row: a (1.15 fraction), b (16.16 fixed), c, d, e, f */
+    struct
+    {
+        br_fixed_ls a, b, c, d, e, f;
+    } cases[] = {
+        {0x4000, 0x10000, 0, 0, 0, 0},                         /* 0.5 * 1.0 = 0.5 */
+        {0x7FFF, 0x10000, 0, 0, 0, 0},                         /* ~1.0 * 1.0 ~ 1.0 */
+        {0xC000, 0x10000, 0, 0, 0, 0},                         /* -0.5 * 1.0 = -0.5 (sign-extended) */
+        {0x4000, 0x20000, 0x4000, 0x20000, 0x4000, 0x20000},   /* 0.5*2.0 thrice = 3.0 */
+        {0x2000, 0x40000, 0x2000, 0x40000, 0x2000, 0x40000},   /* 0.25*4.0 thrice = 3.0 */
+        {0x7FFF, 0x80000, 0x7FFF, 0x80000, 0x7FFF, 0x80000},   /* near 1.0 * 8.0 thrice = ~24.0 */
+        {0x1000, 0x100000, 0x2000, 0x80000, 0x4000, 0x40000},  /* mixed */
+        {(br_fixed_ls)(int32_t)0xFFFF8001, 0x10000, 0, 0, 0, 0}, /* low16 = 0x8001 = -32767 */
+    };
+    FILE *f = fopen(path, "w");
+    if (!f)
+    {
+        perror(path);
+        return -1;
+    }
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        br_fixed_ls r = BrFixedFMac3(cases[i].a, cases[i].b, cases[i].c, cases[i].d, cases[i].e, cases[i].f);
+        fprintf(f, "fmac3 a=%08lx b=%08lx c=%08lx d=%08lx e=%08lx f=%08lx -> %08lx\n", (long)(unsigned long)cases[i].a,
+                (long)(unsigned long)cases[i].b, (long)(unsigned long)cases[i].c, (long)(unsigned long)cases[i].d,
+                (long)(unsigned long)cases[i].e, (long)(unsigned long)cases[i].f, (long)(unsigned long)r);
+    }
+    fclose(f);
+    return 0;
+}
+
 static int save_pgm(const char *path)
 {
     FILE *f = fopen(path, "wb");
@@ -281,11 +324,17 @@ int main(int argc, char **argv)
 
     if (argc < 3)
     {
-        fprintf(stderr, "usage: %s <scene> <output.pgm>\n", argv[0]);
+        fprintf(stderr, "usage: %s <scene> <output.pgm|.txt>\n", argv[0]);
         fprintf(stderr, "scenes: tri-piz2i, tri-piz2tia, tri-piz2tia-rev,\n"
-                        "        quad-cw, quad-ccw, tri-thin-vert, tri-thin-horz, cube-faces\n");
+                        "        quad-cw, quad-ccw, tri-thin-vert, tri-thin-horz, cube-faces,\n"
+                        "        fmac (writes .txt unit-test output -- not a PGM)\n");
         return 2;
     }
+
+    /* fmac mode is a math unit test, not a render -- short-circuit before
+     * setting up zb state and writing PGM. */
+    if (strcmp(argv[1], "fmac") == 0)
+        return run_fmac_unit(argv[2]);
 
     init_buffers();
     init_material();
