@@ -273,6 +273,19 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     virtual void _CleanUpCmd(void);
     virtual bool _FEnableCmd(PCommandHandler pcmh, PCommand pcmd, ulong *pgrfeds);
 
+    /* Seam virtuals for the cmd_core split (Task 2 of plan
+       2026-05-02-cmd-core-split.md). Defaults are headless-safe; the
+       gui-side subclass (introduced in Task 3) overrides them with
+       the modal-gob walk and the OS key-queue pump respectively. */
+
+    /* Default: no modal context, so any cmh is reachable. Gui override
+       walks _pgobModal -> kclsGraphicsObject ancestor chain. */
+    virtual bool _FCmhModalOk(PCommandHandler pcmh);
+
+    /* Default: no OS event source, return false. Gui override delegates
+       to vpappb->FGetNextKeyFromOsQueue. */
+    virtual bool _FGetKeyFromOs(PCommand pcmd);
+
     // command recording and playback
     bool _FReadCmd(PCommand pcmd);
 

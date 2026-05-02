@@ -619,6 +619,20 @@ LStop:
 bool CommandExecutionManager::_FCmhOk(PCommandHandler pcmh)
 {
     AssertNilOrPo(pcmh, 0);
+    return _FCmhModalOk(pcmh);
+}
+
+/***************************************************************************
+    Default modal check: no modal context, so any cmh is reachable. The
+    gui CEM subclass (Task 3 of the cmd_core split) overrides this with
+    the real _pgobModal -> kclsGraphicsObject ancestor walk. Headless and
+    kauai-core consumers that never instantiate a modal gob get this
+    permissive default, which matches the gui semantics when
+    _pgobModal == pvNil.
+***************************************************************************/
+bool CommandExecutionManager::_FCmhModalOk(PCommandHandler pcmh)
+{
+    AssertNilOrPo(pcmh, 0);
     PGraphicsObject pgob;
 
     if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGraphicsObject))
@@ -631,6 +645,17 @@ bool CommandExecutionManager::_FCmhOk(PCommandHandler pcmh)
     }
 
     return fTrue;
+}
+
+/***************************************************************************
+    Default OS key-queue pump: there is no OS event source, so no key.
+    The gui CEM subclass overrides to call vpappb->FGetNextKeyFromOsQueue.
+***************************************************************************/
+bool CommandExecutionManager::_FGetKeyFromOs(PCommand pcmd)
+{
+    AssertVarMem(pcmd);
+    TrashVar(pcmd);
+    return fFalse;
 }
 
 /***************************************************************************
@@ -1194,7 +1219,7 @@ bool CommandExecutionManager::FGetNextKey(PCommand pcmd)
         return fFalse;
     }
 
-    return vpappb->FGetNextKeyFromOsQueue((PCMD_KEY)pcmd);
+    return _FGetKeyFromOs(pcmd);
 }
 
 /***************************************************************************
