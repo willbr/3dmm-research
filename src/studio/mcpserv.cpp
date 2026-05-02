@@ -813,25 +813,44 @@ static JVal Tool_Click(const JVal &args)
     // cycles between them so kidspace's mouse-state machine has time to
     // transition through hover -> press -> click. Sending them as one batch
     // produced only the hover tooltip (down/up never registered as a click).
+    //
+    // Exception: if a kauai mouse-tracker is active (e.g. MovieView is in
+    // place-actor mode after StartPlaceActor), do NOT pump messages here.
+    // ApplicationBase::TrackMouse (appbwin.cpp:204) consumes mouse messages
+    // out of the queue without dispatching them, converting WM_LBUTTONDOWN/UP
+    // into a polled cidTrackMouse with fcustMouse set. PumpForMs would
+    // dispatch the WM_LBUTTONDOWN through WndProc instead, enqueueing a
+    // cidMouseDown to the tracker gob -- which trips the
+    // "mouse already being tracked!" assert at movie.cpp:6805 the moment
+    // FDispatchNextCmd pops it. Skip the pump so the messages sit in the
+    // queue until our handler returns and kauai's main loop polls TrackMouse.
+    bool tracker_active = (vpcex && vpcex->PgobTracking() != pvNil);
+    auto pump = [&](DWORD ms) {
+        if (tracker_active)
+            Sleep(ms);
+        else
+            PumpForMs(ms);
+    };
+
     INPUT mv = {};
     mv.type = INPUT_MOUSE;
     mv.mi.dx = nx;
     mv.mi.dy = ny;
     mv.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
     SendInput(1, &mv, sizeof(INPUT));
-    PumpForMs(40);
+    pump(40);
 
     INPUT dn = {};
     dn.type = INPUT_MOUSE;
     dn.mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTDOWN : MOUSEEVENTF_LEFTDOWN;
     SendInput(1, &dn, sizeof(INPUT));
-    PumpForMs(60);
+    pump(60);
 
     INPUT up = {};
     up.type = INPUT_MOUSE;
     up.mi.dwFlags = isRight ? MOUSEEVENTF_RIGHTUP : MOUSEEVENTF_LEFTUP;
     SendInput(1, &up, sizeof(INPUT));
-    PumpForMs(100);
+    pump(100);
 
     char msg[160];
     std::snprintf(msg, sizeof(msg), "clicked %s at client (%ld,%ld) screen (%ld,%ld)",
@@ -960,9 +979,12 @@ static JVal Tool_FindGob(const JVal &args)
 {
     long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
     if (hid == 0) return ContentError("missing hid");
-    JVal info = _GobInfo(hid);
-    if (!info.Get("found")->AsBool(false)) return ContentError("no gob with that hid");
-    return _WrapInfoAsContent(info);
+    // "Not found" is an expected query result, not an MCP-level error -- the
+    // info object already carries {found: false}. Returning ContentError
+    // forces every caller to wrap the call in try/except just to discover a
+    // gob is missing; the wait_for_gob and click_gob script paths in
+    // particular were treating an empty error result as a JSON parse failure.
+    return _WrapInfoAsContent(_GobInfo(hid));
 }
 
 // Poll find_gob until the gob exists and meets the requested readiness
