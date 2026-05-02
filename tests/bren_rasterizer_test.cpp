@@ -1244,7 +1244,7 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
 }
 
 /* Forward decl; defined below alongside run_actor_pose. */
-static int parse_manifest_line(const char *line, unsigned long *bmdl_cno, unsigned long *tmap_cno);
+static int parse_manifest_line(const char *line, unsigned long *bmdl_cno, unsigned long *tmap_cno, int *imat34);
 
 /* Manifest-driven multi-part actor renderer. Each body part gets its
  * OWN texture from the CMTL/MTRL/TMAP chain (resolved by inspect-chunks
@@ -1284,7 +1284,8 @@ static int run_actor_grid(const char *out_path, const char *fixture_dir, const c
         while (fgets(line, sizeof(line), mf))
         {
             unsigned long bcno = 0, tcno = 0;
-            int chid = parse_manifest_line(line, &bcno, &tcno);
+            int imat = 0;
+            int chid = parse_manifest_line(line, &bcno, &tcno, &imat);
             if (chid < 0 || chid >= kMaxParts) continue;
             bmdl_cnos[chid] = bcno;
             tmap_cnos[chid] = tcno;
@@ -1483,20 +1484,35 @@ static br_matrix34 *load_matrix_array(const char *path, int *out_count)
  *
  * Out: PGM + (if palette) PPM. */
 /* Parse one line from inspect-chunks actor-manifest output:
- *   "<chid> BMDL=0xCNO TMAP=0xCNO" or "<chid> BMDL=0xCNO TMAP=NONE"
- * Returns chid, fills *bmdl_cno and *tmap_cno (tmap_cno = 0 if NONE).
- * Returns -1 on parse failure. */
-static int parse_manifest_line(const char *line, unsigned long *bmdl_cno, unsigned long *tmap_cno)
+ *   "<chid> BMDL=0xCNO TMAP=0xCNO IMAT=N"
+ *   "<chid> BMDL=0xCNO TMAP=NONE IMAT=N"
+ * Older manifests without the IMAT field fall back to imat=chid.
+ * Returns chid, fills *bmdl_cno, *tmap_cno (0 if NONE), *imat34. */
+static int parse_manifest_line(const char *line, unsigned long *bmdl_cno, unsigned long *tmap_cno, int *imat34)
 {
     int chid = -1;
     *bmdl_cno = 0;
     *tmap_cno = 0;
-    if (sscanf(line, "%d BMDL=0x%lx TMAP=0x%lx", &chid, bmdl_cno, tmap_cno) == 3)
+    *imat34 = -1;
+    if (sscanf(line, "%d BMDL=0x%lx TMAP=0x%lx IMAT=%d", &chid, bmdl_cno, tmap_cno, imat34) == 4)
         return chid;
     char tmap_str[16];
+    if (sscanf(line, "%d BMDL=0x%lx TMAP=%15s IMAT=%d", &chid, bmdl_cno, tmap_str, imat34) == 4 &&
+        strcmp(tmap_str, "NONE") == 0)
+    {
+        *tmap_cno = 0;
+        return chid;
+    }
+    /* Legacy manifest without IMAT: imat = chid. */
+    if (sscanf(line, "%d BMDL=0x%lx TMAP=0x%lx", &chid, bmdl_cno, tmap_cno) == 3)
+    {
+        *imat34 = chid;
+        return chid;
+    }
     if (sscanf(line, "%d BMDL=0x%lx TMAP=%15s", &chid, bmdl_cno, tmap_str) == 3 && strcmp(tmap_str, "NONE") == 0)
     {
         *tmap_cno = 0;
+        *imat34 = chid;
         return chid;
     }
     return -1;
@@ -1529,6 +1545,7 @@ static int run_actor_pose(const char *out_path, const char *fixture_dir, const c
     enum { kMaxParts = 64 };
     static unsigned long bmdl_cnos[kMaxParts];
     static unsigned long tmap_cnos[kMaxParts];
+    static int imat34_of_part[kMaxParts];
     int n_manifest = 0;
     {
         FILE *mf = fopen(manifest_path, "r");
@@ -1537,10 +1554,12 @@ static int run_actor_pose(const char *out_path, const char *fixture_dir, const c
         while (fgets(line, sizeof(line), mf))
         {
             unsigned long bcno = 0, tcno = 0;
-            int chid = parse_manifest_line(line, &bcno, &tcno);
+            int imat = -1;
+            int chid = parse_manifest_line(line, &bcno, &tcno, &imat);
             if (chid < 0 || chid >= kMaxParts) continue;
             bmdl_cnos[chid] = bcno;
             tmap_cnos[chid] = tcno;
+            imat34_of_part[chid] = (imat >= 0) ? imat : chid;
             if (chid + 1 > n_manifest) n_manifest = chid + 1;
         }
         fclose(mf);
@@ -1556,15 +1575,21 @@ static int run_actor_pose(const char *out_path, const char *fixture_dir, const c
     int n_parts = (n_parents < n_xforms) ? n_parents : n_xforms;
     if (n_manifest < n_parts) n_parts = n_manifest;
 
-    /* Compose world transforms by walking the parent chain. */
+    /* Compose world transforms by walking the parent chain. The
+     * matrix per part is GLXF[imat34_of_part[i]] -- the engine's
+     * Template::FSetActnCel reads cps.imat34 from the cel data and
+     * indexes into the GLXF DA. Different parts may share matrices,
+     * or pull from different slots than their part index. */
     br_matrix34 *world = (br_matrix34 *)malloc(n_parts * sizeof(br_matrix34));
     for (int i = 0; i < n_parts; i++)
     {
         int p = parents[i];
+        int xi = imat34_of_part[i];
+        if (xi < 0 || xi >= n_xforms) xi = i; /* defensive */
         if (p < 0)
-            world[i] = xforms[i];
+            world[i] = xforms[xi];
         else
-            BrMatrix34Mul(&world[i], &xforms[i], &world[p]);
+            BrMatrix34Mul(&world[i], &xforms[xi], &world[p]);
     }
 
     /* Per-part materials. Each body part's TMAP becomes its own
