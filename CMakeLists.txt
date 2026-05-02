@@ -357,6 +357,14 @@ target_sources(kauai-core
     $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/regionwin.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcom.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxe.cpp"
+    # sndm: SoundManager + SoundQueue. Pure data-structure / business
+    # logic; instantiates no SoundDevice subclasses itself (callers
+    # register them via FAddDevice). No UI, no CommandHandler, no
+    # direct Win32 multimedia APIs -- those live in mididev*.cpp +
+    # sndam.cpp on the gui target. Promoting sndm lets engine-core
+    # consumers (msnd.cpp's vpsndm calls) resolve in a kauai-core-only
+    # link.
+    "${PROJECT_SOURCE_DIR}/kauai/src/sndm.cpp"
     # spell: spell-checker dictionary; no UI deps. Same audit as region.
     "${PROJECT_SOURCE_DIR}/kauai/src/spell.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/stream.cpp"
@@ -427,7 +435,6 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcomg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxeg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/sndam.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/sndm.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/textdoc.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/video.cpp"

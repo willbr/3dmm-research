@@ -9,7 +9,8 @@
     Sound manager class implementation.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
+#include "sndm.h"
 ASSERTNAME
 
 RTCLASS(SoundDevice)
