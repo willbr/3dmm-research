@@ -146,6 +146,20 @@ target_sources(actor-render-test PRIVATE
 )
 target_link_libraries(actor-render-test PRIVATE engine-core)
 
+# Movie save/load round-trip regression test. Creates a blank movie,
+# saves it to a real on-disk .3MM, releases, reopens, releases again.
+# Exists to reproduce / pin a memory access error in the save+load
+# path. Links the full engine + kauai (gui side) because Movie save
+# uses vpappb (BeginLongOp/EndLongOp) and vptagm (PgstSource).
+add_executable(movie-save-load-test EXCLUDE_FROM_ALL)
+target_sources(movie-save-load-test PRIVATE
+    "${PROJECT_SOURCE_DIR}/tests/movie_save_load_test.cpp"
+)
+target_link_libraries(movie-save-load-test PRIVATE engine)
+target_link_options(movie-save-load-test
+  BEFORE PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+
 # Direct-drive harness for the BRender ZB scan-converters. Calls the
 # asm-only triangle/trapezoid renderers via the global zb state, dumps
 # the colour buffer to a PGM file. On x86 the asm path runs; on x64 the
