@@ -118,7 +118,9 @@ add_executable(geometry-test EXCLUDE_FROM_ALL)
 target_sources(geometry-test PRIVATE
     "${PROJECT_SOURCE_DIR}/tests/geometry_test.cpp"
 )
-target_link_libraries(geometry-test PRIVATE kauai)
+# Pure unit test (PT/RC/Region arithmetic): no I/O, no GUI.
+# Links kauai-core only -- runs on x64 today.
+target_link_libraries(geometry-test PRIVATE kauai-core)
 
 # KauaiCodec round-trip tests. On x86 the decoder uses the inline-asm fast
 # path generated from kauai/src/kcd2_386.c; on x64 it falls back to the
@@ -301,10 +303,11 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
-    # region: pure geometric (Region/RegionScanner over rectangles); no
-    # UI symbol references and no UI link deps. Verified via grep across
-    # the candidate set (commit follows).
+    # region.cpp (geometric Region/RegionScanner) + regionwin.cpp
+    # (the HRGN GDI-wrapper helpers region.cpp calls into -- extracted
+    # from gfxwin.cpp so they don't drag in the rest of the gfx layer).
     "${PROJECT_SOURCE_DIR}/kauai/src/region.cpp"
+    $<$<PLATFORM_ID:Windows>:${PROJECT_SOURCE_DIR}/kauai/src/regionwin.cpp>
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcom.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxe.cpp"
     # spell: spell-checker dictionary; no UI deps. Same audit as region.

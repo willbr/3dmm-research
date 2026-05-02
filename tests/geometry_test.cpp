@@ -12,10 +12,21 @@
     Pure unit tests: no I/O, no GUI, no fixtures. Models after ut.cpp.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
 #include "region.h"
 #include <stdio.h>
 ASSERTNAME
+
+/* CLI assertion stubs (gui-side appb.cpp is not linked here). */
+void WarnProc(schar *f, long l, schar *m)
+{
+    fprintf(stderr, "WARN %s:%ld %s\n", f ? f : "?", l, m ? m : "");
+}
+bool FAssertProc(schar *f, long l, schar *m, void *, long)
+{
+    fprintf(stderr, "ASSERT %s:%ld %s\n", f ? f : "?", l, m ? m : "");
+    return false;
+}
 
 static int g_pass = 0;
 static int g_fail = 0;
