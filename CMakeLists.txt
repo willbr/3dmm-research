@@ -172,6 +172,19 @@ target_link_options(movie-chomp
   BEFORE PRIVATE
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
 
+# Pulls a single BMDL chunk's unpacked bytes out of a 3DMM chunky file,
+# so the bren-rasterizer-test prop scene can render real game models
+# from disk without a runtime engine init. EXCLUDE_FROM_ALL.
+add_executable(extract-bmdl EXCLUDE_FROM_ALL)
+target_sources(extract-bmdl PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/extract_bmdl.cpp")
+target_include_directories(extract-bmdl
+  PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
+  "${PROJECT_SOURCE_DIR}/src")
+target_link_libraries(extract-bmdl PRIVATE engine)
+target_link_options(extract-bmdl
+  BEFORE PRIVATE
+    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+
 
 # Chunk Editor
 add_executable(ched WIN32 EXCLUDE_FROM_ALL)
