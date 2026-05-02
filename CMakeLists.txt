@@ -301,8 +301,14 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
+    # region: pure geometric (Region/RegionScanner over rectangles); no
+    # UI symbol references and no UI link deps. Verified via grep across
+    # the candidate set (commit follows).
+    "${PROJECT_SOURCE_DIR}/kauai/src/region.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcom.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxe.cpp"
+    # spell: spell-checker dictionary; no UI deps. Same audit as region.
+    "${PROJECT_SOURCE_DIR}/kauai/src/spell.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/stream.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/util.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/utilcopy.cpp"
@@ -369,14 +375,12 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/pic.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/region.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/scrcomg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/screxeg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/sndam.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/sndm.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/spell.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/textdoc.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/video.cpp"
