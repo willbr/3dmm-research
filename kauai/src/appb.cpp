@@ -11,6 +11,7 @@
 
 ***************************************************************************/
 #include "frame.h"
+#include "cmd_hooks.h"
 ASSERTNAME
 
 PApplicationBase vpappb;
@@ -543,6 +544,19 @@ bool ApplicationBase::FCmdChooseWnd(PCommand pcmd)
 /***************************************************************************
     Application initialization.
 ***************************************************************************/
+/* Free-function adapters for the cmd_hooks seam (see cmd_hooks.h). C++03
+   means we can't pass a non-capturing lambda directly as a function-pointer
+   in all toolchain configs we still support, so go via free functions. */
+static PCommandHandler _AppPcmhFromHidHook(long hid)
+{
+    return (vpappb != pvNil) ? vpappb->PcmhFromHid(hid) : pvNil;
+}
+static void _AppBuryCmhHook(PCommandHandler pcmh)
+{
+    if (vpappb != pvNil)
+        vpappb->BuryCmh(pcmh);
+}
+
 bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
 {
     AssertThis(0);
@@ -553,6 +567,11 @@ bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
     if (!_FInitDebug())
         return fFalse;
 #endif
+
+    /* Wire the cmd-core seam so cmd.cpp's PcmhFromHid_Hook / BuryCmh_Hook
+       resolve to the real ApplicationBase methods. Done before PcexNew so
+       any HidUnique calls during CEM init see the real registry. */
+    SetCmdHooks(&_AppPcmhFromHidHook, &_AppBuryCmhHook);
 
     // initialize the command dispatcher
     if (pvNil == (vpcex = CommandExecutionManager::PcexNew(20, 20)))
