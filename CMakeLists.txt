@@ -510,6 +510,15 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
+    # MovieSoundQueue is a CommandHandler subclass; safe in engine-core
+    # now that cmd.cpp's CommandHandler/CEM core lives in kauai-core
+    # (cmd_core split, Task 6). msnd.cpp's only kauai-gui dep is
+    # vpsndm (SoundManager singleton), which the gui-linked consumers
+    # (studio, movie-save-load-test) supply transitively. The lone
+    # engine-core consumer that doesn't link kauai-gui --
+    # actor-render-test -- never pulls msnd.o because its call graph
+    # (Template/Body/Material) doesn't reference any msnd symbol.
+    "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/srec.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
@@ -530,7 +539,6 @@ add_library(engine)
 target_sources(engine
     PRIVATE
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tbox.cpp"
 )
