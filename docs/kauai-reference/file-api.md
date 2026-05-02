@@ -1,0 +1,260 @@
+# File API
+
+> Markdown port of [`kauai/doc/file.txt`](../../kauai/doc/file.txt).
+> The plain-text source is authoritative; this copy adds formatting and
+> uses the current modern type names.
+>
+> Low-level file management. See [`chunky-files-api.md`](chunky-files-api.md)
+> for chunky file management.
+
+## Classes and types
+
+```cpp
+class FileObject;
+typedef class FileObject *PFileObject;
+```
+Low level file class.
+
+```cpp
+class FileLocation;
+```
+File location class. Has fields for a `pfil`, `fp` and `cb`. Legal as
+auto.
+
+```cpp
+typedef long FilePosition;
+```
+A file position (index into a file).
+
+## Other Hungarian
+
+```cpp
+short bo;
+```
+Indicates byte order.
+
+```cpp
+short osk;
+```
+Indicates an operating system. Typically used to determine how to
+translate strings (from one character set to another). See
+`TranslateStz` and its cousins in `utilstr`. These have the same value
+in either byte order. Ie, their high and low bytes are the same.
+
+```cpp
+short el;
+```
+Error level. These, in order of severity, include `elNil`, `kelWrite`,
+`kelRead`, `kelSeek`, `kelCritical`.
+
+```cpp
+ushort grffil;
+```
+A group of flags indicating file options.
+
+## Constants
+
+```cpp
+short kboCur;            // byte order same as current machine
+short kboOther;          // byte order opposite from current machine
+
+short koskCur;           // current machine
+short koskMac;           // Mac OS
+short koskWin;           // Win OS
+
+ushort ffilNil;          // default options
+ushort ffilWriteEnable;  // open with write permissions
+ushort ffilTemp;         // make it a temp file
+ushort ffilMark;         // mark the file (see below)
+```
+
+## Concepts
+
+Files have both a mark flag and an open count. If you open a file that
+is already open, the open count of the file is incremented. Calling
+`pfil->Close()` decrements the open count. A pfil is only freed when
+both the open count is zero and the mark flag is clear. To set the
+mark flag, specify `ffilMark` when opening or creating the file, or
+call `pfil->Mark()`.
+
+To use Quill-style mark-and-free, open the file with `ffilMark`
+specified and call `pfil->Close()`. At cleanup time, client code should
+call `FileObject::ClearMarks()` to clear all the mark flags, then
+enumerate files still needed and call `Mark()` on them, then call
+`FileObject::CloseUnmarked()`. Files that were marked or have non-zero
+open count will not be closed by `FileObject::CloseUnmarked()`.
+
+For a file used locally, open the file normally. When you are done
+with it, call close. There is no need to monkey with the marking stuff
+if you just need to do a quick file access.
+
+Files have a delayed error handling mechanism. If you have several
+file accesses to make, you can generally do them all without checking
+for errors. If an error occurs, future file accesses will short
+circuit. At the end of a section of several accesses, you should call
+`ElError()` to check for an error.
+
+## FileObject static methods
+
+```cpp
+PFileObject FileObject::PfilFirst(void);
+```
+The first pfil (they form a linked list).
+
+```cpp
+PFileObject FileObject::PfilFromFni(Filename *pfni);
+```
+If the file indicated by `*pfni` is open, this returns a pointer to
+the `FileObject`. Otherwise it returns `pNil`.
+
+```cpp
+PFileObject FileObject::PfilOpen(Filename *pfni, ushort grffil);
+```
+Opens the indicated file with the indicated options. Read-only is the
+default. To allow writing to a file, use `ffilWriteEnable`. If the
+file is already open, this ensures that the read/write permissions are
+high enough and increments the open count. This call should be
+balanced with a call to `pfil->Close()`. Specifying `ffilMark` causes
+the file to be marked. `ffilTemp` is illegal.
+
+```cpp
+PFileObject FileObject::PfilCreate(Filename *pfni, ushort grffil);
+```
+Creates and opens the indicated file (asserts that it isn't already
+open) and sets the open count to 1. Assumes `ffilWriteEnable`.
+`ffilMark` is legal. Use `ffilTemp` to create a temp file, which will
+be automatically deleted when it is closed.
+
+```cpp
+void FileObject::ClearMarks(void);
+```
+Clears the mark flag on all files. See discussion under concepts.
+
+```cpp
+void FileObject::CloseUnmarked(void);
+```
+Closes all files that are not marked and have zero open count. See
+discussion under concepts.
+
+## FileObject methods
+
+```cpp
+PFileObject FileObject::Next(void);
+```
+Returns the next file (in the linked list).
+
+```cpp
+void FileObject::Open(void);
+```
+Increment the open count, nothing more.
+
+```cpp
+void FileObject::Close(void);
+```
+Decrements the open count. If the file is not marked and the open
+count becomes zero, the file is closed.
+
+```cpp
+void FileObject::Mark(void);
+```
+Sets the mark flag.
+
+```cpp
+short FileObject::ElError(void);
+```
+Returns the error level of the file. `elNil` means no error.
+
+```cpp
+void FileObject::SetTemp(bool f);
+```
+Set or clear the temp flag. Temp files are automatically deleted when
+closed.
+
+```cpp
+bool FileObject::FTemp(void);
+```
+Returns the temp flag.
+
+```cpp
+void FileObject::GetFni(Filename *pfni);
+```
+Gets the file name.
+
+```cpp
+void FileObject::SetFpPos(FilePosition fp);
+```
+Sets the file position.
+
+```cpp
+FilePosition FileObject::FpPos(void);
+```
+Returns the current file position. If there has been a seek error (or
+higher level error), returns 0.
+
+```cpp
+bool FileObject::FSetFpMac(FilePosition fp);
+```
+Sets the end of file. Files can not be shrunk using this. This asserts
+that the passed `fp` is greater than the current end of file.
+
+```cpp
+FilePosition FileObject::FpMac(void);
+```
+Returns the length of the file. If there has been a seek error (or
+higher level error), returns 0.
+
+```cpp
+bool FileObject::FReadRgb(void *pv, long cb);
+```
+Reads `cb` bytes from the current file position. Advances the file
+position. Asserts if you read past the end of file.
+
+```cpp
+bool FileObject::FWriteRgb(void *pv, long cb);
+```
+Writes `cb` bytes to the current file position. Advances the file
+position (and eof if its reached).
+
+```cpp
+bool FileObject::FSwapNames(PFileObject pfil);
+```
+Renames the files to swap names. Typically used during a safe save.
+The files should live in the same directory.
+
+```cpp
+bool FileObject::FRename(Filename *pfni);
+```
+Renames the file. The fni should be in the same directory as the
+file.
+
+## FileLocation methods
+
+`FileLocation` is an auto class: `new` is illegal; auto, member and
+global declarations are legal.
+
+```cpp
+bool FileLocation::FRead(void *pv);
+```
+Read data from the flo into pv.
+
+```cpp
+bool FileLocation::FWrite(void *pv);
+```
+Write data from pv to the file.
+
+```cpp
+bool FileLocation::FReadRgb(void *pv, long cb, FilePosition dfp);
+```
+Read `cb` bytes of data from `dfp` into the flo into pv. Asserts the
+range is totally contained within the flo.
+
+```cpp
+bool FileLocation::FWriteRgb(void *pv, long cb, FilePosition dfp);
+```
+Write `cb` bytes of data from pv to `dfp` into the flo. Asserts the
+range is totally contained within the flo.
+
+```cpp
+bool FileLocation::FCopy(FileLocation *pfloDest);
+```
+Copy data from one flo to the other. Asserts the cb's are equal.

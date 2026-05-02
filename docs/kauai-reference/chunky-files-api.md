@@ -1,0 +1,367 @@
+# Chunky file API
+
+> Markdown port of [`kauai/doc/chunk.txt`](../../kauai/doc/chunk.txt).
+> The plain-text source is authoritative; this copy adds formatting and
+> uses the current modern type names.
+>
+> See [`../file-formats/chunky-files.md`](../file-formats/chunky-files.md)
+> for a friendlier introduction with diagrams.
+
+## Types
+
+```cpp
+class ChunkyFile;
+typedef class ChunkyFile *PChunkyFile;
+```
+A chunky file.
+
+```cpp
+class ChunkGraphEnumerator;
+```
+An auto class to enumerate over a subgraph of a chunky file. It is
+illegal to assign a `ChunkGraphEnumerator` to another `ChunkGraphEnumerator`.
+
+```cpp
+typedef ulong ChunkTagOrType;
+```
+A chunk type. These should all be registered in `ctg.h`.
+
+```cpp
+typedef ulong ChunkNumber;
+```
+A chunk number. These are assigned by the chunky code when a chunk is
+created. It is possible to create a chunk with a given `cno`, but this
+is generally not a good thing to do as doing so will overwrite any
+existing chunk with that `cno`.
+
+```cpp
+struct ChunkIdentification;
+```
+A struct consisting of a `ctg` and `cno`. Identifies a chunk within a
+chunky file.
+
+```cpp
+typedef ulong ChildChunkID;
+```
+A child id. When adding a child to a chunk, you can specify an id by
+which you will refer to the child (in the context of the parent). These
+are preserved when chunks are copied to other files (while `cno`s may
+not be).
+
+```cpp
+struct ChildChunkIdentification;
+```
+A struct consisting of a `ChunkIdentification` and a `ChildChunkID`.
+Identifies a child chunk.
+
+```cpp
+ulong grfcfl;
+```
+A group of flags indicating chunky file options.
+
+## Constants
+
+```cpp
+ulong fcflNil;          // default options
+ulong fcflWriteEnable;  // open with write permissions
+ulong fcflTemp;         // make it a temp chunky file
+ulong fcflMark;         // mark the chunky file (see below)
+ulong fcflAddToExtra;   // forces added chunks to be in a temp file
+                        // (until FSave is called).
+ulong fcflFull;         // debug only - may be passed to AssertObj to
+                        // do a full check of the chunky file
+```
+
+## Concepts
+
+Chunky files have both a mark flag and an open count. See
+[`file-api.md`](file-api.md) for a description of how these work.
+
+If a chunky file is opened read-only, or if `fcflAddToExtra` is
+specified at open or create time, then chunks are added to a temp file
+associated with the chunky file. When the chunky file is then saved,
+all chunk data is put in the same file.
+
+Opening a chunky file with write permissions (and without
+`fcflAddToExtra`), then adding chunks to the file invalidates the file
+until it is saved (the index is trashed on disk until it is saved).
+Closing a chunky file does *not* automatically save it.
+
+The chunks in a `ChunkyFile` form an acyclic directed graph. Ie, a
+chunk can own other ("child") chunks. Child chunks may be owned by more
+than one chunk and may themselves own chunks. It is illegal to create a
+cycle, where a chunk is a direct or indirect descendant of itself.
+
+> *(REVIEW shonk: assert and check for cycles.)*
+
+## ChunkyFile static methods
+
+```cpp
+PChunkyFile ChunkyFile::PcflFirst(void);
+```
+Chunky files form a linked list. This returns the first chunky file in
+the linked list.
+
+```cpp
+PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni);
+```
+If the file indicated by `*pfni` is open as a chunky file, this returns
+a pointer to the `ChunkyFile`. Otherwise it returns `pNil`.
+
+```cpp
+PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, ulong grfcfl);
+```
+Attempts to open the indicated file as a chunky file. `grfcfl` may
+include `fcflWriteEnable`, `fcflAddToExtra`, `fcflMark`. `fcflTemp` is
+illegal. If the file is already open as a chunky file, this ensures
+that the permissions are high enough and increments the open count.
+This should be balanced with a call to `pcfl->Close()`. Specifying
+`fcflMark` causes the cfl to be marked (but not the underlying fil).
+Returns `pNil` on failure.
+
+```cpp
+PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, ulong grfcfl);
+```
+Creates and opens the indicated file as a chunk file (asserts that it
+isn't already open) and sets the open count to 1. Assumes
+`fcflWriteEnable`. `fcflMark` is legal. Use `fcflTemp` to create a temp
+chunky file, which will be automatically deleted when it is closed.
+Returns `pNil` on failure.
+
+```cpp
+void ChunkyFile::ClearMarks(void);
+```
+Clears the mark flag on all chunky files. See discussion under concepts.
+
+```cpp
+void ChunkyFile::CloseUnmarked(void);
+```
+Closes all chunky files that are not marked and have zero open count.
+See discussion under concepts.
+
+## ChunkyFile methods
+
+```cpp
+PChunkyFile ChunkyFile::Next(void);
+```
+Returns the next chunky file (in the linked list).
+
+```cpp
+void ChunkyFile::Open(void);
+```
+Increment the open count, nothing more.
+
+```cpp
+void ChunkyFile::Close(void);
+```
+Decrements the open count. If the cfl is not marked and the open count
+becomes zero, the cfl is closed.
+
+```cpp
+bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni = pNil);
+```
+Saves the chunky file. Passing `pNil` (or the current fni of the
+`ChunkyFile`) for `pfni` does a normal save. Passing any other fni does
+a save as (the original file still exists). Note: if you do a save as,
+but added chunks to the file and had it open for writing, the original
+file may be corrupt. Adding chunks to a file opened for writing
+corrupts the file until it is saved.
+
+```cpp
+void ChunkyFile::Mark(void);
+```
+Set the mark flag.
+
+```cpp
+void ChunkyFile::SetTemp(bool f);
+```
+Set whether the chunky file is a temp file. Temp files are
+automatically deleted when they are closed.
+
+```cpp
+bool ChunkyFile::FTemp(void);
+```
+Return whether the chunky file is a temp file.
+
+```cpp
+void ChunkyFile::GetFni(Filename *pfni);
+```
+Get the file name.
+
+```cpp
+bool ChunkyFile::FFind(ChunkTagOrType ctg, ChunkNumber cno, FileLocation *pflo);
+```
+Look for the chunk and fill in `*pflo` with the location of its data.
+
+```cpp
+HQ ChunkyFile::HqGet(ChunkTagOrType ctg, ChunkNumber cno);
+```
+Read the chunk into an hq. Returns `hqNil` if there is no such chunk
+or on memory failure.
+
+```cpp
+bool ChunkyFile::FAdd(long cb, ChunkTagOrType ctg, ChunkNumber *pcno, FileLocation *pflo);
+```
+Adds a chunk to the file. Fills in `*pcno` with the cno for the chunk
+and fills in `*pflo` with the space on file allocated for the chunk.
+
+```cpp
+bool ChunkyFile::FAddPv(void *pv, long cb, ChunkTagOrType ctg, ChunkNumber *pcno);
+bool ChunkyFile::FAddHq(HQ hq, ChunkTagOrType ctg, ChunkNumber *pcno);
+```
+Adds a chunk to the file and writes the data from the pv or hq into
+it. Fills in `*pcno` with the cno for the chunk. `pv` can only be
+`nil` if `cb` is zero.
+
+```cpp
+bool ChunkyFile::FAddChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+        long cb, ChunkTagOrType ctg, ChunkNumber *pcno, FileLocation *pflo);
+bool ChunkyFile::FAddChildPv(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+        void *pv, long cb, ChunkTagOrType ctg, ChunkNumber *pcno);
+bool ChunkyFile::FAddChildHq(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid,
+        HQ hq, ChunkTagOrType ctg, ChunkNumber *pcno);
+```
+These atomize the adding of a chunk and adopting the new chunk by
+`(ctgPar, cnoPar)`.
+
+```cpp
+bool ChunkyFile::FPut(long cb, ChunkTagOrType ctg, ChunkNumber cno, FileLocation *pflo);
+```
+Replaces (or creates) the indicated chunk. Use this with caution. You
+may be nuking an existing chunk by calling this. Preserves any existing
+children of the node.
+
+```cpp
+bool ChunkyFile::FPutPv(void *pv, long cb, ChunkTagOrType ctg, ChunkNumber cno);
+bool ChunkyFile::FPutHq(HQ hq, ChunkTagOrType ctg, ChunkNumber cno);
+```
+Replaces (or creates) the indicated chunk with the data in pv or hq.
+Use this with caution. You may be nuking an existing chunk by calling
+this. Preserves any existing children of the node. `pv` can only be
+`nil` if `cb` is zero.
+
+```cpp
+bool ChunkyFile::FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc,
+        PChunkyFile pcflDst, ChunkNumber *pcnoDst);
+```
+Copies a chunk from one file to another. If the chunk has already been
+copied, the actual data is not copied again, but the child sub-graph is
+verified (new descendants will be copied) and names of the chunks in
+the graph are verified.
+
+```cpp
+void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno);
+```
+Deletes a chunk. It is illegal to call this on a child chunk. It
+should only be called on top level chunks. This deletes (or decrements
+reference counts of) descendants of the chunk.
+
+```cpp
+bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+        ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid = 0);
+```
+Makes `(ctgChild, cnoChild)` a child of `(ctgPar, cnoPar)` with the
+given chid value. If it already is a child with this chid value, this
+does nothing. Note that a chunk may be a child of another chunk
+multiple times (with different chid values).
+
+```cpp
+void DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+        ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid);
+```
+Deletes `(ctgChild, cnoChild, chid)` as a child of `(ctgPar, cnoPar)`.
+If the child is no longer a child of any chunks, it is deleted from
+the cfl. This deletes (or decrements reference counts of) descendants
+of the child.
+
+```cpp
+bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, char *pstz);
+```
+Sets the name of the chunk. If `pstz` is `pNil`, makes the name empty.
+
+```cpp
+bool ChunkyFile::FGetName(ChunkTagOrType ctg, ChunkNumber cno, char *pstz);
+```
+Gets the name of the chunk. Returns `fFalse` iff the name is empty.
+
+```cpp
+long ChunkyFile::Ccki(void);
+```
+Returns the number of chunks in the file.
+
+```cpp
+bool ChunkyFile::FGetCki(long icki, ChunkIdentification *pcki);
+```
+Gets a cki for the icki'th chunk. Returns false if `icki` is too big.
+
+```cpp
+long ChunkyFile::CckiCtg(ChunkTagOrType ctg);
+```
+Returns the number of chunks of type `ctg` in the file.
+
+```cpp
+bool ChunkyFile::FGetCkiCtg(ChunkTagOrType ctg, long icki, ChunkIdentification *pcki);
+```
+Gets a cki for the icki'th chunk of type `ctg`. Returns false if
+`icki` is too big.
+
+```cpp
+long ChunkyFile::Ckid(ChunkTagOrType ctgPar, ChunkNumber cnoPar);
+```
+Returns the number of children of the given chunk.
+
+```cpp
+bool ChunkyFile::FGetKid(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+        long ikid, ChildChunkIdentification *pkid);
+```
+Gets a kid for the ikid'th child of `(ctgPar, cnoPar)`. Returns false
+if `ikid` is too big.
+
+```cpp
+bool ChunkyFile::FGetKidChid(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+        ChildChunkID chid, ChildChunkIdentification *pkid);
+```
+Gets a kid for the first child of `(ctgPar, cnoPar)` with given chid.
+
+```cpp
+bool ChunkyFile::FGetKidChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar,
+        ChildChunkID chid, ChunkTagOrType ctg, ChildChunkIdentification *pkid);
+```
+Gets a kid for the first child of `(ctgPar, cnoPar)` with given chid
+and ctg.
+
+## ChunkGraphEnumerator methods
+
+```cpp
+void ChunkGraphEnumerator::Init(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+```
+This initializes an enumeration and must be called before
+`GrfcgeNextKid` is called. The enumeration is over the given node and
+all of its descendants.
+
+```cpp
+bool ChunkGraphEnumerator::FNextKid(ChildChunkIdentification *pkid,
+        ChunkIdentification *pckiPar, ulong *pgrfcgeOut, ulong grfcgeIn);
+```
+Fetches the next node in the graph enumeration. Returns `fFalse` iff
+the enumeration is done (there are no more nodes). Generally, parent
+nodes are returned twice (once with `fcgePre` and again with
+`fcgePost`). Nodes without children are returned only once (with both
+`fcgePre` and `fcgePost` set). The new node is put in `*pkid`, and the
+node's parent (if the node is not the root of the enumeration) is put
+in `*pckiPar`. `pckiPar` may be `nil`.
+
+If `fcgeSkipToSib` is passed in (in the `grfcgeIn` parameter), skips
+all children and the upward touch of the last node returned.
+
+The value of `*pgrfcge` on return can contain any combination of:
+`fcgePre`, `fcgePost`, `fcgeError`, `fcgeRoot`. These have the
+following meanings:
+
+- `fcgePre`: haven't traversed the node's children yet
+- `fcgePost`: have already traversed the children (or there aren't any
+  children)
+- `fcgeError`: a memory error occurred; may be set in conjunction with
+  other flags
+- `fcgeRoot`: `*pkid` is valid (except the chid value); `*pckiPar` is
+  invalid; the node is the root of the enumeration
