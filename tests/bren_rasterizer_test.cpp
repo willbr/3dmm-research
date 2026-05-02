@@ -444,6 +444,30 @@ static int run_fmac_unit(const char *path)
         }
     }
 
+    /* DivF -- the 1.31-fraction divide used by PERSP_DIV_Z. Asm pre-shifts
+     * dividend by 31 (sar/rcr pair) then unsigned div, so result for
+     * |a|<|b| is a/b * 2^31 (a 1.31 fraction). The previous fallback
+     * shifted by 16 and produced depth values 2^15 too small (root of the
+     * 68-pixel z-fight in props-overlap). PERSP_DIV_Z passes -a as the
+     * dividend so the asm's unsigned div sees a positive value; sweep
+     * positive a < positive b only -- otherwise the unsigned div either
+     * overflows (a >= b yields a quotient that doesn't fit in 32 bits and
+     * SIGFPEs in the asm) or wraps a negative dividend into a huge
+     * unsigned. */
+    for (int i = 0; i < nsam; i++)
+    {
+        for (int j = 0; j < nsam; j++)
+        {
+            br_fixed_ls a = samples[i], b = samples[j];
+            if (b == 0 || a < 0 || b < 0 || a >= b)
+                continue;
+            fprintf(f, "divF  a=%08lx b=%08lx       -> %08lx\n", (long)(unsigned long)a, (long)(unsigned long)b,
+                    (long)(unsigned long)BrFixedDivF(a, b));
+        }
+    }
+
+    fflush(f);
+
     fclose(f);
     return 0;
 }
