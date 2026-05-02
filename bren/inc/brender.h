@@ -10,6 +10,16 @@
 #ifndef _BRENDER_H_
 #define _BRENDER_H_
 
+/* BRender's static libraries are built with /Zp4 (4-byte struct packing) to
+ * preserve the original 1995 in-memory and on-disk layouts. The C++ wrapper
+ * code in bren/, engine/, and studio/ is NOT built with /Zp4. On x86 the two
+ * agree because pointers are already 4-byte aligned; on x64, pointers are
+ * 8-byte aligned and the two layouts diverge -- e.g. br_pixelmap.type lands
+ * at offset 30 inside BRender (with /Zp4) but at offset 34 inside the C++
+ * wrapper (without). Bake the packing into the header itself so every
+ * consumer sees the same layout regardless of compile flags. */
+#pragma pack(push, 4)
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -142,4 +152,7 @@ extern "C"
 #ifdef __cplusplus
 };
 #endif
+
+#pragma pack(pop)
+
 #endif
