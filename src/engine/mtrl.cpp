@@ -56,16 +56,20 @@ PMaterial_MTRL Material_MTRL::PmtrlNew(long iclrBase, long cclr)
     if (pvNil == pmtrl)
         return pvNil;
 
-    // An arbitrary 4-character string is passed to BrMaterialAllocate (to
-    // be stored in a string pointed to by _pbmtl->identifier).  The
-    // contents of the string are then replaced by the "this" pointer.
-    pmtrl->_pbmtl = BrMaterialAllocate("1234");
+    // An arbitrary placeholder string is passed to BrMaterialAllocate (to be
+    // stored in a string pointed to by _pbmtl->identifier). The contents of
+    // the string are then replaced by the "this" pointer. The buffer must be
+    // at least sizeof(PMaterial_MTRL) + 1 bytes -- the original 5-byte "1234"
+    // overflowed BrResStrDup's 5-byte allocation on x64 where pointers are 8.
+    char szIdentifier[size(PMaterial_MTRL) + 1];
+    ClearPb(szIdentifier, size(PMaterial_MTRL) + 1);
+    pmtrl->_pbmtl = BrMaterialAllocate(szIdentifier);
     if (pvNil == pmtrl->_pbmtl)
     {
         ReleasePpo(&pmtrl);
         return pvNil;
     }
-    CopyPb(&pmtrl, pmtrl->_pbmtl->identifier, size(long));
+    CopyPb(&pmtrl, pmtrl->_pbmtl->identifier, size(PMaterial_MTRL));
 
     pmtrl->_pbmtl->ka = kbrufKaDefault;
     pmtrl->_pbmtl->kd = kbrufKdDefault;
@@ -140,13 +144,16 @@ bool Material_MTRL::_FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
         SwapBytesBom(&mtrlf, kbomMtrlf);
     Assert(kboCur == mtrlf.bo, "bad MaterialOnFile");
 
-    // An arbitrary 4-character string is passed to BrMaterialAllocate (to
-    // be stored in a string pointed to by _pbmtl->identifier).  The
-    // contents of the string are then replaced by the "this" pointer.
-    _pbmtl = BrMaterialAllocate("1234");
+    // An arbitrary placeholder string is passed to BrMaterialAllocate (to be
+    // stored in a string pointed to by _pbmtl->identifier). The contents of
+    // the string are then replaced by the "this" pointer. Buffer width must
+    // match sizeof(PMaterial_MTRL) -- 8 bytes on x64.
+    char szIdentifier[size(PMaterial_MTRL) + 1];
+    ClearPb(szIdentifier, size(PMaterial_MTRL) + 1);
+    _pbmtl = BrMaterialAllocate(szIdentifier);
     if (pvNil == _pbmtl)
         return fFalse;
-    CopyPb(&pmtrlThis, _pbmtl->identifier, size(long));
+    CopyPb(&pmtrlThis, _pbmtl->identifier, size(PMaterial_MTRL));
     _pbmtl->colour = mtrlf.brc;
     _pbmtl->ka = mtrlf.brufKa;
     _pbmtl->kd = mtrlf.brufKd;
@@ -224,14 +231,17 @@ PMaterial_MTRL Material_MTRL::PmtrlNewFromPix(PFilename pfni)
     if (pvNil == pmtrl)
         goto LFail;
 
-    // An arbitrary 4-character string is passed to BrMaterialAllocate (to
-    // be stored in a string pointed to by _pbmtl->identifier).  The
-    // contents of the string are then replaced by the "this" pointer.
-    pmtrl->_pbmtl = BrMaterialAllocate("1234");
+    // An arbitrary placeholder string is passed to BrMaterialAllocate (to be
+    // stored in a string pointed to by _pbmtl->identifier). The contents of
+    // the string are then replaced by the "this" pointer. Buffer width must
+    // match sizeof(PMaterial_MTRL) -- 8 bytes on x64.
+    char szIdentifier[size(PMaterial_MTRL) + 1];
+    ClearPb(szIdentifier, size(PMaterial_MTRL) + 1);
+    pmtrl->_pbmtl = BrMaterialAllocate(szIdentifier);
     if (pvNil == pmtrl->_pbmtl)
         goto LFail;
     pbmtl = pmtrl->_pbmtl;
-    CopyPb(&pmtrl, pbmtl->identifier, size(long));
+    CopyPb(&pmtrl, pbmtl->identifier, size(PMaterial_MTRL));
     pbmtl->colour = 0; // this field is ignored
     pbmtl->ka = kbrufKaDefault;
     pbmtl->kd = kbrufKdDefault;
@@ -305,7 +315,12 @@ PMaterial_MTRL Material_MTRL::PmtrlFromBmtl(PBMTL pbmtl)
 {
     AssertVarMem(pbmtl);
 
-    PMaterial_MTRL pmtrl = (PMaterial_MTRL) * (long *)pbmtl->identifier;
+    // The owning Material_MTRL* is stashed sizeof(PMaterial_MTRL) bytes wide
+    // via CopyPb (see PmtrlNew, _FInit, PmtrlNewFromPix). On x64 that is 8
+    // bytes; reading via (long*) would truncate to the low 32 bits and yield
+    // a bad pointer (caught at the next AssertPo as an AV in BASE::AssertValid
+    // via Material_MTRL_PAR's vtable lookup).
+    PMaterial_MTRL pmtrl = *(PMaterial_MTRL *)pbmtl->identifier;
     AssertPo(pmtrl, 0);
     return pmtrl;
 }
