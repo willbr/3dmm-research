@@ -428,7 +428,8 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd_gui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/ctl.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/dlg.cpp"
+    # dlg.cpp was promoted to kauai-core in 467a1c1; the kauai (gui) lib
+    # picks it up transitively via the kauai-core PUBLIC link below.
     "${PROJECT_SOURCE_DIR}/kauai/src/docb.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/frame.rc"
     "${PROJECT_SOURCE_DIR}/kauai/src/gfx.cpp"
