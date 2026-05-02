@@ -586,9 +586,17 @@ static JVal Tool_Initialize(const JVal &params);
 static JVal Tool_ListTools();
 static JVal Tool_CallTool(const JVal &params);
 
-// Pump Windows messages for `ms` milliseconds without blocking the queue
-// drain entirely. Used by `wait_ms` and after click/key tools so the GUI has
-// a chance to settle before the next request runs.
+// Pump Windows messages AND drain kauai's command queue for `ms`
+// milliseconds. Used by `wait_ms`, `wait_for_gob`, and after click/key
+// tools so the GUI has a chance to settle before the next request runs.
+//
+// Pumping Win32 messages alone isn't enough: kauai-level commands
+// (vpcex->EnqueueCid, e.g. cidBrowserReady that a click script enqueues)
+// only execute via CommandExecutionManager::FDispatchNextCmd, which kauai
+// calls from its main loop -- not from DispatchMessage. While we're
+// running inside Drain (called from TopOfLoop), kauai's main loop is
+// suspended, so click->EnqueueCid->browser-opens never advances unless
+// we drain commands here too.
 static void PumpForMs(DWORD ms)
 {
     DWORD start = GetTickCount();
@@ -597,14 +605,20 @@ static void PumpForMs(DWORD ms)
         DWORD elapsed = GetTickCount() - start;
         if (elapsed >= ms) return;
         DWORD remaining = ms - elapsed;
-        // MsgWaitForMultipleObjects with a timeout lets us yield CPU between
-        // bursts of messages. PeekMessage loop drains anything pending.
         MsgWaitForMultipleObjects(0, NULL, FALSE, remaining > 16 ? 16 : remaining, QS_ALLINPUT);
         MSG m;
         while (PeekMessage(&m, NULL, 0, 0, PM_REMOVE))
         {
             TranslateMessage(&m);
             DispatchMessage(&m);
+        }
+        // Drain pending kauai commands. Cap at 8 per pump cycle so a
+        // recursive enqueue storm can't starve the timeout. FDispatchNextCmd
+        // returns false when the queue is empty.
+        if (vpcex)
+        {
+            for (int i = 0; i < 8; i++)
+                if (!vpcex->FDispatchNextCmd()) break;
         }
     }
 }
@@ -764,15 +778,22 @@ static JVal Tool_Click(const JVal &args)
     POINT p = {x, y};
     ClientToScreen(hwnd, &p);
 
-    // Force the window foreground so SendInput is delivered to it (not to
-    // whatever the user has focused). We own this hwnd, so SetForegroundWindow
-    // succeeds without UIPI/foreground-gating restrictions. Use a brief
-    // ShowWindow + BringWindowToTop sequence first because foreground stealing
-    // is otherwise blocked when our process didn't generate the last input.
+    // Force the window foreground so SendInput is delivered to it. Win32
+    // blocks foreground-stealing when our process didn't generate the last
+    // user input, even for our own hwnd. The standard workaround is to
+    // attach our thread's input state to the foreground thread's, then
+    // SetForegroundWindow proceeds, then detach.
+    HWND hwndFG = GetForegroundWindow();
+    DWORD tidUs = GetCurrentThreadId();
+    DWORD tidFG = hwndFG ? GetWindowThreadProcessId(hwndFG, NULL) : 0;
+    bool attached = false;
+    if (tidFG != 0 && tidFG != tidUs)
+        attached = AttachThreadInput(tidFG, tidUs, TRUE) ? true : false;
     ShowWindow(hwnd, SW_SHOW);
     BringWindowToTop(hwnd);
     SetForegroundWindow(hwnd);
-    PumpForMs(50);
+    if (attached) AttachThreadInput(tidFG, tidUs, FALSE);
+    PumpForMs(80);
 
     int cxScreen = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     int cyScreen = GetSystemMetrics(SM_CYVIRTUALSCREEN);
@@ -880,37 +901,134 @@ static JVal Tool_SendCommand(const JVal &args)
 // containing HWND) so the agent can target a click at its center without
 // guessing pixel positions from a screenshot.
 
-static JVal Tool_FindGob(const JVal &args)
+// Build the find_gob result object (no MCP wrapping). Used directly by
+// Tool_FindGob and the wait/click tools so they can poll without going
+// through JSON twice.
+static JVal _GobInfo(long hid)
 {
-    long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
-    if (hid == 0) return ContentError("missing hid");
+    JVal o = JVal::MkObj();
+    o.Set("hid", JVal::MkInt(hid));
     PGraphicsObject pgob = GraphicsObject::PgobFromHidScr(hid);
-    if (!pgob) return ContentError("no gob with that hid");
+    if (!pgob)
+    {
+        o.Set("found", JVal::MkBool(false));
+        return o;
+    }
+    o.Set("found", JVal::MkBool(true));
+    // Bounding rect in hwnd-client coords -- this is what kauai's WndProc
+    // sees in WM_LBUTTONDOWN's lParam, so SendInput at this position lands
+    // exactly on the gob.
     RC rc;
-    pgob->GetRc(&rc, cooLocal);
-    PT pt = {rc.xpLeft, rc.ypTop};
-    pgob->MapPt(&pt, cooLocal, cooHwnd);
+    pgob->GetRc(&rc, cooHwnd);
     long w = rc.xpRight - rc.xpLeft;
     long h = rc.ypBottom - rc.ypTop;
-    JVal o = JVal::MkObj();
-    o.Set("found", JVal::MkBool(true));
-    o.Set("hid", JVal::MkInt(hid));
-    o.Set("x", JVal::MkInt(pt.xp));
-    o.Set("y", JVal::MkInt(pt.yp));
+    o.Set("x", JVal::MkInt(rc.xpLeft));
+    o.Set("y", JVal::MkInt(rc.ypTop));
     o.Set("w", JVal::MkInt(w));
     o.Set("h", JVal::MkInt(h));
-    o.Set("center_x", JVal::MkInt(pt.xp + w / 2));
-    o.Set("center_y", JVal::MkInt(pt.yp + h / 2));
+    o.Set("center_x", JVal::MkInt(rc.xpLeft + w / 2));
+    o.Set("center_y", JVal::MkInt(rc.ypTop + h / 2));
+    // Visible rect: zero-area means the gob is hidden / not yet laid out.
+    // Browsers create their child frames at startup but only position them
+    // when the browser opens, so a non-empty rcVis is the "actually on
+    // screen and clickable" signal.
+    RC rcVis;
+    pgob->GetRcVis(&rcVis, cooHwnd);
+    long wv = rcVis.xpRight - rcVis.xpLeft;
+    long hv = rcVis.ypBottom - rcVis.ypTop;
+    o.Set("vis_w", JVal::MkInt(wv));
+    o.Set("vis_h", JVal::MkInt(hv));
+    o.Set("visible", JVal::MkBool(wv > 0 && hv > 0));
+    return o;
+}
+
+static JVal _WrapInfoAsContent(const JVal &info)
+{
     JVal arr = JVal::MkArr();
     JVal item = JVal::MkObj();
     item.Set("type", JVal::MkStr("text"));
     std::string s;
-    JWrite(s, o);
+    JWrite(s, info);
     item.Set("text", JVal::MkStr(s));
     arr.a->push_back(std::move(item));
     JVal res = JVal::MkObj();
     res.Set("content", std::move(arr));
     return res;
+}
+
+static JVal Tool_FindGob(const JVal &args)
+{
+    long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
+    if (hid == 0) return ContentError("missing hid");
+    JVal info = _GobInfo(hid);
+    if (!info.Get("found")->AsBool(false)) return ContentError("no gob with that hid");
+    return _WrapInfoAsContent(info);
+}
+
+// Poll find_gob until the gob exists and meets the requested readiness
+// signal, or until timeout. Modes:
+//   default ("visible"): wait for non-empty rcVis -- the gob is actually
+//     painted on screen and clickable. Use for top-level windows that fade
+//     in or popups that appear from off-screen.
+//   "exists": wait for the gob to be created (found:true). Some kidspace
+//     children are created with valid rcCur but the GetRcVis pipeline only
+//     resolves on the next paint -- waiting on rcVis would time out even
+//     though the gob is positioned and ready. Browser frames behave this
+//     way: they're MoveAbsGob'd into place immediately but rcVis lags. For
+//     those, poll the parent for visible, then use mode=exists on the
+//     child to confirm it was created.
+//   "positioned": wait for found:true AND rcCur not at (0,0,0,0). Catches
+//     the "created but not yet placed" interim state that mode=exists
+//     would accept.
+// Pumps Windows messages between probes so the GUI thread can finish work.
+static JVal Tool_WaitForGob(const JVal &args)
+{
+    long hid = (long)(args.Get("hid") ? args.Get("hid")->AsInt(0) : 0);
+    long timeoutMs = (long)(args.Get("timeout_ms") ? args.Get("timeout_ms")->AsInt(5000) : 5000);
+    std::string mode = args.Get("mode") ? args.Get("mode")->AsStr() : "visible";
+    if (hid == 0) return ContentError("missing hid");
+    if (timeoutMs <= 0) timeoutMs = 5000;
+    if (timeoutMs > 30000) timeoutMs = 30000;
+    DWORD start = GetTickCount();
+    while (true)
+    {
+        JVal info = _GobInfo(hid);
+        bool found = info.Get("found")->AsBool(false);
+        bool ready = false;
+        if (found)
+        {
+            if (mode == "exists")
+            {
+                ready = true;
+            }
+            else if (mode == "positioned")
+            {
+                long w = info.Get("w") ? info.Get("w")->AsInt(0) : 0;
+                long h = info.Get("h") ? info.Get("h")->AsInt(0) : 0;
+                ready = (w > 0 && h > 0);
+            }
+            else
+            {
+                // "visible" (default)
+                ready = info.Get("visible") && info.Get("visible")->AsBool(false);
+            }
+        }
+        if (ready)
+        {
+            info.Set("waited_ms", JVal::MkInt((long)(GetTickCount() - start)));
+            return _WrapInfoAsContent(info);
+        }
+        DWORD elapsed = GetTickCount() - start;
+        if (elapsed >= (DWORD)timeoutMs)
+        {
+            info.Set("timed_out", JVal::MkBool(true));
+            info.Set("waited_ms", JVal::MkInt((long)elapsed));
+            return _WrapInfoAsContent(info);
+        }
+        // 50ms poll period -- fast enough to catch typical layout settling
+        // (~100-300ms after a click) without spinning the CPU.
+        PumpForMs(50);
+    }
 }
 
 // --- get_state -----------------------------------------------------------
@@ -1283,11 +1401,31 @@ static const ToolDef kTools[] = {
     },
     {
         "find_gob",
-        "Look up a kidspace gob by hid; return its hwnd-client-coord rect.",
+        "Look up a kidspace gob by hid. Returns hwnd-client rect, visible "
+        "rect (zero size = hidden / not yet laid out), and a 'visible' bool.",
         "{\"type\":\"object\","
         "\"properties\":{\"hid\":{\"type\":\"integer\"}},"
         "\"required\":[\"hid\"]}",
         &Tool_FindGob,
+        false,
+    },
+    {
+        "wait_for_gob",
+        "Poll find_gob until the gob meets the readiness signal, pumping "
+        "Windows messages between probes. mode=visible (default) waits for "
+        "non-empty rcVis -- gob actually painted; mode=positioned waits for "
+        "found AND non-zero w/h (use for child gobs whose rcVis lags painting "
+        "but whose rcCur is already in place after a MoveAbsGob); mode=exists "
+        "just waits for the gob to be created. Returns same fields as "
+        "find_gob plus waited_ms; if the timeout (default 5000ms, max 30000ms) "
+        "elapses, returns timed_out:true.",
+        "{\"type\":\"object\","
+        "\"properties\":{"
+        "\"hid\":{\"type\":\"integer\"},"
+        "\"timeout_ms\":{\"type\":\"integer\"},"
+        "\"mode\":{\"type\":\"string\",\"enum\":[\"visible\",\"positioned\",\"exists\"]}"
+        "},\"required\":[\"hid\"]}",
+        &Tool_WaitForGob,
         false,
     },
     {
