@@ -2,6 +2,18 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+In-tree markdown docs live under [`docs/`](docs/):
+
+- [`docs/file-formats/`](docs/file-formats/) — `.3MM`, chunky files, BMDL, audio, the full `kctg*` chunk-tag table.
+- [`docs/code-map/`](docs/code-map/) — per-area maps for kauai / engine / studio / BRender wrapper, the `-core` vs gui library split, and the embedded MCP server.
+- [`docs/kauai-reference/`](docs/kauai-reference/) — markdown ports of the original `kauai/doc/` API references (chunky-files, file, groups, memory, glossary).
+
+When asked "what does X do?" or "where does Y live?", check these
+before grep — they're the curated answers for the questions agents
+ask most often.
+
 ## Project
 
 3DMMForever is an open-source restoration of Microsoft's 3D Movie Maker (1995, MIT-released in 2022). The intent is to keep behavior and feature parity with the original (640x480 UI, kidspace, 3DMM-compatible movie files) while making the code build with modern tooling and eventually port to Mac/Linux. Heavier modernizations are reserved for the future `3DMMPlus` fork.
