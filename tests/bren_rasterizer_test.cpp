@@ -954,6 +954,135 @@ static int run_props_overlap(const char *out_path, const char *bmdl_a, const cha
     return 0;
 }
 
+/* Render TMPL 0x1020's two body parts as a composed actor. The
+ * fixture was captured by `inspect-chunks dump-all TMPL 0x1020 ...`
+ * (see tests/data/tmpl_1020/). This is the smallest 2-body-part
+ * actor template in tmpls.3cn and exercises the multi-mesh-per-
+ * actor render path that real actors use, without needing engine.lib
+ * to actually parse the GG-format cel data.
+ *
+ * For the MVP comparison we render both BMDLs at identity transforms
+ * (with part 1 offset along +X for visibility), distinct flat colours.
+ * If the GLXF transforms turn out to matter for matching the real
+ * studio render, we can extend the loader to parse them; for the
+ * x86-vs-x64 cross-arch byte diff that's not necessary -- both arches
+ * see the same hardcoded transforms. */
+static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, const char *bmdl1_path)
+{
+    BrBegin();
+
+    br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+    br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+    if (!colour || !depth) { fprintf(stderr, "pixmap alloc failed\n"); return 1; }
+    BrPixelmapFill(colour, 0);
+    BrPixelmapFill(depth, 0xFFFF);
+
+    BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+    static br_pixelmap shade;
+    shade.identifier = (char *)"id-shade";
+    shade.pixels = g_shade_id;
+    shade.row_bytes = 256;
+    shade.type = BR_PMT_INDEX_8;
+    shade.width = 256;
+    shade.height = 256;
+    BrTableAdd(&shade);
+
+    static const uint8_t part_colours[2] = { 100, 200 };
+    static uint8_t solid_pixels[2];
+    static br_pixelmap solid_pms[2];
+    static br_material *mats[2];
+    for (int i = 0; i < 2; i++)
+    {
+        solid_pms[i] = make_solid_pixmap(&solid_pixels[i], part_colours[i]);
+        BrMapAdd(&solid_pms[i]);
+        mats[i] = BrMaterialAllocate((char *)"part-mat");
+        mats[i]->colour_map = &solid_pms[i];
+        mats[i]->index_shade = &shade;
+        mats[i]->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
+        mats[i]->ka = BR_UFRACTION(0.20);
+        mats[i]->kd = BR_UFRACTION(0.80);
+        mats[i]->ks = BR_UFRACTION(0.00);
+        mats[i]->opacity = 0xFF;
+        mats[i]->index_base = 0;
+        mats[i]->index_range = 255;
+        BrMaterialAdd(mats[i]);
+    }
+
+    br_model *parts[2];
+    parts[0] = load_bmdl_from_file(bmdl0_path);
+    parts[1] = load_bmdl_from_file(bmdl1_path);
+    if (!parts[0] || !parts[1]) { fprintf(stderr, "could not load body parts\n"); return 1; }
+    BrModelAdd(parts[0]);
+    BrModelAdd(parts[1]);
+    BrModelUpdate(parts[0], BR_MODU_ALL);
+    BrModelUpdate(parts[1], BR_MODU_ALL);
+
+    /* Use the larger radius for camera framing. */
+    float r0 = BrScalarToFloat(parts[0]->radius);
+    float r1 = BrScalarToFloat(parts[1]->radius);
+    float radius = (r0 > r1) ? r0 : r1;
+    if (radius < 0.5f) radius = 1.0f;
+    if (radius > 100.0f) radius = 100.0f;
+
+    br_actor *world = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+    static br_camera cam_data;
+    cam_data.identifier = (char *)"cam";
+    cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+    cam_data.field_of_view = BR_ANGLE_DEG(45);
+    cam_data.hither_z = BR_SCALAR(0.1);
+    cam_data.yon_z = BR_SCALAR(1000.0);
+    cam_data.aspect = BR_SCALAR(1.0);
+    br_actor *cam = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+    BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(radius * 4.0));
+
+    static br_light light_data;
+    light_data.identifier = (char *)"l";
+    light_data.type = BR_LIGHT_DIRECT;
+    light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+    light_data.attenuation_c = BR_SCALAR(1);
+    br_actor *light = BrActorAdd(world, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+    BrLightEnable(light);
+
+    /* Part 0 at origin, part 1 offset along +X by ~radius so they are
+     * visibly distinct in the dump. Identity rotations both. */
+    for (int i = 0; i < 2; i++)
+    {
+        br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
+        a->model = parts[i];
+        a->material = mats[i];
+        a->t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Identity(&a->t.t.mat);
+        a->t.t.mat.m[3][0] = BR_SCALAR((i == 0) ? 0.0 : (radius * 0.6));
+    }
+
+    BrZbSceneRender(world, cam, colour, depth);
+
+    FILE *f = fopen(out_path, "wb");
+    if (!f) { perror(out_path); return 1; }
+    fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+    fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+    fclose(f);
+
+    /* Histogram so the diff is human-readable. */
+    long hist[3] = { 0 };
+    uint8_t *p = (uint8_t *)colour->pixels;
+    for (int i = 0; i < WIDTH * HEIGHT; i++)
+    {
+        if (p[i] == 0) { hist[2]++; continue; }
+        if (p[i] == part_colours[0]) hist[0]++;
+        else if (p[i] == part_colours[1]) hist[1]++;
+    }
+    fprintf(stderr, "actor-tmpl1020 histogram: part0=%ld part1=%ld bg=%ld\n", hist[0], hist[1], hist[2]);
+
+    BrZbEnd();
+    BrEnd();
+    printf("ok: actor-tmpl1020 -> %s\n", out_path);
+    return 0;
+}
+
 /* Render the cube N times into a single image, each instance translated
  * to its tile and rotated to a different yaw angle. Output bitmap is
  * the colour buffer. */
@@ -1135,6 +1264,20 @@ int main(int argc, char **argv)
         }
         init_buffers();
         return run_props_overlap(argv[2], argv[3], argc >= 5 ? argv[4] : NULL);
+    }
+
+    /* actor-tmpl1020 <out> <bmdl0> <bmdl1> -- render TMPL 0x1020's two
+     * body parts side-by-side. Validates multi-mesh-per-actor across
+     * x86 vs x64 using real 3DMM body-part geometry. */
+    if (strcmp(argv[1], "actor-tmpl1020") == 0)
+    {
+        if (argc < 5)
+        {
+            fprintf(stderr, "actor-tmpl1020 requires <out.pgm> <bmdl0.bin> <bmdl1.bin>\n");
+            return 2;
+        }
+        init_buffers();
+        return run_actor_tmpl1020(argv[2], argv[3], argv[4]);
     }
 
     init_buffers();
