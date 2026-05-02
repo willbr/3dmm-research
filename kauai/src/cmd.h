@@ -286,6 +286,15 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
        to vpappb->FGetNextKeyFromOsQueue. */
     virtual bool _FGetKeyFromOs(PCommand pcmd);
 
+    /* Synthesize a tracking-mouse command when the cmd queue is empty
+       and a gob is tracking the mouse. Default returns tNo (no cmd).
+       Gui override fills _cmdCur via vpappb->TrackMouse + GrfcustCur. */
+    virtual tribool _TGetTrackingMouseCmd(void);
+
+    /* Notify the user that a command was rejected for modal reasons.
+       Default no-op. Gui override calls vpappb->BadModalCmd. */
+    virtual void _BadModalCmd(PCommand pcmd);
+
     // command recording and playback
     bool _FReadCmd(PCommand pcmd);
 
@@ -338,6 +347,37 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
 
     virtual void Suspend(bool fSuspend = fTrue);
     virtual void SetModalGob(PGraphicsObject pgob);
+};
+
+/****************************************
+    GuiCommandExecutionManager: gui-side overrides for the seam
+    virtuals introduced in Tasks 2 and 3 of the cmd_core split.
+    The state members (_pgobModal, _pgobTrack, _hwndCapture) and the
+    public TrackMouse / SetModalGob / etc. methods stay on the base
+    for now -- they're nullable / no-op when not used, so they don't
+    block headless consumers from linking cmd_core.
+
+    What this subclass owns is the *gui behavior wiring*: routing the
+    seam virtuals to vpappb. Lives in kauai/src/cmd_gui.cpp (gui side).
+****************************************/
+typedef class GuiCommandExecutionManager *PGuiCommandExecutionManager;
+#define GuiCommandExecutionManager_PAR CommandExecutionManager
+#define kclsGuiCommandExecutionManager 'GCEX'
+class GuiCommandExecutionManager : public GuiCommandExecutionManager_PAR
+{
+    RTCLASS_DEC
+
+  protected:
+    GuiCommandExecutionManager(void) : GuiCommandExecutionManager_PAR()
+    {
+    }
+
+    virtual bool _FGetKeyFromOs(PCommand pcmd) override;
+    virtual tribool _TGetTrackingMouseCmd(void) override;
+    virtual void _BadModalCmd(PCommand pcmd) override;
+
+  public:
+    static PGuiCommandExecutionManager PgcexNew(long ccmdInit, long ccmhInit);
 };
 
 #endif //! CMD_H

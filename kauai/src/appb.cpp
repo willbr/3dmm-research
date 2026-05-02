@@ -573,8 +573,10 @@ bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
        any HidUnique calls during CEM init see the real registry. */
     SetCmdHooks(&_AppPcmhFromHidHook, &_AppBuryCmhHook);
 
-    // initialize the command dispatcher
-    if (pvNil == (vpcex = CommandExecutionManager::PcexNew(20, 20)))
+    /* Initialize the command dispatcher. Use the gui CEM subclass so
+       _FGetKeyFromOs / _TGetTrackingMouseCmd / _BadModalCmd dispatch
+       to the vpappb-coupled bodies in cmd_gui.cpp. */
+    if (pvNil == (vpcex = GuiCommandExecutionManager::PgcexNew(20, 20)))
         return fFalse;
 
     // add the app as a handler (so it can catch menu commands)

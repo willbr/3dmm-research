@@ -659,6 +659,27 @@ bool CommandExecutionManager::_FGetKeyFromOs(PCommand pcmd)
 }
 
 /***************************************************************************
+    Default tracking-mouse synthesis: when the cmd queue is empty and a
+    gob is tracking the mouse, headless has nowhere to read the cursor
+    from. Return tNo so the dispatcher behaves as if the queue is just
+    plain empty. Gui override fills _cmdCur with a cidTrackMouse via
+    vpappb->TrackMouse + GrfcustCur + FForeground.
+***************************************************************************/
+tribool CommandExecutionManager::_TGetTrackingMouseCmd(void)
+{
+    return tNo;
+}
+
+/***************************************************************************
+    Default modal-rejection notification: no-op. Gui override calls
+    vpappb->BadModalCmd to play the system "no" sound.
+***************************************************************************/
+void CommandExecutionManager::_BadModalCmd(PCommand pcmd)
+{
+    AssertVarMem(pcmd);
+}
+
+/***************************************************************************
     Add a command handler to the filter list. These command handlers get
     a crack at every command whether or not it is for them. grfcmm
     determines which targets the handler will see commands for (as in
@@ -947,33 +968,11 @@ tribool CommandExecutionManager::_TGetNextCmd(void)
         if (pvNil == _pgobTrack)
             return tNo;
 
-        AssertPo(_pgobTrack, 0);
-        PT pt;
-        PCMD_MOUSE pcmd = (PCMD_MOUSE)&_cmdCur;
-
-        _cmdCur.pcmh = _pgobTrack;
-        _cmdCur.cid = cidTrackMouse;
-        vpappb->TrackMouse(_pgobTrack, &pt);
-        pcmd->xp = pt.xp;
-        pcmd->yp = pt.yp;
-        pcmd->grfcust = vpappb->GrfcustCur();
-
-        if (!vpappb->FForeground())
-        {
-            // if we're not in the foreground, toggle the state of
-            // fcustMouse repeatedly. Most of the time, this will cause
-            // the client to stop tracking the mouse. Clients
-            // whose tracking state depends on something other than
-            // the mouse state should call vpappb->FForeground() to
-            // determine if tracking should be aborted.
-            static bool _fDown;
-
-            _fDown = !_fDown;
-            if (!_fDown)
-                pcmd->grfcust ^= fcustMouse;
-            else
-                pcmd->grfcust &= ~fcustMouse;
-        }
+        /* Synthesize a tracking-mouse command. Headless default returns
+           tNo; gui override fills _cmdCur via vpappb. */
+        tribool tRet = _TGetTrackingMouseCmd();
+        if (tYes != tRet)
+            return tRet;
     }
     AssertPo(&_cmdCur, 0);
 
@@ -992,7 +991,7 @@ tribool CommandExecutionManager::_TGetNextCmd(void)
 
     if (!_FCmhOk(_cmdCur.pcmh))
     {
-        vpappb->BadModalCmd(&_cmdCur);
+        _BadModalCmd(&_cmdCur);
         ReleasePpo(&_cmdCur.pgg);
         return tMaybe;
     }

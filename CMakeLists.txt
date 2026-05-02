@@ -399,6 +399,7 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/clip.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/cmd_gui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/ctl.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/dlg.cpp"
