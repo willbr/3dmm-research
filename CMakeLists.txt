@@ -177,27 +177,20 @@ target_link_options(movie-chomp
 # from disk without a runtime engine init. EXCLUDE_FROM_ALL.
 add_executable(extract-bmdl EXCLUDE_FROM_ALL)
 target_sources(extract-bmdl PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/extract_bmdl.cpp")
-target_include_directories(extract-bmdl
-  PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
-  "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(extract-bmdl PRIVATE engine)
-target_link_options(extract-bmdl
-  BEFORE PRIVATE
-    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+target_include_directories(extract-bmdl PRIVATE "${PROJECT_SOURCE_DIR}/inc")
+# Links kauai-core (chunky-file runtime) only -- no UI / WinMain. The
+# tool only needs ChunkyFile / DataBlock / Filename and FAlloc/Free
+# helpers, all of which live in kauai-core.
+target_link_libraries(extract-bmdl PRIVATE kauai-core)
 
 # inspect-chunks: generic reflection / debug walker for 3DMM chunky
 # files. Lists chunks, walks the parent->child graph, dumps unpacked
 # bytes by (ctg, cno). Used to map TMPL graphs before writing actor
-# loaders. Same kauai-bootstrap setup as extract-bmdl.
+# loaders. Same kauai-core link as extract-bmdl.
 add_executable(inspect-chunks EXCLUDE_FROM_ALL)
 target_sources(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/src/tools/inspect_chunks.cpp")
-target_include_directories(inspect-chunks
-  PUBLIC $<TARGET_PROPERTY:engine,INCLUDE_DIRECTORIES>
-  "${PROJECT_SOURCE_DIR}/src")
-target_link_libraries(inspect-chunks PRIVATE engine)
-target_link_options(inspect-chunks
-  BEFORE PRIVATE
-    $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
+target_include_directories(inspect-chunks PRIVATE "${PROJECT_SOURCE_DIR}/inc")
+target_link_libraries(inspect-chunks PRIVATE kauai-core)
 
 
 # Chunk Editor
@@ -339,7 +332,11 @@ target_compile_definitions(kauai-core PUBLIC
 # target below.
 target_link_libraries(kauai-core
   PUBLIC
-    $<$<PLATFORM_ID:Windows>:mpr>)
+    $<$<PLATFORM_ID:Windows>:mpr>
+    # Winmm: utilint/utilrnd/fniwin use timeGetTime() for system tick
+    # readouts. Always linked when the runtime touches them, even in
+    # CLI builds.
+    $<$<PLATFORM_ID:Windows>:Winmm>)
 
 # --- kauai (gui umbrella): everything else, transitively re-exports core ---
 add_library(kauai)

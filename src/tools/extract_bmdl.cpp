@@ -11,24 +11,35 @@
  * Used by the bren-rasterizer-test prop-render scene to load a real 3DMM
  * model and compare x86 (asm) vs x64 (C fallback) renders byte-for-byte.
  *
- * Self-contained tool that links engine.lib (and transitively kauai +
- * brender + audioman). Exits non-zero on any failure.
+ * Self-contained CLI tool that links kauai-core only (no UI bootstrap).
+ * Provides its own int main() rather than going through kauai's
+ * appbwin.cpp WinMain. Exits non-zero on any failure.
  */
 
-#include "frame.h"
-#include "soc.h" /* kctgBmdl */
+#include "kauai_core.h"
 
 ASSERTNAME
 
-void __cdecl FrameMain(void)
-{
-}
+/* Chunk type tag for body-models. Defined in inc/soc.h, but soc.h
+ * pulls in frame.h + brender.h + the entire engine-side header tree;
+ * inline the one constant we need so the tool can link kauai-core
+ * only. Same packing as soc.h's `'BMDL'` 4-char literal. */
+#ifndef kctgBmdl
+#define kctgBmdl 'BMDL'
+#endif
 
-/* kauai's appbwin.cpp WinMain references this; the studio provides it
- * via mcpserv.cpp but a CLI tool has no MCP server. Stub it out. */
-extern "C" int Mcp_FEnabledFromCmdLine(const char *)
+/* Kauai's debug.h declares WarnProc as the assertion-failure callback
+ * and FAssertProc as the hard-fail one; the gui-side appb.cpp defines
+ * them as "show a dialog". A CLI tool has no UI, so just print and
+ * continue -- assertion fires are still surfaced to stderr. */
+void WarnProc(schar *pszsFile, long lwLine, schar *pszsMsg)
 {
-    return 0;
+    fprintf(stderr, "WARN %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+}
+bool FAssertProc(schar *pszsFile, long lwLine, schar *pszsMsg, void *, long)
+{
+    fprintf(stderr, "ASSERT %s:%ld %s\n", pszsFile ? pszsFile : "?", lwLine, pszsMsg ? pszsMsg : "");
+    return false; /* false = continue; true = enter debugger */
 }
 
 int __cdecl main(int argc, char **argv)
