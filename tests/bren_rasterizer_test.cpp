@@ -675,6 +675,54 @@ static br_model *load_bmdl_from_file(const char *path)
 }
 
 /* Render N camera angles around a real 3DMM prop loaded from a BMDL bin. */
+/* Load a real 3DMM TMAP chunk (texture pixmap) into a br_pixelmap.
+ * Wire format per bren/inc/tmap.h's TextureMapFile (20 bytes):
+ *   short bo, osk; short cbRow; byte type, grftmap;
+ *   short xpLeft, ypTop, dxp, dyp, xpOrigin, ypOrigin;
+ * followed immediately by `dyp * cbRow` bytes of pixels (8bpp indexed
+ * for type==3). Matches what TextureMap::FWrite emits. The returned
+ * pixelmap owns its pixel buffer (malloc'd) and an identifier string
+ * pointing into the file's basename for debug. The test never frees
+ * either; processes are short-lived. */
+static br_pixelmap *load_tmap_from_file(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return 0; }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 20) { fprintf(stderr, "%s: TMAP too small (%ld)\n", path, size); fclose(f); return 0; }
+    uint8_t *buf = (uint8_t *)malloc(size);
+    fread(buf, 1, size, f);
+    fclose(f);
+
+    /* Read fields by offset to dodge struct-padding worries. All
+     * little-endian on disk. */
+    uint16_t cbRow = (uint16_t)(buf[4] | (buf[5] << 8));
+    uint8_t type = buf[6];
+    uint16_t dxp = (uint16_t)(buf[12] | (buf[13] << 8));
+    uint16_t dyp = (uint16_t)(buf[14] | (buf[15] << 8));
+    long expected = 20L + (long)dyp * cbRow;
+    fprintf(stderr, "loaded TMAP %s: %dx%d type=%d cbRow=%d (%ld bytes; expected %ld)\n", path, dxp, dyp, type, cbRow,
+            size, expected);
+    if (expected != size)
+    {
+        fprintf(stderr, "  size mismatch -- proceeding with file size anyway\n");
+    }
+
+    br_pixelmap *pm = (br_pixelmap *)calloc(1, sizeof(br_pixelmap));
+    pm->identifier = (char *)"tmap";
+    pm->type = type; /* 3 = BR_PMT_INDEX_8 */
+    pm->width = dxp;
+    pm->height = dyp;
+    pm->row_bytes = (br_int_16)cbRow;
+    /* `pixels` points into the malloc'd buf 20 bytes in; the 20-byte
+     * header is leaked. Test process is short-lived; not worth
+     * shuffling the buffer. */
+    pm->pixels = buf + 20;
+    return pm;
+}
+
 static int run_prop_render(const char *out_path, const char *bmdl_path, int n_angles)
 {
     BrBegin();
@@ -967,7 +1015,8 @@ static int run_props_overlap(const char *out_path, const char *bmdl_a, const cha
  * studio render, we can extend the loader to parse them; for the
  * x86-vs-x64 cross-arch byte diff that's not necessary -- both arches
  * see the same hardcoded transforms. */
-static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, const char *bmdl1_path)
+static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, const char *bmdl1_path,
+                              const char *tmap_path)
 {
     BrBegin();
 
@@ -988,17 +1037,27 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
     shade.height = 256;
     BrTableAdd(&shade);
 
-    /* Use the 32x32 checker texture (g_tex / g_tex_pm, set up by
-     * init_material) so the BMDL's UV-mapped sampling actually shows.
-     * Without a real texture, every texel was the (0,0) pixel of a
-     * 1x1 solid pixmap, painting the model a uniform colour blob. */
-    init_material();
-    BrMapAdd(&g_tex_pm);
+    /* Texture: prefer the actor's real TMAP if a path was given, else
+     * fall back to the 32x32 checker (init_material). The real TMAP
+     * shows the actor's authored surface; the checker is only useful
+     * for verifying that UV-mapped sampling is happening at all. */
+    br_pixelmap *tex_pm;
+    if (tmap_path && tmap_path[0])
+    {
+        tex_pm = load_tmap_from_file(tmap_path);
+        if (!tex_pm) return 1;
+    }
+    else
+    {
+        init_material();
+        tex_pm = &g_tex_pm;
+    }
+    BrMapAdd(tex_pm);
     static br_material *mats[2];
     for (int i = 0; i < 2; i++)
     {
         mats[i] = BrMaterialAllocate((char *)"part-mat");
-        mats[i]->colour_map = &g_tex_pm;
+        mats[i]->colour_map = tex_pm;
         mats[i]->index_shade = &shade;
         mats[i]->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
         mats[i]->ka = BR_UFRACTION(0.20);
@@ -1264,18 +1323,20 @@ int main(int argc, char **argv)
         return run_props_overlap(argv[2], argv[3], argc >= 5 ? argv[4] : NULL);
     }
 
-    /* actor-tmpl1020 <out> <bmdl0> <bmdl1> -- render TMPL 0x1020's two
-     * body parts side-by-side. Validates multi-mesh-per-actor across
-     * x86 vs x64 using real 3DMM body-part geometry. */
+    /* actor-tmpl1020 <out> <bmdl0> <bmdl1> [tmap]
+     *   Render TMPL 0x1020's two body parts side-by-side. If tmap is
+     *   given, use that real TMAP chunk as the texture; otherwise use
+     *   the synthetic checker. Validates multi-mesh-per-actor across
+     *   x86 vs x64 using real 3DMM body-part geometry. */
     if (strcmp(argv[1], "actor-tmpl1020") == 0)
     {
         if (argc < 5)
         {
-            fprintf(stderr, "actor-tmpl1020 requires <out.pgm> <bmdl0.bin> <bmdl1.bin>\n");
+            fprintf(stderr, "actor-tmpl1020 requires <out.pgm> <bmdl0.bin> <bmdl1.bin> [tmap.bin]\n");
             return 2;
         }
         init_buffers();
-        return run_actor_tmpl1020(argv[2], argv[3], argv[4]);
+        return run_actor_tmpl1020(argv[2], argv[3], argv[4], argc >= 6 ? argv[5] : NULL);
     }
 
     init_buffers();
