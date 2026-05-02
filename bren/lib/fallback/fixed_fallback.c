@@ -45,8 +45,24 @@ br_fixed_ls BrFixedDivR(br_fixed_ls a, br_fixed_ls b)
 
 br_fixed_ls BrFixedDivF(br_fixed_ls a, br_fixed_ls b)
 {
-    /* Floor divide: same as plain divide for fixed point in this codebase. */
-    return (br_fixed_ls)(((int64_t)a << 16) / b);
+    /* Asm BrFixedDivF (fixed386.asm): mov edx,a / xor eax,eax / sar edx,1 /
+     * rcr eax,1 / div b. That is `edx:eax = a:0 >> 1` then UNSIGNED 64/32
+     * divide. The pre-divide value is (int64_t)a << 31 (sign-aware via the
+     * sar/rcr pair); the unsigned div assumes the caller has already
+     * arranged for a positive dividend (PERSP_DIV_Z passes -a, and a is
+     * negative in the typical +Z forward scene, so -a is positive).
+     *
+     * Result range: for |a|<|b|, the quotient is a/b * 2^31 -- a 1.31
+     * fixed-point fraction stored in a br_fixed_ls. Callers in zb (e.g.
+     * PROJECT_VERTEX -> v[Z]) interpret it as 1.31, then per-pixel
+     * `cur_z >> 16` extracts the high 16 bits as the depth-buffer entry.
+     *
+     * The previous fallback shifted by 16, producing depth values 2^15
+     * times smaller -- every projected v[Z] underflowed to 0 in the high
+     * word, breaking z-test ordering. Symptom: props-overlap divergence
+     * had x64 picking the wrong (instance-3) color in the dead-centre tile
+     * because the depth buffer never advanced past zero on x64. */
+    return (br_fixed_ls)(((int64_t)a << 31) / b);
 }
 
 br_fixed_ls BrFixedRcp(br_fixed_ls a)
