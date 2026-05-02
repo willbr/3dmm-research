@@ -316,6 +316,11 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/lex.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mssio.cpp"
+    # mbmp.cpp -- MaskedBitmapMBMP data side (alloc, RLE encode/decode,
+    # chunk read/write, .bmp import). The drawing side
+    # (MaskedBitmapMBMP::Draw / DrawMask) lives in mbmpgui.cpp and stays
+    # gui. Verified zero UI class references in mbmp.cpp.
+    "${PROJECT_SOURCE_DIR}/kauai/src/mbmp.cpp"
     # pic.cpp (Picture wraps Win MetaFile / Mac Pict). pic itself is
     # platform-agnostic; the platform-specific HENHMETAFILE/HPIC
     # surface lives in picwin.cpp.
@@ -390,7 +395,6 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/kidhelp.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidspace.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidworld.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/mbmp.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mbmpgui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp"
