@@ -345,6 +345,10 @@ target_sources(kauai-core
     # (MaskedBitmapMBMP::Draw / DrawMask) lives in mbmpgui.cpp and stays
     # gui. Verified zero UI class references in mbmp.cpp.
     "${PROJECT_SOURCE_DIR}/kauai/src/mbmp.cpp"
+    # midi.cpp: MidiStream + MidiStreamParser. Pure parser/serializer
+    # over a byte stream; no Win32 MM API calls (those live in
+    # mididev*.cpp on the gui target). Verified: zero gui / cmd refs.
+    "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     # pic.cpp (Picture wraps Win MetaFile / Mac Pict). pic itself is
     # platform-agnostic; the platform-specific HENHMETAFILE/HPIC
     # surface lives in picwin.cpp.
@@ -427,7 +431,6 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/kidspace.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/kidworld.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mbmpgui.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/rtxt.cpp"
