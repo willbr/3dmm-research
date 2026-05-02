@@ -675,6 +675,77 @@ static br_model *load_bmdl_from_file(const char *path)
 }
 
 /* Render N camera angles around a real 3DMM prop loaded from a BMDL bin. */
+/* Load the 3DMM global GLCR palette (256 BGR0 entries after a 12-byte
+ * DynamicArray header). Returns 256-entry RGB triples (R,G,B,R,G,B,...).
+ * Caller owns the returned buffer. Returns NULL on failure.
+ *
+ * On-disk per-entry layout is Windows DIB BGR0 (B,G,R,pad). We
+ * convert to RGB triples here so PPM writers can dump straight. */
+static uint8_t *load_palette_from_file(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return 0; }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 12 + 256 * 4)
+    {
+        fprintf(stderr, "%s: palette too small (%ld bytes)\n", path, size);
+        fclose(f);
+        return 0;
+    }
+    uint8_t *buf = (uint8_t *)malloc(size);
+    fread(buf, 1, size, f);
+    fclose(f);
+
+    uint8_t *rgb = (uint8_t *)malloc(256 * 3);
+    for (int i = 0; i < 256; i++)
+    {
+        uint8_t *src = buf + 12 + i * 4;
+        rgb[i * 3 + 0] = src[2]; /* R */
+        rgb[i * 3 + 1] = src[1]; /* G */
+        rgb[i * 3 + 2] = src[0]; /* B */
+    }
+    free(buf);
+    fprintf(stderr, "loaded palette %s: 256 colours\n", path);
+    return rgb;
+}
+
+/* Write the colour pixmap as a P6 (RGB) PPM by looking up each indexed
+ * pixel in the supplied palette. Caller still gets the PGM (raw indices)
+ * for byte-level x86-vs-x64 diffing; the PPM is alongside, only for
+ * human viewing. */
+static void write_ppm_from_pgm(const char *out_pgm_path, const uint8_t *pixels, int width, int height,
+                               const uint8_t *palette_rgb)
+{
+    if (!palette_rgb) return;
+    /* out_pgm_path -> derive out_ppm_path by suffix swap. */
+    char ppm_path[1024];
+    snprintf(ppm_path, sizeof(ppm_path), "%s", out_pgm_path);
+    size_t n = strlen(ppm_path);
+    if (n >= 4 && strcmp(ppm_path + n - 4, ".pgm") == 0)
+        ppm_path[n - 2] = 'p'; /* .pgm -> .ppm (the 'g' becomes 'p') */
+    else
+        snprintf(ppm_path, sizeof(ppm_path), "%s.ppm", out_pgm_path);
+
+    FILE *f = fopen(ppm_path, "wb");
+    if (!f) { perror(ppm_path); return; }
+    fprintf(f, "P6\n%d %d\n255\n", width, height);
+    int n_pix = width * height;
+    uint8_t *rgb = (uint8_t *)malloc((size_t)n_pix * 3);
+    for (int i = 0; i < n_pix; i++)
+    {
+        uint8_t idx = pixels[i];
+        rgb[i * 3 + 0] = palette_rgb[idx * 3 + 0];
+        rgb[i * 3 + 1] = palette_rgb[idx * 3 + 1];
+        rgb[i * 3 + 2] = palette_rgb[idx * 3 + 2];
+    }
+    fwrite(rgb, 1, (size_t)n_pix * 3, f);
+    free(rgb);
+    fclose(f);
+    fprintf(stderr, "  wrote PPM (palette-mapped) -> %s\n", ppm_path);
+}
+
 /* Load a real 3DMM TMAP chunk (texture pixmap) into a br_pixelmap.
  * Wire format per bren/inc/tmap.h's TextureMapFile (20 bytes):
  *   short bo, osk; short cbRow; byte type, grftmap;
@@ -1150,7 +1221,8 @@ static int run_actor_tmpl1020(const char *out_path, const char *bmdl0_path, cons
  * pulled back enough to fit them all. This is a "prove the textured
  * multi-mesh path works at character scale" test, not a real
  * rest-pose render. */
-static int run_actor_grid(const char *out_path, const char *tmap_path, int n_bmdls, const char **bmdl_paths)
+static int run_actor_grid(const char *out_path, const char *tmap_path, const char *palette_path, int n_bmdls,
+                          const char **bmdl_paths)
 {
     BrBegin();
 
@@ -1267,10 +1339,249 @@ static int run_actor_grid(const char *out_path, const char *tmap_path, int n_bmd
     for (int i = 0; i < WIDTH * HEIGHT; i++) if (p[i] != 0) lit++;
     fprintf(stderr, "actor-grid lit=%ld bg=%ld parts=%d\n", lit, (long)WIDTH * HEIGHT - lit, loaded);
 
+    /* If a palette was supplied, also dump a colour PPM next to the
+     * indexed PGM. PGM stays for byte-level x86/x64 diffing; PPM is
+     * the human-viewable version. */
+    if (palette_path && palette_path[0])
+    {
+        uint8_t *pal = load_palette_from_file(palette_path);
+        if (pal)
+        {
+            write_ppm_from_pgm(out_path, p, WIDTH, HEIGHT, pal);
+            free(pal);
+        }
+    }
+
     BrZbEnd();
     BrEnd();
     free(parts);
     printf("ok: actor-grid -> %s\n", out_path);
+    return 0;
+}
+
+/* Read an int16 DynamicArray (.bin from inspect-chunks dump). 12-byte
+ * header (bo, osk, cb_entry, cv) followed by cv * cb_entry payload.
+ * Returns the int16 entries; *out_count receives cv. */
+static int16_t *load_int16_array(const char *path, int *out_count)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return 0; }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 12) { fclose(f); return 0; }
+    uint8_t *buf = (uint8_t *)malloc(size);
+    fread(buf, 1, size, f);
+    fclose(f);
+    uint32_t cb_entry = (uint32_t)(buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24));
+    uint32_t cv = (uint32_t)(buf[8] | (buf[9] << 8) | (buf[10] << 16) | (buf[11] << 24));
+    if (cb_entry != 2)
+    {
+        fprintf(stderr, "%s: expected int16 entries (cb=2), got cb=%u\n", path, cb_entry);
+        free(buf);
+        return 0;
+    }
+    int16_t *out = (int16_t *)malloc(cv * sizeof(int16_t));
+    memcpy(out, buf + 12, cv * sizeof(int16_t));
+    free(buf);
+    *out_count = (int)cv;
+    return out;
+}
+
+/* Read a DynamicArray of br_matrix34 (48 bytes each). 12-byte header
+ * then cv * 48 bytes raw. Each matrix is br_scalar m[4][3] (12 int32
+ * 16.16 fixed values) -- stored on disk in the same layout BMAT34 uses
+ * in memory. */
+static br_matrix34 *load_matrix_array(const char *path, int *out_count)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) { perror(path); return 0; }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < 12) { fclose(f); return 0; }
+    uint8_t *buf = (uint8_t *)malloc(size);
+    fread(buf, 1, size, f);
+    fclose(f);
+    uint32_t cb_entry = (uint32_t)(buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24));
+    uint32_t cv = (uint32_t)(buf[8] | (buf[9] << 8) | (buf[10] << 16) | (buf[11] << 24));
+    if (cb_entry != sizeof(br_matrix34))
+    {
+        fprintf(stderr, "%s: expected matrix entries (cb=%zu), got cb=%u\n", path, sizeof(br_matrix34), cb_entry);
+        free(buf);
+        return 0;
+    }
+    br_matrix34 *out = (br_matrix34 *)malloc(cv * sizeof(br_matrix34));
+    memcpy(out, buf + 12, cv * sizeof(br_matrix34));
+    free(buf);
+    *out_count = (int)cv;
+    return out;
+}
+
+/* Multi-body-part actor render in default rest pose. Composes parts via
+ * GLPI (parent index per part) + GLXF (per-part local transform from
+ * action 0). World transform of part i = walk parent chain multiplying
+ * local matrices. BMDL i is assigned to body part i (assumes the BMDL
+ * ordering matches the GLPI ordering -- correct for the action-0 cel-0
+ * default identity costume; full CelPartSpec parsing would be needed for
+ * other costumes / cels).
+ *
+ * Out: PGM + (if palette) PPM. */
+static int run_actor_pose(const char *out_path, const char *tmap_path, const char *palette_path, const char *glpi_path,
+                          const char *glxf_path, int n_bmdls, const char **bmdl_paths)
+{
+    BrBegin();
+
+    br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+    br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+    if (!colour || !depth) { fprintf(stderr, "pixmap alloc failed\n"); return 1; }
+    BrPixelmapFill(colour, 0);
+    BrPixelmapFill(depth, 0xFFFF);
+
+    BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+    static br_pixelmap shade;
+    shade.identifier = (char *)"id-shade";
+    shade.pixels = g_shade_id;
+    shade.row_bytes = 256;
+    shade.type = BR_PMT_INDEX_8;
+    shade.width = 256;
+    shade.height = 256;
+    BrTableAdd(&shade);
+
+    br_pixelmap *tex_pm = load_tmap_from_file(tmap_path);
+    if (!tex_pm) return 1;
+    BrMapAdd(tex_pm);
+
+    br_material *mat = BrMaterialAllocate((char *)"part-mat");
+    mat->colour_map = tex_pm;
+    mat->index_shade = &shade;
+    mat->flags = BR_MATF_LIGHT | BR_MATF_SMOOTH;
+    mat->ka = BR_UFRACTION(0.20);
+    mat->kd = BR_UFRACTION(0.80);
+    mat->ks = BR_UFRACTION(0.00);
+    mat->opacity = 0xFF;
+    mat->index_base = 0;
+    mat->index_range = 255;
+    BrMaterialAdd(mat);
+
+    int n_parents = 0, n_xforms = 0;
+    int16_t *parents = load_int16_array(glpi_path, &n_parents);
+    br_matrix34 *xforms = load_matrix_array(glxf_path, &n_xforms);
+    if (!parents || !xforms) { fprintf(stderr, "could not load GLPI/GLXF\n"); return 1; }
+    fprintf(stderr, "GLPI: %d parents, GLXF: %d local xforms\n", n_parents, n_xforms);
+
+    int n_parts = (n_parents < n_xforms) ? n_parents : n_xforms;
+    if (n_bmdls < n_parts) n_parts = n_bmdls;
+
+    /* Compose world transforms by walking the parent chain. GLPI
+     * guarantees parents come before children in index order (root has
+     * parent ivNil = -1). */
+    br_matrix34 *world = (br_matrix34 *)malloc(n_parts * sizeof(br_matrix34));
+    float max_radius = 0;
+    for (int i = 0; i < n_parts; i++)
+    {
+        int p = parents[i];
+        if (p < 0)
+            world[i] = xforms[i];
+        else
+            BrMatrix34Mul(&world[i], &xforms[i], &world[p]);
+    }
+
+    /* Load BMDLs and compute scene bounding sphere from world-space
+     * vertex extents -- the local radius doesn't account for the
+     * parent-chain transforms. */
+    br_model **parts = (br_model **)calloc(n_parts, sizeof(br_model *));
+    int loaded = 0;
+    float scene_x_min = 1e30f, scene_x_max = -1e30f, scene_y_min = 1e30f, scene_y_max = -1e30f;
+    for (int i = 0; i < n_parts; i++)
+    {
+        parts[i] = load_bmdl_from_file(bmdl_paths[i]);
+        if (!parts[i]) continue;
+        BrModelAdd(parts[i]);
+        BrModelUpdate(parts[i], BR_MODU_ALL);
+        loaded++;
+        float r = BrScalarToFloat(parts[i]->radius);
+        if (r > max_radius) max_radius = r;
+        float wx = BrScalarToFloat(world[i].m[3][0]);
+        float wy = BrScalarToFloat(world[i].m[3][1]);
+        if (wx - r < scene_x_min) scene_x_min = wx - r;
+        if (wx + r > scene_x_max) scene_x_max = wx + r;
+        if (wy - r < scene_y_min) scene_y_min = wy - r;
+        if (wy + r > scene_y_max) scene_y_max = wy + r;
+    }
+    fprintf(stderr, "loaded %d/%d body parts; scene xy bounds (%.2f..%.2f, %.2f..%.2f), max part r=%.2f\n", loaded,
+            n_parts, scene_x_min, scene_x_max, scene_y_min, scene_y_max, max_radius);
+
+    float scene_size = (scene_x_max - scene_x_min);
+    float scene_h = (scene_y_max - scene_y_min);
+    if (scene_h > scene_size) scene_size = scene_h;
+    if (scene_size < 1.0f) scene_size = 1.0f;
+    float scene_cx = (scene_x_min + scene_x_max) * 0.5f;
+    float scene_cy = (scene_y_min + scene_y_max) * 0.5f;
+
+    br_actor *world_actor = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+    static br_camera cam_data;
+    cam_data.identifier = (char *)"cam";
+    cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+    cam_data.field_of_view = BR_ANGLE_DEG(45);
+    cam_data.hither_z = BR_SCALAR(0.1);
+    cam_data.yon_z = BR_SCALAR(1000.0);
+    cam_data.aspect = BR_SCALAR(1.0);
+    br_actor *cam = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+    /* Pull camera back so the scene fits in 45deg FoV. */
+    BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(scene_cx), BR_SCALAR(scene_cy), BR_SCALAR(scene_size * 1.4));
+
+    static br_light light_data;
+    light_data.identifier = (char *)"l";
+    light_data.type = BR_LIGHT_DIRECT;
+    light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+    light_data.attenuation_c = BR_SCALAR(1);
+    br_actor *light = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+    BrLightEnable(light);
+
+    for (int i = 0; i < n_parts; i++)
+    {
+        if (!parts[i]) continue;
+        br_actor *a = BrActorAdd(world_actor, BrActorAllocate(BR_ACTOR_MODEL, 0));
+        a->model = parts[i];
+        a->material = mat;
+        a->t.type = BR_TRANSFORM_MATRIX34;
+        a->t.t.mat = world[i];
+    }
+
+    BrZbSceneRender(world_actor, cam, colour, depth);
+
+    FILE *f = fopen(out_path, "wb");
+    if (!f) { perror(out_path); return 1; }
+    fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+    fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+    fclose(f);
+
+    long lit = 0;
+    uint8_t *p = (uint8_t *)colour->pixels;
+    for (int i = 0; i < WIDTH * HEIGHT; i++) if (p[i] != 0) lit++;
+    fprintf(stderr, "actor-pose lit=%ld bg=%ld parts=%d\n", lit, (long)WIDTH * HEIGHT - lit, loaded);
+
+    if (palette_path && palette_path[0])
+    {
+        uint8_t *pal = load_palette_from_file(palette_path);
+        if (pal)
+        {
+            write_ppm_from_pgm(out_path, p, WIDTH, HEIGHT, pal);
+            free(pal);
+        }
+    }
+
+    BrZbEnd();
+    BrEnd();
+    free(parts);
+    free(parents);
+    free(xforms);
+    free(world);
+    printf("ok: actor-pose -> %s\n", out_path);
     return 0;
 }
 
@@ -1473,19 +1784,37 @@ int main(int argc, char **argv)
         return run_actor_tmpl1020(argv[2], argv[3], argv[4], argc >= 6 ? argv[5] : NULL);
     }
 
-    /* actor-grid <out> <tmap> <bmdl1> [bmdl2 ...]
+    /* actor-grid <out.pgm> <palette.bin|-> <tmap.bin> <bmdl1.bin> [bmdl2.bin ...]
      *   Render N body-part BMDLs in a square grid, all sharing one
-     *   TMAP texture. Visualises an entire character template's
-     *   geometry without needing the CMTL/MTRL/transform graph. */
+     *   TMAP texture. If <palette> is "-" no colour PPM is written;
+     *   otherwise a sibling .ppm is dumped using the supplied 3DMM
+     *   GLCR palette so the indices show as authored colours. */
     if (strcmp(argv[1], "actor-grid") == 0)
     {
-        if (argc < 5)
+        if (argc < 6)
         {
-            fprintf(stderr, "actor-grid requires <out.pgm> <tmap.bin> <bmdl1.bin> [bmdl2.bin ...]\n");
+            fprintf(stderr, "actor-grid requires <out.pgm> <palette.bin|-> <tmap.bin> <bmdl1.bin> [bmdl2.bin ...]\n");
             return 2;
         }
         init_buffers();
-        return run_actor_grid(argv[2], argv[3], argc - 4, (const char **)&argv[4]);
+        const char *pal = strcmp(argv[3], "-") == 0 ? NULL : argv[3];
+        return run_actor_grid(argv[2], argv[4], pal, argc - 5, (const char **)&argv[5]);
+    }
+
+    /* actor-pose <out.pgm> <palette|-> <tmap> <glpi> <glxf> <bmdl1> [bmdl2 ...]
+     *   Multi-part actor render in default rest pose. Composes parts
+     *   via GLPI parents + GLXF action-0 local transforms. */
+    if (strcmp(argv[1], "actor-pose") == 0)
+    {
+        if (argc < 8)
+        {
+            fprintf(stderr,
+                    "actor-pose requires <out.pgm> <palette|-> <tmap> <glpi> <glxf> <bmdl1> [bmdl2 ...]\n");
+            return 2;
+        }
+        init_buffers();
+        const char *pal = strcmp(argv[3], "-") == 0 ? NULL : argv[3];
+        return run_actor_pose(argv[2], argv[4], pal, argv[5], argv[6], argc - 7, (const char **)&argv[7]);
     }
 
     init_buffers();
