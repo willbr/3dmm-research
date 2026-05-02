@@ -74,8 +74,24 @@ def main():
         if not g.get("found"):
             p(f"  gob {hex(hid)} NOT FOUND ({label})"); return False
         p(f"  click {label} hid={hex(hid)} center=({g['center_x']},{g['center_y']})")
-        call("click", {"x": g["center_x"], "y": g["center_y"], "button":"left"})
-        call("wait_ms", {"ms": 1500})
+        call("click", {"x": g["center_x"], "y": g["center_y"], "button":"left"}, timeout=4.0)
+        # Poll dialogs first (worker-direct, works during modals). If a modal
+        # came up from the click, dismiss it before trying wait_ms (which goes
+        # through Drain and would hang while a modal is up).
+        for _ in range(6):
+            d = json.loads(text(call("list_dialogs", timeout=3.0)))
+            if d.get("count", 0):
+                p(f"  === DIALOG @ click({label}) ===")
+                for dlg in d["dialogs"]:
+                    p(f"    title: {dlg.get('title','?')}")
+                    for kid in dlg.get("children", []):
+                        p(f"    kid: {kid[:200]}")
+                    p(f"    [dismiss ignore on {dlg['hwnd']}]")
+                    call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"}, timeout=3.0)
+                time.sleep(0.5)
+            else:
+                break
+        call("wait_ms", {"ms": 1500}, timeout=4.0)
         return True
     def key(vk):
         call("key", {"vk": vk})
