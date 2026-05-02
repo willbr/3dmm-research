@@ -70,7 +70,12 @@
     to handle the next alarm.
 
 ***************************************************************************/
-#include "frame.h"
+/* kauai-core consumer (Task 5 of cmd_core split): only needs the
+   chunky/util runtime + the cmd_core seam (CommandHandler / CEM) +
+   clok's own header. No frame.h -- kauai-core has no UI headers. */
+#include "kauai_core.h"
+#include "cmd.h"
+#include "clok.h"
 ASSERTNAME
 
 RTCLASS(Clock)

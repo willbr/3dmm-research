@@ -326,7 +326,9 @@ class ApplicationBase : public ApplicationBase_PAR
 };
 
 extern PApplicationBase vpappb;
-extern PCommandExecutionManager vpcex;
+/* vpcex now declared in cmd.h so kauai-core consumers (clok, msnd,
+   ...) can see it without including appb.h. Definition still lives
+   in kauai/src/appb.cpp. */
 extern PSoundManager vpsndm;
 
 // main entry point for the client app
