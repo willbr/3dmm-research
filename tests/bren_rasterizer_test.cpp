@@ -505,6 +505,225 @@ static br_material *make_test_material(br_pixelmap *colour_map)
     return mat;
 }
 
+/* On-disk wire format for a 3DMM BMDL chunk's ModelOnFile header.
+ * Mirrors inc/modl.h's struct exactly; we redeclare here so the test
+ * doesn't need to pull in the engine include path. */
+struct ModelOnFile_Wire
+{
+    int16_t bo;
+    int16_t osk;
+    int16_t cver;
+    int16_t cfac;
+    int32_t rRadius;
+    int32_t bounds_min[3]; /* br_bounds.min */
+    int32_t bounds_max[3]; /* br_bounds.max */
+    int32_t pivot[3];
+};
+/* Wire-format face entry, 32 bytes -- see inc/modl.h's BrFaceOnFile. */
+struct BrFaceOnFile_Wire
+{
+    uint16_t vertices[3];
+    uint16_t edges[3];
+    uint32_t material_slot; /* placeholder */
+    uint16_t smoothing;
+    uint8_t flags;
+    uint8_t _pad0;
+    int16_t n[3]; /* face plane normal as 3 fractions */
+    int16_t _pad1;
+    int32_t d; /* face plane d */
+};
+
+/* Load a real BMDL chunk dumped via the extract-bmdl tool, parse the
+ * ModelOnFile + br_vertex[] + BrFaceOnFile[] bytes (as Model::_FInit
+ * does in src/engine/modl.cpp), build a br_model, and render it from
+ * N camera angles. This is the user-requested "real prop from 3DMM"
+ * test -- exercises the same vertex / face data the studio renders. */
+static br_model *load_bmdl_from_file(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f)
+    {
+        perror(path);
+        return 0;
+    }
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (size < (long)sizeof(ModelOnFile_Wire))
+    {
+        fprintf(stderr, "%s: too small (%ld bytes)\n", path, size);
+        fclose(f);
+        return 0;
+    }
+    uint8_t *buf = (uint8_t *)malloc(size);
+    fread(buf, 1, size, f);
+    fclose(f);
+
+    ModelOnFile_Wire *hdr = (ModelOnFile_Wire *)buf;
+    int cver = hdr->cver;
+    int cfac = hdr->cfac;
+    int radius_zero = (hdr->rRadius == 0);
+
+    fprintf(stderr, "loaded %s: cver=%d cfac=%d rRadius=0x%08lx %s\n", path, cver, cfac, (long)hdr->rRadius,
+            radius_zero ? "(unprepared)" : "(prepared)");
+
+    long expected = sizeof(ModelOnFile_Wire) + (long)cver * 32 + (long)cfac * 32;
+    if (expected != size)
+    {
+        fprintf(stderr, "%s: size mismatch (header expects %ld, file has %ld)\n", path, expected, size);
+        free(buf);
+        return 0;
+    }
+
+    br_model *m = BrModelAllocate((char *)"prop", (br_uint_16)cver, (br_uint_16)cfac);
+    if (!m)
+    {
+        free(buf);
+        return 0;
+    }
+
+    /* br_vertex layout is identical x86/x64 (32 bytes, no embedded pointers). */
+    memcpy(m->vertices, buf + sizeof(ModelOnFile_Wire), (size_t)cver * 32);
+
+    /* Marshal each on-disk BrFaceOnFile_Wire into runtime br_face. Same as
+     * src/engine/modl.cpp's _BrFaceFromOnFile. */
+    BrFaceOnFile_Wire *faces_wire = (BrFaceOnFile_Wire *)(buf + sizeof(ModelOnFile_Wire) + (long)cver * 32);
+    for (int i = 0; i < cfac; i++)
+    {
+        br_face *fp = &m->faces[i];
+        fp->vertices[0] = faces_wire[i].vertices[0];
+        fp->vertices[1] = faces_wire[i].vertices[1];
+        fp->vertices[2] = faces_wire[i].vertices[2];
+        fp->edges[0] = faces_wire[i].edges[0];
+        fp->edges[1] = faces_wire[i].edges[1];
+        fp->edges[2] = faces_wire[i].edges[2];
+        fp->material = 0;
+        fp->smoothing = faces_wire[i].smoothing;
+        fp->flags = faces_wire[i].flags;
+        fp->_pad0 = faces_wire[i]._pad0;
+        fp->n.v[0] = (br_fraction)faces_wire[i].n[0];
+        fp->n.v[1] = (br_fraction)faces_wire[i].n[1];
+        fp->n.v[2] = (br_fraction)faces_wire[i].n[2];
+        fp->d = (br_scalar)faces_wire[i].d;
+    }
+
+    if (!radius_zero)
+    {
+        /* The asm engine handles "preprepared" models specially. For the
+         * test scene we let BrModelUpdate recompute everything from
+         * scratch, so this matters less. Clear flags so Update runs. */
+        m->flags = 0;
+    }
+
+    free(buf);
+    return m;
+}
+
+/* Render N camera angles around a real 3DMM prop loaded from a BMDL bin. */
+static int run_prop_render(const char *out_path, const char *bmdl_path, int n_angles)
+{
+    BrBegin();
+
+    br_pixelmap *colour = BrPixelmapAllocate(BR_PMT_INDEX_8, WIDTH, HEIGHT, 0, BR_PMAF_NORMAL);
+    br_pixelmap *depth = BrPixelmapMatch(colour, BR_PMMATCH_DEPTH_16);
+    if (!colour || !depth)
+    {
+        fprintf(stderr, "pixmap alloc failed\n");
+        return 1;
+    }
+    BrPixelmapFill(colour, 0);
+    BrPixelmapFill(depth, 0xFFFF);
+
+    BrZbBegin(colour->type, BR_PMT_DEPTH_16);
+
+    br_pixelmap tex = {};
+    tex.identifier = (char *)"checker";
+    tex.pixels = g_tex;
+    tex.row_bytes = TEX_W;
+    tex.type = BR_PMT_INDEX_8;
+    tex.width = TEX_W;
+    tex.height = TEX_H;
+    BrMapAdd(&tex);
+
+    br_pixelmap shade = {};
+    shade.identifier = (char *)"identity-shade";
+    shade.pixels = g_shade_id;
+    shade.row_bytes = 256;
+    shade.type = BR_PMT_INDEX_8;
+    shade.width = 256;
+    shade.height = 256;
+    BrTableAdd(&shade);
+
+    br_material *mat = make_test_material(&tex);
+    mat->index_shade = &shade;
+    BrMaterialAdd(mat);
+
+    br_model *prop = load_bmdl_from_file(bmdl_path);
+    if (!prop)
+    {
+        fprintf(stderr, "could not load prop from %s\n", bmdl_path);
+        return 1;
+    }
+    BrModelAdd(prop);
+
+    br_actor *world = BrActorAllocate(BR_ACTOR_NONE, 0);
+
+    static br_camera cam_data;
+    cam_data.identifier = (char *)"cam";
+    cam_data.type = BR_CAMERA_PERSPECTIVE_FOV;
+    cam_data.field_of_view = BR_ANGLE_DEG(45);
+    /* yon_z capped to fit 16.16 fixed (max ~32767). Hither correspondingly
+     * small but positive. */
+    cam_data.hither_z = BR_SCALAR(0.1);
+    cam_data.yon_z = BR_SCALAR(1000.0);
+    cam_data.aspect = BR_SCALAR(1.0);
+    br_actor *cam = BrActorAdd(world, BrActorAllocate(BR_ACTOR_CAMERA, &cam_data));
+    cam->t.type = BR_TRANSFORM_MATRIX34;
+    /* Camera distance derived from model bounding radius -- look at
+     * something far enough that the prop fits in view. */
+    BrModelUpdate(prop, BR_MODU_ALL);
+    float radius = BrScalarToFloat(prop->radius);
+    if (radius < 0.5f) radius = 1.0f;
+    if (radius > 100.0f) radius = 100.0f; /* keep cam translate in fixed range */
+    BrMatrix34Translate(&cam->t.t.mat, BR_SCALAR(0), BR_SCALAR(0), BR_SCALAR(radius * 3.0));
+
+    static br_light light_data;
+    light_data.identifier = (char *)"l";
+    light_data.type = BR_LIGHT_DIRECT;
+    light_data.colour = BR_COLOUR_RGB(255, 255, 255);
+    light_data.attenuation_c = BR_SCALAR(1);
+    br_actor *light = BrActorAdd(world, BrActorAllocate(BR_ACTOR_LIGHT, &light_data));
+    BrLightEnable(light);
+
+    /* N copies of the prop arranged horizontally, each at a different yaw. */
+    int cols = n_angles;
+    float spacing = radius * 2.5f;
+    for (int i = 0; i < n_angles; i++)
+    {
+        br_actor *a = BrActorAdd(world, BrActorAllocate(BR_ACTOR_MODEL, 0));
+        a->model = prop;
+        a->material = mat;
+        a->t.type = BR_TRANSFORM_MATRIX34;
+        BrMatrix34Identity(&a->t.t.mat);
+        BrMatrix34RotateY(&a->t.t.mat, (br_angle)((long)i * 65536L / n_angles));
+        float xoff = (i - (cols - 1) * 0.5f) * spacing;
+        a->t.t.mat.m[3][0] = BR_SCALAR(xoff);
+    }
+
+    BrZbSceneRender(world, cam, colour, depth);
+
+    FILE *f = fopen(out_path, "wb");
+    if (!f) { perror(out_path); return 1; }
+    fprintf(f, "P5\n%d %d\n255\n", WIDTH, HEIGHT);
+    fwrite(colour->pixels, 1, (size_t)WIDTH * HEIGHT, f);
+    fclose(f);
+
+    BrZbEnd();
+    BrEnd();
+    printf("ok: prop-render -> %s (radius=%.2f)\n", out_path, radius);
+    return 0;
+}
+
 /* Render the cube N times into a single image, each instance translated
  * to its tile and rotated to a different yaw angle. Output bitmap is
  * the colour buffer. */
@@ -660,6 +879,19 @@ int main(int argc, char **argv)
     {
         init_buffers();
         return run_actor_render(argv[2], atoi(argv[1] + 11));
+    }
+
+    /* prop-N <out> <bin> -- render N angles of a real 3DMM BMDL chunk
+     * dumped via the extract-bmdl tool. */
+    if (strncmp(argv[1], "prop-", 5) == 0)
+    {
+        if (argc < 4)
+        {
+            fprintf(stderr, "prop-N requires <out.pgm> <bmdl.bin>\n");
+            return 2;
+        }
+        init_buffers();
+        return run_prop_render(argv[2], argv[3], atoi(argv[1] + 5));
     }
 
     init_buffers();
