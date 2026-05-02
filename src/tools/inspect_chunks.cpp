@@ -247,42 +247,82 @@ static int CmdActorManifest(PChunkyFile pcfl, ChunkTagOrType tmpl_ctg, ChunkNumb
      * because the TMPL is laid out with one CMTL per set indexed by
      * set ID. Verified against TMPL 0x2010 (Alexander): 15 sets, 15
      * default CMTLs at chids 0..14. */
-    /* The TMPL contains BMDLs for both the default skeleton parts
-     * (chids 0..npart-1) AND alternate-costume variants (chids
-     * npart..). The pose render only wants the skeleton, so cap the
-     * manifest at npart_glbs -- otherwise downstream renderers paint
-     * the costume options on top as plain extra meshes. */
+    /* Action 0's GGCL gives per-part (chidModl, imat34) for cel 0
+     * (the rest pose). chidModl tells which BMDL to use; imat34
+     * indexes into action 0's GLXF for the local matrix. Without
+     * this, "BMDL chid=part_index" and "GLXF[part_index]" are both
+     * wrong for action-data-driven rest poses. */
+    ChunkTagOrType ctg_actn = 'ACTN';
+    ChunkTagOrType ctg_ggcl = 'GGCL';
+    ChildChunkIdentification kid_actn0, kid_ggcl;
+    short cps_chidmodl[64];
+    short cps_imat34[64];
+    bool have_cps = false;
+    int cps_count = 0;
+    if (pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, 0, ctg_actn, &kid_actn0) &&
+        pcfl->FGetKidChidCtg(ctg_actn, kid_actn0.cki.cno, 0, ctg_ggcl, &kid_ggcl))
+    {
+        DataBlock blck;
+        if (pcfl->FFind(ctg_ggcl, kid_ggcl.cki.cno, &blck))
+        {
+            short bo = 0;
+            PGeneralGroup pgg = GeneralGroup::PggRead(&blck, &bo);
+            if (pgg != pvNil && pgg->IvMac() > 0)
+            {
+                long cb_var = pgg->Cb(0);
+                int n_cps = (int)(cb_var / 4);
+                if (n_cps > 64) n_cps = 64;
+                int16_t *rgcps = (int16_t *)pgg->QvGet(0);
+                for (int i = 0; i < n_cps; i++)
+                {
+                    cps_chidmodl[i] = rgcps[i * 2 + 0];
+                    cps_imat34[i] = rgcps[i * 2 + 1];
+                }
+                cps_count = n_cps;
+                have_cps = true;
+            }
+            ReleasePpo(&pgg);
+        }
+    }
+
+    /* Cap at GLBS body-part count -- alternate-mesh BMDLs at chids >=
+     * npart are picked via cps.chidModl below, not enumerated as parts. */
     int n_emitted = 0;
     for (int part = 0; part < npart_glbs; part++)
     {
+        int chid_modl = part;
+        int imat34 = part;
+        if (have_cps && part < cps_count && cps_chidmodl[part] != (short)0xFFFF)
+        {
+            chid_modl = cps_chidmodl[part];
+            imat34 = cps_imat34[part];
+        }
+
         ChildChunkIdentification kid_bmdl;
-        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)part, ctg_bmdl, &kid_bmdl))
+        if (!pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)chid_modl, ctg_bmdl, &kid_bmdl))
             continue;
 
         unsigned long tmap_cno = 0;
-        /* Look up part -> set -> cmid -> CMTL -> MTRL[0] -> TMAP[0]. */
-        if (part < npart_glbs)
+        int ibset = ibset_of_part[part];
+        int cmid = ibset;
+        ChildChunkIdentification kid_cmtl, kid_mtrl, kid_tmap;
+        if (pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)cmid, ctg_cmtl, &kid_cmtl) &&
+            pcfl->FGetKidChidCtg(ctg_cmtl, kid_cmtl.cki.cno, 0, ctg_mtrl, &kid_mtrl) &&
+            pcfl->FGetKidChidCtg(ctg_mtrl, kid_mtrl.cki.cno, 0, ctg_tmap, &kid_tmap))
         {
-            int ibset = ibset_of_part[part];
-            int cmid = ibset; /* default costume's first cmid == ibset */
-            ChildChunkIdentification kid_cmtl, kid_mtrl, kid_tmap;
-            if (pcfl->FGetKidChidCtg(tmpl_ctg, tmpl_cno, (ChildChunkID)cmid, ctg_cmtl, &kid_cmtl) &&
-                pcfl->FGetKidChidCtg(ctg_cmtl, kid_cmtl.cki.cno, 0, ctg_mtrl, &kid_mtrl) &&
-                pcfl->FGetKidChidCtg(ctg_mtrl, kid_mtrl.cki.cno, 0, ctg_tmap, &kid_tmap))
-            {
-                tmap_cno = (unsigned long)kid_tmap.cki.cno;
-            }
+            tmap_cno = (unsigned long)kid_tmap.cki.cno;
         }
 
         if (tmap_cno != 0)
-            printf("%d BMDL=0x%08lx TMAP=0x%08lx\n", part, (unsigned long)kid_bmdl.cki.cno, tmap_cno);
+            printf("%d BMDL=0x%08lx TMAP=0x%08lx IMAT=%d\n", part, (unsigned long)kid_bmdl.cki.cno, tmap_cno, imat34);
         else
-            printf("%d BMDL=0x%08lx TMAP=NONE\n", part, (unsigned long)kid_bmdl.cki.cno);
+            printf("%d BMDL=0x%08lx TMAP=NONE IMAT=%d\n", part, (unsigned long)kid_bmdl.cki.cno, imat34);
         n_emitted++;
     }
 
     free(buf_glbs);
-    fprintf(stderr, "inspect-chunks: emitted manifest for %d body parts (%d sets)\n", n_emitted, npart_glbs);
+    fprintf(stderr, "inspect-chunks: emitted manifest for %d body parts (%d sets, GGCL %s)\n", n_emitted, npart_glbs,
+            have_cps ? "loaded" : "missing");
     return 0;
 }
 
