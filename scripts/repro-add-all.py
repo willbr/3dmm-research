@@ -15,7 +15,7 @@ collect every distinct x64 bug in one run):
  10. Click first sfx thumbnail -> sound added.
 """
 from __future__ import annotations
-import json, subprocess, sys, time, base64, tempfile
+import json, subprocess, sys, threading, time, base64, queue, tempfile
 from pathlib import Path
 
 EXE = Path(r"C:\Users\wjbr\src\3DMMForever\dist-x64\3dmovie.exe")
@@ -26,6 +26,19 @@ def main():
     proc = subprocess.Popen([str(EXE), "--mcp-server"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, encoding="utf-8", bufsize=1)
+    # stdout reader thread + queue. proc.stdout.readline() blocks even with a
+    # timeout outside it, so any in-flight tool that wedges 3dmovie (e.g.
+    # Tool_Click is queued for the GUI thread, GUI thread blocks on a kauai
+    # assert dialog, no response ever lands on stdout) would hang the test.
+    # Pump readlines into a queue so send() can wait with an actual deadline.
+    out_q: "queue.Queue[str | None]" = queue.Queue()
+    def _reader():
+        try:
+            for line in proc.stdout:
+                out_q.put(line)
+        finally:
+            out_q.put(None)  # EOF sentinel
+    threading.Thread(target=_reader, daemon=True).start()
     next_id = [1]
     def _abort_comms_dead(reason):
         # If 3dmovie's pipes break or replies dry up while a dialog might be
@@ -45,17 +58,23 @@ def main():
         except (OSError, ValueError):
             _abort_comms_dead("stdin write failed")
         if notification: return None
+        # Block on the reader queue with a real deadline. This is the
+        # behaviour the original proc.stdout.readline() loop pretended to
+        # have but didn't -- readline() is synchronous and ignores any
+        # outer time budget.
         deadline = time.time() + timeout
-        while time.time() < deadline:
+        while True:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                _abort_comms_dead(f"timeout waiting for {method}")
             try:
-                line = proc.stdout.readline()
-            except (OSError, ValueError):
-                _abort_comms_dead("stdout read failed")
-            if not line: _abort_comms_dead("stdout closed")
+                line = out_q.get(timeout=remaining)
+            except queue.Empty:
+                _abort_comms_dead(f"timeout waiting for {method}")
+            if line is None: _abort_comms_dead("stdout closed")
             try: obj = json.loads(line)
             except Exception: continue
             if obj.get("id") == msg["id"]: return obj
-        _abort_comms_dead(f"timeout waiting for {method}")
     def call(name, args=None, timeout=8.0):
         return send("tools/call", {"name":name,"arguments":args or {}}, timeout=timeout).get("result", {})
     def text(r): return (r.get("content") or [{}])[0].get("text", "")
@@ -104,14 +123,19 @@ def main():
         cx, cy = g["center_x"], g["center_y"]
         p(f"  click {label} hid={hex(hid)} center=({cx},{cy})")
         call("click", {"x": cx, "y": cy, "button":"left"}, timeout=4.0)
-        # Catch modals (worker-direct: works even while the GUI thread is
-        # in a modal MessageBox).
+        # Catch modals that pop up *after* the click. list_dialogs is
+        # worker-thread-direct so it responds even when the GUI thread
+        # is blocked in a modal. Anything more catastrophic (Tool_Click
+        # itself wedged because the click triggered a kauai-modal that
+        # is invisible to EnumWindows) is caught by the send() timeout
+        # in _abort_comms_dead.
         for _ in range(4):
-            d = json.loads(text(call("list_dialogs", timeout=3.0)))
+            d = json.loads(text(call("list_dialogs", timeout=2.0)))
             if d.get("count", 0):
                 fatal_dialogs(d, f"click({label})")
             else:
                 break
+            time.sleep(0.25)
         if wait_target is not None:
             # Poll in 250ms slices so we can also intercept assertion dialogs
             # that pop up DURING the wait window (a long blocking wait_for_gob
