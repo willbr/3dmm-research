@@ -7,7 +7,7 @@
 // Same source, different decoder bodies -- the test exposes any drift between
 // them without requiring 3dmm to launch and grind through chunky-file decoding.
 
-#include "frame.h"
+#include "kauai_core.h"
 #include "codec.h"
 
 ASSERTNAME
