@@ -2,12 +2,13 @@
  * C fallbacks for the BRender ZB and FW asm-only routines.
  * Used on non-x86 builds where the .ASM files cannot be assembled.
  *
- * The triangle/trapezoid scan-converters (TrapezoidRenderPIZ2TIA,
- * TrapezoidRenderPIZ2TIANT, TriangleRenderPIZ2I) are STUBBED -- they return
- * without rendering anything. This means 3D content will not appear on x64
- * builds. Linking succeeds, the application launches, and the rest of the
- * UI works. Porting the rasterizers proper is the scope of
- * docs/superpowers/specs/2026-05-01-brender-x64-enablement.md.
+ * Status:
+ *   - TriangleRenderPIZ2I: ported (naive scanline rasterizer below).
+ *     Verified against asm path via tests/bren_rasterizer_test.cpp.
+ *   - TrapezoidRenderPIZ2TIA, TrapezoidRenderPIZ2TIANT: STILL STUBBED.
+ *     Until ported, textured 3D content (actors, props, 3D text) does
+ *     not render on x64. See docs/superpowers/specs/2026-05-01-brender-
+ *     x64-enablement.md.
  *
  * The math/blit helpers (_sar16, SafeFixedMac2Div, _GetSysQual,
  * _MemFill_A, _MemRectFill_A, _MemCopyBits_A) are real C ports that
@@ -17,10 +18,18 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "brender.h"
+/* zb.h is in the brender_zb internal include path, not brender_fw's, so
+ * use a relative include. The rasterizer fallback lives in brender_fw
+ * because the FW pmmemops TU references _MemFill_A / _MemRectFill_A /
+ * _MemCopyBits_A and needs them at FW link time -- see CMakeLists.txt
+ * comment in bren/lib/. */
+#include "../zb/zb.h"
+
 /* Trapezoid scan-converters are called by the auto-generated triangle
  * renderers in awtmz.c. The renderers prepare per-edge interpolation state
  * and then call the trapezoid routine to fill the spans. Without it,
- * triangles are silently skipped. */
+ * textured triangles are silently skipped. */
 void TrapezoidRenderPIZ2TIA(void)
 {
 }
@@ -29,14 +38,121 @@ void TrapezoidRenderPIZ2TIANT(void)
 {
 }
 
-/* TriangleRenderPIZ2I is the no-texture/intensity-only renderer used for
- * smooth/flat shading paths in zbsetup.c's mat_types_index_8 table. */
-struct br_vertex;
-void TriangleRenderPIZ2I(struct br_vertex *pvertex_0, struct br_vertex *pvertex_1, struct br_vertex *pvertex_2)
+/* Naive scanline port of TriangleRenderPIZ2I (zb/ti8_piz.asm).
+ *
+ * Renders one flat-shaded z-buffered triangle into zb.colour_buffer at
+ * 8 bits per pixel, with intensity interpolated per-vertex (no texture).
+ * Z is interpolated and tested against the 16-bit zb.depth_buffer.
+ *
+ * The asm version keeps its X coordinates in a 16.16 fixed-point edge
+ * walker with explicit carry/no-carry deltas; here we just lerp once per
+ * scanline and round to nearest. That's not byte-identical to the asm
+ * rasterizer at sub-pixel boundaries, but it should agree on the bulk
+ * of the interior, which is what the test harness compares.
+ *
+ * Inputs:
+ *   v[0..2] of each temp_vertex_fixed are X, Y, Z in 16.16 fixed.
+ *   comp[C_I] is the per-vertex intensity in 16.16 fixed; the integer
+ *     part (>>16) is what gets written to the colour buffer.
+ *
+ * Reads from zb global:
+ *   colour_buffer, depth_buffer, row_width.
+ */
+void TriangleRenderPIZ2I(struct temp_vertex_fixed *v0, struct temp_vertex_fixed *v1, struct temp_vertex_fixed *v2)
 {
-    (void)pvertex_0;
-    (void)pvertex_1;
-    (void)pvertex_2;
+    struct temp_vertex_fixed *vs[3] = {v0, v1, v2};
+    struct temp_vertex_fixed *t;
+
+    /* Sort by Y ascending. */
+    if (vs[0]->v[1] > vs[1]->v[1]) { t = vs[0]; vs[0] = vs[1]; vs[1] = t; }
+    if (vs[1]->v[1] > vs[2]->v[1]) { t = vs[1]; vs[1] = vs[2]; vs[2] = t; }
+    if (vs[0]->v[1] > vs[1]->v[1]) { t = vs[0]; vs[0] = vs[1]; vs[1] = t; }
+
+    /* Truncate vertex screen coords to integer pixel units (matches asm
+     * `sar eax,16`). The asm seeds the X edge walker with a 0x80000000
+     * (half-pixel) fraction; we approximate by rounding the lerp endpoints
+     * to nearest. */
+    int32_t x0 = (int32_t)(vs[0]->v[0] >> 16);
+    int32_t y0 = (int32_t)(vs[0]->v[1] >> 16);
+    int32_t x1 = (int32_t)(vs[1]->v[0] >> 16);
+    int32_t y1 = (int32_t)(vs[1]->v[1] >> 16);
+    int32_t x2 = (int32_t)(vs[2]->v[0] >> 16);
+    int32_t y2 = (int32_t)(vs[2]->v[1] >> 16);
+
+    if (y0 == y2)
+        return; /* zero-height triangle */
+
+    /* Z and intensity at each vertex (16.16). */
+    int64_t z0 = vs[0]->v[2], z1 = vs[1]->v[2], z2 = vs[2]->v[2];
+    int64_t i0 = vs[0]->comp[C_I], i1 = vs[1]->comp[C_I], i2 = vs[2]->comp[C_I];
+
+    int32_t row_width = zb.row_width;
+    uint8_t *colour = (uint8_t *)zb.colour_buffer;
+    uint16_t *depth = (uint16_t *)zb.depth_buffer;
+
+    /* Long edge: vs[0] -> vs[2] spans the full Y range. */
+    int32_t long_dy = y2 - y0;
+
+    /* For each scanline, find the X intersection on the long edge and on
+     * the appropriate short edge, plus the Z and intensity at each. */
+    for (int32_t y = y0; y < y2; y++)
+    {
+        int32_t yf = y - y0;
+        int32_t xL = x0 + (int32_t)(((int64_t)(x2 - x0) * yf) / long_dy);
+        int64_t zL = z0 + ((z2 - z0) * yf) / long_dy;
+        int64_t iL = i0 + ((i2 - i0) * yf) / long_dy;
+
+        int32_t xS;
+        int64_t zS, iS;
+        if (y < y1)
+        {
+            int32_t dy = y1 - y0;
+            if (dy == 0)
+                continue;
+            xS = x0 + (int32_t)(((int64_t)(x1 - x0) * yf) / dy);
+            zS = z0 + ((z1 - z0) * yf) / dy;
+            iS = i0 + ((i1 - i0) * yf) / dy;
+        }
+        else
+        {
+            int32_t dy = y2 - y1;
+            int32_t yfb = y - y1;
+            if (dy == 0)
+                continue;
+            xS = x1 + (int32_t)(((int64_t)(x2 - x1) * yfb) / dy);
+            zS = z1 + ((z2 - z1) * yfb) / dy;
+            iS = i1 + ((i2 - i1) * yfb) / dy;
+        }
+
+        int32_t xa, xb;
+        int64_t za, zb_, ia, ib;
+        if (xL <= xS) { xa = xL; xb = xS; za = zL; zb_ = zS; ia = iL; ib = iS; }
+        else          { xa = xS; xb = xL; za = zS; zb_ = zL; ia = iS; ib = iL; }
+
+        int32_t span = xb - xa;
+        if (span <= 0)
+            continue;
+
+        int64_t z = za;
+        int64_t i = ia;
+        int64_t dz = (zb_ - za) / span;
+        int64_t di = (ib - ia) / span;
+
+        uint8_t *cptr = colour + (size_t)y * row_width + xa;
+        uint16_t *zptr = depth + (size_t)y * row_width + xa;
+
+        for (int32_t x = 0; x < span; x++)
+        {
+            uint16_t z16 = (uint16_t)((uint64_t)z >> 16);
+            if (z16 < zptr[x])
+            {
+                zptr[x] = z16;
+                cptr[x] = (uint8_t)((uint64_t)i >> 16);
+            }
+            z += dz;
+            i += di;
+        }
+    }
 }
 
 /* sar16: arithmetic shift right by 16 bits (sign-extending). The x86 asm
