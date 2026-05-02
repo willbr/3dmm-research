@@ -426,6 +426,37 @@ target_link_libraries(brender
     kauai
     BRender::Libraries)
 
+# --- engine-core: chunky-loader / data-structure layer, no playback ---
+#
+# Loaders for actor templates, body parts, models, materials, textures,
+# tags, and 3D text. Has zero references to UI / cmd / playback runtime
+# (CommandHandler, GraphicsObject, gob.h, etc.) -- verified per-file by
+# grep. Pulls only kauai-core + brender.
+#
+# This unblocks CLI tools and headless tests that want to call the
+# real Template::FSetActnCel / Body::SetPart{Model,Matrix} loaders
+# instead of re-implementing the binding (CelPartSpec, GLBS, GGCM,
+# CMTL graph) by hand. Sources include "soc_core.h" instead of
+# "soc.h" -- same content minus frame.h and the playback-side
+# headers (movie/scene/actor/tbox/msnd/srec).
+add_library(engine-core)
+target_sources(engine-core
+    PRIVATE
+    "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/tdf.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/tdt.cpp"
+    "${PROJECT_SOURCE_DIR}/src/engine/tmpl.cpp"
+)
+target_include_directories(engine-core PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/INC>)
+target_link_libraries(engine-core PUBLIC kauai-core brender)
+
+# --- engine: full playback runtime, transitively re-exports core ---
 add_library(engine)
 target_sources(engine
     PRIVATE
@@ -433,24 +464,15 @@ target_sources(engine
     "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/srec.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tagl.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tbox.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tdf.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tdt.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tmpl.cpp"
 )
 target_include_directories(engine PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/INC>)
-target_link_libraries(engine PUBLIC kauai brender)
+target_link_libraries(engine PUBLIC engine-core kauai brender)
 
 # On non-windows WIN32 is a no-op
 set(STUDIO_BUILD_STAMP_SRC "${PROJECT_BINARY_DIR}/generated/studio/build_stamp.cpp")
