@@ -113,25 +113,36 @@ br_fixed_ls BrFixedMac4Div(br_fixed_ls a, br_fixed_ls b, br_fixed_ls c, br_fixed
     return (br_fixed_ls)((((int64_t)a * b) + ((int64_t)c * d) + ((int64_t)e * f) + ((int64_t)g * h)) / i);
 }
 
-/* FMac variants: pa/pc/pe/pg are pre-multiplied accumulators (32.32 layout
- * stored as two 32-bit halves in the asm). For C portability we treat them as
- * a single int64_t accumulator and add b/d/f/h products. The asm packs them
- * as fraction:fixed pairs; we just use int64_t directly — equivalent value,
- * simpler representation. */
+/* FMac variants compute a*b + c*d (+ e*f (+ g*h)) where the a/c/e/g args
+ * are 1.15 signed FRACTIONS (br_fraction = short) and b/d/f/h are 16.16
+ * fixed (br_fixed_ls). Per the asm signatures (`pa: _FF, pb: _F, ...`
+ * in fw/fixed386.asm) the asm uses `movsx` to widen each fraction and
+ * ends with `shrd eax,edx,15`. The 15 -- not 16 -- comes from the
+ * fraction having only 15 fractional bits, so the product (1.15 * 16.16)
+ * needs to lose 15 bits to land back in 16.16.
+ *
+ * The C signature still takes br_fixed_ls (32-bit) for every arg so the
+ * fwiproto.h prototype matches the asm's stack layout. Callers pass the
+ * fractions as sign-extended shorts; we just truncate-and-extend through
+ * int16_t to mirror what `movsx` does in the asm. The off-by-one shift
+ * was the cause of x64 face culling rendering models inside-out: every
+ * BrFVector3Dot(&face->n, &eye) result was half the correct value, so
+ * the `< face->d` cull test flipped for any face near grazing. */
 br_fixed_ls BrFixedFMac2(br_fixed_ls a, br_fixed_ls b, br_fixed_ls c, br_fixed_ls d)
 {
-    return (br_fixed_ls)((((int64_t)a * b) + ((int64_t)c * d)) >> 16);
+    return (br_fixed_ls)((((int64_t)(int16_t)a * b) + ((int64_t)(int16_t)c * d)) >> 15);
 }
 
 br_fixed_ls BrFixedFMac3(br_fixed_ls a, br_fixed_ls b, br_fixed_ls c, br_fixed_ls d, br_fixed_ls e, br_fixed_ls f)
 {
-    return (br_fixed_ls)((((int64_t)a * b) + ((int64_t)c * d) + ((int64_t)e * f)) >> 16);
+    return (br_fixed_ls)((((int64_t)(int16_t)a * b) + ((int64_t)(int16_t)c * d) + ((int64_t)(int16_t)e * f)) >> 15);
 }
 
 br_fixed_ls BrFixedFMac4(br_fixed_ls a, br_fixed_ls b, br_fixed_ls c, br_fixed_ls d, br_fixed_ls e, br_fixed_ls f,
                          br_fixed_ls g, br_fixed_ls h)
 {
-    return (br_fixed_ls)((((int64_t)a * b) + ((int64_t)c * d) + ((int64_t)e * f) + ((int64_t)g * h)) >> 16);
+    return (br_fixed_ls)((((int64_t)(int16_t)a * b) + ((int64_t)(int16_t)c * d) + ((int64_t)(int16_t)e * f) +
+                          ((int64_t)(int16_t)g * h)) >> 15);
 }
 
 /* Length: sqrt(a^2 + b^2 + ...). The asm uses a lookup table; the portable
