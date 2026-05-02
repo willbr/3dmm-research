@@ -77,8 +77,14 @@ struct InitNullFs { InitNullFs() {
     g_NullFs.attributes = NullAttrs;
 } } g_InitNullFs;
 
-#define WIDTH 256
-#define HEIGHT 256
+/* Render surface size. BRender caps at 2048 (MAX_OUTPUT_WIDTH /
+ * MAX_OUTPUT_HEIGHT in bren/lib/zb/zb.h); 1024 is a comfortable
+ * "human-viewable" size that fits well clear of the cap and keeps
+ * memory use under ~5 MB per render (1 MB colour + 2 MB depth + a
+ * few MB working set). Increasing further widens the diff window
+ * for sub-LSB triangle-edge ties (more pixels = more chances). */
+#define WIDTH 1024
+#define HEIGHT 1024
 
 static unsigned char g_colour[WIDTH * HEIGHT];
 static unsigned short g_depth[WIDTH * HEIGHT];
