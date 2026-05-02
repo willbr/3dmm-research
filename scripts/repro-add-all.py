@@ -96,15 +96,30 @@ def main():
             else:
                 break
         if wait_target is not None:
-            # Give the studio a chunk of wallclock time to process the click's
-            # downstream commands before our Drain-bound wait_for_gob starts
-            # blocking the main loop.
-            time.sleep(2.0)
-            r = json.loads(text(call("wait_for_gob",
-                {"hid": wait_target, "timeout_ms": wait_timeout_ms, "mode": wait_mode})))
+            # Poll in 250ms slices so we can also intercept assertion dialogs
+            # that pop up DURING the wait window (a long blocking wait_for_gob
+            # would let the dialog sit there until it times out).
+            time.sleep(0.5)
+            slice_ms = 250; total_ms = 0; r = {"found": False}
+            while total_ms < wait_timeout_ms:
+                r = json.loads(text(call("wait_for_gob",
+                    {"hid": wait_target, "timeout_ms": slice_ms, "mode": wait_mode})))
+                total_ms += slice_ms
+                if r.get("found") and (wait_mode != "visible" or r.get("visible")):
+                    break
+                d = json.loads(text(call("list_dialogs", timeout=2.0)))
+                if d.get("count", 0):
+                    p(f"  === DIALOG @ wait({label}) after {total_ms}ms ===")
+                    for dlg in d["dialogs"]:
+                        p(f"    title: {dlg.get('title','?')}")
+                        for kid in dlg.get("children", []):
+                            p(f"    kid: {kid[:200]}")
+                        p(f"    [dismiss ignore on {dlg['hwnd']}]")
+                        call("dismiss_dialog", {"hwnd": dlg["hwnd"], "button_text":"ignore"}, timeout=2.0)
+                    break
             p(f"  wait_for_gob {hex(wait_target)} mode={wait_mode}: "
               f"found={r.get('found',False)} visible={r.get('visible',False)} "
-              f"waited={r.get('waited_ms',0)}ms")
+              f"polled={total_ms}ms")
         else:
             time.sleep(0.8)
         return True
@@ -136,9 +151,21 @@ def main():
                      wait_target=0x20075, wait_mode="visible", wait_timeout_ms=6000): return
     dialogs("after-scene-thumb"); shot("02-after-scene-pick")
 
-    p("\n[3] Actors")
+    # The Actors / Sounds / Texts / Settings buttons in the top tool bar are
+    # *mode covers* (kid*Cover). Clicking a cover switches the lower toolbar
+    # to that mode; only then does the corresponding picker button (kid*Browser)
+    # become live. Forgot this before -- clicking kidActorsBrowser without the
+    # mode switch hits dead air and the studio drifts into a bad state.
+    p("\n[3a] Actors mode (cover tab)")
+    if not click_gob(0x20006, "actors-cover"): return
+    time.sleep(0.5); shot("03a-actors-mode")
+
+    p("\n[3b] Open actor browser")
     if not click_gob(0x20075, "actors", wait_target=0x2003F, wait_mode="visible"): return
     dialogs("after-actors"); shot("03-actor-browser")
+    if proc.poll() is not None:
+        p(f"  *** process exited with code {proc.returncode} ***")
+        return
 
     p("\n[4] pick first actor thumbnail")
     if not click_gob(0x21120, "actor-thumb-0", click_mode="positioned"): return
