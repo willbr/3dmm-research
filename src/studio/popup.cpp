@@ -113,7 +113,7 @@ void MenuPopup::_ApplySelection(long ithumSelect, long sid)
 
     if (_ckiRoot.ctg == kctgTyth)
     {
-        ThumbnailDescriptor thd;
+        ThumbnailDescriptor thd{};
 
         _pglthd->Get(ithumSelect, &thd);
         vpcex->EnqueueCid(_cid, _pcmh, pvNil, thd.grfontMask, thd.grfont);
@@ -145,7 +145,7 @@ long MenuPopup::_IthumFromThum(long thumSelect, long sidSelect)
 
     if (_ckiRoot.ctg == kctgTyth)
     {
-        ThumbnailDescriptor thd;
+        ThumbnailDescriptor thd{};
 
         ithum = _pglthd->IvMac();
         while (ithum-- > 0)

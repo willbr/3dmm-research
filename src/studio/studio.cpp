@@ -1101,7 +1101,7 @@ bool Studio::FCmdNewSpletter(PCommand pcmd)
     TAG tagTdf;
     ChunkIdentification cki;
     PBrowserContentList pbcl;
-    ThumbnailDescriptor thd;
+    ThumbnailDescriptor thd{};
 
     vapp.BeginLongOp();
     vapp.GetStnProduct(&stn); // Default string for ThreeDText easel is product name
