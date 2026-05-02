@@ -94,3 +94,88 @@ void GuiCommandExecutionManager::_BadModalCmd(PCommand pcmd)
     AssertVarMem(pcmd);
     vpappb->BadModalCmd(pcmd);
 }
+
+/***************************************************************************
+    Modal-gob walk: only allow commands targeting the modal gob's
+    subtree. Pulled out of CommandExecutionManager::_FCmhOk by the
+    cmd_core split because it dereferences PGraphicsObject (FIs +
+    PgobPar) which the base TU doesn't have visibility for.
+***************************************************************************/
+bool GuiCommandExecutionManager::_FCmhModalOk(PCommandHandler pcmh)
+{
+    AssertNilOrPo(pcmh, 0);
+    PGraphicsObject pgob;
+
+    if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGraphicsObject))
+        return fTrue;
+
+    for (pgob = (PGraphicsObject)pcmh; pgob != _pgobModal; pgob = pgob->PgobPar())
+    {
+        if (pvNil == pgob)
+            return fFalse;
+    }
+
+    return fTrue;
+}
+
+/***************************************************************************
+    Mouse tracking + modal-gob API: gui implementations. The base CEM
+    has no-op defaults; these overrides do the real work via Win32
+    capture APIs and PGraphicsObject dereferencing.
+***************************************************************************/
+void GuiCommandExecutionManager::TrackMouse(PGraphicsObject pgob)
+{
+    AssertThis(0);
+    AssertPo(pgob, 0);
+    Assert(_pgobTrack == pvNil, "some other gob is already tracking the mouse");
+
+    _pgobTrack = pgob;
+#ifdef WIN
+    _hwndCapture = pgob->HwndContainer();
+    SetCapture(_hwndCapture);
+#endif // WIN
+}
+
+void GuiCommandExecutionManager::EndMouseTracking(void)
+{
+    AssertThis(0);
+
+#ifdef WIN
+    if (pvNil != _pgobTrack)
+    {
+        if (hNil != _hwndCapture && GetCapture() == _hwndCapture)
+            ReleaseCapture();
+        _hwndCapture = hNil;
+    }
+#endif // WIN
+    _pgobTrack = pvNil;
+}
+
+PGraphicsObject GuiCommandExecutionManager::PgobTracking(void)
+{
+    AssertThis(0);
+    return _pgobTrack;
+}
+
+void GuiCommandExecutionManager::Suspend(bool fSuspend)
+{
+    AssertThis(0);
+
+#ifdef WIN
+    if (pvNil == _pgobTrack || hNil == _hwndCapture)
+        return;
+
+    if (fSuspend && GetCapture() == _hwndCapture)
+        ReleaseCapture();
+    else if (!fSuspend && GetCapture() != _hwndCapture)
+        SetCapture(_hwndCapture);
+#endif // WIN
+}
+
+void GuiCommandExecutionManager::SetModalGob(PGraphicsObject pgob)
+{
+    AssertThis(0);
+    AssertNilOrPo(pgob, 0);
+
+    _pgobModal = pgob;
+}

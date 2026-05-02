@@ -324,6 +324,12 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/chunk.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/codec.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/codkauai.cpp"
+    # cmd_core: CommandHandler + bare CommandExecutionManager. The
+    # gui-coupled bits (mouse tracking, modal-gob walk, OS key pump,
+    # vpappb hid registry) live in cmd_gui.cpp on the kauai (gui)
+    # target via the GuiCommandExecutionManager subclass + cmd_hooks
+    # seam. See docs/superpowers/plans/2026-05-02-cmd-core-split.md.
+    "${PROJECT_SOURCE_DIR}/kauai/src/cmd_core.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/crf.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/file.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/groups.cpp"
@@ -398,7 +404,6 @@ target_sources(kauai
     "${PROJECT_SOURCE_DIR}/kauai/src/chcm.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/clip.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/cmd.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cmd_gui.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/ctl.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/cursor.cpp"
