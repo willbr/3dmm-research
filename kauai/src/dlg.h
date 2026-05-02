@@ -18,6 +18,13 @@
 
 using Group::GeneralGroup;
 
+// Forward decl so dlg.h can compile in the kauai-core TU without
+// pulling in gob.h. The Dialog class only stores a PGraphicsObject
+// pointer (no method calls); full type is needed only at the gui-side
+// dlgwin.cpp callsite which already includes frame.h.
+class GraphicsObject;
+typedef GraphicsObject *PGraphicsObject;
+
 #ifdef MAC
 typedef DialogPtr HDLG;
 #endif // MAC

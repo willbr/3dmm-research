@@ -10,7 +10,8 @@
     Standard dialogs.
 
 ***************************************************************************/
-#include "frame.h"
+#include "kauai_core.h"
+#include "dlg.h"
 ASSERTNAME
 
 RTCLASS(Dialog)

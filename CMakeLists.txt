@@ -335,6 +335,12 @@ target_sources(kauai-core
     # Task 5 of the plan.
     "${PROJECT_SOURCE_DIR}/kauai/src/clok.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/crf.cpp"
+    # dlg.cpp: Dialog (a GeneralGroup of DialogItem) -- pure in-memory
+    # dialog-data container with FGetCheck / FPutStn / IditFromSit
+    # accessors. The Win32 modal dialog spinning + control-message
+    # plumbing lives in dlgwin.cpp on the gui target. Verified zero
+    # gui / Win32 user / vwig refs.
+    "${PROJECT_SOURCE_DIR}/kauai/src/dlg.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/file.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/groups.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/groups2.cpp"
