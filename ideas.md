@@ -1,6 +1,13 @@
+* update readme
+* include MCP server in release build
+* improve MCP server
+* tidy up files in repo
+* include some basic event logging for the last n events to help with debug
+* convert assertion failure dialog to a normal dialog, so i cant copy and paste it
 * increase the max buffer size in BRender? I want 4k and 1440p in software
 * add gizmos
-* free flying camera mode
+* free flying camera mode (for editing)
+* free flying camera mode faked by moving all items in a scene
 * hires screenshots? 4k?
 * do we need to vendor the brender library?
 * onion skinning? render actor path?
@@ -40,5 +47,4 @@
 * design a new sqlite base file format
 * rewrite to c, I hate c++
 * update to use SIMD
-* include MCP server in release build
 * assets editor
