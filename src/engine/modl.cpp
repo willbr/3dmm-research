@@ -14,6 +14,92 @@ ASSERTNAME
 
 RTCLASS(Model)
 
+// Pin BRender struct sizes that are wire-format-critical for .CHK MODL chunks.
+// br_vertex has no embedded pointer so its size matches the wire format on
+// every architecture. br_face does -- on x64 the in-memory size grows by 4
+// bytes -- which is why faces go through BrFaceOnFile at the I/O boundary.
+static_assert(sizeof(br_vertex) == 32, "br_vertex wire size drift -- check /Zp4 packing");
+#if defined(_WIN64) || defined(_M_X64)
+static_assert(sizeof(br_face) == 36, "br_face x64 in-memory size drift");
+#else
+static_assert(sizeof(br_face) == 32, "br_face x86 in-memory size drift");
+#endif
+
+/***************************************************************************
+    Marshal a BrFaceOnFile (wire-format, 36 bytes) into a runtime br_face
+    (40 bytes on x64 because of the 8-byte br_material* slot). The material
+    pointer is always nil-initialized -- the chunk doesn't carry a real
+    pointer; .3MM material binding happens elsewhere.
+***************************************************************************/
+static void _BrFaceFromOnFile(br_face *pdst, const BrFaceOnFile *psrc)
+{
+    pdst->vertices[0] = psrc->vertices[0];
+    pdst->vertices[1] = psrc->vertices[1];
+    pdst->vertices[2] = psrc->vertices[2];
+    pdst->edges[0] = psrc->edges[0];
+    pdst->edges[1] = psrc->edges[1];
+    pdst->edges[2] = psrc->edges[2];
+    pdst->material = pvNil;
+    pdst->smoothing = psrc->smoothing;
+    pdst->flags = psrc->flags;
+    pdst->_pad0 = psrc->_pad0;
+    // br_fraction is `short` in the BASED_FIXED build; n[] are 2-byte fields.
+    pdst->n.v[0] = (br_fraction)psrc->n[0];
+    pdst->n.v[1] = (br_fraction)psrc->n[1];
+    pdst->n.v[2] = (br_fraction)psrc->n[2];
+    pdst->d = (br_scalar)psrc->d;
+}
+
+/***************************************************************************
+    Pack a runtime br_face into the wire-format BrFaceOnFile. Drops the
+    material* (stored as a 4-byte placeholder of 0).
+***************************************************************************/
+static void _BrFaceToOnFile(BrFaceOnFile *pdst, const br_face *psrc)
+{
+    pdst->vertices[0] = psrc->vertices[0];
+    pdst->vertices[1] = psrc->vertices[1];
+    pdst->vertices[2] = psrc->vertices[2];
+    pdst->edges[0] = psrc->edges[0];
+    pdst->edges[1] = psrc->edges[1];
+    pdst->edges[2] = psrc->edges[2];
+    pdst->material_slot = 0;
+    pdst->smoothing = psrc->smoothing;
+    pdst->flags = psrc->flags;
+    pdst->_pad0 = psrc->_pad0;
+    pdst->n[0] = (int16_t)psrc->n.v[0];
+    pdst->n[1] = (int16_t)psrc->n.v[1];
+    pdst->n[2] = (int16_t)psrc->n.v[2];
+    pdst->d = (int32_t)psrc->d;
+}
+
+/***************************************************************************
+    Read cfac BrFaceOnFile entries from pblck at byte offset ib, optionally
+    byteswap each (mask kbomBrf describes the on-file layout), and unpack
+    into the runtime br_face[] at prgbrf. cfac == 0 is a no-op success.
+***************************************************************************/
+static bool _FReadModelFaces(PDataBlock pblck, br_face *prgbrf, long cfac, long ib, bool fSwap)
+{
+    if (cfac <= 0)
+        return fTrue;
+    long cb = LwMul(cfac, size(BrFaceOnFile));
+    BrFaceOnFile *prgof = pvNil;
+    bool fOk = fFalse;
+    if (!FAllocPv((void **)&prgof, cb, fmemNil, mprNormal))
+        goto LDone;
+    if (!pblck->FReadRgb(prgof, cb, ib))
+        goto LDone;
+    for (long ifac = 0; ifac < cfac; ifac++)
+    {
+        if (fSwap)
+            SwapBytesBom(&prgof[ifac], kbomBrf);
+        _BrFaceFromOnFile(&prgbrf[ifac], &prgof[ifac]);
+    }
+    fOk = fTrue;
+LDone:
+    FreePpv((void **)&prgof);
+    return fOk;
+}
+
 /***************************************************************************
     Create a new PModel based on some vertices and faces.
 ***************************************************************************/
@@ -90,11 +176,9 @@ bool Model::_FInit(PDataBlock pblck)
 
     ModelOnFile modlf;
     long cbrgbrv;
-    long cbrgbrf;
+    long cbrgbrfOnFile;
     long ibrv;
     BRV *pbrv;
-    long ibrf;
-    BRF *pbrf;
     Model *pmodlThis = this;
     char szIdentifier[size(PModel) + 1];
 
@@ -109,9 +193,12 @@ bool Model::_FInit(PDataBlock pblck)
         SwapBytesBom(&modlf, kbomModlf);
     Assert(kboCur == modlf.bo, "bad Model!");
 
-    // Allocate space for the BMDL, array of vertices, and array of faces
+    // Wire-format face entries are 36 bytes each (BrFaceOnFile); the runtime
+    // br_face is 40 bytes on x64 due to the embedded br_material* slot. All
+    // chunk-offset math uses the on-file size; the read helper expands each
+    // entry into the runtime shape.
     cbrgbrv = LwMul(modlf.cver, size(BRV));
-    cbrgbrf = LwMul(modlf.cfac, size(BRF));
+    cbrgbrfOnFile = LwMul(modlf.cfac, size(BrFaceOnFile));
 
     if (modlf.rRadius == rZero)
     {
@@ -123,7 +210,8 @@ bool Model::_FInit(PDataBlock pblck)
         CopyPb(&pmodlThis, _pbmdl->identifier, size(PModel));
         if (!pblck->FReadRgb(_pbmdl->vertices, cbrgbrv, size(ModelOnFile)))
             return fFalse;
-        if (!pblck->FReadRgb(_pbmdl->faces, cbrgbrf, size(ModelOnFile) + cbrgbrv))
+        if (!_FReadModelFaces(pblck, _pbmdl->faces, modlf.cfac, size(ModelOnFile) + cbrgbrv,
+                              kboOther == modlf.bo))
             return fFalse;
 
         BrModelAdd(_pbmdl);
@@ -160,16 +248,10 @@ bool Model::_FInit(PDataBlock pblck)
                 SwapBytesBom(pbrv, kbomBrv);
             }
         }
-        if (!pblck->FReadRgb(_pbmdl->prepared_faces, cbrgbrf, size(ModelOnFile) + cbrgbrv))
+        if (!_FReadModelFaces(pblck, _pbmdl->prepared_faces, modlf.cfac,
+                              size(ModelOnFile) + cbrgbrv, kboOther == modlf.bo))
         {
             return fFalse;
-        }
-        if (kboOther == modlf.bo)
-        {
-            for (ibrf = 0, pbrf = _pbmdl->prepared_faces; ibrf < modlf.cfac; ibrf++, pbrf++)
-            {
-                SwapBytesBom(pbrf, kbomBrf);
-            }
         }
 
         _pbmdl->flags = BR_MODF_PREPREPARED;
@@ -235,7 +317,10 @@ LFail:
 PModel Model::PmodlFromBmdl(PBMDL pbmdl)
 {
     AssertVarMem(pbmdl);
-    PModel pmodl = (PModel) * (long *)pbmdl->identifier;
+    // The Model* is stashed sizeof(PModel) bytes wide via CopyPb (see PmodlNew
+    // and _FInit). On x64 sizeof(PModel) is 8, so reading via (long*) would
+    // truncate to the low 32 bits and yield a bad pointer.
+    PModel pmodl = *(PModel *)pbmdl->identifier;
     AssertPo(pmodl, 0);
     return pmodl;
 }
@@ -263,12 +348,15 @@ bool Model::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 
     long cb;
     long cbrgbrv;
-    long cbrgbrf;
+    long cbrgbrfOnFile;
     ModelOnFile *pmodlf;
 
+    // br_vertex has no embedded pointer so its size matches the wire format
+    // on every architecture. br_face does, so faces are packed into the
+    // 36-byte BrFaceOnFile shape -- the runtime br_face is 40 bytes on x64.
     cbrgbrv = LwMul(_pbmdl->nprepared_vertices, size(br_vertex));
-    cbrgbrf = LwMul(_pbmdl->nprepared_faces, size(br_face));
-    cb = size(ModelOnFile) + cbrgbrv + cbrgbrf;
+    cbrgbrfOnFile = LwMul(_pbmdl->nprepared_faces, size(BrFaceOnFile));
+    cb = size(ModelOnFile) + cbrgbrv + cbrgbrfOnFile;
     if (!FAllocPv((void **)&pmodlf, cb, fmemClear, mprNormal))
         goto LFail;
     pmodlf->bo = kboCur;
@@ -279,7 +367,11 @@ bool Model::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
     pmodlf->brb = _pbmdl->bounds;
     pmodlf->bvec3Pivot = _pbmdl->pivot;
     CopyPb(_pbmdl->prepared_vertices, PvAddBv(pmodlf, size(ModelOnFile)), cbrgbrv);
-    CopyPb(_pbmdl->prepared_faces, PvAddBv(pmodlf, size(ModelOnFile) + cbrgbrv), cbrgbrf);
+    {
+        BrFaceOnFile *prgof = (BrFaceOnFile *)PvAddBv(pmodlf, size(ModelOnFile) + cbrgbrv);
+        for (long ifac = 0; ifac < _pbmdl->nprepared_faces; ifac++)
+            _BrFaceToOnFile(&prgof[ifac], &_pbmdl->prepared_faces[ifac]);
+    }
     if (!pcfl->FPutPv(pmodlf, cb, ctg, cno))
         goto LFail;
     FreePpv((void **)&pmodlf);
@@ -422,7 +514,7 @@ void Model::AssertValid(ulong grf)
 {
     Model_PAR::AssertValid(fobjAllocated);
     AssertVarMem(_pbmdl);
-    Assert((PModel) * (long *)_pbmdl->identifier == this, "Bad Model identifier");
+    Assert(*(PModel *)_pbmdl->identifier == this, "Bad Model identifier");
 }
 
 /***************************************************************************
