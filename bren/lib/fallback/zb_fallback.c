@@ -109,7 +109,10 @@ static void render_trapezoid_tia(int transparent)
                 if (!transparent || texel != 0)
                 {
                     uint16_t z16 = (uint16_t)((uint32_t)cur_z >> 16);
-                    if (z16 < *zp)
+                    /* Asm uses cmp/sbb + jb, which skips only on strict
+                     * depth < current; ties write. Use <= so a later
+                     * triangle at the same Z overdraws (painter-style). */
+                    if (z16 <= *zp)
                     {
                         *zp = z16;
                         int intensity = (int)(((uint32_t)cur_i >> 16) & 0xFF);
@@ -150,7 +153,10 @@ static void render_trapezoid_tia(int transparent)
                 if (!transparent || texel != 0)
                 {
                     uint16_t z16 = (uint16_t)((uint32_t)cur_z >> 16);
-                    if (z16 < *zp)
+                    /* Asm uses cmp/sbb + jb, which skips only on strict
+                     * depth < current; ties write. Use <= so a later
+                     * triangle at the same Z overdraws (painter-style). */
+                    if (z16 <= *zp)
                     {
                         *zp = z16;
                         int intensity = (int)(((uint32_t)cur_i >> 16) & 0xFF);
@@ -175,7 +181,15 @@ static void render_trapezoid_tia(int transparent)
          * d_i = sar16(grad) + row_width). +1 pixel on carry. */
         fb_start += zb.main.d_i + main_carry;
         fb_end += edge->d_i + edge_carry;
-        zp_start += row_width;
+        /* Depth pointer must track the start pointer's diagonal motion --
+         * the asm advances zstart (byte ptr) by 2*(main.d_i + main_carry).
+         * Just adding row_width drops the X component, so the z-buffer ends
+         * up sampled from neighbouring rows; that goes unnoticed for a
+         * single triangle (depth buffer is uniformly clear there) but
+         * fails spuriously when an earlier triangle has painted z-values
+         * in the misaligned slot. */
+        zp_start += zb.main.d_i + main_carry;
+        (void)row_width;
 
         /* Parameter walkers. d_carry is "delta when long edge carried",
          * d_nocarry the alternative. */
